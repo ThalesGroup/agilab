@@ -21,6 +21,7 @@ import hashlib
 from pathlib import Path
 from typing import Union
 import asyncio
+import shlex
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 import streamlit.components.v1 as components
@@ -152,8 +153,16 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str):
     env.out_log = f"{env.AGILAB_LOG_ABS / view_page.stem}.log"
     env.err_log = f"{env.AGILAB_LOG_ABS / view_page.stem}.err"
 
-    cmd = (f"uv run --project {page_home} python -m streamlit run {view_page} --server.port {port} --server.headless true"
-           f" --browser.gatherUsageStats false -- --active-app {active_app}")
+    view_arg = shlex.quote(str(view_page))
+    active_app_quoted = shlex.quote(active_app) if active_app else ""
+    cmd = (
+        f"{uv} run --project {page_home} python -m streamlit run {view_arg} "
+        f"--server.port {port} --server.address 127.0.0.1 "
+        f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
+        f"--browser.gatherUsageStats false"
+    )
+    if active_app_quoted:
+        cmd += f" -- --active-app {active_app_quoted}"
     result = exec_bg(env, cmd, cwd=page_home)
 
     env = os.environ.copy()
