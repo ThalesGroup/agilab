@@ -2186,7 +2186,7 @@ class AGI:
             await AGI.exec_ssh(AGI._scheduler_ip, cmd)
 
             toml_wenv = wenv_rel / "pyproject.toml"
-            await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
+            await AGI.send_file(env, AGI._scheduler_ip, toml_local, toml_wenv)
 
             cmd = (
                 f"{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync dask scheduler --port {AGI._scheduler_port} "
@@ -2670,16 +2670,38 @@ class AGI:
         env = AGI.env
         logger.info("stop Agi core")
 
-        i = 0
-        while len(AGI._dask_client.scheduler_info()["workers"]) and (i < AGI._TIMEOUT):
-            i += 1
-            AGI._dask_client.retire_workers()
+        retire_attempts = 0
+        while retire_attempts < AGI._TIMEOUT:
+            try:
+                scheduler_info = await AGI._dask_client.scheduler_info()
+            except Exception as exc:
+                logger.debug("Unable to fetch scheduler info during shutdown: %s", exc)
+                break
+
+            workers = scheduler_info.get("workers") or {}
+            if not workers:
+                break
+
+            retire_attempts += 1
+            try:
+                await AGI._dask_client.retire_workers(
+                    workers=list(workers.keys()),
+                    close_workers=True,
+                    remove=True,
+                )
+            except Exception as exc:
+                logger.debug("retire_workers failed: %s", exc)
+                break
+
             await asyncio.sleep(1)
 
-        if (
+        try:
+            if (
                 AGI._mode_auto and (AGI._mode == 7 or AGI._mode == 15)
-        ) or not AGI._mode_auto:
-            AGI._dask_client.shutdown()
+            ) or not AGI._mode_auto:
+                await AGI._dask_client.shutdown()
+        except Exception as exc:
+            logger.debug("Dask client shutdown raised: %s", exc)
 
         await AGI._close_all_connections()
 
