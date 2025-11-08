@@ -153,31 +153,49 @@ def page(env):
         return  # Stop further processing
 
     # Find CSV files in the data directory
-    st.session_state["csv_files"] = find_files(st.session_state["datadir"])
-    if not st.session_state["csv_files"]:
-        st.warning("A dataset is required to proceed. Please added via memu execute/export.")
+    dataset_key = "dataset_files"
+    legacy_key = "csv_files"
+    if dataset_key not in st.session_state and legacy_key in st.session_state:
+        st.session_state[dataset_key] = st.session_state.pop(legacy_key)
+
+    datadir_exts = (".csv", ".parquet", ".json")
+    dataset_files: list[Path] = []
+    for ext in datadir_exts:
+        try:
+            dataset_files.extend(find_files(st.session_state["datadir"], ext=ext))
+        except NotADirectoryError as exc:
+            st.warning(str(exc))
+            dataset_files = []
+            break
+
+    st.session_state[dataset_key] = dataset_files
+    if not st.session_state[dataset_key]:
+        st.warning(
+            f"No dataset found in {datadir}. "
+            "Use the EXECUTE → EXPORT workflow to materialize CSV/Parquet/JSON outputs first."
+        )
         st.stop()  # Stop further processing
 
     # Prepare list of CSV files relative to the data directory
-    csv_files_rel = sorted(
+    dataset_files_rel = sorted(
         {
             Path(file).relative_to(datadir).as_posix()
-            for file in st.session_state["csv_files"]
+            for file in st.session_state[dataset_key]
         }
     )
 
     # Prefer the consolidated export file when present (matches flight app UX)
     priority_files = [
         candidate
-        for candidate in csv_files_rel
+        for candidate in dataset_files_rel
         if Path(candidate).name.lower() in {"export.csv", "export.parquet", "export.json"}
     ]
-    default_selection = [priority_files[0]] if priority_files else (csv_files_rel[:1] if csv_files_rel else [])
+    default_selection = [priority_files[0]] if priority_files else (dataset_files_rel[:1] if dataset_files_rel else [])
 
     if (
         "df_files_selected" not in st.session_state
         or not st.session_state["df_files_selected"]
-        or any(item not in csv_files_rel for item in st.session_state["df_files_selected"])
+        or any(item not in dataset_files_rel for item in st.session_state["df_files_selected"])
     ):
         st.session_state["df_files_selected"] = default_selection
 
@@ -187,14 +205,14 @@ def page(env):
         current_selection = default_selection
     if (
         current_selection is None
-        or any(item not in csv_files_rel for item in current_selection)
+        or any(item not in dataset_files_rel for item in current_selection)
     ):
         st.session_state["df_files_selected"] = default_selection
     elif not current_selection and default_selection:
         st.session_state["df_files_selected"] = default_selection
     st.sidebar.multiselect(
         label="DataFrames",
-        options=csv_files_rel,
+        options=dataset_files_rel,
         key="df_files_selected",
     )
 
