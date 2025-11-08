@@ -1341,8 +1341,12 @@ def initialize_csv_files():
     """
     Initialize CSV files in the data directory.
     """
+    dataset_key = "dataset_files"
     if "csv_files" not in st.session_state or not st.session_state["csv_files"]:
         st.session_state["csv_files"] = find_files(st.session_state.datadir)
+    # Keep dataset_files in sync for legacy consumers
+    if dataset_key not in st.session_state:
+        st.session_state[dataset_key] = list(st.session_state["csv_files"])
     if "df_file" not in st.session_state or not st.session_state["df_file"]:
         csv_files_rel = [
             Path(file).relative_to(st.session_state.datadir).as_posix()
@@ -1371,10 +1375,9 @@ def update_datadir(var_key, widget_key):
         var_key: The key of the variable to update.
         widget_key: The key of the widget whose value will be used.
     """
-    if "df_file" in st.session_state:
-        del st.session_state["df_file"]
-    if "csv_files" in st.session_state:
-        del st.session_state["csv_files"]
+    for key in ("df_file", "csv_files", "dataset_files"):
+        if key in st.session_state:
+            del st.session_state[key]
     update_var(var_key, widget_key)
     initialize_csv_files()
 
