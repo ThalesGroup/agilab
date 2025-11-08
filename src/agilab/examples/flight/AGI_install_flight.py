@@ -10,8 +10,8 @@ async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
     res = await AGI.install(app_env, 
                             modes_enabled=15,
-                            scheduler=None, 
-                            workers={'127.0.0.1': 1})
+                            scheduler="192.168.3.84", 
+                            workers={'192.168.3.86': 1})
     print(res)
     return res
 

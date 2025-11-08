@@ -977,6 +977,7 @@ async def page():
         "_env": env,
         "TABLE_MAX_ROWS": getattr(env, "TABLE_MAX_ROWS", None),
         "_experiment_reload_required": False,
+        "dataframe_deleted": False,
     }
 
     init_session_state(defaults)
@@ -1526,6 +1527,7 @@ if __name__ == "__main__":
             with target_expander:
                 log_placeholder.empty()
                 display_log(st.session_state["run_log_cache"], stderr)
+            st.session_state["dataframe_deleted"] = False
             return target_expander
 
         run_col, load_col, delete_col = st.columns(3)
@@ -1566,151 +1568,155 @@ if __name__ == "__main__":
         )
 
         if load_clicked:
-            candidate_roots: list[Path] = []
-
-            def _attach_root(raw_path: Optional[Path | str]) -> None:
-                if not raw_path:
-                    return
-                path = Path(raw_path).expanduser()
-                if not path.is_absolute():
-                    path = Path.home() / path
-                candidate_roots.append(path)
-
-            _attach_root(getattr(env, "dataframe_path", None))
-            _attach_root(getattr(env, "data_rel", None))
-
-            active_args = st.session_state.app_settings.get("args", {})
-            _attach_root(active_args.get("data_in"))
-
-            # Remove duplicates while preserving order
-            unique_roots: list[Path] = []
-            seen_roots = set()
-            for root in candidate_roots:
-                key = str(root.resolve()) if root.exists() else str(root)
-                if key not in seen_roots:
-                    seen_roots.add(key)
-                    unique_roots.append(root)
-
-            target_file: Optional[Path] = None
-            search_files: list[Path] = []
-            for root in unique_roots:
-                if root.is_dir():
-                    search_files.extend(
-                        list(root.rglob("*.parquet"))
-                        + list(root.rglob("*.csv"))
-                        + list(root.rglob("*.json"))
-                        + list(root.rglob("*.gml"))
-                    )
-                elif root.is_file():
-                    search_files.append(root)
-
-            if search_files:
-                try:
-                    target_file = max(search_files, key=lambda file: file.stat().st_mtime)
-                except FileNotFoundError:
-                    target_file = None
-            # Filter out metadata stubs like `._file.csv` and empty artefacts before loading.
-            search_files = [
-                file_path
-                for file_path in search_files
-                if file_path.is_file()
-                and not file_path.name.startswith("._")
-                and file_path.stat().st_size > 0
-            ]
-            if target_file and target_file not in search_files:
-                target_file = max(search_files, key=lambda file: file.stat().st_mtime) if search_files else None
-
-            if not target_file:
-                st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
+            if st.session_state.get("dataframe_deleted"):
+                st.info("Dataframe preview was deleted. Run EXECUTE again before loading a new export.")
             else:
-                st.session_state["loaded_source_path"] = target_file
-                suffix = target_file.suffix.lower()
-                try:
-                    if suffix in {".csv", ".parquet"}:
-                        # Gather the most recent batch of files so multi-flight runs remain intact.
-                        latest_mtime = target_file.stat().st_mtime
-                        batch_window = st.session_state.get("export_batch_window_seconds", 600)
-                        try:
-                            batch_window = int(batch_window)
-                        except (TypeError, ValueError):
-                            batch_window = 600
+                candidate_roots: list[Path] = []
 
-                        candidate_batch = sorted(
-                            {
-                                file_path
-                                for file_path in search_files
-                                if file_path.suffix.lower() == suffix
-                                and file_path.parent == target_file.parent
-                                and abs(latest_mtime - file_path.stat().st_mtime) <= batch_window
-                            },
-                            key=lambda p: p.stat().st_mtime,
+                def _attach_root(raw_path: Optional[Path | str]) -> None:
+                    if not raw_path:
+                        return
+                    path = Path(raw_path).expanduser()
+                    if not path.is_absolute():
+                        path = Path.home() / path
+                    candidate_roots.append(path)
+
+                _attach_root(getattr(env, "dataframe_path", None))
+                _attach_root(getattr(env, "data_rel", None))
+
+                active_args = st.session_state.app_settings.get("args", {})
+                _attach_root(active_args.get("data_in"))
+
+                # Remove duplicates while preserving order
+                unique_roots: list[Path] = []
+                seen_roots = set()
+                for root in candidate_roots:
+                    key = str(root.resolve()) if root.exists() else str(root)
+                    if key not in seen_roots:
+                        seen_roots.add(key)
+                        unique_roots.append(root)
+
+                target_file: Optional[Path] = None
+                search_files: list[Path] = []
+                for root in unique_roots:
+                    if root.is_dir():
+                        search_files.extend(
+                            list(root.rglob("*.parquet"))
+                            + list(root.rglob("*.csv"))
+                            + list(root.rglob("*.json"))
+                            + list(root.rglob("*.gml"))
                         )
+                    elif root.is_file():
+                        search_files.append(root)
 
-                        if not candidate_batch:
-                            candidate_batch = [target_file]
+                if search_files:
+                    try:
+                        target_file = max(search_files, key=lambda file: file.stat().st_mtime)
+                    except FileNotFoundError:
+                        target_file = None
+                # Filter out metadata stubs like `._file.csv` and empty artefacts before loading.
+                search_files = [
+                    file_path
+                    for file_path in search_files
+                    if file_path.is_file()
+                    and not file_path.name.startswith("._")
+                    and file_path.stat().st_size > 0
+                ]
+                if target_file and target_file not in search_files:
+                    target_file = max(search_files, key=lambda file: file.stat().st_mtime) if search_files else None
 
-                        frames = []
-                        for file_path in candidate_batch:
-                            df_piece = cached_load_df(file_path, with_index=False, nrows=0)
-                            if isinstance(df_piece, pd.DataFrame) and not df_piece.empty:
-                                df_piece = df_piece.copy()
-                                df_piece["__source__"] = file_path.name
-                                frames.append(df_piece)
+                if not target_file:
+                    st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
+                else:
+                    st.session_state["loaded_source_path"] = target_file
+                    suffix = target_file.suffix.lower()
+                    try:
+                        if suffix in {".csv", ".parquet"}:
+                            # Gather the most recent batch of files so multi-flight runs remain intact.
+                            latest_mtime = target_file.stat().st_mtime
+                            batch_window = st.session_state.get("export_batch_window_seconds", 600)
+                            try:
+                                batch_window = int(batch_window)
+                            except (TypeError, ValueError):
+                                batch_window = 600
 
-                        loaded_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
-                        if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-                            st.session_state["loaded_df"] = loaded_df
-                            st.session_state["_force_export_open"] = True
-                            st.session_state.pop("loaded_graph", None)
-                            if len(candidate_batch) > 1:
-                                st.success(f"Loaded dataframe preview from {len(candidate_batch)} files (latest: {target_file.name}).")
-                            else:
-                                st.success(f"Loaded dataframe preview from {target_file.name}.")
-                        else:
-                            st.warning(f"{target_file.name} is empty; nothing to preview.")
-                    elif suffix == ".json":
-                        payload = json.loads(target_file.read_text())
-                        if isinstance(payload, dict) and "nodes" in payload and "links" in payload:
-                            graph = json_graph.node_link_graph(payload, directed=payload.get("directed", True))
-                            st.session_state["loaded_df"] = None
-                            st.session_state["_force_export_open"] = False
-                            st.session_state["loaded_graph"] = graph
-                            st.success(f"Loaded network graph from {target_file.name}.")
-                        else:
-                            loaded_df = pd.json_normalize(payload)
-                            st.session_state["loaded_df"] = loaded_df
-                            st.session_state["_force_export_open"] = True
-                            st.session_state.pop("loaded_graph", None)
-                            st.info(f"Parsed JSON payload as tabular data from {target_file.name}.")
-                    elif suffix == ".gml":
-                        graph = nx.read_gml(target_file)
-                        edge_df = nx.to_pandas_edgelist(graph)
-                        if not edge_df.empty:
-                            st.session_state["loaded_df"] = edge_df
-                            st.session_state["_force_export_open"] = True
-                            st.session_state["loaded_graph"] = graph
-                            st.success(f"Loaded topology edges from {target_file.name}.")
-                        else:
-                            node_df = pd.DataFrame(
-                                [(node, data) for node, data in graph.nodes(data=True)],
-                                columns=["node", "attributes"],
+                            candidate_batch = sorted(
+                                {
+                                    file_path
+                                    for file_path in search_files
+                                    if file_path.suffix.lower() == suffix
+                                    and file_path.parent == target_file.parent
+                                    and abs(latest_mtime - file_path.stat().st_mtime) <= batch_window
+                                },
+                                key=lambda p: p.stat().st_mtime,
                             )
-                            if node_df.empty:
-                                st.warning(f"{target_file.name} did not contain edges or node attributes to display.")
+
+                            if not candidate_batch:
+                                candidate_batch = [target_file]
+
+                            frames = []
+                            for file_path in candidate_batch:
+                                df_piece = cached_load_df(file_path, with_index=False, nrows=0)
+                                if isinstance(df_piece, pd.DataFrame) and not df_piece.empty:
+                                    df_piece = df_piece.copy()
+                                    df_piece["__source__"] = file_path.name
+                                    frames.append(df_piece)
+
+                            loaded_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+                            if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+                                st.session_state["loaded_df"] = loaded_df
+                                st.session_state["_force_export_open"] = True
+                                st.session_state.pop("loaded_graph", None)
+                                if len(candidate_batch) > 1:
+                                    st.success(f"Loaded dataframe preview from {len(candidate_batch)} files (latest: {target_file.name}).")
+                                else:
+                                    st.success(f"Loaded dataframe preview from {target_file.name}.")
                             else:
-                                st.session_state["loaded_df"] = node_df
+                                st.warning(f"{target_file.name} is empty; nothing to preview.")
+                        elif suffix == ".json":
+                            payload = json.loads(target_file.read_text())
+                            if isinstance(payload, dict) and "nodes" in payload and "links" in payload:
+                                graph = json_graph.node_link_graph(payload, directed=payload.get("directed", True))
+                                st.session_state["loaded_df"] = None
+                                st.session_state["_force_export_open"] = False
+                                st.session_state["loaded_graph"] = graph
+                                st.success(f"Loaded network graph from {target_file.name}.")
+                            else:
+                                loaded_df = pd.json_normalize(payload)
+                                st.session_state["loaded_df"] = loaded_df
+                                st.session_state["_force_export_open"] = True
+                                st.session_state.pop("loaded_graph", None)
+                                st.info(f"Parsed JSON payload as tabular data from {target_file.name}.")
+                        elif suffix == ".gml":
+                            graph = nx.read_gml(target_file)
+                            edge_df = nx.to_pandas_edgelist(graph)
+                            if not edge_df.empty:
+                                st.session_state["loaded_df"] = edge_df
                                 st.session_state["_force_export_open"] = True
                                 st.session_state["loaded_graph"] = graph
-                                st.info(f"Showing node metadata from {target_file.name}.")
-                    else:
-                        st.warning(f"Unsupported file format: {target_file.suffix}")
-                except json.JSONDecodeError as exc:
-                    st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
-                except Exception as exc:
-                    st.error(f"Unable to load {target_file.name}: {exc}")
+                                st.success(f"Loaded topology edges from {target_file.name}.")
+                            else:
+                                node_df = pd.DataFrame(
+                                    [(node, data) for node, data in graph.nodes(data=True)],
+                                    columns=["node", "attributes"],
+                                )
+                                if node_df.empty:
+                                    st.warning(f"{target_file.name} did not contain edges or node attributes to display.")
+                                else:
+                                    st.session_state["loaded_df"] = node_df
+                                    st.session_state["_force_export_open"] = True
+                                    st.session_state["loaded_graph"] = graph
+                                    st.info(f"Showing node metadata from {target_file.name}.")
+                        else:
+                            st.warning(f"Unsupported file format: {target_file.suffix}")
+                    except json.JSONDecodeError as exc:
+                        st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
+                    except Exception as exc:
+                        st.error(f"Unable to load {target_file.name}: {exc}")
 
         if delete_clicked:
+            st.session_state["dataframe_deleted"] = True
             source_path = st.session_state.pop("loaded_source_path", None)
             st.session_state["loaded_df"] = None
             st.session_state.pop("df_cols", None)
