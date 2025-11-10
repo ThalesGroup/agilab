@@ -76,6 +76,16 @@ def update_log(live_log_placeholder, message, max_lines=1000):
         st.session_state["log_text"] = ""
 
     clean_msg = strip_ansi(message).rstrip()
+    if st.session_state.get('cluster_verbose', 1) < 2:
+        if getattr(update_log, '_skip_traceback', False):
+            if not clean_msg:
+                update_log._skip_traceback = False
+            return
+        if clean_msg.lower().startswith("traceback (most recent call last"):
+            update_log._skip_traceback = True
+            return
+        if _is_dask_shutdown_noise(clean_msg):
+            return
     if clean_msg:
         st.session_state["log_text"] += clean_msg + "\n"
 
@@ -86,17 +96,15 @@ def update_log(live_log_placeholder, message, max_lines=1000):
         st.session_state["log_text"] = "\n".join(lines) + "\n"
 
     display_lines = lines[-LOG_DISPLAY_MAX_LINES:]
-    header_lines = ["[newest entries first]"]
-    if len(lines) > LOG_DISPLAY_MAX_LINES:
-        header_lines.append(f"[showing last {LOG_DISPLAY_MAX_LINES} of {len(lines)} lines]")
-
-    live_view = "\n".join(header_lines + list(reversed(display_lines)))
+    live_view = "\n".join(display_lines)
 
     # Calculate height in pixels roughly: 20px per line, capped at 500px (but keep a usable minimum)
     line_count = max(len(display_lines), 1)
     height_px = min(max(20 * line_count, LIVE_LOG_MIN_HEIGHT), 500)
 
     live_log_placeholder.code(live_view, language="python", height=height_px)
+
+update_log._skip_traceback = False
 
 
 
@@ -105,6 +113,89 @@ def strip_ansi(text: str) -> str:
         return ""
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
     return ansi_escape.sub('', text)
+
+
+def _is_dask_shutdown_noise(line: str) -> bool:
+    """
+    Return True when the line is one of the noisy Dask shutdown messages
+    that we don’t want to surface in the UI.
+    """
+    if not line:
+        return False
+    normalized = line.strip().lower()
+    noise_patterns = (
+        "stream is closed",
+        "streamclosederror",
+        "commclosederror",
+        "batched comm closed",
+        "closing scheduler",
+        "scheduler closing all comms",
+        "remove worker addr",
+        "close client connection",
+        "tornado.iostream.streamclosederror",
+        "nbytes = yield coro",
+        "value = future.result",
+        "convert_stream_closed_error",
+        "^",
+    )
+    if any(pattern in normalized for pattern in noise_patterns):
+        return True
+    if "traceback (most recent call last" in normalized:
+        return True
+    if normalized.startswith("the above exception was the direct cause"):
+        return True
+    if normalized.startswith("traceback"):
+        return True
+    if normalized.startswith("file \"") and (
+        "/site-packages/distributed/" in normalized
+        or "/site-packages/tornado/" in normalized
+    ):
+        return True
+    return False
+
+
+def _filter_noise_lines(text: str) -> str:
+    lines = [
+        line
+        for line in text.splitlines()
+        if not _is_dask_shutdown_noise(line.strip())
+    ]
+    return "\n".join(lines)
+
+def _reset_traceback_skip() -> None:
+    _TRACEBACK_SKIP["active"] = False
+    update_log._skip_traceback = False
+
+
+def _append_log_lines(buffer: list[str], payload: str) -> None:
+    """
+    Append cleaned lines from ``payload`` to ``buffer`` while filtering out
+    Dask shutdown chatter. Suppresses multi-line tracebacks emitted during
+    scheduler shutdown by skipping until the next blank line (only when verbosity < 2).
+    """
+    filtered = strip_ansi(payload or "")
+    if st.session_state.get('cluster_verbose', 1) < 2:
+        skip = _TRACEBACK_SKIP["active"]
+        for raw_line in filtered.splitlines():
+            stripped = raw_line.rstrip()
+            lowered = stripped.lower()
+            if skip:
+                if not stripped:
+                    skip = False
+                continue
+            if lowered.startswith("traceback (most recent call last"):
+                skip = True
+                continue
+            if stripped and not _is_dask_shutdown_noise(stripped):
+                buffer.append(stripped)
+        _TRACEBACK_SKIP["active"] = skip
+    else:
+        for raw_line in filtered.splitlines():
+            stripped = raw_line.rstrip()
+            if stripped:
+                buffer.append(stripped)
+
+
 
 def _looks_like_shared_path(path: Path) -> bool:
     """Heuristic: treat paths outside the local home/project tree as shared."""
@@ -134,6 +225,8 @@ def _looks_like_shared_path(path: Path) -> bool:
 
 LOG_DISPLAY_MAX_LINES = 250
 LIVE_LOG_MIN_HEIGHT = 160
+INSTALL_LOG_HEIGHT = 320
+_TRACEBACK_SKIP = {"active": False}
 
 
 def _format_log_block(text: str, *, newest_first: bool = True) -> str:
@@ -141,13 +234,10 @@ def _format_log_block(text: str, *, newest_first: bool = True) -> str:
     if not text:
         return ""
     lines = text.splitlines()
-    head = ""
-    if len(lines) > LOG_DISPLAY_MAX_LINES:
-        head = f"[showing last {LOG_DISPLAY_MAX_LINES} lines]\n"
     tail = lines[-LOG_DISPLAY_MAX_LINES:]
     if newest_first:
         tail = list(reversed(tail))
-    return head + "\n".join(tail)
+    return "\n".join(tail)
 
 
 def display_log(stdout, stderr):
@@ -158,6 +248,8 @@ def display_log(stdout, stderr):
     # Strip ANSI color codes from both stdout and stderr
     clean_stdout = strip_ansi(stdout or "")
     clean_stderr = strip_ansi(stderr or "")
+    clean_stdout = _filter_noise_lines(clean_stdout)
+    clean_stderr = _filter_noise_lines(clean_stderr)
 
     # Clean up extra blank lines
     clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
@@ -167,12 +259,12 @@ def display_log(stdout, stderr):
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        st.code(_format_log_block(combined), language="python", height=400)
+        st.code(_format_log_block(combined, newest_first=False), language="python", height=400)
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
         st.code(_format_log_block(clean_stderr, newest_first=False), language="python", height=400)
     else:
-        st.code(_format_log_block(clean_stdout, newest_first=True) or "No logs available", language="python", height=400)
+        st.code(_format_log_block(clean_stdout, newest_first=False) or "No logs available", language="python", height=400)
 
 
 def parse_benchmark(benchmark_str):
@@ -1130,13 +1222,16 @@ if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
 
-            log_expander = st.expander("Install logs", expanded=False)
+            install_expanded = st.session_state.get("_install_logs_expanded", True)
+            log_expander = st.expander("Install logs", expanded=install_expanded)
             with log_expander:
                 log_placeholder = st.empty()
                 existing_log = st.session_state.get("log_text", "").strip()
                 if existing_log:
                     log_placeholder.code(existing_log, language="python")
             if st.button("INSTALL", key="install_btn", type="primary"):
+                st.session_state["_install_logs_expanded"] = True
+                _reset_traceback_skip()
                 clear_log()
                 venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
@@ -1153,10 +1248,16 @@ if __name__ == "__main__":
                     f"venv: {venv}",
                     "=== Streaming install logs ===",
                 ]
+                local_log = []
                 with log_expander:
                     log_placeholder.empty()
                     for line in context_lines:
-                        update_log(log_placeholder, line)
+                        _append_log_lines(local_log, line)
+                log_placeholder.code(
+                    "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
+                    language="python",
+                    height=INSTALL_LOG_HEIGHT,
+                )
                 with st.spinner("Installing worker..."):
                     _install_stdout = ""
                     install_stderr = ""
@@ -1164,28 +1265,27 @@ if __name__ == "__main__":
                     try:
                         _install_stdout, install_stderr = await env.run_agi(
                             install_command,
-                            log_callback=lambda message: update_log(log_placeholder, message),
+                            log_callback=lambda message: _append_log_lines(local_log, message),
                             venv=venv,
                         )
                     except Exception as exc:
                         install_error = exc
                         install_stderr = str(exc)
-                        with log_expander:
-                            update_log(log_placeholder, f"ERROR: {install_stderr}")
+                        _append_log_lines(local_log, f"ERROR: {install_stderr}")
 
                     error_flag = bool(install_stderr.strip()) or install_error is not None
 
+                    status_line = (
+                        "✅ Install finished without errors."
+                        if not error_flag
+                        else "❌ Install finished with errors. Check logs above."
+                    )
+                    _append_log_lines(local_log, status_line)
                     with log_expander:
-                        status_line = (
-                            "✅ Install finished without errors."
-                            if not error_flag
-                            else "❌ Install finished with errors. Check logs above."
-                        )
-                        update_log(log_placeholder, status_line)
-                        log_placeholder.empty()
-                        display_log(
-                            st.session_state.get("log_text", ""),
-                            install_stderr,
+                        log_placeholder.code(
+                            "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
+                            language="python",
+                            height=INSTALL_LOG_HEIGHT,
                         )
                     if error_flag:
                         st.error("Cluster installation failed.")
@@ -1193,7 +1293,6 @@ if __name__ == "__main__":
                         st.success("Cluster installation completed.")
                         st.session_state["SET ARGS"] = True
                         st.session_state["show_run"] = True
-                        st.rerun()
 
     # ------------------
     # DISTRIBUTE Section
@@ -1292,16 +1391,24 @@ if __name__ == "__main__":
             if st.button("CHECK distribute", key="preview_btn", type="primary"):
                 st.session_state.preview_tree = True
                 with st.expander("Orchestration log", expanded=False):
-                    clear_log()
+                    dist_log: list[str] = []
                     live_log_placeholder = st.empty()
+                    _reset_traceback_skip()
                     with st.spinner("Building distribution..."):
                         stdout, stderr = await env.run_agi(
                             cmd.replace("asyncio.run(main())", env.snippet_tail),
-                            log_callback=lambda message: update_log(live_log_placeholder, message),
+                            log_callback=lambda message: _append_log_lines(dist_log, message),
                             venv=project_path
                         )
-                    live_log_placeholder.empty()
-                    display_log(stdout, stderr)
+                    if stderr:
+                        _append_log_lines(dist_log, stderr)
+                    if stdout:
+                        _append_log_lines(dist_log, stdout)
+                    live_log_placeholder.code(
+                        "\n".join(dist_log[-LOG_DISPLAY_MAX_LINES:]),
+                        language="python",
+                        height=LIVE_LOG_MIN_HEIGHT,
+                    )
                     if not stderr:
                         st.success("Distribution built successfully.")
 
@@ -1517,6 +1624,7 @@ if __name__ == "__main__":
             target_expander = current_expander or _ensure_run_log_expander(expanded=True)
             with target_expander:
                 log_placeholder = st.empty()
+            _reset_traceback_skip()
             with st.spinner("Running AGI..."):
                 _, stderr = await env.run_agi(
                     cmd.replace("asyncio.run(main())", env.snippet_tail),
