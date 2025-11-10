@@ -19,11 +19,12 @@ APP = "mycode_project"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.run(app_env, 
-                        mode=15, 
-                        scheduler="127.0.0.1", 
-                        workers={'127.0.0.1': 2}, 
-                        )
+    res = await AGI.run(
+        app_env,
+        mode=13,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 2},
+    )
     print(res)
     return res
 

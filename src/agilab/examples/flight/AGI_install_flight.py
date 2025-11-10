@@ -3,15 +3,17 @@ import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "/Users/example/PycharmProjects/agilab/src/agilab/apps"
+APPS_DIR = "~/PycharmProjects/agilab/src/agilab/apps"
 APP = "flight_project"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.install(app_env, 
-                            modes_enabled=13,
-                            scheduler="192.168.3.84", 
-                            workers={'192.168.3.84': 1, '192.168.3.86': 1})
+    res = await AGI.install(
+        app_env,
+        modes_enabled=13,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+    )
     print(res)
     return res
 
