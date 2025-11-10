@@ -1,20 +1,51 @@
-
 import asyncio
+from pathlib import Path
+from typing import Any, Dict, Tuple
+
+import tomllib
+
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
 APPS_DIR = "/Users/agi/PycharmProjects/agilab/src/agilab/apps"
 APP = "flight_trajectory_project"
+DEFAULT_SCHEDULER = "192.168.3.86"
+DEFAULT_WORKERS: Dict[str, int] = {"192.168.3.84": 1, "192.168.3.86": 1}
+DEFAULT_MODE = 15
+
+
+def _load_app_settings(settings_path: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    if settings_path.exists():
+        with settings_path.open("rb") as handle:
+            doc = tomllib.load(handle)
+        args_section = doc.get("args", {})
+        cluster_section = doc.get("cluster", {})
+        if not isinstance(args_section, dict):
+            args_section = {}
+        if not isinstance(cluster_section, dict):
+            cluster_section = {}
+        return args_section, cluster_section
+    return {}, {}
+
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.run(app_env, 
-                        mode=15, 
-                        scheduler="192.168.3.86", 
-                        workers={'192.168.3.84': 1, '192.168.3.86': 1}, 
-                        num_flights=20, data_in="/Users/agi/clustershare/flight_trajectory/dataset", data_out="flight_trajectory/dataframe", data_source="file", beam_file="beams.csv", sat_file="satellites.csv", waypoints="waypoints.geojson", regenerate_waypoints=True, yaw_angular_speed=1.0, roll_angular_speed=3.0, pitch_angular_speed=2.0, vehicule_acceleration=5.0, max_speed=900.0, max_roll=30.0, max_pitch=12.0, target_climbup_pitch=8.0, pitch_enable_speed_ratio=0.3, altitude_loss_speed_threshold=400.0, landing_speed_target=200.0, descent_pitch_target=-3.0, landing_pitch_target=3.0, cruising_pitch_max=3.0, descent_altitude_threshold_landing=500, max_speed_ratio_while_turining=0.8, enable_climb=True, enable_descent=True, default_alt_value=4000.0, plane_type="avions", dataset_format="parquet")
+    args_settings, cluster_settings = _load_app_settings(Path(app_env.app_settings_file))
+
+    scheduler = cluster_settings.get("scheduler") or DEFAULT_SCHEDULER
+    workers = cluster_settings.get("workers") or DEFAULT_WORKERS
+    mode = cluster_settings.get("mode", DEFAULT_MODE)
+
+    res = await AGI.run(
+        app_env,
+        mode=mode,
+        scheduler=scheduler,
+        workers=workers,
+        **args_settings,
+    )
     print(res)
     return res
 
+
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())
