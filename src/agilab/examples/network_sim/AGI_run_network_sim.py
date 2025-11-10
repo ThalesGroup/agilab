@@ -19,11 +19,18 @@ APP = "network_sim_project"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.run(app_env, 
-                        mode=15, 
-                        scheduler="192.168.20.111", 
-                        workers={'192.168.20.111': 1}, 
-                        data_source="file", data_in="data/flight/dataset", net_size=12, seed=42, topology_filename="topology.gml", summary_filename="topology_summary.json")
+    res = await AGI.run(
+        app_env,
+        mode=13,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 2},
+        data_source="file",
+        data_in="data/flight/dataset",
+        net_size=12,
+        seed=42,
+        topology_filename="topology.gml",
+        summary_filename="topology_summary.json",
+    )
     print(res)
     return res
 

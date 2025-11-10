@@ -19,10 +19,12 @@ APP = "sb3_trainer_project"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.install(app_env, 
-                            modes_enabled=11,
-                            scheduler=None, 
-                            workers=None)
+    res = await AGI.install(
+        app_env,
+        modes_enabled=13,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 2},
+    )
     print(res)
     return res
 

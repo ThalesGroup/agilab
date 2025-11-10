@@ -7,11 +7,11 @@ import tomllib
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "/Users/agi/PycharmProjects/agilab/src/agilab/apps"
+APPS_DIR = "~/PycharmProjects/agilab/src/agilab/apps"
 APP = "flight_trajectory_project"
-DEFAULT_SCHEDULER = "192.168.3.86"
-DEFAULT_WORKERS: Dict[str, int] = {"192.168.3.84": 1, "192.168.3.86": 1}
-DEFAULT_MODE = 15
+DEFAULT_SCHEDULER = "127.0.0.1"
+DEFAULT_WORKERS: Dict[str, int] = {"127.0.0.1": 2}
+DEFAULT_MODE = 13
 
 
 def _load_app_settings(settings_path: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -32,9 +32,9 @@ async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
     args_settings, cluster_settings = _load_app_settings(Path(app_env.app_settings_file))
 
-    scheduler = cluster_settings.get("scheduler") or DEFAULT_SCHEDULER
-    workers = cluster_settings.get("workers") or DEFAULT_WORKERS
-    mode = cluster_settings.get("mode", DEFAULT_MODE)
+    scheduler = DEFAULT_SCHEDULER
+    workers = DEFAULT_WORKERS
+    mode = DEFAULT_MODE
 
     res = await AGI.run(
         app_env,
