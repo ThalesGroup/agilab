@@ -19,11 +19,17 @@ APP = "ilp_project"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.run(app_env, 
-                        mode=11, 
-                        scheduler=None, 
-                        workers=None, 
-                        topology="topo3N", num_demands=3, seed=42, demand_scale=1.0, data_in="data/ilp")
+    res = await AGI.run(
+        app_env,
+        mode=13,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        topology="topo3N",
+        num_demands=3,
+        seed=42,
+        demand_scale=1.0,
+        data_in="data/ilp",
+    )
     print(res)
     return res
 
