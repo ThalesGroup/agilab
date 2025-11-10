@@ -2401,7 +2401,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not extract_to:
             extract_to = "data"
         dest = Path(self.home_abs).expanduser() / extract_to
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest_parent = dest.parent
+        try:
+            dest_parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            AgiEnv.logger.warning(
+                "Unable to prepare dataset parent '%s': %s. Skipping extraction.",
+                dest_parent,
+                exc,
+            )
+            return
         dataset = dest / "dataset"
 
         force_refresh = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
@@ -2426,11 +2435,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             dest.mkdir(parents=True, exist_ok=True)
         except FileExistsError:
             pass
-        except PermissionError as exc:
-            if AgiEnv.verbose > 0:
-                AgiEnv.logger.info(
-                    f"Unable to ensure target directory '{dest}': {exc}. Skipping extraction."
-                )
+        except OSError as exc:
+            AgiEnv.logger.warning(
+                "Unable to ensure target directory '%s': %s. Skipping extraction.",
+                dest,
+                exc,
+            )
             return
 
         if dataset.exists() and not force_refresh:
@@ -2453,11 +2463,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         try:
             dataset.mkdir(parents=True, exist_ok=True)
-        except PermissionError as exc:
-            if AgiEnv.verbose > 0:
-                AgiEnv.logger.info(
-                    f"Unable to create dataset directory '{dataset}': {exc}. Skipping extraction."
-                )
+        except OSError as exc:
+            AgiEnv.logger.warning(
+                "Unable to create dataset directory '%s': %s. Skipping extraction.",
+                dataset,
+                exc,
+            )
             return
 
         try:
