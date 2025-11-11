@@ -34,6 +34,7 @@ except Exception:  # Optional dependency; fallback if absent
     FormattedTB = None  # type: ignore
 import ast
 import asyncio
+import errno
 import getpass
 import os
 import re
@@ -821,7 +822,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             use_freethread = False
 
         share_dir_raw = self.envars.get("AGI_SHARE_DIR")
-        share_dir = Path(share_dir_raw) if share_dir_raw else Path("data")
+        share_dir = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
         share_dir_expanded = share_dir.expanduser()
         if share_dir_expanded.is_absolute():
             agi_share_dir = share_dir_expanded
@@ -870,6 +871,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         data_rel = share_dir / self.target
         self.dataframe_path = data_rel / "dataframe"
         self.data_rel = data_rel
+        self.data_root = self.ensure_data_root()
         self._init_projects()
 
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
@@ -2391,6 +2393,32 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return all(0 <= int(part) <= 255 for part in parts)
         return False
 
+    def ensure_data_root(self) -> Path:
+        """Ensure the share directory for this app exists and return its absolute path."""
+
+        data_root = (self.home_abs / self.data_rel).expanduser()
+        try:
+            data_root.mkdir(parents=True, exist_ok=True)
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"Required data directory {data_root} is unavailable. "
+                "Verify the data URI share is mounted before running install."
+            ) from exc
+        except OSError as exc:
+            if exc.errno in {
+                errno.ENOENT,
+                errno.EHOSTDOWN,
+                errno.ESTALE,
+                errno.ENOTCONN,
+                errno.EIO,
+            }:
+                raise RuntimeError(
+                    f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
+                    "Verify the data URI share is mounted before running install."
+                ) from exc
+            raise
+        return data_root
+
     def unzip_data(self, archive_path: Path, extract_to: Path | str = None):
         archive_path = Path(archive_path)
         if not archive_path.exists():
@@ -2398,8 +2426,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return  # Do not exit, just warn
 
         # Normalize extract_to to a Path relative to cwd or absolute
-        if not extract_to:
-            extract_to = "data"
         dest = Path(self.home_abs).expanduser() / extract_to
         dest_parent = dest.parent
         try:
