@@ -23,8 +23,12 @@ import argparse
 import errno
 import getpass
 
-node_src = str(Path(__file__).parents[1] / 'core/node/src')
+core_root = Path(__file__).parents[1]
+node_src = str(core_root / 'core/node/src')
+env_src = core_root / 'core/agi-env/src'
 sys.path.insert(0, node_src)
+if env_src.exists():
+    sys.path.insert(0, str(env_src))
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
