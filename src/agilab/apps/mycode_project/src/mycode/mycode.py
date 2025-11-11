@@ -24,26 +24,38 @@ class Mycode(BaseWorker):
         args: MycodeArgs | None = None,
         **overrides: ArgsOverrides,
     ) -> None:
-        super().__init__()
         self.env = env
+        self._ensure_managed_pc_share_dir(env)
+        # Allow caller-provided verbosity flag even though the Pydantic model forbids extras.
+        self.verbose = bool(kwargs.pop("verbose", getattr(env, "verbose", False)))
 
         if args is None:
-            allowed = set(MycodeArgs.model_fields.keys())
-            clean = {k: v for k, v in overrides.items() if k in allowed}
-            if extra := set(overrides) - allowed:
-                logger.debug("Ignoring extra MycodeArgs keys: %s", sorted(extra))
-            args = MycodeArgs(**clean)
-
-        args = ensure_defaults(args, env=env)
+            try:
+                args = FlightArgs(**kwargs)
+            except ValidationError as exc:
+                raise ValueError(f"Invalid Flight arguments: {exc}") from exc
         self.args = args
+        share_root = Path(getattr(env, "agi_share_dir", getattr(env, "home_abs", Path.home())))
+        self.args.data_in = share_root / self.args.data_in
+        self.args.data_out = share_root / self.args.data_out
+        self.data_out = self.args.data_out
 
-        data_in = self._resolve_data_dir(env, args.data_in)
-        data_in.mkdir(parents=True, exist_ok=True)
-        self.args.data_in = data_in
+        WorkDispatcher.args = self.args.model_dump(mode="json")
 
-        payload = args.model_dump(mode="json")
-        payload["dir_path"] = str(data_in)
-        WorkDispatcher.args = payload
+        try:
+            if self.data_out.exists():
+                shutil.rmtree(
+                    self.data_out,
+                    ignore_errors=True,
+                    onerror=WorkDispatcher._onerror,
+                )
+            self.data_out.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning(
+                "Issue while trying to reset dataframe directory %s: %s",
+                self.data_out,
+                exc,
+            )
 
     @classmethod
     def from_toml(

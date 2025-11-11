@@ -2195,11 +2195,13 @@ class AGI:
             # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
             asyncio.create_task(AGI.exec_ssh_async(AGI._scheduler_ip, cmd))
 
+        await asyncio.sleep(1)  # Give scheduler a moment to spin up
         try:
-            await asyncio.sleep(1)  # Give scheduler a moment to start
-            client = await Client(AGI._scheduler,
-                                  heartbeat_interval=5000,
-                                  timeout=AGI._TIMEOUT)
+            client = await AGI._connect_scheduler_with_retry(
+                AGI._scheduler,
+                timeout=max(AGI._TIMEOUT * 3, 15),
+                heartbeat_interval=5000,
+            )
             AGI._dask_client = client
         except Exception as e:
             logger.error("Dask Client instantiation trouble, run aborted due to:")
@@ -2213,6 +2215,41 @@ class AGI:
             raise FileNotFoundError(f"Please run AGI.install([{AGI._scheduler_ip}])")
 
         return True
+
+    @staticmethod
+    async def _connect_scheduler_with_retry(
+        address: str,
+        *,
+        timeout: float,
+        heartbeat_interval: int = 5000,
+    ) -> Client:
+        """Attempt to connect to the scheduler until ``timeout`` elapses."""
+
+        deadline = time.monotonic() + max(timeout, 1)
+        attempt = 0
+        last_exc: Optional[Exception] = None
+        while time.monotonic() < deadline:
+            attempt += 1
+            remaining = max(deadline - time.monotonic(), 0.5)
+            try:
+                return await Client(
+                    address,
+                    heartbeat_interval=heartbeat_interval,
+                    timeout=remaining,
+                )
+            except Exception as exc:
+                last_exc = exc
+                sleep_for = min(1.0 * attempt, 5.0)
+                logger.debug(
+                    "Dask scheduler at %s not ready (attempt %s, retrying in %.1fs): %s",
+                    address,
+                    attempt,
+                    sleep_for,
+                    exc,
+                )
+                await asyncio.sleep(sleep_for)
+
+        raise RuntimeError("Failed to instantiate Dask Client") from last_exc
 
     @staticmethod
     async def _detect_export_cmd(ip: str) -> Optional[str]:

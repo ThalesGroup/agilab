@@ -20,11 +20,11 @@ cluster_enabled = true
 user = "agi"
 auth_method = "password"
 agi_share_dir = "~/clustershare"
-scheduler = "192.168.3.84"
+scheduler = "192.168.20.111"
 
 [cluster.workers]
-"192.168.3.84" = 1
-"192.168.3.86" = 1
+"192.168.20.111" = 1
+"192.168.20.130" = 1
 
 [pages]
 view_module = [
