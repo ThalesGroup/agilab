@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, Iterable, Dict, List, Tuple
+from typing import Optional, Iterable, Dict, List
 import sys
 import subprocess
 import xml.etree.ElementTree as ET
@@ -17,6 +17,8 @@ class Config:
         self.MISC = self.IDEA_DIR / "misc.xml"
         self.MODULES = self.IDEA_DIR / "modules.xml"
         self.AGISPACE = root / ".." / "agi-space"
+        self.AGI_ENV_DIR = Path.home() / ".agilab"
+        self.AGI_ENV_FILE = self.AGI_ENV_DIR / ".env"
 
         self.PROJECT_NAME = self.IDEA_DIR.parent.name
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
@@ -34,6 +36,7 @@ class Config:
 
         self.GEN_SCRIPT = self.ROOT / "pycharm" / "gen_app_script.py" if (self.ROOT / "pycharm" / "gen_app_script.py").exists() else self.ROOT / "gen_app_script.py"
 
+        self._env_file_values = self._load_env_file(self.AGI_ENV_FILE)
         self.eligible_apps = self.__eligible_apps()
         self.eligible_core = self.__eligible_core()
         self.eligible_apps_pages = self.__eligible_apps_pages()
@@ -42,6 +45,24 @@ class Config:
         self.IDEA_DIR.mkdir(exist_ok=True)
         self.MODULES_DIR.mkdir(exist_ok=True)
         self.RUN_CONFIGS_DIR.mkdir(exist_ok=True)
+
+    def _load_env_file(self, env_path: Path) -> Dict[str, str]:
+        data: Dict[str, str] = {}
+        if not env_path.exists():
+            return data
+        try:
+            for raw_line in env_path.read_text().splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                value = value.split("#", 1)[0].strip()
+                if not key:
+                    continue
+                data[key.strip()] = value.strip().strip("\"'")
+        except OSError as exc:
+            logging.warning(f"Failed to read {env_path}: {exc}")
+        return data
 
     def __eligible_apps(self) -> List[Path]:
         out: List[Path] = []
