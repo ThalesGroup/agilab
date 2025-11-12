@@ -17,6 +17,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import sys
+import os
 import asyncio
 from pathlib import Path
 import argparse
@@ -40,6 +41,18 @@ else:
     raise ValueError("Please provide the module name as the first argument.")
 
 print('install module:', module)
+
+
+def resolve_share_mount() -> Path:
+    """Return the absolute path that AGI_SHARE_DIR should resolve to."""
+
+    share_dir_raw = os.environ.get("AGI_SHARE_DIR")
+    share_dir = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
+    home_root = Path.home() / "MyApp" if getpass.getuser().startswith("T0") else Path.home()
+    share_dir_expanded = share_dir.expanduser()
+    if share_dir_expanded.is_absolute():
+        return share_dir_expanded
+    return (home_root / share_dir_expanded).expanduser()
 
 
 def ensure_data_storage(env: AgiEnv) -> None:
@@ -86,12 +99,28 @@ async def main():
         args, unknown = parser.parse_known_args()
 
         app_path = Path(args.active_app).expanduser()
-        app_env = AgiEnv(
-            apps_dir=app_path.parent,
-            app=app_path.name,
-            verbose=args.verbose,
-        )
-
+        try:
+            app_env = AgiEnv(
+                apps_dir=app_path.parent,
+                app=app_path.name,
+                verbose=args.verbose,
+            )
+        except RuntimeError as err:
+            share_error_tokens = (
+                "Required data directory",
+                "Unable to reach data directory",
+            )
+            if any(token in str(err) for token in share_error_tokens):
+                resolved_share = resolve_share_mount()
+                share_label = os.environ.get("AGI_SHARE_DIR", "clustershare")
+                print(
+                    "[ERROR] AGI_SHARE_DIR '%s' is not mounted (expected path: %s). "
+                    "Mount the share before running install."
+                    % (share_label, resolved_share),
+                    file=sys.stderr,
+                )
+                return 2
+            raise
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
