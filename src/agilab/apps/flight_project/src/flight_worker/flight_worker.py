@@ -8,7 +8,6 @@ import getpass
 import glob
 import os
 import re
-import shutil
 import subprocess
 import traceback
 import warnings
@@ -89,40 +88,13 @@ class FlightWorker(PolarsWorker):
 
         logging.info(f"from: {__file__}")
 
-        data_in_path = Path(self.args.data_in).expanduser()
-        if not data_in_path.is_absolute():
-            data_in_path = (Path.home() / data_in_path).expanduser()
-
-        if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            parts = data_in_path.parts
-            if "Users" in parts:
-                index = parts.index("Users") + 2
-                net_relative = Path(*parts[index:])
-            else:
-                net_relative = data_in_path
-            net_path = normalize_path("\\\\127.0.0.1\\" + str(net_relative))
-            try:
-                # Your NFS account in order to mount it as net drive on Windows
-                cmd = f'net use Z: "{net_path}" /user:your-credentials'
-                logging.info(cmd)
-                subprocess.run(cmd, shell=True, check=True)
-            except Exception as e:
-                logging.info(f"Failed to map network drive: {e}")
-
-        # Path to database on symlink Path.home()/data(symlink) or absolute share
-        self.home_rel = data_in_path
-        data_in = normalize_path(self.home_rel)
-        self.data_out = normalize_path(self.home_rel.parent / "dataframe")
-        if os.name != "nt":
-            self.data_out = self.data_out.replace("\\", "/")
-
-        # Remove dataframe files from previous run
-        try:
-            shutil.rmtree(self.data_out, ignore_errors=True, onerror=self._onerror)
-            os.makedirs(self.data_out, exist_ok=True)
-        except Exception as e:
-            logging.info(f"Error removing directory: {e}")
-
+        data_paths = self.setup_data_directories(
+            source_path=self.args.data_in,
+            target_path=self.args.data_out,
+            target_subdir="dataframe",
+            reset_target=True,
+        )
+        data_in = data_paths.normalized_input
         self.args.data_in = data_in
 
         if self.verbose > 1:

@@ -627,6 +627,62 @@ class BaseWorker(abc.ABC):
 
         return candidate.as_posix()
 
+    def setup_data_directories(
+        self,
+        *,
+        source_path: str | Path,
+        target_path: str | Path | None = None,
+        target_subdir: str = "dataframe",
+        reset_target: bool = True,
+    ) -> SimpleNamespace:
+        """Prepare normalised input/output dataset paths without relying on worker args.
+
+        Returns a namespace with the resolved input path (`input_path`), the normalised
+        string used by downstream readers (`normalized_input`), the output directory
+        as a ``Path`` (`output_path`), and its normalised string representation
+        (`normalized_output`). Optionally clears and recreates the output directory.
+        """
+
+        if source_path is None:
+            raise ValueError("setup_data_directories requires a source_path value")
+
+        input_path = Path(str(source_path)).expanduser()
+        if not input_path.is_absolute():
+            input_path = (Path.home() / input_path).expanduser()
+
+        normalized_input = self.normalize_dataset_path(input_path)
+
+        base_parent = input_path.parent
+        if target_path is None:
+            output_path = base_parent / target_subdir
+        else:
+            candidate = Path(str(target_path)).expanduser()
+            if not candidate.is_absolute():
+                candidate = (base_parent / candidate).expanduser()
+            output_path = candidate
+
+        normalized_output = normalize_path(output_path)
+        if os.name != "nt":
+            normalized_output = normalized_output.replace("\\", "/")
+
+        if reset_target:
+            try:
+                shutil.rmtree(normalized_output, ignore_errors=True, onerror=self._onerror)
+                os.makedirs(normalized_output, exist_ok=True)
+            except Exception as exc:
+                logger.info("Error removing directory: %s", exc)
+
+        # Preserve compatibility with workers that rely on these attributes.
+        self.home_rel = input_path
+        self.data_out = normalized_output
+
+        return SimpleNamespace(
+            input_path=input_path,
+            normalized_input=normalized_input,
+            output_path=output_path,
+            normalized_output=normalized_output,
+        )
+
     @staticmethod
     def _join(path1, path2):
         # path to data base on symlink Path.home()/data(symlink)
