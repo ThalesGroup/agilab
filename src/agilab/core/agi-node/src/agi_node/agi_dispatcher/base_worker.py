@@ -182,6 +182,37 @@ class BaseWorker(abc.ABC):
         except Exception:
             return path_obj.expanduser()
 
+    @classmethod
+    def _resolve_data_dir(
+        cls,
+        env: AgiEnv | None,
+        data_path: Path | str | None,
+    ) -> Path:
+        """Resolve ``data_in`` style values relative to the current environment."""
+
+        if data_path is None:
+            raise ValueError("data_path must be provided to resolve a dataset directory")
+
+        raw = Path(str(data_path)).expanduser()
+        if not raw.is_absolute():
+            base = None
+            if env is not None:
+                base = getattr(env, "agi_share_dir", None) or getattr(env, "home_abs", None)
+            if base is None:
+                base = Path.home()
+            raw = Path(base).expanduser() / raw
+
+        remapped = cls._remap_managed_pc_path(raw, env=env)
+        try:
+            resolved = cls._normalized_path(remapped)
+        except Exception:
+            resolved = remapped.expanduser()
+
+        try:
+            return resolved.resolve(strict=False)
+        except Exception:
+            return Path(os.path.normpath(str(resolved)))
+
     @staticmethod
     def _relative_to_user_home(path: Path) -> Path | None:
         parts = path.parts
@@ -646,9 +677,8 @@ class BaseWorker(abc.ABC):
         if source_path is None:
             raise ValueError("setup_data_directories requires a source_path value")
 
-        input_path = Path(str(source_path)).expanduser()
-        if not input_path.is_absolute():
-            input_path = (Path.home() / input_path).expanduser()
+        env = getattr(self, "env", None)
+        input_path = type(self)._resolve_data_dir(env, source_path)
 
         normalized_input = self.normalize_dataset_path(input_path)
 
