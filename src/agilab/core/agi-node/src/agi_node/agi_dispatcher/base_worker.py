@@ -688,8 +688,17 @@ class BaseWorker(abc.ABC):
         else:
             candidate = Path(str(target_path)).expanduser()
             if not candidate.is_absolute():
-                candidate = (base_parent / candidate).expanduser()
-            output_path = candidate
+                share_root = getattr(env, "agi_share_dir", None)
+                has_nested_segments = len(candidate.parts) > 1
+                if has_nested_segments:
+                    anchor = share_root or base_parent.parent or base_parent
+                else:
+                    anchor = base_parent
+                candidate = (Path(anchor) / candidate).expanduser()
+            try:
+                output_path = candidate.resolve(strict=False)
+            except Exception:
+                output_path = Path(os.path.normpath(str(candidate)))
 
         normalized_output = normalize_path(output_path)
         if os.name != "nt":
