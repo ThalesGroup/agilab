@@ -39,7 +39,7 @@ class FlightArgs(BaseModel):
         return data
 
     data_source: Literal["file", "hawk"] = "file"
-    data_in: Path = Field(default_factory=lambda: Path("data/flight/dataset"))
+    data_in: Path = Field(default_factory=lambda: Path("flight/dataset"))
     data_out: Path | None = None
     files: str = "*"
     nfile: int = Field(default=1, ge=0)
@@ -166,7 +166,7 @@ def apply_source_defaults(
     overrides: FlightArgsTD = {}
     if args.data_source == "file":
         if not str(args.data_in).strip():
-            overrides["data_in"] = "data/flight/dataset"
+            overrides["data_in"] = "flight/dataset"
         if not args.files:
             overrides["files"] = "*"
     else:
@@ -179,7 +179,7 @@ def apply_source_defaults(
                 host = "127.0.0.1"
         default_uri = f"https://admin:admin@{host}:9200/"
         current_uri = str(args.data_in)
-        if not current_uri.strip() or current_uri == "data/flight/dataset":
+        if not current_uri.strip() or current_uri == "flight/dataset":
             overrides["data_in"] = default_uri
         if not args.files or args.files == "*":
             overrides["files"] = "hawk.user-admin.1"
