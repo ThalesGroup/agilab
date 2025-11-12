@@ -894,7 +894,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 try:
                     dest_arg = self.data_rel
                     dest_arg = dest_arg if isinstance(dest_arg, str) else str(dest_arg)
-                    self.unzip_data(Path(dataset_archive), dest_arg)
+                    self.unzip_data(Path(dataset_archive), dest_arg, force_extract=True)
                 except Exception as exc:  # pragma: no cover - defensive guard
                     AgiEnv.logger.warning(
                         "Failed to extract packaged dataset %s: %s",
@@ -2419,7 +2419,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             raise
         return data_root
 
-    def unzip_data(self, archive_path: Path, extract_to: Path | str = None):
+    def unzip_data(
+        self,
+        archive_path: Path,
+        extract_to: Path | str = None,
+        *,
+        force_extract: bool = False,
+    ):
         archive_path = Path(archive_path)
         if not archive_path.exists():
             AgiEnv.logger.warning(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
@@ -2439,7 +2445,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return
         dataset = dest / "dataset"
 
-        force_refresh = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
+        env_force = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
+        force_refresh = force_extract or env_force
 
         desired_user = getattr(self, "user", None)
         current_owner = Path(self.home_abs).name
