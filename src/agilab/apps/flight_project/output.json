@@ -1,8 +1,8 @@
 {
   "target_args": {
     "data_source": "file",
-    "data_in": "data/flight/dataset",
-    "data_out": "data/flight/dataframe",
+    "data_in": "flight/dataset",
+    "data_out": "flight/dataframe",
     "files": "csv/*",
     "nfile": 10,
     "nskip": 0,
@@ -35,21 +35,21 @@
   "work_plan": [
     [
       [
-        "data/flight/dataset/csv/60_6003.csv",
-        "data/flight/dataset/csv/60_6002.csv",
-        "data/flight/dataset/csv/60_6000.csv",
-        "data/flight/dataset/csv/60_6015.csv",
-        "data/flight/dataset/csv/60_6001.csv",
-        "data/flight/dataset/csv/60_6010.csv",
-        "data/flight/dataset/csv/60_6012.csv",
-        "data/flight/dataset/csv/60_6006.csv",
-        "data/flight/dataset/csv/60_6007.csv",
-        "data/flight/dataset/csv/60_6103.csv"
+        "flight/dataset/csv/60_6003.csv",
+        "flight/dataset/csv/60_6002.csv",
+        "flight/dataset/csv/60_6000.csv",
+        "flight/dataset/csv/60_6015.csv",
+        "flight/dataset/csv/60_6001.csv",
+        "flight/dataset/csv/60_6010.csv",
+        "flight/dataset/csv/60_6012.csv",
+        "flight/dataset/csv/60_6006.csv",
+        "flight/dataset/csv/60_6007.csv",
+        "flight/dataset/csv/60_6103.csv"
       ]
     ],
     [
       [
-        "data/flight/dataset/csv/61_6101.csv"
+        flight/dataset/csv/61_6101.csv"
       ]
     ]
   ]
