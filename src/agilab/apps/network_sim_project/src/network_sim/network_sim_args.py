@@ -34,7 +34,7 @@ class NetworkSimArgs(BaseModel):
         return data
 
     data_source: str
-    data_in: Path = Field(default_factory=lambda: Path("data/network_sim/dataset"))
+    data_in: Path = Field(default_factory=lambda: Path("network_sim/dataset"))
     net_size: PositiveInt = Field(
         default=12,
         ge=4,
@@ -103,7 +103,7 @@ def apply_source_defaults(
     overrides: NetworkSimArgsTD = {}
     if args.data_source == "file":
         if not str(args.data_in).strip():
-            default_path = Path("data/network_sim/dataset")
+            default_path = Path("network_sim/dataset")
             if env is not None:
                 try:
                     base = Path(getattr(env, "home_abs", Path.home()))
@@ -123,7 +123,7 @@ def apply_source_defaults(
                 host = "127.0.0.1"
         default_uri = f"https://admin:admin@{host}:9200/"
         current_uri = str(args.data_in)
-        if not current_uri.strip() or current_uri == "data/network_sim/dataset":
+        if not current_uri.strip() or current_uri == "network_sim/dataset":
             overrides["data_in"] = default_uri
 
     return merge_args(args, overrides) if overrides else args
