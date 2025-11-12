@@ -198,6 +198,34 @@ def _bootstrap_project_venv(project_dir: Path) -> Optional[Path]:
         return None
     return venv_python_for(project_dir)
 
+
+def seed_example_scripts(cfg: Config, app_slug: str) -> None:
+    """Copy AGI_* example scripts into ~/log/execute/<app_slug> if missing."""
+
+    if not app_slug:
+        return
+
+    examples_dir = cfg.ROOT / "src" / cfg.PROJECT_NAME / "examples" / app_slug
+    if not examples_dir.exists():
+        return
+
+    target_dir = Path.home() / "log" / "execute" / app_slug
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        logging.warning("Unable to create %s: %s", target_dir, exc)
+        return
+
+    for source in sorted(examples_dir.glob("AGI_*.py")):
+        destination = target_dir / source.name
+        if destination.exists():
+            continue
+        try:
+            shutil.copy2(source, destination)
+            logging.info("Seeded %s from %s", destination, source)
+        except OSError as exc:
+            logging.warning("Failed to copy %s to %s: %s", source, destination, exc)
+
 # =======================================================================
 
 # ================= JdkTable Class =================
@@ -698,6 +726,7 @@ def main():
         jdk_table.set_associated_project(sdk_worker, worker_py)
 
         realized_apps.append(app.name)
+        seed_example_scripts(cfg, project)
     
     realized_apps_pages = []
     for apps_page in cfg.eligible_apps_pages:
