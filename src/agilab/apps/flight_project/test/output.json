@@ -33,10 +33,10 @@
   "work_plan": [
     [
       [
-        "data/flight/dataset/csv/61_6101.csv"
+        "flight/dataset/csv/61_6101.csv"
       ],
       [
-        "data/flight/dataset/csv/60_6003.csv"
+        "flight/dataset/csv/60_6003.csv"
       ]
     ]
   ]
