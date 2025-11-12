@@ -23,6 +23,7 @@ from pathlib import Path
 import argparse
 import errno
 import getpass
+import shutil
 
 core_root = Path(__file__).parents[1]
 node_src = str(core_root / 'core/node/src')
@@ -35,12 +36,42 @@ from agi_env import AgiEnv
 
 # Take the first argument from the command line as the module name
 if len(sys.argv) > 1:
-    project = sys.argv[1]
-    module = project.replace("_project", "").replace('-', '_')
+    project = Path(sys.argv[1])
+    project_name = project.name or str(project)
+    module = project_name.replace("_project", "").replace('-', '_')
 else:
     raise ValueError("Please provide the module name as the first argument.")
 
+module = module.strip().strip("/")
 print('install module:', module)
+
+
+def _seed_example_scripts(app_slug: str) -> None:
+    """Copy AGI_* example scripts to ~/log/execute/<app_slug> if missing."""
+
+    if not app_slug:
+        return
+
+    repo_root = Path(__file__).resolve().parents[3]
+    examples_dir = repo_root / "src" / "agilab" / "examples" / app_slug
+    if not examples_dir.exists():
+        return
+
+    execute_dir = Path.home() / "log" / "execute" / app_slug
+    execute_dir.mkdir(parents=True, exist_ok=True)
+
+    for source in sorted(examples_dir.glob("AGI_*.py")):
+        destination = execute_dir / source.name
+        if destination.exists():
+            continue
+        try:
+            shutil.copy2(source, destination)
+            print(f"[INFO] Seeded {destination} from examples.")
+        except OSError as exc:
+            print(f"[WARN] Unable to copy {source} to {destination}: {exc}")
+
+
+_seed_example_scripts(module)
 
 
 def resolve_share_mount() -> Path:
