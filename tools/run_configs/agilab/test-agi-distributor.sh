@@ -2,5 +2,5 @@
 set -euo pipefail
 
 # Generated from PyCharm run configuration: test agi_distributor
-cd /Users/jpm/PycharmProjects/agilab/src/agilab/core/agi-cluster
+cd /Users/agi/PycharmProjects/agilab/src/agilab/core/agi-cluster
 uv run python
