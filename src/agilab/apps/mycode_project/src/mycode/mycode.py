@@ -22,7 +22,7 @@ class Mycode(BaseWorker):
         self,
         env,
         args: MycodeArgs | None = None,
-        **overrides: ArgsOverrides,
+        **kwargs: ArgsOverrides,
     ) -> None:
         self.env = env
         self._ensure_managed_pc_share_dir(env)
@@ -31,9 +31,9 @@ class Mycode(BaseWorker):
 
         if args is None:
             try:
-                args = FlightArgs(**kwargs)
+                args = MycodeArgs(**kwargs)
             except ValidationError as exc:
-                raise ValueError(f"Invalid Flight arguments: {exc}") from exc
+                raise ValueError(f"Invalid Mycode arguments: {exc}") from exc
         self.args = args
         share_root = Path(getattr(env, "agi_share_dir", getattr(env, "home_abs", Path.home())))
         self.args.data_in = share_root / self.args.data_in
