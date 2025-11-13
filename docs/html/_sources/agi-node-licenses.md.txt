@@ -1,7 +1,7 @@
 # Agi-node Licenses
 | Package Name | License |
 |--------------|---------|
-| brotli | MIT LICENSE |
+| brotli | MIT |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
 | cmake | APACHE SOFTWARE LICENSE;; BSD LICENSE |
