@@ -1,5 +1,5 @@
 [args]
-data_in = "~/data/PandasApp"
+data_in = "pandas_app/dataset"
 
 [cluster]
 verbose = true

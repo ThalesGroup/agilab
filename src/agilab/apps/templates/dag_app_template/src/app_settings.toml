@@ -1,6 +1,6 @@
 
 [args]
-data_in = "~/data/DagApp"
+data_in = "dag_app/dataset"
 
 [cluster]
 workers_enable = true
