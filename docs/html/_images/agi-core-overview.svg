@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="330" viewBox="0 0 700 330" role="img" aria-labelledby="title desc">
+  <title id="title">agi_core module overview</title>
+  <desc id="desc">Shows the main modules that compose agi_core and how Streamlit and CLI use them.</desc>
+  <defs>
+    <style>
+      text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; fill:#0f172a; }
+      .box { stroke:#0f172a; stroke-width:2; rx:10; ry:10; }
+      .caption { font-size:15px; font-weight:600; }
+      .body { font-size:12px; }
+    </style>
+  </defs>
+  <rect width="100%" height="100%" fill="#f8fafc" rx="18" ry="18" />
+  <text class="caption" x="350" y="32" text-anchor="middle">agi_core entry-points</text>
+
+  <g transform="translate(40,70)">
+    <rect class="box" width="200" height="70" fill="#bae6fd" />
+    <text class="caption" x="100" y="28" text-anchor="middle">Streamlit pages</text>
+    <text class="body" x="100" y="48" text-anchor="middle">EXECUTE · EXPLORE · EDIT</text>
+  </g>
+
+  <g transform="translate(460,70)">
+    <rect class="box" width="200" height="70" fill="#bae6fd" />
+    <text class="caption" x="100" y="28" text-anchor="middle">CLI / PyCharm</text>
+    <text class="body" x="100" y="48" text-anchor="middle">AGI_run_*.py · run configs</text>
+  </g>
+
+  <g transform="translate(150,160)">
+    <rect class="box" width="400" height="140" fill="#ddd6fe" />
+    <text class="caption" x="200" y="26" text-anchor="middle">agi_core</text>
+
+    <rect class="box" width="170" height="80" x="15" y="35" fill="#ede9fe" />
+    <text class="caption" x="100" y="70" text-anchor="middle">apps</text>
+    <text class="body" x="100" y="90" text-anchor="middle">load manifests · defaults</text>
+
+    <rect class="box" width="170" height="80" x="215" y="35" fill="#ede9fe" />
+    <text class="caption" x="300" y="70" text-anchor="middle">telemetry</text>
+    <text class="body" x="300" y="90" text-anchor="middle">progress · history · logs</text>
+
+    <rect class="box" width="170" height="80" x="115" y="55" fill="#e0f2fe" rx="10" ry="10" opacity="0.6" />
+    <text class="caption" x="200" y="115" text-anchor="middle">streamlit widgets</text>
+
+    <rect class="box" width="170" height="80" x="215" y="95" fill="#cffafe" rx="10" ry="10" opacity="0.6" />
+    <text class="caption" x="300" y="155" text-anchor="middle">services</text>
+  </g>
+
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 z" fill="#0f172a" />
+    </marker>
+  </defs>
+
+  <path d="M240,130 L350,160" stroke="#0f172a" stroke-width="2" marker-end="url(#arrow)" />
+  <path d="M460,130 L350,160" stroke="#0f172a" stroke-width="2" marker-end="url(#arrow)" />
+
+  <text class="body" x="350" y="310" text-anchor="middle">agi_core builds WorkDispatcher plans, emits telemetry, then hands off to agi_env & agi_cluster.</text>
+</svg>
