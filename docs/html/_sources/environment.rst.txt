@@ -38,7 +38,9 @@ summarises the supported keys.
      - API key surfaced to features that rely on OpenAI endpoints.
    * - ``AGI_SHARE_DIR``
      - ``data``
-     - Subdirectory under the AGILab home where shared datasets and outputs are stored.
+     - Subdirectory under the AGILab home where shared datasets and outputs are stored. macOS
+       NFS exports always map this directory to ``nobody:nogroup`` so all cluster nodes can write to
+       the share without inheriting local user IDs.
    * - ``AGI_SCHEDULER_IP``
      - ``127.0.0.1``
      - Default scheduler host for distributed runs.
