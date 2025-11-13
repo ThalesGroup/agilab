@@ -1,0 +1,129 @@
+AGILab Architecture
+===================
+
+This page gives a single place to understand how the repository is organised,
+which services collaborate at runtime, and where to hook in when building a new
+app or extending the platform.
+
+New to AGILab? Start with :doc:`quick-start` for a five-minute run-through, then
+return here when you need the big picture of how the layers fit together.
+
+.. figure:: Agilab-Overview.svg
+   :alt: High-level view of AGILab runtime
+   :width: 100%
+
+   AGILab layers from the Streamlit front-end down to worker clusters.
+
+Component view
+--------------
+
+.. figure:: diagrams/packages_agi_distributor.svg
+   :alt: Package diagram generated from agi_cluster
+   :width: 90%
+
+   Pyreverse snapshot of how the Streamlit entry points, ``agi_core`` façade,
+   ``agi_env`` and ``agi_cluster`` exchange data before the workers are started.
+
+Layers at a glance
+------------------
+
+.. list-table:: Layer responsibilities
+   :widths: 20 80
+   :header-rows: 1
+
+   * - Layer / Code roots
+     - What it does
+   * - **User surfaces**
+     - Streamlit pages (``src/agilab/pages``) plus CLI mirrors in
+       ``src/agilab/examples`` and ``tools/run_configs``. They capture user
+       intent and translate it into ``AGI.*`` calls.
+   * - **agi_core**
+     - Reusable widgets, telemetry, app loaders. Keeps Streamlit/CLI code thin
+       and prepares ``WorkDispatcher`` manifests. See :doc:`agi-core-architecture`.
+   * - **agi_env**
+     - Discovers datasets, resolves symlinks, stages bundles in ``~/wenv`` and
+       prepares environment variables. Every run builds an ``AgiEnv`` first.
+   * - **agi_cluster / agi_node**
+     - Scheduler, workers, balancer, SSH/zip helpers. Turns manifests into Dask
+       jobs locally or on remote hosts.
+   * - **Apps (``src/agilab/apps``)**
+     - Project-specific logic. App managers describe ``build_distribution`` and
+       worker arguments but rely on the shared layers above.
+   * - **Workers (``~/wenv/<app>_worker``)**
+     - Cythonised/packaged code deployed on cluster nodes.
+
+**User surfaces**
+    - Streamlit pages shipped in ``src/agilab/pages`` (EXECUTE/EXPLORE/EDIT/…).
+    - CLI mirrors under ``docs/source/apps-pages`` and ``tools/run_configs``.
+    - Example scripts in ``src/agilab/examples`` (kept in sync via
+      ``pycharm/setup_pycharm.py``).
+
+**Core services**
+    - :doc:`agi-env` handles configuration, environment discovery, dataset
+      staging and artifact caching. Every entry point constructs an ``AgiEnv``
+      before touching a worker.
+    - :doc:`agi-node` and :doc:`agi-cluster` package the reusable logic shared
+      between all apps (dataset helpers, worker bootstrap, git/LFS utilities…).
+    - :doc:`framework-api` exposes ``AGI.run`` / ``AGI.get_distrib`` /
+      ``AGI.install`` orchestration.
+    - Apps under ``src/agilab/apps`` stay isolated but consume the same base
+      worker / dispatcher APIs. Public apps live in ``mycode_project`` and
+      ``flight_project``; the rest use the same contract but ship privately.
+
+**Execution back-plane**
+    - :doc:`agi-cluster` contains the Dask-based scheduler, worker templates and
+      capacity balancer. Workers are packaged (``python -m agi_node…``) into
+      ``~/wenv/<app>_worker`` before run time.
+    - Optional cluster helpers (SSH, remote installs, zip staging) live under
+      ``src/agilab/core/agi-node/agi_dispatcher`` and are reused by every app.
+
+Runtime flow
+------------
+
+1. A run configuration (Streamlit button, CLI script, PyCharm run config) calls
+   an example in ``src/agilab/examples/<app>/AGI_run_*.py``.
+2. The script instantiates ``AgiEnv`` with the desired ``apps_dir`` and ``app``.
+   ``AgiEnv`` resolves symlinks, copies optional data bundles and loads
+   ``app_settings.toml`` overrides.
+3. ``AGI.run`` (or ``AGI.get_distrib`` / ``AGI.install``) selects the dispatcher
+   mode, builds or reuses the worker wheel, and starts a scheduler locally or on
+   the configured SSH hosts.
+4. :doc:`agi-cluster` spins up workers, streams ``WorkDispatcher`` plans derived
+   from the app manager, and feeds telemetry back into the capacity predictor.
+5. Results land in ``~/agi-space`` (for end users) or the repo ``data``/``export``
+   folders (for developers), while logs are mirrored to
+   ``~/log/execute/<app>/`` for reproducibility.
+
+Two common execution modes:
+
+- **Local notebook / laptop** – scheduler + workers run on the same machine.
+  Use this for prototyping and keep an eye on ``~/log/execute/<app>/`` for
+  telemetry.
+- **Cluster / SSH hosts** – scheduler runs locally, workers spawn remotely via
+  the SSH helpers in ``agi_cluster.agi_distributor``. Provide credentials via
+  ``~/.agilab/.env`` and rerun ``pycharm/setup_pycharm.py`` after editing run
+  configurations so CLI wrappers stay synced.
+
+Repository map
+--------------
+
+.. literalinclude:: directory-structure.txt
+   :language: none
+   :caption: Generated by ``docs/gen-docs.py`` (gitignore-aware)
+
+Regenerate the tree after file changes with ``uv run python docs/gen-docs.py``.
+
+Documentation map
+-----------------
+
+- :doc:`quick-start` – install/run instructions and links to sample commands.
+- :doc:`introduction` – background, motivation, and terminology.
+- :doc:`agi-core-architecture` – internals of the Streamlit/CLI façade.
+- :doc:`framework-api` – reference for ``AGI.run`` and the dispatcher helpers.
+
+See also
+--------
+
+- :doc:`directory-structure` for details on each top-level folder.
+- :doc:`framework-api` for the public ``AGI.*`` orchestration helpers.
+- :doc:`agi-env` for environment bootstrapping and dataset handling.

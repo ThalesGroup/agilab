@@ -1,0 +1,108 @@
+AGI Core Architecture
+=====================
+
+``agi_core`` packages the building blocks that every Streamlit page, CLI entry
+point, and worker relies on. This page maps the internals so you know where to
+plug new logic in—or where a behaviour is defined before drilling into the
+codebase.
+
+.. contents::
+   :local:
+   :depth: 2
+
+Modules at a glance
+-------------------
+
+.. figure:: diagrams/agi-core-overview.svg
+   :alt: Visual summary of agi_core modules
+   :width: 90%
+
+   Streamlit/CLI entry points call into agi_core before handing work to agi_env
+   and agi_cluster.
+
+``src/agilab/core/agi-core`` ships the following higher-level domains:
+
+``agi_core.apps``
+    Helper mixins for app metadata, dataset manifests, and path helpers that
+    every ``<app>_project`` imports. If you add a new manager or need an app to
+    opt-in to common validation, start here.
+``agi_core.streamlit``
+    Shared Streamlit widgets (status panels, history view, deploy dialogs) used
+    by EXECUTE/EXPLORE/EDIT. Keeping them here avoids circular imports from the
+    page packages.
+``agi_core.telemetry``
+    Structured logging, run-history helpers, and wrappers used by ``AGI.run`` to
+    emit consistent events back to Streamlit and the CLI mirrors.
+``agi_core.services``
+    Small utility services (encryption, local cache, dataset registry) designed
+    to be reused by both the GUI and the app installers.
+
+Execution flow
+--------------
+
+.. figure:: Agilab-Overview.svg
+   :alt: High-level flow linking Streamlit to agi-core
+   :width: 90%
+
+   Streamlit pages talk to ``agi_core`` services before dispatching work to
+   ``agi_env``/``agi_cluster``.
+
+.. figure:: diagrams/packages_agi_env.svg
+   :alt: Package-level view highlighting agi_core dependencies
+   :width: 90%
+
+   Generated from ``pyreverse`` to show how ``agi_core`` orchestrates calls to
+   ``agi_env`` helpers and dispatcher facades.
+
+Typical call stack when a user clicks **RUN** on the EXECUTE page:
+
+1. ``src/agilab/pages/▶️ EXECUTE.py`` collects form values and calls
+   ``agi_core.apps.loader.build_work_plan``.
+2. ``agi_core.apps`` builds an ``AppManifest`` and passes it to
+   ``framework_api.AGILabSession``.
+3. ``framework_api`` wraps the call to ``AGI.run`` (or ``AGI.get_distrib``)
+   while ``agi_core.telemetry`` starts a streamed log section.
+4. ``AGI.run`` (from :doc:`framework-api`) calls into ``agi_env`` to materialise
+   the environment, then hands control to ``agi_cluster.agi_distributor``.
+5. Workers report status via ``agi_core.telemetry`` so Streamlit widgets update
+   in place.
+
+1. A page/CLI handler receives the user request and immediately resolves an
+   ``AgiEnv`` instance (handled in :doc:`agilab`).
+2. The page calls into ``agi_core`` facades (for example
+   ``agi_core.apps.loader``) to build the app manifest and corresponding
+   ``WorkDispatcher`` settings.
+3. ``agi_core.telemetry`` structures the request context and streams it back to
+   the UI while ``AGI.run`` executes.
+4. Results propagate back through ``agi_core`` helpers (history, downloads,
+   dataset movers) before the UI renders the finished run.
+
+Repository pointers
+-------------------
+
+=============  =============================================================
+Directory      Purpose
+=============  =============================================================
+``apps``       Metadata helpers shared by ``src/agilab/apps`` managers.
+``streamlit``  Widgets, layout templates, and modal logic for EXECUTE/EXPLORE.
+``telemetry``  Structured logging, status persistence, and run history APIs.
+``services``   Standalone service objects (encryption, caching, dataset registry).
+=============  =============================================================
+
+Tips for contributions
+----------------------
+
+- Keep business logic for a specific app inside ``src/agilab/apps/<app>``—only
+  move code into ``agi_core`` when *multiple* apps/pages need the abstraction.
+- When adding a new Streamlit widget, place it under ``agi_core/streamlit`` and
+  export it through a small ``__all__``. That keeps import graphs manageable.
+- ``agi_core`` has no hard dependency on ``agi_env`` or ``agi_cluster``. If your
+  change requires environment or dispatcher behaviour, extract a thin interface
+  and inject the dependency so unit tests stay fast.
+
+See also
+--------
+
+- :doc:`framework-api` for the high-level ``AGI.*`` orchestration entry points.
+- :doc:`agilab` for the user-facing Streamlit pages built on top of ``agi_core``.
+- :doc:`architecture` for the full-stack overview (pages → agi_core → agi_env/cluster).
