@@ -24,6 +24,7 @@ class MycodeArgs(BaseModel):
         return data
 
     data_in: Path = Field(default_factory=lambda: Path("~/data/mycode"))
+    data_out: Path = Field(default_factory=lambda: Path("~/data/output/mycode"))
     files: str = "*"
     nfile: int = 1
     nskip: int = 0
@@ -32,6 +33,7 @@ class MycodeArgs(BaseModel):
 
 class MycodeArgsTD(TypedDict, total=False):
     data_in: str
+    data_out: str
     files: str
     nfile: int
     nskip: int
