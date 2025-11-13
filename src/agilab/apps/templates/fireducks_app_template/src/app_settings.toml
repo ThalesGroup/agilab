@@ -1,5 +1,5 @@
 [args]
-data_in = "~/data/FireducksApp"
+data_in = "fireducks_app/dataset"
 
 [cluster]
 verbose = true
