@@ -2,8 +2,16 @@
 set -euo pipefail
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+
+# Colors for output
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 warn() {
-  echo "[warn] $*" >&2
+  echo -e "${YELLOW}[warn] $*" >&2
 }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -107,20 +115,20 @@ if [[ "$SOURCE" == "local" ]]; then
   if [[ -z "${AGI_INSTALL_PATH}" || ! -d "${AGI_INSTALL_PATH}" ]]; then
     if [[ -d "${REPO_SRC_DIR}" ]]; then
       AGI_INSTALL_PATH="${REPO_SRC_DIR}"
-      echo "[info] Local source auto-detected at ${AGI_INSTALL_PATH}"
+      echo -e "${BLUE}[info] Local source auto-detected at ${AGI_INSTALL_PATH} ${NC}"
     else
-      echo "Error: Unable to locate local source checkout (expected ${REPO_SRC_DIR})." >&2
+      echo -e "${RED}Error: Unable to locate local source checkout (expected ${REPO_SRC_DIR}). ${NC}" >&2
       exit 1
     fi
   elif [[ "${AGI_INSTALL_PATH}" == */wenv/* ]]; then
     if [[ -d "${REPO_SRC_DIR}" ]]; then
-      echo "[warn] Saved local install path (${AGI_INSTALL_PATH}) points to a worker environment; using ${REPO_SRC_DIR} instead."
+      echo -e "${YELLOW}[warn] Saved local install path (${AGI_INSTALL_PATH}) points to a worker environment; using ${REPO_SRC_DIR} instead. ${NC}"
       AGI_INSTALL_PATH="${REPO_SRC_DIR}"
     fi
   fi
 
   if [[ "${AGI_INSTALL_PATH}" != "${REPO_SRC_DIR}" && -d "${REPO_SRC_DIR}" ]]; then
-    echo "[info] Persisting local install path to ${REPO_SRC_DIR}"
+    echo -e "${BLUE}[info] Persisting local install path to ${REPO_SRC_DIR}${NC}"
     AGI_INSTALL_PATH="${REPO_SRC_DIR}"
   fi
 
@@ -142,11 +150,11 @@ verify_testpypi_versions() {
   local show_script="${SCRIPT_DIR}/show_dependencies.py"
   local python_bin="${VENV}/bin/python"
   if [[ ! -x "${python_bin}" ]]; then
-    echo "[warn] Skipping version verification; missing Python interpreter at ${python_bin}" >&2
+    echo -e "${YELLOW}[warn] Skipping version verification; missing Python interpreter at ${python_bin} ${NC}" >&2
     return 0
   fi
   if [[ ! -f "${show_script}" ]]; then
-    echo "[warn] Skipping version verification; show_dependencies.py not found at ${show_script}" >&2
+    echo -e "${YELLOW}[warn] Skipping version verification; show_dependencies.py not found at ${show_script}" >&2
     return 0
   fi
 
@@ -199,12 +207,12 @@ print("[info] TestPyPI agi* package versions match metadata.")
 PY
 }
 
-echo "===================================="
-echo " MODE:           ${SOURCE}"
-echo " VERSION:        ${VERSION:-<latest>}"
-echo " FORCE REBUILD:  ${FORCE_REBUILD}"
-echo " SKIP OFFLINE:   ${SKIP_OFFLINE}"
-echo "===================================="
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE} MODE:           ${SOURCE}${NC}"
+echo -e "${BLUE} VERSION:        ${VERSION:-<latest>}${NC}"
+echo -e "${BLUE} FORCE REBUILD:  ${FORCE_REBUILD}${NC}"
+echo -e "${BLUE} SKIP OFFLINE:   ${SKIP_OFFLINE}${NC}"
+echo -e "${BLUE}====================================${NC}"
 
 # -----------------------------
 # AGI_SPACE / venv
@@ -213,13 +221,13 @@ pushd "$AGI_SPACE" >/dev/null
 
 # OPTIMIZATION 1: Only delete venv if forced or doesn't exist
 if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
-  echo "[info] Force rebuild requested - removing existing venv and lock file"
+  echo -e "${BLUE}[info] Force rebuild requested - removing existing venv and lock file${NC}"
   rm -fr .venv uv.lock
 elif [[ ! -d .venv ]]; then
-  echo "[info] No existing venv found - creating new one"
+  echo -e "${BLUE}[info] No existing venv found - creating new one${NC}"
   rm -f uv.lock  # Remove stale lock file if venv is missing
 else
-  echo "[info] Using existing venv (use --force-rebuild to recreate)"
+  echo -e "${BLUE}[info] Using existing venv (use --force-rebuild to recreate)${NC}"
 fi
 
 if [ ! -f pyproject.toml ]; then
@@ -249,20 +257,20 @@ case "${SOURCE}" in
     fi
 
     [[ -n "${AGI_INSTALL_ROOT}" && -d "${AGI_INSTALL_ROOT}" ]] || {
-      echo "Error: Missing or invalid install path for local source: ${AGI_INSTALL_PATH}" >&2
+      echo -e "${RED}Error: Missing or invalid install path for local source: ${AGI_INSTALL_PATH}${NC}" >&2
       exit 1
     }
 
-    [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
+    [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo -e "${RED}Error: Missing or invalid install path: ${AGI_INSTALL_PATH}${NC}" >&2; exit 1; }
 
     # OPTIMIZATION 3: Create lock file ONCE at repo root if it doesn't exist
     pushd "${AGI_INSTALL_ROOT}" >/dev/null
     if [[ ! -f "uv.lock" || "${FORCE_REBUILD}" -eq 1 ]]; then
-      echo "[info] Creating/updating lock file for local repo (one-time operation)..."
+      echo -e "${BLUE}[info] Creating/updating lock file for local repo (one-time operation)...${NC}"
       uv lock --quiet
-      echo "[info] Lock file created - future installs will be much faster!"
+      echo -e "${BLUE}[info] Lock file created - future installs will be much faster!${NC}"
     else
-      echo "[info] Using existing lock file from repo"
+      echo -e "${BLUE}[info] Using existing lock file from repo${NC}"
     fi
 
     # OPTIMIZATION 4: Build wheel only if needed
@@ -278,15 +286,15 @@ case "${SOURCE}" in
     fi
 
     if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
-      echo "[info] Building wheel from local source..."
+      echo -e "${BLUE}[info] Building wheel from local source...${NC}"
       uv build --wheel --no-build-logs --quiet
     else
-      echo "[info] Using existing wheel (use --force-rebuild to recreate)"
+      echo -e "${BLUE}[info] Using existing wheel (use --force-rebuild to recreate)${NC}"
     fi
     popd >/dev/null
 
     # OPTIMIZATION 5: Install all packages in one command
-    echo "Installing packages from local source tree..."
+    echo -e "${BLUE}Installing packages from local source tree...${NC}"
     INSTALL_PATHS=()
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
@@ -302,7 +310,7 @@ case "${SOURCE}" in
     ;;
 
   pypi)
-    echo "Installing from PyPI..."
+    echo -e "${BLUE}Installing from PyPI...${NC}"
     if [[ -z "${VERSION}" ]]; then
       ${UV_PREVIEW[@]} pip install --upgrade ${PACKAGES}
     else
@@ -344,19 +352,19 @@ PY
     }
 
     if [[ -z "${VERSION}" ]]; then
-      echo "Resolving newest *common* TestPyPI version across: ${PACKAGES}"
+      echo -e "${BLUE}Resolving newest *common* TestPyPI version across: ${PACKAGES}${NC}"
       attempt=0
       until [[ -n "${VERSION}" || ${attempt} -ge 10 ]]; do
         VERSION="$(resolve_common_latest ${PACKAGES} || true)"
         [[ -n "${VERSION}" ]] || { attempt=$((attempt+1)); sleep 3; }
       done
-      [[ -n "${VERSION}" ]] || { echo "ERROR: Could not find a common version for all packages on TestPyPI after retries." >&2; exit 1; }
-      echo "✓ Using version ${VERSION} for all packages"
+      [[ -n "${VERSION}" ]] || { echo -e "${RED}ERROR: Could not find a common version for all packages on TestPyPI after retries.${NC}" >&2; exit 1; }
+      echo -e "${BLUE}Using version ${VERSION} for all packages${NC}"
     else
-      echo "Installing from TestPyPI (forced VERSION=${VERSION} for all)…"
+      echo -e "${BLUE}Installing from TestPyPI (forced VERSION=${VERSION} for all)...${NC}"
     fi
 
-    echo "Installing packages: ${PACKAGES} == ${VERSION}"
+    echo -e "${BLUE}Installing packages: ${PACKAGES} == ${VERSION}${NC}"
     # pip 25 removed --index-strategy; rely on default resolver across indexes
     ${UV_PREVIEW[@]} run python -m pip install \
       --index "${INDEX_URL}" \
@@ -366,15 +374,15 @@ PY
 
     if ! verify_testpypi_versions; then
       if [[ -z "${AGI_INSTALL_RETRY:-}" ]]; then
-        echo "[warn] Version mismatch detected; retrying install once..." >&2
+        echo -e "${YELLOW}[warn] Version mismatch detected; retrying install once...${NC}" >&2
         if [[ "${VERSION_ARG_SET}" -eq 1 ]]; then
           AGI_INSTALL_RETRY=1 exec "$0" --source "${SOURCE}" --version "${VERSION}"
         else
           AGI_INSTALL_RETRY=1 exec "$0" --source "${SOURCE}"
         fi
       else
-        echo "[error] TestPyPI package versions still do not match metadata after retry." >&2
-        echo "        Resolve the mismatch (e.g. wait for all packages to publish ${VERSION}) and rerun." >&2
+        echo -e "${RED}[error] TestPyPI package versions still do not match metadata after retry.${NC}" >&2
+        echo -e "${RED}        Resolve the mismatch (e.g. wait for all packages to publish ${VERSION}) and rerun.${NC}" >&2
         exit 1
       fi
     fi
@@ -388,7 +396,7 @@ esac
 # OPTIMIZATION 6: Make offline install optional and use UV instead of pip
 install_offline_assistant() {
   if [[ "${SKIP_OFFLINE}" -eq 1 ]]; then
-    echo "[info] Skipping offline assistant installation (--skip-offline flag set)"
+    echo -e "${BLUE}[info] Skipping offline assistant installation (--skip-offline flag set)${NC}"
     return
   fi
 
@@ -412,9 +420,9 @@ PY
   fi
 
   if (( major > 3 || (major == 3 && minor >= 12) )); then
-    echo "Installing GPT-OSS offline assistant dependencies..."
-    echo "[info] This may take several minutes (downloading torch ~2GB, transformers, etc.)"
-    echo "[info] To skip this in the future, use --skip-offline flag"
+    echo -e "${BLUE}Installing GPT-OSS offline assistant dependencies...${NC}"
+    echo -e "${BLUE}[info] This may take several minutes (downloading torch ~2GB, transformers, etc.)${NC}"
+    echo -e "${BLUE}[info] To skip this in the future, use --skip-offline flag${NC}"
 
     # Use UV instead of pip for faster installation
     if ${UV_PREVIEW[@]} pip install --upgrade "agilab[offline]" 2>&1 | tee /tmp/offline-install.log; then
@@ -431,8 +439,8 @@ PY
     for spec in "${ensure_specs[@]}"; do
       local pkg="${spec%%>=*}"
       if ! "${python_bin}" -c "import ${pkg}" >/dev/null 2>&1; then
-        echo "[warn] Package ${pkg} not importable after installation"
-        echo "[info] Try: uv pip install --upgrade '${spec}'"
+        echo -e "${YELLOW}[warn] Package ${pkg} not importable after installation${NC}"
+        echo -e "${BLUE}[info] Try: uv pip install --upgrade '${spec}'${NC}"
       fi
     done
   else
@@ -455,17 +463,11 @@ done
 # -----------------------------
 # Show results
 # -----------------------------
-echo "===================================="
-echo "Installed packages in agi-space/.venv:"
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE}Installed packages in agi-space/.venv:${NC}"
 if ! "${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)' ; then
   echo "(No agi* packages detected.)"
 fi
-echo "===================================="
+echo -e "${BLUE}====================================${NC}"
 echo ""
-echo "Installation complete!"
-echo ""
-echo "Performance tips:"
-echo "  - Use existing venv for faster installs (automatic now)"
-echo "  - Use --skip-offline to skip heavy ML packages (saves 5-10 min)"
-echo "  - Lock file is cached at repo root for faster rebuilds"
-echo "  - Use --force-rebuild only when needed (cleans everything)"
+echo -e "${GREEN}Installation complete!${NC}"
