@@ -7,7 +7,7 @@
 | asttokens | APACHE 2.0 |
 | attrs | MIT LICENSE |
 | blinker | MIT LICENSE |
-| brotli | MIT LICENSE |
+| brotli | MIT |
 | cachetools | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | MIT |
@@ -20,7 +20,7 @@
 | humanize | MIT License |
 | idna | BSD-3-CLAUSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| ipython | BSD LICENSE |
+| ipython | BSD-3-CLAUSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | jedi | MIT LICENSE |
 | jinja2 | BSD LICENSE |
