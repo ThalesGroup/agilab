@@ -460,15 +460,6 @@ install_apps() {
   popd > /dev/null
 }
 
-install_enduser() {
-    pushd "tools" > /dev/null
-    echo -e "${BLUE}Installing agilab (endusers)...${NC}"
-    chmod +x "./install_enduser.sh"
-    ./install_enduser.sh --source $SOURCE
-    echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
-    popd > /dev/null
-}
-
 install_pycharm_script() {
     rm -f .idea/workspace.xml
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
@@ -536,7 +527,6 @@ if (( INSTALL_APPS_FLAG )); then
     fi
     install_pycharm_script
     refresh_launch_matrix
-    install_enduser
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
@@ -546,7 +536,6 @@ else
     warn "App installation skipped (use --install-apps to enable)."
     install_pycharm_script
     refresh_launch_matrix
-    install_enduser
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
