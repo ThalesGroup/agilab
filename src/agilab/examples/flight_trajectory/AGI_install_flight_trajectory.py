@@ -1,10 +1,19 @@
 import asyncio
+import os
 from pathlib import Path
 
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = str(Path(__file__).resolve().parents[3] / "apps")
+
+def _resolve_apps_dir() -> Path:
+    apps_dir_env = os.environ.get("APPS_DIR")
+    if apps_dir_env:
+        return Path(apps_dir_env).expanduser().resolve()
+    return Path(__file__).resolve().parents[2] / "apps"
+
+
+APPS_DIR = str(_resolve_apps_dir())
 APP = "flight_trajectory_project"
 DEFAULT_SCHEDULER = "127.0.0.1"
 DEFAULT_WORKERS = {"127.0.0.1": 2}
