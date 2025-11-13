@@ -83,6 +83,109 @@ D - agilab_run_dev vs agilab_run_enduser vs lab_run:
   Only for enabling lab_run.py debugging
   This will directly lunch run_lab.py in run/debug mode
 
+E - macOS NFS server checklist:
+-------------------------------
+
+Use this quick list when you need a shared dataset folder between Macs (for example, a cluster
+controller exporting ``/Users/example/data`` to another workstation). Replace ``192.168.3.86`` with
+your server IP and adjust mount paths as needed. The default ``AGI_SHARE_DIR`` (``~/agilab/data``)
+is now managed with a ``nobody:nogroup`` ownership policy so every worker sees identical UID/GID
+mapping—keep that in mind if you point exports somewhere else.
+
+**1. Exports and daemon health (server)**
+
+.. code-block:: bash
+
+   cat /etc/exports
+   # Expect to see the export, e.g.:
+   # /Users/example/data  -alldirs -mapall=-2:-2  127.0.0.1 192.168.3.0/24
+
+   sudo nfsd restart
+
+   showmount -e 192.168.3.86
+   # Expect: /Users/example/data ... 192.168.3.0/24 (or your client IP)
+
+   rpcinfo -p 192.168.3.86
+   # Expect to see nfs on 2049/tcp and mountd on tcp (typically port ~850)
+
+**2. Directory permissions (server)**
+
+.. code-block:: bash
+
+   ls -ldn /Users/example/data
+   # If you rely on -mapall=-2:-2, make the directory writable by nobody:nobody:
+   sudo chown -R nobody:nobody /Users/example/data
+   # or grant an ACL if you cannot change ownership:
+   sudo chmod +a 'everyone allow read,write,delete,add_file,add_subdirectory,file_inherit,directory_inherit' /Users/example/data
+
+**3. Can the client see the export?**
+
+Run this from the second Mac:
+
+.. code-block:: bash
+
+   showmount -e 192.168.3.86
+   # Expect the same export list you saw on the server
+
+**4. Mount and verify (client)**
+
+.. code-block:: bash
+
+   sudo mkdir -p /Users/example/clustershare
+   sudo mount -t nfs -o vers=3,tcp,resvport 192.168.3.86:/Users/example/data /Users/example/clustershare
+
+   mount | grep clustershare
+   # Expect one line, e.g.:
+   # 192.168.3.86:/Users/example/data on /Users/example/clustershare (nfs, ...)
+
+   ls -la /Users/example/clustershare
+   # Should show the server directory contents
+
+**5. Read/write + UID mapping check (client)**
+
+.. code-block:: bash
+
+   echo "hello" | sudo tee /Users/example/clustershare/.nfs_test >/dev/null
+   ls -ln /Users/example/clustershare/.nfs_test
+   # With -mapall=-2:-2 you should see owner/group 4294967294:4294967294
+   sudo rm /Users/example/clustershare/.nfs_test
+
+**6. Optional: autofs on the client**
+
+.. code-block:: bash
+
+   grep -n 'auto_nfs' /etc/auto_master
+   cat /etc/auto_nfs
+   # Expect a line such as:
+   # /Users/example/clustershare  -fstype=nfs,vers=3,tcp,resvport  192.168.3.86:/Users/example/data
+
+   sudo automount -vc
+   ls -la /Users/example/clustershare      # triggers the automount
+   mount | grep clustershare           # confirm a single NFS mount
+
+**Quick troubleshoot**
+
+- Export missing on the client ``showmount``: fix ``/etc/exports`` on the server (allow the client
+  IP or subnet), then ``sudo nfsd restart``.
+- Timeouts: from the client run ``rpcinfo -p 192.168.3.86``. If it hangs, temporarily disable the
+  server firewall:
+
+  .. code-block:: bash
+
+     sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
+     # test, then restore:
+     sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+
+- ``Permission denied`` / read-only: ensure the exported directory is writable by the mapped
+  identity (``nobody`` or another service user).
+- Double mounts in ``mount`` output: unmount twice to clear stacked NFS layers, then remount or let
+  autofs handle it:
+
+  .. code-block:: bash
+
+     sudo umount /Users/example/clustershare || true
+     sudo umount /Users/example/clustershare || true
+
 Known Bugs
 ==========
 
@@ -211,4 +314,3 @@ If the installer emits ``Failed to read metadata from installed package pydantic
 3. Rerun the installer.
 
 The METADATA files are regenerated and the warning disappears.
-
