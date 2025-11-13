@@ -479,7 +479,7 @@ This repository uses Codex CLI for local agent development. Follow these notes w
 ## Codex CLI Quickstart
 
 - Start app development after an initial creation via EXECUTE project clone using:
-  - `codex  --dangerously-bypass-approvals-and-sandbox -m gpt-5-codexr medium`
+  - `codex  --dangerously-bypass-approvals-and-sandbox --model gpt-5-codexr`
 - Run the command from the repository root to give the agent full filesystem access with a non-interactive approval policy.
 - Use only on your local, trusted machine. Do not run with these flags on shared or untrusted environments.
 
