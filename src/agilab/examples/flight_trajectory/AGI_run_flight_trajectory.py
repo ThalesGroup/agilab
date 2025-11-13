@@ -1,9 +1,12 @@
 
 import asyncio
+from pathlib import Path
+
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "/Users/agi/PycharmProjects/agilab/src/agilab/apps"
+APPS_DIR = str(Path(__file__).resolve().parents[3] / "apps")
+
 APP = "flight_trajectory_project"
 
 async def main():
