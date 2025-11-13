@@ -862,7 +862,11 @@ class AGI:
             password: str = None
     ):
         if AgiEnv.is_local(ip):
-            shutil.copyfile(local_path, remote_path)
+            destination = remote_path
+            if not destination.is_absolute():
+                destination = env.home_abs / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(local_path, destination)
             return
 
         if not user:
@@ -2170,8 +2174,12 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI._workers):
-                await AGI.send_file(env, ip, env.cluster_pck / "agi_distributor/cli.py",
-                                    cli_rel.parent)
+                await AGI.send_file(
+                    env,
+                    ip,
+                    env.cluster_pck / "agi_distributor/cli.py",
+                    cli_rel,
+                )
                 hw_rapids_capable = env.envars.get(ip, None)
                 if not hw_rapids_capable or hw_rapids_capable == "no_rapids_hw":
                     env.hw_rapids_capable = False
