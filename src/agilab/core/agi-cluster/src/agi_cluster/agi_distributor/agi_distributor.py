@@ -2234,7 +2234,9 @@ class AGI:
             cmd = (
                 f"{local_prefix}{env.uv} run --no-sync --project {env.wenv_abs} "
                 f"dask scheduler --port {AGI._scheduler_port} "
-                f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
+                f"--host {AGI._scheduler_ip} "
+                f"--dashboard-address :0 "
+                f"--pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
             )
             logger.info(f"Starting dask scheduler locally: {cmd}")
             result = AGI._exec_bg(cmd, env.app)
@@ -2253,7 +2255,7 @@ class AGI:
 
             cmd = (
                 f"{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync dask scheduler --port {AGI._scheduler_port} "
-                f"--host {AGI._scheduler_ip} --pid-file dask_scheduler.pid"
+                f"--host {AGI._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
             )
             # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
             asyncio.create_task(AGI.exec_ssh_async(AGI._scheduler_ip, cmd))
