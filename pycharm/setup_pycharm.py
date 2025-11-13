@@ -716,6 +716,7 @@ def main():
         model.set_module_sdk(target, sdk_app)
 
         project = app.name[:-8]
+        seed_example_scripts(cfg, project)
         worker_path = Path.home() / "wenv" / f"{project}_worker"
         worker_py = venv_python_for(worker_path)
         if not worker_py:
@@ -726,7 +727,6 @@ def main():
         jdk_table.set_associated_project(sdk_worker, worker_py)
 
         realized_apps.append(app.name)
-        seed_example_scripts(cfg, project)
     
     realized_apps_pages = []
     for apps_page in cfg.eligible_apps_pages:
