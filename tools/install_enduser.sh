@@ -29,6 +29,8 @@ AGI_INSTALL_ROOT=""
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_SRC_DIR="${REPO_ROOT}/src/agilab"
 ENV_FILE="$HOME/.agilab/.env"
+FORCE_REBUILD="${FORCE_REBUILD:-0}"  # NEW: Allow forcing rebuild
+SKIP_OFFLINE="${SKIP_OFFLINE:-0}"    # NEW: Skip offline deps for faster installs
 
 
 if [[ -f "$AGI_PATH_FILE" ]]; then
@@ -39,7 +41,13 @@ else
 fi
 
 usage() {
-  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z]"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--skip-offline]"
+  echo ""
+  echo "Options:"
+  echo "  --source         Installation source (local, pypi, testpypi)"
+  echo "  --version        Specific version to install"
+  echo "  --force-rebuild  Force rebuild even if venv exists"
+  echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
   exit 1
 }
 
@@ -89,6 +97,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --source) SOURCE="$2"; shift 2 ;;
     --version) VERSION="$2"; VERSION_ARG_SET=1; shift 2 ;;
+    --force-rebuild) FORCE_REBUILD=1; shift ;;
+    --skip-offline) SKIP_OFFLINE=1; shift ;;
     *) usage ;;
   esac
 done
@@ -189,23 +199,36 @@ print("[info] TestPyPI agi* package versions match metadata.")
 PY
 }
 
-# Deferred: local-source-only path check was here
-
 echo "===================================="
-echo " MODE:     ${SOURCE}"
-echo " VERSION:  ${VERSION:-<latest>}"
+echo " MODE:           ${SOURCE}"
+echo " VERSION:        ${VERSION:-<latest>}"
+echo " FORCE REBUILD:  ${FORCE_REBUILD}"
+echo " SKIP OFFLINE:   ${SKIP_OFFLINE}"
 echo "===================================="
 
 # -----------------------------
 # AGI_SPACE / venv
 # -----------------------------
-# moved: uv build --wheel
 pushd "$AGI_SPACE" >/dev/null
-rm -fr .venv uv.lock
+
+# OPTIMIZATION 1: Only delete venv if forced or doesn't exist
+if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+  echo "[info] Force rebuild requested - removing existing venv and lock file"
+  rm -fr .venv uv.lock
+elif [[ ! -d .venv ]]; then
+  echo "[info] No existing venv found - creating new one"
+  rm -f uv.lock  # Remove stale lock file if venv is missing
+else
+  echo "[info] Using existing venv (use --force-rebuild to recreate)"
+fi
+
 if [ ! -f pyproject.toml ]; then
     uv init --bare --no-workspace
 fi
+
+# OPTIMIZATION 2: Use uv sync which respects lock files
 ${UV_PREVIEW[@]} sync
+
 # Ensure pip is available inside the venv for any tooling that shells out to python -m pip
 ${UV_PREVIEW[@]} run python -m ensurepip --upgrade || true
 
@@ -231,18 +254,52 @@ case "${SOURCE}" in
     }
 
     [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
+
+    # OPTIMIZATION 3: Create lock file ONCE at repo root if it doesn't exist
     pushd "${AGI_INSTALL_ROOT}" >/dev/null
-    uv build --wheel --no-build-logs --quiet
+    if [[ ! -f "uv.lock" || "${FORCE_REBUILD}" -eq 1 ]]; then
+      echo "[info] Creating/updating lock file for local repo (one-time operation)..."
+      uv lock --quiet
+      echo "[info] Lock file created - future installs will be much faster!"
+    else
+      echo "[info] Using existing lock file from repo"
+    fi
+
+    # OPTIMIZATION 4: Build wheel only if needed
+    WHEEL_DIR="${AGI_INSTALL_ROOT}/dist"
+    NEEDS_BUILD=0
+    if [[ ! -d "${WHEEL_DIR}" ]] || [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+      NEEDS_BUILD=1
+    else
+      # Check if any wheel exists
+      if ! ls "${WHEEL_DIR}"/*.whl >/dev/null 2>&1; then
+        NEEDS_BUILD=1
+      fi
+    fi
+
+    if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
+      echo "[info] Building wheel from local source..."
+      uv build --wheel --no-build-logs --quiet
+    else
+      echo "[info] Using existing wheel (use --force-rebuild to recreate)"
+    fi
     popd >/dev/null
+
+    # OPTIMIZATION 5: Install all packages in one command
     echo "Installing packages from local source tree..."
+    INSTALL_PATHS=()
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
+        INSTALL_PATHS+=("${AGI_INSTALL_PATH}/core/${pkg}")
       fi
     done
-    ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_ROOT}"
-    ;;
+    INSTALL_PATHS+=("${AGI_INSTALL_ROOT}")
 
+    # Install all at once instead of one-by-one
+    if [[ ${#INSTALL_PATHS[@]} -gt 0 ]]; then
+      ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${INSTALL_PATHS[@]}"
+    fi
+    ;;
 
   pypi)
     echo "Installing from PyPI..."
@@ -294,7 +351,7 @@ PY
         [[ -n "${VERSION}" ]] || { attempt=$((attempt+1)); sleep 3; }
       done
       [[ -n "${VERSION}" ]] || { echo "ERROR: Could not find a common version for all packages on TestPyPI after retries." >&2; exit 1; }
-      echo "✔ Using version ${VERSION} for all packages"
+      echo "✓ Using version ${VERSION} for all packages"
     else
       echo "Installing from TestPyPI (forced VERSION=${VERSION} for all)…"
     fi
@@ -328,7 +385,13 @@ PY
     ;;
 esac
 
+# OPTIMIZATION 6: Make offline install optional and use UV instead of pip
 install_offline_assistant() {
+  if [[ "${SKIP_OFFLINE}" -eq 1 ]]; then
+    echo "[info] Skipping offline assistant installation (--skip-offline flag set)"
+    return
+  fi
+
   local python_bin="${VENV}/bin/python"
   if [[ ! -x "${python_bin}" ]]; then
     warn "Skipping GPT-OSS install; missing interpreter at ${python_bin}"
@@ -350,20 +413,26 @@ PY
 
   if (( major > 3 || (major == 3 && minor >= 12) )); then
     echo "Installing GPT-OSS offline assistant dependencies..."
-    if "${python_bin}" -m pip install --upgrade "agilab[offline]"; then
-      echo "GPT-OSS offline assistant base packages installed."
+    echo "[info] This may take several minutes (downloading torch ~2GB, transformers, etc.)"
+    echo "[info] To skip this in the future, use --skip-offline flag"
+
+    # Use UV instead of pip for faster installation
+    if ${UV_PREVIEW[@]} pip install --upgrade "agilab[offline]" 2>&1 | tee /tmp/offline-install.log; then
+      echo "GPT-OSS offline assistant packages installed."
     else
-      warn "Unable to install GPT-OSS automatically. Run 'pip install agilab[offline]' manually once Python >=3.12 is available."
+      warn "Unable to install GPT-OSS automatically."
+      warn "Install log saved to /tmp/offline-install.log"
+      warn "Run 'uv pip install agilab[offline]' manually if needed."
+      return
     fi
+
+    # Verify critical packages (but don't reinstall if already present)
     local ensure_specs=("transformers>=4.57.0" "torch>=2.8.0" "accelerate>=0.34.2")
     for spec in "${ensure_specs[@]}"; do
       local pkg="${spec%%>=*}"
-      if ! "${python_bin}" -m pip show "${pkg}" >/dev/null 2>&1; then
-        if "${python_bin}" -m pip install --upgrade "${spec}"; then
-          echo "[info] Installed ${spec} for GPT-OSS backend support."
-        else
-          warn "Failed to install ${spec}. Install it manually if you plan to use the ${pkg} backend."
-        fi
+      if ! "${python_bin}" -c "import ${pkg}" >/dev/null 2>&1; then
+        echo "[warn] Package ${pkg} not importable after installation"
+        echo "[info] Try: uv pip install --upgrade '${spec}'"
       fi
     done
   else
@@ -392,3 +461,11 @@ if ! "${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)' ; then
   echo "(No agi* packages detected.)"
 fi
 echo "===================================="
+echo ""
+echo "Installation complete!"
+echo ""
+echo "Performance tips:"
+echo "  - Use existing venv for faster installs (automatic now)"
+echo "  - Use --skip-offline to skip heavy ML packages (saves 5-10 min)"
+echo "  - Lock file is cached at repo root for faster rebuilds"
+echo "  - Use --force-rebuild only when needed (cleans everything)"
