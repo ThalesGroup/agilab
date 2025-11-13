@@ -1,9 +1,10 @@
 import asyncio
+from pathlib import Path
 
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "~/PycharmProjects/agilab/src/agilab/apps"
+APPS_DIR = str(Path(__file__).resolve().parents[3] / "apps")
 APP = "flight_trajectory_project"
 DEFAULT_SCHEDULER = "127.0.0.1"
 DEFAULT_WORKERS = {"127.0.0.1": 2}
