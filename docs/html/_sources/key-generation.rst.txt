@@ -199,6 +199,34 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
     It should connect without asking the account password !
 
+Bidirectional trust between worker Macs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When two macOS workers must talk to each other (for example ``192.168.3.84`` and ``192.168.3.86``),
+install the same SSH key pair on both hosts so either side can ``ssh`` without a password prompt.
+Assuming the login user is ``agi`` (adjust if yours differs):
+
+1. Enable Remote Login on each Mac if it is not already on::
+
+       sudo systemsetup -setremotelogin on
+
+2. From ``192.168.3.84`` push the public key to ``192.168.3.86``::
+
+       ssh-copy-id -i ~/.ssh/id_ed25519 agi@192.168.3.86
+
+3. From ``192.168.3.86`` push the same key back to ``192.168.3.84``::
+
+       ssh-copy-id -i ~/.ssh/id_ed25519 agi@192.168.3.84
+
+4. Verify both directions once so the host keys land in ``~/.ssh/known_hosts``::
+
+       ssh agi@192.168.3.86 hostname
+       ssh agi@192.168.3.84 hostname
+
+Each command should print the remote ``hostname`` without asking for a password. If either side still
+prompts, re-run ``ssh-copy-id`` and make sure ``~/.ssh/authorized_keys`` on the target contains the
+public key content.
+
 Troubleshooting
 ~~~~~~~~~~~~~~~~~~
 
