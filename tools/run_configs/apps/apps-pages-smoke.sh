@@ -5,4 +5,4 @@ set -euo pipefail
 cd /Users/example/PycharmProjects/agilab
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python /Users/example/PycharmProjects/agilab/tools/smoke_apps_pages.py --active-app /Users/example/PycharmProjects/agilab/src/agilab/apps/flight_project --timeout 20
+uv run python /Users/example/PycharmProjects/agilab/tools/smoke_preinit.py --active-app /Users/example/PycharmProjects/agilab/src/agilab/apps/flight_project --timeout 20

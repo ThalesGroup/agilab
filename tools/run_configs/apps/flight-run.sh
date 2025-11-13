@@ -5,4 +5,4 @@ set -euo pipefail
 cd /Users/example/PycharmProjects/agilab/src/agilab/apps/flight_project
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python /Users/example/PycharmProjects/agilab/src/agilab/examples/flight/AGI_run_flight.py
+uv run python /Users/example/log/execute/flight/AGI_run_flight.py
