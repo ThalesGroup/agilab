@@ -21,6 +21,9 @@ You’ll find everything from quickstarts to API references, as well as example 
    cluster
    cluster-help
    agilab
+   architecture
+   agi-core-architecture
+   agilab-mlops-positioning
    framework-api
    environment
    faq

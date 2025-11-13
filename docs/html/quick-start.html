@@ -49,9 +49,14 @@
               <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Quick-Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#license">LICENSE</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#install-agilab">Install Agilab</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#support">Support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#license">LICENSE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#install-agilab">Install Agilab</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cluster-installs">Cluster installs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#next-steps">Next steps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#support">Support</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
@@ -105,6 +110,31 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">AGILab Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#component-view">Component view</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#layers-at-a-glance">Layers at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#runtime-flow">Runtime flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#repository-map">Repository map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#documentation-map">Documentation map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agi-core-architecture.html">AGI Core Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#modules-at-a-glance">Modules at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#execution-flow">Execution flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#repository-pointers">Repository pointers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#tips-for-contributions">Tips for contributions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab-mlops-positioning.html">AGILab in the MLOps Toolchain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#where-agilab-helps">Where AGILab helps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#what-agilab-does-not-aim-to-cover">What AGILab does <em>not</em> aim to cover</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#positioning-vs-other-tools">Positioning vs. other tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#suggested-workflow">Suggested workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#see-also">See also</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
@@ -296,24 +326,77 @@
              
   <section id="quick-start">
 <h1>Quick-Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h1>
-<p>Agilab is a software solution to explore AI for engineering. See
-<a class="reference internal" href="index.html"><span class="doc">documentation</span></a> for more information.</p>
+<p>Agilab is a software solution to explore AI for engineering. This quick-start
+walks you through the minimal steps required to install the framework, open the
+Streamlit UI, and run one of the sample apps. For architectural context see
+<a class="reference internal" href="architecture.html"><span class="doc">AGILab Architecture</span></a> and <a class="reference internal" href="agi-core-architecture.html"><span class="doc">AGI Core Architecture</span></a>.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Python 3.11+ with <a class="reference external" href="https://docs.astral.sh/uv/">uv</a> installed
+(<code class="docutils literal notranslate"><span class="pre">curl</span> <span class="pre">-LsSf</span> <span class="pre">https://astral.sh/uv/install.sh</span> <span class="pre">|</span> <span class="pre">sh</span></code>).</p></li>
+<li><p>macOS or Linux shell (use WSL2 on Windows until native support lands).</p></li>
+<li><p>SSH key access to any remote cluster you intend to use.</p></li>
+<li><p>Optional: PyCharm 2025.2+ to load the bundled run configurations.</p></li>
+</ul>
 <section id="license">
-<h2>LICENSE<a class="headerlink" href="#license" title="Link to this heading"></a></h2>
+<h3>LICENSE<a class="headerlink" href="#license" title="Link to this heading"></a></h3>
 <p>New BSD. See <a class="reference internal" href="license.html"><span class="doc">License File</span></a>.</p>
 </section>
 <section id="install-agilab">
-<h2>Install Agilab<a class="headerlink" href="#install-agilab" title="Link to this heading"></a></h2>
-<p>If you want to install on a cluster, you need to provide the installer an account that can perform an SSH connection with key authentication or credentials.</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">mkdir agi-workspace &amp;&amp; cd agi-workspace</span>
-<span class="go">uv add agilab</span>
-<span class="go">uv run agilab</span>
+<h3>Install Agilab<a class="headerlink" href="#install-agilab" title="Link to this heading"></a></h3>
+<ol class="arabic">
+<li><p><strong>Bootstrap a workspace</strong> (keeps project files and the Streamlit cache in a
+single folder):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mkdir</span> <span class="o">~/</span><span class="n">agi</span><span class="o">-</span><span class="n">workspace</span> <span class="o">&amp;&amp;</span> <span class="n">cd</span> <span class="o">~/</span><span class="n">agi</span><span class="o">-</span><span class="n">workspace</span>
 </pre></div>
 </div>
+</li>
+<li><p><strong>Install the published wheel</strong> using <a class="reference external" href="https://docs.astral.sh/uv/">uv</a>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">uv</span> <span class="n">add</span> <span class="n">agilab</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Launch the Streamlit UI</strong> (runs inside the managed virtual environment):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">uv</span> <span class="n">run</span> <span class="n">agilab</span>
+</pre></div>
+</div>
+<p>The EXECUTE page opens automatically. Point the sidebar to your apps
+directory (defaults to <code class="docutils literal notranslate"><span class="pre">~/agi-workspace/src/agilab/apps</span></code>).</p>
+</li>
+<li><p><strong>Run the sample ``mycode`` app</strong> either from the UI or the CLI
+mirror:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">uv</span> <span class="n">run</span> <span class="n">python</span> <span class="n">src</span><span class="o">/</span><span class="n">agilab</span><span class="o">/</span><span class="n">examples</span><span class="o">/</span><span class="n">mycode</span><span class="o">/</span><span class="n">AGI_run_mycode</span><span class="o">.</span><span class="n">py</span>
+</pre></div>
+</div>
+<p>This script constructs an <code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code>, bundles the worker, and executes a
+full AGI run so you can inspect the generated logs under
+<code class="docutils literal notranslate"><span class="pre">~/log/execute/mycode</span></code>.</p>
+</li>
+</ol>
+</section>
+<section id="cluster-installs">
+<h3>Cluster installs<a class="headerlink" href="#cluster-installs" title="Link to this heading"></a></h3>
+<p>If you want to install on a cluster, the installer must have SSH key access or
+credentials with permission to deploy workers. See <a class="reference internal" href="cluster.html"><span class="doc">Cluster</span></a> for the full
+workflow. <code class="docutils literal notranslate"><span class="pre">pycharm/setup_pycharm.py</span></code> mirrors Streamlit run configurations to
+<code class="docutils literal notranslate"><span class="pre">~/log/execute/&lt;app&gt;/AGI_*.py</span></code> so that IDE and CLI stay in sync.</p>
+</section>
+<section id="next-steps">
+<h3>Next steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><a class="reference internal" href="architecture.html"><span class="doc">AGILab Architecture</span></a> – understand how Streamlit, <code class="docutils literal notranslate"><span class="pre">agi_core</span></code>, <code class="docutils literal notranslate"><span class="pre">agi_env</span></code> and
+<code class="docutils literal notranslate"><span class="pre">agi_cluster</span></code> fit together.</p></li>
+<li><p><a class="reference internal" href="directory-structure.html"><span class="doc">Project Files Structure</span></a> – explore the repository layout with an annotated
+tree generated by <code class="docutils literal notranslate"><span class="pre">docs/gen-docs.py</span></code>.</p></li>
+<li><p><a class="reference internal" href="apps-pages.html"><span class="doc">apps bounded pages</span></a> – learn how the EXECUTE/EXPLORE/EDIT Streamlit pages mirror
+the CLI wrappers under <code class="docutils literal notranslate"><span class="pre">tools/run_configs</span></code>.</p></li>
+</ul>
 </section>
 <section id="support">
-<h2>Support<a class="headerlink" href="#support" title="Link to this heading"></a></h2>
+<h3>Support<a class="headerlink" href="#support" title="Link to this heading"></a></h3>
 <p>Email: <a class="reference external" href="mailto:focus&#37;&#52;&#48;thalesgroup&#46;com">focus<span>&#64;</span>thalesgroup<span>&#46;</span>com</a></p>
+</section>
 </section>
 </section>
 

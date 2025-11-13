@@ -49,9 +49,14 @@
               <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick-Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#prerequisites">Prerequisites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#cluster-installs">Cluster installs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#next-steps">Next steps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
@@ -105,6 +110,31 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">AGILab Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#component-view">Component view</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#layers-at-a-glance">Layers at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#runtime-flow">Runtime flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#repository-map">Repository map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#documentation-map">Documentation map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agi-core-architecture.html">AGI Core Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#modules-at-a-glance">Modules at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#execution-flow">Execution flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#repository-pointers">Repository pointers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#tips-for-contributions">Tips for contributions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab-mlops-positioning.html">AGILab in the MLOps Toolchain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#where-agilab-helps">Where AGILab helps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#what-agilab-does-not-aim-to-cover">What AGILab does <em>not</em> aim to cover</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#positioning-vs-other-tools">Positioning vs. other tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#suggested-workflow">Suggested workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-mlops-positioning.html#see-also">See also</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
@@ -339,13 +369,13 @@ apps/
         run_test.sh
         steps.toml
         uv_config.toml
-        wenv
     mycode_project/
         .venv/ [excluded]
         src/
             mycode/
                 __pycache__/ [excluded]
                 __init__.py
+                app_args.py
                 mycode.py
                 mycode_args.py
             mycode_worker/
@@ -365,6 +395,7 @@ apps/
         pyproject.toml
         README.md
         uv_config.toml
+        wenv
     example_app_project/
         .idea/
             inspectionProfiles/
@@ -575,125 +606,9 @@ core/
                         balancer_model.pkl
                     mistral_offline/
                         data/
-                            AI-ML-cheatsheets-main/
-                                01- Mathematics/
-                                    1- Calculus cheat sheet all reduced.pdf
-                                    2- Calculus cheat sheet.pdf
-                                    3- Linear Algebra in 4 pages.pdf
-                                    4- Probability cheat sheet.pdf
-                                    4- Probability distribution cheat sheet.pdf
-                                    5- Statistics cheat sheet.pdf
-                                    6- Super-cheatsheet-mathematics.pdf
-                                    7- Summary statistics.pdf
-                                02- C++/
-                                    1- C++ Reference Card.pdf
-                                    2- C++ Libraries.pdf
-                                    3- C++ OOP Reference Card.pdf
-                                03- Python/
-                                    1- Python for Beginners.pdf
-                                    2- Python Reference Cheatsheet.pdf
-                                    3- Python cheatsheet.pdf
-                                    4- Python for Data Science cheatsheet.pdf
-                                    5- Numpy cheatsheet.pdf
-                                    6- Pandas cheatsheet 1.pdf
-                                    6- Pandas cheatsheet 2.pdf
-                                    7- Matplotlib cheatsheet 1.pdf
-                                    7- Matplotlib cheatsheet 2.pdf
-                                    8- Scikit-Learn cheatsheet.pdf
-                                    List, Tuples, Sets, Dictionary.png
-                                    Tutorial Python.PNG
-                                04- Computer architecture/
-                                    Computer organisation cheatsheet.pdf
-                                05- Data structures/
-                                    1- Classification of Data structures/
-                                        [max depth reached]
-                                    2- Data structures/
-                                        [max depth reached]
-                                    3- Complexity/
-                                        [max depth reached]
-                                    Resources.pdf
-                                06- Automata theory/
-                                    1- Languages and Automata cheathseet.pdf
-                                    2- Automata cheatsheet.pdf
-                                    3- Context-Free Grammar cheatsheet.pdf
-                                06- Complexity theory/
-                                    Complexity Theory Cheat Sheet.pdf
-                                    Computability Theory Cheat Sheet.pdf
-                                07- SQL/
-                                    0- SQL-quick-guide.pdf
-                                    1- SQL operations.pdf
-                                    1- SQL query execution order.pdf
-                                    2- SQL commands.pdf
-                                    3- SQL-basics-cheat-sheet-a4.pdf
-                                    4- SQL joins-cheat-sheet-a4.pdf
-                                    5- Study-guide-data-retrieval-with-SQL.pdf
-                                    6- SQL Roadmap.pdf
-                                08- Data cleaning/
-                                    Data-cleaning-checklist.pdf
-                                    Data-cleaning-guide.pdf
-                                    Data-preparation-cheatsheet.pdf
-                                    Feature engineering.pdf
-                                    Feature-selection-methods.png
-                                    Hypothesis-testing-cheatsheet.pdf
-                                09- Data visualization/
-                                    1- Core principles of Data Visualization.pdf
-                                    2- Visual Vocabulary.pdf
-                                    3- Data visualization cheatsheet.pdf
-                                    4- The chart chooser.pdf
-                                    5- From Data to Visualization.pdf
-                                10- Mathematical logic/
-                                    cheatsheet-logic-models.pdf
-                                11- Introduction to AI/
-                                    cheatsheet-states-models.pdf
-                                    cheatsheet-variables-models.pdf
-                                12- Machine learning/
-                                    0- Machine learning process.pdf
-                                    1- Machine-learning-map.png
-                                    2- Machine learning algorithms.png
-                                    3- How to choose a ML algorithm 1.png
-                                    3- How to choose a ML algorithm 2.pdf
-                                    3- Time complexity of ML algorithms.pdf
-                                    4- Comparison of ML algorithms 1.pdf
-                                    4- Comparison of ML algorithms 2.pdf
-                                    4- Comparison of ML algorithms 3.pdf
-                                    4- Comparison of ML algorithms 4.png
-                                    4- Comparison of ML algorithms 5.png
-                                    5- super-cheatsheet-machine-learning.pdf
-                                    6- Machine learning cheatsheets.pdf
-                                    7- Machine learning explainability.pdf
-                                    8- Machine learning operations MLOps.pdf
-                                13- Deep learning/
-                                    1- super-cheatsheet-deep-learning.pdf
-                                    2- Large Language Models cheatsheet.pdf
-                                    3- main types of neural networks.pdf
-                                    4- Architecture - Classification MLP.png
-                                    5- Architecture - Regression MLP.png
-                                    6- Activation Function - Hidden Layer.png
-                                    7- Activation Function - Output Layer.png
-                                    8- Activation Functions.png
-                                14- Metrics to evaluate machine learning algorithms/
-                                    Metrics-machine-learning.pdf
-                                    Performance-measure-machine-learning.pdf
-                                15- Reinforcement learning/
-                                    Reinforcement learning cheatsheet 1.pdf
-                                    Reinforcement learning cheatsheet 2.pdf
-                                16- Time series/
-                                    Time-series-cheat-sheet.pdf
-                                17- Git/
-                                    Git-cheat-sheet 2.pdf
-                                    Git-cheat-sheet.pdf
-                                AI roadmap.png
-                                AI-ML-cheatsheets.png
-                                Google Drive.png
-                                Mathematics.png
-                                README.md
+                            .gitignore
                             .gitkeep
-                            cheatsheet-transformers-large-language-models.pdf
-                            CheatSheet_Keras_Fonctions_Metrique.pdf
-                            Keras-Cheat-Sheet-Python.pdf
-                            machine-learning-cheat-sheet.pdf
-                            Machine-Learning-Cheatsheet.pdf
-                            ml-cheatsheet.pdf
+                        README.md
                 __init__.py
                 agi_env.py
                 agi_logger.py
@@ -799,6 +714,7 @@ examples/
         AGI_install_example_app.py
         AGI_run_example_app.py
     example_app/
+        AGI_get_distrib_example_app.py
         AGI_install_example_app.py
         AGI_run_example_app.py
     example_app/

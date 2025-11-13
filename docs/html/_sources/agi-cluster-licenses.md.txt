@@ -16,7 +16,7 @@
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
 | bleach | APACHE SOFTWARE LICENSE |
-| brotli | MIT LICENSE |
+| brotli | MIT |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | MIT |
 | charset-normalizer | MIT |
@@ -43,7 +43,7 @@
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | invoke | BSD LICENSE |
 | ipykernel | BSD-3-CLAUSE |
-| ipython | BSD LICENSE |
+| ipython | BSD-3-CLAUSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | ipywidgets | BSD LICENSE |
 | isoduration | ISC LICENSE _ISCL_ |
