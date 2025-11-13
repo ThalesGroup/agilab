@@ -1,5 +1,5 @@
 [args]
-data_in = "~/data/PolarsApp"
+data_in = "polars_app/dataset"
 
 [cluster]
 verbose = true
