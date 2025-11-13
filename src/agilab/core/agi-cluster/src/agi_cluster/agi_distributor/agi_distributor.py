@@ -15,6 +15,7 @@ import traceback
 from typing import List, Optional, Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
+import inspect
 import getpass
 import io
 import os
@@ -34,6 +35,60 @@ from pathlib import Path
 from tempfile import gettempdir
 
 from agi_cluster.agi_distributor import cli as distributor_cli
+
+
+# ---------------------------------------------------------------------------
+# Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
+# ---------------------------------------------------------------------------
+def _ensure_asyncio_run_signature() -> None:
+    """Ensure ``asyncio.run`` accepts the ``loop_factory`` argument.
+
+    PyCharm's debugger replaces ``asyncio.run`` with a shim that only accepts
+    ``main`` and ``debug``.  Python 3.13 introduced a ``loop_factory`` keyword
+    that ``distributed`` relies on; without it, AGI runs fail with
+    ``TypeError``.  When we detect the truncated signature (and the replacement
+    originates from ``pydevd``), we wrap it so ``loop_factory`` works again.
+    """
+
+    current = asyncio.run
+    try:
+        params = inspect.signature(current).parameters
+    except (TypeError, ValueError):  # pragma: no cover - unable to introspect
+        return
+    if "loop_factory" in params:
+        return
+
+    if "pydevd" not in getattr(current, "__module__", ""):
+        return
+
+    original = current
+
+    def _patched_run(main, *, debug=None, loop_factory=None):
+        if loop_factory is None:
+            return original(main, debug=debug)
+
+        loop = loop_factory()
+        try:
+            try:
+                asyncio.set_event_loop(loop)
+            except RuntimeError:
+                pass
+            if debug is not None:
+                loop.set_debug(debug)
+            return loop.run_until_complete(main)
+        finally:
+            try:
+                loop.close()
+            finally:
+                try:
+                    asyncio.set_event_loop(None)
+                except RuntimeError:
+                    pass
+
+    asyncio.run = _patched_run
+
+
+_ensure_asyncio_run_signature()
 
 
 # --- Added minimal TestPyPI fallback for uv sync ---
