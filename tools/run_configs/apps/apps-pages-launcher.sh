@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Generated from PyCharm run configuration: apps-pages launcher
-cd /Users/jpm/PycharmProjects/agilab
+cd /Users/agi/PycharmProjects/agilab
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python /Users/jpm/PycharmProjects/agilab/tools/apps_pages_launcher.py --active-app /Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project
+uv run python /Users/agi/PycharmProjects/agilab/tools/apps_pages_launcher.py --active-app /Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project

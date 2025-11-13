@@ -4,4 +4,4 @@ set -euo pipefail
 # Generated from PyCharm run configuration: run ssh cmd
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python /Users/jpm/PycharmProjects/agilab/src/agilab/core/agi-env/test/_test_ssh_cmd.py
+uv run python /Users/agi/PycharmProjects/agilab/src/agilab/core/agi-env/test/_test_ssh_cmd.py

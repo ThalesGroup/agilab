@@ -2,5 +2,5 @@
 set -euo pipefail
 
 # Generated from PyCharm run configuration: test agi_env
-cd /Users/jpm/PycharmProjects/agilab/src/agilab/core/agi-env/test
+cd /Users/agi/PycharmProjects/agilab/src/agilab/core/agi-env/test
 uv run python

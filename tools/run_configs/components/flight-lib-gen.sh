@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Generated from PyCharm run configuration: flight_lib gen
-cd /Users/jpm/wenv/flight_worker
+cd /Users/agi/wenv/flight_worker
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python agi_node.agi_dispatcher.build --app-path /Users/jpm/wenv/flight_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b /Users/jpm/wenv/flight_worker
+uv run python agi_node.agi_dispatcher.build --app-path /Users/agi/wenv/flight_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b /Users/agi/wenv/flight_worker
