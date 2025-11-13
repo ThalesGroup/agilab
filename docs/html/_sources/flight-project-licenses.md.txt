@@ -10,7 +10,7 @@
 | alembic | MIT |
 | altair | BSD LICENSE |
 | altex | APACHE-2.0 |
-| annotated-doc | MIT LICENSE |
+| annotated-doc | MIT |
 | annotated-types | MIT LICENSE |
 | anthropic | MIT LICENSE |
 | anyio | MIT |
@@ -29,13 +29,13 @@
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
-| black | MIT LICENSE |
+| black | MIT |
 | bleach | APACHE SOFTWARE LICENSE |
 | blinker | MIT LICENSE |
 | boto3 | APACHE-2.0 |
 | botocore | APACHE-2.0 |
 | bottleneck | SIMPLIFIED BSD |
-| brotli | MIT LICENSE |
+| brotli | MIT |
 | build | MIT |
 | cachetools | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
@@ -47,11 +47,12 @@
 | cohere | MIT LICENSE |
 | comm | BSD LICENSE |
 | contourpy | BSD LICENSE |
+| coverage | APACHE-2.0 |
 | cramjam | MIT |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cycler | BSD LICENSE |
 | cython | APACHE SOFTWARE LICENSE |
-| dask | BSD LICENSE |
+| dask | BSD-3-CLAUSE |
 | databricks-sdk | APACHE SOFTWARE LICENSE |
 | dataclasses-json | MIT LICENSE |
 | debugpy | MIT LICENSE |
@@ -118,15 +119,17 @@
 | httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
 | httpx-sse | MIT |
+| huey | MIT LICENSE |
 | huggingface-hub | APACHE SOFTWARE LICENSE |
 | humanize | MIT License |
 | id | APACHE SOFTWARE LICENSE |
 | idna | BSD-3-CLAUSE |
 | importlib-metadata | APACHE SOFTWARE LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| iniconfig | MIT |
 | invoke | BSD LICENSE |
 | ipykernel | BSD-3-CLAUSE |
-| ipython | BSD LICENSE |
+| ipython | BSD-3-CLAUSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | ipywidgets | BSD LICENSE |
 | isoduration | ISC LICENSE _ISCL_ |
@@ -210,6 +213,7 @@
 | nest-asyncio | BSD LICENSE |
 | networkx | BSD LICENSE |
 | nh3 | MIT |
+| noise | MIT LICENSE |
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
@@ -235,6 +239,7 @@
 | pip | MIT |
 | platformdirs | MIT LICENSE |
 | plotly | MIT LICENSE |
+| pluggy | MIT LICENSE |
 | ply | BSD |
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
@@ -268,6 +273,8 @@
 | pypdf | BSD-3-CLAUSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | pyproject-hooks | MIT LICENSE |
+| pytest | MIT |
+| pytest-cov | MIT LICENSE |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD-3-CLAUSE |
 | python-json-logger | BSD LICENSE |
@@ -297,6 +304,7 @@
 | send2trash | BSD LICENSE |
 | setuptools | MIT |
 | sgmllib3k | BSD LICENSE |
+| sgp4 | MIT LICENSE |
 | shapely | BSD LICENSE |
 | shellingham | ISC LICENSE _ISCL_ |
 | six | MIT LICENSE |
