@@ -19,7 +19,6 @@ rapids = true
 cluster_enabled = true
 user = "agi"
 auth_method = "password"
-agi_share_dir = "~/clustershare"
 scheduler = "192.168.20.111"
 
 [cluster.workers]

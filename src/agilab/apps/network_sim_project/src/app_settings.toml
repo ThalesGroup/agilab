@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-data_in = flight/dataset"
+data_in = "flight/dataset"
 net_size = 12
 seed = 42
 topology_filename = "topology.gml"
