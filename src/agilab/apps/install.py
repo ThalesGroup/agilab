@@ -90,12 +90,14 @@ def ensure_data_storage(env: AgiEnv) -> None:
     """Guarantee the app data directory is available before invoking AGI installers."""
 
     data_root = (env.home_abs / env.data_rel).expanduser()
+    share_hint = getattr(env, "agi_share_dir", None) or getattr(env, "AGI_SHARE_DIR", None)
+    share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
     try:
         data_root.mkdir(parents=True, exist_ok=True)
     except FileNotFoundError as exc:
         raise RuntimeError(
             f"Required data directory {data_root} is unavailable. "
-            "Verify the data URI share is mounted before running install."
+            f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted before running install."
         ) from exc
     except OSError as exc:
         if exc.errno in {
@@ -107,7 +109,7 @@ def ensure_data_storage(env: AgiEnv) -> None:
         }:
             raise RuntimeError(
                 f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
-                "Verify the data URI share is mounted before running install."
+                f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted before running install."
             ) from exc
         raise
 
