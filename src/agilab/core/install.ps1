@@ -77,7 +77,6 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-env")
 Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-node")
 Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-cluster")
 Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
-Pop-Location
 
 $previousCoverageFile = $env:COVERAGE_FILE
 
@@ -131,3 +130,5 @@ Invoke-UvPreview @(
 )
 
 $env:COVERAGE_FILE = $previousCoverageFile
+
+Pop-Location
