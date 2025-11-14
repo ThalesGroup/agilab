@@ -562,7 +562,7 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
         Write-Color BLUE ("Installing {0}..." -f $app)
         $installArgs = @("-q", "run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
-        $installArgs += @("--project", "../core/cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps/$app"))
+        $installArgs += @("--project", "../core/agi-cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps/$app"))
         $installExit = Invoke-UvPreview @($installArgs)
         if ($installExit -eq 0) {
             Write-Color GREEN ("{0} successfully installed." -f $app)
