@@ -2820,7 +2820,7 @@
         <span class="k">except</span> <span class="ne">FileNotFoundError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Required data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> is unavailable. &quot;</span>
-                <span class="s2">&quot;Verify the data URI share is mounted before running install.&quot;</span>
+                <span class="s2">&quot;Verify AGI_SHARE_DIR is mounted before running install.&quot;</span>
             <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
         <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">exc</span><span class="o">.</span><span class="n">errno</span> <span class="ow">in</span> <span class="p">{</span>
@@ -2832,7 +2832,7 @@
             <span class="p">}:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Unable to reach data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">exc</span><span class="o">.</span><span class="n">strerror</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">exc</span><span class="si">}</span><span class="s2">). &quot;</span>
-                    <span class="s2">&quot;Verify the data URI share is mounted before running install.&quot;</span>
+                    <span class="s2">&quot;Verify AGI_SHARE_DIR is mounted before running install.&quot;</span>
                 <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
             <span class="k">raise</span>
         <span class="k">return</span> <span class="n">data_root</span></div>
