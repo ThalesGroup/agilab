@@ -1,0 +1,44 @@
+services:
+  agilab:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: agilab-main
+    ports:
+      - "8501:8501"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummykey}
+      - CLUSTER_CREDENTIALS=${CLUSTER_CREDENTIALS:-root:password}
+      - AGI_PYTHON_VERSION=3.13.9
+      - AGI_PYTHON_FREE_THREADED=0
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - agilab-logs:/root/log
+      - agilab-config:/root/.agilab
+    networks:
+      - agilab-network
+    restart: unless-stopped
+
+  ollama:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile-Ollama
+    container_name: agilab-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+      - ollama-logs:/root/log
+    networks:
+      - agilab-network
+    restart: unless-stopped
+
+networks:
+  agilab-network:
+    driver: bridge
+
+volumes:
+  agilab-logs:
+  agilab-config:
+  ollama-models:
+  ollama-logs:
