@@ -1,15 +1,15 @@
 # Codex Shell Activity Report
 
-- Total shell commands: **3,081**
-- Date range: **2025-11-06T14:24:18.699000+00:00 → 2025-11-14T09:37:34.976000+00:00** (9 days)
-- Active days: **8** (avg 385.1 cmds/day, peak 922 on 2025-11-07)
+- Total shell commands: **3,122**
+- Date range: **2025-11-06T14:24:18.699000+00:00 → 2025-11-14T10:06:56.860000+00:00** (9 days)
+- Active days: **8** (avg 390.2 cmds/day, peak 922 on 2025-11-07)
 
 ## Top commands
-1. Main commands: rg (815), sed (542), cd (339), ls (263), python3 (249), git (215), nl (109), ssh (107), cat (72), uv (66)
-2. Inner commands: git status -sb (50), ls (15), git tag (12), cd /Users/agi/PycharmProjects/thales_agilab && git status -sb (10), python3 codex/export_codex_shell_stats.py (9)
+1. Main commands: rg (823), sed (556), cd (339), python3 (267), ls (264), git (215), nl (109), ssh (107), cat (72), uv (72)
+2. Inner commands: git status -sb (50), python3 codex/export_codex_shell_stats.py (23), ls (15), git tag (12), cd /Users/agi/PycharmProjects/thales_agilab && git status -sb (10)
 
 ## Top workdirs & logs
-- Workdirs: /Users/agi/PycharmProjects/agilab (1844), . (971), /Users/agi/PycharmProjects/thales_agilab (201), /Users/agi (33), /Users/agi/PycharmProjects/agilab/pycharm (12)
+- Workdirs: /Users/agi/PycharmProjects/agilab (1858), . (998), /Users/agi/PycharmProjects/thales_agilab (201), /Users/agi (33), /Users/agi/PycharmProjects/agilab/pycharm (12)
 - Rollout logs: /Users/agi/.codex/sessions/2025/11/13/rollout-2025-11-13T10-41-38-019a7c97-9018-74e0-9d34-ef42ed4637c6.jsonl (636), /Users/agi/.codex/sessions/2025/11/07/rollout-2025-11-07T09-22-27-019a5d68-e838-75c3-87b9-d9a2dc7c25c5.jsonl (528), /Users/agi/.codex/sessions/2025/11/10/rollout-2025-11-10T10-47-05-019a6d29-765f-7bc2-b0a4-5cb0eb5f8d5d.jsonl (313)
 
 ## Daily activity
@@ -20,14 +20,14 @@
 - 2025-11-11: 173 commands
 - 2025-11-12: 269 commands
 - 2025-11-13: 797 commands
-- 2025-11-14: 134 commands
+- 2025-11-14: 175 commands
 
 ## Heavy-hitter logs (all sessions)
 | Session | Files | Docs | Tests | Install |
 | --- | --- | --- | --- | --- |
 | 2025/11/07/rollout-2025-11-07T09-22-27-019a5d68-e838-75c3-87b9-d9a2dc7c25c5.jsonl | 591 | 62 | 111 | 43 |
 | 2025/11/13/rollout-2025-11-13T10-41-38-019a7c97-9018-74e0-9d34-ef42ed4637c6.jsonl | 565 | 92 | 38 | 38 |
-| 2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl | 492 | 17 | 45 | 39 |
+| 2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl | 493 | 17 | 45 | 39 |
 | 2025/11/10/rollout-2025-11-10T10-47-05-019a6d29-765f-7bc2-b0a4-5cb0eb5f8d5d.jsonl | 310 | 8 | 40 | 41 |
 | 2025/11/12/rollout-2025-11-12T09-38-26-019a7737-5664-76e1-a98c-da6050d64749.jsonl | 299 | 0 | 32 | 30 |
 | 2025/11/08/rollout-2025-11-08T09-50-21-019a62a8-cd85-7b32-938c-17d0681ba22b.jsonl | 262 | 7 | 17 | 29 |
@@ -55,7 +55,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 2025/11/07/rollout-2025-11-07T09-22-27-019a5d68-e838-75c3-87b9-d9a2dc7c25c5.jsonl | 591 | 62 | 111 | 43 | .../apps/flight_project/src/app_args_form.py; .../apps/flight_project/src/app_settings.toml; .../apps/flight_project/src/flight/flight.py |
 | 2025/11/13/rollout-2025-11-13T10-41-38-019a7c97-9018-74e0-9d34-ef42ed4637c6.jsonl | 565 | 92 | 38 | 38 | -licenses.md; .../app_args.py; ../thales_agilab/docs/source/architecture.rst |
-| 2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl | 492 | 17 | 45 | 39 | -licenses.md; .../app_args.py; .../apps/flight_project/src/app_args_form.py |
+| 2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl | 493 | 17 | 45 | 39 | -licenses.md; .../app_args.py; .../apps/flight_project/src/app_args_form.py |
 | 2025/11/10/rollout-2025-11-10T10-47-05-019a6d29-765f-7bc2-b0a4-5cb0eb5f8d5d.jsonl | 310 | 8 | 40 | 41 | ../../examples/link_sim/AGI_run_link_sim.py; ../../examples/mycode/AGI_run_mycode.py; ../../examples/sat_trajectory/AGI_run_sat_trajectory.py |
 | 2025/11/12/rollout-2025-11-12T09-38-26-019a7737-5664-76e1-a98c-da6050d64749.jsonl | 299 | 0 | 32 | 30 | ./install.sh; .venv/lib/python3.13/site-packages/agilab/AGILAB.py; /.local/share/uv/python/cpython-3.13.9-macos-aarch64-none/lib/python3.13/asyncio/base_events.py |
 | 2025/11/08/rollout-2025-11-08T09-50-21-019a62a8-cd85-7b32-938c-17d0681ba22b.jsonl | 262 | 7 | 17 | 29 | ...lab/apps/install.py; ../../apps-pages.html; ../apps-pages.html |
@@ -81,81 +81,104 @@
 ## Annex: Command usage
 | Command | Count | Purpose | Typical usage |
 | --- | --- | --- | --- |
-| rg | 815 | ripgrep search over tracked files | `rg <pattern> [path]` |
-| sed | 542 | text slicing/substitution | `sed -n 'start,endp' file` |
+| rg | 823 | ripgrep search over tracked files | `rg <pattern> [path]` |
+| sed | 556 | text slicing/substitution | `sed -n 'start,endp' file` |
 | cd | 339 | change directory before chained commands | `bash -lc "cd path && …"` |
-| ls | 263 | list directory contents | `ls -al path` |
-| python3 | 249 | run Python tooling/scripts | `python3 path/to/script.py` |
+| python3 | 267 | run Python tooling/scripts | `python3 path/to/script.py` |
+| ls | 264 | list directory contents | `ls -al path` |
 | git | 215 | inspect repo state/history | `git status -sb` |
 | nl | 109 | print files with line numbers | `nl -ba file` |
 | ssh | 107 | check remote hosts | `ssh user@host` |
 | cat | 72 | show file contents | `cat file` |
-| uv | 66 | manage envs or run tools | `uv run python script.py` |
+| uv | 72 | manage envs or run tools | `uv run python script.py` |
 
 ## Command reference
 | Command | Count | Purpose | Typical usage |
 | --- | --- | --- | --- |
-| rg | 815 | ripgrep search over tracked files | `rg <pattern> [path]` |
-| sed | 542 | text slicing/substitution | `sed -n 'start,endp' file` |
+| rg | 823 | ripgrep search over tracked files | `rg <pattern> [path]` |
+| sed | 556 | text slicing/substitution | `sed -n 'start,endp' file` |
 | cd | 339 | change directory before chained commands | `bash -lc "cd path && …"` |
-| ls | 263 | list directory contents | `ls -al path` |
-| python3 | 249 | run Python tooling/scripts | `python3 path/to/script.py` |
+| python3 | 267 | run Python tooling/scripts | `python3 path/to/script.py` |
+| ls | 264 | list directory contents | `ls -al path` |
 | git | 215 | inspect repo state/history | `git status -sb` |
 | nl | 109 | print files with line numbers | `nl -ba file` |
 | ssh | 107 | check remote hosts | `ssh user@host` |
 | cat | 72 | show file contents | `cat file` |
-| uv | 66 | manage envs or run tools | `uv run python script.py` |
-| find | 40 | shell command/snippet | `find` |
-| apply_patch | 33 | shell command/snippet | `apply_patch` |
-| head | 22 | shell command/snippet | `head` |
+| uv | 72 | manage envs or run tools | `uv run python script.py` |
+| find | 40 | shell command/snippet | `find [args]` |
+| apply_patch | 33 | shell command/snippet | `apply_patch [args]` |
+| head | 22 | shell command/snippet | `head [args]` |
 | python | 20 | call python interpreter | `python <script>` |
-| tail | 19 | shell command/snippet | `tail` |
-| /tmp/ssh_run_jpm.expect | 15 | execute absolute-path binary/script | `/path/to/binary` |
-| mkdir | 13 | shell command/snippet | `mkdir` |
-| rm | 13 | shell command/snippet | `rm` |
-| sshpass | 13 | shell command/snippet | `sshpass` |
-| ps | 12 | shell command/snippet | `ps` |
-| grep | 9 | shell command/snippet | `grep` |
-| lsof | 6 | shell command/snippet | `lsof` |
-| which | 6 | shell command/snippet | `which` |
-| ~/.local/bin/uv | 6 | shell command/snippet | `~/.local/bin/uv` |
-| /Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python | 5 | call project virtualenv python | `<app>/.venv/bin/python script.py` |
-| scp | 5 | shell command/snippet | `scp` |
-| touch | 5 | shell command/snippet | `touch` |
-| kill | 4 | shell command/snippet | `kill` |
-| pwd | 4 | shell command/snippet | `pwd` |
-| sudo | 4 | shell command/snippet | `sudo` |
-| echo | 3 | shell command/snippet | `echo` |
-| fd | 3 | shell command/snippet | `fd` |
-| pgrep | 3 | shell command/snippet | `pgrep` |
-| /bin/bash | 2 | execute absolute-path binary/script | `/path/to/binary` |
-| brew | 2 | shell command/snippet | `brew` |
-| cp | 2 | shell command/snippet | `cp` |
-| env | 2 | shell command/snippet | `env` |
-| file | 2 | shell command/snippet | `file` |
-| for | 2 | shell command/snippet | `for` |
-| printenv | 2 | shell command/snippet | `printenv` |
-| ruff | 2 | shell command/snippet | `ruff` |
-| ssh-add | 2 | shell command/snippet | `ssh-add` |
-| stat | 2 | shell command/snippet | `stat` |
-| (ssh | 1 | shell command/snippet | `(ssh` |
-| /Applications/Xcode.app/Contents/Developer/usr/bin/make | 1 | execute absolute-path binary/script | `/path/to/binary` |
-| /Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_trajectory_project/.venv/bin/python | 1 | call project virtualenv python | `<app>/.venv/bin/python script.py` |
-| /bin/ls | 1 | execute absolute-path binary/script | `/path/to/binary` |
-| [ | 1 | shell command/snippet | `[` |
-| awk | 1 | shell command/snippet | `awk` |
-| bsdtar | 1 | shell command/snippet | `bsdtar` |
-| chmod | 1 | shell command/snippet | `chmod` |
-| dscl | 1 | shell command/snippet | `dscl` |
-| export | 1 | shell command/snippet | `export` |
-| hostname | 1 | shell command/snippet | `hostname` |
-| if | 1 | shell command/snippet | `if` |
-| ipconfig | 1 | shell command/snippet | `ipconfig` |
-| mount | 1 | shell command/snippet | `mount` |
-| mv | 1 | shell command/snippet | `mv` |
-| printf | 1 | shell command/snippet | `printf` |
-| rsync | 1 | shell command/snippet | `rsync` |
-| ruby | 1 | shell command/snippet | `ruby` |
-| security | 1 | shell command/snippet | `security` |
-| ssh-keygen | 1 | shell command/snippet | `ssh-keygen` |
-| xxd | 1 | shell command/snippet | `xxd` |
+| tail | 19 | shell command/snippet | `tail [args]` |
+| ssh_run_jpm.expect | 15 | shell command/snippet | `ssh_run_jpm.expect [args]` |
+| mkdir | 13 | shell command/snippet | `mkdir [args]` |
+| rm | 13 | shell command/snippet | `rm [args]` |
+| sshpass | 13 | shell command/snippet | `sshpass [args]` |
+| ps | 12 | shell command/snippet | `ps [args]` |
+| grep | 10 | shell command/snippet | `grep [args]` |
+| <app>/.venv/bin/python | 6 | call project virtualenv python | `<app>/.venv/bin/python script.py` |
+| lsof | 6 | shell command/snippet | `lsof [args]` |
+| which | 6 | shell command/snippet | `which [args]` |
+| scp | 5 | shell command/snippet | `scp [args]` |
+| touch | 5 | shell command/snippet | `touch [args]` |
+| kill | 4 | shell command/snippet | `kill [args]` |
+| pwd | 4 | shell command/snippet | `pwd [args]` |
+| sudo | 4 | shell command/snippet | `sudo [args]` |
+| echo | 3 | shell command/snippet | `echo [args]` |
+| fd | 3 | shell command/snippet | `fd [args]` |
+| pgrep | 3 | shell command/snippet | `pgrep [args]` |
+| bash | 2 | shell command/snippet | `bash [args]` |
+| brew | 2 | shell command/snippet | `brew [args]` |
+| cp | 2 | shell command/snippet | `cp [args]` |
+| env | 2 | shell command/snippet | `env [args]` |
+| file | 2 | shell command/snippet | `file [args]` |
+| printenv | 2 | shell command/snippet | `printenv [args]` |
+| ruff | 2 | shell command/snippet | `ruff [args]` |
+| ssh-add | 2 | shell command/snippet | `ssh-add [args]` |
+| stat | 2 | shell command/snippet | `stat [args]` |
+| awk | 1 | shell command/snippet | `awk [args]` |
+| bsdtar | 1 | shell command/snippet | `bsdtar [args]` |
+| chmod | 1 | shell command/snippet | `chmod [args]` |
+| dscl | 1 | shell command/snippet | `dscl [args]` |
+| export | 1 | shell command/snippet | `export [args]` |
+| hostname | 1 | shell command/snippet | `hostname [args]` |
+| ipconfig | 1 | shell command/snippet | `ipconfig [args]` |
+| make | 1 | shell command/snippet | `make [args]` |
+| mount | 1 | shell command/snippet | `mount [args]` |
+| mv | 1 | shell command/snippet | `mv [args]` |
+| printf | 1 | shell command/snippet | `printf [args]` |
+| rsync | 1 | shell command/snippet | `rsync [args]` |
+| ruby | 1 | shell command/snippet | `ruby [args]` |
+| security | 1 | shell command/snippet | `security [args]` |
+| ssh-keygen | 1 | shell command/snippet | `ssh-keygen [args]` |
+| xxd | 1 | shell command/snippet | `xxd [args]` |
+
+## Remote commands (via ssh)
+| Command | Count | Purpose | Typical usage |
+| --- | --- | --- | --- |
+| ls | 34 | list directory contents | `ls -al path` |
+| cd | 18 | change directory before chained commands | `bash -lc "cd path && …"` |
+| hostname | 13 | shell command/snippet | `hostname [args]` |
+| export | 10 | shell command/snippet | `export [args]` |
+| grep | 7 | shell command/snippet | `grep [args]` |
+| cat | 5 | show file contents | `cat file` |
+| which | 4 | shell command/snippet | `which [args]` |
+| echo | 3 | shell command/snippet | `echo [args]` |
+| find | 3 | shell command/snippet | `find [args]` |
+| source | 3 | shell command/snippet | `source [args]` |
+| rg | 3 | ripgrep search over tracked files | `rg <pattern> [path]` |
+| expect | 3 | shell command/snippet | `expect [args]` |
+| mkdir | 2 | shell command/snippet | `mkdir [args]` |
+| chmod | 2 | shell command/snippet | `chmod [args]` |
+| ps | 2 | shell command/snippet | `ps [args]` |
+| python3 | 2 | run Python tooling/scripts | `python3 path/to/script.py` |
+| sed | 2 | text slicing/substitution | `sed -n 'start,endp' file` |
+| ssh | 2 | check remote hosts | `ssh user@host` |
+| perl | 2 | run perl one-liners/in-place edits | `perl -pi -e 's/old/new/' file` |
+| exit | 1 | shell command/snippet | `exit [args]` |
+| printenv | 1 | shell command/snippet | `printenv [args]` |
+| uname | 1 | shell command/snippet | `uname [args]` |
+| python | 1 | call python interpreter | `python <script>` |
+| after | 1 | shell command/snippet | `after [args]` |
+| kill | 1 | shell command/snippet | `kill [args]` |
+| rm | 1 | shell command/snippet | `rm [args]` |
