@@ -38,6 +38,7 @@ COMMAND_USAGE = {
     "nl": ("print files with line numbers", "`nl -ba file`"),
     "cat": ("show file contents", "`cat file`"),
     "cd": ("change directory before chained commands", "`bash -lc \"cd path && …\"`"),
+    "perl": ("run perl one-liners/in-place edits", "`perl -pi -e 's/old/new/' file`"),
 }
 
 
@@ -55,11 +56,17 @@ def get_command_help(command: str) -> tuple[str, str]:
     head = command.split()[0]
     if head.startswith("PYTHONPATH=") or head.startswith("AGILAB_") or "=" in head:
         return ("inline environment assignment", "`VAR=value command`")
+    if command.startswith("/Users/example/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python") or command.startswith("/Users/example/PycharmProjects/agilab/src/agilab/apps/example_app_project/.venv/bin/python"):
+        return ("call project virtualenv python", "`<app>/.venv/bin/python script.py`")
     if command.startswith("/"):
         return ("execute absolute-path binary/script", "`/path/to/binary`")
     if command.endswith(".py"):
         return ("run python module/script", "`python path/to/file.py`")
     return ("shell command/snippet", f"`{head}`")
+
+
+def is_env_assignment_command(command: str) -> bool:
+    return is_env_assignment(command)
 
 
 @dataclass
@@ -158,6 +165,25 @@ def tokenize_script(script: str) -> List[str]:
         return script.split()
 
 
+def is_env_assignment(token: str | None) -> bool:
+    if not token:
+        return False
+    if "=" not in token:
+        return False
+    if token.startswith((">", "<", "|")):
+        return False
+    if token.endswith("="):
+        return False
+    return True
+
+
+def strip_env_assignments(tokens: List[str]) -> List[str]:
+    idx = 0
+    while idx < len(tokens) and is_env_assignment(tokens[idx]):
+        idx += 1
+    return tokens[idx:]
+
+
 def extract_inner_command(record: ShellRecord) -> str:
     cmd = record.command
     if len(cmd) >= 3 and cmd[0] == "bash" and cmd[1] == "-lc":
@@ -170,12 +196,12 @@ def extract_inner_command(record: ShellRecord) -> str:
 def extract_part2_token(record: ShellRecord) -> str:
     cmd = record.command
     if len(cmd) >= 3 and cmd[0] == "bash" and cmd[1] == "-lc":
-        tokens = tokenize_script(cmd[2])
+        tokens = strip_env_assignments(tokenize_script(cmd[2]))
         return tokens[0] if tokens else ""
     if len(cmd) >= 3 and cmd[0] == "/bin/zsh" and cmd[1] == "-lc":
-        tokens = tokenize_script(cmd[2])
+        tokens = strip_env_assignments(tokenize_script(cmd[2]))
         return tokens[0] if tokens else ""
-    tokens = tokenize_script(record.command_str)
+    tokens = strip_env_assignments(tokenize_script(record.command_str))
     if tokens:
         return tokens[0]
     return ""
@@ -185,11 +211,29 @@ def extract_main_command(record: ShellRecord) -> str:
     cmd = record.command
     if len(cmd) >= 3 and cmd[0] in {"bash", "/bin/bash", "/usr/bin/bash"} and cmd[1] == "-lc":
         tokens = tokenize_script(cmd[2])
+        stripped = strip_env_assignments(tokens)
+        if stripped:
+            return stripped[0]
+        for token in reversed(tokens):
+            if is_env_assignment(token):
+                return token
         return tokens[0] if tokens else ""
     if len(cmd) >= 3 and cmd[0] in {"zsh", "/bin/zsh"} and cmd[1] == "-lc":
         tokens = tokenize_script(cmd[2])
+        stripped = strip_env_assignments(tokens)
+        if stripped:
+            return stripped[0]
+        for token in reversed(tokens):
+            if is_env_assignment(token):
+                return token
         return tokens[0] if tokens else ""
     tokens = tokenize_script(record.command_str)
+    stripped = strip_env_assignments(tokens)
+    if stripped:
+        return stripped[0]
+    for token in reversed(tokens):
+        if is_env_assignment(token):
+            return token
     return tokens[0] if tokens else ""
 
 
@@ -430,7 +474,8 @@ def build_summary_report(
     lines.append("")
     lines.append("## Annex: Command usage")
     annex_rows = []
-    for command, count in main_cmds.most_common(10):
+    filtered_cmds = [(cmd, cnt) for cmd, cnt in main_cmds.most_common() if not is_env_assignment_command(cmd)]
+    for command, count in filtered_cmds[:10]:
         description, usage = get_command_help(command)
         annex_rows.append(
             [
@@ -453,7 +498,7 @@ def build_summary_report(
     lines.append("")
     lines.append("## Command reference")
     reference_rows = []
-    for command, count in sorted(main_cmds.items(), key=lambda kv: (-kv[1], kv[0])):
+    for command, count in sorted(filtered_cmds, key=lambda kv: (-kv[1], kv[0])):
         if not command:
             continue
         description, usage = get_command_help(command)
