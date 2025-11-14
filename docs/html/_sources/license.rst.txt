@@ -5,12 +5,13 @@ Licenses
    :maxdepth: 2
    :caption: Licenses per components
 
-   agilab-licenses.md
-   agi-cluster-licenses.md
-   agi-node-licenses.md
-   agi-env-licenses.md
-   my-code-project-licenses.md
-   flight-project-licenses.md
-   link-project-licenses.md
-   example-app.md
-   example-app.md
+   agi-cluster-licenses
+   agi-node-licenses
+   agi-env-licenses
+   agi-core-licenses
+   mycode-project-licenses
+   flight-project-licenses
+   example-app-project-licenses
+   example-app-project-licenses
+   example-app-project-licenses
+   example-app-project-licenses
