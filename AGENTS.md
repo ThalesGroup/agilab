@@ -71,6 +71,7 @@ Use this runbook whenever you:
 - **Hook consolidation**: Worker `pre_install`/`post_install` logic lives in
   `agi_node.agi_dispatcher.{pre_install,post_install}`. Add lightweight wrappers near
   the worker if custom behavior is required.
+- **Cython sources**: Never hand-edit generated `.pyx`/`.c` worker files; they are rebuilt automatically by the tooling pipeline.
 - **AgiEnv lifecycle**: `AgiEnv` is a singleton. Treat instance attributes as the
   source of truth. Helpers like `set_env_var`, `read_agilab_path`, `_build_env`, and
   `log_info` are pre-init safe; avoid relying on class attributes before instantiating
@@ -203,14 +204,14 @@ Use this runbook whenever you:
 **Docs Publishing**
 - The published site is committed under `docs/html` (tracked in git).
 - GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
-- To update docs locally: run `docs/gen_docs.sh`. It builds via Sphinx when a config is present, or syncs `src/agilab/resources/help/` into `docs/html` and ensures an index.
+- To update docs locally: run `docs/gen-docs.sh`. It builds via Sphinx when a config is present, or syncs `src/agilab/resources/help/` into `docs/html` and ensures an index.
 - The Pages workflow only falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
 - Sphinx docs in agilab-apps: from that repo, run `uv --preview-features extra-build-dependencies run --group sphinx --dev docs/gen-docs.py`. If a sibling `agilab` checkout is present, the generator writes directly to `../agilab/docs/html/`; otherwise it builds into `docs/html/` in `agilab-apps`.
 
 **Docs Tooling Details**
 - Diagrams: agilab-apps's generator produces UML via `pyreverse` and Graphviz into `docs/source/diagrams` and includes them in Sphinx output.
 - License reports: agilab-apps's generator runs `licensecheck` and writes `*-licenses.md` pages under `docs/source` (one per module), included in the build.
-- Stubs: agilab's `docs/gen_docs.sh` generates lightweight `.pyi` stubs under `docs/stubs` for API surfacing in docs.
+- Stubs: agilab's `docs/gen-docs.sh` generates lightweight `.pyi` stubs under `docs/stubs` for API surfacing in docs.
 - Prerequisites: Graphviz (`dot`) must be installed on the system for diagrams.
   - macOS: `brew install graphviz`
   - Ubuntu/Debian: `sudo apt-get update && sudo apt-get install -y graphviz`
