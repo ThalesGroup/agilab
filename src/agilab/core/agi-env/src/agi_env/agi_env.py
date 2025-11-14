@@ -2224,6 +2224,25 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         # Clone all files by default. Only skip repository metadata such as .git.
         ignore_patterns = [".git", ".git/", ".git/**"]
+
+        # Augment ignore rules with .gitignore content from the source project and its ancestors.
+        gitignore_candidates: list[Path] = []
+        seen_gitignore_dirs: set[Path] = set()
+        for ancestor in [source_root, *source_root.parents]:
+            gi = ancestor / ".gitignore"
+            if gi.exists() and ancestor not in seen_gitignore_dirs:
+                gitignore_candidates.append(gi)
+                seen_gitignore_dirs.add(ancestor)
+
+        for gitignore in gitignore_candidates:
+            try:
+                lines = gitignore.read_text(encoding="utf-8").splitlines()
+            except OSError as exc:
+                AgiEnv.logger.debug(f"Unable to read {gitignore}: {exc}")
+                continue
+            # PathSpec honours gitignore semantics (including negations), so keep raw lines.
+            ignore_patterns.extend(line for line in lines if line.strip())
+
         spec = PathSpec.from_lines(GitWildMatchPattern, ignore_patterns)
 
         try:
