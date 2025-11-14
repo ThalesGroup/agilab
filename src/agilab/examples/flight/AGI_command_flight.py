@@ -1,4 +1,8 @@
-from scipy.signal import savgol_filter
+from scipy.signal import convolve2d as cv2
+import numpy as np
 
-# Apply Savitzky-Golay filter to smooth 'long' column
-df['long_smoothed'] = savgol_filter(df['long'], window_length=5, polyorder=2)
+# Define the window size for Savitzky-Golay filtering
+window_size = 51
+
+# Apply Savitzky-Golay filter to column 'long'
+df['smoothed_long'] = cv2(df['long'].values, window_size, 2) / window_size

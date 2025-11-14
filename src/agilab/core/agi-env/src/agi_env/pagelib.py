@@ -61,6 +61,43 @@ custom_css = (
 )
 
 
+def run_with_output(env, cmd, cwd="./", timeout=None):
+    """
+    Execute a command within a subprocess.
+    """
+    os.environ["uv_IGNORE_ACTIVE_VENV"] = "1"
+    process_env = os.environ.copy()
+
+    with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=True,
+            cwd=Path(cwd).absolute(),
+            env=process_env,
+            text=True,
+    ) as proc:
+        try:
+            outs, _ = proc.communicate(timeout=timeout)
+            if "module not found" in outs:
+                if not (env.apps_root / ".venv").exists():
+                    raise JumpToMain(outs)
+            elif proc.returncode or "failed" in outs.lower() or "error" in outs.lower():
+                pass
+
+        except subprocess.TimeoutExpired as err:
+            proc.kill()
+            outs, _ = proc.communicate()
+            st.error(err)
+
+        except subprocess.CalledProcessError as err:
+            outs, _ = proc.communicate()
+            st.error(err)
+
+        # Process the output and remove ANSI escape codes
+        return re.sub(r"\x1b[^m]*m", "", outs)
+
+
 def is_valid_ip(ip: str) -> bool:
     """Return ``True`` when ``ip`` is a syntactically valid IPv4 address."""
 
@@ -1026,7 +1063,20 @@ def run_agi(code, path="."):
     with open(snippet_file, "w") as file:
         file.write(code_str)
 
-    if target_path.exists():
+    try:
+        path_exists = target_path.exists()
+    except PermissionError as exc:
+        hint = diagnose_data_directory(target_path)
+        msg = f"Permission denied while accessing '{target_path}': {exc}"
+        if hint:
+            msg = f"{msg}\n{hint}"
+        st.error(msg)
+        st.stop()
+    except OSError as exc:
+        st.error(f"Unable to access '{target_path}': {exc}")
+        st.stop()
+
+    if path_exists:
         return run_with_output(env, f"uv -q run python {snippet_file}", str(target_path))
 
     st.info("Please do an install first")
