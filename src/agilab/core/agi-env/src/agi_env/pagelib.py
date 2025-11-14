@@ -1079,7 +1079,7 @@ def run_agi(code, path="."):
     if path_exists:
         return run_with_output(env, f"uv -q run python {snippet_file}", str(target_path))
 
-    st.info("Please do an install first")
+    st.info("Please do an install first, ensure pyproject.toml lists required dependencies and rerun the project installation.")
     st.stop()
 
 
