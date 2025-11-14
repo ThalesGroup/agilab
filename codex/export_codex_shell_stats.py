@@ -27,6 +27,7 @@ DEFAULT_OUTPUT_DIR = Path.cwd() / "codex"
 FILE_PATTERN = re.compile(
     r"([A-Za-z0-9_./\-]+(?:/[A-Za-z0-9_./\-]+)*\.(?:py|rst|md|sh|txt|toml|ini|html|cfg))"
 )
+SSH_OPTIONS_WITH_ARG = {"-i", "-o", "-p", "-F", "-J", "-b", "-D", "-L", "-R"}
 COMMAND_USAGE = {
     "rg": ("ripgrep search over tracked files", "`rg <pattern> [path]`"),
     "sed": ("text slicing/substitution", "`sed -n 'start,endp' file`"),
@@ -39,6 +40,19 @@ COMMAND_USAGE = {
     "cat": ("show file contents", "`cat file`"),
     "cd": ("change directory before chained commands", "`bash -lc \"cd path && …\"`"),
     "perl": ("run perl one-liners/in-place edits", "`perl -pi -e 's/old/new/' file`"),
+}
+COMMAND_IGNORE = {
+    "",
+    "if",
+    "elif",
+    "else",
+    "for",
+    "while",
+    "pass",
+    "return",
+    "in",
+    "[",
+    "(ssh",
 }
 
 
@@ -56,17 +70,33 @@ def get_command_help(command: str) -> tuple[str, str]:
     head = command.split()[0]
     if head.startswith("PYTHONPATH=") or head.startswith("AGILAB_") or "=" in head:
         return ("inline environment assignment", "`VAR=value command`")
-    if command.startswith("/Users/example/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python") or command.startswith("/Users/example/PycharmProjects/agilab/src/agilab/apps/example_app_project/.venv/bin/python"):
+    if command == "<app>/.venv/bin/python":
         return ("call project virtualenv python", "`<app>/.venv/bin/python script.py`")
     if command.startswith("/"):
         return ("execute absolute-path binary/script", "`/path/to/binary`")
     if command.endswith(".py"):
         return ("run python module/script", "`python path/to/file.py`")
-    return ("shell command/snippet", f"`{head}`")
+    return ("shell command/snippet", f"`{head} [args]`")
 
 
 def is_env_assignment_command(command: str) -> bool:
     return is_env_assignment(command)
+
+
+def canonicalize_command(command: str) -> str:
+    if "/.venv/bin/python" in command:
+        return "<app>/.venv/bin/python"
+    if command.endswith("/uv") or command.endswith("/uv.exe"):
+        return "uv"
+    head = command.split()[0]
+    if head.startswith("/"):
+        base = Path(head).name
+        if base:
+            return base
+    return command
+    if command.endswith("/uv") or command.endswith("/uv.exe"):
+        return "uv"
+    return command
 
 
 @dataclass
@@ -207,34 +237,78 @@ def extract_part2_token(record: ShellRecord) -> str:
     return ""
 
 
-def extract_main_command(record: ShellRecord) -> str:
-    cmd = record.command
-    if len(cmd) >= 3 and cmd[0] in {"bash", "/bin/bash", "/usr/bin/bash"} and cmd[1] == "-lc":
-        tokens = tokenize_script(cmd[2])
-        stripped = strip_env_assignments(tokens)
-        if stripped:
-            return stripped[0]
-        for token in reversed(tokens):
-            if is_env_assignment(token):
-                return token
-        return tokens[0] if tokens else ""
-    if len(cmd) >= 3 and cmd[0] in {"zsh", "/bin/zsh"} and cmd[1] == "-lc":
-        tokens = tokenize_script(cmd[2])
-        stripped = strip_env_assignments(tokens)
-        if stripped:
-            return stripped[0]
-        for token in reversed(tokens):
-            if is_env_assignment(token):
-                return token
-        return tokens[0] if tokens else ""
-    tokens = tokenize_script(record.command_str)
+def _primary_command_from_tokens(tokens: List[str]) -> str:
     stripped = strip_env_assignments(tokens)
     if stripped:
-        return stripped[0]
+        return canonicalize_command(stripped[0])
     for token in reversed(tokens):
         if is_env_assignment(token):
             return token
-    return tokens[0] if tokens else ""
+    return canonicalize_command(tokens[0]) if tokens else ""
+
+
+def extract_main_command(record: ShellRecord) -> str:
+    cmd = record.command
+    if len(cmd) >= 3 and cmd[0] in {"bash", "/bin/bash", "/usr/bin/bash"} and cmd[1] == "-lc":
+        return _primary_command_from_tokens(tokenize_script(cmd[2]))
+    if len(cmd) >= 3 and cmd[0] in {"zsh", "/bin/zsh"} and cmd[1] == "-lc":
+        return _primary_command_from_tokens(tokenize_script(cmd[2]))
+    return _primary_command_from_tokens(tokenize_script(record.command_str))
+
+
+def extract_remote_command(script: str) -> str | None:
+    tokens = tokenize_script(script)
+    if not tokens:
+        return None
+    try:
+        ssh_idx = tokens.index("ssh")
+    except ValueError:
+        return None
+    idx = ssh_idx + 1
+    while idx < len(tokens) and tokens[idx].startswith("-"):
+        opt = tokens[idx]
+        idx += 1
+        if opt in SSH_OPTIONS_WITH_ARG and idx < len(tokens):
+            idx += 1
+    if idx >= len(tokens):
+        return None
+    idx += 1  # skip host
+    if idx >= len(tokens):
+        return None
+    remote_segment = " ".join(tokens[idx:])
+    remote_segment = remote_segment.strip()
+    if remote_segment.startswith(("'", '"')) and remote_segment.endswith(("'", '"')):
+        remote_segment = remote_segment[1:-1]
+    remote_tokens = strip_env_assignments(tokenize_script(remote_segment))
+    remote_tokens = [
+        token
+        for token in remote_tokens
+        if "$" not in token and token != "["
+    ]
+    if remote_tokens:
+        return canonicalize_command(remote_tokens[0])
+    return None
+
+
+def detect_remote_commands(records: Sequence[ShellRecord]) -> Counter:
+    remote_counter: Counter = Counter()
+    for rec in records:
+        scripts = []
+        cmd = rec.command
+        if (
+            len(cmd) >= 3
+            and cmd[0] in {"bash", "/bin/bash", "/usr/bin/bash", "zsh", "/bin/zsh"}
+            and cmd[1] == "-lc"
+        ):
+            scripts.append(cmd[2])
+        else:
+            scripts.append(rec.command_str)
+        for script in scripts:
+            remote = extract_remote_command(script)
+            if remote:
+                remote_counter[remote] += 1
+                break
+    return remote_counter
 
 
 def extract_text_chunks(obj: dict) -> List[str]:
@@ -393,6 +467,7 @@ def build_markdown_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) 
 def build_summary_report(
     records: Sequence[ShellRecord],
     session_stats: Sequence[SessionFileStat],
+    remote_cmds: Counter,
 ) -> str:
     total = len(records)
     timestamps = [rec.timestamp for rec in records if rec.timestamp]
@@ -474,7 +549,11 @@ def build_summary_report(
     lines.append("")
     lines.append("## Annex: Command usage")
     annex_rows = []
-    filtered_cmds = [(cmd, cnt) for cmd, cnt in main_cmds.most_common() if not is_env_assignment_command(cmd)]
+    filtered_cmds = [
+        (cmd, cnt)
+        for cmd, cnt in main_cmds.most_common()
+        if cmd and not is_env_assignment_command(cmd) and cmd not in COMMAND_IGNORE
+    ]
     for command, count in filtered_cmds[:10]:
         description, usage = get_command_help(command)
         annex_rows.append(
@@ -499,8 +578,6 @@ def build_summary_report(
     lines.append("## Command reference")
     reference_rows = []
     for command, count in sorted(filtered_cmds, key=lambda kv: (-kv[1], kv[0])):
-        if not command:
-            continue
         description, usage = get_command_help(command)
         reference_rows.append(
             [
@@ -519,6 +596,31 @@ def build_summary_report(
         )
     else:
         lines.append("_No commands recorded._")
+
+    lines.append("")
+    lines.append("## Remote commands (via ssh)")
+    if remote_cmds:
+        remote_rows = []
+        for command, count in remote_cmds.most_common():
+            if command in COMMAND_IGNORE:
+                continue
+            description, usage = get_command_help(command)
+            remote_rows.append(
+                [
+                    command,
+                    str(count),
+                    description or "—",
+                    usage or "—",
+                ]
+            )
+        lines.append(
+            build_markdown_table(
+                ["Command", "Count", "Purpose", "Typical usage"],
+                remote_rows,
+            )
+        )
+    else:
+        lines.append("_No remote commands detected._")
 
     return "\n".join(lines)
 
@@ -567,7 +669,9 @@ def main() -> None:
         main_rows,
     )
 
-    summary = build_summary_report(records, session_stats)
+    remote_cmds = detect_remote_commands(records)
+
+    summary = build_summary_report(records, session_stats, remote_cmds)
     summary_path = args.output_dir / "codex_shell_summary.md"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(summary + "\n", encoding="utf-8")
@@ -592,3 +696,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+SSH_OPTIONS_WITH_ARG = {"-i", "-o", "-p", "-F", "-J", "-b", "-D", "-L", "-R"}
