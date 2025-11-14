@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -23,6 +24,42 @@ from typing import Dict, Iterable, Iterator, List, Sequence
 
 DEFAULT_SESSIONS_ROOT = Path.home() / ".codex" / "sessions"
 DEFAULT_OUTPUT_DIR = Path.cwd() / "codex"
+FILE_PATTERN = re.compile(
+    r"([A-Za-z0-9_./\-]+(?:/[A-Za-z0-9_./\-]+)*\.(?:py|rst|md|sh|txt|toml|ini|html|cfg))"
+)
+COMMAND_USAGE = {
+    "rg": ("ripgrep search over tracked files", "`rg <pattern> [path]`"),
+    "sed": ("text slicing/substitution", "`sed -n 'start,endp' file`"),
+    "python3": ("run Python tooling/scripts", "`python3 path/to/script.py`"),
+    "ls": ("list directory contents", "`ls -al path`"),
+    "git": ("inspect repo state/history", "`git status -sb`"),
+    "uv": ("manage envs or run tools", "`uv run python script.py`"),
+    "ssh": ("check remote hosts", "`ssh user@host`"),
+    "nl": ("print files with line numbers", "`nl -ba file`"),
+    "cat": ("show file contents", "`cat file`"),
+    "cd": ("change directory before chained commands", "`bash -lc \"cd path && …\"`"),
+}
+
+
+def get_command_help(command: str) -> tuple[str, str]:
+    if command in COMMAND_USAGE:
+        return COMMAND_USAGE[command]
+
+    if not command:
+        return ("shell dispatcher", "n/a")
+
+    if command.startswith("./") or command.endswith(".sh"):
+        return ("execute project script", "`./script.sh`")
+    if command.startswith("python"):
+        return ("call python interpreter", "`python <script>`")
+    head = command.split()[0]
+    if head.startswith("PYTHONPATH=") or head.startswith("AGILAB_") or "=" in head:
+        return ("inline environment assignment", "`VAR=value command`")
+    if command.startswith("/"):
+        return ("execute absolute-path binary/script", "`/path/to/binary`")
+    if command.endswith(".py"):
+        return ("run python module/script", "`python path/to/file.py`")
+    return ("shell command/snippet", f"`{head}`")
 
 
 @dataclass
@@ -36,6 +73,16 @@ class ShellRecord:
     @property
     def command_str(self) -> str:
         return " ".join(self.command).replace("\n", " ")
+
+
+@dataclass
+class SessionFileStat:
+    session: str
+    file_count: int
+    docs_count: int
+    tests_count: int
+    install_count: int
+    sample_paths: List[str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -146,6 +193,27 @@ def extract_main_command(record: ShellRecord) -> str:
     return tokens[0] if tokens else ""
 
 
+def extract_text_chunks(obj: dict) -> List[str]:
+    chunks: List[str] = []
+    payload = obj.get("payload")
+    if isinstance(payload, dict):
+        for key in ("message", "output", "content"):
+            val = payload.get(key)
+            if isinstance(val, str):
+                chunks.append(val)
+            elif isinstance(val, list):
+                for item in val:
+                    if isinstance(item, dict):
+                        text = item.get("text")
+                        if isinstance(text, str):
+                            chunks.append(text)
+    for key in ("message", "output"):
+        val = obj.get(key)
+        if isinstance(val, str):
+            chunks.append(val)
+    return chunks
+
+
 def write_tsv(path: Path, header: Sequence[str], rows: Iterable[Sequence[str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
@@ -163,6 +231,57 @@ def build_history(records: Sequence[ShellRecord]) -> List[List[str]]:
         [rec.timestamp_raw or "", rec.command_str, rec.workdir, rec.source_log]
         for rec in records
     ]
+
+
+def collect_session_file_stats(root: Path) -> List[SessionFileStat]:
+    if not root.exists():
+        return []
+
+    stats: List[SessionFileStat] = []
+    jsonl_paths = sorted(root.rglob("*.jsonl"))
+    for jsonl_path in jsonl_paths:
+        files: set[str] = set()
+        try:
+            with jsonl_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    try:
+                        obj = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    for chunk in extract_text_chunks(obj):
+                        for match in FILE_PATTERN.findall(chunk):
+                            files.add(match)
+        except OSError:
+            continue
+
+        if not files:
+            continue
+
+        docs = {path for path in files if path.startswith("docs/") or "/docs/" in path}
+        tests = {path for path in files if "test" in path.lower()}
+        installs = {
+            path
+            for path in files
+            if "install" in path.lower() or "setup" in path.lower()
+        }
+        samples = sorted(files)[:3]
+        try:
+            session_label = str(jsonl_path.relative_to(root))
+        except ValueError:
+            session_label = jsonl_path.name
+        stats.append(
+            SessionFileStat(
+                session=session_label,
+                file_count=len(files),
+                docs_count=len(docs),
+                tests_count=len(tests),
+                install_count=len(installs),
+                sample_paths=samples,
+            )
+        )
+
+    stats.sort(key=lambda item: item.file_count, reverse=True)
+    return stats
 
 
 def aggregate_by_key(
@@ -215,7 +334,22 @@ def format_counter(counter: Counter, limit: int) -> List[str]:
     return [f"{item} ({count})" for item, count in counter.most_common(limit)]
 
 
-def build_summary_report(records: Sequence[ShellRecord]) -> str:
+def build_markdown_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
+    if not rows:
+        return ""
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(row) + " |")
+    return "\n".join(lines)
+
+
+def build_summary_report(
+    records: Sequence[ShellRecord],
+    session_stats: Sequence[SessionFileStat],
+) -> str:
     total = len(records)
     timestamps = [rec.timestamp for rec in records if rec.timestamp]
     first = min(timestamps) if timestamps else None
@@ -250,8 +384,97 @@ def build_summary_report(records: Sequence[ShellRecord]) -> str:
     lines.append(f"- Rollout logs: {', '.join(format_counter(sources, 3)) or 'n/a'}")
     lines.append("")
     lines.append("## Daily activity")
-    for day, count in per_day.most_common(7):
+    for day, count in sorted(per_day.items()):
         lines.append(f"- {day}: {count} commands")
+
+    lines.append("")
+    lines.append("## Heavy-hitter logs (all sessions)")
+    heavy_rows = [
+        [
+            stat.session,
+            str(stat.file_count),
+            str(stat.docs_count),
+            str(stat.tests_count),
+            str(stat.install_count),
+        ]
+        for stat in session_stats
+    ]
+    if heavy_rows:
+        lines.append(build_markdown_table(["Session", "Files", "Docs", "Tests", "Install"], heavy_rows))
+    else:
+        lines.append("_No session file references found._")
+
+    lines.append("")
+    lines.append("## Session file impact")
+    impact_rows = [
+        [
+            stat.session,
+            str(stat.file_count),
+            str(stat.docs_count),
+            str(stat.tests_count),
+            str(stat.install_count),
+            "; ".join(stat.sample_paths),
+        ]
+        for stat in session_stats
+    ]
+    if impact_rows:
+        lines.append(
+            build_markdown_table(
+                ["Session", "Files", "Docs", "Tests", "Install", "Sample paths"],
+                impact_rows,
+            )
+        )
+    else:
+        lines.append("_No file impact to report._")
+
+    lines.append("")
+    lines.append("## Annex: Command usage")
+    annex_rows = []
+    for command, count in main_cmds.most_common(10):
+        description, usage = get_command_help(command)
+        annex_rows.append(
+            [
+                command or "—",
+                str(count),
+                description or "—",
+                usage or "—",
+            ]
+        )
+    if annex_rows:
+        lines.append(
+            build_markdown_table(
+                ["Command", "Count", "Purpose", "Typical usage"],
+                annex_rows,
+            )
+        )
+    else:
+        lines.append("_No commands recorded._")
+
+    lines.append("")
+    lines.append("## Command reference")
+    reference_rows = []
+    for command, count in sorted(main_cmds.items(), key=lambda kv: (-kv[1], kv[0])):
+        if not command:
+            continue
+        description, usage = get_command_help(command)
+        reference_rows.append(
+            [
+                command,
+                str(count),
+                description or "—",
+                usage or "—",
+            ]
+        )
+    if reference_rows:
+        lines.append(
+            build_markdown_table(
+                ["Command", "Count", "Purpose", "Typical usage"],
+                reference_rows,
+            )
+        )
+    else:
+        lines.append("_No commands recorded._")
+
     return "\n".join(lines)
 
 
@@ -260,6 +483,7 @@ def main() -> None:
     records = list(iter_shell_records(args.sessions_root))
     if not records:
         raise SystemExit(f"No shell calls found under {args.sessions_root}")
+    session_stats = collect_session_file_stats(args.sessions_root)
 
     history_rows = build_history(records)
     write_tsv(
@@ -298,10 +522,27 @@ def main() -> None:
         main_rows,
     )
 
-    summary = build_summary_report(records)
+    summary = build_summary_report(records, session_stats)
     summary_path = args.output_dir / "codex_shell_summary.md"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(summary + "\n", encoding="utf-8")
+
+    summary_tsv = args.output_dir / "codex_shell_summary.tsv"
+    write_tsv(
+        summary_tsv,
+        ("session", "files", "docs", "tests", "installs", "sample_paths"),
+        (
+            (
+                stat.session,
+                str(stat.file_count),
+                str(stat.docs_count),
+                str(stat.tests_count),
+                str(stat.install_count),
+                "; ".join(stat.sample_paths),
+            )
+            for stat in session_stats
+        ),
+    )
 
 
 if __name__ == "__main__":
