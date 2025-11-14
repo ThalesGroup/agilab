@@ -1106,6 +1106,7 @@ def handle_project_selection():
     sections = [
         ("README", lambda: _render_readme(env)),
         ("PYTHON‑ENV", lambda: _render_python_env(env)),
+        ("PYTHON-ENV-WORKER", lambda: _render_worker_python_env(env)),
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
         ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
@@ -1132,6 +1133,7 @@ def _expander_icon(label: str) -> str:
         "README": "📘",
         "PYTHON-ENV": "⚙️",
         "PYTHON-ENV-EXTRA": "⚙️",
+        "PYTHON-ENV-WORKER": "⚙️",
         "LOGS": "⚙️",
         "PRE-PROMPT": "️⚙️",
         "EXPORT-APP-FILTER": "⚙️",
@@ -1158,6 +1160,20 @@ def _render_python_env(env):
         )
     else:
         st.warning("App settings file not found.")
+
+def _render_worker_python_env(env):
+    worker_pyproject = getattr(env, "worker_pyproject", None)
+    if worker_pyproject and worker_pyproject.exists():
+        render_code_editor(
+            worker_pyproject,
+            worker_pyproject.read_text(),
+            "toml",
+            "worker-pyproject",
+            comp_props,
+            ace_props,
+        )
+    else:
+        st.warning("Worker pyproject.toml not found.")
 
 def _render_uv_env(env):
     app_venv_file = env.active_app / "uv_config.toml"
