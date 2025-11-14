@@ -156,6 +156,12 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
     except Exception:
         return str(raw)
 
+    if not candidate.is_absolute():
+        env = st.session_state.get("env")
+        base = getattr(env, "apps_dir", None)
+        if base:
+            candidate = Path(base) / candidate
+
     if candidate.name == ".venv":
         candidate = candidate.parent
     return str(candidate)
@@ -2302,13 +2308,12 @@ def display_lab_tab(
     with st.container(border=True):
         st.caption("Execution environment")
         session_label = st.session_state.get(select_key, "")
-        initial_label = session_label or current_path or lab_selected_path or env_active_app
+        initial_label = session_label or current_path or lab_selected_path
+        if not initial_label:
+            initial_label = ""
         if initial_label and initial_label not in venv_labels:
             venv_labels.append(initial_label)
-        if initial_label:
-            default_label = initial_label
-        else:
-            default_label = default_env_label
+        default_label = initial_label or default_env_label
         if default_label not in venv_labels:
             venv_labels.append(default_label)
         if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
