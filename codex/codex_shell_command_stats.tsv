@@ -3,6 +3,7 @@ bash -lc git status -sb	49	2025-11-07T08:28:03.581000+00:00	2025-11-14T08:13:26.
 bash -lc ls	14	2025-11-07T08:27:20.029000+00:00	2025-11-14T08:06:43.076000+00:00	2	12	bash -lc ls
 bash -lc git tag	12	2025-11-13T15:54:59.373000+00:00	2025-11-13T17:58:49.195000+00:00	3	2	bash -lc git tag
 bash -lc cd /Users/agi/PycharmProjects/thales_agilab && git status -sb	10	2025-11-07T18:23:02.673000+00:00	2025-11-13T16:59:09.948000+00:00	1	3	bash -lc cd /Users/agi/PycharmProjects/thales_agilab && git status -sb
+bash -lc python3 codex/export_codex_shell_stats.py	9	2025-11-14T09:23:35.290000+00:00	2025-11-14T09:37:08.477000+00:00	1	1	bash -lc python3 codex/export_codex_shell_stats.py
 bash -lc git count-objects -vH	7	2025-11-13T15:34:57.747000+00:00	2025-11-13T16:01:33.314000+00:00	2	1	bash -lc git count-objects -vH
 bash -lc git verify-pack -v $(git rev-parse --git-dir)/objects/pack/pack-*.idx | sort -k3 -n | tail	7	2025-11-13T15:35:06.378000+00:00	2025-11-13T16:01:42.066000+00:00	3	1	bash -lc git verify-pack -v $(git rev-parse --git-dir)/objects/pack/pack-*.idx | sort -k3 -n | tail
 bash -lc python3 -m compileall src/agilab/pages/'▶️ EXECUTE.py'	7	2025-11-10T13:54:36.754000+00:00	2025-11-10T15:04:07.371000+00:00	1	1	bash -lc python3 -m compileall src/agilab/pages/'▶️ EXECUTE.py'
@@ -18,7 +19,6 @@ bash -lc git remote -v	5	2025-11-13T15:40:24.412000+00:00	2025-11-13T17:58:02.47
 bash -lc git remote add origin https://github.com/ThalesGroup/agilab.git	5	2025-11-13T15:37:10.668000+00:00	2025-11-13T16:06:01.435000+00:00	2	1	bash -lc git remote add origin https://github.com/ThalesGroup/agilab.git
 bash -lc ls codex	5	2025-11-13T10:31:20.883000+00:00	2025-11-14T09:11:57.964000+00:00	1	2	bash -lc ls codex
 bash -lc mkdir -p src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data	5	2025-11-13T15:38:38.317000+00:00	2025-11-13T16:00:28.856000+00:00	1	1	bash -lc mkdir -p src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data
-bash -lc python3 codex/export_codex_shell_stats.py	5	2025-11-14T09:23:35.290000+00:00	2025-11-14T09:31:17.739000+00:00	1	1	bash -lc python3 codex/export_codex_shell_stats.py
 bash -lc touch src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data/.gitkeep	5	2025-11-13T15:38:52.270000+00:00	2025-11-13T16:00:40.457000+00:00	1	1	bash -lc touch src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data/.gitkeep
 /bin/zsh -lc ~/.local/bin/uv --quiet run python pycharm/setup_pycharm.py	4	2025-11-06T15:14:01.543000+00:00	2025-11-06T15:26:39.121000+00:00	1	1	/bin/zsh -lc ~/.local/bin/uv --quiet run python pycharm/setup_pycharm.py
 bash -lc cat <<'EOF' > src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data/.gitignore * !.gitignore !.gitkeep EOF	4	2025-11-13T15:44:15.129000+00:00	2025-11-13T16:00:35.561000+00:00	1	1	bash -lc cat <<'EOF' > src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data/.gitignore * !.gitignore !.gitkeep EOF
@@ -204,6 +204,7 @@ bash -lc sed -n '60,90p' src/agilab/apps/flight_project/src/flight/flight.py	2	2
 bash -lc sed -n '600,720p' src/agilab/core/agi-env/src/agi_env/agi_env.py	2	2025-11-11T12:48:17.502000+00:00	2025-11-12T05:34:06.288000+00:00	1	2	bash -lc sed -n '600,720p' src/agilab/core/agi-env/src/agi_env/agi_env.py
 bash -lc sed -n '600,760p' pycharm/setup_pycharm.py	2	2025-11-11T19:15:01.751000+00:00	2025-11-12T10:49:00.978000+00:00	1	2	bash -lc sed -n '600,760p' pycharm/setup_pycharm.py
 bash -lc sed -n '780,860p' src/agilab/core/agi-env/src/agi_env/agi_env.py	2	2025-11-10T08:40:23.756000+00:00	2025-11-10T10:27:21.492000+00:00	1	2	bash -lc sed -n '780,860p' src/agilab/core/agi-env/src/agi_env/agi_env.py
+bash -lc sed -n '80,200p' codex/codex_shell_summary.md	2	2025-11-14T09:31:21.098000+00:00	2025-11-14T09:33:16.272000+00:00	2	1	bash -lc sed -n '80,200p' codex/codex_shell_summary.md
 bash -lc sed -n '800,940p' src/agilab/core/agi-env/src/agi_env/agi_env.py	2	2025-11-11T12:47:10.634000+00:00	2025-11-13T07:15:25.900000+00:00	1	2	bash -lc sed -n '800,940p' src/agilab/core/agi-env/src/agi_env/agi_env.py
 bash -lc sed -n '860,910p' src/agilab/core/agi-env/src/agi_env/agi_env.py	2	2025-11-12T12:37:38.818000+00:00	2025-11-12T12:42:54.061000+00:00	1	1	bash -lc sed -n '860,910p' src/agilab/core/agi-env/src/agi_env/agi_env.py
 bash -lc ssh -o StrictHostKeyChecking=no agi@192.168.20.130 'echo hi'	2	2025-11-07T16:56:00.295000+00:00	2025-11-07T16:56:53.366000+00:00	1	1	bash -lc ssh -o StrictHostKeyChecking=no agi@192.168.20.130 'echo hi'
@@ -1849,6 +1850,9 @@ bash -lc rg -n "os\.name" src/agilab/apps/link_sim_project/src/link_sim_worker/l
 bash -lc rg -n "output" src/agilab/apps/flight_project/src/flight/flight.py	1	2025-11-10T17:39:00.908000+00:00	2025-11-10T17:39:00.908000+00:00	1	1	bash -lc rg -n "output" src/agilab/apps/flight_project/src/flight/flight.py
 bash -lc rg -n "outputs" -g"*.py"	1	2025-11-10T17:38:54.489000+00:00	2025-11-10T17:38:54.489000+00:00	1	1	bash -lc rg -n "outputs" -g"*.py"
 bash -lc rg -n "outputs_dir" -g"*.py"	1	2025-11-10T17:38:55.708000+00:00	2025-11-10T17:38:55.708000+00:00	1	1	bash -lc rg -n "outputs_dir" -g"*.py"
+bash -lc rg -n "perl" -n ~/.codex/sessions/2025/11 -g '*.jsonl'	1	2025-11-14T09:36:34.803000+00:00	2025-11-14T09:36:34.803000+00:00	1	1	bash -lc rg -n "perl" -n ~/.codex/sessions/2025/11 -g '*.jsonl'
+bash -lc rg -n "perl" codex/codex_shell_history.tsv | head	1	2025-11-14T09:37:20.580000+00:00	2025-11-14T09:37:20.580000+00:00	1	1	bash -lc rg -n "perl" codex/codex_shell_history.tsv | head
+bash -lc rg -n "perl" codex/codex_shell_summary.md	1	2025-11-14T09:37:17.211000+00:00	2025-11-14T09:37:17.211000+00:00	1	1	bash -lc rg -n "perl" codex/codex_shell_summary.md
 bash -lc rg -n "persist" -n 'src/agilab/pages/▶️ EXECUTE.py'	1	2025-11-10T12:48:11.305000+00:00	2025-11-10T12:48:11.305000+00:00	1	1	bash -lc rg -n "persist" -n 'src/agilab/pages/▶️ EXECUTE.py'
 bash -lc rg -n "pip" install.sh	1	2025-11-12T07:56:52.366000+00:00	2025-11-12T07:56:52.366000+00:00	1	1	bash -lc rg -n "pip" install.sh
 bash -lc rg -n "post_install" -g"*.py" src/agilab/core/agi-cluster/src	1	2025-11-10T08:41:19.043000+00:00	2025-11-10T08:41:19.043000+00:00	1	1	bash -lc rg -n "post_install" -g"*.py" src/agilab/core/agi-cluster/src
@@ -2155,10 +2159,13 @@ bash -lc sed -n '1,80p' src/agilab/examples/sb3_trainer/AGI_install_sb3_trainer.
 bash -lc sed -n '100,140p' src/agilab/apps/network_sim_project/src/network_sim_worker/network_sim_worker.py	1	2025-11-07T09:11:50.472000+00:00	2025-11-07T09:11:50.472000+00:00	1	1	bash -lc sed -n '100,140p' src/agilab/apps/network_sim_project/src/network_sim_worker/network_sim_worker.py
 bash -lc sed -n '100,160p' src/agilab/apps/flight_trajectory_project/src/flight_trajectory/flight_trajectory_args.py	1	2025-11-07T18:28:12.957000+00:00	2025-11-07T18:28:12.957000+00:00	1	1	bash -lc sed -n '100,160p' src/agilab/apps/flight_trajectory_project/src/flight_trajectory/flight_trajectory_args.py
 bash -lc sed -n '100,160p' src/agilab/core/agi-node/src/agi_node/agi_dispatcher/base_worker.py	1	2025-11-10T18:05:36.255000+00:00	2025-11-10T18:05:36.255000+00:00	1	1	bash -lc sed -n '100,160p' src/agilab/core/agi-node/src/agi_node/agi_dispatcher/base_worker.py
+bash -lc sed -n '100,180p' codex/codex_shell_summary.md	1	2025-11-14T09:36:23.539000+00:00	2025-11-14T09:36:23.539000+00:00	1	1	bash -lc sed -n '100,180p' codex/codex_shell_summary.md
+bash -lc sed -n '100,200p' codex/codex_shell_summary.md	1	2025-11-14T09:37:12.050000+00:00	2025-11-14T09:37:12.050000+00:00	1	1	bash -lc sed -n '100,200p' codex/codex_shell_summary.md
 bash -lc sed -n '1000,1075p' 'src/agilab/pages/▶️ EXECUTE.py'	1	2025-11-10T10:10:37.362000+00:00	2025-11-10T10:10:37.362000+00:00	1	1	bash -lc sed -n '1000,1075p' 'src/agilab/pages/▶️ EXECUTE.py'
 bash -lc sed -n '1060,1170p' 'src/agilab/pages/▶️ EXECUTE.py'	1	2025-11-10T12:44:19.551000+00:00	2025-11-10T12:44:19.551000+00:00	1	1	bash -lc sed -n '1060,1170p' 'src/agilab/pages/▶️ EXECUTE.py'
 bash -lc sed -n '1080,1160p' "src/agilab/pages/▶️ EXECUTE.py"	1	2025-11-13T08:41:34.873000+00:00	2025-11-13T08:41:34.873000+00:00	1	1	bash -lc sed -n '1080,1160p' "src/agilab/pages/▶️ EXECUTE.py"
 bash -lc sed -n '1080,1160p' docs/gen-docs.py	1	2025-11-13T17:10:14.543000+00:00	2025-11-13T17:10:14.543000+00:00	1	1	bash -lc sed -n '1080,1160p' docs/gen-docs.py
+bash -lc sed -n '110,180p' codex/codex_shell_summary.md	1	2025-11-14T09:34:52.427000+00:00	2025-11-14T09:34:52.427000+00:00	1	1	bash -lc sed -n '110,180p' codex/codex_shell_summary.md
 bash -lc sed -n '1100,1135p' 'src/agilab/pages/▶️ EXECUTE.py'	1	2025-11-10T12:51:22.211000+00:00	2025-11-10T12:51:22.211000+00:00	1	1	bash -lc sed -n '1100,1135p' 'src/agilab/pages/▶️ EXECUTE.py'
 bash -lc sed -n '1100,1200p' 'src/agilab/pages/▶️ EXECUTE.py'	1	2025-11-10T14:06:02.166000+00:00	2025-11-10T14:06:02.166000+00:00	1	1	bash -lc sed -n '1100,1200p' 'src/agilab/pages/▶️ EXECUTE.py'
 bash -lc sed -n '1100,1400p' "src/agilab/pages/▶️ EXECUTE.py"	1	2025-11-13T08:38:41.945000+00:00	2025-11-13T08:38:41.945000+00:00	1	1	bash -lc sed -n '1100,1400p' "src/agilab/pages/▶️ EXECUTE.py"
@@ -2237,6 +2244,7 @@ bash -lc sed -n '20,140p' src/agilab/apps/link_sim_project/src/link_sim/link_sim
 bash -lc sed -n '20,40p' src/agilab/apps/flight_trajectory_project/src/flight_trajectory_worker/flight_trajectory_worker.py	1	2025-11-12T10:37:19.987000+00:00	2025-11-12T10:37:19.987000+00:00	1	1	bash -lc sed -n '20,40p' src/agilab/apps/flight_trajectory_project/src/flight_trajectory_worker/flight_trajectory_worker.py
 bash -lc sed -n '20,60p' docs/source/index.rst	1	2025-11-13T16:21:12.122000+00:00	2025-11-13T16:21:12.122000+00:00	1	1	bash -lc sed -n '20,60p' docs/source/index.rst
 bash -lc sed -n '20,60p' src/agilab/apps/network_sim_project/src/network_sim/network_sim_args.py	1	2025-11-07T09:12:45.300000+00:00	2025-11-07T09:12:45.300000+00:00	1	1	bash -lc sed -n '20,60p' src/agilab/apps/network_sim_project/src/network_sim/network_sim_args.py
+bash -lc sed -n '20,80p' codex/export_codex_shell_stats.py	1	2025-11-14T09:37:34.976000+00:00	2025-11-14T09:37:34.976000+00:00	1	1	bash -lc sed -n '20,80p' codex/export_codex_shell_stats.py
 bash -lc sed -n '20,80p' pycharm/setup_pycharm.py	1	2025-11-11T19:15:33.162000+00:00	2025-11-11T19:15:33.162000+00:00	1	1	bash -lc sed -n '20,80p' pycharm/setup_pycharm.py
 bash -lc sed -n '20,80p' src/agilab/apps/flight_project/src/flight/flight_args.py	1	2025-11-07T09:11:23.423000+00:00	2025-11-07T09:11:23.423000+00:00	1	1	bash -lc sed -n '20,80p' src/agilab/apps/flight_project/src/flight/flight_args.py
 bash -lc sed -n '20,80p' src/agilab/examples/ilp/AGI_install_ilp.py	1	2025-11-10T15:13:42.871000+00:00	2025-11-10T15:13:42.871000+00:00	1	1	bash -lc sed -n '20,80p' src/agilab/examples/ilp/AGI_install_ilp.py
@@ -2378,7 +2386,6 @@ bash -lc sed -n '780,860p' src/agilab/core/agi-node/src/agi_node/agi_dispatcher/
 bash -lc sed -n '80,130p' 'src/agilab/pages/▶️ EXECUTE.py'	1	2025-11-10T14:58:00.255000+00:00	2025-11-10T14:58:00.255000+00:00	1	1	bash -lc sed -n '80,130p' 'src/agilab/pages/▶️ EXECUTE.py'
 bash -lc sed -n '80,160p' codex/codex_shell_summary.md	1	2025-11-14T09:27:09.169000+00:00	2025-11-14T09:27:09.169000+00:00	1	1	bash -lc sed -n '80,160p' codex/codex_shell_summary.md
 bash -lc sed -n '80,160p' src/agilab/apps/flight_project/src/flight_worker/flight_worker.py	1	2025-11-07T09:21:13.629000+00:00	2025-11-07T09:21:13.629000+00:00	1	1	bash -lc sed -n '80,160p' src/agilab/apps/flight_project/src/flight_worker/flight_worker.py
-bash -lc sed -n '80,200p' codex/codex_shell_summary.md	1	2025-11-14T09:31:21.098000+00:00	2025-11-14T09:31:21.098000+00:00	1	1	bash -lc sed -n '80,200p' codex/codex_shell_summary.md
 bash -lc sed -n '800,860p' src/agilab/core/agi-env/src/agi_env/agi_env.py	1	2025-11-10T18:08:55.822000+00:00	2025-11-10T18:08:55.822000+00:00	1	1	bash -lc sed -n '800,860p' src/agilab/core/agi-env/src/agi_env/agi_env.py
 bash -lc sed -n '800,870p' src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/agi_distributor.py	1	2025-11-07T17:28:35.354000+00:00	2025-11-07T17:28:35.354000+00:00	1	1	bash -lc sed -n '800,870p' src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/agi_distributor.py
 bash -lc sed -n '800,920p' src/agilab/core/agi-env/src/agi_env/agi_env.py	1	2025-11-07T08:43:10.997000+00:00	2025-11-07T08:43:10.997000+00:00	1	1	bash -lc sed -n '800,920p' src/agilab/core/agi-env/src/agi_env/agi_env.py

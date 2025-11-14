@@ -3068,3 +3068,15 @@ timestamp_utc	command	workdir	source_log
 2025-11-14T09:27:09.169Z	bash -lc sed -n '80,160p' codex/codex_shell_summary.md		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
 2025-11-14T09:31:17.739Z	bash -lc python3 codex/export_codex_shell_stats.py	/Users/agi/PycharmProjects/agilab	/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
 2025-11-14T09:31:21.098Z	bash -lc sed -n '80,200p' codex/codex_shell_summary.md	/Users/agi/PycharmProjects/agilab	/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:33:13.416Z	bash -lc python3 codex/export_codex_shell_stats.py	/Users/agi/PycharmProjects/agilab	/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:33:16.272Z	bash -lc sed -n '80,200p' codex/codex_shell_summary.md		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:34:49.461Z	bash -lc python3 codex/export_codex_shell_stats.py	/Users/agi/PycharmProjects/agilab	/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:34:52.427Z	bash -lc sed -n '110,180p' codex/codex_shell_summary.md		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:36:20.323Z	bash -lc python3 codex/export_codex_shell_stats.py	/Users/agi/PycharmProjects/agilab	/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:36:23.539Z	bash -lc sed -n '100,180p' codex/codex_shell_summary.md		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:36:34.803Z	bash -lc rg -n "perl" -n ~/.codex/sessions/2025/11 -g '*.jsonl'		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:37:08.477Z	bash -lc python3 codex/export_codex_shell_stats.py	/Users/agi/PycharmProjects/agilab	/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:37:12.050Z	bash -lc sed -n '100,200p' codex/codex_shell_summary.md		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:37:17.211Z	bash -lc rg -n "perl" codex/codex_shell_summary.md		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:37:20.580Z	bash -lc rg -n "perl" codex/codex_shell_history.tsv | head		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
+2025-11-14T09:37:34.976Z	bash -lc sed -n '20,80p' codex/export_codex_shell_stats.py		/Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl
