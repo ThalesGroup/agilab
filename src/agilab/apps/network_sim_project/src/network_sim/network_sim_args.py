@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-import tomli
+import tomllib
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, PositiveInt
 
@@ -140,7 +140,7 @@ def dump_args_to_toml(
     doc: dict[str, Any] = {}
     if settings_path.exists():
         with settings_path.open("rb") as handle:
-            doc = tomli.load(handle)
+            doc = tomllib.load(handle)
     elif not create_missing:
         raise FileNotFoundError(f"Settings file not found: {settings_path}")
 
