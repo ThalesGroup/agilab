@@ -1864,13 +1864,15 @@ if __name__ == "__main__":
             st.session_state["_benchmark_expand"] = True
             st.rerun()
 
-    combo_clicked = st.button(
-        "EXECUTE → LOAD → EXPORT",
-        key="combo_exec_load_export",
-        type="primary",
-        help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
-        use_container_width=True,
-    )
+    combo_clicked = False
+    if cmd:
+        combo_clicked = st.button(
+            "EXECUTE → LOAD → EXPORT",
+            key="combo_exec_load_export",
+            type="primary",
+            help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
+            use_container_width=True,
+        )
 
     if combo_clicked:
         if cmd:
