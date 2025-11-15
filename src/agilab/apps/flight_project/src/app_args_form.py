@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-import tomli
+import tomllib
 from pydantic import ValidationError
 
 from agi_env.pagelib import diagnose_data_directory
@@ -15,7 +15,7 @@ PREFIX = "flight_"
 def load_app_settings(path: Path) -> dict[str, Any]:
     if path.exists():
         with path.open("rb") as handle:
-            return tomli.load(handle)
+            return tomllib.load(handle)
     return {}
 
 
