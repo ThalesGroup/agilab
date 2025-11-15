@@ -209,9 +209,9 @@ def replace_content(content, rename_map):
     Returns:
         str: Modified file content.
     """
-    for old, new in rename_map.items():
-        # Replace only whole word matches to avoid partial replacements
-        pattern = re.compile(r"\b{}\b".format(re.escape(old)))
+    boundary = r"(?<![0-9A-Za-z]){token}(?![0-9A-Za-z])"
+    for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
+        pattern = re.compile(boundary.format(token=re.escape(old)))
         content = pattern.sub(new, content)
     return content
 
@@ -369,16 +369,13 @@ def import_project(project_zip, ignore=False):
                         out = astor.to_source(tree)
                     except SyntaxError:
                         out = src
-                    # leftover whole‑word replaces
-                    for old, new in rename_map.items():
-                        out = re.sub(rf"\b{re.escape(old)}\b", new, out)
+                    out = replace_content(out, rename_map)
                     dst.write_text(out, encoding="utf-8")
 
                 # text files → whole‑word replace
                 elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
                     txt = item.read_text()
-                    for old, new in rename_map.items():
-                        txt = re.sub(rf"\b{re.escape(old)}\b", new, txt)
+                    txt = replace_content(txt, rename_map)
                     dst.write_text(txt, encoding="utf-8")
 
                 # archives or binaries
@@ -447,16 +444,13 @@ def clone_directory(self,
                     out = astor.to_source(new_tree)
                 except SyntaxError:
                     out = src
-                # apply any leftover whole‑word replaces
-                for old, new in rename_map.items():
-                    out = re.sub(rf"\b{re.escape(old)}\b", new, out)
+                out = replace_content(out, rename_map)
                 dst.write_text(out, encoding="utf-8")
 
             # Text files → whole‑word replace
             elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
                 txt = item.read_text(encoding="utf-8")
-                for old, new in rename_map.items():
-                    txt = re.sub(rf"\b{re.escape(old)}\b", new, txt)
+                txt = replace_content(txt, rename_map)
                 dst.write_text(txt, encoding="utf-8")
 
             # Everything else
@@ -501,9 +495,7 @@ def _cleanup_rename(self, root: Path, rename_map: dict):
         if not file.is_file() or file.suffix.lower() not in exts:
             continue
         txt = file.read_text(encoding="utf-8")
-        new_txt = txt
-        for old, new in rename_map.items():
-            new_txt = re.sub(rf"\b{re.escape(old)}\b", new, new_txt)
+        new_txt = replace_content(txt, rename_map)
         if new_txt != txt:
             file.write_text(new_txt, encoding="utf-8")
 
