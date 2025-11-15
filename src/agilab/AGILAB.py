@@ -287,7 +287,7 @@ def page(env):
             try:
                 open_local_docs(env, help_file, "project-editor")
             except FileNotFoundError:
-                st.error("Local documentation not found. Regenerate via docs/gen_docs.sh.")
+                st.error("Local documentation not found. Regenerate via docs/gen-docs.sh.")
 
     current_year = datetime.now().year
     st.markdown(

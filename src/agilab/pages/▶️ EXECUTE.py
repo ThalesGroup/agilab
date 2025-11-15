@@ -31,7 +31,7 @@ except ModuleNotFoundError as exc:
 else:
     _MATPLOTLIB_IMPORT_ERROR = None
 from collections import defaultdict
-import tomli         # For reading TOML files
+import tomllib       # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
 # Theme configuration
@@ -401,8 +401,8 @@ def load_toml_file(file_path):
     if file_path.exists():
         try:
             with file_path.open("rb") as f:
-                return tomli.load(f)
-        except tomli.TOMLDecodeError as exc:
+                return tomllib.load(f)
+        except tomllib.TOMLDecodeError as exc:
             st.warning(f"Invalid TOML detected in {file_path.name}: {exc}")
             logger = logging.getLogger(__name__)
             logger.warning("Failed to parse %s: %s", file_path, exc)

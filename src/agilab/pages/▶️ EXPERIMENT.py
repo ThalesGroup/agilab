@@ -14,7 +14,7 @@ import pandas as pd
 import re
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
-import tomli        # For reading TOML files
+import tomllib        # For reading TOML files
 import tomli_w      # For writing TOML files
 
 from code_editor import code_editor
@@ -230,7 +230,7 @@ def _ensure_primary_module_key(module: Union[str, Path], steps_file: Path) -> No
         return
     try:
         with open(steps_file, "rb") as f:
-            data = tomli.load(f)
+            data = tomllib.load(f)
     except Exception:
         return
 
@@ -473,7 +473,7 @@ def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[s
     Caches on (path, module_key, mtime_ns) so saves invalidate automatically.
     """
     with open(steps_file, "rb") as f:
-        data = tomli.load(f)
+        data = tomllib.load(f)
     return list(data.get(module_key, []))
 
 
@@ -498,14 +498,14 @@ def load_all_steps(
         if filtered_entries and not steps_file.with_suffix(".ipynb").exists():
             try:
                 with open(steps_file, "rb") as f:
-                    steps_full = tomli.load(f)
+                    steps_full = tomllib.load(f)
                 toml_to_notebook(steps_full, steps_file)
             except Exception as e:
                 logger.warning(f"Skipping notebook generation: {e}")
         return filtered_entries
     except FileNotFoundError:
         return []
-    except tomli.TOMLDecodeError as e:
+    except tomllib.TOMLDecodeError as e:
         st.error(f"Error decoding TOML: {e}")
         return []
 
@@ -1368,8 +1368,8 @@ def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
     _ensure_primary_module_key(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
-            steps = tomli.load(f)
-    except (FileNotFoundError, tomli.TOMLDecodeError):
+            steps = tomllib.load(f)
+    except (FileNotFoundError, tomllib.TOMLDecodeError):
         return []
 
     for key in _module_keys(module_path):
@@ -1385,8 +1385,8 @@ def get_steps_dict(module: Path, steps_file: Path) -> Dict[str, Any]:
     _ensure_primary_module_key(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
-            steps = tomli.load(f)
-    except (FileNotFoundError, tomli.TOMLDecodeError):
+            steps = tomllib.load(f)
+    except (FileNotFoundError, tomllib.TOMLDecodeError):
         steps = {}
     else:
         keys = _module_keys(module_path)
@@ -1532,7 +1532,7 @@ def save_step(
         index_step = 0
     if steps_file.exists():
         with open(steps_file, "rb") as f:
-            steps = tomli.load(f)
+            steps = tomllib.load(f)
     else:
         os.makedirs(steps_file.parent, exist_ok=True)
         steps = {}
@@ -2521,7 +2521,7 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
     _ensure_primary_module_key(module_path, steps_file)
     if steps_file.exists():
         with open(steps_file, "rb") as f:
-            raw_data = tomli.load(f)
+            raw_data = tomllib.load(f)
         cleaned: Dict[str, List[Dict[str, Any]]] = {}
         for mod, entries in raw_data.items():
             if isinstance(entries, list):
