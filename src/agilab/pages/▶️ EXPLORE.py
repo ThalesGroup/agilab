@@ -30,7 +30,7 @@ import logging
 import subprocess
 
 # Use modern TOML libraries
-import tomli         # For reading TOML files (read as binary)
+import tomllib       # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
@@ -221,7 +221,7 @@ def _read_config(path: Path) -> dict:
     try:
         if path.exists():
             with open(path, "rb") as f:
-                return tomli.load(f)
+                return tomllib.load(f)
     except Exception as e:
         st.error(f"Error loading configuration: {e}")
     return {}

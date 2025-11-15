@@ -11,13 +11,16 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-import sys
-import pandas as pd
-import streamlit as st
-import plotly.express as px
-from pathlib import Path
 import argparse
+import os
+from pathlib import Path
+import sys
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+import tomllib as _toml
 
 
 def _ensure_repo_on_path() -> None:
@@ -91,6 +94,26 @@ def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
     # Reset index for the result
     return sampled.reset_index(drop=True)
 
+
+def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
+    """Read custom map settings from app_settings.toml when available."""
+
+    try:
+        with open(env.app_settings_file, "rb") as fh:
+            data = _toml.load(fh)
+    except FileNotFoundError:
+        data = {}
+    map_cfg = data.get("ui", {}).get(
+        "map",
+        {"center_lat": 0.0, "center_lon": 0.0, "default_zoom": 2.5},
+    )
+    return {
+        "center_lat": float(map_cfg.get("center_lat", 0.0)),
+        "center_lon": float(map_cfg.get("center_lon", 0.0)),
+        "default_zoom": float(map_cfg.get("default_zoom", 2.5)),
+    }
+
+
 def page(env):
     """
     Page function for displaying and interacting with data in a Streamlit app.
@@ -119,6 +142,8 @@ def page(env):
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
 
+    map_defaults_key = f"_view_maps_map_defaults_{env.app}"
+
     # Resolve the data directory for the currently selected app
     default_datadir = Path(env.AGILAB_EXPORT_ABS) / env.target
     last_target_key = "_view_maps_last_target"
@@ -135,6 +160,11 @@ def page(env):
 
     st.session_state["datadir_str"] = st.session_state["datadir"]
     st.session_state[last_target_key] = env.target
+    if (
+        map_defaults_key not in st.session_state
+        or last_target != env.target
+    ):
+        st.session_state[map_defaults_key] = _load_map_defaults(env)
     datadir = Path(st.session_state["datadir"])
     datadir_changed = st.session_state.get("_view_maps_last_datadir") != str(datadir)
     st.session_state["_view_maps_last_datadir"] = str(datadir)
@@ -280,6 +310,42 @@ def page(env):
 
     df = st.session_state.loaded_df
 
+    if "beam" in df.columns:
+        available_beams = sorted({str(val) for val in df["beam"].dropna().unique()})
+        selected_beams = st.sidebar.multiselect(
+            "Filter beams",
+            available_beams,
+            key=f"view_maps_beam_filter_{env.app}",
+        )
+        if selected_beams:
+            df = df[df["beam"].astype(str).isin(selected_beams)].copy()
+            st.session_state.loaded_df = df
+        beam_summary_cols = {"points": ("beam", "size")}
+        if "alt_m" in df.columns:
+            beam_summary_cols["mean_alt_m"] = ("alt_m", "mean")
+        if "sat" in df.columns:
+            beam_summary_cols["dominant_sat"] = (
+                "sat",
+                lambda series: series.mode().iat[0] if not series.mode().empty else None,
+            )
+        with st.expander("Beam coverage", expanded=False):
+            summary_df = (
+                df.groupby("beam")
+                .agg(**beam_summary_cols)
+                .reset_index()
+                .rename(columns={"beam": "beam_id"})
+                .sort_values(by="beam_id")
+            )
+            st.dataframe(summary_df, use_container_width=True)
+    else:
+        st.sidebar.write("")
+
+    show_sat_overlay = st.sidebar.checkbox(
+        "Show satellite overlay",
+        value=True,
+        key=f"view_maps_sat_overlay_{env.app}",
+    )
+
     # Select numeric columns
     numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
 
@@ -341,6 +407,8 @@ def page(env):
                 .sort_values(by="nbval", ascending=False)
                 .Columns.tolist()
             )
+            if var[i] == "discrete" and "beam" in colsn:
+                colsn = ["beam"] + [col for col in colsn if col != "beam"]
             on_change_function = None
             if var[i] == "discrete":
                 on_change_function = discrete
@@ -388,6 +456,8 @@ def page(env):
                 st.warning(f"No columns matching '{var[i]}' found.")
                 st.session_state[var[i]] = None
 
+    map_cfg = st.session_state.get(map_defaults_key, {"center_lat": 0.0, "center_lon": 0.0, "default_zoom": 2.5})
+
     if st.session_state.get("lat") and st.session_state.get("long"):
         if st.session_state.get("coltype") and st.session_state.get(st.session_state["coltype"]):
             if discreteseq:
@@ -397,7 +467,8 @@ def page(env):
                     st.session_state.loaded_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
-                    zoom=2.5,
+                    zoom=map_cfg["default_zoom"],
+                    center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
                     color_discrete_sequence=color_sequence,
                     color=st.session_state[st.session_state.coltype],
                 )
@@ -406,7 +477,8 @@ def page(env):
                     st.session_state.loaded_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
-                    zoom=2.5,
+                    zoom=map_cfg["default_zoom"],
+                    center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
                     color_continuous_scale=colorscale,
                     color=st.session_state[st.session_state.coltype],
                 )
@@ -415,8 +487,30 @@ def page(env):
                     st.session_state.loaded_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
-                    zoom=2.5,
+                    zoom=map_cfg["default_zoom"],
+                    center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
                 )
+
+            if (
+                show_sat_overlay
+                and {"sat_track_lat", "sat_track_long"} <= set(st.session_state.loaded_df.columns)
+            ):
+                sat_points = (
+                    st.session_state.loaded_df[["sat_track_lat", "sat_track_long", "sat"]]
+                    .dropna(subset=["sat_track_lat", "sat_track_long"])
+                    .drop_duplicates()
+                )
+                if not sat_points.empty:
+                    fig.add_trace(
+                        go.Scattermapbox(
+                            lat=sat_points["sat_track_lat"],
+                            lon=sat_points["sat_track_long"],
+                            mode="markers",
+                            marker=dict(size=10, color="#ffa600", symbol="triangle"),
+                            name="Satellite track",
+                            text=sat_points.get("sat"),
+                        )
+                    )
 
             fig.update_layout(mapbox_style="open-street-map")
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
