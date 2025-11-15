@@ -2,7 +2,7 @@
 Text-only plan; nothing was executed.
 
 ## Step 1 – Clone baseline
-- Run the IDE “Clone app” flow (or `tools/clone_app.py`) to copy `flight_project` into a fresh slug (example: `flight_clone_project`).  
+- Run the IDE “Clone app” flow (or `tools/clone_app.py`) to copy `flight_trajectory_project` into a fresh slug (example: `flight_clone_project`).  
 - Immediately regenerate run configs (`tools/generate_runconfig_scripts.py`), seed `log/execute/<slug>`, and run `AGI_get_distrib_<slug>.py` + `AGI_run_<slug>.py` once to confirm the clone works before edits.
 
 ## Step 2 – Add antenna beam support
