@@ -162,7 +162,4 @@ def persist_args(
             st.session_state["args_project"] = env.app
 
 
-try:  # lazy import to avoid mandatory dependency where unused
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - runtime on python<3.11
-    import tomli as tomllib  # type: ignore[assignment]
+import tomllib

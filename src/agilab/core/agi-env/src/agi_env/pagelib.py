@@ -35,10 +35,7 @@ try:
     from importlib import metadata as _importlib_metadata  # type: ignore
 except Exception:  # pragma: no cover
     _importlib_metadata = None  # type: ignore
-try:
-    import tomli  # type: ignore
-except Exception:  # pragma: no cover
-    tomli = None  # type: ignore
+import tomllib
 
 from sqlalchemy import false
 
@@ -424,8 +421,6 @@ def _read_version_from_pyproject(env) -> str | None:
     Returns version string or None.
     """
     try:
-        if tomli is None:
-            return None
         root = getattr(env, "agilab_pck", None)
         py_paths: list[Path] = []
         if root:
@@ -448,7 +443,7 @@ def _read_version_from_pyproject(env) -> str | None:
                 if not py.exists():
                     continue
                 with py.open("rb") as f:
-                    data = tomli.load(f)
+                    data = tomllib.load(f)
                 proj = (data.get("project") or {})
                 name = str(proj.get("name") or "").strip().lower()
                 if name and name != "agilab":
