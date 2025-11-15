@@ -1,0 +1,152 @@
+[project]
+name = "flight_clone_project"
+version = "0.8.17"
+description = "flight_clone_project is an example of data project"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+]
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "fastparquet",
+    "ipython",
+    "dask[distributed]",
+    "polars",
+    "psutil",
+    "plotly",
+    "pandas",
+    "astor",
+    "asyncssh",
+    "build",
+    "cmake>=3.29",
+    "geojson",
+    "humanize",
+    "jupyter-ai[all]",
+    "keras",
+    "matplotlib",
+    "mlflow",
+    "networkx",
+    "noise",
+    "numba",
+    "numpy>=1.14.1",
+    "openai",
+    "pathspec",
+    "pip",
+    "pulp",
+    "pytest-cov",
+    "scipy==1.15.2",
+    "seaborn",
+    "streamlit",
+    "streamlit-modal",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "tomli",
+    "tomli_w",
+    "twine",
+    "watchdog",
+    "wheel",
+    "sgp4",
+    "legacy-cgi",
+    "standard-imghdr",
+    "pydantic",
+    "tomlkit",
+    "scikit-learn",
+    "msgpack",
+    "typing-inspection>=0.4.1",
+    "jupyter",
+    "mypy",
+    "requests",
+    "scp",
+    "pandas-stubs==2.3.2.250926",
+]
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+
+[project.optional-dependencies]
+dag-worker = []
+polars-worker = ["polars",]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "licensecheck",
+    "flight_clone_project",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+default-groups = [
+    "dev",
+]
+
+[tool.uv.sources.flight_clone_project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+flight_clone_project = [
+    "**/*.ipynb",
+    "**/*.json",
+    "**/*.toml",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]
