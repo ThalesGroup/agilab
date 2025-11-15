@@ -2,7 +2,7 @@
 Narrative only; no commands executed.
 
 ## Step 1 – Describe the target
-- Prompt the agent: “Create a `flight_project`-style app centered over Ukraine with antenna beams (like `flight_legacy_project`) and satellite trajectories (from `sat_trajectory_project`).”  
+- Prompt the agent: “Create a `flight_trajectory_project`-style app centered over Ukraine with antenna beams (like `flight_legacy_project`) and satellite trajectories (from `sat_trajectory_project`).”  
 - Let the agent outline the directory tree, pyproject metadata, run configs, and dataset notes. Apply those patches manually to generate the base app.
 
 ## Step 2 – Ask for beam schema/computation
