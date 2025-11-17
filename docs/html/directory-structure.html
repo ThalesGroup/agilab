@@ -207,7 +207,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
 </ul>
 </li>
 </ul>
@@ -264,6 +263,34 @@
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker-flight-worker">Worker (<cite>flight_worker.flight_worker</cite>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#assets-tests">Assets &amp; Tests</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Flight Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#how-it-differs-from-example-app">How it differs from <code class="docutils literal notranslate"><span class="pre">example_app</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Link Sim Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Sat Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Example App Project</a><ul>
@@ -336,7 +363,6 @@ apps/
                 example_worker.py
                 example_worker.pyx
                 pyproject.toml
-                example_worker.py
             app_args_form.py
             app_settings.toml
             example_app_args_form.py
@@ -363,7 +389,6 @@ apps/
         run_test.sh
         uv_config.toml
     flight_project/
-        .pytest_cache/ [excluded]
         .venv/ [excluded]
         Modules/ [excluded]
         src/
@@ -403,7 +428,6 @@ apps/
         steps.toml
         uv_config.toml
     mycode_project/
-        .pytest_cache/ [excluded]
         .venv/ [excluded]
         Modules/ [excluded]
         src/
@@ -432,6 +456,38 @@ apps/
         README.md
         uv_config.toml
         wenv
+    example_app_project/
+        .idea/
+            inspectionProfiles/
+                profiles_settings.xml
+                Project_Default.xml
+            .gitignore
+            misc.xml
+            modules.xml
+            example_app_project.iml
+            vcs.xml
+        .venv/ [excluded]
+        src/
+            example_app/
+                __pycache__/ [excluded]
+                __init__.py
+                example_app.py
+                example_app_args.py
+                topology.py
+            example_worker/
+                __init__.py
+                example_worker.py
+                pyproject.toml
+            app_args_form.py
+            app_settings.toml
+            pre_prompt.json
+        test/
+            __pycache__/ [excluded]
+            __init__.py
+            test_example_app_distribution.py
+        pyproject.toml
+        README.md
+        uv_config.toml
     templates/
         dag_app_template/
             src/
@@ -515,16 +571,8 @@ apps/
             uv_config.toml
     .gitignore
     __init__.py
-    example_app_project
-    example_app_project
-    example_app_project
-    example_app_project
     install.py
-    example_app_project
     README.md
-    example_app_project
-    example_app_project
-    example_app_project
 apps-pages/
     view_autoencoder_latenspace/
         .venv/ [excluded]
@@ -702,9 +750,7 @@ examples/
     flight/
         AGI_command_flight.py
         AGI_install_flight.py
-        AGI_install_example_app.py
         AGI_run_flight.py
-        AGI_run_example_app.py
     flight2/
     example_app/
         AGI_install_example_app.py

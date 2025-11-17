@@ -207,7 +207,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
 </ul>
 </li>
 </ul>
@@ -264,6 +263,34 @@
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker-flight-worker">Worker (<cite>flight_worker.flight_worker</cite>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#assets-tests">Assets &amp; Tests</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Flight Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#how-it-differs-from-example-app">How it differs from <code class="docutils literal notranslate"><span class="pre">example_app</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Link Sim Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Sat Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Example App Project</a><ul>
@@ -767,11 +794,6 @@ Raises on non-zero exit (logs stderr tail).</p>
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_env_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_env_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_env_var" title="Link to this definition"></a></dt>
 <dd><p>Persist <code class="docutils literal notranslate"><span class="pre">key</span></code>/<code class="docutils literal notranslate"><span class="pre">value</span></code> in <a class="reference internal" href="#agi_env.agi_env.AgiEnv.envars" title="agi_env.agi_env.AgiEnv.envars"><code class="xref py py-attr docutils literal notranslate"><span class="pre">envars</span></code></a>, <code class="docutils literal notranslate"><span class="pre">os.environ</span></code> and the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file.</p>
 </dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.skip_repo_links">
-<span class="sig-name descname"><span class="pre">skip_repo_links</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.skip_repo_links" title="Link to this definition"></a></dt>
-<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.snippet_tail">
