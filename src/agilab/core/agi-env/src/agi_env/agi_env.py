@@ -2388,7 +2388,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 file.write_text(new_txt, encoding="utf-8")
 
     def replace_content(self, txt: str, rename_map: dict) -> str:
-        boundary = r"(?<![0-9A-Za-z]){token}(?![0-9A-Za-z])"
+        boundary = r"(?<![0-9A-Za-z_]){token}(?![0-9A-Za-z_])"
         for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
             token = re.escape(old)
             pattern = re.compile(boundary.format(token=token))
