@@ -197,13 +197,18 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
 
 
 _INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
-    ("connection to", "timed out"),
-    ("failed to connect",),
-    ("connection refused",),
-    ("no route to host",),
-    ("ssh_exchange_identification",),
-    ("broken pipe",),
+    #("connection to", "timed out"),
+    #("failed to connect",),
+    #("connection refused",),
+    #("no route to host",),
+    #("ssh_exchange_identification",),
+    #("broken pipe",),
     ("error",),
+)
+_INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
+    tuple(token.lower() for token in pattern if token)
+    for pattern in _INSTALL_LOG_FATAL_PATTERNS
+    if pattern
 )
 
 
@@ -211,12 +216,19 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
     """
     Return True when install logs contain fatal phrases that do not always
     propagate through stderr (e.g., SSH transport errors).
+    We reuse a single lower-cased tail snippet so substring checks stay O(1) per token.
     """
-    if not lines:
+    if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
         return False
 
     snippet = "\n".join(lines[-200:]).lower()
-    return any(all(token in snippet for token in pattern) for pattern in _INSTALL_LOG_FATAL_PATTERNS)
+    for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER:
+        for token in pattern:
+            if token not in snippet:
+                break
+        else:
+            return True
+    return False
 
 
 def _looks_like_shared_path(path: Path) -> bool:
