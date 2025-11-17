@@ -10,7 +10,6 @@
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
-      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css" />
 
   
@@ -20,7 +19,6 @@
       <script src="_static/documentation_options.js?v=8d563738"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -200,17 +198,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Sat-trajectory-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Flight-trajectory-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Link-sim-project Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul class="simple">
 </ul>
 </li>
 </ul>
@@ -338,8 +326,8 @@
              
   <section id="agilab-in-the-mlops-toolchain">
 <h1>AGILab in the MLOps Toolchain<a class="headerlink" href="#agilab-in-the-mlops-toolchain" title="Link to this heading"></a></h1>
-<p>AGILab focuses on the experimentation phase of AI projects—roughly
-Technology Readiness Level 3 (TRL-3), where teams validate concepts, explore
+<p>AGILab focuses on the early experimentation phase of AI projects—roughly
+Technology Readiness Level 3 (TRL‑3), where teams validate concepts, explore
 algorithms, and collaborate on data preparation. This page explains how AGILab
 fits alongside the broader MLOps landscape.</p>
 <section id="where-agilab-helps">
@@ -351,16 +339,16 @@ the friction of testing new ideas without scaffolding bespoke dashboards.</p></l
 <code class="docutils literal notranslate"><span class="pre">AGI.get_distrib</span></code>) lets engineers cycle through multiple models using the
 same datasets and environment setup.</p></li>
 <li><p><strong>Distributed execution without DevOps</strong>: Dask-based scheduling, SSH helpers,
-and worker packaging allow TRL-3 teams to scale out experiments without
-managing Kubernetes or cloud stacks.</p></li>
-<li><p><strong>Offline productivity</strong>: bundled Mistral/GPT-OSS assistants and cached
+and worker packaging (<cite>agi_cluster</cite>, <cite>agi_env</cite>) allow TRL‑3 teams to scale out
+experiments without managing Kubernetes or cloud stacks.</p></li>
+<li><p><strong>Offline productivity</strong>: bundled Mistral/GPT‑OSS assistants and cached
 datasets keep experimentation running even on air-gapped networks.</p></li>
 </ul>
 </section>
 <section id="what-agilab-does-not-aim-to-cover">
 <h2>What AGILab does <em>not</em> aim to cover<a class="headerlink" href="#what-agilab-does-not-aim-to-cover" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><strong>Production deployment</strong> (TRL-6+): model serving, CI/CD, feature stores,
+<li><p><strong>Production deployment</strong> (TRL‑6+): model serving, CI/CD, feature stores,
 online monitoring, or model drift detection belong to the deployment-focused
 side of MLOps (tools such as Kubeflow, MLflow Serving, Sagemaker, etc.).</p></li>
 <li><p><strong>Enterprise governance</strong>: compliance workflows, audit trails, or retraining
@@ -378,7 +366,7 @@ before promoting assets to hardened pipelines.</p></li>
 processing. Capture run history via <code class="docutils literal notranslate"><span class="pre">~/log/execute/&lt;app&gt;/</span></code>.</p></li>
 <li><p>Once an approach stabilises, export the project (<code class="docutils literal notranslate"><span class="pre">tools/run_configs</span></code> and
 <code class="docutils literal notranslate"><span class="pre">src/agilab/apps/&lt;app&gt;</span></code>) and integrate it with your organisation’s
-deployment toolchain.</p></li>
+deployment toolchain (MLflow, Kubeflow, internal devops stack).</p></li>
 <li><p>Track long-running metrics and governance artifacts using your preferred
 MLOps platform; AGILab does not replace those systems.</p></li>
 </ol>

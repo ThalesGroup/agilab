@@ -10,7 +10,6 @@
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
-      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css" />
 
   
@@ -20,7 +19,6 @@
       <script src="_static/documentation_options.js?v=8d563738"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -200,17 +198,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Sat-trajectory-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Flight-trajectory-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Link-sim-project Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul class="simple">
 </ul>
 </li>
 </ul>
@@ -343,6 +331,55 @@
 __pycache__/ [excluded]
 apps/
     __pycache__/ [excluded]
+    example_app_project/
+        .pytest_cache/ [excluded]
+        .venv/ [excluded]
+        dataset_assets/
+            beams.csv
+            norad_3le.txt
+            satellites.csv
+        Modules/ [excluded]
+        src/
+            example_app/
+                __pycache__/ [excluded]
+                __init__.py
+                app_args.py
+                example_app.py
+                example_app_args.py
+            example_worker/
+                __pycache__/ [excluded]
+                __init__.py
+                _satellite_helpers.py
+                dataset.7z
+                example_worker.c
+                example_worker.py
+                example_worker.pyx
+                pyproject.toml
+            app_args_form.py
+            app_settings.toml
+            example_app_args_form.py
+            pre_prompt.json
+        test/
+            __pycache__/ [excluded]
+            __init__.py
+            _test_call_worker.py
+            _test_example_app_manager.py
+            _test_example_worker.py
+            test_df.ipynb
+            test_example_app_manager.py
+            test_example_worker.py
+        tools/
+            example_waypoints.geojson
+            generate_waypoints_basic.py
+            generate_waypoints_complex.py
+            synthetic_airports.geojson
+        app_test.py
+        distribution.json
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        run_test.sh
+        uv_config.toml
     flight_project/
         .venv/ [excluded]
         Modules/ [excluded]
@@ -363,6 +400,7 @@ apps/
             app_settings.toml
             pre_prompt.json
         test/
+            __pycache__/ [excluded]
             __init__.py
             _test_call_worker.py
             _test_flight_manager.py
@@ -383,6 +421,7 @@ apps/
         uv_config.toml
     mycode_project/
         .venv/ [excluded]
+        Modules/ [excluded]
         src/
             mycode/
                 __pycache__/ [excluded]
@@ -399,6 +438,7 @@ apps/
             app_args_form.py
             app_settings.toml
         test/
+            __pycache__/ [excluded]
             _test_call_worker.py
             _test_mycode_manager.py
             _test_mycode_worker.py
@@ -434,6 +474,7 @@ apps/
             app_settings.toml
             pre_prompt.json
         test/
+            __pycache__/ [excluded]
             __init__.py
             test_example_app_distribution.py
         pyproject.toml
@@ -600,6 +641,7 @@ core/
     agi-core/
         src/
             agi_core/
+                __pycache__/ [excluded]
                 __init__.py
         LICENSE
         pyproject.toml
@@ -710,6 +752,13 @@ examples/
         AGI_command_flight.py
         AGI_install_flight.py
         AGI_run_flight.py
+    flight2/
+    example_app/
+        AGI_install_example_app.py
+        AGI_run_example_app.py
+    example_app/
+        AGI_install_example_app.py
+        AGI_run_example_app.py
     example_app/
         AGI_install_example_app.py
         AGI_run_example_app.py
