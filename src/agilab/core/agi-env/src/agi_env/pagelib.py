@@ -1145,7 +1145,7 @@ def get_first_match_and_keyword(string_list, keywords_to_find):
     # If we've gone through everything and found nothing...
     return None, None
 @st.cache_data
-def load_df(path: Path, nrows=None, with_index=True):
+def load_df(path: Path, nrows=None, with_index=True, cache_buster=None):
     """
     Load data from a specified path. Supports loading from CSV and Parquet files.
 
@@ -1153,6 +1153,8 @@ def load_df(path: Path, nrows=None, with_index=True):
         path (Path): The path to the file or directory.
         nrows (int, optional): Number of rows to read from the file (for CSV files only).
         with_index (bool): Whether to set the "date" column as the DataFrame's index.
+        cache_buster (Any): Unused sentinel that forces Streamlit to refresh the cache
+            whenever callers pass a different value (for example a file timestamp).
 
     Returns:
         pd.DataFrame or None: The loaded DataFrame or None if no valid files are found.
