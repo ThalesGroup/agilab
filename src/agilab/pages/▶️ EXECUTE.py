@@ -196,20 +196,16 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
                 buffer.append(stripped)
 
 
-_INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
-    #("connection to", "timed out"),
-    #("failed to connect",),
-    #("connection refused",),
-    #("no route to host",),
-    #("ssh_exchange_identification",),
-    #("broken pipe",),
-    ("error",),
+_INSTALL_LOG_FATAL_TOKENS: tuple[str, ...] = (
+    #"connection to",
+    #"failed to connect",
+    #"connection refused",
+    #"no route to host",
+    #"ssh_exchange_identification",
+    #"broken pipe",
+    "error",
 )
-_INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
-    tuple(token.lower() for token in pattern if token)
-    for pattern in _INSTALL_LOG_FATAL_PATTERNS
-    if pattern
-)
+_INSTALL_LOG_FATAL_TOKENS_LOWER = tuple(token.lower() for token in _INSTALL_LOG_FATAL_TOKENS if token)
 
 
 def _log_indicates_install_failure(lines: list[str]) -> bool:
@@ -218,15 +214,12 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
     propagate through stderr (e.g., SSH transport errors).
     We reuse a single lower-cased tail snippet so substring checks stay O(1) per token.
     """
-    if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
+    if not lines or not _INSTALL_LOG_FATAL_TOKENS_LOWER:
         return False
-
-    snippet = "\n".join(lines[-200:]).lower()
-    for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER:
-        for token in pattern:
-            if token not in snippet:
-                break
-        else:
+    recent = lines[-200:]
+    token = _INSTALL_LOG_FATAL_TOKENS_LOWER[0]
+    for line in recent:
+        if token in line.lower():
             return True
     return False
 
@@ -1317,7 +1310,7 @@ if __name__ == "__main__":
                             install_stderr = "Detected connection failure in install logs."
 
                     status_line = (
-                        "✅ Install finished without errors."
+                        "✅ Install finished."
                         if not error_flag
                         else "❌ Install finished with errors. Check logs above."
                     )
