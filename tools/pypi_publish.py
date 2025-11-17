@@ -115,6 +115,10 @@ def parse_args() -> argparse.Namespace:
     # Preflight
     ap.add_argument("--no-pypirc-check", dest="pypirc_check", action="store_false", help="Skip ~/.pypirc preflight")
 
+    if "--usage" in sys.argv:
+        ap.print_help()
+        sys.exit(0)
+
     return ap.parse_args()
 
 
