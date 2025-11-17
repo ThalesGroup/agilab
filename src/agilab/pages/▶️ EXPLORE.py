@@ -238,6 +238,7 @@ async def main():
     # Navigation by query param
     qp = st.query_params
     current_page = qp.get("current_page")
+    requested_app = qp.get("active_app")
 
     if 'env' not in st.session_state:
         apps_dir_value = st.session_state.get("apps_dir")
@@ -250,11 +251,31 @@ async def main():
         # Derive active app path
         active_app_path = None
 
-        stored_app = st.session_state.get("app")
-        if stored_app and apps_dir_path:
-            candidate = apps_dir_path / stored_app
-            if candidate.exists():
+        def _resolve_requested_app(value: str | None) -> Path | None:
+            if not value:
+                return None
+            candidate = Path(value).expanduser()
+            if candidate.is_absolute() and candidate.exists():
+                return candidate
+            if apps_dir_path:
+                candidate = Path(apps_dir_path) / value
+                if candidate.exists():
+                    return candidate
+            return None
+
+        if requested_app:
+            candidate = _resolve_requested_app(requested_app)
+            if candidate is not None:
                 active_app_path = candidate
+                if apps_dir_path is None:
+                    apps_dir_path = candidate.parent
+
+        if active_app_path is None:
+            stored_app = st.session_state.get("app")
+            if stored_app and apps_dir_path:
+                candidate = apps_dir_path / stored_app
+                if candidate.exists():
+                    active_app_path = candidate
 
         if active_app_path is None:
             env_app = os.environ.get("AGILAB_APP")
@@ -302,6 +323,9 @@ async def main():
     else:
         env = st.session_state['env']
 
+    if getattr(env, "app", None):
+        st.query_params["active_app"] = env.app
+
     page_title = "Explore"
     # Sidebar header/logo
     render_logo()
@@ -310,6 +334,8 @@ async def main():
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
     select_project(projects, current_project)  # may be updated by select_project
+    if getattr(env, "app", None):
+        st.query_params["active_app"] = env.app
     if env.app:
         _store_last_app(Path(env.apps_dir) / env.app)
 
