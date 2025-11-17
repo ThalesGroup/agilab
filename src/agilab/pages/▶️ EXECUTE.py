@@ -196,16 +196,20 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
                 buffer.append(stripped)
 
 
-_INSTALL_LOG_FATAL_TOKENS: tuple[str, ...] = (
-    #"connection to",
-    #"failed to connect",
-    #"connection refused",
-    #"no route to host",
-    #"ssh_exchange_identification",
-    #"broken pipe",
-    "error",
+_INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
+    #("connection to", "timed out"),
+    #("failed to connect",),
+    #("connection refused",),
+    #("no route to host",),
+    #("ssh_exchange_identification",),
+    #("broken pipe",),
+    ("error",),
 )
-_INSTALL_LOG_FATAL_TOKENS_LOWER = tuple(token.lower() for token in _INSTALL_LOG_FATAL_TOKENS if token)
+_INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
+    tuple(token.lower() for token in pattern if token)
+    for pattern in _INSTALL_LOG_FATAL_PATTERNS
+    if pattern
+)
 
 
 def _log_indicates_install_failure(lines: list[str]) -> bool:
@@ -214,12 +218,15 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
     propagate through stderr (e.g., SSH transport errors).
     We reuse a single lower-cased tail snippet so substring checks stay O(1) per token.
     """
-    if not lines or not _INSTALL_LOG_FATAL_TOKENS_LOWER:
+    if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
         return False
-    recent = lines[-200:]
-    token = _INSTALL_LOG_FATAL_TOKENS_LOWER[0]
-    for line in recent:
-        if token in line.lower():
+
+    snippet = "\n".join(lines[-200:]).lower()
+    for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER:
+        for token in pattern:
+            if token not in snippet:
+                break
+        else:
             return True
     return False
 
@@ -1069,8 +1076,6 @@ async def page():
 
     env = st.session_state["env"]
     st.session_state["_env"] = env
-    if getattr(env, "app", None):
-        st.query_params["active_app"] = env.app
 
     st.set_page_config(layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
@@ -1139,8 +1144,6 @@ async def page():
         except Exception:
             pass
         initialize_app_settings(args_override=args_override)
-        if getattr(env, "app", None):
-            st.query_params["active_app"] = env.app
         st.rerun()
 
     module = env.target
@@ -1314,7 +1317,7 @@ if __name__ == "__main__":
                             install_stderr = "Detected connection failure in install logs."
 
                     status_line = (
-                        "✅ Install finished."
+                        "✅ Install finished without errors."
                         if not error_flag
                         else "❌ Install finished with errors. Check logs above."
                     )
