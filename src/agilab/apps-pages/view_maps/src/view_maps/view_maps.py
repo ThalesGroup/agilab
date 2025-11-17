@@ -12,6 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+import math
 import os
 from pathlib import Path
 import sys
@@ -93,6 +94,50 @@ def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
     sampled = df_reset.iloc[::ratio].copy()
     # Reset index for the result
     return sampled.reset_index(drop=True)
+
+
+def _compute_zoom_from_span(span_deg: float) -> float:
+    """Approximate a mapbox zoom level based on the largest lat/lon span."""
+    thresholds = [
+        (160, 1),
+        (80, 2),
+        (40, 3),
+        (20, 4),
+        (10, 5),
+        (5, 6),
+        (2.5, 7),
+        (1.2, 8),
+        (0.6, 9),
+        (0.3, 10),
+        (0.15, 11),
+        (0.075, 12),
+        (0.035, 13),
+        (0.018, 14),
+    ]
+    for threshold, zoom in thresholds:
+        if span_deg > threshold:
+            return zoom
+    return 15
+
+
+def _compute_viewport(df: pd.DataFrame, lat_col: str, lon_col: str) -> dict[str, float] | None:
+    """Return center/zoom settings that fit the current dataset."""
+    try:
+        latitudes = pd.to_numeric(df[lat_col], errors="coerce").dropna()
+        longitudes = pd.to_numeric(df[lon_col], errors="coerce").dropna()
+    except Exception:
+        return None
+    if latitudes.empty or longitudes.empty:
+        return None
+    lat_min, lat_max = latitudes.min(), latitudes.max()
+    lon_min, lon_max = longitudes.min(), longitudes.max()
+    center_lat = float((lat_min + lat_max) / 2)
+    center_lon = float((lon_min + lon_max) / 2)
+    span_lat = abs(lat_max - lat_min)
+    span_lon = abs(lon_max - lon_min)
+    span = max(span_lat, span_lon)
+    zoom = _compute_zoom_from_span(span if span > 0 else 0.01)
+    return {"center_lat": center_lat, "center_lon": center_lon, "default_zoom": zoom}
 
 
 def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
@@ -255,8 +300,13 @@ def page(env):
     dataframes = []
     for rel_path in selected_files:
         df_file_abs = datadir / rel_path
+        cache_buster = None
         try:
-            df_loaded = load_df(df_file_abs, with_index=True)
+            cache_buster = df_file_abs.stat().st_mtime_ns
+        except FileNotFoundError:
+            cache_buster = None
+        try:
+            df_loaded = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
         except Exception as e:
             st.error(f"Error loading data from {rel_path}: {e}")
             continue
@@ -457,6 +507,12 @@ def page(env):
                 st.session_state[var[i]] = None
 
     map_cfg = st.session_state.get(map_defaults_key, {"center_lat": 0.0, "center_lon": 0.0, "default_zoom": 2.5})
+    lat_col = st.session_state.get("lat")
+    lon_col = st.session_state.get("long")
+    if lat_col and lon_col and lat_col in df.columns and lon_col in df.columns:
+        viewport = _compute_viewport(df, lat_col, lon_col)
+        if viewport:
+            map_cfg.update(viewport)
 
     if st.session_state.get("lat") and st.session_state.get("long"):
         if st.session_state.get("coltype") and st.session_state.get(st.session_state["coltype"]):
