@@ -101,3 +101,45 @@ def test_dataset_localization_shifts_assets(tmp_path):
     mean_lat = sum(pt[1] for pt in coords) / len(coords)
     assert 31.0 < mean_lon < 34.5
     assert 48.0 < mean_lat < 50.5
+
+
+def test_seeds_missing_satellite_catalog(tmp_path):
+    dataset_dir = tmp_path / 'dataset'
+    dataset_dir.mkdir()
+    waypoints_path = dataset_dir / 'waypoints.geojson'
+    waypoints_path.write_text(
+        json.dumps(
+            {
+                'type': 'FeatureCollection',
+                'features': [
+                    {
+                        'type': 'Feature',
+                        'properties': {'flight_id': 'ukraine'},
+                        'geometry': {
+                            'type': 'LineString',
+                            'coordinates': [[30.0, 49.0, 2000], [31.0, 49.5, 2200]],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
+    (dataset_dir / 'beams.csv').write_text('1,30.0,49.0\n1,31.0,49.5\n1,32.0,50.0\n', encoding='utf-8')
+    (dataset_dir / 'satellites.csv').write_text(
+        'beam,sat,ant,beam_long,beam_lat,beam_alt\n1,Tryzub-1,ANT-KY,29.6,50.3,400\n',
+        encoding='utf-8',
+    )
+    env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=False)
+    args = FlightCloneArgs(
+        data_in=str(dataset_dir),
+        waypoints='waypoints.geojson',
+        regenerate_waypoints=False,
+        beam_file='beams.csv',
+        sat_file='satellites.csv',
+    )
+    FlightClone(env=env, args=args)
+    generated = dataset_dir / 'norad_3le.txt'
+    assert generated.exists()
+    baked = active_app_path / 'dataset_assets' / 'norad_3le.txt'
+    assert generated.read_text(encoding='utf-8') == baked.read_text(encoding='utf-8')

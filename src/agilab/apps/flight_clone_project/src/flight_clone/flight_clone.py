@@ -88,6 +88,7 @@ class FlightClone(BaseWorker):
         WorkDispatcher.args = payload
         self._maybe_regenerate_waypoints()
         self._ensure_ukraine_localization()
+        self._ensure_satellite_catalog()
         self._reset_output()
 
     @classmethod
@@ -422,6 +423,36 @@ STDERR:
             if csv_path.exists():
                 self._shift_csv_coordinates(csv_path, delta_lon, delta_lat)
         sentinel.write_text('ukraine', encoding='utf-8')
+
+    def _ensure_satellite_catalog(self) ->None:
+        """
+        Make sure the dataset contains the NORAD catalog required for overlays.
+
+        Legacy datasets cloned before the satellite overlay shipped never
+        included ``norad_3le.txt``. When that file is missing the worker
+        skips propagation entirely so the Streamlit toggle appears broken.
+        Copy the baked asset on demand so existing installs gain the overlay
+        without forcing a fresh dataset sync.
+        """
+        dataset_root = Path(self.data_in).expanduser()
+        target = dataset_root / 'norad_3le.txt'
+        if target.exists():
+            return
+        assets_dir = Path(__file__).resolve().parents[2] / 'dataset_assets'
+        source = assets_dir / 'norad_3le.txt'
+        if not source.exists():
+            logger.warning(
+                'Satellite catalog %s missing; satellite overlay will stay disabled.',
+                source,
+            )
+            return
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        except Exception as exc:  # pragma: no cover - defensive diagnostics
+            logger.warning('Unable to copy satellite catalog %s -> %s: %s', source, target, exc)
+        else:
+            logger.info('Seeded satellite catalog at %s from %s', target, source)
 
     def _compute_waypoint_centroid(self, path: Path
         ) ->tuple[float, float] | None:
