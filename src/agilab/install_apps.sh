@@ -2,6 +2,32 @@
 set -e
 set -o pipefail
 
+# --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
+# We declare them empty up front; later code can append or overwrite freely.
+# This prevents errors like: ${REPOSITORY_PAGES[@]}: unbound variable
+declare -a BUILTIN_PAGES=()
+declare -a REPOSITORY_PAGES=()
+declare -a BUILTIN_APPS=(
+  mycode_project
+  flight_project
+)
+declare -a REPOSITORY_APPS=(
+  example_app_project
+  example_app_project
+  example_app_project
+  example_app_project
+  example_app_project
+  example_app_project
+  example_app
+)
+
+declare -a INCLUDED_APPS=()
+declare -a INCLUDED_PAGES=()
+declare -a SKIPPED_APP_TESTS=()
+DATA_CHECK_MESSAGE=""
+DATA_URI_PATH=""
+
+
 # Load env + normalize Python version
 # shellcheck source=/dev/null
 source "$HOME/.local/share/agilab/.env"
@@ -183,29 +209,6 @@ if [[ -n "$APPS_REPOSITORY" ]]; then
   fi
 fi
 
-# --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
-# We declare them empty up front; later code can append or overwrite freely.
-# This prevents errors like: ${REPOSITORY_PAGES[@]}: unbound variable
-declare -a BUILTIN_PAGES=()
-declare -a REPOSITORY_PAGES=()
-declare -a BUILTIN_APPS=(
-  mycode_project
-  flight_project
-)
-declare -a REPOSITORY_APPS=(
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app
-)
-
-declare -a INCLUDED_APPS=()
-declare -a INCLUDED_PAGES=()
-declare -a SKIPPED_APP_TESTS=()
-DATA_CHECK_MESSAGE=""
-DATA_URI_PATH=""
 
 # Append items to the referenced array, ensuring uniqueness while preserving order.
 append_unique() {

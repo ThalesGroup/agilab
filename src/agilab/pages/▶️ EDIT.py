@@ -211,7 +211,7 @@ def replace_content(content, rename_map):
     Returns:
         str: Modified file content.
     """
-    boundary = r"(?<![0-9A-Za-z]){token}(?![0-9A-Za-z])"
+    boundary = r"(?<![0-9A-Za-z_]){token}(?![0-9A-Za-z_])"
     for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
         pattern = re.compile(boundary.format(token=re.escape(old)))
         content = pattern.sub(new, content)
