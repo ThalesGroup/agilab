@@ -196,6 +196,28 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
                 buffer.append(stripped)
 
 
+_INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
+    ("connection to", "timed out"),
+    ("failed to connect",),
+    ("connection refused",),
+    ("no route to host",),
+    ("ssh_exchange_identification",),
+    ("broken pipe",),
+    ("error",),
+)
+
+
+def _log_indicates_install_failure(lines: list[str]) -> bool:
+    """
+    Return True when install logs contain fatal phrases that do not always
+    propagate through stderr (e.g., SSH transport errors).
+    """
+    if not lines:
+        return False
+
+    snippet = "\n".join(lines[-200:]).lower()
+    return any(all(token in snippet for token in pattern) for pattern in _INSTALL_LOG_FATAL_PATTERNS)
+
 
 def _looks_like_shared_path(path: Path) -> bool:
     """Heuristic: treat paths outside the local home/project tree as shared."""
@@ -1144,6 +1166,9 @@ async def page():
         st.session_state["show_distribute"] = True
     if "show_run" not in st.session_state:
         st.session_state["show_run"] = _is_app_installed(env)
+    if st.session_state.get("_show_run_app") != env.app:
+        st.session_state["_show_run_app"] = env.app
+        st.session_state["show_run"] = _is_app_installed(env)
 
     show_install = st.session_state["show_install"]
     show_distribute = st.session_state["show_distribute"]
@@ -1274,6 +1299,10 @@ if __name__ == "__main__":
                         _append_log_lines(local_log, f"ERROR: {install_stderr}")
 
                     error_flag = bool(install_stderr.strip()) or install_error is not None
+                    if not error_flag and _log_indicates_install_failure(local_log):
+                        error_flag = True
+                        if not install_stderr.strip():
+                            install_stderr = "Detected connection failure in install logs."
 
                     status_line = (
                         "✅ Install finished without errors."
