@@ -109,6 +109,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--git-commit-version", action="store_true", help="git add/commit pyproject version bumps")
     ap.add_argument("--git-reset-on-failure", action="store_true", help="On failure, git checkout -- pyproject files")
 
+    # Docs
+    ap.add_argument("--gen-docs", action="store_true", help="Regenerate docs from the apps repository after publishing")
+
     # Preflight
     ap.add_argument("--no-pypirc-check", dest="pypirc_check", action="store_false", help="Skip ~/.pypirc preflight")
 
@@ -139,6 +142,7 @@ class Cfg:
     git_reset_on_failure: bool
     pypirc_check: bool
     packages: list[str] | None
+    gen_docs: bool
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -165,6 +169,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         git_reset_on_failure=bool(args.git_reset_on_failure),
         pypirc_check=bool(getattr(args, "pypirc_check", True)),
         packages=list(args.packages) if getattr(args, "packages", None) else None,
+        gen_docs=bool(getattr(args, "gen_docs", False)),
     )
 
 
@@ -767,6 +772,20 @@ def create_and_push_tag(tag: str):
     print(f"[git] created and pushed {tag_ref} in apps repository ({apps_repo})")
 
 
+def generate_docs_from_apps_repository():
+    apps_repo, source = find_apps_repository()
+    if not apps_repo:
+        print("[docs] apps repository not found; skipping --gen-docs")
+        return
+    print(f"[docs] generating docs in {apps_repo} (source={source})")
+    commands = [
+        ["uv", "sync", "--dev", "--group", "sphinx"],
+        ["uv", "run", "python", "docs/gen-docs.py", "--agilab-repository", str(REPO_ROOT)],
+    ]
+    for cmd in commands:
+        run(cmd, cwd=apps_repo)
+
+
 def git_paths_to_commit() -> list[str]:
     paths: list[str] = []
     for _, toml_path, project_dir in CORE:
@@ -990,6 +1009,12 @@ def main():
             create_and_push_tag(tag)
         if cfg.git_commit_version:
             git_commit_version(chosen)
+
+        if cfg.gen_docs:
+            if cfg.dry_run:
+                print("[docs] --gen-docs requested; skipping because this is a dry-run")
+            else:
+                generate_docs_from_apps_repository()
 
     finally:
         if removed_symlinks:
