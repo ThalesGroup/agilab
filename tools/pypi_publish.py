@@ -786,7 +786,7 @@ def generate_docs_from_apps_repository():
         run(cmd, cwd=apps_repo)
 
 
-def git_paths_to_commit() -> list[str]:
+def git_paths_to_commit(include_docs: bool = False) -> list[str]:
     paths: list[str] = []
     for _, toml_path, project_dir in CORE:
         if toml_path.exists():
@@ -799,6 +799,10 @@ def git_paths_to_commit() -> list[str]:
     umbrella_readme = UMBRELLA[2] / "README.md"
     if umbrella_readme.exists():
         paths.append(str(umbrella_readme.relative_to(REPO_ROOT)))
+    if include_docs:
+        docs_html = REPO_ROOT / "docs" / "html"
+        if docs_html.exists():
+            paths.append(str(docs_html.relative_to(REPO_ROOT)))
     # Preserve order but drop duplicates
     seen: set[str] = set()
     unique: list[str] = []
@@ -809,8 +813,8 @@ def git_paths_to_commit() -> list[str]:
     return unique
 
 
-def git_commit_version(chosen_version: str):
-    files = git_paths_to_commit()
+def git_commit_version(chosen_version: str, include_docs: bool = False):
+    files = git_paths_to_commit(include_docs=include_docs)
     if not files:
         print("[git] nothing to commit")
         return
@@ -1008,7 +1012,7 @@ def main():
             tag = compute_date_tag()  # resolves collisions with existing tags
             create_and_push_tag(tag)
         if cfg.git_commit_version:
-            git_commit_version(chosen)
+            git_commit_version(chosen, include_docs=cfg.gen_docs)
 
         if cfg.gen_docs:
             if cfg.dry_run:
