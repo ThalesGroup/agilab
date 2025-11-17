@@ -11,3 +11,7 @@ Licenses
    agi-core-licenses
    mycode-project-licenses
    flight-project-licenses
+   sb3-trainer-project-licenses
+   sat-trajectory-project-licenses
+   flight-trajectory-project-licenses
+   link-sim-project-licenses
