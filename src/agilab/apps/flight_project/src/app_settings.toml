@@ -22,7 +22,6 @@ auth_method = "password"
 scheduler = "192.168.20.111"
 
 [cluster.workers]
-"192.168.20.111" = 1
 "192.168.20.130" = 1
 
 [pages]
