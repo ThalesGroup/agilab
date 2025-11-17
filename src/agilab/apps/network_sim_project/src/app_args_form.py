@@ -48,7 +48,8 @@ def render() -> None:
     st.session_state.app_settings["args"] = defaults_payload
 
     if not st.session_state.get("toggle_edit", False):
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
+        c4, c5 = st.columns(2)
 
         data_source = st.selectbox(
             "Data source",
@@ -57,35 +58,43 @@ def render() -> None:
             key=f"{PREFIX}data_source",
         )
 
-        with c2:
+        with c1:
             data_in = st.text_input(
-                "Inputs dir" if data_source == "file" else "Hawk cluster data_in",
+                "Dataset root" if data_source == "file" else "Hawk cluster data_in",
                 value=str(defaults_model.data_in),
                 key=f"{PREFIX}data_in",
                 help=f"Workers read from {env.agi_share_dir}/<your path> when running locally.",
             )
 
-        with c3:
-            net_size = st.number_input(
-                "Number of nodes",
-                min_value=4,
-                value=int(defaults_model.net_size),
-                step=1,
-                key=f"{PREFIX}net_size",
+        with c2:
+            flows_dir = st.text_input(
+                "FlowSynth data dir",
+                value=str(defaults_model.flows_dir),
+                key=f"{PREFIX}flows_dir",
+                help="Folder containing FlowSynth outputs (topology.json, nodes_ip.json, traffic_df/…).",
             )
+
+        with c3:
+            link_dir = st.text_input(
+                "LinkSim outputs dir",
+                value=str(defaults_model.link_results_dir),
+                key=f"{PREFIX}links_dir",
+                help="Folder containing LinkSim *_vision.json files.",
+            )
+
+        with c4:
             topology_filename = st.text_input(
                 "Topology filename",
                 value=str(defaults_model.topology_filename),
                 key=f"{PREFIX}topology_filename",
             )
-
-        with c4:
-            seed = st.number_input(
-                "Random seed",
-                value=int(defaults_model.seed) if defaults_model.seed is not None else 0,
-                step=1,
-                key=f"{PREFIX}seed",
+            demands_filename = st.text_input(
+                "ILP demands filename",
+                value=str(defaults_model.demands_filename),
+                key=f"{PREFIX}demands_filename",
             )
+
+        with c5:
             summary_filename = st.text_input(
                 "Summary filename",
                 value=str(defaults_model.summary_filename),
@@ -107,10 +116,11 @@ def render() -> None:
         candidate_args: dict[str, Any] = {
             "data_source": data_source,
             "data_in": data_in,
-            "net_size": int(net_size),
-            "seed": int(seed),
+            "flows_dir": flows_dir,
+            "link_results_dir": link_dir,
             "topology_filename": topology_filename,
             "summary_filename": summary_filename,
+            "demands_filename": demands_filename,
         }
     else:
         candidate_args = render_form(defaults_model)
