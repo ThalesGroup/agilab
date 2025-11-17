@@ -7,14 +7,16 @@ Why Jean-Pierre Morard
 
 Basic Example
         https://github.com/ThalesGroup/agilab/codex
-        https://github.com/ThalesGroup/agilab/tree/main/codex-examples/codex-session-example.txt
+        https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-example.txt
         Codex  vs ChatGPT productivité enhancement
 
 Working with codex
         https://github.com/ThalesGroup/agilab/tree/main/codex/codex_shell_summary.md
         https://github.com/ThalesGroup/agilab/tree/main/AGENTS.md
 
-
 100% CODEX generated app Example
-        https://github.com/ThalesGroup/agilab/tree/main/codex-examples/codex-session-extract.txt
+        https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-extract.txt
         https://github.com/ThalesGroup/agilab/src/agilab/apps/example_app_project
+
+Standalone Agent:
+        https://github.com/openinterpreter/open-interpreter
