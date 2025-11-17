@@ -1,0 +1,310 @@
+agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.1-codex
+╭────────────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.58.0)                          │
+│                                                    │
+│ model:     gpt-5.1-codex medium   /model to change │
+│ directory: ~/PycharmProjects/agilab                │
+╰────────────────────────────────────────────────────╯
+
+  To get started, describe a task or try one of these commands:
+
+  /init - create an AGENTS.md file with instructions for Codex
+  /status - show current session configuration
+  /approvals - choose what Codex can do without approval
+  /model - choose what model and reasoning effort to use
+  /review - review any changes and find issues
+
+
+› let's simplify in view_maps:
+  try:  # Python 3.11+
+      import tomllib as _toml
+  except ModuleNotFoundError:  # pragma: no cover - fallback for older runtimes
+      import tomli as _toml  # type: ignore[import-not-found]
+
+
+• Explored
+  └ List ls
+    Search view_maps
+    Read view_maps.py
+
+• Ran rg -n "tomli" -g"*.py"
+  └ src/agilab/pages/▶️ EXECUTE.py:34:import tomli         # For reading TOML files
+    src/agilab/pages/▶️ EXECUTE.py:35:import tomli_w       # For writing TOML files
+    … +43 lines
+    src/agilab/core/agi-env/src/agi_env/pagelib.py:427:        if tomli is None:
+    src/agilab/core/agi-env/src/agi_env/pagelib.py:451:                    data = tomli.load(f)
+
+• Explored
+  └ Read maps.py
+
+• Ran rg -n "tomllib" -g"*.py"
+  └ test/test_app_args.py:3:import tomllib
+    test/test_app_args.py:75:    data = tomllib.loads(settings.read_text())
+    … +7 lines
+    src/agilab/core/agi-env/test/test_app_args.py:3:import tomllib
+    src/agilab/core/agi-env/test/test_app_args.py:75:    data = tomllib.loads(settings.read_text())
+
+• Explored
+  └ Read view_maps_network.py
+
+• Ran rg -n "_toml" -g"*.py"
+  └ src/agilab/pages/▶️ EXECUTE.py:346:    file_settings = load_toml_file(env.app_settings_file)
+    src/agilab/pages/▶️ EXECUTE.py:366:            from flight import apply_source_defaults, load_args_from_toml
+    … +142 lines
+    src/agilab/apps/flight_clone_project/src/flight_clone/flight_clone.py:94:    def from_toml(cls, env, settings_path: (str | Path)='app_settings.toml',
+    src/agilab/apps/flight_clone_project/src/flight_clone/flight_clone.py:101:    def to_toml(self, settings_path: (str | Path)='app_settings.toml',
+
+• Explored
+  └ Search os\. in view_maps.py
+    Read view_maps_3d.py
+    Search tomli in view_maps
+
+─ Worked for 1m 27s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• view_maps already uses the requested import pattern. At the top of src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py:20, the module wraps the tomllib import in a try/except ModuleNotFoundError with the tomli fallback exactly as you described, so no edits were needed.
+
+
+› only one lib is necessary isn't it ?
+
+
+• In view_maps we still need both names because we have to support environments that only provide one or the other. Python ≥3.11 ships tomllib; earlier versions don’t, so we fall back to tomli. Keeping the try … except ModuleNotFoundError ensures the page works across all runtimes that
+  AGILab targets. If we drop one of them, either old or new interpreters would break.
+
+
+› but why a try mechanism ?
+
+
+• Because the feature we’re importing doesn’t live in a single module across the Python versions we need to support. In 3.11+ the TOML parser is built-in as tomllib; in 3.10 and earlier it only exists in the third-party tomli package. The try block first attempts the standard-library path,
+  which is preferred when available. If that import fails, the except ModuleNotFoundError clause falls back to tomli, so we decode the TOML files the same way no matter which interpreter is running. If we removed the try/except, one of those interpreter families would crash at import time.
+
+
+› I am not supporting python below 3.11 version
+
+
+• Edited src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py (+1 -4)
+    22  import streamlit as st
+    23 -try:  # Python 3.11+
+    24 -    import tomllib as _toml
+    25 -except ModuleNotFoundError:  # pragma: no cover - fallback for older runtimes
+    26 -    import tomli as _toml  # type: ignore[import-not-found]
+    23 +import tomllib as _toml
+    24
+
+─ Worked for 6s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• Dropped the legacy tomli fallback so view_maps now imports tomllib directly (src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py:20). This matches the project’s Python ≥3.11 requirement—no other code changes were needed. Consider running a quick Streamlit launch with your 3.11+
+  interpreter to be sure everything loads as expected.
+
+
+› anyelsewhere to clean ?
+
+
+• Explored
+  └ Search try:\s+# Python 3.11\+
+
+• Ran rg -n "tomli" -g"*.py"
+  └ src/agilab/pages/▶️ EXECUTE.py:34:import tomli         # For reading TOML files
+    src/agilab/pages/▶️ EXECUTE.py:35:import tomli_w       # For writing TOML files
+    … +42 lines
+    src/agilab/apps/network_sim_project/src/app_args_form.py:5:import tomli
+    src/agilab/apps/network_sim_project/src/app_args_form.py:18:            return tomli.load(handle)
+
+• Explored
+  └ Search import tomllib in src
+
+• Updated Plan
+  └ □ Inventory modules still importing tomli and decide replacements
+    □ Update code to use tomllib in each module and adjust references
+    □ Review changes
+
+• Explored
+  └ Search import tomli
+    Read pagelib.py
+    Search tomli in pagelib.py
+    Read pagelib.py
+    Search tomli in pagelib.py
+    Read app_args.py, streamlit_args.py
+    Search tomli in streamlit_args.py
+    Read ▶️ EXECUTE.py
+    Search tomli in ▶️ EXECUTE.py
+
+• Ran rg -n "tomli" -g"*.py" src | grep -v "tomli_w"
+  └ src/agilab/pages/▶️ EXECUTE.py:34:import tomli         # For reading TOML files
+    src/agilab/pages/▶️ EXECUTE.py:404:                return tomli.load(f)
+    … +27 lines
+    src/agilab/core/agi-env/src/agi_env/pagelib.py:427:        if tomli is None:
+    src/agilab/core/agi-env/src/agi_env/pagelib.py:451:                    data = tomli.load(f)
+
+• Edited src/agilab/pages/▶️ EXECUTE.py (+3 -3)
+     33  from collections import defaultdict
+     34 -import tomli         # For reading TOML files
+     34 +import tomllib       # For reading TOML files
+     35  import tomli_w       # For writing TOML files
+        ⋮
+    403              with file_path.open("rb") as f:
+    404 -                return tomli.load(f)
+    405 -        except tomli.TOMLDecodeError as exc:
+    404 +                return tomllib.load(f)
+    405 +        except tomllib.TOMLDecodeError as exc:
+    406              st.warning(f"Invalid TOML detected in {file_path.name}: {exc}")
+
+• Explored
+  └ Search tomli in ▶️ EXECUTE.py
+    Read ▶️ EXPLORE.py
+    Search tomli in ▶️ EXPLORE.py
+
+• Edited src/agilab/pages/▶️ EXPLORE.py (+2 -2)
+     32  # Use modern TOML libraries
+     33 -import tomli         # For reading TOML files (read as binary)
+     33 +import tomllib       # For reading TOML files (read as binary)
+     34  import tomli_w       # For writing TOML files (write as binary)
+        ⋮
+    223              with open(path, "rb") as f:
+    224 -                return tomli.load(f)
+    224 +                return tomllib.load(f)
+    225      except Exception as e:
+
+• Explored
+  └ Read ▶️ EXPERIMENT.py
+    Search tomli in ▶️ EXPERIMENT.py
+
+• Ran python - <<'PY'
+  │ from pathlib import Path
+  │ path = Path('src/agilab/pages/▶️ EXPERIMENT.py')
+  │ … +6 lines
+  └ bash: python: command not found
+
+• Ran python3 - <<'PY'
+  │ from pathlib import Path
+  │ path = Path('src/agilab/pages/▶️ EXPERIMENT.py')
+  │ … +6 lines
+  └ (no output)
+
+• Explored
+  └ Search tomli in ▶️ EXPERIMENT.py
+    Read flight_args.py
+    Search tomli in flight_args.py
+
+• Edited src/agilab/apps/flight_project/src/flight/flight_args.py (+2 -2)
+     10
+     11 -import tomli
+     11 +import tomllib
+     12
+        ⋮
+    201          with settings_path.open("rb") as handle:
+    202 -            doc = tomli.load(handle)
+    202 +            doc = tomllib.load(handle)
+    203      elif not create_missing:
+
+• Explored
+  └ Read app_args_form.py
+
+• Edited src/agilab/apps/flight_project/src/app_args_form.py (+2 -2)
+     4  import streamlit as st
+     5 -import tomli
+     5 +import tomllib
+     6  from pydantic import ValidationError
+       ⋮
+    17          with path.open("rb") as handle:
+    18 -            return tomli.load(handle)
+    18 +            return tomllib.load(handle)
+    19      return {}
+
+• Explored
+  └ Read network_sim_args.py
+
+• Edited src/agilab/apps/network_sim_project/src/network_sim/network_sim_args.py (+2 -2)
+     10
+     11 -import tomli
+     11 +import tomllib
+     12
+        ⋮
+    142          with settings_path.open("rb") as handle:
+    143 -            doc = tomli.load(handle)
+    143 +            doc = tomllib.load(handle)
+    144      elif not create_missing:
+
+• Explored
+  └ Search tomli in network_sim_args.py
+    Read app_args_form.py
+
+• Edited src/agilab/apps/network_sim_project/src/app_args_form.py (+2 -2)
+     4  import streamlit as st
+     5 -import tomli
+     5 +import tomllib
+     6  from pydantic import ValidationError
+       ⋮
+    17          with path.open("rb") as handle:
+    18 -            return tomli.load(handle)
+    18 +            return tomllib.load(handle)
+    19      return {"args": {}}
+
+• Edited src/agilab/core/agi-env/src/agi_env/streamlit_args.py (+1 -4)
+    164
+    165 -try:  # lazy import to avoid mandatory dependency where unused
+    166 -    import tomllib
+    167 -except ModuleNotFoundError:  # pragma: no cover - runtime on python<3.11
+    168 -    import tomli as tomllib  # type: ignore[assignment]
+    165 +import tomllib
+
+• Edited src/agilab/core/agi-env/src/agi_env/pagelib.py (+1 -4)
+    37      _importlib_metadata = None  # type: ignore
+    38 -try:
+    39 -    import tomli  # type: ignore
+    40 -except Exception:  # pragma: no cover
+    41 -    tomli = None  # type: ignore
+    38 +import tomllib
+    39
+
+• Edited src/agilab/core/agi-env/src/agi_env/pagelib.py (+1 -3)
+    423      try:
+    424 -        if tomli is None:
+    425 -            return None
+    424          root = getattr(env, "agilab_pck", None)
+        ⋮
+    445                  with py.open("rb") as f:
+    448 -                    data = tomli.load(f)
+    446 +                    data = tomllib.load(f)
+    447                  proj = (data.get("project") or {})
+
+• Explored
+  └ Search tomli in pagelib.py
+
+• Ran rg -n "tomli" -g"*.py" src/agilab
+  └ src/agilab/pages/▶️ EXECUTE.py:35:import tomli_w       # For writing TOML files
+    src/agilab/pages/▶️ EXECUTE.py:502:                tomli_w.dump(existing_app_settings, file)
+    … +13 lines
+    src/agilab/core/agi-env/src/agi_env/app_args.py:86:                "Writing settings requires either 'tomli-w' or 'tomlkit'."
+    src/agilab/core/agi-env/src/agi_env/app_args.py:94:        raise RuntimeError("Writing settings requires the 'tomli-w' package") from exc
+
+• Updated Plan
+  └ All files now import tomllib directly (writing still uses tomli_w where needed), and the repo no longer keeps compatibility fallbacks for Python <3.11.
+    ✔ Inventory modules still importing tomli and decide replacements
+    ✔ Update code to use tomllib in each module and adjust references
+    ✔ Review changes
+
+• Ran git status -sb
+  └ ## main...origin/main
+     M src/agilab/AGILAB.py
+    … +20 lines
+    ?? src/agilab/examples/flight_clone/
+    ?? src/agilab/examples/flight_ukraine/
+
+• Explored
+  └ Read view_maps.py, ▶️ EXECUTE.py, ▶️ EXPLORE.py, ▶️ EXPERIMENT.py, flight_args.py, app_args_form.py, network_sim_args.py, streamlit_args.py, pagelib.py
+
+• I'll summarize the migration from tomli to Python 3.11's builtin tomllib, highlighting key file updates with line references and noting that tomli_w remains for writing. I'll mention that no tests were run and suggest running targeted streamlit commands as natural next steps. The summary
+  will include clear bullet points referencing specific paths and lines for easy verification.
+
+─ Worked for 3m 40s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• - view_maps now imports Python’s built-in TOML parser without the fallback, aligning with your 3.11+ baseline (src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py:19-25).
+  - The Streamlit control panels now rely solely on tomllib for reading configs while still using tomli_w for writes, covering EXECUTE (src/agilab/pages/▶️ EXECUTE.py:24-45 and :399-406), EXPLORE (src/agilab/pages/▶️ EXPLORE.py:32-35 and :220-234), and EXPERIMENT (src/agilab/pages/▶️
+    EXPERIMENT.py:13-20 and :233-2555) so they no longer pull in tomli.
+  - Flight and Network Sim helpers (app_args_form.py / *_args.py) now read TOML via tomllib, keeping their serializers untouched (src/agilab/apps/flight_project/src/app_args_form.py:1-19; src/agilab/apps/flight_project/src/flight/flight_args.py:5-203; src/agilab/apps/network_sim_project/
+    src/app_args_form.py:1-19; src/agilab/apps/network_sim_project/src/network_sim/network_sim_args.py:5-143).
+  - Core utilities adopt the same standard library parser: streamlit_args imports tomllib directly (src/agilab/core/agi-env/src/agi_env/streamlit_args.py:150-168) and pagelib now reads pyproject data via tomllib without optional fallbacks (src/agilab/core/agi-env/src/agi_env/pagelib.py:32-
+    58 and :423-457).
+  - Tests not run; consider uv run streamlit run … for any pages you want to sanity-check after the dependency cleanup.
+
+  Next step (optional): 1) launch your usual Streamlit flows via uv run streamlit run <page> to ensure the TOML settings still load correctly end-to-end now that the fallback was removed.
