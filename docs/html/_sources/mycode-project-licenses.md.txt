@@ -10,7 +10,7 @@
 | alembic | MIT |
 | altair | BSD LICENSE |
 | altex | APACHE-2.0 |
-| annotated-doc | MIT LICENSE |
+| annotated-doc | MIT |
 | annotated-types | MIT LICENSE |
 | anthropic | MIT LICENSE |
 | anyio | MIT |
@@ -29,7 +29,7 @@
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
-| black | MIT LICENSE |
+| black | MIT |
 | bleach | APACHE SOFTWARE LICENSE |
 | blinker | MIT LICENSE |
 | boto3 | APACHE-2.0 |
@@ -163,7 +163,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | keras | APACHE LICENSE 2.0 |
-| keyring | MIT LICENSE |
+| keyring | MIT |
 | kiwisolver | BSD LICENSE |
 | langchain | MIT |
 | langchain-anthropic | MIT |
@@ -273,7 +273,7 @@
 | pypdf | BSD-3-CLAUSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | pyproject-hooks | MIT LICENSE |
-| pytest | MIT LICENSE |
+| pytest | MIT |
 | pytest-cov | MIT LICENSE |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD-3-CLAUSE |
@@ -327,7 +327,7 @@
 | streamlit-card | MIT LICENSE |
 | streamlit-code-editor | MIT License |
 | streamlit-embedcode | MIT License |
-| streamlit-extras | APACHE-2.0 |
+| streamlit-extras | APACHE SOFTWARE LICENSE |
 | streamlit-faker | Apache License 2.0 |
 | streamlit-image-coordinates | MIT LICENSE |
 | streamlit-keyup | MIT License |
