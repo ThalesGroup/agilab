@@ -38,6 +38,9 @@ Use this runbook whenever you:
   `~/agi-space/.venv` and uses `uv --preview-features extra-build-dependencies pip` afterwards. If an install reports
   `No module named pip`, rerun the latest installer or execute
   `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in `~/agi-space`.
+- **Missing dependency triage**: Whenever an app run fails because a module cannot be imported, check *both*
+  `src/agilab/apps/<app>/pyproject.toml` (manager environment) and
+  `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the dependency is declared in the correct scope.
 - **Fast reinstall mode**: Repeat installs now auto-detect prior runs and offer to enable
   fast mode (skips system deps, locale config, offline extras, matrix refresh). Accept the
   prompt or pass `./install.sh --fast [--python-version <major.minor>]` / `.\install.ps1 -Fast [-PythonVersion <major.minor>]`
