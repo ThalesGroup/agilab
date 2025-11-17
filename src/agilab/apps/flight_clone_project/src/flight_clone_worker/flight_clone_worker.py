@@ -30,16 +30,18 @@ from flight_clone import FlightCloneArgs
 
 try:
     from sat_trajectory_worker import (
+        DEFAULT_EPOCH,
         TLEEntry,
         compute_trajectory,
         load_tle_catalog,
-        DEFAULT_EPOCH,
     )
 except ImportError:  # pragma: no cover - optional dependency at runtime
-    compute_trajectory = None
-    load_tle_catalog = None
-    TLEEntry = None
-    DEFAULT_EPOCH = None
+    from ._satellite_helpers import (
+        DEFAULT_EPOCH,
+        TLEEntry,
+        compute_trajectory,
+        load_tle_catalog,
+    )
 
 logger = logging.getLogger(__name__)
 
