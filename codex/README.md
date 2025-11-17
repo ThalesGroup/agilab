@@ -1,1 +1,1 @@
-This repository is used to illustrate the way of working assisted by an AI coding agent
+This directory contains materials to present the way of working assisted by an AI coding agent like CODEX cli
