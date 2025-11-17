@@ -43,6 +43,8 @@ from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv, normalize_path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 
 # -------------------- Source Extractor Class -------------------- #
 
@@ -259,9 +261,110 @@ def clean_project(project_path):
             if spec.match_file(str(relative_dir_path)):
                 try:
                     shutil.rmtree(Path(root) / dir_name, ignore_errors=True)
-                except:
+                except Exception:
                     st.warning(f"failed to remove {Path(root) / dir_name}")
-                    pass
+
+
+def _safe_remove_path(candidate, label, errors):
+    """
+    Remove a file or directory, capturing failures in ``errors``.
+    """
+
+    if not candidate:
+        return
+    path = Path(candidate)
+    try:
+        exists = path.exists() or path.is_symlink()
+    except Exception as exc:
+        errors.append(f"{label}: {exc}")
+        return
+    if not exists:
+        return
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    except FileNotFoundError:
+        return
+    except Exception as exc:
+        errors.append(f"{label}: {exc}")
+
+
+def _regex_replace(path, regex, replacement, label, errors):
+    if not path.exists():
+        return
+    try:
+        text = path.read_text()
+    except Exception as exc:
+        errors.append(f"{label}: {exc}")
+        return
+    new_text = re.sub(regex, replacement, text)
+    if new_text == text:
+        return
+    try:
+        path.write_text(new_text)
+    except Exception as exc:
+        errors.append(f"{label}: {exc}")
+
+
+def _cleanup_run_configuration_artifacts(app_name, target_name, errors):
+    run_dir = PROJECT_ROOT / ".idea" / "runConfigurations"
+    if not run_dir.exists():
+        return
+
+    to_delete = set()
+    for pattern in {f"_{target_name}*.xml", f"_{app_name}*.xml"}:
+        to_delete.update(run_dir.glob(pattern))
+
+    for xml_path in run_dir.glob("*.xml"):
+        if xml_path in to_delete:
+            continue
+        try:
+            text = xml_path.read_text()
+        except Exception as exc:
+            errors.append(f"Read {xml_path.name}: {exc}")
+            continue
+        if app_name in text or target_name in text:
+            to_delete.add(xml_path)
+
+    for xml_path in to_delete:
+        try:
+            xml_path.unlink()
+        except FileNotFoundError:
+            continue
+        except Exception as exc:
+            errors.append(f"Remove {xml_path.name}: {exc}")
+
+    folders_xml = run_dir / "folders.xml"
+    _regex_replace(
+        folders_xml,
+        rf'\s*<folder name="{re.escape(app_name)}"\s*/>\s*',
+        "\n",
+        "Update run configuration folders",
+        errors,
+    )
+
+
+def _cleanup_module_artifacts(app_name, target_name, errors):
+    modules_dir = PROJECT_ROOT / ".idea" / "modules"
+    removed_files = set()
+    if modules_dir.exists():
+        for pattern in {f"{app_name}*.iml", f"{target_name}*.iml"}:
+            for module_file in modules_dir.glob(pattern):
+                removed_files.add(module_file.name)
+                _safe_remove_path(module_file, f"IDE module {module_file.name}", errors)
+
+    modules_xml = PROJECT_ROOT / ".idea" / "modules.xml"
+    if removed_files:
+        joined = "|".join(re.escape(name) for name in sorted(removed_files))
+        _regex_replace(
+            modules_xml,
+            rf'\s*<module\b[^>]*?(?:modules/(?:{joined}))"[^>]*/>\s*',
+            "\n",
+            "Update modules.xml",
+            errors,
+        )
 
 
 # -------------------- Project Export Handler -------------------- #
@@ -1439,28 +1542,52 @@ def handle_project_delete():
         if not confirm_delete:
             st.error("Please confirm that you want to delete the project.")
         else:
-            try:
-                project_path = env.active_app
-                if project_path.exists():
-                    shutil.rmtree(project_path)
-                    env.projects = [
-                        p
-                        for p in env.projects
-                        if p != env.app
-                    ]
-                    if env.projects:
-                        on_project_change(env.projects[0])
-                    st.success(f"Project '{env.app}' has been deleted.")
-                    del st.session_state.env
+            project_path = env.active_app
+            if not project_path.exists():
+                st.error(f"Project '{env.app}' does not exist.")
+                return
 
-                    # If the deleted project was the current project, switch to another
-                    del st.session_state["templates"]
-                    st.session_state["switch_to_edit"] = True
-                    st.rerun()
-                else:
-                    st.error(f"Project '{env.app}' does not exist.")
-            except Exception as e:
-                st.error(f"An error occurred while deleting the project: {e}")
+            cleanup_errors = []
+            target_name = getattr(env, "target", env.app.replace("_project", ""))
+
+            _cleanup_run_configuration_artifacts(env.app, target_name, cleanup_errors)
+            _cleanup_module_artifacts(env.app, target_name, cleanup_errors)
+            _safe_remove_path(
+                getattr(env, "wenv_abs", None),
+                f"worker environment for {target_name}",
+                cleanup_errors,
+            )
+            _safe_remove_path(
+                Path.home() / "log" / "execute" / target_name,
+                f"log/execute/{target_name}",
+                cleanup_errors,
+            )
+            try:
+                data_root = (env.home_abs / env.data_rel).expanduser()
+            except Exception:
+                data_root = None
+            if data_root and data_root.name == target_name:
+                _safe_remove_path(
+                    data_root,
+                    f"AGI share directory for {target_name}",
+                    cleanup_errors,
+                )
+
+            _safe_remove_path(project_path, f"Project '{env.app}'", cleanup_errors)
+
+            env.projects = [p for p in env.projects if p != env.app]
+            if env.projects:
+                on_project_change(env.projects[0])
+
+            st.success(f"Project '{env.app}' has been deleted.")
+            del st.session_state.env
+            st.session_state.pop("templates", None)
+            if cleanup_errors:
+                for message in cleanup_errors:
+                    st.warning(f"Cleanup issue: {message}")
+
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
     else:
         st.info("Select a project and confirm deletion to remove it.")
 
