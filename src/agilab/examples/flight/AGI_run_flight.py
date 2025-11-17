@@ -11,7 +11,7 @@ async def main():
     res = await AGI.run(app_env, 
                         mode=15, 
                         scheduler="192.168.20.111", 
-                        workers={'192.168.20.111': 1, '192.168.20.130': 1}, 
+                        workers={'192.168.20.130': 1}, 
                         data_source="file", data_in="flight/dataset", data_out="flight/dataframe", files="*", nfile=1, nskip=0, nread=0, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="parquet")
     print(res)
     return res

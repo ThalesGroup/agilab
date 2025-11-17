@@ -1069,6 +1069,8 @@ async def page():
 
     env = st.session_state["env"]
     st.session_state["_env"] = env
+    if getattr(env, "app", None):
+        st.query_params["active_app"] = env.app
 
     st.set_page_config(layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
@@ -1137,6 +1139,8 @@ async def page():
         except Exception:
             pass
         initialize_app_settings(args_override=args_override)
+        if getattr(env, "app", None):
+            st.query_params["active_app"] = env.app
         st.rerun()
 
     module = env.target
