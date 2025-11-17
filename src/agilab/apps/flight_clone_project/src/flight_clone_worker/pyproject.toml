@@ -21,6 +21,7 @@ dependencies = [
     "scipy==1.15.2",
     "matplotlib",
     "plotly",
+    "sgp4",
 ]
 
 [dependency-groups]
