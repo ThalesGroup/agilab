@@ -1,0 +1,1 @@
+This repository is used to illustrate the way of working assisted by an AI coding agent
