@@ -19,7 +19,6 @@
 | argon2-cffi-bindings | MIT |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |
-| asn1crypto | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
 | async-lru | MIT LICENSE |
@@ -163,7 +162,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | keras | APACHE LICENSE 2.0 |
-| keyring | MIT LICENSE |
+| keyring | MIT |
 | kiwisolver | BSD LICENSE |
 | langchain | MIT |
 | langchain-anthropic | MIT |
@@ -266,10 +265,8 @@
 | pydantic-settings | MIT LICENSE |
 | pydeck | APACHE LICENSE 2.0 |
 | pygments | BSD LICENSE |
-| pyjwt | MIT LICENSE |
 | pymdown-extensions | MIT LICENSE |
 | pynacl | APACHE SOFTWARE LICENSE |
-| pyopenssl | APACHE SOFTWARE LICENSE |
 | pyparsing | MIT |
 | pypdf | BSD-3-CLAUSE |
 | pyppmd | LGPL-2.1-OR-LATER |
@@ -311,8 +308,6 @@
 | six | MIT LICENSE |
 | smmap | BSD LICENSE |
 | sniffio | APACHE SOFTWARE LICENSE;; MIT LICENSE |
-| snowflake-connector-python | APACHE SOFTWARE LICENSE |
-| snowflake-snowpark-python | APACHE SOFTWARE LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
 | soupsieve | MIT LICENSE |
 | sqlalchemy | MIT |
@@ -328,12 +323,11 @@
 | streamlit-card | MIT LICENSE |
 | streamlit-code-editor | MIT License |
 | streamlit-embedcode | MIT License |
-| streamlit-extras | APACHE-2.0 |
+| streamlit-extras | APACHE SOFTWARE LICENSE |
 | streamlit-faker | Apache License 2.0 |
 | streamlit-image-coordinates | MIT LICENSE |
 | streamlit-keyup | MIT License |
 | streamlit-modal | BSD |
-| streamlit-notify | MIT LICENSE |
 | streamlit-toggle-switch | MIT License |
 | streamlit-vertical-slider | MIT License |
 | tabulate | MIT LICENSE |
@@ -364,7 +358,6 @@
 | typing-inspect | MIT LICENSE |
 | typing-inspection | MIT |
 | tzdata | APACHE SOFTWARE LICENSE |
-| tzlocal | MIT LICENSE |
 | uri-template | MIT LICENSE |
 | urllib3 | MIT |
 | uvicorn | BSD-3-CLAUSE |

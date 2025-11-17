@@ -12,7 +12,7 @@
 | alembic | MIT |
 | altair | BSD LICENSE |
 | altex | APACHE-2.0 |
-| annotated-doc | MIT LICENSE |
+| annotated-doc | MIT |
 | annotated-types | MIT LICENSE |
 | anthropic | MIT LICENSE |
 | anyio | MIT |
@@ -32,7 +32,7 @@
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
-| black | MIT LICENSE |
+| black | MIT |
 | bleach | APACHE SOFTWARE LICENSE |
 | blinker | MIT LICENSE |
 | boto3 | APACHE-2.0 |
@@ -178,7 +178,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | keras | APACHE LICENSE 2.0 |
-| keyring | MIT LICENSE |
+| keyring | MIT |
 | kiwisolver | BSD LICENSE |
 | langchain | MIT |
 | langchain-anthropic | MIT |
@@ -298,7 +298,7 @@
 | pypdf | BSD-3-CLAUSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | pyproject-hooks | MIT LICENSE |
-| pytest | MIT LICENSE |
+| pytest | MIT |
 | pytest-cov | MIT LICENSE |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD-3-CLAUSE |
@@ -369,7 +369,7 @@
 | tenacity | APACHE SOFTWARE LICENSE |
 | tensorboard | APACHE SOFTWARE LICENSE |
 | tensorboard-data-server | APACHE SOFTWARE LICENSE |
-| tensorstore | APACHE SOFTWARE LICENSE |
+| tensorstore | APACHE-2.0 |
 | terminado | BSD LICENSE |
 | texttable | MIT LICENSE |
 | threadpoolctl | BSD LICENSE |
