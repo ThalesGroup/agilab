@@ -12,9 +12,9 @@ declare -a BUILTIN_APPS=(
   flight_project
 )
 declare -a REPOSITORY_APPS=(
-  link_sim_project
   sat_trajectory_project
   flight_trajectory_project
+  link_sim_project
   flight_clone_project
   ilp_project
   sb3_trainer_project
