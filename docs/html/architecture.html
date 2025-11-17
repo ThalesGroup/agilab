@@ -207,7 +207,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project-licenses.html">Sb3-trainer-project Licenses</a></li>
 </ul>
 </li>
 </ul>
@@ -264,6 +263,34 @@
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker-flight-worker">Worker (<cite>flight_worker.flight_worker</cite>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#assets-tests">Assets &amp; Tests</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Flight Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#how-it-differs-from-sat-trajectory">How it differs from <code class="docutils literal notranslate"><span class="pre">sat_trajectory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory-flight-trajectory">Manager (<cite>flight_trajectory.flight_trajectory</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">Args (<cite>flight_trajectory.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker-flight-trajectory-worker">Worker (<cite>flight_trajectory_worker.flight_trajectory_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Link Sim Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim-link-sim">Manager (<cite>link_sim.link_sim</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">Args (<cite>link_sim.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker-link-sim-worker">Worker (<cite>link_sim_worker.link_sim_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Sat Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory-sat-trajectory">Manager (<cite>sat_trajectory.sat_trajectory</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">Args (<cite>sat_trajectory.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker-sat-trajectory-worker">Worker (<cite>sat_trajectory_worker.sat_trajectory_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sb3-trainer-project.html">SB3 Trainer Project</a><ul>
@@ -461,7 +488,6 @@ apps/
                 flight_clone_worker.py
                 flight_clone_worker.pyx
                 pyproject.toml
-                sat_trajectory_worker.py
             app_args_form.py
             app_settings.toml
             flight_clone_args_form.py
@@ -488,7 +514,6 @@ apps/
         run_test.sh
         uv_config.toml
     flight_project/
-        .pytest_cache/ [excluded]
         .venv/ [excluded]
         Modules/ [excluded]
         src/
@@ -528,7 +553,6 @@ apps/
         steps.toml
         uv_config.toml
     mycode_project/
-        .pytest_cache/ [excluded]
         .venv/ [excluded]
         Modules/ [excluded]
         src/
@@ -557,6 +581,38 @@ apps/
         README.md
         uv_config.toml
         wenv
+    network_sim_project/
+        .idea/
+            inspectionProfiles/
+                profiles_settings.xml
+                Project_Default.xml
+            .gitignore
+            misc.xml
+            modules.xml
+            network_sim_project.iml
+            vcs.xml
+        .venv/ [excluded]
+        src/
+            network_sim/
+                __pycache__/ [excluded]
+                __init__.py
+                network_sim.py
+                network_sim_args.py
+                topology.py
+            network_sim_worker/
+                __init__.py
+                network_sim_worker.py
+                pyproject.toml
+            app_args_form.py
+            app_settings.toml
+            pre_prompt.json
+        test/
+            __pycache__/ [excluded]
+            __init__.py
+            test_network_sim_distribution.py
+        pyproject.toml
+        README.md
+        uv_config.toml
     templates/
         dag_app_template/
             src/
@@ -640,16 +696,8 @@ apps/
             uv_config.toml
     .gitignore
     __init__.py
-    flight_legacy_project
-    flight_trajectory_project
-    flowsynth_project
-    ilp_project
     install.py
-    link_sim_project
     README.md
-    sat_trajectory_project
-    satcom_sim_project
-    sb3_trainer_project
 apps-pages/
     view_autoencoder_latenspace/
         .venv/ [excluded]
@@ -827,9 +875,7 @@ examples/
     flight/
         AGI_command_flight.py
         AGI_install_flight.py
-        AGI_install_flight_legacy.py
         AGI_run_flight.py
-        AGI_run_flight_legacy.py
     flight2/
     flight_clone/
         AGI_install_flight_clone.py
