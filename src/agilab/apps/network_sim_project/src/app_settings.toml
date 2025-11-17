@@ -1,10 +1,11 @@
 [args]
 data_source = "file"
-data_in = "flight/dataset"
-net_size = 12
-seed = 42
-topology_filename = "topology.gml"
+data_in = "network_sim/dataset"
+flows_dir = "flows"
+link_results_dir = "link_insights"
+topology_filename = "ilp_topology.gml"
 summary_filename = "topology_summary.json"
+demands_filename = "ilp_demands.json"
 
 [cluster]
 verbose = 1
