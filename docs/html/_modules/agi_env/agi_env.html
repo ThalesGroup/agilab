@@ -46,9 +46,14 @@
               <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../quick-start.html">Quick-Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#license">LICENSE</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#install-agilab">Install Agilab</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#support">Support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#prerequisites">Prerequisites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../quick-start.html#cluster-installs">Cluster installs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../quick-start.html#next-steps">Next steps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../quick-start.html#support">Support</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../introduction.html">Introduction</a><ul>
@@ -102,6 +107,31 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../agilab.html">AGILab</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">AGILab Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture.html#component-view">Component view</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture.html#layers-at-a-glance">Layers at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture.html#runtime-flow">Runtime flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture.html#repository-map">Repository map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture.html#documentation-map">Documentation map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../agi-core-architecture.html">AGI Core Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-core-architecture.html#modules-at-a-glance">Modules at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-core-architecture.html#execution-flow">Execution flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-core-architecture.html#repository-pointers">Repository pointers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-core-architecture.html#tips-for-contributions">Tips for contributions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-core-architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-mlops-positioning.html">AGILab in the MLOps Toolchain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agilab-mlops-positioning.html#where-agilab-helps">Where AGILab helps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agilab-mlops-positioning.html#what-agilab-does-not-aim-to-cover">What AGILab does <em>not</em> aim to cover</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agilab-mlops-positioning.html#positioning-vs-other-tools">Positioning vs. other tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agilab-mlops-positioning.html#suggested-workflow">Suggested workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agilab-mlops-positioning.html#see-also">See also</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../framework-api.html">Framework API</a><ul>
@@ -2627,6 +2657,25 @@
 
         <span class="c1"># Clone all files by default. Only skip repository metadata such as .git.</span>
         <span class="n">ignore_patterns</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;.git&quot;</span><span class="p">,</span> <span class="s2">&quot;.git/&quot;</span><span class="p">,</span> <span class="s2">&quot;.git/**&quot;</span><span class="p">]</span>
+
+        <span class="c1"># Augment ignore rules with .gitignore content from the source project and its ancestors.</span>
+        <span class="n">gitignore_candidates</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">seen_gitignore_dirs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">ancestor</span> <span class="ow">in</span> <span class="p">[</span><span class="n">source_root</span><span class="p">,</span> <span class="o">*</span><span class="n">source_root</span><span class="o">.</span><span class="n">parents</span><span class="p">]:</span>
+            <span class="n">gi</span> <span class="o">=</span> <span class="n">ancestor</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
+            <span class="k">if</span> <span class="n">gi</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">ancestor</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen_gitignore_dirs</span><span class="p">:</span>
+                <span class="n">gitignore_candidates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gi</span><span class="p">)</span>
+                <span class="n">seen_gitignore_dirs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ancestor</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">gitignore</span> <span class="ow">in</span> <span class="n">gitignore_candidates</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">gitignore</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to read </span><span class="si">{</span><span class="n">gitignore</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="c1"># PathSpec honours gitignore semantics (including negations), so keep raw lines.</span>
+            <span class="n">ignore_patterns</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">line</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+
         <span class="n">spec</span> <span class="o">=</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">ignore_patterns</span><span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
@@ -2724,15 +2773,12 @@
                         <span class="n">out</span> <span class="o">=</span> <span class="n">astor</span><span class="o">.</span><span class="n">to_source</span><span class="p">(</span><span class="n">new_tree</span><span class="p">)</span>
                     <span class="k">except</span> <span class="ne">SyntaxError</span><span class="p">:</span>
                         <span class="n">out</span> <span class="o">=</span> <span class="n">src</span>
-                    <span class="c1"># Whole word replacements in Python source text</span>
-                    <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                        <span class="n">out</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+                    <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">replace_content</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">)</span>
                     <span class="n">dst</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
 
                 <span class="k">elif</span> <span class="n">suf</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;.toml&quot;</span><span class="p">,</span> <span class="s2">&quot;.md&quot;</span><span class="p">,</span> <span class="s2">&quot;.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;.json&quot;</span><span class="p">,</span> <span class="s2">&quot;.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;.yml&quot;</span><span class="p">):</span>
                     <span class="n">txt</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-                    <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                        <span class="n">txt</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">txt</span><span class="p">)</span>
+                    <span class="n">txt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">replace_content</span><span class="p">(</span><span class="n">txt</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">)</span>
                     <span class="n">dst</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">txt</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
 
                 <span class="k">else</span><span class="p">:</span>
@@ -2774,18 +2820,17 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">or</span> <span class="n">file</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">exts</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="n">txt</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-            <span class="n">new_txt</span> <span class="o">=</span> <span class="n">txt</span>
-            <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">new_txt</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">new_txt</span><span class="p">)</span>
+            <span class="n">new_txt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">replace_content</span><span class="p">(</span><span class="n">txt</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">new_txt</span> <span class="o">!=</span> <span class="n">txt</span><span class="p">:</span>
                 <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">new_txt</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AgiEnv.replace_content">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.replace_content">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">replace_content</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">txt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">boundary</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(?&lt;![0-9A-Za-z_])</span><span class="si">{token}</span><span class="s2">(?![0-9A-Za-z_])&quot;</span>
         <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-            <span class="c1"># only match whole‐word occurrences of `old`</span>
-            <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">)</span>
+            <span class="n">token</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">boundary</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">))</span>
             <span class="n">txt</span> <span class="o">=</span> <span class="n">pattern</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">txt</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">txt</span></div>
 
@@ -2815,12 +2860,15 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Ensure the share directory for this app exists and return its absolute path.&quot;&quot;&quot;</span>
 
         <span class="n">data_root</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_rel</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="n">share_hint</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;agi_share_dir&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;AGI_SHARE_DIR&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">share_hint_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">share_hint</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">())</span> <span class="k">if</span> <span class="n">share_hint</span> <span class="k">else</span> <span class="s2">&quot;AGI_SHARE_DIR&quot;</span>
+
         <span class="k">try</span><span class="p">:</span>
             <span class="n">data_root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">FileNotFoundError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Required data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> is unavailable. &quot;</span>
-                <span class="s2">&quot;Verify AGI_SHARE_DIR is mounted before running install.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Verify AGI_SHARE_DIR (</span><span class="si">{</span><span class="n">share_hint_str</span><span class="si">}</span><span class="s2">) is mounted before running install.&quot;</span>
             <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
         <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">exc</span><span class="o">.</span><span class="n">errno</span> <span class="ow">in</span> <span class="p">{</span>
@@ -2832,7 +2880,7 @@
             <span class="p">}:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Unable to reach data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">exc</span><span class="o">.</span><span class="n">strerror</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">exc</span><span class="si">}</span><span class="s2">). &quot;</span>
-                    <span class="s2">&quot;Verify AGI_SHARE_DIR is mounted before running install.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;Verify AGI_SHARE_DIR (</span><span class="si">{</span><span class="n">share_hint_str</span><span class="si">}</span><span class="s2">) is mounted before running install.&quot;</span>
                 <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
             <span class="k">raise</span>
         <span class="k">return</span> <span class="n">data_root</span></div>
