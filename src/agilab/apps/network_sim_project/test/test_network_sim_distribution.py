@@ -1,6 +1,9 @@
+import json
 import sys
 from pathlib import Path
 
+import networkx as nx
+import pandas as pd
 import pytest
 
 script_path = Path(__file__).resolve()
@@ -17,48 +20,94 @@ class DummyEnv:
         self._is_managed_pc = False
 
 
-def _create_flight_files(root: Path, count: int = 20) -> None:
-    flights_dir = root / "csv"
-    flights_dir.mkdir(parents=True, exist_ok=True)
-    for idx in range(count):
-        file_path = flights_dir / f"flight_{idx:03d}.csv"
-        file_path.write_text("timestamp,plane_id\n0,0\n", encoding="utf-8")
+def _create_flow_dataset(root: Path) -> None:
+    flows_dir = root / "flows" / "traffic_df" / "RouteID=0"
+    flows_dir.mkdir(parents=True, exist_ok=True)
+    nodes_meta = {"0": "10.0.0.1", "1": "10.0.0.2"}
+    (root / "flows" / "nodes_ip.json").write_text(json.dumps(nodes_meta), encoding="utf-8")
+
+    graph = nx.MultiDiGraph()
+    graph.add_node(0, label="plane_0", type="ngf")
+    graph.add_node(1, label="plane_1", type="ngf")
+    nx.write_gml(graph, root / "flows" / "topology.json")
+
+    frame = pd.DataFrame(
+        {
+            "FlowID": ["f0", "f0", "f1"],
+            "SrcID": [0, 0, 1],
+            "DstID": [1, 1, 0],
+            "bandwidth": [10.0, 12.0, 8.0],
+            "latency": [0.5, 0.7, 0.9],
+        }
+    )
+    frame.to_parquet(flows_dir / "part.0.parquet", index=False)
 
 
-def test_build_distribution_assigns_all_flights(tmp_path: Path) -> None:
+def _create_link_outputs(root: Path) -> None:
+    link_dir = root / "link_insights"
+    link_dir.mkdir(parents=True, exist_ok=True)
+
+    forward_payload = [
+        {
+            "antenna_0": {
+                "plane_1_signal": {
+                    "Shannon_capacity_Mbps": 5_000,
+                    "lag_ms": 60,
+                    "SNR": 25,
+                }
+            }
+        }
+    ]
+    backward_payload = [
+        {
+            "antenna_0": {
+                "plane_0_signal": {
+                    "Shannon_capacity_Mbps": 4_500,
+                    "lag_ms": 40,
+                    "SNR": 18,
+                }
+            }
+        }
+    ]
+    (link_dir / "plane_0_vision.json").write_text(json.dumps(forward_payload), encoding="utf-8")
+    (link_dir / "plane_1_vision.json").write_text(json.dumps(backward_payload), encoding="utf-8")
+
+
+def test_simulate_builds_ilp_dataset(tmp_path: Path) -> None:
     dataset_root = tmp_path / "dataset"
-    _create_flight_files(dataset_root, count=20)
+    dataset_root.mkdir()
+    _create_flow_dataset(dataset_root)
+    _create_link_outputs(dataset_root)
+
+    args = NetworkSimArgs(
+        data_source="file",
+        data_in=dataset_root,
+        flows_dir="flows",
+        link_results_dir="link_insights",
+        topology_filename="network.gml",
+        summary_filename="summary.json",
+        demands_filename="demands.json",
+    )
+    app = NetworkSimApp(env=DummyEnv(), args=args)
+    summary = app.simulate()
+
+    assert (dataset_root / "network.gml").exists()
+    assert (dataset_root / "demands.json").exists()
+    assert summary["nodes"] == 2
+    assert summary["edges"] == 2
+    assert summary["flows"] == 2
+
+    demands = json.loads((dataset_root / "demands.json").read_text(encoding="utf-8"))
+    assert {item["flow_id"] for item in demands} == {"f0", "f1"}
+
+
+def test_simulate_requires_link_data(tmp_path: Path) -> None:
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    _create_flow_dataset(dataset_root)
 
     args = NetworkSimArgs(data_source="file", data_in=dataset_root)
     app = NetworkSimApp(env=DummyEnv(), args=args)
 
-    plan, metadata, partition_key, nb_unit, weight_unit = app.build_distribution(
-        {"workerA": 1, "workerB": 1}
-    )
-
-    assert partition_key == "flight"
-    assert nb_unit == "files"
-    assert weight_unit == "bytes"
-    assert len(plan) == 2
-    assert len(metadata) == 2
-
-    total_tasks = sum(len(worker_plan) for worker_plan in plan)
-    assert total_tasks == 20
-
-    for worker_plan, worker_meta in zip(plan, metadata):
-        assert len(worker_plan) == len(worker_meta)
-        for (payload, deps), (label, weight) in zip(worker_plan, worker_meta):
-            assert payload["functions name"] == "work_pool"
-            assert isinstance(payload["args"], str)
-            assert payload["args"].endswith(".csv")
-            assert deps == []
-            assert label
-            assert weight > 0
-
-
-def test_build_distribution_requires_flights(tmp_path: Path) -> None:
-    args = NetworkSimArgs(data_source="file", data_in=tmp_path)
-    app = NetworkSimApp(env=DummyEnv(), args=args)
-
     with pytest.raises(FileNotFoundError):
-        app.build_distribution({"worker": 1})
+        app.simulate()

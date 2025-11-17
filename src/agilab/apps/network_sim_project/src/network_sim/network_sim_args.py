@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import re
-import socket
-from datetime import date
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
 import tomllib
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agi_env.app_args import (
     dump_model_to_toml,
@@ -21,7 +18,9 @@ from agi_env.app_args import (
 
 ARGS_SECTION = "args"
 
+
 class NetworkSimArgs(BaseModel):
+    """Configuration for the FlowSynth/LinkSim integration."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -33,14 +32,16 @@ class NetworkSimArgs(BaseModel):
             data["data_in"] = data.pop("data_uri")
         return data
 
-    data_source: str
+    data_source: Literal["file", "hawk"] = "file"
     data_in: Path = Field(default_factory=lambda: Path("network_sim/dataset"))
-    net_size: PositiveInt = Field(
-        default=12,
-        ge=4,
-        description="Number of nodes in the generated topology",
+    flows_dir: Path = Field(
+        default_factory=lambda: Path("flows"),
+        description="Directory containing FlowSynth traffic artefacts.",
     )
-    seed: int = Field(default=42, description="Random seed for reproducibility")
+    link_results_dir: Path = Field(
+        default_factory=lambda: Path("link_insights"),
+        description="Directory containing LinkSim worker outputs.",
+    )
     topology_filename: str = Field(
         default="topology.gml",
         description="Filename used to store the generated GML topology",
@@ -49,19 +50,33 @@ class NetworkSimArgs(BaseModel):
         default="topology_summary.json",
         description="Filename used to store the topology summary JSON",
     )
-    data_in: Path = Field(
-        default_factory=lambda: Path("~/data/network_sim"),
-        description="Directory where generated artefacts are written",
+    demands_filename: str = Field(
+        default="ilp_demands.json",
+        description="Filename used to store the ILP demand payload",
     )
 
-    @field_validator("data_in", mode="before")
-    @classmethod
-    def _coerce_data_in(cls, value: Any) -> Path:
+    @staticmethod
+    def _coerce_path(value: Any, field_name: str) -> Path:
         if isinstance(value, Path):
             return value
         if isinstance(value, str):
             return Path(value)
-        raise TypeError("data_in must be a string or Path value")
+        raise TypeError(f"{field_name} must be a string or Path value")
+
+    @field_validator("data_in", mode="before")
+    @classmethod
+    def _coerce_data_in(cls, value: Any) -> Path:
+        return cls._coerce_path(value, "data_in")
+
+    @field_validator("flows_dir", mode="before")
+    @classmethod
+    def _coerce_flows_dir(cls, value: Any) -> Path:
+        return cls._coerce_path(value, "flows_dir")
+
+    @field_validator("link_results_dir", mode="before")
+    @classmethod
+    def _coerce_link_results_dir(cls, value: Any) -> Path:
+        return cls._coerce_path(value, "link_results_dir")
 
     def to_toml_payload(self) -> dict[str, Any]:
         """Return a TOML-friendly representation (Path/date → str)."""
@@ -72,10 +87,11 @@ class NetworkSimArgs(BaseModel):
 class NetworkSimArgsTD(TypedDict, total=False):
     data_source: str
     data_in: str
-    net_size: int
-    seed: int
+    flows_dir: str
+    link_results_dir: str
     topology_filename: str
     summary_filename: str
+    demands_filename: str
 
 
 def load_args_from_toml(
