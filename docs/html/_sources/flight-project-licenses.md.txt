@@ -163,7 +163,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | keras | APACHE LICENSE 2.0 |
-| keyring | MIT LICENSE |
+| keyring | MIT |
 | kiwisolver | BSD LICENSE |
 | langchain | MIT |
 | langchain-anthropic | MIT |
@@ -327,7 +327,7 @@
 | streamlit-card | MIT LICENSE |
 | streamlit-code-editor | MIT License |
 | streamlit-embedcode | MIT License |
-| streamlit-extras | APACHE-2.0 |
+| streamlit-extras | APACHE SOFTWARE LICENSE |
 | streamlit-faker | Apache License 2.0 |
 | streamlit-image-coordinates | MIT LICENSE |
 | streamlit-keyup | MIT License |

@@ -37,11 +37,11 @@ cluster_enabled = true
 verbose = 1
 user = "agi"
 auth_method = "password"
-scheduler = "192.168.3.84"
+scheduler = "192.168.20.111"
 
 [cluster.workers]
-"192.168.3.84" = 1
-"192.168.3.86" = 1
+"192.168.20.111" = 1
+"192.168.20.130" = 1
 
 [pages]
 view_module = [

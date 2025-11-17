@@ -10,6 +10,8 @@
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/tabs.css?v=a5c4661c" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css" />
 
   
@@ -19,6 +21,8 @@
       <script src="_static/documentation_options.js?v=8d563738"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+      <script src="_static/tabs.js?v=3030b3cb"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -198,7 +202,13 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul class="simple">
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
 </ul>
 </li>
 </ul>
@@ -356,6 +366,11 @@ function copyCode(button) {
 </ul>
 <section id="generate-the-keys">
 <h2>1. Generate the keys<a class="headerlink" href="#generate-the-keys" title="Link to this heading"></a></h2>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Global</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>ssh-keygen<span class="w"> </span>-a<span class="w"> </span><span class="m">100</span><span class="w"> </span>-t<span class="w"> </span>ed25519
+</pre></div>
+</div>
+</div></div>
 <p>You will be prompted for a passphrase. don’t enter one (double return).</p>
 <p>If you have not changed the default path, the public key will be stored in <code class="docutils literal notranslate"><span class="pre">~/.ssh/id_ed25519.pub</span></code> and the private key in <code class="docutils literal notranslate"><span class="pre">~/.ssh/id_ed25519</span></code>.</p>
 </section>
@@ -363,10 +378,31 @@ function copyCode(button) {
 <h2>2. Loading the private key in SSH Agent<a class="headerlink" href="#loading-the-private-key-in-ssh-agent" title="Link to this heading"></a></h2>
 <section id="load-the-private-key">
 <h3>2.1 Load the private key<a class="headerlink" href="#load-the-private-key" title="Link to this heading"></a></h3>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0"><strong>Linux</strong></button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1"><strong>Windows</strong></button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>ssh-add<span class="w"> </span>~/.ssh/id_ed25519
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">manager</span><span class="p">$</span> <span class="n">ssh-add</span> <span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span>
+</pre></div>
+</div>
+</div></div>
 </section>
 <section id="verify-the-key-addition">
 <h3>2.2 Verify the key Addition<a class="headerlink" href="#verify-the-key-addition" title="Link to this heading"></a></h3>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Global</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>ssh-add<span class="w"> </span>-l
+</pre></div>
+</div>
+</div></div>
 <p>It should display the <strong>public key</strong> (not private). To manually check the public key:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0"><strong>Linux</strong></button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1"><strong>Windows</strong></button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">manager</span><span class="p">$</span> <span class="nb">cat </span><span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span><span class="p">.</span><span class="n">pub</span>
+</pre></div>
+</div>
+</div></div>
 <p>If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the <a class="reference internal" href="#permissions">Permissions</a> section.</p>
 <p>On Linux, if a window titled “Enter password to unlock the private key” appears when trying to establish an SSH connection, enter the passphrase and check the box “Automatically unlock this key whenever I’m logged in”.</p>
 </section>
@@ -376,9 +412,32 @@ function copyCode(button) {
 <section id="allow-your-key">
 <h3>3.1 Allow your key<a class="headerlink" href="#allow-your-key" title="Link to this heading"></a></h3>
 <p>Follow these steps to add your key to the <cite>authorized_keys</cite> file of each workers:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-4-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-4-4-0" name="4-0" role="tab" tabindex="0"><strong>Manager Unix</strong></button><button aria-controls="panel-4-4-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-1" name="4-1" role="tab" tabindex="-1"><strong>Manager Windows</strong></button></div><div aria-labelledby="tab-4-4-0" class="sphinx-tabs-panel" id="panel-4-4-0" name="4-0" role="tabpanel" tabindex="0"><p>Worker Linux:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>ssh-copy-id<span class="w"> </span>-i<span class="w"> </span>~/.ssh/id_ed25519<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;worker<span class="w"> </span>ip&gt;
+</pre></div>
+</div>
+<p>Worker Windows:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;worker<span class="w"> </span>ip&gt;<span class="w"> </span>powershell<span class="w"> </span>-NoProfile<span class="w"> </span>-Command<span class="w"> </span><span class="s2">&quot;Add-Content -Encoding ascii -Path &#39;C:\\Users\\&lt;remote account&gt;\\.ssh\\authorized_keys&#39; -Value &#39;([Console]::In.ReadToEnd())&#39;&quot;</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-4-4-1" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-1" name="4-1" role="tabpanel" tabindex="0"><p>Worker Unix:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">manager</span><span class="p">$</span> <span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\\.ssh\\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">worker</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="s2">&quot;cat &gt;&gt; ~/.ssh/authorized_keys&quot;</span>
+</pre></div>
+</div>
+<p>Worker Windows:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">manager</span><span class="p">$</span> <span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\\.ssh\\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">worker</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="n">powershell</span> <span class="n">-NoProfile</span> <span class="n">-Command</span> <span class="s2">&quot;Add-Content -Encoding ascii -Path &#39;C:\\Users\\&lt;remote account&gt;\\.ssh\\authorized_keys&#39; -Value &#39;([Console]::In.ReadToEnd())&#39;&quot;</span>
+</pre></div>
+</div>
+</div></div>
 </section>
 <section id="verification">
 <h3>3.2 Verification<a class="headerlink" href="#verification" title="Link to this heading"></a></h3>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Global</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>manager$<span class="w"> </span>ssh<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;worker<span class="w"> </span>ip&gt;
+</pre></div>
+</div>
+</div></div>
 <div class="admonition-success admonition">
 <p class="admonition-title">Success</p>
 <p>It should connect without asking the account password !</p>
@@ -423,6 +482,16 @@ public key content.</p>
 <h3>SSHD Service<a class="headerlink" href="#sshd-service" title="Link to this heading"></a></h3>
 <section id="check-the-service-status">
 <h4>Check the service status:<a class="headerlink" href="#check-the-service-status" title="Link to this heading"></a></h4>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-6-6-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-6-6-0" name="6-0" role="tab" tabindex="0"><strong>Linux</strong></button><button aria-controls="panel-6-6-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-6-6-1" name="6-1" role="tab" tabindex="-1"><strong>Windows (admin)</strong></button></div><div aria-labelledby="tab-6-6-0" class="sphinx-tabs-panel" id="panel-6-6-0" name="6-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Check SSH Server status</span>
+ssh-add<span class="w"> </span>-L<span class="w">  </span><span class="c1"># Check if the SSH agent is running</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-6-6-1" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-1" name="6-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Service</span> <span class="n">sshd</span>
+<span class="nb">Get-Service</span> <span class="n">ssh-agent</span>
+</pre></div>
+</div>
+</div></div>
 </section>
 <section id="check-the-configuration">
 <h4>Check the configuration<a class="headerlink" href="#check-the-configuration" title="Link to this heading"></a></h4>
@@ -440,9 +509,43 @@ PasswordAuthentication no
 </section>
 <section id="restart-the-sshd-service">
 <h4>Restart the SSHD service<a class="headerlink" href="#restart-the-sshd-service" title="Link to this heading"></a></h4>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-7-7-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-7-7-0" name="7-0" role="tab" tabindex="0"><strong>Linux</strong></button><button aria-controls="panel-7-7-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-1" name="7-1" role="tab" tabindex="-1"><strong>Windows (admin)</strong></button></div><div aria-labelledby="tab-7-7-0" class="sphinx-tabs-panel" id="panel-7-7-0" name="7-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>workers$<span class="w"> </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Restart SSH Server</span>
+workers$<span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>ssh-agent<span class="w"> </span>-s<span class="k">)</span><span class="s2">&quot;</span><span class="w">  </span><span class="c1"># Restart SSH Agent</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-7-7-1" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-1" name="7-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">workers</span><span class="p">$</span> <span class="nb">Restart-Service</span> <span class="n">sshd</span>   <span class="c"># Restart SSH Server</span>
+<span class="n">workers</span><span class="p">$</span> <span class="nb">Restart-Service</span> <span class="n">ssh-agent</span>   <span class="c"># Restart SSH Agent</span>
+</pre></div>
+</div>
+</div></div>
 </section>
 <section id="permissions">
 <h4>Permissions<a class="headerlink" href="#permissions" title="Link to this heading"></a></h4>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-8-8-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-8-8-0" name="8-0" role="tab" tabindex="0"><strong>Linux</strong></button><button aria-controls="panel-8-8-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-8-8-1" name="8-1" role="tab" tabindex="-1"><strong>Windows</strong></button></div><div aria-labelledby="tab-8-8-0" class="sphinx-tabs-panel" id="panel-8-8-0" name="8-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span>~/.ssh
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.ssh/id_ed25519
+</pre></div>
+</div>
+<p>To verify:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-l<span class="w"> </span><span class="s2">&quot;~/.ssh&quot;</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-8-8-1" class="sphinx-tabs-panel" hidden="true" id="panel-8-8-1" name="8-1" role="tabpanel" tabindex="0"><p>Ensure that the <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> folder and the <code class="docutils literal notranslate"><span class="pre">id_ed25519</span></code> file have the correct permissions:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>.ssh<span class="se">\i</span>d_ed25519<span class="w">        </span>AUTORITE<span class="w"> </span>NT<span class="se">\S</span>ystème:<span class="o">(</span>F<span class="o">)</span>
+<span class="w">           </span>BUILTIN<span class="se">\A</span>dministrateurs:<span class="o">(</span>F<span class="o">)</span>
+<span class="w">           </span>%USERNAME%:<span class="o">(</span>M<span class="o">)</span>
+</pre></div>
+</div>
+<p>To view permissions:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">icacls</span> <span class="s2">&quot;$env:userprofile\.ssh&quot;</span>
+</pre></div>
+</div>
+<p>To set correct permissions:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">icacls</span> <span class="s2">&quot;$env:userprofile\.ssh\id_ed25519&quot;</span> <span class="p">/</span><span class="n">inheritance</span><span class="p">:</span><span class="nb">r </span><span class="p">/</span><span class="n">grant</span> <span class="s2">&quot;AUTORITE NT\Système:(F)&quot;</span> <span class="s2">&quot;BUILTIN\Administrateurs:(F)&quot;</span> <span class="s2">&quot;$env:username:(M)&quot;</span>
+</pre></div>
+</div>
+</div></div>
 </section>
 </section>
 </section>

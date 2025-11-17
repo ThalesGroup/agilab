@@ -162,7 +162,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | keras | APACHE LICENSE 2.0 |
-| keyring | MIT LICENSE |
+| keyring | MIT |
 | kiwisolver | BSD LICENSE |
 | langchain | MIT |
 | langchain-anthropic | MIT |
