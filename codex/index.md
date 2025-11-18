@@ -1,4 +1,5 @@
 # Codex CLI Overview
+see: https://github.com/ThalesGroup/agilab/blob/main/codex/index.md
 
 The Codex CLI embeds GPT‑5 Codex workflows directly into AGILab, letting agents and humans share the same automation surface. Use this page as a launchpad for background reading, examples, and companion tooling.
 
