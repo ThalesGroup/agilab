@@ -4,7 +4,7 @@ import os
 from typing import Final
 
 # Baseline defaults – update in one place when the recommended model changes.
-DEFAULT_OPENAI_MODEL_NAME: Final[str] = "gpt-4o"
+DEFAULT_OPENAI_MODEL_NAME: Final[str] = "gpt-5.1"
 DEFAULT_OPENAI_MODEL_ENVVAR: Final[str] = "AGILAB_DEFAULT_OPENAI_MODEL"
 
 
