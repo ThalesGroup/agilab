@@ -207,7 +207,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project-licenses.html">Sb3-trainer-project Licenses</a></li>
 </ul>
 </li>
 </ul>
@@ -444,7 +443,6 @@ apps/
             beams.csv
             norad_3le.txt
             satellites.csv
-        Modules/ [excluded]
         src/
             flight_clone/
                 __pycache__/ [excluded]
@@ -490,7 +488,6 @@ apps/
     flight_project/
         .pytest_cache/ [excluded]
         .venv/ [excluded]
-        Modules/ [excluded]
         src/
             flight/
                 __pycache__/ [excluded]
@@ -530,7 +527,6 @@ apps/
     mycode_project/
         .pytest_cache/ [excluded]
         .venv/ [excluded]
-        Modules/ [excluded]
         src/
             mycode/
                 __pycache__/ [excluded]
@@ -557,6 +553,10 @@ apps/
         README.md
         uv_config.toml
         wenv
+    network_sim_project/
+        test/
+            __init__.py
+            test_network_sim_distribution.py
     templates/
         dag_app_template/
             src/
@@ -640,16 +640,8 @@ apps/
             uv_config.toml
     .gitignore
     __init__.py
-    flight_legacy_project
-    flight_trajectory_project
-    flowsynth_project
-    ilp_project
     install.py
-    link_sim_project
     README.md
-    sat_trajectory_project
-    satcom_sim_project
-    sb3_trainer_project
 apps-pages/
     view_autoencoder_latenspace/
         .venv/ [excluded]
@@ -830,7 +822,6 @@ examples/
         AGI_install_flight_legacy.py
         AGI_run_flight.py
         AGI_run_flight_legacy.py
-    flight2/
     flight_clone/
         AGI_install_flight_clone.py
         AGI_run_flight_clone.py
