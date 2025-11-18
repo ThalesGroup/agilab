@@ -7,6 +7,8 @@ set -o pipefail
 # This prevents errors like: ${REPOSITORY_PAGES[@]}: unbound variable
 declare -a BUILTIN_PAGES=()
 declare -a REPOSITORY_PAGES=()
+BUILTIN_APPS_ENV="${BUILTIN_APPS:-}"
+unset BUILTIN_APPS
 declare -a BUILTIN_APPS=(
   mycode_project
   flight_project
@@ -46,7 +48,7 @@ UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 DO_TEST_APPS=0
 
 BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
-BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS-}"
+BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
 
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
@@ -394,6 +396,51 @@ for item in "${INCLUDED_APPS[@]}"; do
     INCLUDED_APPS_UNIQ+=("$item")
   fi
 done
+
+# Offer an interactive picker via gum when available.
+if [[ -t 0 ]]; then
+  echo -e "${BLUE}Available apps:${NC}"
+  for idx in "${!INCLUDED_APPS_UNIQ[@]}"; do
+    printf "  %2d) %s\n" $((idx + 1)) "${INCLUDED_APPS_UNIQ[$idx]}"
+  done
+  read -rp "Numbers/ranges (1 3-5, blank = all): " selection
+  if [[ -n "$selection" ]]; then
+    selection="${selection//,/ }"
+    declare -a picked=()
+    for token in $selection; do
+      if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+        start=${BASH_REMATCH[1]}
+        end=${BASH_REMATCH[2]}
+        if (( end < start )); then
+          echo -e "${YELLOW}Ignoring invalid range: $token${NC}"
+          continue
+        fi
+        for ((num=start; num<=end; num++)); do
+          idx=$((num - 1))
+          if (( idx >= 0 && idx < ${#INCLUDED_APPS_UNIQ[@]} )); then
+            picked+=("${INCLUDED_APPS_UNIQ[$idx]}")
+          else
+            echo -e "${YELLOW}Ignoring out-of-range selection: $num${NC}"
+          fi
+        done
+      elif [[ "$token" =~ ^[0-9]+$ ]]; then
+        idx=$((token - 1))
+        if (( idx >= 0 && idx < ${#INCLUDED_APPS_UNIQ[@]} )); then
+          picked+=("${INCLUDED_APPS_UNIQ[$idx]}")
+        else
+          echo -e "${YELLOW}Ignoring out-of-range selection: $token${NC}"
+        fi
+      else
+        echo -e "${YELLOW}Ignoring invalid selection: $token${NC}"
+      fi
+    done
+    if (( ${#picked[@]} )); then
+      INCLUDED_APPS_UNIQ=("${picked[@]}")
+else
+  echo -e "${YELLOW}Non-interactive session detected; installing default apps: ${INCLUDED_APPS_UNIQ[*]}.${NC}"
+fi
+  fi
+fi
 
 declare -a FILTERED_PAGES=()
 declare -a FILTERED_APPS=()
