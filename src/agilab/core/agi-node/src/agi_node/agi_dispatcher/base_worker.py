@@ -884,6 +884,21 @@ class BaseWorker(abc.ABC):
                 logging.info(f"warning: no cython library found at {lib_path}")
                 raise RuntimeError("Cython mode requested but no compiled library found")
 
+            # Workers such as example_app rely on sibling worker distributions
+            # (for example example_worker/dist) when loading optional
+            # Cython helpers. Ensure those dist folders are importable so the
+            # `from example_worker import ...` branch succeeds even if
+            # the package is only present as a sibling wenv.
+            sibling_root = wenv_abs.parent
+            if sibling_root.is_dir():
+                for extra_dist in sibling_root.glob("*_worker/dist"):
+                    try:
+                        extra_path = str(extra_dist.resolve())
+                    except FileNotFoundError:
+                        continue
+                    if extra_path and extra_path not in sys.path:
+                        sys.path.append(extra_path)
+
 
         try:
             from .agi_dispatcher import WorkDispatcher  # Local import to avoid circular dependency
