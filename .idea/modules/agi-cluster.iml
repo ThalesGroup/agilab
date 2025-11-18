@@ -1,14 +1,12 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <module type="PYTHON_MODULE" version="4">
-  <component name="NewModuleRootManager">
-    <content url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster">
-      <sourceFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/src" isTestSource="false" />
-      <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/dist" />
-      <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/build" />
-      <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/.venv" />
-    </content>
-    <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="jdk" jdkName="uv (agi-cluster)" jdkType="Python SDK" />
-  </component>
+    <component name="NewModuleRootManager">
+        <content url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster">
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/dist" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/build" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/core/agi-cluster/.venv" />
+        </content>
+        <orderEntry type="sourceFolder" forTests="false" />
+        <orderEntry type="jdk" jdkName="uv (agi-cluster)" jdkType="Python SDK" />
+    </component>
 </module>
