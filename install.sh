@@ -289,6 +289,16 @@ install_gum() {
     rm -rf "$tmp"
 }
 
+verify_share_dir() {
+    local share_dir="${AGI_SHARE_DIR:-$HOME/clustershare}"
+    [[ "$share_dir" == "~"* ]] && share_dir="${share_dir/#\~/$HOME}"
+    if [[ ! -d "$share_dir" ]]; then
+        echo -e "${RED}AGI_SHARE_DIR missing:${NC} expected data share at '$share_dir'."
+        echo -e "${YELLOW}Mount your cluster share or export AGI_SHARE_DIR to the correct path, then rerun install.sh.${NC}"
+        exit 1
+    fi
+}
+
 install_dependencies() {
     echo -e "${BLUE}Step: Installing system dependencies...${NC}"
     read -rp "Do you want to install system dependencies? (y/N): " confirm
@@ -618,6 +628,7 @@ fi
 
 check_internet
 set_locale
+verify_share_dir
 install_dependencies
 install_gum
 choose_python_version
