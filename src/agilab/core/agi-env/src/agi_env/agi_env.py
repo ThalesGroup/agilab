@@ -365,6 +365,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     hw_rapids_capable = None
     is_worker_env = False
     _is_managed_pc = None
+    skip_repo_links = False
     debug = False
     uv = None
     benchmark = None
@@ -400,6 +401,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 app = Path(val).name
             except Exception:
                 app = str(val) if val is not None else None
+
+        self.skip_repo_links = False
 
         def _resolve_install_type(apps_dir: str | None,
                                   agilab_pck: Path,
@@ -495,6 +498,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 pass
 
         install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars)
+        if self.is_worker_env:
+            self.skip_repo_links = True
 
         # Default apps_dir for non-worker envs when not provided
         if not self.is_worker_env and apps_dir is None:
@@ -603,7 +608,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.st_resources = resource_candidates[-1]
 
         apps_root = self.agilab_pck / "apps"
-        if (not self.is_source_env) and (not self.is_worker_env):
+        if (not self.is_source_env) and (not self.is_worker_env) and not self.skip_repo_links:
             os.makedirs(apps_dir, exist_ok=True)
 
             link_source = self.apps_repository_root = self._get_apps_repository_root()
