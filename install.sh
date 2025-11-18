@@ -493,6 +493,10 @@ run_repository_tests_with_coverage() {
     local -a page_test_dirs=()
     local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
     local extra_pythonpath="${repo_root}/src/agilab/core/agi-env/src:${repo_root}/src/agilab/core/agi-node/src:${repo_root}/src/agilab/core/agi-cluster/src"
+    local repo_pythonpath="$repo_root"
+    if [[ -n "$extra_pythonpath" ]]; then
+        repo_pythonpath="${repo_pythonpath}:${extra_pythonpath}"
+    fi
 
     if [[ -d "$repo_root/src/agilab/apps" ]]; then
         while IFS= read -r dir; do
@@ -504,7 +508,7 @@ run_repository_tests_with_coverage() {
         echo -e "${BLUE}Running builtin and repository app tests with coverage...${NC}"
         pushd "$repo_root" > /dev/null
         local -a cov_args=(--cov=src/agilab/apps --cov-report=term-missing --cov-report=xml --cov-append)
-        if ! PYTHONPATH="${extra_pythonpath}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${app_test_dirs[@]}" --maxfail=1 "${cov_args[@]}"; then
+        if ! PYTHONPATH="${repo_pythonpath}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${app_test_dirs[@]}" --maxfail=1 "${cov_args[@]}"; then
             local rc=$?
             if (( rc == 5 )); then
                 echo -e "${YELLOW}No tests collected for apps suite (exit code 5).${NC}"
@@ -528,7 +532,7 @@ run_repository_tests_with_coverage() {
         echo -e "${BLUE}Running apps-pages tests with coverage...${NC}"
         pushd "$repo_root" > /dev/null
         local -a cov_page_args=(--cov=src/agilab/apps-pages --cov-report=term-missing --cov-report=xml --cov-append)
-        if ! PYTHONPATH="${extra_pythonpath}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${page_test_dirs[@]}" --maxfail=1 "${cov_page_args[@]}"; then
+        if ! PYTHONPATH="${repo_pythonpath}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${page_test_dirs[@]}" --maxfail=1 "${cov_page_args[@]}"; then
             local rc=$?
             if (( rc == 5 )); then
                 echo -e "${YELLOW}No tests collected for apps-pages suite (exit code 5).${NC}"
