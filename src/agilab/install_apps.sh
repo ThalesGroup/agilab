@@ -30,6 +30,7 @@ DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
 PROMPT_FOR_APPS=1
 FORCE_APP_SELECTION=0
+ALL_APPS_SENTINEL="${INSTALL_ALL_SENTINEL:-__AGILAB_ALL_APPS__}"
 
 
 # Load env + normalize Python version
@@ -337,17 +338,29 @@ done
 
 # --- BUILTIN_APPS: allow manual override via env -----------------------------
 # You can set BUILTIN_APPS or BUILTIN_APPS_OVERRIDE to a comma/space/newline
-# separated list (e.g. "foo_project,bar_project baz_project").
+# separated list (e.g. "foo_project,bar_project baz_project"). Passing the
+# sentinel "__AGILAB_ALL_APPS__" (wired through --install-apps all) skips the
+# picker but keeps the default "install everything" selection.
 if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]/}" ]]; then
-  parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
-  echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
-  PROMPT_FOR_APPS=0
-  FORCE_APP_SELECTION=1
+  if [[ "${BUILTIN_APPS_OVERRIDE}" == "$ALL_APPS_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    echo -e "${BLUE}(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every available app.${NC}"
+  else
+    parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
+    echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
+    PROMPT_FOR_APPS=0
+    FORCE_APP_SELECTION=1
+  fi
 elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]]/}" ]]; then
-  parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
-  echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
-  PROMPT_FOR_APPS=0
-  FORCE_APP_SELECTION=1
+  if [[ "${BUILTIN_APPS_FROM_ENV}" == "$ALL_APPS_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    echo -e "${BLUE}(Apps) Full install requested (--install-apps all); installing every available app.${NC}"
+  else
+    parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
+    echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
+    PROMPT_FOR_APPS=0
+    FORCE_APP_SELECTION=1
+  fi
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
