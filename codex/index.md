@@ -23,7 +23,7 @@ The Codex CLI embeds GPT‑5 Codex workflows directly into AGILab, letting agent
 - Full session transcript: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-example.txt>
 - Productivity comparison (Codex vs. ChatGPT) in the example transcript.
 
-## Working with Codex
+## A Workday with Codex
 
 - Shell summary and usage tips: <https://github.com/ThalesGroup/agilab/tree/main/codex/codex_shell_summary.md>
 - Runbook / AGILab agent matrix: <https://github.com/ThalesGroup/agilab/tree/main/AGENTS.md>
