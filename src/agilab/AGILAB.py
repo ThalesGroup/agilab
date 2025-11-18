@@ -4,9 +4,11 @@
 # Co-author: Codex cli
 """Streamlit entry point for the AGILab interactive lab."""
 import os
+import sys
+import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
@@ -24,8 +26,6 @@ st.session_state.setdefault("env_editor_new_key", "")
 st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
-import sys
-import argparse
 
 from agi_env.pagelib import inject_theme
 
@@ -117,6 +117,81 @@ def openai_status_banner(env):
         )
 
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
+
+
+def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
+    """Return a Path to the requested active app if the input is valid."""
+    if not raw_value:
+        return None
+
+    candidates: list[Path] = []
+    try:
+        provided = Path(raw_value).expanduser()
+    except Exception:
+        return None
+
+    # If the user passed a direct path, trust it first.
+    if provided.is_absolute():
+        candidates.append(provided)
+    else:
+        candidates.append((Path.cwd() / provided).resolve())
+        candidates.append((env.apps_dir / provided).resolve())
+        candidates.append((env.apps_dir / provided.name).resolve())
+
+    # Shortcut when the value already matches a known project name.
+    if raw_value in env.projects:
+        candidates.insert(0, (env.apps_dir / raw_value).resolve())
+    elif provided.name in env.projects:
+        candidates.insert(0, (env.apps_dir / provided.name).resolve())
+
+    for candidate in candidates:
+        try:
+            candidate = candidate.resolve()
+        except OSError:
+            continue
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _apply_active_app_request(env, request_value: Optional[str]) -> bool:
+    """Switch AgiEnv to the requested app name/path; returns True if a change occurred."""
+    target_path = _normalize_active_app_input(env, request_value)
+    if not target_path:
+        return False
+
+    target_name = target_path.name
+    if target_name == env.app:
+        return False
+    try:
+        env.change_app(target_path)
+    except Exception as exc:
+        st.warning(f"Unable to switch to project '{target_name}': {exc}")
+        return False
+    return True
+
+
+def _sync_active_app_from_query(env) -> None:
+    """Honor ?active_app=… query parameter so all pages stay in sync."""
+    try:
+        requested = st.query_params.get("active_app")
+    except Exception:
+        requested = None
+
+    if isinstance(requested, (list, tuple)):
+        requested_value = requested[0] if requested else None
+    else:
+        requested_value = requested
+
+    changed = False
+    if requested_value:
+        changed = _apply_active_app_request(env, str(requested_value))
+
+    if not requested_value or changed or requested_value != env.app:
+        try:
+            st.query_params["active_app"] = env.app
+        except Exception:
+            pass
 
 def _ensure_env_file(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -341,6 +416,12 @@ def main():
             parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (optional; can also use OPENAI_API_KEY)", default=None)
             parser.add_argument("--apps-dir", type=str, help="Where you store your apps (default is ./)",
                                 default=None)
+            parser.add_argument(
+                "--active-app",
+                type=str,
+                help="App name or path to select on startup (mirrors ?active_app= query parameter).",
+                default=None,
+            )
 
             args, _ = parser.parse_known_args()
 
@@ -362,6 +443,8 @@ def main():
             st.session_state["apps_dir"] = str(apps_dir)
 
             env = AgiEnv(apps_dir=apps_dir, verbose=1)
+            # Honor the initial --active-app request, falling back to env default when invalid.
+            _apply_active_app_request(env, args.active_app)
             env.init_done = True
             st.session_state['env'] = env
             st.session_state["IS_SOURCE_ENV"] = env.is_source_env
@@ -384,11 +467,16 @@ def main():
             AgiEnv.set_env_var("APPS_DIR", str(apps_dir))
 
             st.session_state["first_run"] = False
+            try:
+                st.query_params["active_app"] = env.app
+            except Exception:
+                pass
             st.rerun()
         return  # Don't continue
 
     # ---- After init, always show banner+intro and then main UI ----
     env = st.session_state['env']
+    _sync_active_app_from_query(env)
     show_banner_and_intro(resources_path)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
