@@ -1,28 +1,38 @@
-    
-About Jean-Pierre Morard
-        MLOPS tools chain author: https://github.com/ThalesGroup/agilab
-        Intelligent Network Project: https://en.wikipedia.org/wiki/Future_Combat_Air_System
+# Codex CLI Overview
 
-Spec-driven-development with AI Concept
-    https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/
-    https://github.com/github/spec-kit
+The Codex CLI embeds GPT‑5 Codex workflows directly into AGILab, letting agents and humans share the same automation surface. Use this page as a launchpad for background reading, examples, and companion tooling.
 
-What is codex cli
-        https://developers.openai.com/codex/cli/features
-        https://cookbook.openai.com/examples/gpt-5-codex_prompting_guide
+## About Jean-Pierre Morard
 
-Basic Example
-        https://github.com/ThalesGroup/agilab/codex
-        https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-example.txt
-        Codex vs ChatGPT productivity enhancement
+- MLOps toolchain author: <https://github.com/ThalesGroup/agilab>
+- Intelligent Network project: <https://en.wikipedia.org/wiki/Future_Combat_Air_System>
 
-Working with codex
-        https://github.com/ThalesGroup/agilab/tree/main/codex/codex_shell_summary.md
-        https://github.com/ThalesGroup/agilab/tree/main/AGENTS.md
+## Spec-driven Development with AI
 
-100% CODEX generated app Example
-        https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-extract.txt
-        https://github.com/ThalesGroup/agilab/src/agilab/apps/example_app_project
+- Concept intro: <https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/>
+- Toolkit repo: <https://github.com/github/spec-kit>
 
-Standalone Agent:
-        https://github.com/openinterpreter/open-interpreter
+## What Is the Codex CLI?
+
+- Feature tour: <https://developers.openai.com/codex/cli/features>
+- Prompting guide: <https://cookbook.openai.com/examples/gpt-5-codex_prompting_guide>
+
+## Basic Examples
+
+- Repository entry point: <https://github.com/ThalesGroup/agilab/codex>
+- Full session transcript: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-example.txt>
+- Productivity comparison (Codex vs. ChatGPT) in the example transcript.
+
+## Working with Codex
+
+- Shell summary and usage tips: <https://github.com/ThalesGroup/agilab/tree/main/codex/codex_shell_summary.md>
+- Runbook / AGILab agent matrix: <https://github.com/ThalesGroup/agilab/tree/main/AGENTS.md>
+
+## 100% Codex-generated App
+
+- Session extract: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-extract.txt>
+- Resulting project (Flight Clone): <https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/example_app_project>
+
+## Standalone Agents
+
+- Open Interpreter: <https://github.com/openinterpreter/open-interpreter>
