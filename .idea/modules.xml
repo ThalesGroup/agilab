@@ -1,28 +1,26 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-    <component name="ProjectModuleManager">
-        <modules>
-            <module fileurl="file://$PROJECT_DIR$/.idea/agilab.iml" filepath="$PROJECT_DIR$/.idea/agilab.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/agilab.iml" filepath="$PROJECT_DIR$/.idea/modules/agilab.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_autoencoder_latenspace.iml" filepath="$PROJECT_DIR$/.idea/modules/view_autoencoder_latenspace.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_barycentric.iml" filepath="$PROJECT_DIR$/.idea/modules/view_barycentric.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_maps.iml" filepath="$PROJECT_DIR$/.idea/modules/view_maps.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_maps_3d.iml" filepath="$PROJECT_DIR$/.idea/modules/view_maps_3d.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_maps_network.iml" filepath="$PROJECT_DIR$/.idea/modules/view_maps_network.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-cluster.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-cluster.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-env.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-env.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-node.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-node.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/mycode_project.iml" filepath="$PROJECT_DIR$/.idea/modules/mycode_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-        </modules>
-    </component>
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-cluster.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-cluster.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-env.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-env.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-node.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-node.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/agilab.iml" filepath="$PROJECT_DIR$/.idea/modules/agilab.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mycode_project.iml" filepath="$PROJECT_DIR$/.idea/modules/mycode_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_autoencoder_latenspace.iml" filepath="$PROJECT_DIR$/.idea/modules/view_autoencoder_latenspace.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_barycentric.iml" filepath="$PROJECT_DIR$/.idea/modules/view_barycentric.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_maps.iml" filepath="$PROJECT_DIR$/.idea/modules/view_maps.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_maps_3d.iml" filepath="$PROJECT_DIR$/.idea/modules/view_maps_3d.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_maps_network.iml" filepath="$PROJECT_DIR$/.idea/modules/view_maps_network.iml" />
+    </modules>
+  </component>
 </project>
