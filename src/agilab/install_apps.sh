@@ -28,6 +28,7 @@ declare -a INCLUDED_PAGES=()
 declare -a SKIPPED_APP_TESTS=()
 DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
+PROMPT_FOR_APPS=1
 
 
 # Load env + normalize Python version
@@ -339,9 +340,11 @@ done
 if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]/}" ]]; then
   parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
   echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
+  PROMPT_FOR_APPS=0
 elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]]/}" ]]; then
   parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
   echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
+  PROMPT_FOR_APPS=0
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
@@ -397,8 +400,8 @@ for item in "${INCLUDED_APPS[@]}"; do
   fi
 done
 
-# Offer an interactive picker via gum when available.
-if [[ -t 0 ]]; then
+# Offer an interactive picker when we still need confirmation.
+if (( PROMPT_FOR_APPS )) && [[ -t 0 ]]; then
   echo -e "${BLUE}Available apps:${NC}"
   for idx in "${!INCLUDED_APPS_UNIQ[@]}"; do
     printf "  %2d) %s\n" $((idx + 1)) "${INCLUDED_APPS_UNIQ[$idx]}"
