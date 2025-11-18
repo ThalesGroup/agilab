@@ -36,12 +36,17 @@ try:
         load_tle_catalog,
     )
 except ImportError:  # pragma: no cover - optional dependency at runtime
-    from ._satellite_helpers import (
-        DEFAULT_EPOCH,
-        TLEEntry,
-        compute_trajectory,
-        load_tle_catalog,
-    )
+    try:
+        # Local shim bundled with the worker package
+        from flight_clone_worker import sat_trajectory_worker as _satellite_fallback
+    except ImportError:
+        # When invoked top-level (no package context), fall back to sibling module
+        import sat_trajectory_worker as _satellite_fallback
+
+    DEFAULT_EPOCH = _satellite_fallback.DEFAULT_EPOCH
+    TLEEntry = _satellite_fallback.TLEEntry
+    compute_trajectory = _satellite_fallback.compute_trajectory
+    load_tle_catalog = _satellite_fallback.load_tle_catalog
 
 logger = logging.getLogger(__name__)
 
