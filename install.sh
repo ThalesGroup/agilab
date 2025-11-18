@@ -29,6 +29,8 @@ INSTALL_APPS_FLAG=0
 TEST_APPS_FLAG=0
 APPS_REPOSITORY=""
 CUSTOM_INSTALL_APPS=""
+INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
+export INSTALL_ALL_SENTINEL
 
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
@@ -598,6 +600,12 @@ while [[ "$#" -gt 0 ]]; do
             INSTALL_APPS_FLAG=1
             if [[ -n "${2-}" && "${2}" != --* ]]; then
                 CUSTOM_INSTALL_APPS="$2"
+                if [[ -n "$CUSTOM_INSTALL_APPS" ]]; then
+                    lower_val=$(printf '%s' "$CUSTOM_INSTALL_APPS" | tr '[:upper:]' '[:lower:]')
+                    if [[ "$lower_val" == "all" ]]; then
+                        CUSTOM_INSTALL_APPS="$INSTALL_ALL_SENTINEL"
+                    fi
+                fi
                 shift 2
             else
                 shift
@@ -606,6 +614,12 @@ while [[ "$#" -gt 0 ]]; do
         --install-apps=*)
             INSTALL_APPS_FLAG=1
             CUSTOM_INSTALL_APPS="${1#*=}"
+            if [[ -n "$CUSTOM_INSTALL_APPS" ]]; then
+                lower_val=$(printf '%s' "$CUSTOM_INSTALL_APPS" | tr '[:upper:]' '[:lower:]')
+                if [[ "$lower_val" == "all" ]]; then
+                    CUSTOM_INSTALL_APPS="$INSTALL_ALL_SENTINEL"
+                fi
+            fi
             shift
             ;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
