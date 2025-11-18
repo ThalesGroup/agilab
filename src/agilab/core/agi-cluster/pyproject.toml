@@ -1,5 +1,5 @@
 [project]
-version = "2025.11.18.post2"
+version = "2025.11.18.post3"
 name = "agi-cluster"
 description = "agi-cluster a framework for AGI"
 requires-python = ">=3.11"
@@ -64,6 +64,7 @@ dependencies = [
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
+
 
 
 
