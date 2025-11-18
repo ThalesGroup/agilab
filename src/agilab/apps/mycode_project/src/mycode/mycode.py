@@ -43,6 +43,10 @@ class Mycode(BaseWorker):
         self.args.data_out = share_root / self.args.data_out
         self.data_out = self.args.data_out
 
+        # The mycode tests expect the data source directory to exist immediately
+        # after instantiation so fixtures can write files into it.
+        self.args.data_in.mkdir(parents=True, exist_ok=True)
+
         WorkDispatcher.args = self.args.model_dump(mode="json")
 
         try:
