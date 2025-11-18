@@ -30,7 +30,8 @@ TEST_APPS_FLAG=0
 APPS_REPOSITORY=""
 CUSTOM_INSTALL_APPS=""
 INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
-export INSTALL_ALL_SENTINEL
+INSTALL_BUILTIN_SENTINEL="__AGILAB_BUILTIN_APPS__"
+export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL
 
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
@@ -580,7 +581,7 @@ install_pycharm_script() {
 }
 
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...]] [--test-apps]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps]"
     exit 1
 }
 
@@ -604,6 +605,8 @@ while [[ "$#" -gt 0 ]]; do
                     lower_val=$(printf '%s' "$CUSTOM_INSTALL_APPS" | tr '[:upper:]' '[:lower:]')
                     if [[ "$lower_val" == "all" ]]; then
                         CUSTOM_INSTALL_APPS="$INSTALL_ALL_SENTINEL"
+                    elif [[ "$lower_val" == "builtin" || "$lower_val" == "built-in" ]]; then
+                        CUSTOM_INSTALL_APPS="$INSTALL_BUILTIN_SENTINEL"
                     fi
                 fi
                 shift 2
@@ -618,6 +621,8 @@ while [[ "$#" -gt 0 ]]; do
                 lower_val=$(printf '%s' "$CUSTOM_INSTALL_APPS" | tr '[:upper:]' '[:lower:]')
                 if [[ "$lower_val" == "all" ]]; then
                     CUSTOM_INSTALL_APPS="$INSTALL_ALL_SENTINEL"
+                elif [[ "$lower_val" == "builtin" || "$lower_val" == "built-in" ]]; then
+                    CUSTOM_INSTALL_APPS="$INSTALL_BUILTIN_SENTINEL"
                 fi
             fi
             shift

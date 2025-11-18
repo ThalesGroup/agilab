@@ -31,6 +31,9 @@ DATA_URI_PATH=""
 PROMPT_FOR_APPS=1
 FORCE_APP_SELECTION=0
 ALL_APPS_SENTINEL="${INSTALL_ALL_SENTINEL:-__AGILAB_ALL_APPS__}"
+BUILTIN_ONLY_SENTINEL="${INSTALL_BUILTIN_SENTINEL:-__AGILAB_BUILTIN_APPS__}"
+NEED_APP_DISCOVERY=1
+FORCE_BUILTIN_ONLY=0
 
 
 # Load env + normalize Python version
@@ -344,24 +347,42 @@ done
 if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]/}" ]]; then
   if [[ "${BUILTIN_APPS_OVERRIDE}" == "$ALL_APPS_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
     echo -e "${BLUE}(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every available app.${NC}"
+  elif [[ "${BUILTIN_APPS_OVERRIDE}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
+    FORCE_BUILTIN_ONLY=1
+    SKIP_REPOSITORY_APPS=1
+    echo -e "${BLUE}(Apps) Built-in install requested; repository apps will be skipped.${NC}"
   else
     parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
     echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
     PROMPT_FOR_APPS=0
     FORCE_APP_SELECTION=1
+    NEED_APP_DISCOVERY=0
   fi
 elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]]/}" ]]; then
   if [[ "${BUILTIN_APPS_FROM_ENV}" == "$ALL_APPS_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
     echo -e "${BLUE}(Apps) Full install requested (--install-apps all); installing every available app.${NC}"
+  elif [[ "${BUILTIN_APPS_FROM_ENV}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
+    FORCE_BUILTIN_ONLY=1
+    SKIP_REPOSITORY_APPS=1
+    echo -e "${BLUE}(Apps) Built-in install requested (--install-apps builtin); repository apps will be skipped.${NC}"
   else
     parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
     echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
     PROMPT_FOR_APPS=0
     FORCE_APP_SELECTION=1
+    NEED_APP_DISCOVERY=0
   fi
-else
+fi
+
+if (( NEED_APP_DISCOVERY )); then
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
     if [[ " ${BUILTIN_APPS[@]-} " != *" ${dir_name} "* ]]; then
@@ -385,6 +406,10 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
   else
     REPOSITORY_APPS=()
   fi
+fi
+
+if (( FORCE_BUILTIN_ONLY )); then
+  REPOSITORY_APPS=()
 fi
 
 if (( FORCE_APP_SELECTION )); then
