@@ -29,6 +29,7 @@ declare -a SKIPPED_APP_TESTS=()
 DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
 PROMPT_FOR_APPS=1
+FORCE_APP_SELECTION=0
 
 
 # Load env + normalize Python version
@@ -341,10 +342,12 @@ if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]
   parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
   echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
   PROMPT_FOR_APPS=0
+  FORCE_APP_SELECTION=1
 elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]]/}" ]]; then
   parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
   echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
   PROMPT_FOR_APPS=0
+  FORCE_APP_SELECTION=1
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
@@ -371,7 +374,9 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
   fi
 fi
 
-if (( SKIP_REPOSITORY_APPS == 0 )); then
+if (( FORCE_APP_SELECTION )); then
+  INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
+elif (( SKIP_REPOSITORY_APPS == 0 )); then
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"} ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
 else
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
@@ -385,7 +390,7 @@ for item in "${BUILTIN_APPS[@]}"; do
     ALL_APPS+=("$item")
   fi
 done
-if (( SKIP_REPOSITORY_APPS == 0 )); then
+if (( ! FORCE_APP_SELECTION && SKIP_REPOSITORY_APPS == 0 )); then
   for item in "${REPOSITORY_APPS[@]}"; do
     [[ -z "$item" ]] && continue
     if [[ " ${ALL_APPS[*]} " != *" ${item} "* ]]; then
