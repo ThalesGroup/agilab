@@ -1,14 +1,20 @@
+    
+About Jean-Pierre Morard
+        MLOPS tools chain author: https://github.com/ThalesGroup/agilab
+        Intelligent Network Project: https://en.wikipedia.org/wiki/Future_Combat_Air_System
+
+Spec-driven-development with AI Concept
+    https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/
+    https://github.com/github/spec-kit
+
 What is codex cli
         https://developers.openai.com/codex/cli/features
-
-Why Jean-Pierre Morard
-        https://en.wikipedia.org/wiki/Future_Combat_Air_System
-        https://github.com/ThalesGroup/agilab
+        https://cookbook.openai.com/examples/gpt-5-codex_prompting_guide
 
 Basic Example
         https://github.com/ThalesGroup/agilab/codex
         https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-example.txt
-        Codex vs ChatGPT productivité enhancement
+        Codex vs ChatGPT productivity enhancement
 
 Working with codex
         https://github.com/ThalesGroup/agilab/tree/main/codex/codex_shell_summary.md

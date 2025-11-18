@@ -16,6 +16,8 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+export PATH="$HOME/.local/bin:$PATH"
+
 UV="uv --preview-features extra-build-dependencies"
 
 AGI_INSTALL_PATH="$(realpath '.')"
@@ -26,6 +28,7 @@ SOURCE="local"
 INSTALL_APPS_FLAG=0
 TEST_APPS_FLAG=0
 APPS_REPOSITORY=""
+CUSTOM_INSTALL_APPS=""
 
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
@@ -197,6 +200,93 @@ set_locale() {
     fi
     export LC_ALL=en_US.UTF-8
     export LANG=en_US.UTF-8
+}
+
+install_gum() {
+    if command -v gum >/dev/null 2>&1; then
+        echo -e "${BLUE}gum already installed.${NC}"
+        return
+    fi
+    echo -e "${BLUE}Installing gum (terminal selector)...${NC}"
+    # Use Homebrew when available (macOS/Linux)
+    if command -v brew >/dev/null 2>&1; then
+        if brew list gum >/dev/null 2>&1; then
+            brew upgrade gum >/dev/null 2>&1 || true
+        else
+            brew install gum >/dev/null 2>&1 || {
+                warn "Homebrew install of gum failed. Falling back to manual download."
+                unset brew_installed
+            }
+        fi
+        if command -v gum >/dev/null 2>&1; then
+            echo -e "${GREEN}gum installed via Homebrew.${NC}"
+            return
+        fi
+    fi
+    local platform arch url tmp tarball target_dir install_target
+    platform="$(uname -s)"
+    arch="$(uname -m)"
+    case "$platform" in
+        Darwin|Linux) ;;
+        *)
+            warn "gum auto-install unsupported on $platform. Install manually from https://github.com/charmbracelet/gum."
+            return
+            ;;
+    esac
+    case "$arch" in
+        x86_64|amd64) arch="x86_64" ;;
+        arm64|aarch64) arch="arm64" ;;
+        *)
+            warn "gum auto-install unsupported on architecture $arch. Install manually."
+            return
+            ;;
+    esac
+    local version tag_api
+    tag_api="https://api.github.com/repos/charmbracelet/gum/releases/latest"
+    version=$(curl -fsSL "$tag_api" | grep -m1 '"tag_name"' | cut -d '"' -f4)
+    version=${version#v}
+    if [[ -z "$version" ]]; then
+        warn "Unable to determine latest gum version from GitHub. Install manually."
+        return
+    fi
+    url="https://github.com/charmbracelet/gum/releases/download/v${version}/gum_${version}_${platform}_${arch}.tar.gz"
+    tmp="$(mktemp -d)"
+    tarball="$tmp/gum.tar.gz"
+    if ! curl -fsSL "$url" -o "$tarball"; then
+        warn "Failed to download gum archive from $url"
+        rm -rf "$tmp"
+        return
+    fi
+    if ! tar -xzf "$tarball" -C "$tmp"; then
+        warn "Failed to extract gum archive at $tarball"
+        rm -rf "$tmp"
+        return
+    fi
+    local extracted_gum
+    if [[ -f "$tmp/gum" ]]; then
+        extracted_gum="$tmp/gum"
+    else
+        extracted_gum="$(find "$tmp" -type f -name gum -print -quit)"
+    fi
+    if [[ -z "$extracted_gum" ]]; then
+        warn "gum binary not found in archive."
+        rm -rf "$tmp"
+        return
+    fi
+    if [[ -w /usr/local/bin ]]; then
+        target_dir="/usr/local/bin"
+    else
+        target_dir="$HOME/.local/bin"
+        mkdir -p "$target_dir"
+    fi
+    install_target="$target_dir/gum"
+    if mv "$extracted_gum" "$install_target"; then
+        chmod +x "$install_target"
+        echo -e "${GREEN}gum installed at $install_target.${NC}"
+    else
+        warn "Failed to move gum binary into place; leaving it under $tmp."
+    fi
+    rm -rf "$tmp"
 }
 
 install_dependencies() {
@@ -454,9 +544,16 @@ install_apps() {
   if (( TEST_APPS_FLAG )); then
     install_args+=(--test-apps)
   fi
-  APPS_DEST_BASE="${agilab_public}/apps" \
-  PAGES_DEST_BASE="${agilab_public}/apps-pages" \
-    ./install_apps.sh "${install_args[@]}"
+  if [[ -n "$CUSTOM_INSTALL_APPS" ]]; then
+    APPS_DEST_BASE="${agilab_public}/apps" \
+    PAGES_DEST_BASE="${agilab_public}/apps-pages" \
+    BUILTIN_APPS="$CUSTOM_INSTALL_APPS" \
+      ./install_apps.sh "${install_args[@]}"
+  else
+    APPS_DEST_BASE="${agilab_public}/apps" \
+    PAGES_DEST_BASE="${agilab_public}/apps-pages" \
+      ./install_apps.sh "${install_args[@]}"
+  fi
   popd > /dev/null
 }
 
@@ -467,7 +564,7 @@ install_pycharm_script() {
 }
 
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...]] [--test-apps]"
     exit 1
 }
 
@@ -483,7 +580,20 @@ while [[ "$#" -gt 0 ]]; do
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;
-        --install-apps)       INSTALL_APPS_FLAG=1; shift;;
+        --install-apps)
+            INSTALL_APPS_FLAG=1
+            if [[ -n "${2-}" && "${2}" != --* ]]; then
+                CUSTOM_INSTALL_APPS="$2"
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --install-apps=*)
+            INSTALL_APPS_FLAG=1
+            CUSTOM_INSTALL_APPS="${1#*=}"
+            shift
+            ;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
@@ -509,6 +619,7 @@ fi
 check_internet
 set_locale
 install_dependencies
+install_gum
 choose_python_version
 backup_existing_project
 copy_project_files
