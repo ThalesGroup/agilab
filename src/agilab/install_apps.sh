@@ -604,37 +604,41 @@ popd >/dev/null
 pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
-  if ! check_data_mount "$app"; then
+  app_name="$app"
+  if [[ ! -d "$app_name" && -d "${app_name}_project" ]]; then
+    app_name="${app_name}_project"
+  fi
+  if ! check_data_mount "$app_name"; then
     rc=$?
     if (( rc == 2 )); then
-      SKIPPED_APP_TESTS+=("$app")
-      echo -e "${YELLOW}Warning:${NC} data storage unavailable for '$app' (${DATA_CHECK_MESSAGE}). Skipping install/apps-test stage."
+      SKIPPED_APP_TESTS+=("$app_name")
+      echo -e "${YELLOW}Warning:${NC} data storage unavailable for '$app_name' (${DATA_CHECK_MESSAGE}). Skipping install/apps-test stage."
       continue
     fi
-    echo -e "${RED}Error checking data availability for '$app':${NC} ${DATA_CHECK_MESSAGE:-"unknown error"}"
+    echo -e "${RED}Error checking data availability for '$app_name':${NC} ${DATA_CHECK_MESSAGE:-"unknown error"}"
     status=1
     continue
   fi
 
-  echo -e "${BLUE}Installing $app...${NC}"
-  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_PUBLIC}/apps/$app\""
+  echo -e "${BLUE}Installing $app_name...${NC}"
+  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_PUBLIC}/apps/$app_name\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
-    "${AGILAB_PUBLIC}/apps/$app"; then
-      echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
+    "${AGILAB_PUBLIC}/apps/$app_name"; then
+      echo -e "${GREEN}✓ '$app_name' successfully installed.${NC}"
       echo -e "${GREEN}Checking installation...${NC}"
-      if pushd -- "$app" >/dev/null; then
+      if pushd -- "$app_name" >/dev/null; then
       if [[ -f app_test.py ]]; then
         echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
         "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
       else
-          echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
+          echo -e "${BLUE}No app_test.py in $app_name, skipping tests.${NC}"
       fi
       popd >/dev/null
       else
       echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
       fi
   else
-      echo -e "${RED}✗ '$app' installation failed.${NC}"
+      echo -e "${RED}✗ '$app_name' installation failed.${NC}"
       status=1
   fi
 done
@@ -645,19 +649,27 @@ popd >/dev/null
 if (( DO_TEST_APPS )); then
   echo -e "${BLUE}Running pytest for installed apps...${NC}"
   pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
-  for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
-    if [[ ! -d "$app" ]]; then
+for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
+  app_name="$app"
+  if [[ ! -d "$app_name" && -d "${app_name}_project" ]]; then
+    app_name="${app_name}_project"
+  fi
+  if [[ ! -d "$app" ]]; then
+    if [[ -d "$app_name" ]]; then
+      app="$app_name"
+    else
       echo -e "${YELLOW}Skipping pytest for '$app': directory not found.${NC}"
       continue
     fi
-    if [[ " ${SKIPPED_APP_TESTS[*]} " == *" $app "* ]]; then
-      echo -e "${YELLOW}Skipping pytest for '$app': data storage unavailable earlier.${NC}"
-      continue
-    fi
-    echo -e "${BLUE}[pytest] $app${NC}"
-    if pushd -- "$app" >/dev/null; then
-      if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
-        echo -e "${GREEN}✓ pytest succeeded for '$app'.${NC}"
+  fi
+  if [[ " ${SKIPPED_APP_TESTS[*]} " == *" $app_name "* ]]; then
+    echo -e "${YELLOW}Skipping pytest for '$app_name': data storage unavailable earlier.${NC}"
+    continue
+  fi
+  echo -e "${BLUE}[pytest] $app_name${NC}"
+  if pushd -- "$app_name" >/dev/null; then
+    if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
+      echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
         rc=$?
         if (( rc == 5 )); then
