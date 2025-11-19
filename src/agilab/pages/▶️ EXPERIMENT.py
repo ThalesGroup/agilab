@@ -1748,7 +1748,8 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
-    modules = st.session_state.get("modules", scan_dir(Agi_export_abs))
+    modules = scan_dir(Agi_export_abs)
+    st.session_state['modules'] = modules
 
     provider_options = {
         "OpenAI (online)": "openai",
