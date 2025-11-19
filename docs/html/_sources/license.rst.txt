@@ -11,4 +11,3 @@ Licenses
    agi-core-licenses
    mycode-project-licenses
    flight-project-licenses
-   example-app-project-licenses
