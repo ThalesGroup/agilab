@@ -47,4 +47,4 @@ src/*_worker_*/
 src/agilab/apps/flight_clone_project
 src/agilab/apps/ilp_project
 src/agilab/apps/sat_trajectory_project
-src/agilab/apps/sb3_trainer_project
+src/agilab/apps/network_sim_project
