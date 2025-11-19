@@ -42,3 +42,9 @@ src/*_worker_*/
 .idea/sqlDataSources.xml
 .idea/dynamic.xml
 .idea/runConfigurations/_*.xml
+
+# Local app symlinks
+src/agilab/apps/example_app_project
+src/agilab/apps/example_app_project
+src/agilab/apps/example_app_project
+src/agilab/apps/example_app_project
