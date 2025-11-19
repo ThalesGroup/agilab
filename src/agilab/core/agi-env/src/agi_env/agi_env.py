@@ -1433,7 +1433,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
         self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
-        self.runenv = self.examples / self.target
+        runenv_base = AGILAB_LOG_ABS / "execute"
+        runenv_base.mkdir(parents=True, exist_ok=True)
+        self.runenv = runenv_base / self.target
+        self.runenv.mkdir(parents=True, exist_ok=True)
         AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export"))
         if not AGILAB_EXPORT_ABS.exists():
             AGILAB_EXPORT_ABS.mkdir(parents=True)
