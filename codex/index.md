@@ -32,7 +32,8 @@ The Codex CLI embeds GPT‑5 Codex workflows directly into AGILab, letting agent
 ## 100% Codex-generated App
 
 - Session extract: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-extract.txt>
-- Resulting project (Flight Clone): <https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/example_app_project>
+- Resulting project (Flight Clone): send email to focus@thalesgroup.com
+- Request the Flight Clone project to focus@thalesgroup.com
 
 ## Standalone Agents
 
