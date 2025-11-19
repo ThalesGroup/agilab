@@ -56,6 +56,17 @@ credentials with permission to deploy workers. See :doc:`cluster` for the full
 workflow. ``pycharm/setup_pycharm.py`` mirrors Streamlit run configurations to
 ``~/log/execute/<app>/AGI_*.py`` so that IDE and CLI stay in sync.
 
+.. note::
+
+   On a virgin workspace you do not need to hand-create
+   ``~/log/execute/<app>`` snippets. The installer dispatcher
+   (``src/agilab/apps/install.py``) calls ``_seed_example_scripts`` before
+   kicking off AGI, copying each ``AGI_*.py`` helper from
+   ``src/agilab/examples/<app>/`` into ``~/log/execute/<app>/`` so the first
+   install has runnable mirrors. After that initial bootstrap, the Streamlit
+   EXECUTE page re-generates the snippets on demand according to the form
+   inputs you provide, keeping IDE and CLI flows in sync.
+
 Next steps
 ^^^^^^^^^^
 
