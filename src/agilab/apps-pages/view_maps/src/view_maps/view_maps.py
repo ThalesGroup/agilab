@@ -18,6 +18,7 @@ from pathlib import Path
 import sys
 
 import pandas as pd
+from pandas.api.types import is_integer_dtype, is_numeric_dtype
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
@@ -414,6 +415,14 @@ def page(env):
         step=1,
     )
 
+    range_threshold = st.sidebar.number_input(
+        "Integer discrete range (max-min <=)",
+        min_value=1,
+        max_value=10000,
+        value=200,
+        step=1,
+    )
+
     # Loop through numeric columns and classify them based on the unique value count.
     for col in numeric_cols:
         if df[col].nunique() < unique_threshold:
@@ -426,6 +435,21 @@ def page(env):
 
     # Combine numeric discrete and object discrete variables
     discrete_cols = discrete_numeric_cols + discrete_object_cols
+
+    # Re-classify integer columns with limited range as discrete to avoid sliders
+    for col in numeric_cols:
+        if not is_integer_dtype(df[col]):
+            continue
+        try:
+            value_range = df[col].max() - df[col].min()
+        except TypeError:
+            continue
+        if pd.isna(value_range) or value_range > range_threshold:
+            continue
+        if col in continuous_cols:
+            continuous_cols.remove(col)
+        if col not in discrete_cols:
+            discrete_cols.append(col)
     discreteseq = None
     colorscale = None
 
@@ -514,13 +538,24 @@ def page(env):
         if viewport:
             map_cfg.update(viewport)
 
+    plot_df = st.session_state.loaded_df
+    color_column = st.session_state.get(st.session_state.get("coltype", ""), None)
+    if (
+        st.session_state.get("coltype") == "discrete"
+        and color_column
+        and color_column in plot_df.columns
+        and is_numeric_dtype(plot_df[color_column])
+    ):
+        plot_df = plot_df.copy()
+        plot_df[color_column] = plot_df[color_column].astype("Int64").astype(str)
+
     if st.session_state.get("lat") and st.session_state.get("long"):
         if st.session_state.get("coltype") and st.session_state.get(st.session_state["coltype"]):
             if discreteseq:
                 # Get the color sequence
                 color_sequence = getattr(px.colors.qualitative, discreteseq)
                 fig = px.scatter_mapbox(
-                    st.session_state.loaded_df,
+                    plot_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
                     zoom=map_cfg["default_zoom"],
@@ -530,7 +565,7 @@ def page(env):
                 )
             elif colorscale:
                 fig = px.scatter_mapbox(
-                    st.session_state.loaded_df,
+                    plot_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
                     zoom=map_cfg["default_zoom"],
@@ -540,7 +575,7 @@ def page(env):
                 )
             else:
                 fig = px.scatter_mapbox(
-                    st.session_state.loaded_df,
+                    plot_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
                     zoom=map_cfg["default_zoom"],
