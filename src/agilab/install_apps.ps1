@@ -167,6 +167,28 @@ function Join-PathSafe {
     return $combined
 }
 
+function Resolve-AppDirectoryName {
+    param(
+        [string]$AppsRoot,
+        [string]$AppName
+    )
+    if ([string]::IsNullOrWhiteSpace($AppsRoot) -or [string]::IsNullOrWhiteSpace($AppName)) {
+        return $null
+    }
+    $normalizedRoot = Normalize-PathInput $AppsRoot
+    $candidates = @($AppName)
+    if (-not $AppName.EndsWith("_project", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $candidates += ("{0}_project" -f $AppName)
+    }
+    foreach ($candidate in $candidates) {
+        $candidatePath = Join-PathSafe $normalizedRoot $candidate
+        if (Test-Path -LiteralPath $candidatePath) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
 function Remove-Link {
     param([Parameter(Mandatory=$true)][string]$Path)
     if (-not (Is-Link $Path)) { return }
@@ -389,6 +411,63 @@ $includedApps = if ($SkipRepositoryApps) { $builtinApps } else { $builtinApps + 
 $includedPages = $includedPages | Select-Object -Unique
 $includedApps  = $includedApps  | Select-Object -Unique
 
+$interactiveSession = $true
+if ([Console]::IsInputRedirected) { $interactiveSession = $false }
+if ($Host.Name -eq 'ServerRemoteHost') { $interactiveSession = $false }
+
+if ($includedApps.Count -gt 0) {
+    if ($interactiveSession) {
+        Write-Color BLUE "Available apps:"
+        for ($idx = 0; $idx -lt $includedApps.Count; $idx++) {
+            $label = ("  {0,2}) {1}" -f ($idx + 1), $includedApps[$idx])
+            Write-Host $label
+        }
+        $selection = Read-Host "Numbers/ranges (1 3-5, blank = all)"
+        if (-not [string]::IsNullOrWhiteSpace($selection)) {
+            $tokens = $selection -split '[,\s]+' | Where-Object { $_ -ne '' }
+            $picked = New-Object System.Collections.Generic.List[string]
+            foreach ($token in $tokens) {
+                if ($token -match '^(?<start>\d+)-(?<end>\d+)$') {
+                    $start = [int]$Matches['start']
+                    $end = [int]$Matches['end']
+                    if ($end -lt $start) {
+                        Write-Color YELLOW ("Ignoring invalid range: {0}" -f $token)
+                        continue
+                    }
+                    for ($num = $start; $num -le $end; $num++) {
+                        $idx = $num - 1
+                        if ($idx -ge 0 -and $idx -lt $includedApps.Count) {
+                            $value = $includedApps[$idx]
+                            if (-not $picked.Contains($value)) {
+                                [void]$picked.Add($value)
+                            }
+                        } else {
+                            Write-Color YELLOW ("Ignoring out-of-range selection: {0}" -f $num)
+                        }
+                    }
+                } elseif ($token -match '^\d+$') {
+                    $idx = [int]$token - 1
+                    if ($idx -ge 0 -and $idx -lt $includedApps.Count) {
+                        $value = $includedApps[$idx]
+                        if (-not $picked.Contains($value)) {
+                            [void]$picked.Add($value)
+                        }
+                    } else {
+                        Write-Color YELLOW ("Ignoring out-of-range selection: {0}" -f $token)
+                    }
+                } else {
+                    Write-Color YELLOW ("Ignoring invalid selection: {0}" -f $token)
+                }
+            }
+            if ($picked.Count -gt 0) {
+                $includedApps = [string[]]$picked.ToArray()
+            }
+        }
+    } else {
+        Write-Color YELLOW ("Non-interactive session detected; installing default apps: {0}." -f ($includedApps -join ' '))
+    }
+}
+
 $allPages = @()
 Add-Unique ([ref]$allPages) $builtinPages
 Add-Unique ([ref]$allPages) $repositoryPages
@@ -559,16 +638,23 @@ if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $a
 if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRoot)) {
     Push-Location $appsRoot
     foreach ($app in $includedApps) {
-        Write-Color BLUE ("Installing {0}..." -f $app)
+        $appDirName = Resolve-AppDirectoryName -AppsRoot $appsRoot -AppName $app
+        if (-not $appDirName) {
+            Write-Color YELLOW ("Skipping '{0}': directory not found under {1}." -f $app, $appsRoot)
+            $status = 1
+            continue
+        }
+        $displayName = if ($appDirName -ne $app) { "{0} (selected: {1})" -f $appDirName, $app } else { $appDirName }
+        Write-Color BLUE ("Installing {0}..." -f $displayName)
         $installArgs = @("-q", "run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
-        $installArgs += @("--project", "../core/agi-cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps/$app"))
+        $installArgs += @("--project", "../core/agi-cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps" $appDirName))
         $installExit = Invoke-UvPreview @($installArgs)
         if ($installExit -eq 0) {
-            Write-Color GREEN ("{0} successfully installed." -f $app)
+            Write-Color GREEN ("{0} successfully installed." -f $appDirName)
             Write-Color GREEN "Checking installation..."
-            if (Test-Path -LiteralPath $app) {
-                Push-Location $app
+            if (Test-Path -LiteralPath $appDirName) {
+                Push-Location $appDirName
                 if (Test-Path -LiteralPath "app_test.py") {
                     $testArgs = @("run", "--no-sync")
                     if ($AGI_PYTHON_VERSION) { $testArgs += @("-p", $AGI_PYTHON_VERSION) }
@@ -578,14 +664,14 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
                         $status = 1
                     }
                 } else {
-                    Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $app)
+                    Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $appDirName)
                 }
                 Pop-Location
             } else {
-                Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $app)
+                Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
             }
         } else {
-            Write-Color RED ("{0} installation failed." -f $app)
+            Write-Color RED ("{0} installation failed." -f $appDirName)
             $status = 1
         }
     }
@@ -601,21 +687,22 @@ if ($DoTestApps) {
     if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRoot)) {
         Push-Location $appsRoot
         foreach ($app in $includedApps) {
-            if (-not (Test-Path -LiteralPath $app)) {
+            $appDirName = Resolve-AppDirectoryName -AppsRoot $appsRoot -AppName $app
+            if (-not $appDirName) {
                 Write-Color YELLOW ("Skipping pytest for '{0}': directory not found." -f $app)
                 continue
             }
-            Write-Color BLUE ("[pytest] {0}" -f $app)
-            Push-Location $app
+            Write-Color BLUE ("[pytest] {0}" -f $appDirName)
+            Push-Location $appDirName
             $pytestArgs = @("run", "--no-sync")
             if ($AGI_PYTHON_VERSION) { $pytestArgs += @("-p", $AGI_PYTHON_VERSION) }
             $pytestArgs += @("--project", ".", "pytest")
             $pytestExit = Invoke-UvPreview @($pytestArgs)
             switch ($pytestExit) {
-                0 { Write-Color GREEN ("pytest succeeded for '{0}'." -f $app) }
-                5 { Write-Color YELLOW ("No tests collected for '{0}'." -f $app) }
+                0 { Write-Color GREEN ("pytest succeeded for '{0}'." -f $appDirName) }
+                5 { Write-Color YELLOW ("No tests collected for '{0}'." -f $appDirName) }
                 default {
-                    Write-Color RED ("pytest failed for '{0}' (exit code {1})." -f $app, $pytestExit)
+                    Write-Color RED ("pytest failed for '{0}' (exit code {1})." -f $appDirName, $pytestExit)
                     $status = 1
                 }
             }
