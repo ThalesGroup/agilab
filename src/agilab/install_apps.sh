@@ -581,6 +581,8 @@ done
 fi
 
 append_unique INCLUDED_APPS_UNIQ ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}
+INCLUDED_PAGES=("${INCLUDED_PAGES_UNIQ[@]}")
+INCLUDED_APPS=("${INCLUDED_APPS_UNIQ[@]}")
 
 # --- Run installer for each page (stable CWD so ../core/agi-cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
