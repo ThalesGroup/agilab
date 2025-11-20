@@ -50,6 +50,9 @@ Use this runbook whenever you:
   `~/.local/share/agilab/.env`. On this machine it resolves to `/Users/example/PycharmProjects/agilab-apps`.
   The installer auto-creates symlinks so missing workers
   resolve without manual action.
+- **notebooks checkout**: `src/agilab/apps/example_app_project` now lives only in the shared apps repo.
+  Keep a local symlink (e.g., `src/agilab/apps/example_app_project -> ../../../../agilab-apps/...`) but
+  never stage or commit that link in either repository.
 - **Manager class aliases**: Every app module must expose both the legacy name and its ``*App`` variant
   (for example `Example AppApp` and `Example App`) so older installers keep working. Add or preserve these
   subclasses whenever you touch an app manager.
