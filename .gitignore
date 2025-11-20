@@ -42,5 +42,5 @@ src/*_worker_*/
 .idea/sqlDataSources.xml
 .idea/dynamic.xml
 .idea/runConfigurations/_*.xml
-src/apps/*_project
+src/agilab/apps/*_project
 
