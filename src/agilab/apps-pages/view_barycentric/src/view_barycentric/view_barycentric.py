@@ -588,7 +588,7 @@ def main():
                 "--active-app",
                 dest="active_app",
                 type=str,
-                help="Active app path (e.g. src/agilab/apps/flight_project)",
+                help="Active app path (e.g. src/agilab/apps/builtin/flight_project)",
                 required=True,
             )
             args, _ = parser.parse_known_args()
