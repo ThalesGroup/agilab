@@ -50,6 +50,10 @@ Use this runbook whenever you:
   `~/.local/share/agilab/.env`. On this machine it resolves to `/Users/example/PycharmProjects/agilab-apps`.
   The installer auto-creates symlinks so missing workers
   resolve without manual action.
+- **Core mirror symlink**: The `agilab-apps` checkout no longer contains its own `agilab/` tree. Create a
+  local (untracked) symlink named `core` at the repo root that points to the upstream checkout
+  (`ln -s ../agilab/src/agilab/core core`). This keeps docs tooling aligned with the shared source
+  without duplicating files.
 - **notebooks checkout**: `src/agilab/apps/example_app_project` now lives only in the shared apps repo.
   Keep a local symlink (e.g., `src/agilab/apps/example_app_project -> ../../../../agilab-apps/...`) but
   never stage or commit that link in either repository.
