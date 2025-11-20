@@ -123,7 +123,11 @@ async def main():
             description="Run AGILAB application with custom options."
         )
 
-        parser.add_argument("active_app", type=str, help="Path to the app project (e.g. src/agilab/apps/flight_project)")
+        parser.add_argument(
+            "active_app",
+            type=str,
+            help="Path to the app project (e.g. src/agilab/apps/builtin/flight_project)",
+        )
 
         parser.add_argument(
             "--verbose", type=int, default=1, help="Verbosity level (1-3 default: 1)"
