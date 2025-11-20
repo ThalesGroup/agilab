@@ -10,7 +10,6 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_trajectory_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_trajectory_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/ilp_project.iml" filepath="$PROJECT_DIR$/.idea/modules/ilp_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/link_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/link_sim_project.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mycode_project.iml" filepath="$PROJECT_DIR$/.idea/modules/mycode_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/network_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/network_sim_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/sat_trajectory_project.iml" filepath="$PROJECT_DIR$/.idea/modules/sat_trajectory_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/satcom_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/satcom_sim_project.iml" />
