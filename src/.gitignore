@@ -33,3 +33,4 @@ src/*-info/
 /thales/
 
 .coverage*
+apps/*_project
