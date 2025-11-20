@@ -477,7 +477,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
   - Cluster install error handling (install.sh, src/agilab/core/agi-cluster/...) – “name 'Palth' is not defined” during AGI_install_flight in that session shows the need for defensive scripting across multiple files: the installer wrapper, distributor CLI, and logging docs that explain failure modes.
   - Credential paths & optional SSH state (install.sh --cluster-ssh-credentials …) – same session insists that providing --cluster-ssh-credentials should make .ssh optional. That impacts install scripts, docs (to clarify expectations), and automated tests that cover both password and key paths.
   - PyCharm helper permissions (pycharm/setup_pycharm.py) – “zsh: permission denied” reveals the helper script lacks execute bits; remediation spans version control attributes, installer post-steps, and DevEx docs.
-  - Mixed-user paths during example runs (src/agilab/apps/flight_project/.venv, src/agilab/examples/flight/AGI_run_flight.py) – the PermissionError showing .../jpm/... while logged in as agi (same session) exposes environment inheritance bugs. Capability: ensure install scripts rewrite shebangs, doc paths, and example tests so runs succeed across users.
+  - Mixed-user paths during example runs (src/agilab/apps/builtin/flight_project/.venv, src/agilab/examples/flight/AGI_run_flight.py) – the PermissionError showing .../jpm/... while logged in as agi (same session) exposes environment inheritance bugs. Capability: ensure install scripts rewrite shebangs, doc paths, and example tests so runs succeed across users.
   - Shared variable naming (apps_DIRS vs alternatives) – user insisted on a single canonical variable and reminded that apps_DIRS might live at other relative locations. That’s a code/config/docs synchronization use case touching CLI wrappers, Streamlit pages, and README snippets (session ~/.codex/sessions/2025/11/06/...).
   - EXECUTE page vs examples alignment (“all examples are fixed? is EXECUTE page aligned”) – reinforces the need to update both docs (src/agilab/examples/*, docs/html/*) and UI code whenever example commands change, plus smoke tests to ensure parity (same session file).
 
@@ -552,7 +552,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Heavy-Hitter Logs
 
-  - /Users/agi/.codex/sessions/2025/11/07/rollout-2025-11-07T09-22-27-019a5d68-e838-75c3-87b9-d9a2dc7c25c5.jsonl — 591 distinct files mentioned (docs 62, tests 111, install/setup 43); includes everything from src/agilab/apps/flight_project/src/app_args_form.py through the template workers and their unit tests, so it spans docs, app code, worker tests, and
+  - /Users/agi/.codex/sessions/2025/11/07/rollout-2025-11-07T09-22-27-019a5d68-e838-75c3-87b9-d9a2dc7c25c5.jsonl — 591 distinct files mentioned (docs 62, tests 111, install/setup 43); includes everything from src/agilab/apps/builtin/flight_project/src/app_args_form.py through the template workers and their unit tests, so it spans docs, app code, worker tests, and
     deployment scripts in one use case.
   - /Users/agi/.codex/sessions/2025/11/13/rollout-2025-11-13T10-41-38-019a7c97-9018-74e0-9d34-ef42ed4637c6.jsonl — 565 files (docs 92, tests 38, install 38); dominated by ../thales_agilab/docs/source/*.rst, generated *-licenses.md, and the various install.sh references, indicating a doc rebuild plus install/test sweep.
   - /Users/agi/.codex/sessions/2025/11/14/rollout-2025-11-14T08-55-58-019a815d-2da4-7f31-89e5-bf038714b3ab.jsonl — 466 files (docs 17, tests 45, install 35); this is the regression we just fixed: docs/gen-docs.py, docs/source/license.rst, Streamlit pages, worker tests, and all three installer wrappers were in play.
@@ -1212,12 +1212,12 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
   export_codex_shell_stats.py, so codex/codex_shell_summary.md reflects the smarter descriptions while the rest of the report stays intact.
 
 
-› still redondancy for example for python vs /Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python it is the same command
+› still redondancy for example for python vs /Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project/.venv/bin/python it is the same command
 
 
 • Edited codex/export_codex_shell_stats.py (+2 -0)
     57          return ("inline environment assignment", "`VAR=value command`")
-    58 +    if command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python") or command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_trajectory_project/.venv/bin/python"):
+    58 +    if command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project/.venv/bin/python") or command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_trajectory_project/.venv/bin/python"):
     59 +        return ("call project virtualenv python", "`<app>/.venv/bin/python script.py`")
     60      if command.startswith("/"):
 
@@ -1366,7 +1366,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
   Let me know if you want support for remote subcommands (like extracting the perl invoked inside ssh … "perl …"), or if we should tag commands by category.
 
 
-› there is still duplicate python similar to /Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python
+› there is still duplicate python similar to /Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project/.venv/bin/python
 
 
 • Explored
@@ -1374,7 +1374,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Edited codex/export_codex_shell_stats.py (+7 -1)
     58          return ("inline environment assignment", "`VAR=value command`")
-    59 -    if command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python") or command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_trajectory_project/.venv/bin/python"):
+    59 -    if command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project/.venv/bin/python") or command.startswith("/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_trajectory_project/.venv/bin/python"):
     59 +    if command == "<app>/.venv/bin/python":
     60          return ("call project virtualenv python", "`<app>/.venv/bin/python script.py`")
        ⋮
@@ -1829,7 +1829,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran python3 - <<'PY'
   │ from codex import export_codex_shell_stats as stats
-  │ print(stats.canonicalize_command('/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project/.venv/bin/python'))
+  │ print(stats.canonicalize_command('/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project/.venv/bin/python'))
   │ … +1 lines
   └ <app>/.venv/bin/python
 
@@ -2427,7 +2427,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
      3 +This scenario describes (without executing anything) how to create a new app cloned from `flight_project`, add the antenna beam column from `flight_legacy_project`, center the routes over Ukraine, and reuse satellite trajectories from `sat_trajectory_project`.
      4 +
      5 +## 1. Clone baseline
-     6 +1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/flight_project` into `flight_trajectory_project` (or another slug).
+     6 +1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/builtin/flight_project` into `flight_trajectory_project` (or another slug).
      7 +2. Run the standard post-clone steps: regenerate CLI wrappers (`tools/generate_runconfig_scripts.py`), seed `log/execute/<app>`, and verify `AGI_run_<app>.py` launches unchanged.
      8 +
      9 +## 2. Import antenna beam column
@@ -2496,10 +2496,10 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 • Edited codex-examples/flight_clone_ukraine_satellite_beams.md (+22 -11)
      4
      5 -## 1. Clone baseline
-     6 -1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/flight_project` into `flight_trajectory_project` (or another slug).
+     6 -1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/builtin/flight_project` into `flight_trajectory_project` (or another slug).
      7 -2. Run the standard post-clone steps: regenerate CLI wrappers (`tools/generate_runconfig_scripts.py`), seed `log/execute/<app>`, and verify `AGI_run_<app>.py` launches unchanged.
      5 +## 1. Clone baseline (with beam-ready checklist)
-     6 +1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/flight_project` into your new slug (for example `flight_clone_project`).
+     6 +1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/builtin/flight_project` into your new slug (for example `flight_clone_project`).
      7 +2. Immediately run:
      8 +   - `tools/generate_runconfig_scripts.py` so PyCharm/CLI entries exist.
      9 +   - `log/execute/<app>/AGI_get_distrib_<app>.py` + `AGI_run_<app>.py` to confirm the clone is healthy before edits.
@@ -2637,7 +2637,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
      3 -This scenario describes (without executing anything) how to create a new app cloned from `flight_project`, add the antenna beam column from `flight_legacy_project`, center the routes over Ukraine, and reuse satellite trajectories from `sat_trajectory_project`.
      4 -
      5 -## 1. Clone baseline (with beam-ready checklist)
-     6 -1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/flight_project` into your new slug (for example `flight_clone_project`).
+     6 -1. Use the IDE “Clone app” flow (or `tools/clone_app.py`) to duplicate `src/agilab/apps/builtin/flight_project` into your new slug (for example `flight_clone_project`).
      7 -2. Immediately run:
      8 -   - `tools/generate_runconfig_scripts.py` so PyCharm/CLI entries exist.
      9 -   - `log/execute/<app>/AGI_get_distrib_<app>.py` + `AGI_run_<app>.py` to confirm the clone is healthy before edits.
@@ -2868,7 +2868,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
     □ Port antenna beam schema/logic/UI/docs/tests from flight_legacy_project into new clone
     □ Recenter data and integrate sat_trajectory helper plus docs/tests updates
 
-• Ran cp -R src/agilab/apps/flight_project src/agilab/apps/flight_clone_project
+• Ran cp -R src/agilab/apps/builtin/flight_project src/agilab/apps/flight_clone_project
   └ (no output)
 
 • Explored
@@ -2926,7 +2926,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran python3 - <<'PY'
   │ import shutil, pathlib
-  │ src = pathlib.Path('src/agilab/apps/flight_project')
+  │ src = pathlib.Path('src/agilab/apps/builtin/flight_project')
   │ … +3 lines
   └ (no output)
 
@@ -2994,7 +2994,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran python3 - <<'PY'
   │ import shutil, pathlib
-  │ src = pathlib.Path('src/agilab/apps/flight_project')
+  │ src = pathlib.Path('src/agilab/apps/builtin/flight_project')
   │ … +3 lines
   └ (no output)
 
@@ -3303,7 +3303,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran python3 - <<'PY'
   │ import shutil, pathlib
-  │ src = pathlib.Path('src/agilab/apps/flight_project')
+  │ src = pathlib.Path('src/agilab/apps/builtin/flight_project')
   │ … +3 lines
   └ (no output)
 
@@ -3446,8 +3446,8 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 • Explored
   └ Read __init__.py, pyproject.toml
 
-• Ran mkdir -p src/agilab/apps/flight_ukraine_project/src/flight_ukraine/dataset && cp -R src/agilab/apps/flight_project/src/flight/dataset/. src/agilab/apps/flight_ukraine_project/src/flight_ukraine/dataset
-  └ cp: src/agilab/apps/flight_project/src/flight/dataset/.: No such file or directory
+• Ran mkdir -p src/agilab/apps/flight_ukraine_project/src/flight_ukraine/dataset && cp -R src/agilab/apps/builtin/flight_project/src/flight/dataset/. src/agilab/apps/flight_ukraine_project/src/flight_ukraine/dataset
+  └ cp: src/agilab/apps/builtin/flight_project/src/flight/dataset/.: No such file or directory
 
 • Ran uv run pytest src/agilab/apps/flight_ukraine_project/test/test_beam_annotations.py
   └ warning: The `extra-build-dependencies` option is experimental and may change without warning. Pass `--preview-features extra-build-dependencies` to disable this warning.
@@ -4192,7 +4192,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
   at that path and I can port it over; otherwise, the implementation we just added is the only available option in this tree.
 
 
-› An error occurred: [Errno 13] Permission denied: '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project'
+› An error occurred: [Errno 13] Permission denied: '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project'
 
   ```
   Traceback (most recent call last):
@@ -4217,7 +4217,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
     File "/Users/agi/.local/share/uv/python/cpython-3.13.9-macos-aarch64-none/lib/python3.13/pathlib/_local.py", line 515, in stat
       return os.stat(self, follow_symlinks=follow_symlinks)
              ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  PermissionError: [Errno 13] Permission denied: '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project'
+  PermissionError: [Errno 13] Permission denied: '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project'
 
   ```
 
@@ -4243,17 +4243,17 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 ─ Worked for 12s ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-• - run_agi now guards the Path.exists() check so lab steps fail gracefully when the target directory (e.g., /Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project) is unreadable. A PermissionError triggers a user-friendly Streamlit error that also includes the diagnose_data_directory hint when available; other OSErrors are surfaced similarly (src/
+• - run_agi now guards the Path.exists() check so lab steps fail gracefully when the target directory (e.g., /Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project) is unreadable. A PermissionError triggers a user-friendly Streamlit error that also includes the diagnose_data_directory hint when available; other OSErrors are surfaced similarly (src/
     agilab/core/agi-env/src/agi_env/pagelib.py:1047).
   - If the path is accessible, execution proceeds exactly as before via run_with_output, so legitimate runs are unaffected.
 
   Retest the Streamlit page: the prior traceback should now display an actionable error message instead of crashing.
 
 
-› what is it about ? Permission denied while accessing '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project': [Errno 13] Permission denied: '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project'
+› what is it about ? Permission denied while accessing '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project': [Errno 13] Permission denied: '/Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project'
 
 
-• The lab tab is trying to run a snippet under /Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project, but the current user (agi) doesn’t have read/execute permissions on that directory. Because we can’t even stat the path, Streamlit now shows the permission error instead of crashing. To proceed you’ll need to either:
+• The lab tab is trying to run a snippet under /Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project, but the current user (agi) doesn’t have read/execute permissions on that directory. Because we can’t even stat the path, Streamlit now shows the permission error instead of crashing. To proceed you’ll need to either:
 
   - Run the experiment as the jpm user (or whoever owns that path), or
   - Update the permissions/ownership on /Users/jpm/PycharmProjects/agilab so agi can read it, or
@@ -4295,7 +4295,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran python3 - <<'PY'
   │ import os
-  │ base='src/agilab/apps/flight_project'
+  │ base='src/agilab/apps/builtin/flight_project'
   │ … +2 lines
   └ ../../../../export/flight/export.csv
 
@@ -4330,15 +4330,15 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 • Explored
   └ Read lab_steps.toml
 
-• Edited src/agilab/apps/flight_project/lab_steps.toml (+6 -6)
+• Edited src/agilab/apps/builtin/flight_project/lab_steps.toml (+6 -6)
      1  [[flight]]
      2 -D = "/Users/jpm/export/flight/export.csv"
      2 +D = "../../../../export/flight/export.csv"
      3  Q = "add smoothing of col long with savgol"
        ⋮
      5  C = "from scipy.signal import savgol_filter\n\ndf['smoothed_long'] = savgol_filter(df['long'], window_length=5, polyorder=2)\n"
-     6 -E = "/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project"
-     6 +E = "src/agilab/apps/flight_project"
+     6 -E = "/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project"
+     6 +E = "src/agilab/apps/builtin/flight_project"
      7
      8  [[flight]]
      9 -D = "/Users/jpm/export/flight/export.csv"
@@ -4347,8 +4347,8 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
        ⋮
     12  C = "from scipy.signal import savgol_filter\n\ncolumn = 'long'\nif column not in df.columns:\n    raise KeyError(f\"Column '{column}' not found in dataframe\")\n\nwindow_length = 7  # must be odd and >= 5\npolyorder = 2\nif window_length >= len(df):\n    window_length = len(df) - 1 if len(df) % 2 == 0 else len(df)\n    window_length = max(window_length
         , 5)\n    if window_length % 2 == 0:\n        window_length -= 1\n\ndf[f\"{column}_smooth\"] = savgol_filter(\n    df[column].to_numpy(),\n    window_length=window_length,\n    polyorder=polyorder,\n    mode='interp',\n)\n"
-    13 -E = "/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project"
-    13 +E = "src/agilab/apps/flight_project"
+    13 -E = "/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project"
+    13 +E = "src/agilab/apps/builtin/flight_project"
     14
     15  [[flight]]
     16 -D = "/Users/jpm/export/flight/export.csv"
@@ -4356,8 +4356,8 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
     17  Q = "add smoothing of col long with savgol"
        ⋮
     19  C = "from scipy.signal import convolve2d as cv2\nimport numpy as np\n\n# Define the window size for Savitzky-Golay filtering\nwindow_size = 51\n\n# Apply Savitzky-Golay filter to column 'long'\ndf['smoothed_long'] = cv2(df['long'].values, window_size, 2) / window_size"
-    20 -E = "/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project"
-    20 +E = "src/agilab/apps/flight_project"
+    20 -E = "/Users/jpm/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project"
+    20 +E = "src/agilab/apps/builtin/flight_project"
 
 • Edited src/agilab/apps/flight_ukraine_project/lab_steps.toml (+6 -5)
      1  [[flight_ukraine]]
@@ -4399,14 +4399,14 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 › no I mean path relative to HOME for "D"  APPS_DIR for  "E"
 
 
-• Edited src/agilab/apps/flight_project/lab_steps.toml (+6 -6)
+• Edited src/agilab/apps/builtin/flight_project/lab_steps.toml (+6 -6)
      1  [[flight]]
      2 -D = "../../../../export/flight/export.csv"
      2 +D = "~/export/flight/export.csv"
      3  Q = "add smoothing of col long with savgol"
        ⋮
      5  C = "from scipy.signal import savgol_filter\n\ndf['smoothed_long'] = savgol_filter(df['long'], window_length=5, polyorder=2)\n"
-     6 -E = "src/agilab/apps/flight_project"
+     6 -E = "src/agilab/apps/builtin/flight_project"
      6 +E = "flight_project"
      7
      8  [[flight]]
@@ -4416,7 +4416,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
        ⋮
     12  C = "from scipy.signal import savgol_filter\n\ncolumn = 'long'\nif column not in df.columns:\n    raise KeyError(f\"Column '{column}' not found in dataframe\")\n\nwindow_length = 7  # must be odd and >= 5\npolyorder = 2\nif window_length >= len(df):\n    window_length = len(df) - 1 if len(df) % 2 == 0 else len(df)\n    window_length = max(window_length
         , 5)\n    if window_length % 2 == 0:\n        window_length -= 1\n\ndf[f\"{column}_smooth\"] = savgol_filter(\n    df[column].to_numpy(),\n    window_length=window_length,\n    polyorder=polyorder,\n    mode='interp',\n)\n"
-    13 -E = "src/agilab/apps/flight_project"
+    13 -E = "src/agilab/apps/builtin/flight_project"
     13 +E = "flight_project"
     14
     15  [[flight]]
@@ -4425,7 +4425,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
     17  Q = "add smoothing of col long with savgol"
        ⋮
     19  C = "from scipy.signal import convolve2d as cv2\nimport numpy as np\n\n# Define the window size for Savitzky-Golay filtering\nwindow_size = 51\n\n# Apply Savitzky-Golay filter to column 'long'\ndf['smoothed_long'] = cv2(df['long'].values, window_size, 2) / window_size"
-    20 -E = "src/agilab/apps/flight_project"
+    20 -E = "src/agilab/apps/builtin/flight_project"
     20 +E = "flight_project"
 
 • Edited src/agilab/apps/flight_ukraine_project/lab_steps.toml (+5 -5)
@@ -4454,7 +4454,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 ─ Worked for 15s ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-• - Updated both lab step catalogs (src/agilab/apps/flight_project/lab_steps.toml, src/agilab/apps/flight_ukraine_project/lab_steps.toml) so the data sources now use ~/export/... (paths relative to $HOME) and the execution roots reference just the project folders (flight_project, flight_ukraine_project) relative to APPS_DIR.
+• - Updated both lab step catalogs (src/agilab/apps/builtin/flight_project/lab_steps.toml, src/agilab/apps/flight_ukraine_project/lab_steps.toml) so the data sources now use ~/export/... (paths relative to $HOME) and the execution roots reference just the project folders (flight_project, flight_ukraine_project) relative to APPS_DIR.
   - These relative entries will allow lab replays to resolve correctly regardless of the absolute checkout location.
 
   No automated tests were run; you can reload the Streamlit Experiment tab to confirm it now finds the adjusted paths.
@@ -4482,7 +4482,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran git status -sb
   └ ## main
-     M src/agilab/apps/flight_project/lab_steps.toml
+     M src/agilab/apps/builtin/flight_project/lab_steps.toml
     … +19 lines
     ?? tools/run_configs/components/mycode-lib-gen.sh
     ?? tools/run_configs/components/sat-trajectory-lib-gen.sh
@@ -4645,9 +4645,9 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 • Explored
   └ Read lab_steps.toml
 
-• Edited src/agilab/apps/flight_project/lab_steps.toml (+3 -3)
+• Edited src/agilab/apps/builtin/flight_project/lab_steps.toml (+3 -3)
      5  C = "from scipy.signal import savgol_filter\n\ndf['smoothed_long'] = savgol_filter(df['long'], window_length=5, polyorder=2)\n"
-     6 -E = "/Users/agi/PycharmProjects/agilab/src/agilab/apps/flight_project"
+     6 -E = "/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin/flight_project"
      6 +E = ""
      7
        ⋮
@@ -4666,7 +4666,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 • Ran git status -sb
   └ ## main
-     M src/agilab/apps/flight_project/lab_steps.toml
+     M src/agilab/apps/builtin/flight_project/lab_steps.toml
     … +20 lines
     ?? tools/run_configs/components/mycode-lib-gen.sh
     ?? tools/run_configs/components/sat-trajectory-lib-gen.sh
@@ -4679,7 +4679,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 • - src/agilab/pages/▶️ EXPERIMENT.py:134 now treats relative execution paths as app-relative (still expands ~, still strips .venv), so previously saved entries like flight_project resolve to the right app when needed without depending on the CLI cwd.
   - The Execution Environment picker no longer auto-selects the active app (src/agilab/pages/▶️ EXPERIMENT.py:2292). Fresh steps default to “Use AGILAB environment”, so they execute via run_lab (and therefore have access to df) unless the user explicitly chooses a worker env. Existing steps that intentionally stored a custom env still preselect it because their
     saved E value repopulates the dropdown.
-  - Lab examples that rely on pandas manipulations now leave E blank (src/agilab/apps/flight_project/lab_steps.toml:1, :11, :22), guaranteeing they run inside the Streamlit session where df is defined; only steps that truly need a worker should set E.
+  - Lab examples that rely on pandas manipulations now leave E blank (src/agilab/apps/builtin/flight_project/lab_steps.toml:1, :11, :22), guaranteeing they run inside the Streamlit session where df is defined; only steps that truly need a worker should set E.
 
   I didn’t run automated tests (UI-only changes). Please reload the Experiment page and rerun the smoothing step—the new column should appear and persist again.
 
@@ -4703,7 +4703,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
   │ … +12 lines
   └ {a0: 1/3, a1: 1/3, a2: 1/3}
 
-• Edited src/agilab/apps/flight_project/lab_steps.toml (+1 -1)
+• Edited src/agilab/apps/builtin/flight_project/lab_steps.toml (+1 -1)
     18  M = "mistral:instruct"
     19 -C = "from scipy.signal import convolve2d as cv2\nimport numpy as np\n\n# Define the window size for Savitzky-Golay filtering\nwindow_size = 51\n\n# Apply Savitzky-Golay filter to column 'long'\ndf['smoothed_long'] = cv2(df['long'].values, window_size, 2) / window_size\n"
     19 +C = "import numpy as np\n\nif 'long' not in df.columns:\n    raise KeyError(\"Column 'long' not found in dataframe\")\n\n"""Apply a lightweight Savitzky-Golay style smoothing using a 5-point window.\nThe central point keeps weight 1, neighbors decay linearly from 0.8 → 0.6 → 0.4."""\nwindow = 5\nweights = np.array([0.4, 0.6, 0.8, 0.6, 0.4])\nweights /=
@@ -4712,7 +4712,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 ─ Worked for 23s ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-• Replaced the broken Savitzky-Golay snippet in src/agilab/apps/flight_project/lab_steps.toml (mistral:instruct entry) with a working numpy-based smoother:
+• Replaced the broken Savitzky-Golay snippet in src/agilab/apps/builtin/flight_project/lab_steps.toml (mistral:instruct entry) with a working numpy-based smoother:
 
   - it checks that long exists,
   - applies a 5-point weighted convolution (lighter than SciPy, no scipy.signal dependency),
@@ -4724,7 +4724,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 › Error decoding TOML: Expected newline or end of document after a statement (at line 19, column 123)
 
 
-• Edited src/agilab/apps/flight_project/lab_steps.toml (+1 -1)
+• Edited src/agilab/apps/builtin/flight_project/lab_steps.toml (+1 -1)
     18  M = "mistral:instruct"
     19 -C = "import numpy as np\n\nif 'long' not in df.columns:\n    raise KeyError(\"Column 'long' not found in dataframe\")\n\n"""Apply a lightweight Savitzky-Golay style smoothing using a 5-point window.\nThe central point keeps weight 1, neighbors decay linearly from 0.8 → 0.6 → 0.4."""\nwindow = 5\nweights = np.array([0.4, 0.6, 0.8, 0.6, 0.4])\nweights /=
          weights.sum()\n\nseries = df['long'].to_numpy(dtype=float)\npadded = np.pad(series, (window//2,), mode='edge')\nsmoothed = np.convolve(padded, weights, mode='valid')\n\ndf['smoothed_long'] = smoothed\n"
@@ -4734,7 +4734,7 @@ agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-
 
 ─ Worked for 12s ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-• Replaced the problematic snippet in src/agilab/apps/flight_project/lab_steps.toml with a standard newline-escaped string (no embedded triple quotes). TOML now parses correctly, and the mistral step still adds smoothed_long using the numpy-based 5-point smoother.
+• Replaced the problematic snippet in src/agilab/apps/builtin/flight_project/lab_steps.toml with a standard newline-escaped string (no embedded triple quotes). TOML now parses correctly, and the mistral step still adds smoothed_long using the numpy-based 5-point smoother.
 Token usage: total=1 409 985 input=1 235 642 (+ 72 609 408 cached) output=174 343 (reasoning 87 104)
 To continue this session, run codex resume 019a815d-2da4-7f31-89e5-bf038714b3ab
 agi@m41 agilab % codex --dangerously-bypass-approvals-and-sandbox --model gpt-5-codex medium
