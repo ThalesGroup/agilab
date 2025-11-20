@@ -9,5 +9,6 @@ Licenses
    agi-node-licenses
    agi-env-licenses
    agi-core-licenses
+   sb3-trainer-project-licenses
    mycode-project-licenses
    flight-project-licenses
