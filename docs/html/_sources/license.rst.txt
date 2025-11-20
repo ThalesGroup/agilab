@@ -9,5 +9,6 @@ Licenses
    agi-node-licenses
    agi-env-licenses
    agi-core-licenses
+   example-app-project-licenses
    mycode-project-licenses
    flight-project-licenses

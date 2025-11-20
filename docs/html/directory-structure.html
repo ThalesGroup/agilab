@@ -10,7 +10,6 @@
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
-      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css" />
 
   
@@ -20,7 +19,6 @@
       <script src="_static/documentation_options.js?v=8d563738"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -200,13 +198,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul class="simple">
 </ul>
 </li>
 </ul>
@@ -311,81 +303,77 @@
 __pycache__/ [excluded]
 apps/
     __pycache__/ [excluded]
-    flight_project/
-        .pytest_cache/ [excluded]
-        .venv/ [excluded]
-        Modules/ [excluded]
-        src/
-            flight/
+    builtin/
+        flight_project/
+            .pytest_cache/ [excluded]
+            .venv/ [excluded]
+            Modules/ [excluded]
+            src/
+                flight/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    flight.py
+                    flight_args.py
+                flight_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    dataset.7z
+                    flight_worker.py
+                    flight_worker.pyx
+                    pyproject.toml
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            test/
                 __pycache__/ [excluded]
                 __init__.py
-                flight.py
-                flight_args.py
-            flight_worker/
-                __pycache__/ [excluded]
-                __init__.py
-                dataset.7z
-                flight_worker.py
-                flight_worker.pyx
-                pyproject.toml
-            app_args_form.py
-            app_settings.toml
-            pre_prompt.json
-        test/
-            __pycache__/ [excluded]
-            __init__.py
-            _test_call_worker.py
-            _test_flight_manager.py
-            _test_flight_worker.py
+                _test_call_worker.py
+                _test_flight_manager.py
+                _test_flight_worker.py
+                output.json
+                test_df.ipynb
+                test_flight_manager.py
+                test_flight_worker.py
+            distribution.json
+            lab_steps.ipynb
+            lab_steps.toml
+            MANIFEST.in
             output.json
-            test_df.ipynb
-            test_flight_manager.py
-            test_flight_worker.py
-        distribution.json
-        lab_steps.ipynb
-        lab_steps.toml
-        MANIFEST.in
-        output.json
-        pyproject.toml
-        README.md
-        run_test.sh
-        steps.toml
-        uv_config.toml
-    example_app_project/
-        src/
-            app_args_form.py
-            app_settings.toml
-        README.md
-    mycode_project/
-        .pytest_cache/ [excluded]
-        .venv/ [excluded]
-        Modules/ [excluded]
-        src/
-            mycode/
+            pyproject.toml
+            README.md
+            run_test.sh
+            steps.toml
+            uv_config.toml
+        mycode_project/
+            .pytest_cache/ [excluded]
+            .venv/ [excluded]
+            Modules/ [excluded]
+            src/
+                mycode/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    app_args.py
+                    mycode.py
+                    mycode_args.py
+                mycode_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    mycode_worker.py
+                    mycode_worker.pyx
+                    pyproject.toml
+                app_args_form.py
+                app_settings.toml
+            test/
                 __pycache__/ [excluded]
-                __init__.py
-                app_args.py
-                mycode.py
-                mycode_args.py
-            mycode_worker/
-                __pycache__/ [excluded]
-                __init__.py
-                mycode_worker.py
-                mycode_worker.pyx
-                pyproject.toml
-            app_args_form.py
-            app_settings.toml
-        test/
-            __pycache__/ [excluded]
-            _test_call_worker.py
-            _test_mycode_manager.py
-            _test_mycode_worker.py
-            test_mycode_manager.py
-            test_mycode_worker.py
-        pyproject.toml
-        README.md
-        uv_config.toml
-        wenv
+                _test_call_worker.py
+                _test_mycode_manager.py
+                _test_mycode_worker.py
+                test_mycode_manager.py
+                test_mycode_worker.py
+            pyproject.toml
+            README.md
+            uv_config.toml
+            wenv
     templates/
         dag_app_template/
             src/
@@ -469,8 +457,14 @@ apps/
             uv_config.toml
     .gitignore
     __init__.py
+    example_app_project
+    example_app_project
+    example_app_project
     install.py
+    example_app_project
     README.md
+    example_app_project
+    example_app_project
 apps-pages/
     view_autoencoder_latenspace/
         .venv/ [excluded]

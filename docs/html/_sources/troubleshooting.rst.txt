@@ -209,7 +209,7 @@ Unfortunatly when NumPy/Numba falls back to compiling from source you won’t se
 ------------------------
 
 while running uv into a project from another one:
-warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/example/agilab/src/agilab/apps/builtin/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/example/agilab/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
 This is not a problem this because we dynamically change the venv. Just ignore it.
 
 <UV> Sync Failed

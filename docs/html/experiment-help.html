@@ -10,7 +10,6 @@
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
-      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css" />
 
   
@@ -20,7 +19,6 @@
       <script src="_static/documentation_options.js?v=8d563738"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -200,13 +198,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul class="simple">
 </ul>
 </li>
 </ul>
@@ -326,40 +318,6 @@ working offline.</p></li>
 </section>
 <section id="main-content-area">
 <h2>Main Content Area<a class="headerlink" href="#main-content-area" title="Link to this heading"></a></h2>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" for="sd-tab-item-0">
-ASSISTANT</label><div class="sd-tab-content docutils">
-<p>Each lab is organised as a sequence of steps stored in <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code>.
-The numbered buttons at the top let you jump between them. Ask questions or
-describe transformations in the text area—AGILab forwards the prompt to the
-Responses API together with the selected DataFrame metadata. The code editor
-reacts to the toolbar actions:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">Save</span></code> keeps the snippet as-is in the current step.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Next</span></code> persists the snippet and advances to a fresh step.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Remove</span></code> deletes the step from <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Run</span></code> writes the snippet to <code class="docutils literal notranslate"><span class="pre">lab_snippet.py</span></code>, executes it and stores any
-produced dataframe under <code class="docutils literal notranslate"><span class="pre">lab_export_out.csv</span></code> so the preview and the
-Execute/Explore pages can consume the result.</p></li>
-</ul>
-<p>The runtime is chosen from the <em>Execution environment</em> box below the editor.
-If you pick a concrete virtual environment path the snippet runs via
-<code class="docutils literal notranslate"><span class="pre">run_agi</span></code> inside that environment (the path is kept with the step under
-the <code class="docutils literal notranslate"><span class="pre">E</span></code> field). Leaving the selector on the default AGILab environment
-falls back to <code class="docutils literal notranslate"><span class="pre">run_lab</span></code>, reusing the managed runtime that ships with the
-app. In both cases the exported dataframe and history behave identically.</p>
-<p>The assistant automatically reloads the most recent dataframe and shows it below
-the editor. If nothing has been saved yet, you will see a reminder to run a
-snippet first.</p>
-</div>
-<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" for="sd-tab-item-1">
-HISTORY</label><div class="sd-tab-content docutils">
-<p>Inspect or tweak the raw <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code> via the code editor. Saving the
-file here immediately refreshes the assistant tab.</p>
-</div>
-</div>
 </section>
 </section>
 
