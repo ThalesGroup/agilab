@@ -1,0 +1,12 @@
+agilab package
+===============
+
+.. automodule:: agilab.apps.builtin.flight_project.src.flight.flight
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: agilab.apps.builtin.mycode_project.src.mycode.mycode
+   :members:
+   :undoc-members:
+   :show-inheritance:
