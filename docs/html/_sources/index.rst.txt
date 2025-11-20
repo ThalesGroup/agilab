@@ -25,6 +25,7 @@ You’ll find everything from quickstarts to API references, as well as example 
    agi-core-architecture
    agilab-mlops-positioning
    framework-api
+   modules
    environment
    faq
    directory-structure
