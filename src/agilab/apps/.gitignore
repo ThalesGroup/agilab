@@ -34,8 +34,3 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 
-# Private app symlinks (resolved at runtime)
-example_app_project
-example_app_project
-example_app_project
-example_app_project

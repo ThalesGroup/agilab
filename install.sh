@@ -345,7 +345,9 @@ copy_project_files() {
         [[ -d "$CURRENT_PATH/src" ]] || { echo -e "${RED}Source directory 'src' not found. Exiting.${NC}"; exit 1; }
         echo -e "${BLUE}Copying project files to install directory...${NC}"
         mkdir -p "$AGI_INSTALL_PATH"
-        rsync -a "$CURRENT_PATH/" "$AGI_INSTALL_PATH/"
+        rsync -a \
+            --exclude 'src/agilab/apps/*_project/' \
+            "$CURRENT_PATH/" "$AGI_INSTALL_PATH/"
     else
         echo "Using current directory as install directory; no copy needed."
     fi
