@@ -530,7 +530,7 @@ def main():
         parser.add_argument(
             "--active-app",
             type=str,
-            help="Path to the active app (e.g. src/agilab/apps/flight_project)",
+            help="Path to the active app (e.g. src/agilab/apps/builtin/flight_project)",
             required=True,
         )
         args, _ = parser.parse_known_args()
