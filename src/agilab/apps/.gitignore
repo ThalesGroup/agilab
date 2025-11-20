@@ -34,8 +34,3 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 
-# Private app symlinks (resolved at runtime)
-flight_trajectory_project
-link_sim_project
-sat_trajectory_project
-sb3_trainer_project

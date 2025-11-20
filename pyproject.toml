@@ -95,11 +95,10 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-package-dir = { "" = "src" }
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 include = ["agilab*"]
 exclude = [
     "agilab.core*",
@@ -125,7 +124,7 @@ disallow_untyped_defs = false
 ignore_missing_imports = true
 
 [tool.pyment]
-source_dir = "src"
+source_dir = "agilab"
 format = "google"
 
 [tool.pytest.ini_options]
