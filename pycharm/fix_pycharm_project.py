@@ -79,7 +79,8 @@ def ensure_app_module(app_dir, sdk_name=None):
     iml = MODULES_DIR / f"{app}.iml"
     m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
     comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-    ET.SubElement(comp, "content", {"url": f"file://$PROJECT_DIR$/src/agilab/apps/{app}"})
+    rel_path = app_dir.relative_to(ROOT).as_posix()
+    ET.SubElement(comp, "content", {"url": f"file://$PROJECT_DIR$/{rel_path}"})
     if sdk_name:
         ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": SDK_TYPE})
     else:
@@ -115,7 +116,11 @@ def main():
 
     apps_dir = ROOT / "src" / "agilab" / "apps"
     if apps_dir.exists():
-        for app_dir in sorted(p for p in apps_dir.iterdir() if p.is_dir() and p.name.endswith("_project")):
+        candidates = []
+        for pattern_dir in (apps_dir, apps_dir / "builtin"):
+            if pattern_dir.is_dir():
+                candidates.extend(sorted(p for p in pattern_dir.glob("*_project") if p.is_dir()))
+        for app_dir in candidates:
             py = venv_python_for(app_dir)
             sdk_name = f"uv ({app_dir.stem.replace('_project','')})" if py else None
             ensure_app_module(app_dir, sdk_name)
@@ -126,4 +131,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
