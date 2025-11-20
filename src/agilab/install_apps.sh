@@ -713,20 +713,20 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   if [[ ! -d "$app_name" && -d "${app_name}_project" ]]; then
     app_name="${app_name}_project"
   fi
-  if [[ ! -d "$app" ]]; then
-    if [[ -d "$app_name" ]]; then
-      app="$app_name"
-    else
-      echo -e "${YELLOW}Skipping pytest for '$app': directory not found.${NC}"
-      continue
-    fi
+  if [[ -d "builtin/$app_name" ]]; then
+    app_dir_rel="builtin/$app_name"
+  elif [[ -d "$app_name" ]]; then
+    app_dir_rel="$app_name"
+  else
+    echo -e "${YELLOW}Skipping pytest for '$app_name': directory not found.${NC}"
+    continue
   fi
   if [[ " ${SKIPPED_APP_TESTS[*]} " == *" $app_name "* ]]; then
     echo -e "${YELLOW}Skipping pytest for '$app_name': data storage unavailable earlier.${NC}"
     continue
   fi
   echo -e "${BLUE}[pytest] $app_name${NC}"
-  if pushd -- "$app_name" >/dev/null; then
+  if pushd -- "$app_dir_rel" >/dev/null; then
     if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else

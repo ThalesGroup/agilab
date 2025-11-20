@@ -1,6 +1,6 @@
 """AGILab sitecustomize to keep repo-local tests importable.
 
-Pytest collects `src/agilab/apps/*/test` packages and the standard library also
+Pytest collects `src/agilab/apps/builtin/*/test` packages and the standard library also
 ships a `test` package. When Python starts it may import the stdlib variant
 first, causing `test.test_<app>_manager` imports to resolve to the wrong module.
 We bias imports toward the repository shim by inserting the repo root onto
