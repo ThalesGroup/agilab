@@ -659,13 +659,19 @@ pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   app_name="$app"
-  if [[ ! -d "$app_name" && -d "${app_name}_project" ]]; then
-    app_name="${app_name}_project"
+  if [[ "$app_name" != *_project && "$app_name" != *_worker ]]; then
+    candidate="${app_name}_project"
+    if [[ -d "$candidate" || -d "builtin/$candidate" ]]; then
+      app_name="$candidate"
+    fi
   fi
   if [[ -d "builtin/$app_name" ]]; then
     app_dir_rel="builtin/$app_name"
-  else
+  elif [[ -d "$app_name" ]]; then
     app_dir_rel="$app_name"
+  else
+    echo -e "${YELLOW}Skipping '$app': directory not found in apps/ or apps/builtin/.${NC}"
+    continue
   fi
   if ! check_data_mount "$app_name"; then
     rc=$?
@@ -710,8 +716,11 @@ if (( DO_TEST_APPS )); then
   pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   app_name="$app"
-  if [[ ! -d "$app_name" && -d "${app_name}_project" ]]; then
-    app_name="${app_name}_project"
+  if [[ "$app_name" != *_project && "$app_name" != *_worker ]]; then
+    candidate="${app_name}_project"
+    if [[ -d "$candidate" || -d "builtin/$candidate" ]]; then
+      app_name="$candidate"
+    fi
   fi
   if [[ -d "builtin/$app_name" ]]; then
     app_dir_rel="builtin/$app_name"
