@@ -205,92 +205,6 @@ set_locale() {
     export LANG=en_US.UTF-8
 }
 
-install_gum() {
-    if command -v gum >/dev/null 2>&1; then
-        echo -e "${BLUE}gum already installed.${NC}"
-        return
-    fi
-    echo -e "${BLUE}Installing gum (terminal selector)...${NC}"
-    # Use Homebrew when available (macOS/Linux)
-    if command -v brew >/dev/null 2>&1; then
-        if brew list gum >/dev/null 2>&1; then
-            brew upgrade gum >/dev/null 2>&1 || true
-        else
-            brew install gum >/dev/null 2>&1 || {
-                warn "Homebrew install of gum failed. Falling back to manual download."
-                unset brew_installed
-            }
-        fi
-        if command -v gum >/dev/null 2>&1; then
-            echo -e "${GREEN}gum installed via Homebrew.${NC}"
-            return
-        fi
-    fi
-    local platform arch url tmp tarball target_dir install_target
-    platform="$(uname -s)"
-    arch="$(uname -m)"
-    case "$platform" in
-        Darwin|Linux) ;;
-        *)
-            warn "gum auto-install unsupported on $platform. Install manually from https://github.com/charmbracelet/gum."
-            return
-            ;;
-    esac
-    case "$arch" in
-        x86_64|amd64) arch="x86_64" ;;
-        arm64|aarch64) arch="arm64" ;;
-        *)
-            warn "gum auto-install unsupported on architecture $arch. Install manually."
-            return
-            ;;
-    esac
-    local version tag_api
-    tag_api="https://api.github.com/repos/charmbracelet/gum/releases/latest"
-    version=$(curl -fsSL "$tag_api" | grep -m1 '"tag_name"' | cut -d '"' -f4)
-    version=${version#v}
-    if [[ -z "$version" ]]; then
-        warn "Unable to determine latest gum version from GitHub. Install manually."
-        return
-    fi
-    url="https://github.com/charmbracelet/gum/releases/download/v${version}/gum_${version}_${platform}_${arch}.tar.gz"
-    tmp="$(mktemp -d)"
-    tarball="$tmp/gum.tar.gz"
-    if ! curl -fsSL "$url" -o "$tarball"; then
-        warn "Failed to download gum archive from $url"
-        rm -rf "$tmp"
-        return
-    fi
-    if ! tar -xzf "$tarball" -C "$tmp"; then
-        warn "Failed to extract gum archive at $tarball"
-        rm -rf "$tmp"
-        return
-    fi
-    local extracted_gum
-    if [[ -f "$tmp/gum" ]]; then
-        extracted_gum="$tmp/gum"
-    else
-        extracted_gum="$(find "$tmp" -type f -name gum -print -quit)"
-    fi
-    if [[ -z "$extracted_gum" ]]; then
-        warn "gum binary not found in archive."
-        rm -rf "$tmp"
-        return
-    fi
-    if [[ -w /usr/local/bin ]]; then
-        target_dir="/usr/local/bin"
-    else
-        target_dir="$HOME/.local/bin"
-        mkdir -p "$target_dir"
-    fi
-    install_target="$target_dir/gum"
-    if mv "$extracted_gum" "$install_target"; then
-        chmod +x "$install_target"
-        echo -e "${GREEN}gum installed at $install_target.${NC}"
-    else
-        warn "Failed to move gum binary into place; leaving it under $tmp."
-    fi
-    rm -rf "$tmp"
-}
 
 verify_share_dir() {
     local share_dir="${AGI_SHARE_DIR:-$HOME/clustershare}"
@@ -479,6 +393,59 @@ write_env_values() {
     echo -e "${GREEN}.env file updated.${NC}"
 }
 
+configure_streamlit() {
+    local config_dir="$HOME/.streamlit"
+    local config_file="$config_dir/config.toml"
+    local desired="${STREAMLIT_MAX_MESSAGE_SIZE:-600}"
+
+    mkdir -p "$config_dir"
+
+    if [[ ! -f "$config_file" ]]; then
+        cat <<EOF > "$config_file"
+[server]
+maxMessageSize = $desired
+EOF
+        echo -e "${GREEN}Created Streamlit config at $config_file with maxMessageSize=${desired}.${NC}"
+        return
+    fi
+
+    if grep -Eq 'maxMessageSize\s*=' "$config_file"; then
+        perl -0pi -e 's/(maxMessageSize\s*=\s*)\d+/\1'"$desired"'/g' "$config_file"
+        echo -e "${GREEN}Updated existing Streamlit maxMessageSize to ${desired} in $config_file.${NC}"
+        return
+    fi
+
+    if grep -Eq '^\[server\]' "$config_file"; then
+        local tmp
+        tmp=$(mktemp)
+        awk -v val="$desired" '
+            BEGIN{inserted=0}
+            /^\[server\]/ {
+                print
+                if(!inserted){
+                    print "maxMessageSize = " val
+                    inserted=1
+                    next
+                }
+            }
+            {print}
+            END{
+                if(!inserted){
+                    print "maxMessageSize = " val
+                }
+            }
+        ' "$config_file" > "$tmp" && mv "$tmp" "$config_file"
+        echo -e "${GREEN}Added maxMessageSize entry under [server] in $config_file.${NC}"
+    else
+        {
+            echo ""
+            echo "[server]"
+            echo "maxMessageSize = $desired"
+        } >> "$config_file"
+        echo -e "${GREEN}Appended [server] block with maxMessageSize=${desired} to $config_file.${NC}"
+    fi
+}
+
 install_core() {
     framework_dir="$AGI_INSTALL_PATH/src/agilab/core"
     chmod +x "$framework_dir/install.sh"
@@ -653,13 +620,13 @@ check_internet
 set_locale
 verify_share_dir
 install_dependencies
-install_gum
 choose_python_version
 backup_existing_project
 copy_project_files
 update_environment
 install_core
 write_env_values
+configure_streamlit
 
 if (( INSTALL_APPS_FLAG )); then
   if ! install_apps; then
