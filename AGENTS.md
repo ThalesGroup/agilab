@@ -50,6 +50,9 @@ Use this runbook whenever you:
   `~/.local/share/agilab/.env`. On this machine it resolves to `/Users/jpm/PycharmProjects/thales_agilab`.
   The installer auto-creates symlinks so missing workers
   resolve without manual action.
+- **FlowSynth checkout**: `src/agilab/apps/flowsynth_project` now lives only in the shared apps repo.
+  Keep a local symlink (e.g., `src/agilab/apps/flowsynth_project -> ../../../../thales_agilab/...`) but
+  never stage or commit that link in either repository.
 - **Manager class aliases**: Every app module must expose both the legacy name and its ``*App`` variant
   (for example `NetworkSimApp` and `NetworkSim`) so older installers keep working. Add or preserve these
   subclasses whenever you touch an app manager.
