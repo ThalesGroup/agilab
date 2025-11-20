@@ -30,6 +30,10 @@ DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
 PROMPT_FOR_APPS=1
 FORCE_APP_SELECTION=0
+ALL_APPS_SENTINEL="${INSTALL_ALL_SENTINEL:-__AGILAB_ALL_APPS__}"
+BUILTIN_ONLY_SENTINEL="${INSTALL_BUILTIN_SENTINEL:-__AGILAB_BUILTIN_APPS__}"
+NEED_APP_DISCOVERY=1
+FORCE_BUILTIN_ONLY=0
 
 
 # Load env + normalize Python version
@@ -122,9 +126,20 @@ resolve_physical_dir() {
 #   0 - data root accessible
 #   2 - data root unavailable (e.g. NFS share offline)
 # Other return codes bubble up for unexpected failures so callers can react.
+app_dir_on_disk() {
+  local rel="$1"
+  local base="$AGILAB_PUBLIC/apps"
+  if [[ -d "$base/builtin/$rel" ]]; then
+    printf '%s/builtin/%s' "$base" "$rel"
+  else
+    printf '%s/%s' "$base" "$rel"
+  fi
+}
+
 check_data_mount() {
   local app="$1"
-  local app_path="$AGILAB_PUBLIC/apps/$app"
+  local app_path
+  app_path="$(app_dir_on_disk "$app")"
   local output rc marker
 
   DATA_CHECK_MESSAGE=""
@@ -245,6 +260,9 @@ append_unique() {
 
 mkdir -p -- "$APPS_DEST_BASE"
 mkdir -p -- "$PAGES_DEST_BASE"
+mkdir -p -- "$APPS_DEST_BASE/builtin"
+
+BUILTIN_APPS_ROOT="$APPS_DEST_BASE/builtin"
 
 APPS_DEST_REAL=$(resolve_physical_dir "$APPS_DEST_BASE")
 PAGES_DEST_REAL=$(resolve_physical_dir "$PAGES_DEST_BASE")
@@ -337,24 +355,56 @@ done
 
 # --- BUILTIN_APPS: allow manual override via env -----------------------------
 # You can set BUILTIN_APPS or BUILTIN_APPS_OVERRIDE to a comma/space/newline
-# separated list (e.g. "foo_project,bar_project baz_project").
+# separated list (e.g. "foo_project,bar_project baz_project"). Passing the
+# sentinel "__AGILAB_ALL_APPS__" (wired through --install-apps all) skips the
+# picker but keeps the default "install everything" selection.
 if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]/}" ]]; then
-  parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
-  echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
-  PROMPT_FOR_APPS=0
-  FORCE_APP_SELECTION=1
+  if [[ "${BUILTIN_APPS_OVERRIDE}" == "$ALL_APPS_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
+    echo -e "${BLUE}(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every available app.${NC}"
+  elif [[ "${BUILTIN_APPS_OVERRIDE}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
+    FORCE_BUILTIN_ONLY=1
+    SKIP_REPOSITORY_APPS=1
+    echo -e "${BLUE}(Apps) Built-in install requested; repository apps will be skipped.${NC}"
+  else
+    parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_OVERRIDE"
+    echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS_OVERRIDE:${NC} ${BUILTIN_APPS[*]}"
+    PROMPT_FOR_APPS=0
+    FORCE_APP_SELECTION=1
+    NEED_APP_DISCOVERY=0
+  fi
 elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]]/}" ]]; then
-  parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
-  echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
-  PROMPT_FOR_APPS=0
-  FORCE_APP_SELECTION=1
-else
-  while IFS= read -r -d '' dir; do
-    dir_name="$(basename -- "$dir")"
-    if [[ " ${BUILTIN_APPS[@]-} " != *" ${dir_name} "* ]]; then
-      BUILTIN_APPS+=("$dir_name")
-    fi
-  done < <(find "$APPS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+  if [[ "${BUILTIN_APPS_FROM_ENV}" == "$ALL_APPS_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
+    echo -e "${BLUE}(Apps) Full install requested (--install-apps all); installing every available app.${NC}"
+  elif [[ "${BUILTIN_APPS_FROM_ENV}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
+    PROMPT_FOR_APPS=0
+    NEED_APP_DISCOVERY=1
+    FORCE_BUILTIN_ONLY=1
+    SKIP_REPOSITORY_APPS=1
+    echo -e "${BLUE}(Apps) Built-in install requested (--install-apps builtin); repository apps will be skipped.${NC}"
+  else
+    parse_list_to_array BUILTIN_APPS "$BUILTIN_APPS_FROM_ENV"
+    echo -e "${BLUE}(Apps) Override enabled via BUILTIN_APPS:${NC} ${BUILTIN_APPS[*]}"
+    PROMPT_FOR_APPS=0
+    FORCE_APP_SELECTION=1
+    NEED_APP_DISCOVERY=0
+  fi
+fi
+
+if (( NEED_APP_DISCOVERY )); then
+  if [[ -d "$BUILTIN_APPS_ROOT" ]]; then
+    while IFS= read -r -d '' dir; do
+      dir_name="$(basename -- "$dir")"
+      if [[ " ${BUILTIN_APPS[@]-} " != *" ${dir_name} "* ]]; then
+        BUILTIN_APPS+=("$dir_name")
+      fi
+    done < <(find "$BUILTIN_APPS_ROOT" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+  fi
 fi
 
 if (( SKIP_REPOSITORY_APPS == 0 )); then
@@ -372,6 +422,10 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
   else
     REPOSITORY_APPS=()
   fi
+fi
+
+if (( FORCE_BUILTIN_ONLY )); then
+  REPOSITORY_APPS=()
 fi
 
 if (( FORCE_APP_SELECTION )); then
@@ -608,6 +662,11 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   if [[ ! -d "$app_name" && -d "${app_name}_project" ]]; then
     app_name="${app_name}_project"
   fi
+  if [[ -d "builtin/$app_name" ]]; then
+    app_dir_rel="builtin/$app_name"
+  else
+    app_dir_rel="$app_name"
+  fi
   if ! check_data_mount "$app_name"; then
     rc=$?
     if (( rc == 2 )); then
@@ -621,12 +680,12 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
 
   echo -e "${BLUE}Installing $app_name...${NC}"
-  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_PUBLIC}/apps/$app_name\""
+  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_PUBLIC}/apps/$app_dir_rel\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
-    "${AGILAB_PUBLIC}/apps/$app_name"; then
+    "${AGILAB_PUBLIC}/apps/$app_dir_rel"; then
       echo -e "${GREEN}✓ '$app_name' successfully installed.${NC}"
       echo -e "${GREEN}Checking installation...${NC}"
-      if pushd -- "$app_name" >/dev/null; then
+      if pushd -- "$app_dir_rel" >/dev/null; then
       if [[ -f app_test.py ]]; then
         echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
         "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
