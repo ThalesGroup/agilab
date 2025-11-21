@@ -1,5 +1,5 @@
 [project]
-version = "2025.11.21"
+version = "2025.11.21.post1"
 name = "agi-env"
 description = "AGI Env"
 requires-python = ">=3.11"
@@ -46,6 +46,7 @@ dependencies = [
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
+
 
 
 
