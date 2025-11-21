@@ -506,6 +506,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 apps_dir = apps_dir.resolve()
             except FileNotFoundError:
                 pass
+        elif envars.get("APPS_DIR"):
+            apps_dir = Path(envars["APPS_DIR"]).expanduser()
+            try:
+                apps_dir = apps_dir.resolve()
+            except Exception:
+                pass
         elif active_app_override is not None:
             # Use the provided active_app path as the anchor when no apps_dir is supplied.
             try:
@@ -539,8 +545,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if self.is_worker_env:
             self.skip_repo_links = True
 
-        builtin_root = agilab_pck / "apps" / "builtin"
-        self.builtin_apps_dir = builtin_root if builtin_root.exists() else None
+        repo_root = agilab_pck.parents[1] if len(agilab_pck.parents) > 1 else agilab_pck
+        builtin_candidates = [
+            apps_dir if apps_dir and apps_dir.name == "builtin" else None,
+            apps_dir / "builtin" if apps_dir else None,
+            repo_root / "apps" / "builtin",
+            agilab_pck / "apps" / "builtin",
+        ]
+        self.builtin_apps_dir = next((c for c in builtin_candidates if c and c.exists()), None)
 
         # Default apps_dir for non-worker envs when not provided
         if not self.is_worker_env and apps_dir is None:
@@ -551,7 +563,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if repo_apps is not None:
                 apps_dir = repo_apps
             else:
-                apps_dir = default_apps_root
+                if self.builtin_apps_dir:
+                    apps_dir = self.builtin_apps_dir
+                else:
+                    apps_dir = default_apps_root
 
         if self.is_worker_env:
             if not app:
@@ -578,6 +593,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     try:
                         if candidate_builtin.exists():
                             active_app = candidate_builtin
+                            apps_dir = self.builtin_apps_dir
+                    except Exception:
+                        pass
+
+                # Fallback: if the primary path is missing but the builtin app exists, use it.
+                if not active_app.exists() and self.builtin_apps_dir:
+                    candidate_builtin = self.builtin_apps_dir / app
+                    try:
+                        if candidate_builtin.exists():
+                            active_app = candidate_builtin
+                            apps_dir = self.builtin_apps_dir
                     except Exception:
                         pass
 
@@ -1232,6 +1258,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
         """Copy ``*_project`` trees from ``src_apps`` into ``dst_apps`` if missing."""
+
+        try:
+            if src_apps.resolve(strict=False) == dst_apps.resolve(strict=False):
+                return
+        except Exception:
+            pass
 
         dst_apps.mkdir(parents=True, exist_ok=True)
 
