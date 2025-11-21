@@ -1439,6 +1439,14 @@ def select_project(projects, current_project):
     :param current_project: Currently selected project.
     :type current_project: str
     """
+    env = st.session_state.get("env")
+    if env is not None:
+        try:
+            projects = env.get_projects(env.apps_dir, getattr(env, "builtin_apps_dir", None))
+            env.projects = projects
+        except Exception:
+            pass
+
     search_term = st.sidebar.text_input("Filter projects", key="project_filter").strip().lower()
 
     if search_term:

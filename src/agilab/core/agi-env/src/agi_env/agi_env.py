@@ -585,23 +585,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     pass
                 active_app = base_dir / app
 
-                # Prefer builtin copy when available
+                # Prefer builtin copy only when the app is absent from apps_dir.
                 if self.builtin_apps_dir:
                     candidate_builtin = self.builtin_apps_dir / app
                     try:
-                        if candidate_builtin.exists():
+                        if not active_app.exists() and candidate_builtin.exists():
                             active_app = candidate_builtin
-                            apps_dir = self.builtin_apps_dir
-                    except Exception:
-                        pass
-
-                # Fallback: if the primary path is missing but the builtin app exists, use it.
-                if not active_app.exists() and self.builtin_apps_dir:
-                    candidate_builtin = self.builtin_apps_dir / app
-                    try:
-                        if candidate_builtin.exists():
-                            active_app = candidate_builtin
-                            apps_dir = self.builtin_apps_dir
                     except Exception:
                         pass
 
