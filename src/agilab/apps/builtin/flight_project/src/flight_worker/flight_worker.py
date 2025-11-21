@@ -88,11 +88,15 @@ class FlightWorker(PolarsWorker):
 
         logging.info(f"from: {__file__}")
 
+        if getattr(self, "pool_vars", None) is None:
+            self.pool_vars = {}
+
+        reset_target = getattr(self.args, "reset_target", False)
         data_paths = self.setup_data_directories(
             source_path=self.args.data_in,
             target_path=self.args.data_out,
             target_subdir="dataframe",
-            reset_target=True,
+            reset_target=reset_target,
         )
         data_in = data_paths.normalized_input
         self.args.data_in = data_in

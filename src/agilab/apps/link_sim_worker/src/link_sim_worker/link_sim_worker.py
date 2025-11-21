@@ -1533,15 +1533,19 @@ class LinkSimWorker(PolarsWorker):
             payload = self.args if isinstance(self.args, dict) else vars(self.args)
             self.args = _MutableNamespace(**payload)
 
+        if getattr(self, "pool_vars", None) is None:
+            self.pool_vars = {}
+
         source_root = getattr(self.args, "data_in", None)
         if source_root is None:
             raise ValueError("LinkSimWorker requires a 'data_in' argument")
 
+        reset_target = getattr(self.args, "reset_target", False)
         data_paths = self.setup_data_directories(
             source_path=source_root,
             target_path=getattr(self.args, "data_out", None),
             target_subdir="dataframe",
-            reset_target=True,
+            reset_target=reset_target,
         )
         normalized_data_in = data_paths.normalized_input
         self.data_in = Path(normalized_data_in)

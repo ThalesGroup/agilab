@@ -1317,7 +1317,7 @@ if __name__ == "__main__":
                             install_stderr = "Detected connection failure in install logs."
 
                     status_line = (
-                        "✅ Install finished without errors."
+                        "✅ Install complete."
                         if not error_flag
                         else "❌ Install finished with errors. Check logs above."
                     )
@@ -1735,6 +1735,7 @@ if __name__ == "__main__":
 
                 active_args = st.session_state.app_settings.get("args", {})
                 _attach_root(active_args.get("data_in"))
+                _attach_root(active_args.get("data_out"))
 
                 # Remove duplicates while preserving order
                 unique_roots: list[Path] = []

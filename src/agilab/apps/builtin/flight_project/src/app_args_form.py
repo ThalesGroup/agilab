@@ -72,6 +72,11 @@ def render() -> None:
                 key=f"{PREFIX}data_out",
                 help=f"Outputs will be written under {env.agi_share_dir}/<your path>.",
             )
+            reset_target = st.checkbox(
+                "Clear outputs before run",
+                value=bool(getattr(defaults_model, "reset_target", False)),
+                key=f"{PREFIX}reset_target",
+            )
 
         with c4:
             files = st.text_input(
@@ -156,6 +161,7 @@ def render() -> None:
             "datemin": datemin,
             "datemax": datemax,
             "output_format": output_format,
+            "reset_target": bool(reset_target),
         }
     else:
         candidate_args = render_form(defaults_model)

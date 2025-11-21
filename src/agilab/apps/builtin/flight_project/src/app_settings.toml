@@ -10,6 +10,7 @@ sampling_rate = 1.0
 datemin = "2020-01-01"
 datemax = "2021-01-01"
 output_format = "parquet"
+reset_target = false
 
 [cluster]
 verbose = 1

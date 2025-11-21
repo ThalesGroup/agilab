@@ -65,20 +65,23 @@ class Flight(BaseWorker):
 
         WorkDispatcher.args = self.args.model_dump(mode="json")
 
-        try:
-            if self.data_out.exists():
-                shutil.rmtree(
+        if getattr(self.args, "reset_target", False):
+            try:
+                if self.data_out.exists():
+                    shutil.rmtree(
+                        self.data_out,
+                        ignore_errors=True,
+                        onerror=WorkDispatcher._onerror,
+                    )
+                self.data_out.mkdir(parents=True, exist_ok=True)
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning(
+                    "Issue while trying to reset dataframe directory %s: %s",
                     self.data_out,
-                    ignore_errors=True,
-                    onerror=WorkDispatcher._onerror,
+                    exc,
                 )
+        else:
             self.data_out.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.warning(
-                "Issue while trying to reset dataframe directory %s: %s",
-                self.data_out,
-                exc,
-            )
 
     @classmethod
     def from_toml(

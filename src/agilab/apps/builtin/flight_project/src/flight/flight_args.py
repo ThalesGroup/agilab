@@ -49,6 +49,7 @@ class FlightArgs(BaseModel):
     datemin: date = Field(default_factory=lambda: _DATEMIN_LOWER_BOUND)
     datemax: date = Field(default_factory=lambda: date(2021, 1, 1))
     output_format: Literal["parquet", "csv"] = "parquet"
+    reset_target: bool = False
 
     @field_validator("data_in", mode="before")
     @classmethod
@@ -139,6 +140,7 @@ class FlightArgsTD(TypedDict, total=False):
     datemin: str
     datemax: str
     output_format: str
+    reset_target: bool
 
 
 def load_args_from_toml(
