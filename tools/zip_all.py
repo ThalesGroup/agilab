@@ -67,12 +67,18 @@ def _should_follow_symlink(relpath: str, follow_names: set[str]) -> bool:
     return any(part in follow_names for part in parts if part)
 
 
-def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False, follow_symlink_names=None):
+def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False, follow_symlink_names=None, start_dir=None):
     target_dir = os.path.abspath(target_dir)
+    walk_root = os.path.abspath(start_dir) if start_dir else target_dir
     base_name = os.path.basename(target_dir)
     output_zip_abs = os.path.abspath(zip_filepath)
     follow_symlink_names = set(follow_symlink_names or [])
     visited_real_paths: set[str] = set()
+
+    # Preserve archive paths relative to the original target dir even if we start deeper.
+    start_relative = os.path.relpath(walk_root, target_dir)
+    if start_relative == ".":
+        start_relative = ""
 
     def process_directory(current_dir, relative_to, depth=0):
         if depth > 30:
@@ -150,21 +156,21 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
                 print(f"Permission denied: {current_dir}")
 
     with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
-        process_directory(target_dir, "", 0)
+        process_directory(walk_root, start_relative, 0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Zip a project directory.")
     parser.add_argument(
         "--dir2zip",
         type=Path,
-        required=True,
-        help="Path of the directory to zip"
+        default=None,
+        help="Path of the directory to zip (default: --start-dir if set, otherwise cwd)"
     )
     parser.add_argument(
         "--zipfile",
         type=Path,
-        required=True,
-        help="Path and name of the zip file to create"
+        default=None,
+        help="Path and name of the zip file to create (default: <dir2zip>.zip)"
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -189,35 +195,40 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    project_dir = args.dir2zip.absolute()
-    zip_file = args.zipfile.absolute()
+    root_dir = args.dir2zip or args.start_dir or Path.cwd()
+    root_dir = root_dir.absolute()
+
+    zip_file = args.zipfile
+    if zip_file is None:
+        zip_file = root_dir.with_suffix(".zip")
+    zip_file = zip_file.absolute()
     verbose = args.verbose
     no_top = args.no_top
     follow_app_links = args.follow_app_links
     start_dir = args.start_dir
 
     if start_dir is not None:
-        start_dir = (project_dir / start_dir).resolve()
+        start_dir = start_dir if start_dir.is_absolute() else (root_dir / start_dir)
+        start_dir = start_dir.resolve()
         if not start_dir.exists():
             raise SystemExit(f"--start-dir does not exist: {start_dir}")
         try:
-            start_dir.relative_to(project_dir)
+            start_dir.relative_to(root_dir)
         except ValueError:
             raise SystemExit("--start-dir must be inside --dir2zip")
-        project_dir = start_dir
 
     if verbose:
-        print("Directory to zip:", project_dir)
+        print("Directory to zip:", root_dir)
         print("Zip file will be:", zip_file)
         print("No top directory:", no_top)
         if follow_app_links:
             print("Following symlinks for: apps, apps-pages")
         if args.start_dir is not None:
-            print("Start directory:", project_dir)
+            print("Start directory:", start_dir)
 
     os.makedirs(zip_file.parent, exist_ok=True)
 
-    top_gitignore = project_dir / ".gitignore"
+    top_gitignore = root_dir / ".gitignore"
     if top_gitignore.exists():
         top_spec = read_gitignore_cached(str(top_gitignore))
         if verbose:
@@ -230,5 +241,5 @@ if __name__ == "__main__":
 
     follow_names = FOLLOW_SYMLINK_NAMES_DEFAULT if follow_app_links else None
 
-    zip_directory(str(project_dir), str(zip_file), top_spec, no_top, verbose, follow_names)
-    print(f"Zipped {project_dir} into {zip_file}")
+    zip_directory(str(root_dir), str(zip_file), top_spec, no_top, verbose, follow_names, start_dir)
+    print(f"Zipped {start_dir or root_dir} into {zip_file}")
