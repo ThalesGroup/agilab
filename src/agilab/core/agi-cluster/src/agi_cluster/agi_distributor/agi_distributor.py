@@ -1896,8 +1896,10 @@ class AGI:
             # Then send the files to the remote directory
             egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
             if egg_file is None:
-                logger.error(f"searching for {dist_abs / env.target_worker}*.egg")
-                raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}*")
+                egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
+            if egg_file is None:
+                logger.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
+                raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
 
             wenv = env.agi_env / 'dist'
             try:
@@ -1920,8 +1922,10 @@ class AGI:
             # Then send the files to the remote directory
             egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
             if egg_file is None:
-                logger.error(f"searching for {dist_abs / env.target_worker}*.egg")
-                raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}*")
+                egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
+            if egg_file is None:
+                logger.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
+                raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
 
             await AGI.send_files(env, ip, [egg_file], wenv_rel)
 
