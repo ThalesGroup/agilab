@@ -509,24 +509,49 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         elif active_app_override is not None:
             # Use the provided active_app path as the anchor when no apps_dir is supplied.
             try:
-                apps_dir = active_app_override.parent.resolve()
+                candidate_parent = active_app_override.parent.resolve()
             except Exception:
-                apps_dir = active_app_override.parent
+                candidate_parent = active_app_override.parent
+
+            # If the active_app sits under apps/builtin/<app>, keep apps_dir at apps/
+            if candidate_parent.name == "builtin" and candidate_parent.parent.name == "apps":
+                apps_dir = candidate_parent.parent
+                self.builtin_apps_dir = candidate_parent
+            else:
+                apps_dir = candidate_parent
+
+        # Honour env flags when present
+        env_is_source = envars.get("IS_SOURCE_ENV")
+        env_is_worker = envars.get("IS_WORKER_ENV")
+        if env_is_source is not None:
+            try:
+                is_agilab_installed = not bool(int(env_is_source))
+            except Exception:
+                is_agilab_installed = str(env_is_source).lower() in {"false", "0", "no", ""}  # default False-ish
+            self.is_source_env = not is_agilab_installed
+        if env_is_worker is not None:
+            try:
+                self.is_worker_env = bool(int(env_is_worker))
+            except Exception:
+                self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
 
         install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars, active_app_override)
         if self.is_worker_env:
             self.skip_repo_links = True
 
+        builtin_root = agilab_pck / "apps" / "builtin"
+        self.builtin_apps_dir = builtin_root if builtin_root.exists() else None
+
         # Default apps_dir for non-worker envs when not provided
         if not self.is_worker_env and apps_dir is None:
             repo_apps = self._get_apps_repository_root()
+            default_apps_root = agilab_pck / "apps"
+
+            # Prefer an explicit APPS_REPOSITORY if present
             if repo_apps is not None:
                 apps_dir = repo_apps
             else:
-                try:
-                    apps_dir = (agilab_pck / "apps").resolve()
-                except Exception:
-                    apps_dir = agilab_pck / "apps"
+                apps_dir = default_apps_root
 
         if self.is_worker_env:
             if not app:
@@ -535,15 +560,33 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             if app is None:
                 app = envars.get("APP_DEFAULT", 'flight_project')
-            base_dir = apps_dir if apps_dir is not None else Path()
-            try:
-                base_dir = base_dir.resolve()
-            except Exception:
-                pass
-            active_app = base_dir / app
+
+            # If caller provided an explicit path and it exists, honour it directly.
+            if active_app_override is not None and Path(active_app_override).exists():
+                active_app = Path(active_app_override)
+            else:
+                base_dir = apps_dir if apps_dir is not None else Path()
+                try:
+                    base_dir = base_dir.resolve()
+                except Exception:
+                    pass
+                active_app = base_dir / app
+
+                # Prefer builtin copy when available
+                if self.builtin_apps_dir:
+                    candidate_builtin = self.builtin_apps_dir / app
+                    try:
+                        if candidate_builtin.exists():
+                            active_app = candidate_builtin
+                    except Exception:
+                        pass
 
         if not app.endswith('_project') and not app.endswith('_worker'):
             raise ValueError(f"{app} must end with '_project' or '_worker'")
+
+        # If apps_dir contains a builtin subdir, prefer that as the builtin root.
+        if apps_dir and (apps_dir / "builtin").exists():
+            self.builtin_apps_dir = apps_dir / "builtin"
 
         self.app = app
         try:
@@ -628,7 +671,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.st_resources = resource_candidates[-1]
 
         apps_root = self.agilab_pck / "apps"
-        if (not self.is_source_env) and (not self.is_worker_env) and not self.skip_repo_links:
+        is_builtin_app = False
+        try:
+            if self.builtin_apps_dir and self.active_app.resolve().is_relative_to(self.builtin_apps_dir.resolve()):
+                is_builtin_app = True
+        except Exception:
+            is_builtin_app = False
+
+        if (not self.is_source_env) and (not self.is_worker_env) and not self.skip_repo_links and not is_builtin_app:
             os.makedirs(apps_dir, exist_ok=True)
 
             link_source = self.apps_repository_root = self._get_apps_repository_root()
@@ -670,7 +720,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                             os.symlink(src_app, dest_app, target_is_directory=True)
                         AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
             elif apps_root.exists():
-                self.copy_existing_projects(apps_root, active_app.parent)
+                try:
+                    if apps_root.resolve() != active_app.parent.resolve():
+                        self.copy_existing_projects(apps_root, active_app.parent)
+                except Exception:
+                    pass
             else:
                 AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
 
@@ -695,7 +749,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         "Private apps root missing %s; copying packaged examples instead",
                         app,
                     )
-                    self.copy_existing_projects(apps_root, apps_dir)
+                    try:
+                        if apps_root.resolve() != apps_dir.resolve():
+                            self.copy_existing_projects(apps_root, apps_dir)
+                    except Exception:
+                        pass
 
 
         resources_root = self.env_pck if self.is_source_env else ""
