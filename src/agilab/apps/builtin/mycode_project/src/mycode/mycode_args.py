@@ -29,6 +29,7 @@ class MycodeArgs(BaseModel):
     nfile: int = 1
     nskip: int = 0
     nread: int = 0
+    reset_target: bool = False
 
 
 class MycodeArgsTD(TypedDict, total=False):
@@ -38,6 +39,7 @@ class MycodeArgsTD(TypedDict, total=False):
     nfile: int
     nskip: int
     nread: int
+    reset_target: bool
 
 
 ArgsModel = MycodeArgs

@@ -49,8 +49,9 @@ class Mycode(BaseWorker):
 
         WorkDispatcher.args = self.args.model_dump(mode="json")
 
+        reset_target = getattr(self.args, "reset_target", False)
         try:
-            if self.data_out.exists():
+            if reset_target and self.data_out.exists():
                 shutil.rmtree(
                     self.data_out,
                     ignore_errors=True,
@@ -59,7 +60,7 @@ class Mycode(BaseWorker):
             self.data_out.mkdir(parents=True, exist_ok=True)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.warning(
-                "Issue while trying to reset dataframe directory %s: %s",
+                "Issue while preparing dataframe directory %s: %s",
                 self.data_out,
                 exc,
             )
