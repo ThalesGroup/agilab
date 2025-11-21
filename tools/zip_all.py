@@ -52,8 +52,12 @@ def _normalize_relpath(relpath: str) -> str:
     return relpath.replace(os.sep, "/")
 
 
-def should_include_file(relpath, spec, verbose=False):
+def should_include_file(relpath, spec, follow_symlink_names=None, verbose=False):
     relpath_norm = _normalize_relpath(relpath)
+    if follow_symlink_names and _should_follow_symlink(relpath_norm, follow_symlink_names):
+        if verbose:
+            print(f"CHECK: {relpath_norm} --> INCLUDE (forced by follow names)")
+        return True
     included = not spec.match_file(relpath_norm)
     if verbose:
         print(f"CHECK: {relpath_norm} --> {'INCLUDE' if included else 'EXCLUDE'}")
@@ -67,12 +71,15 @@ def _should_follow_symlink(relpath: str, follow_names: set[str]) -> bool:
     return any(part in follow_names for part in parts if part)
 
 
-def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False, follow_symlink_names=None, start_dir=None):
+def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False, follow_symlink_names=None, start_dir=None, exclude_dirs=None):
     target_dir = os.path.abspath(target_dir)
     walk_root = os.path.abspath(start_dir) if start_dir else target_dir
     base_name = os.path.basename(target_dir)
     output_zip_abs = os.path.abspath(zip_filepath)
     follow_symlink_names = set(follow_symlink_names or [])
+    exclude_dir_set = set(EXCLUDE_DIRS)
+    if exclude_dirs:
+        exclude_dir_set |= set(exclude_dirs)
     visited_real_paths: set[str] = set()
 
     # Preserve archive paths relative to the original target dir even if we start deeper.
@@ -93,7 +100,7 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
         try:
             with os.scandir(current_dir) as it:
                 for entry in it:
-                    if entry.is_dir(follow_symlinks=False) and entry.name in EXCLUDE_DIRS:
+                    if entry.is_dir(follow_symlinks=False) and entry.name in exclude_dir_set:
                         if verbose:
                             print(f"Hard skip dir: {entry.name}")
                         continue
@@ -117,7 +124,7 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
                                 process_directory(target_path, archive_rel, depth+1)
                             else:
                                 archive_path = archive_rel if no_top else posixpath.join(base_name, archive_rel)
-                                if should_include_file(rel_for_match, top_spec, verbose):
+                                if should_include_file(rel_for_match, top_spec, follow_symlink_names, verbose):
                                     zipf.write(target_path, archive_path)
                                     if verbose:
                                         print(f"Adding symlink file {archive_path} (target: {target_path})")
@@ -129,7 +136,7 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
                     # Don't recurse into ignored directories
                     if entry.is_dir(follow_symlinks=False):
                         rel_dir = rel_for_match + '/'
-                        if not should_include_file(rel_dir, top_spec, verbose):
+                        if not should_include_file(rel_dir, top_spec, follow_symlink_names, verbose):
                             if verbose:
                                 print(f"Skipping directory (ignored by .gitignore): {full_path}")
                             continue
@@ -140,7 +147,7 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
                         )
                     else:
                         archive_path = archive_rel if no_top else posixpath.join(base_name, archive_rel)
-                        if should_include_file(rel_for_match, top_spec, verbose):
+                        if should_include_file(rel_for_match, top_spec, follow_symlink_names, verbose):
                             if not os.path.exists(full_path):
                                 if verbose:
                                     print(f"Warning: {full_path} does not exist, skipping.")
@@ -193,6 +200,12 @@ if __name__ == "__main__":
         default=None,
         help="Optional path relative to --dir2zip to start zipping from (only that subtree is archived)."
     )
+    parser.add_argument(
+        "--exclude-dir",
+        action="append",
+        default=[],
+        help="Directory name to exclude (can be specified multiple times)."
+    )
     args = parser.parse_args()
 
     root_dir = args.dir2zip or args.start_dir or Path.cwd()
@@ -206,6 +219,7 @@ if __name__ == "__main__":
     no_top = args.no_top
     follow_app_links = args.follow_app_links
     start_dir = args.start_dir
+    extra_excludes = set(args.exclude_dir or [])
 
     if start_dir is not None:
         start_dir = start_dir if start_dir.is_absolute() else (root_dir / start_dir)
@@ -225,6 +239,8 @@ if __name__ == "__main__":
             print("Following symlinks for: apps, apps-pages")
         if args.start_dir is not None:
             print("Start directory:", start_dir)
+        if extra_excludes:
+            print("Excluding directories:", ", ".join(sorted(extra_excludes)))
 
     os.makedirs(zip_file.parent, exist_ok=True)
 
@@ -241,5 +257,5 @@ if __name__ == "__main__":
 
     follow_names = FOLLOW_SYMLINK_NAMES_DEFAULT if follow_app_links else None
 
-    zip_directory(str(root_dir), str(zip_file), top_spec, no_top, verbose, follow_names, start_dir)
+    zip_directory(str(root_dir), str(zip_file), top_spec, no_top, verbose, follow_names, start_dir, extra_excludes)
     print(f"Zipped {start_dir or root_dir} into {zip_file}")
