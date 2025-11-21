@@ -561,12 +561,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
             # Prefer an explicit APPS_REPOSITORY if present
             if repo_apps is not None:
-                apps_dir = repo_apps
+                apps_dir = default_apps_root if default_apps_root.exists() else repo_apps
+                self.apps_repository_root = repo_apps
             else:
-                if self.builtin_apps_dir:
-                    apps_dir = self.builtin_apps_dir
-                else:
-                    apps_dir = default_apps_root
+                apps_dir = default_apps_root
 
         if self.is_worker_env:
             if not app:
@@ -704,10 +702,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception:
             is_builtin_app = False
 
-        if (not self.is_source_env) and (not self.is_worker_env) and not self.skip_repo_links and not is_builtin_app:
+        if (not self.is_worker_env) and not self.skip_repo_links and not is_builtin_app:
             os.makedirs(apps_dir, exist_ok=True)
 
-            link_source = self.apps_repository_root = self._get_apps_repository_root()
+            link_source = self.apps_repository_root or self._get_apps_repository_root()
 
             if link_source is not None and link_source.exists():
                 same_tree = False
@@ -745,41 +743,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         else:
                             os.symlink(src_app, dest_app, target_is_directory=True)
                         AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
-            elif apps_root.exists():
+            elif apps_root.exists() and not self.is_source_env:
                 try:
                     if apps_root.resolve() != active_app.parent.resolve():
                         self.copy_existing_projects(apps_root, active_app.parent)
                 except Exception:
                     pass
-            else:
-                AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
-
-            if not active_app.exists() and apps_root.exists():
-                packaged_app = apps_root / app
-                if packaged_app.exists():
-                    try:
-                        shutil.copytree(
-                            packaged_app,
-                            active_app,
-                            dirs_exist_ok=True
-                        )
-                        AgiEnv.logger.info(
-                            "Copied packaged app %s into %s", packaged_app, active_app
-                        )
-                    except Exception as exc:
-                        AgiEnv.logger.warning(
-                            f"Failed to copy packaged app {packaged_app}: {exc}"
-                        )
-                else:
-                    AgiEnv.logger.info(
-                        "Private apps root missing %s; copying packaged examples instead",
-                        app,
-                    )
-                    try:
-                        if apps_root.resolve() != apps_dir.resolve():
-                            self.copy_existing_projects(apps_root, apps_dir)
-                    except Exception:
-                        pass
 
 
         resources_root = self.env_pck if self.is_source_env else ""
@@ -970,10 +939,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
         self.ssh_key_path = str(Path(ssh_key_env).expanduser()) if ssh_key_env else None
 
-        if self.apps_repository_root is None:
-            self.apps_repository_root = self._get_apps_repository_root()
-
-        self.projects = self.get_projects(self.apps_dir, self.builtin_apps_dir, self.apps_repository_root)
+        self.projects = self.get_projects(self.apps_dir, self.builtin_apps_dir)
         if not self.projects:
             AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")
 
