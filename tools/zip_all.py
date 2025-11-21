@@ -181,6 +181,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Follow symlinks residing in 'apps' and 'apps-pages' directories."
     )
+    parser.add_argument(
+        "--start-dir",
+        type=Path,
+        default=None,
+        help="Optional path relative to --dir2zip to start zipping from (only that subtree is archived)."
+    )
     args = parser.parse_args()
 
     project_dir = args.dir2zip.absolute()
@@ -188,6 +194,17 @@ if __name__ == "__main__":
     verbose = args.verbose
     no_top = args.no_top
     follow_app_links = args.follow_app_links
+    start_dir = args.start_dir
+
+    if start_dir is not None:
+        start_dir = (project_dir / start_dir).resolve()
+        if not start_dir.exists():
+            raise SystemExit(f"--start-dir does not exist: {start_dir}")
+        try:
+            start_dir.relative_to(project_dir)
+        except ValueError:
+            raise SystemExit("--start-dir must be inside --dir2zip")
+        project_dir = start_dir
 
     if verbose:
         print("Directory to zip:", project_dir)
@@ -195,6 +212,8 @@ if __name__ == "__main__":
         print("No top directory:", no_top)
         if follow_app_links:
             print("Following symlinks for: apps, apps-pages")
+        if args.start_dir is not None:
+            print("Start directory:", project_dir)
 
     os.makedirs(zip_file.parent, exist_ok=True)
 
