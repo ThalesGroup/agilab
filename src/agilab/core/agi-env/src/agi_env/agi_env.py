@@ -398,15 +398,22 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if app is None and 'active_app' in kwargs:
             val = kwargs.pop('active_app')
             try:
+                active_app_override = Path(val)
+            except Exception:
+                active_app_override = None
+            try:
                 app = Path(val).name
             except Exception:
                 app = str(val) if val is not None else None
+        else:
+            active_app_override = None
 
         self.skip_repo_links = False
 
         def _resolve_install_type(apps_dir: str | None,
                                   agilab_pck: Path,
-                                  envars: dict | None) -> int:
+                                  envars: dict | None,
+                                  active_app_override: Path | None = None) -> int:
             """Infer install type without requiring an explicit argument.
 
             Precedence:
@@ -420,6 +427,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             try:
                 # Heuristic: if apps_dir is not provided (BaseWorker.new) or it resides inside a worker env folder (wenv/*_worker),
                 # treat this as a worker-only environment regardless of source/layout markers.
+                if active_app_override is not None and apps_dir is None:
+                    return 1
+
                 if apps_dir is None or "wenv" in set(apps_dir.resolve().parts):
                     self.is_worker_env = True
                     return 2
@@ -496,17 +506,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 apps_dir = apps_dir.resolve()
             except FileNotFoundError:
                 pass
+        elif active_app_override is not None:
+            # Use the provided active_app path as the anchor when no apps_dir is supplied.
+            try:
+                apps_dir = active_app_override.parent.resolve()
+            except Exception:
+                apps_dir = active_app_override.parent
 
-        install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars)
+        install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars, active_app_override)
         if self.is_worker_env:
             self.skip_repo_links = True
 
         # Default apps_dir for non-worker envs when not provided
         if not self.is_worker_env and apps_dir is None:
-            try:
-                apps_dir = (agilab_pck / "apps").resolve()
-            except Exception:
-                apps_dir = agilab_pck / "apps"
+            repo_apps = self._get_apps_repository_root()
+            if repo_apps is not None:
+                apps_dir = repo_apps
+            else:
+                try:
+                    apps_dir = (agilab_pck / "apps").resolve()
+                except Exception:
+                    apps_dir = agilab_pck / "apps"
 
         if self.is_worker_env:
             if not app:
