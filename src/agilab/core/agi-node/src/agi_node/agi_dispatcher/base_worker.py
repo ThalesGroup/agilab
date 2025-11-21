@@ -664,7 +664,7 @@ class BaseWorker(abc.ABC):
         source_path: str | Path,
         target_path: str | Path | None = None,
         target_subdir: str = "dataframe",
-        reset_target: bool = True,
+        reset_target: bool = False,
     ) -> SimpleNamespace:
         """Prepare normalised input/output dataset paths without relying on worker args.
 
