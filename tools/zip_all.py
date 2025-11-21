@@ -64,6 +64,31 @@ def should_include_file(relpath, spec, follow_symlink_names=None, verbose=False)
     return included
 
 
+def split_file(path: Path, max_bytes: int, verbose: bool = False) -> list[Path]:
+    """Split a file into parts of at most max_bytes. Returns created part paths."""
+    size = path.stat().st_size
+    if size <= max_bytes:
+        if verbose:
+            print(f"No split needed; size {size} bytes <= limit {max_bytes} bytes")
+        return []
+    parts: list[Path] = []
+    with open(path, "rb") as src:
+        idx = 1
+        while True:
+            chunk = src.read(max_bytes)
+            if not chunk:
+                break
+            part_path = Path(f"{path}.part{idx:02d}")
+            with open(part_path, "wb") as dst:
+                dst.write(chunk)
+            parts.append(part_path)
+            if verbose:
+                print(f"Wrote part {part_path} ({len(chunk)} bytes)")
+            idx += 1
+    path.unlink()
+    return parts
+
+
 def _should_follow_symlink(relpath: str, follow_names: set[str]) -> bool:
     if not follow_names:
         return False
@@ -206,6 +231,12 @@ if __name__ == "__main__":
         default=[],
         help="Directory name to exclude (can be specified multiple times)."
     )
+    parser.add_argument(
+        "--split-mb",
+        type=float,
+        default=None,
+        help="Split the resulting zip into parts of at most this many megabytes (original zip is removed)."
+    )
     args = parser.parse_args()
 
     root_dir = args.dir2zip or args.start_dir or Path.cwd()
@@ -220,6 +251,7 @@ if __name__ == "__main__":
     follow_app_links = args.follow_app_links
     start_dir = args.start_dir
     extra_excludes = set(args.exclude_dir or [])
+    split_mb = args.split_mb
 
     if start_dir is not None:
         start_dir = start_dir if start_dir.is_absolute() else (root_dir / start_dir)
@@ -241,6 +273,8 @@ if __name__ == "__main__":
             print("Start directory:", start_dir)
         if extra_excludes:
             print("Excluding directories:", ", ".join(sorted(extra_excludes)))
+        if split_mb:
+            print(f"Splitting archive into parts <= {split_mb} MB")
 
     os.makedirs(zip_file.parent, exist_ok=True)
 
@@ -259,3 +293,11 @@ if __name__ == "__main__":
 
     zip_directory(str(root_dir), str(zip_file), top_spec, no_top, verbose, follow_names, start_dir, extra_excludes)
     print(f"Zipped {start_dir or root_dir} into {zip_file}")
+
+    if split_mb:
+        max_bytes = int(split_mb * 1024 * 1024)
+        parts = split_file(zip_file, max_bytes, verbose)
+        if parts:
+            print("Created parts:")
+            for part in parts:
+                print(f" - {part}")
