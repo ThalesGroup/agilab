@@ -970,7 +970,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
         self.ssh_key_path = str(Path(ssh_key_env).expanduser()) if ssh_key_env else None
 
-        self.projects = self.get_projects(self.apps_dir)
+        if self.apps_repository_root is None:
+            self.apps_repository_root = self._get_apps_repository_root()
+
+        self.projects = self.get_projects(self.apps_dir, self.builtin_apps_dir, self.apps_repository_root)
         if not self.projects:
             AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")
 
@@ -1365,35 +1368,50 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _init_projects(self):
         """Identify available projects and align state with the selected target."""
 
-        self.projects = self.get_projects(self.apps_dir)
+        if self.apps_repository_root is None:
+            self.apps_repository_root = self._get_apps_repository_root()
+
+        self.projects = self.get_projects(self.apps_dir, self.builtin_apps_dir, self.apps_repository_root)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
                 self.app = self.apps_dir / project
                 self.app = project
                 break
 
-    def get_projects(self, path: Path):
-        """Return the names of ``*_project`` directories beneath ``path``."""
-
-        if not path.exists():
-            return []
+    def get_projects(self, *paths: Path):
+        """Return the names of ``*_project`` directories beneath the provided paths."""
 
         projects: list[str] = []
-        for project_path in path.glob("*project"):
-            if project_path.is_symlink() and not project_path.exists():
-                try:
-                    project_path.unlink()
-                    AgiEnv.logger.info(
-                        f"Removed dangling project symlink: {project_path}"
-                    )
-                except OSError as exc:
-                    AgiEnv.logger.warning(
-                        f"Failed to remove dangling project symlink {project_path}: {exc}"
-                    )
+        seen: set[str] = set()
+
+        for path in paths:
+            if path is None:
+                continue
+            try:
+                base = Path(path)
+            except Exception:
+                continue
+            if not base.exists():
                 continue
 
-            if project_path.is_dir():
-                projects.append(project_path.name)
+            for project_path in base.glob("*_project"):
+                if project_path.is_symlink() and not project_path.exists():
+                    try:
+                        project_path.unlink()
+                        AgiEnv.logger.info(
+                            f"Removed dangling project symlink: {project_path}"
+                        )
+                    except OSError as exc:
+                        AgiEnv.logger.warning(
+                            f"Failed to remove dangling project symlink {project_path}: {exc}"
+                        )
+                    continue
+
+                if project_path.is_dir():
+                    name = project_path.name
+                    if name not in seen:
+                        projects.append(name)
+                        seen.add(name)
 
         return projects
 
