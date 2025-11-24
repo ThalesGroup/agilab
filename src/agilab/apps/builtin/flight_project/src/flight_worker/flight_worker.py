@@ -219,7 +219,7 @@ class FlightWorker(PolarsWorker):
         try:
             """Finalize the worker by listing saved dataframes."""
             files = glob.glob(os.path.join(self.data_out, "**"), recursive=True)
-            df_files = [f for f in files if re.search(r"\.(csv|parquet)$", f)]
+            df_files = [f for f in files if re.search(r"\.(csv|parquet|json)$", f)]
             n_df = len(df_files)
             if self.verbose > 0:
                 logging.info(f"{n_df} dataframes")
