@@ -13,6 +13,7 @@ Quick start (dev checkout):
 
 - view_maps_network
   - uv run streamlit run src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --active-app src/agilab/apps/builtin/flight_project
+  - Sidebar accepts an allocations file (JSON/Parquet) such as `sb3_trainer/dataframe/trainer_routing/allocations_steps.parquet` and a trajectory glob (e.g., `flight_trajectory/dataframe/flight_simulation/*.parquet`) to animate per-timestep routes/capacities.
 
 - view_barycentric
   - uv run streamlit run src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py -- --active-app src/agilab/apps/builtin/flight_project
