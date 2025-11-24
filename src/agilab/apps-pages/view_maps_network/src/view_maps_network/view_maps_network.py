@@ -24,6 +24,9 @@ import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import glob
+import json
+from datetime import datetime
 
 
 def _ensure_repo_on_path() -> None:
@@ -283,6 +286,113 @@ def filter_edges(df, edge_columns):
         edge_list = df[edge_type].dropna().tolist()
         filtered_edges[edge_type] = parse_edges(edge_list)
     return filtered_edges
+
+# ----------------------------
+# Live allocations helpers
+# ----------------------------
+def load_allocations(path: Path) -> pd.DataFrame:
+    path = path.expanduser()
+    if not path.exists():
+        return pd.DataFrame()
+    if path.suffix.lower() == ".parquet":
+        try:
+            return pd.read_parquet(path)
+        except Exception:
+            pass
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        rows = []
+        if isinstance(data, list):
+            for step in data:
+                t_idx = step.get("time_index", 0)
+                for alloc in step.get("allocations", []):
+                    row = dict(alloc)
+                    row["time_index"] = t_idx
+                    rows.append(row)
+            return pd.DataFrame(rows)
+        elif isinstance(data, dict):
+            return pd.DataFrame([data])
+    except Exception:
+        return pd.DataFrame()
+    return pd.DataFrame()
+
+def _nearest_row(df: pd.DataFrame, t: float) -> pd.DataFrame:
+    if df.empty or "time_s" not in df.columns:
+        return df
+    idx = (df["time_s"] - t).abs().idxmin()
+    return df.loc[[idx]]
+
+def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
+    records = []
+    for fname in glob.glob(str(Path(traj_glob).expanduser())):
+        try:
+            df = pd.read_parquet(fname)
+        except Exception:
+            try:
+                df = pd.read_csv(fname)
+            except Exception:
+                continue
+        if not {"time_s", "latitude", "longitude"}.issubset(df.columns):
+            continue
+        closest = _nearest_row(df, t)
+        if closest.empty:
+            continue
+        row = closest.iloc[0]
+        records.append(
+            {
+                "flight_id": Path(fname).stem,
+                "time_s": row.get("time_s", t),
+                "lat": row.get("latitude"),
+                "long": row.get("longitude"),
+                "alt": row.get("alt_m", 0.0),
+            }
+        )
+    return pd.DataFrame(records)
+
+def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame):
+    if alloc_df.empty or positions.empty:
+        return []
+    edges = []
+    for _, row in alloc_df.iterrows():
+        src = str(row.get("source"))
+        dst = str(row.get("destination"))
+        src_pos = positions.loc[positions["flight_id"] == f"plane_{src}"]
+        if src_pos.empty:
+            src_pos = positions.loc[positions["flight_id"] == src]
+        dst_pos = positions.loc[positions["flight_id"] == f"plane_{dst}"]
+        if dst_pos.empty:
+            dst_pos = positions.loc[positions["flight_id"] == dst]
+        if src_pos.empty or dst_pos.empty:
+            continue
+        edges.append(
+            {
+                "source": src_pos[["long", "lat", "alt"]].values[0].tolist(),
+                "target": dst_pos[["long", "lat", "alt"]].values[0].tolist(),
+                "bandwidth": row.get("bandwidth", 0),
+                "delivered": row.get("delivered_bandwidth", row.get("capacity_mbps", 0)),
+            }
+        )
+    if not edges:
+        return []
+    edge_df = pd.DataFrame(edges)
+    width_norm = edge_df["delivered"].fillna(0)
+    if not width_norm.empty and width_norm.max() > 0:
+        width_norm = 2 + 8 * (width_norm / width_norm.max())
+    else:
+        width_norm = 2
+    edge_df["width"] = width_norm
+    return [
+        pdk.Layer(
+            "LineLayer",
+            data=edge_df,
+            get_source_position="source",
+            get_target_position="target",
+            get_color=[255, 140, 0],
+            get_width="width",
+            opacity=0.8,
+            pickable=True,
+        )
+    ]
 
 def bezier_curve(x1, y1, x2, y2, control_points=20, offset=0.2):
     t = np.linspace(0, 1, control_points)
@@ -610,6 +720,61 @@ def page():
             metric_type=selected_metric,
         )
         st.plotly_chart(fig)
+
+    # Live allocations overlay (routing/ILP trainers)
+    st.markdown("### 📡 Live allocations (routing/ILP)")
+    alloc_path_default = Path(env.agi_share_dir) / "example_app/dataframe/trainer_routing/allocations_steps.parquet"
+    alloc_path = st.text_input(
+        "Allocations file (JSON or Parquet)",
+        value=str(alloc_path_default),
+        key="alloc_path_input",
+    )
+    traj_glob_default = Path(env.agi_share_dir) / "example_app/dataframe/flight_simulation/*.parquet"
+    traj_glob = st.text_input(
+        "Trajectory glob",
+        value=str(traj_glob_default),
+        key="traj_glob_input",
+    )
+    alloc_df = load_allocations(Path(alloc_path))
+    if alloc_df.empty:
+        st.info("No allocations found at the specified path.")
+    else:
+        times = sorted(alloc_df["time_index"].unique())
+        t_sel = st.slider("Time index", min_value=int(min(times)), max_value=int(max(times)), value=int(min(times)))
+        alloc_step = alloc_df[alloc_df["time_index"] == t_sel]
+        positions_live = load_positions_at_time(traj_glob, t_sel)
+        st.dataframe(alloc_step)
+        layers_live = []
+        if not positions_live.empty:
+            nodes_layer_live = pdk.Layer(
+                "PointCloudLayer",
+                data=positions_live,
+                get_position="[long,lat,alt]",
+                get_color=[0, 128, 255, 160],
+                point_size=12,
+                elevation_scale=500,
+                auto_highlight=True,
+                pickable=True,
+            )
+            layers_live.append(nodes_layer_live)
+        layers_live.extend(build_allocation_layers(alloc_step, positions_live))
+        if layers_live:
+            view_state_live = pdk.ViewState(
+                longitude=positions_live["long"].mean() if not positions_live.empty else 0,
+                latitude=positions_live["lat"].mean() if not positions_live.empty else 0,
+                zoom=3,
+                pitch=45,
+                bearing=0,
+            )
+            st.pydeck_chart(
+                pdk.Deck(
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    initial_view_state=view_state_live,
+                    layers=layers_live,
+                )
+            )
+        else:
+            st.info("No edges to display for this timestep.")
 
 def main():
     try:
