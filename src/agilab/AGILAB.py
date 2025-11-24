@@ -198,6 +198,73 @@ def _ensure_env_file(path: Path) -> Path:
     path.touch(exist_ok=True)
     return path
 
+def _refresh_share_dir(env, new_value: str) -> None:
+    """Update the in-memory AgiEnv share-path attributes after a UI change."""
+    if not new_value:
+        return
+
+    share_dir = Path(new_value)
+    share_dir_expanded = share_dir.expanduser()
+    if share_dir_expanded.is_absolute():
+        agi_share_dir = share_dir_expanded
+    else:
+        agi_share_dir = (env.home_abs / share_dir_expanded).expanduser()
+
+    env.AGI_SHARE_DIR = share_dir
+    env.agi_share_dir = agi_share_dir
+    env.AGILAB_SHARE = agi_share_dir
+    env.data_rel = share_dir / env.target
+    env.dataframe_path = env.data_rel / "dataframe"
+    try:
+        env.data_root = env.ensure_data_root()
+    except Exception as exc:
+        st.warning(f"AGI_SHARE_DIR update saved but data directory is still unreachable: {exc}")
+
+def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
+    """Render a recovery UI when the AGI share directory is unavailable."""
+    message = str(exc)
+    if "AGI_SHARE_DIR" not in message and "data directory" not in message:
+        return False
+
+    agi_env_cls._ensure_defaults()
+    current_value = (
+        st.session_state.get("agi_share_dir_override_input")
+        or agi_env_cls.envars.get("AGI_SHARE_DIR")
+        or os.environ.get("AGI_SHARE_DIR")
+        or "clustershare"
+    )
+    share_dir_path = Path(str(current_value)).expanduser()
+
+    st.error(
+        "AGILAB cannot reach the configured AGI share directory. "
+        "Mount the expected path or override `AGI_SHARE_DIR` before continuing."
+    )
+    st.code(message)
+    st.info(
+        f"The value is persisted in `{ENV_FILE_PATH}` so CLI and Streamlit stay in sync. "
+        "Point it to a mounted folder (local path or NFS mount) that AGILAB can create files in."
+    )
+    st.write(f"Current setting: `{current_value}` (expands to `{share_dir_path}`)")
+
+    key = "agi_share_dir_override_input"
+    if key not in st.session_state or not st.session_state[key]:
+        st.session_state[key] = str(current_value)
+
+    with st.form("agi_share_dir_override_form"):
+        st.text_input("New AGI_SHARE_DIR", key=key, help="Provide an absolute or home-relative path")
+        submitted = st.form_submit_button("Save and retry", use_container_width=True)
+
+    if submitted:
+        new_value = (st.session_state.get(key) or "").strip()
+        if not new_value:
+            st.warning("AGI_SHARE_DIR cannot be empty.")
+        else:
+            agi_env_cls.set_env_var("AGI_SHARE_DIR", new_value)
+            st.success(f"Saved AGI_SHARE_DIR = {new_value}. Reloading…")
+            st.session_state["first_run"] = True
+            st.rerun()
+    return True
+
 def _read_env_file(path: Path) -> List[Dict[str, str]]:
     path = _ensure_env_file(path)
     entries: List[Dict[str, str]] = []
@@ -250,6 +317,7 @@ def _render_env_editor(env, help_file: Path):
 
     entries = _read_env_file(ENV_FILE_PATH)
     existing_entries = [entry for entry in entries if entry["type"] == "entry"]
+    existing_values = {entry["key"]: entry["value"].strip() for entry in existing_entries}
 
     with st.form("env_editor_form"):
         updated_values: Dict[str, str] = {}
@@ -294,6 +362,10 @@ def _render_env_editor(env, help_file: Path):
                 os.environ[key] = value
                 if hasattr(env, "envars") and isinstance(env.envars, dict):
                     env.envars[key] = value
+
+            new_share = combined_updates.get("AGI_SHARE_DIR")
+            if new_share is not None and new_share.strip() and new_share.strip() != existing_values.get("AGI_SHARE_DIR"):
+                _refresh_share_dir(env, new_share.strip())
 
             st.session_state["env_editor_feedback"] = "Environment variables updated."
             st.session_state["env_editor_reset"] = True
@@ -442,7 +514,12 @@ def main():
 
             st.session_state["apps_dir"] = str(apps_dir)
 
-            env = AgiEnv(apps_dir=apps_dir, verbose=1)
+            try:
+                env = AgiEnv(apps_dir=apps_dir, verbose=1)
+            except RuntimeError as exc:
+                if _handle_data_root_failure(exc, agi_env_cls=AgiEnv):
+                    return
+                raise
             # Honor the initial --active-app request, falling back to env default when invalid.
             _apply_active_app_request(env, args.active_app)
             env.init_done = True
