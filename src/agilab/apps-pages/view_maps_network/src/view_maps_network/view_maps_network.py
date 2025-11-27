@@ -577,8 +577,18 @@ def page():
             st.warning("Invalid custom path; falling back to export.")
             st.session_state.datadir = default_datadir
             st.session_state["input_datadir"] = str(default_datadir)
-    # Ensure base dirs exist
-    Path(st.session_state.datadir).mkdir(parents=True, exist_ok=True)
+    # Optional relative subdir under the base
+    rel_subdir = st.sidebar.text_input(
+        "Relative subdir (optional)",
+        value=st.session_state.get("datadir_rel", ""),
+        key="datadir_rel",
+    ).strip()
+    base_path = Path(st.session_state.datadir).expanduser()
+    final_path = (base_path / rel_subdir) if rel_subdir else base_path
+    final_path.mkdir(parents=True, exist_ok=True)
+    st.session_state.datadir = final_path
+    st.session_state["input_datadir"] = str(final_path)
+    st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
     ext_choice = st.sidebar.selectbox("File type", ext_options, index=0, key="file_ext_choice")
