@@ -798,30 +798,39 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if not self.worker_path.exists():
             copied_packaged_worker = False
-            if self._ensure_repository_app_link():
-                self.app_src = self.active_app / "src"
-                self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+            # Prefer an installed worker tree inside wenv to avoid mutating the source checkout.
+            wenv_worker_src = self.wenv_abs / "src" / target_worker / f"{target_worker}.py"
+            if wenv_worker_src.exists():
+                self.app_src = self.wenv_abs / "src"
+                self.worker_path = wenv_worker_src
                 self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                 self.dataset_archive = self.worker_path.parent / "dataset.7z"
-            else:
-                packaged_app = self.agilab_pck / "apps" / self.app
-                if not self.is_worker_env and packaged_app.exists():
-                    try:
-                        shutil.copytree(
-                            packaged_app,
-                            self.active_app,
-                            dirs_exist_ok=True,
-                        )
-                        copied_packaged_worker = True
-                        AgiEnv.logger.info(
-                            "Copied packaged app %s into %s", packaged_app, self.active_app
-                        )
-                    except Exception as exc:
-                        AgiEnv.logger.warning(
-                            f"Unable to copy packaged worker app from {packaged_app} to {self.app}: {exc}"
-                        )
-                elif not self.is_worker_env and apps_root.exists():
-                    self.copy_existing_projects(apps_root, apps_dir)
+                copied_packaged_worker = True
+            if not copied_packaged_worker:
+                if self._ensure_repository_app_link():
+                    self.app_src = self.active_app / "src"
+                    self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                else:
+                    packaged_app = self.agilab_pck / "apps" / self.app
+                    if not self.is_worker_env and packaged_app.exists():
+                        try:
+                            shutil.copytree(
+                                packaged_app,
+                                self.active_app,
+                                dirs_exist_ok=True,
+                            )
+                            copied_packaged_worker = True
+                            AgiEnv.logger.info(
+                                "Copied packaged app %s into %s", packaged_app, self.active_app
+                            )
+                        except Exception as exc:
+                            AgiEnv.logger.warning(
+                                f"Unable to copy packaged worker app from {packaged_app} to {self.app}: {exc}"
+                            )
+                    elif not self.is_worker_env and apps_root.exists():
+                        self.copy_existing_projects(apps_root, apps_dir)
 
                 if (
                     not self.is_worker_env
@@ -2619,6 +2628,23 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         try:
             with py7zr.SevenZipFile(archive_path, mode="r") as archive:
+                try:
+                    size_mb = archive_path.stat().st_size / 1_000_000
+                except Exception:
+                    size_mb = None
+                size_hint = f" (~{size_mb:.1f} MB)" if size_mb else ""
+                progress_msg = (
+                    f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
+                    "(this can take a moment; please wait)."
+                )
+                # Surface the progress even when logger is at WARNING level.
+                try:
+                    AgiEnv.logger.info(progress_msg)
+                except Exception:
+                    pass
+                else:
+                    if AgiEnv.logger and not AgiEnv.logger.isEnabledFor(logging.INFO):
+                        print(progress_msg, flush=True)
                 archive.extractall(path=dest)
             if AgiEnv.verbose > 0:
                 AgiEnv.logger.info(f"Extracted '{archive_path}' to '{dest}'.")
