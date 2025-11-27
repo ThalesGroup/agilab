@@ -706,50 +706,64 @@ def page():
 
     current_positions["color"] = current_positions["flight_id"].map(st.session_state.color_map).apply(hex_to_rgba)
 
-    col1, col2 = st.columns([4, 4])
+    # Layout containers based on toggles
+    if show_map and show_graph:
+        col1, col2 = st.columns([4, 4])
+    else:
+        col1 = st.container()
+        col2 = None
 
-    with col1:
-        layers = create_layers_geomap(selected_links, df_positions, current_positions)
-        view_state = pdk.ViewState(
-            latitude=current_positions["lat"].mean(),
-            longitude=current_positions["long"].mean(),
-            zoom=3,
-            pitch=-5,
-            bearing=5,
-            min_pitch=0,
-            max_pitch=85,
-        )
-        r = pdk.Deck(
-            layers=layers,
-            initial_view_state=view_state,
-            map_style=None,
-            tooltip={
-                "html": "<b>Flight ID:</b> {flight_id}<br>"
-                        "<b>Longitude:</b> {long}<br>"
-                        "<b>Latitude:</b> {lat}<br>"
-                        "<b>Altitude:</b> {alt}",
-                "style": {
-                    "backgroundColor": "white",
-                    "color": "black",
-                    "fontSize": "12px",
-                    "borderRadius": "2px",
-                    "padding": "5px",
+    if show_map:
+        with col1:
+            layers = create_layers_geomap(selected_links, df_positions, current_positions)
+            view_state = pdk.ViewState(
+                latitude=current_positions["lat"].mean(),
+                longitude=current_positions["long"].mean(),
+                zoom=3,
+                pitch=-5,
+                bearing=5,
+                min_pitch=0,
+                max_pitch=85,
+            )
+            r = pdk.Deck(
+                layers=layers,
+                initial_view_state=view_state,
+                map_style=None,
+                tooltip={
+                    "html": "<b>Flight ID:</b> {flight_id}<br>"
+                            "<b>Longitude:</b> {long}<br>"
+                            "<b>Latitude:</b> {lat}<br>"
+                            "<b>Altitude:</b> {alt}",
+                    "style": {
+                        "backgroundColor": "white",
+                        "color": "black",
+                        "fontSize": "12px",
+                        "borderRadius": "2px",
+                        "padding": "5px",
+                    },
                 },
-            },
-        )
-        st.pydeck_chart(r)
+            )
+            st.pydeck_chart(r)
 
-    with col2:
-        pos = get_fixed_layout(df, layout=layout_type)
-        fig = create_network_graph(
-            df_positions,
-            pos,
-            show_nodes=True,
-            show_edges=True,
-            edge_types=selected_links,
-            metric_type=selected_metric,
-        )
-        st.plotly_chart(fig)
+    if show_graph:
+        target_col = col2 if col2 is not None else st.container()
+        with target_col:
+            pos = get_fixed_layout(df, layout=layout_type)
+            fig = create_network_graph(
+                df_positions,
+                pos,
+                show_nodes=True,
+                show_edges=True,
+                edge_types=selected_links,
+                metric_type=selected_metric,
+            )
+            st.plotly_chart(fig)
+
+    if show_metrics:
+        metric_cols = [c for c in ["flight_id", "datetime", "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
+        if metric_cols:
+            st.markdown("### Metrics snapshot")
+            st.dataframe(df_positions[metric_cols].sort_values("flight_id"), use_container_width=True)
 
     # Live allocations overlay (routing/ILP trainers)
     st.markdown("### 📡 Live allocations (routing/ILP)")
