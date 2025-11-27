@@ -578,14 +578,18 @@ def page():
             st.session_state.datadir = default_datadir
             st.session_state["input_datadir"] = str(default_datadir)
     # Optional relative subdir under the base
-    rel_subdir = st.session_state.get("datadir_rel", "")
+    rel_subdir = st.session_state.get("datadir_rel", env.target)
     rel_subdir = st.sidebar.text_input(
         "Relative subdir",
         value=rel_subdir,
         key="datadir_rel",
     ).strip()
     base_path = Path(st.session_state.datadir).expanduser()
-    final_path = (base_path / rel_subdir) if rel_subdir else base_path
+    # If the base path already ends with the app name, avoid doubling it
+    if base_path.name == env.target and rel_subdir == env.target:
+        final_path = base_path
+    else:
+        final_path = (base_path / rel_subdir) if rel_subdir else base_path
     final_path.mkdir(parents=True, exist_ok=True)
     st.session_state.datadir = final_path
     st.session_state["input_datadir"] = str(final_path)
