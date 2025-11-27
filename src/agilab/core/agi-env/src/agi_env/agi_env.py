@@ -542,6 +542,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
 
         install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars, active_app_override)
+        if env_is_source is None and install_type == 1:
+            self.is_source_env = True
+        if env_is_worker is None and install_type == 2:
+            self.is_worker_env = True
         if self.is_worker_env:
             self.skip_repo_links = True
 
