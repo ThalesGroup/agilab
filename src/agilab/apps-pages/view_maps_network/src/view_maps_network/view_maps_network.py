@@ -621,7 +621,6 @@ def page():
         ext_options,
         index=ext_index,
         key="file_ext_choice",
-        on_change=st.experimental_rerun,
     )
 
     datadir_path = Path(st.session_state.datadir).expanduser()
