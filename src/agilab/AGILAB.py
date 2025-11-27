@@ -548,8 +548,14 @@ def main():
                 if _handle_data_root_failure(exc, agi_env_cls=AgiEnv):
                     return
                 raise
-            # Honor the initial --active-app request, falling back to env default when invalid.
-            _apply_active_app_request(env, args.active_app)
+            # Determine requested app: CLI flag first, then last-remembered app.
+            requested_app = args.active_app
+            if not requested_app:
+                last_app = _load_last_active_app()
+                if last_app:
+                    requested_app = str(last_app)
+            # Honor the requested app, falling back to env default when invalid.
+            _apply_active_app_request(env, requested_app)
             env.init_done = True
             st.session_state['env'] = env
             st.session_state["IS_SOURCE_ENV"] = env.is_source_env
@@ -558,6 +564,11 @@ def main():
             if not st.session_state.get("server_started"):
                 activate_mlflow(env)
                 st.session_state["server_started"] = True
+
+            try:
+                _store_last_active_app(Path(env.apps_dir) / env.app)
+            except Exception:
+                pass
 
             openai_api_key = env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key
             if not openai_api_key:
