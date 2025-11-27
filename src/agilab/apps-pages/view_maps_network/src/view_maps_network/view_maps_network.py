@@ -742,15 +742,15 @@ def page():
 
     if show_map:
         with col1:
-        layers = create_layers_geomap(selected_links, df_positions, current_positions)
-        view_state = pdk.ViewState(
-            latitude=current_positions["lat"].mean(),
-            longitude=current_positions["long"].mean(),
-            zoom=3,
-            pitch=-5,
-            bearing=5,
-            min_pitch=0,
-            max_pitch=85,
+            layers = create_layers_geomap(selected_links, df_positions, current_positions)
+            view_state = pdk.ViewState(
+                latitude=current_positions["lat"].mean(),
+                longitude=current_positions["long"].mean(),
+                zoom=3,
+                pitch=-5,
+                bearing=5,
+                min_pitch=0,
+                max_pitch=85,
             )
             r = pdk.Deck(
                 layers=layers,
@@ -775,22 +775,22 @@ def page():
     if show_graph:
         target_col = col2 if col2 is not None else st.container()
         with target_col:
-        pos = get_fixed_layout(df, layout=layout_type)
-        fig = create_network_graph(
-            df_positions,
-            pos,
-            show_nodes=True,
-            show_edges=True,
-            edge_types=selected_links,
-            metric_type=selected_metric,
-        )
-        st.plotly_chart(fig)
+            pos = get_fixed_layout(df, layout=layout_type)
+            fig = create_network_graph(
+                df_positions,
+                pos,
+                show_nodes=True,
+                show_edges=True,
+                edge_types=selected_links,
+                metric_type=selected_metric,
+            )
+            st.plotly_chart(fig)
 
     if show_metrics:
-    metric_cols = [c for c in [flight_col, time_col, "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
+        metric_cols = [c for c in [flight_col, time_col, "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
         if metric_cols:
             st.markdown("### Metrics snapshot")
-            st.dataframe(df_positions[metric_cols].sort_values("flight_id"), use_container_width=True)
+            st.dataframe(df_positions[metric_cols].sort_values(flight_col), use_container_width=True)
 
     # Live allocations overlay (routing/ILP trainers)
     st.markdown("### 📡 Live allocations (routing/ILP)")
