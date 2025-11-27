@@ -488,6 +488,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         envars = self.envars
         repo_agilab_dir = Path(__file__).resolve().parents[4]
 
+        # Propagate Streamlit message size from AgiEnv env vars to runtime env to avoid local config writes.
+        streamlit_size = envars.get("STREAMLIT_SERVER_MAX_MESSAGE_SIZE") or envars.get(
+            "STREAMLIT_MAX_MESSAGE_SIZE"
+        )
+        if streamlit_size:
+            os.environ.setdefault("STREAMLIT_SERVER_MAX_MESSAGE_SIZE", str(streamlit_size))
+            os.environ.setdefault("STREAMLIT_MAX_MESSAGE_SIZE", str(streamlit_size))
+
         agilab_spec = importlib.util.find_spec("agilab")
         if agilab_spec and getattr(agilab_spec, "origin", None):
             agilab_pkg_dir = Path(agilab_spec.origin).resolve().parent
