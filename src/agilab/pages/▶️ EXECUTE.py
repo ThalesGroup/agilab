@@ -1136,6 +1136,10 @@ async def page():
     previous_project = current_project
     select_project(projects, current_project)
     project_changed = st.session_state.pop("project_changed", False)
+    try:
+        st.query_params["active_app"] = env.app
+    except Exception:
+        pass
     if project_changed or env.app != previous_project:
         app_settings_snapshot = st.session_state.get("app_settings", {})
         # Clear generic & per-project keys to prevent bleed-through
