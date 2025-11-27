@@ -502,7 +502,7 @@ def _detect_agilab_version(env) -> str:
     return ""
 
 
-def render_logo():
+def render_logo(*_args, **_kwargs):
     if "env" in st.session_state:
         env = st.session_state["env"]
     else:
