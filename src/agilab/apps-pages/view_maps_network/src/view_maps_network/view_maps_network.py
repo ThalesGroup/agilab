@@ -598,6 +598,7 @@ def page():
         options=rel_options,
         index=rel_options.index(rel_default) if rel_default in rel_options else 0,
         key="datadir_rel",
+        on_change=lambda: st.session_state.update({"force_rerun_datadir": True}),
     ).strip()
     base_path = Path(st.session_state.datadir).expanduser()
     # Avoid doubling the app name: if both base and rel are the same, drop rel
@@ -606,8 +607,12 @@ def page():
     else:
         final_path = (base_path / rel_subdir) if rel_subdir else base_path
     final_path.mkdir(parents=True, exist_ok=True)
+    prev_datadir = Path(st.session_state.get("datadir", final_path)).expanduser()
     st.session_state.datadir = final_path
     st.session_state["input_datadir"] = str(final_path)
+    if prev_datadir != final_path or st.session_state.pop("force_rerun_datadir", False):
+        st.session_state["force_rerun_ext"] = False
+        st.experimental_rerun()
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
