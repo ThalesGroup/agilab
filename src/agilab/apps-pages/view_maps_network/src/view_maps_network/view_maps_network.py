@@ -611,7 +611,7 @@ def page():
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
-    ext_default = st.session_state.get("file_ext_choice", ext_options[0])
+    ext_default = st.session_state.get("file_ext_choice", "all")
     try:
         ext_index = ext_options.index(ext_default)
     except ValueError:
