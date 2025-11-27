@@ -551,6 +551,24 @@ def page():
         st.session_state.project = env.target
     if "projects" not in st.session_state:
         st.session_state.projects = env.projects
+    # Restore persisted sidebar settings if available
+    vm_settings = st.session_state.get("app_settings", {}).get("view_maps_network", {})
+    if vm_settings:
+        for key in (
+            "base_dir_choice",
+            "input_datadir",
+            "datadir_rel",
+            "file_ext_choice",
+            "flight_id_col",
+            "time_col",
+            "link_multiselect",
+            "show_map",
+            "show_graph",
+            "show_metrics",
+        ):
+            if key in vm_settings and key not in st.session_state:
+                st.session_state[key] = vm_settings[key]
+
     # Data directory + presets (base paths without app suffix)
     export_base = env.AGILAB_EXPORT_ABS
     share_base = Path(env.agi_share_dir) if getattr(env, "agi_share_dir", None) else export_base
