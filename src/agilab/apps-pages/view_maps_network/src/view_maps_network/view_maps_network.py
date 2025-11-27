@@ -551,10 +551,16 @@ def page():
     if "datadir" not in st.session_state:
         export_base.mkdir(parents=True, exist_ok=True)
         st.session_state.datadir = export_base
+    base_options = ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"]
+    base_default = st.session_state.get("base_dir_choice", "AGILAB_EXPORT")
+    try:
+        base_index = base_options.index(base_default)
+    except ValueError:
+        base_index = 1
     base_choice = st.sidebar.radio(
         "Base directory",
-        ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"],
-        index=1,
+        base_options,
+        index=base_index,
         key="base_dir_choice",
     )
     if base_choice == "AGI_SHARE_DIR":
@@ -596,7 +602,12 @@ def page():
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
-    ext_choice = st.sidebar.selectbox("File type", ext_options, index=0, key="file_ext_choice")
+    ext_default = st.session_state.get("file_ext_choice", ext_options[0])
+    try:
+        ext_index = ext_options.index(ext_default)
+    except ValueError:
+        ext_index = 0
+    ext_choice = st.sidebar.selectbox("File type", ext_options, index=ext_index, key="file_ext_choice")
 
     datadir_path = Path(st.session_state.datadir).expanduser()
     if ext_choice == "all":
