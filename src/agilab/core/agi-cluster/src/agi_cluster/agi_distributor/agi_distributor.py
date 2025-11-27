@@ -2363,7 +2363,6 @@ class AGI:
                 try:
                     logger.info(f"Starting worker #{i}.{j} on [{ip}]")
                     pid_file = f"dask_worker_{i}_{j}.pid"
-
                     if is_local:
                         wenv_abs = env.wenv_abs
                         cmd = (
