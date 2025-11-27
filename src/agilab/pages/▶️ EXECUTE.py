@@ -1192,7 +1192,9 @@ async def page():
     }
 
     init_session_state(defaults)
-    projects = env.projects
+    projects = list(getattr(env, "projects", []) or [])
+    if env.app and env.app not in projects:
+        projects = [env.app] + projects
     current_project = env.app
     if "args_serialized" not in st.session_state:
         st.session_state["args_serialized"] = ""
