@@ -616,7 +616,6 @@ def page():
         options=rel_options,
         index=rel_options.index(rel_default) if rel_default in rel_options else 0,
         key="datadir_rel",
-        on_change=lambda: st.session_state.update({"force_rerun_datadir": True}),
     ).strip()
     base_path = Path(st.session_state.datadir).expanduser()
     # Avoid doubling the app name: if both base and rel are the same, drop rel
@@ -628,12 +627,9 @@ def page():
     prev_datadir = Path(st.session_state.get("datadir", final_path)).expanduser()
     st.session_state.datadir = final_path
     st.session_state["input_datadir"] = str(final_path)
-    if prev_datadir != final_path or st.session_state.pop("force_rerun_datadir", False):
+    if prev_datadir != final_path:
         st.session_state.pop("df_file", None)
         st.session_state.pop("csv_files", None)
-        st.session_state["force_rerun_ext"] = False
-        # Flag for reload; caller will rerun on next cycle
-        st.session_state["force_rerun_datadir_trigger"] = True
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
@@ -642,18 +638,13 @@ def page():
         ext_index = ext_options.index(ext_default)
     except ValueError:
         ext_index = 0
-    def on_ext_change():
-        st.session_state["force_rerun_ext"] = True
-
     ext_choice = st.sidebar.selectbox(
         "File type",
         ext_options,
         index=ext_index,
         key="file_ext_choice",
-        on_change=on_ext_change,
     )
-    if st.session_state.pop("force_rerun_ext", False) or st.session_state.pop("force_rerun_datadir_trigger", False):
-        st.rerun()
+    st.session_state["file_ext_choice"] = ext_choice
 
     # Persist sidebar selections for reuse
     app_settings = st.session_state.setdefault("app_settings", {})
