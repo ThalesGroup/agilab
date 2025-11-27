@@ -722,7 +722,8 @@ def page():
     if not unique_timestamps:
         st.error(f"No timestamps found in '{time_col}'.")
         st.stop()
-    st.session_state.selected_time = st.session_state.get("selected_time", unique_timestamps[0])
+    # Always start at the earliest timestamp on each render; avoid stale session defaults
+    st.session_state.selected_time = unique_timestamps[0]
 
     with st.container():
         cola, colb, colc = st.columns([0.3, 9, 0.3])
