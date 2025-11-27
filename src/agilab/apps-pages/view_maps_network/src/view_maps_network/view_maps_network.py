@@ -580,7 +580,7 @@ def page():
     # Optional relative subdir under the base
     rel_default = st.session_state.get("datadir_rel", env.target)
     rel_subdir = st.sidebar.text_input(
-        "Relative subdir (optional)",
+        "Relative subdir",
         value=rel_default,
         key="datadir_rel",
     ).strip()
