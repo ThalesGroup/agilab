@@ -745,6 +745,10 @@ def page():
     latest_time = df[df[time_col] <= st.session_state.selected_time][time_col].max()
     df_positions = df[df[time_col] == latest_time]
     df_positions_std = df_positions.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
+    if "id_col" not in df_positions_std.columns:
+        df_positions_std["id_col"] = df_positions[flight_col]
+    if "time_col" not in df_positions_std.columns:
+        df_positions_std["time_col"] = df_positions[time_col]
     if "flight_id" not in df_positions_std.columns:
         df_positions_std["flight_id"] = df_positions_std["id_col"]
     if "datetime" not in df_positions_std.columns:
@@ -753,6 +757,8 @@ def page():
         st.warning("No rows found at the selected time.")
         st.stop()
     current_positions = df_positions_std.groupby("id_col").last().reset_index()
+    if "flight_id" not in current_positions.columns:
+        current_positions["flight_id"] = current_positions["id_col"]
     if "flight_id" not in current_positions.columns:
         current_positions["flight_id"] = current_positions["id_col"]
 
