@@ -8,6 +8,7 @@ dependencies = [
     "watchdog>=6.0.0",
     "agi-env",
     "networkx",
+    "plotly",
 ]
 
 [optional-dependencies]
