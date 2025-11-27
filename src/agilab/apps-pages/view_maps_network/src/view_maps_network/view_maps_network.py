@@ -448,7 +448,7 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
                 edge_traces.append(edge_trace)
     node_x = [pos[node][0] for node in G.nodes()]
     node_y = [pos[node][1] for node in G.nodes()]
-    node_texts = [f"Flight ID: {node}" for node in G.nodes()]
+    node_texts = [f"ID: {node}" for node in G.nodes()]
     unique_nodes = list(G.nodes())
     node_color_map = plt.get_cmap("tab20", len(unique_nodes))
     node_colors = {node: mcolors.rgb2hex(node_color_map(i % 20)) for i, node in enumerate(unique_nodes)}
@@ -671,7 +671,7 @@ def page():
 
     df = df.sort_values(by=[flight_col, time_col])
     # Normalize to standard column names for downstream helpers
-    df_std = df.rename(columns={flight_col: "flight_id", time_col: "datetime"}, errors="ignore")
+    df_std = df.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
 
     if df.empty:
         st.warning("The dataset is empty. Please select a valid data file.")
@@ -739,23 +739,23 @@ def page():
 
     latest_time = df[df[time_col] <= st.session_state.selected_time][time_col].max()
     df_positions = df[df[time_col] == latest_time]
-    df_positions_std = df_positions.rename(columns={flight_col: "flight_id", time_col: "datetime"}, errors="ignore")
+    df_positions_std = df_positions.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
     if df_positions.empty:
         st.warning("No rows found at the selected time.")
         st.stop()
-    current_positions = df_positions_std.groupby("flight_id").last().reset_index()
+    current_positions = df_positions_std.groupby("id_col").last().reset_index()
 
     if current_positions.empty:
         st.warning("No data available for the selected time.")
         st.stop()
 
     if "color_map" not in st.session_state or st.session_state.get("color_map_key") != flight_col:
-        flight_ids = df_std["flight_id"].unique()
+        flight_ids = df_std["id_col"].unique()
         color_map = plt.get_cmap("tab20", len(flight_ids))
         st.session_state.color_map = {flight_id: mcolors.rgb2hex(color_map(i % 20)) for i, flight_id in enumerate(flight_ids)}
         st.session_state.color_map_key = flight_col
 
-    current_positions["color"] = current_positions["flight_id"].map(st.session_state.color_map).apply(hex_to_rgba)
+    current_positions["color"] = current_positions["id_col"].map(st.session_state.color_map).apply(hex_to_rgba)
 
     # Layout containers based on toggles
     if show_map and show_graph:
@@ -781,7 +781,7 @@ def page():
                 initial_view_state=view_state,
                 map_style=None,
                 tooltip={
-                    "html": "<b>Flight ID:</b> {flight_id}<br>"
+                    "html": "<b>ID:</b> {id_col}<br>"
                             "<b>Longitude:</b> {long}<br>"
                             "<b>Latitude:</b> {lat}<br>"
                             "<b>Altitude:</b> {alt}",
