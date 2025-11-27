@@ -700,6 +700,10 @@ def page():
     for col in ["bandwidth", "throughput"]:
         if col in df:
             df[col] = df[col].apply(safe_literal_eval)
+    # Ensure link columns exist to avoid KeyError
+    for col in ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]:
+        if col not in df:
+            df[col] = None
 
     metrics = {}
     for col in ["bandwidth", "throughput"]:
