@@ -578,7 +578,7 @@ def page():
             st.session_state.datadir = default_datadir
             st.session_state["input_datadir"] = str(default_datadir)
     # Optional relative subdir under the base
-    rel_default = st.session_state.get("datadir_rel", env.target)
+    rel_default = st.session_state.get("datadir_rel", "")
     rel_subdir = st.sidebar.text_input(
         "Relative subdir",
         value=rel_default,
@@ -589,6 +589,7 @@ def page():
     final_path.mkdir(parents=True, exist_ok=True)
     st.session_state.datadir = final_path
     st.session_state["input_datadir"] = str(final_path)
+    st.session_state["datadir_rel"] = rel_subdir
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
