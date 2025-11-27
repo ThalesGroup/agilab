@@ -585,8 +585,8 @@ def page():
         key="datadir_rel",
     ).strip()
     base_path = Path(st.session_state.datadir).expanduser()
-    # If the base path already ends with the app name, avoid doubling it
-    if base_path.name == env.target and rel_subdir == env.target:
+    # Avoid doubling the app name: if both base and rel are the same app, drop rel
+    if base_path.name == rel_subdir:
         final_path = base_path
     else:
         final_path = (base_path / rel_subdir) if rel_subdir else base_path
