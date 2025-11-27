@@ -545,12 +545,12 @@ def page():
         st.session_state.project = env.target
     if "projects" not in st.session_state:
         st.session_state.projects = env.projects
-    # Data directory + presets
-    default_datadir = env.AGILAB_EXPORT_ABS / env.target
-    share_datadir = Path(env.agi_share_dir) / env.target if getattr(env, "agi_share_dir", None) else default_datadir
+    # Data directory + presets (base paths without app suffix)
+    export_base = env.AGILAB_EXPORT_ABS
+    share_base = Path(env.agi_share_dir) if getattr(env, "agi_share_dir", None) else export_base
     if "datadir" not in st.session_state:
-        default_datadir.mkdir(parents=True, exist_ok=True)
-        st.session_state.datadir = default_datadir
+        export_base.mkdir(parents=True, exist_ok=True)
+        st.session_state.datadir = export_base
     base_choice = st.sidebar.radio(
         "Base directory",
         ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"],
@@ -558,15 +558,15 @@ def page():
         key="base_dir_choice",
     )
     if base_choice == "AGI_SHARE_DIR":
-        st.session_state.datadir = share_datadir
-        st.session_state["input_datadir"] = str(share_datadir)
+        st.session_state.datadir = share_base
+        st.session_state["input_datadir"] = str(share_base)
     elif base_choice == "AGILAB_EXPORT":
-        st.session_state.datadir = default_datadir
-        st.session_state["input_datadir"] = str(default_datadir)
+        st.session_state.datadir = export_base
+        st.session_state["input_datadir"] = str(export_base)
     else:
         custom_val = st.sidebar.text_input(
             "Custom data directory",
-            value=st.session_state.get("input_datadir", str(default_datadir)),
+            value=st.session_state.get("input_datadir", str(export_base)),
             key="input_datadir",
             on_change=update_datadir,
             args=("datadir", "input_datadir"),
@@ -575,8 +575,8 @@ def page():
             st.session_state.datadir = Path(custom_val).expanduser()
         except Exception:
             st.warning("Invalid custom path; falling back to export.")
-            st.session_state.datadir = default_datadir
-            st.session_state["input_datadir"] = str(default_datadir)
+            st.session_state.datadir = export_base
+            st.session_state["input_datadir"] = str(export_base)
     # Optional relative subdir under the base
     rel_subdir = st.session_state.get("datadir_rel", env.target)
     rel_subdir = st.sidebar.text_input(
