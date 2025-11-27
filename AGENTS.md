@@ -85,6 +85,7 @@ Use this runbook whenever you:
   `agi_node.agi_dispatcher.{pre_install,post_install}`. Add lightweight wrappers near
   the worker if custom behavior is required.
 - **Cython sources**: Never hand-edit generated `.pyx`/`.c` worker files; they are rebuilt automatically by the tooling pipeline.
+- **Protect generated Cython**: To avoid accidental edits or regenerations on local checkouts, you can temporarily drop write permission on generated `.pyx`/`.c` files (e.g., `chmod a-w src/*_worker/*.pyx`) and rerun the build tooling when you actually need fresh outputs.
 - **AgiEnv lifecycle**: `AgiEnv` is a singleton. Treat instance attributes as the
   source of truth. Helpers like `set_env_var`, `read_agilab_path`, `_build_env`, and
   `log_info` are pre-init safe; avoid relying on class attributes before instantiating
