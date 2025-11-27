@@ -719,6 +719,9 @@ def page():
 
     latest_time = df[df[time_col] <= st.session_state.selected_time][time_col].max()
     df_positions = df[df[time_col] == latest_time]
+    if df_positions.empty:
+        st.warning("No rows found at the selected time.")
+        st.stop()
     current_positions = df_positions.groupby(flight_col).last().reset_index()
 
     if current_positions.empty:
