@@ -578,9 +578,10 @@ def page():
             st.session_state.datadir = default_datadir
             st.session_state["input_datadir"] = str(default_datadir)
     # Optional relative subdir under the base
+    rel_default = st.session_state.get("datadir_rel", env.target)
     rel_subdir = st.sidebar.text_input(
         "Relative subdir (optional)",
-        value=st.session_state.get("datadir_rel", ""),
+        value=rel_default,
         key="datadir_rel",
     ).strip()
     base_path = Path(st.session_state.datadir).expanduser()
