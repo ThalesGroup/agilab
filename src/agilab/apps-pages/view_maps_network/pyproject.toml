@@ -7,6 +7,7 @@ dependencies = [
     "streamlit>=1.49.1",
     "watchdog>=6.0.0",
     "agi-env",
+    "networkx",
 ]
 
 [optional-dependencies]
@@ -17,4 +18,3 @@ dev = [
 [tool.uv.sources.agi-env]
 path = "../../core/agi-env"
 editable = true
-
