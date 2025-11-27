@@ -119,6 +119,13 @@ def load_last_step(
             else:
                 venv_map.pop(current_step, None)
                 st.session_state["lab_selected_venv"] = ""
+            engine_map = st.session_state.setdefault(f"{index_page}__engine_map", {})
+            selected_engine = entry.get("R", "") or ("agi.run" if e else "runpy")
+            if selected_engine:
+                engine_map[current_step] = selected_engine
+            else:
+                engine_map.pop(current_step, None)
+            st.session_state["lab_selected_engine"] = selected_engine
             # Drive the text area via session state, using a revisioned key to control remounts
             q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
             prompt_key = f"{index_page}_q__{q_rev}"
@@ -537,7 +544,16 @@ def on_query_change(
             detail = answer[4] if len(answer) > 4 else ""
             model_label = answer[2] if len(answer) > 2 else ""
             venv_map = st.session_state.get(f"{index_page}__venv_map", {})
-            nstep, entry = save_step(module, answer, step, 0, steps_file, venv_map=venv_map)
+            engine_map = st.session_state.get(f"{index_page}__engine_map", {})
+            nstep, entry = save_step(
+                module,
+                answer,
+                step,
+                0,
+                steps_file,
+                venv_map=venv_map,
+                engine_map=engine_map,
+            )
             skipped = st.session_state.get("_experiment_last_save_skipped", False)
             details_key = f"{index_page}__details"
             details_store = st.session_state.setdefault(details_key, {})
@@ -1415,6 +1431,8 @@ def remove_step(
     details_store = st.session_state.setdefault(details_key, {})
     venv_key = f"{index_page}__venv_map"
     venv_store = st.session_state.setdefault(venv_key, {})
+    engine_key = f"{index_page}__engine_map"
+    engine_store = st.session_state.setdefault(engine_key, {})
     if 0 <= index_step < nsteps:
         del steps[module_key][index_step]
         nsteps -= 1
@@ -1422,6 +1440,7 @@ def remove_step(
         st.session_state[index_page][-1] = nsteps
         shifted: Dict[int, str] = {}
         vshifted: Dict[int, str] = {}
+        eshifted: Dict[int, str] = {}
         for idx, text in details_store.items():
             if idx < index_step:
                 shifted[idx] = text
@@ -1434,9 +1453,16 @@ def remove_step(
             elif idx > index_step:
                 vshifted[idx - 1] = path
         st.session_state[venv_key] = vshifted
+        for idx, engine in engine_store.items():
+            if idx < index_step:
+                eshifted[idx] = engine
+            elif idx > index_step:
+                eshifted[idx - 1] = engine
+        st.session_state[engine_key] = eshifted
     else:
         st.session_state[index_page][0] = 0
         st.session_state[venv_key] = venv_store
+        st.session_state[engine_key] = engine_store
 
     steps[module_key] = _prune_invalid_entries(steps[module_key])
     nsteps = len(steps[module_key])
@@ -1486,6 +1512,7 @@ def save_query(
     module_path = Path(module)
     if is_query_valid(query):
         venv_map = st.session_state.get(f"{index_page}__venv_map", {})
+        engine_map = st.session_state.get(f"{index_page}__engine_map", {})
         # Persist only D, Q, M, and C
         query[-1], _ = save_step(
             module_path,
@@ -1494,6 +1521,7 @@ def save_query(
             query[-1],
             steps_file,
             venv_map=venv_map,
+            engine_map=engine_map,
         )
         _bump_history_revision()
     export_df()
@@ -1506,12 +1534,13 @@ def save_step(
     nsteps: int,
     steps_file: Path,
     venv_map: Optional[Dict[int, str]] = None,
+    engine_map: Optional[Dict[int, str]] = None,
 ) -> Tuple[int, Dict[str, Any]]:
     """Save a step in the steps file."""
     st.session_state["_experiment_last_save_skipped"] = False
     module_path = Path(module)
     _ensure_primary_module_key(module_path, steps_file)
-    # Persist only D, Q, M, and C
+    # Persist only D, Q, M, and C (+ R when provided)
     fields = ["D", "Q", "M", "C"]
     entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
     if venv_map is not None:
@@ -1519,6 +1548,11 @@ def save_step(
             entry["E"] = normalize_runtime_path(venv_map.get(int(current_step), ""))
         except Exception:
             entry["E"] = ""
+    if engine_map is not None:
+        try:
+            entry["R"] = str(engine_map.get(int(current_step), "") or "")
+        except Exception:
+            entry["R"] = ""
     else:
         entry.setdefault("E", "")
     # Normalize types
@@ -1595,9 +1629,11 @@ def run_all_steps(
         return
 
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
+    engine_map = st.session_state.setdefault(f"{index_page_str}__engine_map", {})
     details_store = st.session_state.setdefault(f"{index_page_str}__details", {})
     original_step = st.session_state[index_page_str][0]
     original_selected = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+    original_engine = st.session_state.get("lab_selected_engine", "")
     snippet_file = st.session_state.get("snippet_file")
     if not snippet_file:
         st.error("Snippet file is not configured. Reload the page and try again.")
@@ -1625,15 +1661,30 @@ def run_all_steps(
             st.session_state[index_page_str][5] = details_store.get(idx, "")
 
             venv_root = normalize_runtime_path(entry.get("E", ""))
+            engine = (
+                engine_map.get(idx)
+                or entry.get("R", "")
+                or ("agi.run" if venv_root else "runpy")
+            )
             if venv_root:
                 target_path = Path(venv_root).expanduser()
-                run_agi(code, path=target_path)
+                if engine == "runpy":
+                    run_lab(
+                        [entry.get("D", ""), entry.get("Q", ""), code],
+                        snippet_file,
+                        env.copilot_file,
+                    )
+                else:
+                    run_agi(code, path=target_path)
             else:
-                run_lab(
-                    [entry.get("D", ""), entry.get("Q", ""), code],
-                    snippet_file,
-                    env.copilot_file,
-                )
+                if engine == "runpy":
+                    run_lab(
+                        [entry.get("D", ""), entry.get("Q", ""), code],
+                        snippet_file,
+                        env.copilot_file,
+                    )
+                else:
+                    run_agi(code)
 
             if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
                 export_target = st.session_state.get("df_file_out", "")
@@ -1644,6 +1695,7 @@ def run_all_steps(
 
     st.session_state[index_page_str][0] = original_step
     st.session_state["lab_selected_venv"] = normalize_runtime_path(original_selected)
+    st.session_state["lab_selected_engine"] = original_engine
     st.session_state[f"{index_page_str}__force_blank_q"] = True
     st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
 
@@ -1665,7 +1717,16 @@ def on_nb_change(
     module_path = Path(module)
     index_page = str(st.session_state.get("index_page", module_path))
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
-    save_step(module_path, query[1:5], query[0], query[-1], file_step_path, venv_map=venv_map)
+    engine_map = st.session_state.get(f"{index_page}__engine_map", {})
+    save_step(
+        module_path,
+        query[1:5],
+        query[0],
+        query[-1],
+        file_step_path,
+        venv_map=venv_map,
+        engine_map=engine_map,
+    )
     _bump_history_revision()
     project_path = env.apps_dir / project
     if notebook_file.exists():
@@ -1747,9 +1808,21 @@ def open_notebook_in_browser() -> None:
 def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
-    Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
+    # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
+    export_root = getattr(env, "AGILAB_EXPORT_ABS", None) or Path(env.home_abs) / "export"
+    Agi_export_abs = Path(export_root)
     modules = scan_dir(Agi_export_abs)
+    if not modules:
+        modules = [env.target]
     st.session_state['modules'] = modules
+
+    def _qp_first(key: str) -> str | None:
+        val = st.query_params.get(key)
+        if isinstance(val, list):
+            return val[0] if val else None
+        if val is None:
+            return None
+        return str(val)
 
     provider_options = {
         "OpenAI (online)": "openai",
@@ -1810,10 +1883,19 @@ def sidebar_controls() -> None:
     else:
         st.session_state.pop("gpt_oss_endpoint", None)
 
+    persisted_lab = (
+        _qp_first("lab_dir_selectbox")
+        or st.session_state.get("lab_dir_selectbox")
+        or st.session_state.get("lab_dir")
+        or env.target
+    )
+    if persisted_lab not in modules:
+        persisted_lab = env.target if env.target in modules else modules[0]
+
     st.session_state["lab_dir"] = st.sidebar.selectbox(
         "Lab Directory",
         modules,
-        index=modules.index(st.session_state.get("lab_dir", env.target)),
+        index=modules.index(persisted_lab),
         on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
         key="lab_dir_selectbox",
     )
@@ -1821,8 +1903,11 @@ def sidebar_controls() -> None:
     steps_file_name = st.session_state["steps_file_name"]
     lab_dir = Agi_export_abs / st.session_state["lab_dir_selectbox"]
     st.session_state.df_dir = Agi_export_abs / lab_dir
-    steps_file = env.active_app / steps_file_name
+    steps_file = lab_dir / steps_file_name
     st.session_state["steps_file"] = steps_file
+
+    # Page title reflecting current lab/project
+    st.markdown(f"### Project: `{st.session_state['lab_dir_selectbox']}`")
 
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
@@ -1869,6 +1954,19 @@ def sidebar_controls() -> None:
         st.session_state["df_file"] = str(Agi_export_abs / st.session_state[key_df])
     else:
         st.session_state["df_file"] = None
+
+    # Persist sidebar selections into query params for reloads
+    st.query_params.update(
+        {
+            "lab_dir_selectbox": st.session_state.get("lab_dir_selectbox", ""),
+            "index_page": str(st.session_state.get("index_page", "")),
+            "lab_llm_provider": st.session_state.get("lab_llm_provider", ""),
+            "gpt_oss_endpoint": st.session_state.get("gpt_oss_endpoint", ""),
+            "df_file": st.session_state.get("df_file", ""),
+            # Keep other pages (e.g., Explore) aware of the current project
+            "active_app": st.session_state.get("lab_dir_selectbox", ""),
+        }
+    )
 
     key = index_page_str + "import_notebook"
     st.sidebar.file_uploader(
@@ -2284,6 +2382,8 @@ def display_lab_tab(
 
     venv_state_key = f"{index_page_str}__venv_map"
     selected_map: Dict[int, str] = st.session_state.setdefault(venv_state_key, {})
+    engine_state_key = f"{index_page_str}__engine_map"
+    engine_map: Dict[int, str] = st.session_state.setdefault(engine_state_key, {})
     for idx_key, raw_value in list(selected_map.items()):
         normalized_value = normalize_runtime_path(raw_value)
         if normalized_value:
@@ -2339,9 +2439,52 @@ def display_lab_tab(
                 query[-1],
                 steps_file,
                 venv_map=selected_map,
+                engine_map=engine_map,
             )
             _bump_history_revision()
         st.session_state["lab_selected_venv"] = selected_path
+
+    current_entry = all_steps[step] if 0 <= step < len(all_steps) else {}
+    default_engine = (
+        engine_map.get(step)
+        or current_entry.get("R", "")
+        or ("agi.run" if selected_map.get(step) else "runpy")
+    )
+    engine_labels = {
+        "AGI.run (uv exec)": "agi.run",
+        "runpy (snippet runner)": "runpy",
+    }
+    label_to_engine = engine_labels
+    engines = list(engine_labels.values())
+    selected_engine_value = default_engine if default_engine in engines else engines[0]
+    selected_engine_label = next((k for k, v in label_to_engine.items() if v == selected_engine_value), list(engine_labels.keys())[0])
+    with st.container(border=True):
+        st.caption("Run engine")
+        chosen_label = st.selectbox(
+            "Engine",
+            list(engine_labels.keys()),
+            index=list(engine_labels.keys()).index(selected_engine_label),
+            key=f"{index_page_str}_engine_{step}",
+            help="Choose how this step should be executed.",
+        )
+        chosen_engine = engine_labels[chosen_label]
+        previous_engine = engine_map.get(step, "")
+        if chosen_engine:
+            engine_map[step] = chosen_engine
+        else:
+            engine_map.pop(step, None)
+        if chosen_engine != previous_engine:
+            save_step(
+                lab_dir,
+                [query[1], query[2], query[3], query[4]],
+                step,
+                query[-1],
+                steps_file,
+                venv_map=selected_map,
+                engine_map=engine_map,
+            )
+            _bump_history_revision()
+        st.session_state["lab_selected_engine"] = chosen_engine
 
     # Compute a revisioned key for the prompt to allow forced remount/clear
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
@@ -2440,7 +2583,14 @@ def display_lab_tab(
         save_query(lab_dir, query, steps_file, index_page_str)
         if query[4] and not st.session_state.get("step_checked", False):
             selected_env = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-            if selected_env:
+            engine_map = st.session_state.get(f"{index_page_str}__engine_map", {})
+            selected_engine = engine_map.get(step) or ("agi.run" if selected_env else "runpy")
+            if selected_engine == "runpy":
+                if not snippet_file:
+                    st.error("Snippet file is not configured. Reload the page and try again.")
+                    return
+                run_lab([query[1], query[2], query[4]], snippet_file, env.copilot_file)
+            elif selected_env:
                 target_path = Path(selected_env).expanduser()
                 run_agi(query[4], path=target_path)
             else:
@@ -2575,8 +2725,16 @@ def page() -> None:
         if seed_key:
             st.session_state["openai_api_key"] = seed_key
 
-    with open(Path(env.app_src) / "pre_prompt.json") as f:
-        st.session_state["lab_prompt"] = json.load(f)
+    pre_prompt_path = Path(env.app_src) / "pre_prompt.json"
+    try:
+        with open(pre_prompt_path) as f:
+            st.session_state["lab_prompt"] = json.load(f)
+    except FileNotFoundError:
+        st.session_state["lab_prompt"] = {}
+        st.warning(f"Missing pre_prompt.json at {pre_prompt_path}; using empty prompt.")
+    except Exception as exc:
+        st.session_state["lab_prompt"] = {}
+        st.warning(f"Failed to load pre_prompt.json: {exc}")
 
     sidebar_controls()
 
@@ -2590,6 +2748,7 @@ def page() -> None:
     st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", "", nsteps])
     st.session_state.setdefault(f"{index_page_str}__details", {})
     st.session_state.setdefault(f"{index_page_str}__venv_map", {})
+    st.session_state.setdefault(f"{index_page_str}__engine_map", {})
 
     module_path = st.session_state["module_path"]
     # If a prompt clear was requested, clear the current revisioned key before loading the step
@@ -2600,11 +2759,11 @@ def page() -> None:
 
     df_file = st.session_state.get("df_file")
     if not df_file or not Path(df_file).exists():
-        st.info(
+        st.warning(
             f"No dataframe exported for {lab_dir.name}. "
-            "Go to Execute, click “LOAD dataframe”, then “EXPORT dataframe” to produce export/export.csv."
+            "You can proceed without a dataframe; data-dependent steps may need an export/export.csv."
         )
-        st.stop()
+        st.session_state["df_file"] = None
 
     mlflow_controls()
     gpt_oss_controls(env)

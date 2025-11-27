@@ -193,6 +193,34 @@ def _sync_active_app_from_query(env) -> None:
         except Exception:
             pass
 
+    # Persist the latest active app for reuse on next launch
+    try:
+        _store_last_active_app(Path(env.apps_dir) / env.app)
+    except Exception:
+        pass
+
+# Persistent last-active-app hints (shared with other pages)
+LAST_ACTIVE_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
+
+def _load_last_active_app() -> Optional[Path]:
+    try:
+        if LAST_ACTIVE_APP_FILE.exists():
+            raw = LAST_ACTIVE_APP_FILE.read_text(encoding="utf-8").strip()
+            if raw:
+                candidate = Path(raw).expanduser()
+                if candidate.exists():
+                    return candidate
+    except Exception:
+        pass
+    return None
+
+def _store_last_active_app(path: Path) -> None:
+    try:
+        LAST_ACTIVE_APP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_ACTIVE_APP_FILE.write_text(str(path), encoding="utf-8")
+    except Exception:
+        pass
+
 def _ensure_env_file(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch(exist_ok=True)
