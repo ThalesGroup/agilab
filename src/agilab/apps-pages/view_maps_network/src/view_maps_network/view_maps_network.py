@@ -616,12 +616,18 @@ def page():
         ext_index = ext_options.index(ext_default)
     except ValueError:
         ext_index = 0
+    def on_ext_change():
+        st.session_state["force_rerun_ext"] = True
+
     ext_choice = st.sidebar.selectbox(
         "File type",
         ext_options,
         index=ext_index,
         key="file_ext_choice",
+        on_change=on_ext_change,
     )
+    if st.session_state.pop("force_rerun_ext", False):
+        st.rerun()
 
     datadir_path = Path(st.session_state.datadir).expanduser()
     if ext_choice == "all":
