@@ -355,14 +355,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../example-app-project.html">Example App Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../example-app-project.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../example-app-project.html#api-reference">API Reference</a></li>
-</ul>
-</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
 <ul>
@@ -907,6 +899,14 @@
         <span class="n">envars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">envars</span>
         <span class="n">repo_agilab_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
 
+        <span class="c1"># Propagate Streamlit message size from AgiEnv env vars to runtime env to avoid local config writes.</span>
+        <span class="n">streamlit_size</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;STREAMLIT_SERVER_MAX_MESSAGE_SIZE&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;STREAMLIT_MAX_MESSAGE_SIZE&quot;</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">streamlit_size</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;STREAMLIT_SERVER_MAX_MESSAGE_SIZE&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">streamlit_size</span><span class="p">))</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;STREAMLIT_MAX_MESSAGE_SIZE&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">streamlit_size</span><span class="p">))</span>
+
         <span class="n">agilab_spec</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">find_spec</span><span class="p">(</span><span class="s2">&quot;agilab&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">agilab_spec</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">agilab_spec</span><span class="p">,</span> <span class="s2">&quot;origin&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
             <span class="n">agilab_pkg_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">agilab_spec</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span>
@@ -961,6 +961,10 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">env_is_worker</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;false&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">,</span> <span class="s2">&quot;no&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">}</span>
 
         <span class="n">install_type</span> <span class="o">=</span> <span class="n">_resolve_install_type</span><span class="p">(</span><span class="n">apps_dir</span><span class="p">,</span> <span class="n">agilab_pck</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">envars</span><span class="p">,</span> <span class="n">active_app_override</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">env_is_source</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_source_env</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">env_is_worker</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">skip_repo_links</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -1213,30 +1217,39 @@
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">copied_packaged_worker</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_repository_app_link</span><span class="p">():</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
+            <span class="c1"># Prefer an installed worker tree inside wenv to avoid mutating the source checkout.</span>
+            <span class="n">wenv_worker_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
+            <span class="k">if</span> <span class="n">wenv_worker_src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="n">wenv_worker_src</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">dataset_archive</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;dataset.7z&quot;</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">packaged_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_pck</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">packaged_app</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span>
-                            <span class="n">packaged_app</span><span class="p">,</span>
-                            <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">,</span>
-                            <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                        <span class="p">)</span>
-                        <span class="n">copied_packaged_worker</span> <span class="o">=</span> <span class="kc">True</span>
-                        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                            <span class="s2">&quot;Copied packaged app </span><span class="si">%s</span><span class="s2"> into </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">packaged_app</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span>
-                        <span class="p">)</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;Unable to copy packaged worker app from </span><span class="si">{</span><span class="n">packaged_app</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span>
-                        <span class="p">)</span>
-                <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">apps_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">copy_existing_projects</span><span class="p">(</span><span class="n">apps_root</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
+                <span class="n">copied_packaged_worker</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">copied_packaged_worker</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_repository_app_link</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dataset_archive</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;dataset.7z&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">packaged_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_pck</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">packaged_app</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span>
+                                <span class="n">packaged_app</span><span class="p">,</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">,</span>
+                                <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                            <span class="p">)</span>
+                            <span class="n">copied_packaged_worker</span> <span class="o">=</span> <span class="kc">True</span>
+                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                                <span class="s2">&quot;Copied packaged app </span><span class="si">%s</span><span class="s2"> into </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">packaged_app</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span>
+                            <span class="p">)</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">&quot;Unable to copy packaged worker app from </span><span class="si">{</span><span class="n">packaged_app</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span>
+                            <span class="p">)</span>
+                    <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">apps_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">copy_existing_projects</span><span class="p">(</span><span class="n">apps_root</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="p">(</span>
                     <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span>
@@ -3139,6 +3152,23 @@
 
         <span class="k">try</span><span class="p">:</span>
             <span class="k">with</span> <span class="n">py7zr</span><span class="o">.</span><span class="n">SevenZipFile</span><span class="p">(</span><span class="n">archive_path</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">archive</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">size_mb</span> <span class="o">=</span> <span class="n">archive_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span> <span class="o">/</span> <span class="mi">1_000_000</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="n">size_mb</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">size_hint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; (~</span><span class="si">{</span><span class="n">size_mb</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> MB)&quot;</span> <span class="k">if</span> <span class="n">size_mb</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+                <span class="n">progress_msg</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Starting dataset extraction: </span><span class="si">{</span><span class="n">archive_path</span><span class="si">}{</span><span class="n">size_hint</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">dataset</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="s2">&quot;(this can take a moment; please wait).&quot;</span>
+                <span class="p">)</span>
+                <span class="c1"># Surface the progress even when logger is at WARNING level.</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">progress_msg</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">isEnabledFor</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">progress_msg</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="n">archive</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">dest</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Extracted &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39; to &#39;</span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
