@@ -330,38 +330,39 @@ class AGI:
             else:
                 AGI._train_capacity(env.home_abs)
 
-            # import of derived Class of WorkDispatcher, name target_inst which is typically instance of Flight or MyCode
-            AGI.agi_workers = {
-                "PolarsWorker": "polars-worker",
-                "PandasWorker": "pandas-worker",
-                "FireducksWorker": "fireducks-worker",
-                "DagWorker": "dag-worker",
-            }
-            AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
+        # import of derived Class of WorkDispatcher, name target_inst which is typically instance of Flight or MyCode
+        AGI.agi_workers = {
+            "AgiDataWorker": "pandas-worker",
+            "PolarsWorker": "polars-worker",
+            "PandasWorker": "pandas-worker",
+            "FireducksWorker": "fireducks-worker",
+            "DagWorker": "dag-worker",
+        }
+        AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
 
-            try:
-                return await AGI._main(scheduler)
+        try:
+            return await AGI._main(scheduler)
 
-            except ProcessError as e:
-                logger.error(f"failed to run \n{e}")
-                return
+        except ProcessError as e:
+            logger.error(f"failed to run \n{e}")
+            return
 
-            except ConnectionError as e:
-                message = str(e).strip() or "Failed to connect to remote host."
-                logger.info(message)
-                print(message, file=sys.stderr, flush=True)
-                return {"status": "error", "message": message, "kind": "connection"}
+        except ConnectionError as e:
+            message = str(e).strip() or "Failed to connect to remote host."
+            logger.info(message)
+            print(message, file=sys.stderr, flush=True)
+            return {"status": "error", "message": message, "kind": "connection"}
 
-            except ModuleNotFoundError as e:
-                logger.error(f"failed to load module \n{e}")
-                return
+        except ModuleNotFoundError as e:
+            logger.error(f"failed to load module \n{e}")
+            return
 
-            except Exception as err:
-                message = _format_exception_chain(err)
-                logger.error(f"Unhandled exception in AGI.run: {message}")
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Traceback:\n%s", traceback.format_exc())
-                raise
+        except Exception as err:
+            message = _format_exception_chain(err)
+            logger.error(f"Unhandled exception in AGI.run: {message}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Traceback:\n%s", traceback.format_exc())
+            raise
 
     @staticmethod
     async def serve(
