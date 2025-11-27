@@ -400,52 +400,10 @@ configure_streamlit() {
     local config_file="$config_dir/config.toml"
     local desired="${STREAMLIT_MAX_MESSAGE_SIZE:-600}"
 
-    mkdir -p "$config_dir"
-
-    if [[ ! -f "$config_file" ]]; then
-        cat <<EOF > "$config_file"
-[server]
-maxMessageSize = $desired
-EOF
-        echo -e "${GREEN}Created Streamlit config at $config_file with maxMessageSize=${desired}.${NC}"
-        return
-    fi
-
-    if grep -Eq 'maxMessageSize\s*=' "$config_file"; then
-        perl -0pi -e 's/(maxMessageSize\s*=\s*)\d+/\1'"$desired"'/g' "$config_file"
-        echo -e "${GREEN}Updated existing Streamlit maxMessageSize to ${desired} in $config_file.${NC}"
-        return
-    fi
-
-    if grep -Eq '^\[server\]' "$config_file"; then
-        local tmp
-        tmp=$(mktemp)
-        awk -v val="$desired" '
-            BEGIN{inserted=0}
-            /^\[server\]/ {
-                print
-                if(!inserted){
-                    print "maxMessageSize = " val
-                    inserted=1
-                    next
-                }
-            }
-            {print}
-            END{
-                if(!inserted){
-                    print "maxMessageSize = " val
-                }
-            }
-        ' "$config_file" > "$tmp" && mv "$tmp" "$config_file"
-        echo -e "${GREEN}Added maxMessageSize entry under [server] in $config_file.${NC}"
-    else
-        {
-            echo ""
-            echo "[server]"
-            echo "maxMessageSize = $desired"
-        } >> "$config_file"
-        echo -e "${GREEN}Appended [server] block with maxMessageSize=${desired} to $config_file.${NC}"
-    fi
+    # Preferred approach: rely on AgiEnv to propagate STREAMLIT_MAX_MESSAGE_SIZE /
+    # STREAMLIT_SERVER_MAX_MESSAGE_SIZE into the runtime environment. Avoid touching
+    # ~/.streamlit/config.toml to prevent user-config conflicts.
+    echo -e "${GREEN}Skipping Streamlit config file update; set STREAMLIT_MAX_MESSAGE_SIZE in .env for AgiEnv to propagate.${NC}"
 }
 
 install_core() {
