@@ -629,6 +629,21 @@ def page():
     if st.session_state.pop("force_rerun_ext", False):
         st.rerun()
 
+    # Persist sidebar selections for reuse
+    app_settings = st.session_state.setdefault("app_settings", {})
+    app_settings["view_maps_network"] = {
+        "base_dir_choice": st.session_state.get("base_dir_choice", "AGILAB_EXPORT"),
+        "input_datadir": st.session_state.get("input_datadir", ""),
+        "datadir_rel": st.session_state.get("datadir_rel", ""),
+        "file_ext_choice": st.session_state.get("file_ext_choice", "all"),
+        "flight_id_col": st.session_state.get("flight_id_col", ""),
+        "time_col": st.session_state.get("time_col", ""),
+        "link_multiselect": st.session_state.get("link_multiselect", []),
+        "show_map": st.session_state.get("show_map", True),
+        "show_graph": st.session_state.get("show_graph", True),
+        "show_metrics": st.session_state.get("show_metrics", False),
+    }
+
     datadir_path = Path(st.session_state.datadir).expanduser()
     if ext_choice == "all":
         files = list(datadir_path.rglob("*.csv")) + list(datadir_path.rglob("*.parquet")) + list(datadir_path.rglob("*.json"))
