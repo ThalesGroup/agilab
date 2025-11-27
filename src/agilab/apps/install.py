@@ -100,9 +100,39 @@ def _seed_lab_steps(app_slug: str) -> None:
         except OSError as exc:
             print(f"[WARN] Unable to copy {source} to {destination}: {exc}")
 
+def _seed_app_settings(app_slug: str) -> None:
+    """Copy app_settings.toml into ~/export/<app_slug> if missing."""
+
+    if not app_slug:
+        return
+
+    repo_root = Path(__file__).resolve().parents[3]
+    app_dir = repo_root / "src" / "agilab" / "apps" / f"{app_slug}_project" / "src"
+    source = app_dir / "app_settings.toml"
+    if not source.exists():
+        return
+
+    export_root = Path(os.environ.get("AGI_EXPORT_DIR", Path.home() / "export")).expanduser()
+    target_dir = export_root / app_slug
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"[WARN] Unable to create export dir {target_dir}: {exc}")
+        return
+
+    destination = target_dir / "app_settings.toml"
+    if destination.exists():
+        return
+    try:
+        shutil.copy2(source, destination)
+        print(f"[INFO] Seeded {destination} from {source}.")
+    except OSError as exc:
+        print(f"[WARN] Unable to copy {source} to {destination}: {exc}")
+
 
 _seed_example_scripts(module)
 _seed_lab_steps(module)
+_seed_app_settings(module)
 
 
 def resolve_share_mount() -> Path:
