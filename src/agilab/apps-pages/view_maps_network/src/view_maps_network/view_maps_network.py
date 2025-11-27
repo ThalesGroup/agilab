@@ -670,8 +670,12 @@ def page():
         st.stop()
 
     df = df.sort_values(by=[flight_col, time_col])
-    # Normalize to standard column names for downstream helpers
+    # Normalize to standard column names for downstream helpers (keep aliases for backward helpers)
     df_std = df.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
+    if "flight_id" not in df_std.columns:
+        df_std["flight_id"] = df_std["id_col"]
+    if "datetime" not in df_std.columns:
+        df_std["datetime"] = df_std["time_col"]
 
     if df.empty:
         st.warning("The dataset is empty. Please select a valid data file.")
@@ -740,10 +744,16 @@ def page():
     latest_time = df[df[time_col] <= st.session_state.selected_time][time_col].max()
     df_positions = df[df[time_col] == latest_time]
     df_positions_std = df_positions.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
+    if "flight_id" not in df_positions_std.columns:
+        df_positions_std["flight_id"] = df_positions_std["id_col"]
+    if "datetime" not in df_positions_std.columns:
+        df_positions_std["datetime"] = df_positions_std["time_col"]
     if df_positions.empty:
         st.warning("No rows found at the selected time.")
         st.stop()
     current_positions = df_positions_std.groupby("id_col").last().reset_index()
+    if "flight_id" not in current_positions.columns:
+        current_positions["flight_id"] = current_positions["id_col"]
 
     if current_positions.empty:
         st.warning("No data available for the selected time.")
