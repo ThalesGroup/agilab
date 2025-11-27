@@ -589,7 +589,6 @@ def page():
     final_path.mkdir(parents=True, exist_ok=True)
     st.session_state.datadir = final_path
     st.session_state["input_datadir"] = str(final_path)
-    st.session_state["datadir_rel"] = rel_subdir
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
