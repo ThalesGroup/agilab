@@ -638,12 +638,16 @@ def page():
         st.warning("The dataset is empty. Please select a valid data file.")
         return
 
-    selected_links = st.multiselect(
-        "Select Link Types to Display",
+    st.sidebar.markdown("### Display options")
+    selected_links = st.sidebar.multiselect(
+        "Link types",
         options=["satcom_link", "optical_link", "legacy_link", "ivbl_link"],
-        default=["satcom_link"],
+        default=st.session_state.get("link_multiselect", ["satcom_link"]),
         key="link_multiselect",
     )
+    show_map = st.sidebar.checkbox("Show map view", value=st.session_state.get("show_map", True), key="show_map")
+    show_graph = st.sidebar.checkbox("Show topology graph", value=st.session_state.get("show_graph", True), key="show_graph")
+    show_metrics = st.sidebar.checkbox("Show metrics table", value=st.session_state.get("show_metrics", False), key="show_metrics")
 
     layout_type = st.selectbox(
         "Select Layout Type",
