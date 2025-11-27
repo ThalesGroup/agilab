@@ -695,7 +695,10 @@ def page():
         else:
             metrics[col] = []
 
-    unique_timestamps = sorted(df["datetime"].unique())
+    unique_timestamps = sorted(df[time_col].unique())
+    if not unique_timestamps:
+        st.error(f"No timestamps found in '{time_col}'.")
+        st.stop()
     st.session_state.selected_time = st.session_state.get("selected_time", unique_timestamps[0])
 
     with st.container():
