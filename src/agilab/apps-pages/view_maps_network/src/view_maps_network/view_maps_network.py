@@ -650,10 +650,33 @@ def page():
     else:
         files = list(datadir_path.rglob(f"*.{ext_choice}"))
 
+    # If no files, try a few fallbacks automatically
+    if not files:
+        fallback_paths = [
+            Path(env.AGILAB_EXPORT_ABS) / "example_app" / "pipeline",
+            Path(env.AGILAB_EXPORT_ABS) / env.target,
+            Path(getattr(env, "agi_share_dir", env.AGILAB_EXPORT_ABS)) / "example_app" / "pipeline",
+            Path(getattr(env, "agi_share_dir", env.AGILAB_EXPORT_ABS)) / env.target,
+        ]
+        tried = set()
+        for candidate in fallback_paths:
+            if candidate in tried:
+                continue
+            tried.add(candidate)
+            if ext_choice == "all":
+                cand_files = list(candidate.rglob("*.csv")) + list(candidate.rglob("*.parquet")) + list(candidate.rglob("*.json"))
+            else:
+                cand_files = list(candidate.rglob(f"*.{ext_choice}"))
+            if cand_files:
+                st.session_state.datadir = candidate
+                st.session_state["input_datadir"] = str(candidate)
+                st.session_state["force_rerun_ext"] = True
+                st.session_state.csv_files = cand_files
+                st.rerun()
+        st.warning(f"No files found under {datadir_path} (filter: {ext_choice}). Please choose a directory with data or export from Execute.")
+        return
+
     st.session_state.csv_files = files
-    if not st.session_state.csv_files:
-        st.warning("A dataset is required to proceed. Please add via menu execute/export.")
-        st.stop()
 
     csv_files_rel = sorted([Path(file).relative_to(datadir_path).as_posix() for file in st.session_state.csv_files])
 
