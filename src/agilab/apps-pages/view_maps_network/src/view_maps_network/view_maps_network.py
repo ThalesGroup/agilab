@@ -611,6 +611,8 @@ def page():
     st.session_state.datadir = final_path
     st.session_state["input_datadir"] = str(final_path)
     if prev_datadir != final_path or st.session_state.pop("force_rerun_datadir", False):
+        st.session_state.pop("df_file", None)
+        st.session_state.pop("csv_files", None)
         st.session_state["force_rerun_ext"] = False
         # Flag for reload; caller will rerun on next cycle
         st.session_state["force_rerun_datadir_trigger"] = True
