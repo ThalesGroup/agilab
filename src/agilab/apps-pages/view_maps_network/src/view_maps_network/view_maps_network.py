@@ -545,10 +545,27 @@ def page():
         st.session_state.project = env.target
     if "projects" not in st.session_state:
         st.session_state.projects = env.projects
+    # Data directory + presets
+    default_datadir = env.AGILAB_EXPORT_ABS / env.target
     if "datadir" not in st.session_state:
-        datadir = env.AGILAB_EXPORT_ABS / env.target
-        datadir.mkdir(parents=True, exist_ok=True)
-        st.session_state.datadir = datadir
+        default_datadir.mkdir(parents=True, exist_ok=True)
+        st.session_state.datadir = default_datadir
+
+    presets = {
+        "Export (current app)": default_datadir,
+        "Clustershare example_app/pipeline": Path(env.home_abs) / "clustershare" / "example_app" / "pipeline",
+        "Custom…": None,
+    }
+    preset_labels = list(presets.keys())
+    preset_choice = st.sidebar.selectbox(
+        "Quick path",
+        preset_labels,
+        index=preset_labels.index("Export (current app)"),
+        key="preset_path_choice",
+    )
+    if presets[preset_choice] is not None:
+        st.session_state.datadir = presets[preset_choice]
+        st.session_state["input_datadir"] = str(presets[preset_choice])
 
     st.sidebar.text_input(
         "Data Directory",
@@ -558,12 +575,21 @@ def page():
         args=("datadir", "input_datadir"),
     )
 
-    st.session_state.csv_files = find_files(st.session_state.datadir)
+    ext_options = ["csv", "parquet", "json", "all"]
+    ext_choice = st.sidebar.selectbox("File type", ext_options, index=0, key="file_ext_choice")
+
+    datadir_path = Path(st.session_state.datadir)
+    if ext_choice == "all":
+        files = list(datadir_path.rglob("*.csv")) + list(datadir_path.rglob("*.parquet")) + list(datadir_path.rglob("*.json"))
+    else:
+        files = list(datadir_path.rglob(f"*.{ext_choice}"))
+
+    st.session_state.csv_files = files
     if not st.session_state.csv_files:
         st.warning("A dataset is required to proceed. Please add via menu execute/export.")
         st.stop()
 
-    csv_files_rel = sorted([Path(file).relative_to(st.session_state.datadir).as_posix() for file in st.session_state.csv_files])
+    csv_files_rel = sorted([Path(file).relative_to(datadir_path).as_posix() for file in st.session_state.csv_files])
 
     st.sidebar.selectbox(
         label="DataFrame",
