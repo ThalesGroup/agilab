@@ -655,6 +655,15 @@ def page():
         except Exception:
             st.error(f"No '{time_col}' column found and failed to convert index to datetime.")
             st.stop()
+    else:
+        try:
+            df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
+        except Exception:
+            st.error(f"Failed to convert '{time_col}' to datetime.")
+            st.stop()
+    if df[time_col].isna().all():
+        st.error(f"No valid timestamps found in '{time_col}'.")
+        st.stop()
 
     df = df.sort_values(by=[flight_col, time_col])
 
@@ -695,7 +704,7 @@ def page():
         else:
             metrics[col] = []
 
-    unique_timestamps = sorted(df[time_col].unique())
+    unique_timestamps = sorted(df[time_col].dropna().unique())
     if not unique_timestamps:
         st.error(f"No timestamps found in '{time_col}'.")
         st.stop()
@@ -711,7 +720,7 @@ def page():
                 "Time",
                 options=unique_timestamps,
                 value=st.session_state.selected_time,
-                format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S"),
+                format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if hasattr(x, "strftime") else str(x),
                 key="time_slider",
             )
         with colc:
