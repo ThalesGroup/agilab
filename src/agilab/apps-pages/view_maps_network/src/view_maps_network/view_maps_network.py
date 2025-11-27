@@ -612,7 +612,8 @@ def page():
     st.session_state["input_datadir"] = str(final_path)
     if prev_datadir != final_path or st.session_state.pop("force_rerun_datadir", False):
         st.session_state["force_rerun_ext"] = False
-        st.experimental_rerun()
+        # Flag for reload; caller will rerun on next cycle
+        st.session_state["force_rerun_datadir_trigger"] = True
     st.sidebar.caption(f"Resolved path: `{final_path}`")
 
     ext_options = ["csv", "parquet", "json", "all"]
@@ -631,7 +632,7 @@ def page():
         key="file_ext_choice",
         on_change=on_ext_change,
     )
-    if st.session_state.pop("force_rerun_ext", False):
+    if st.session_state.pop("force_rerun_ext", False) or st.session_state.pop("force_rerun_datadir_trigger", False):
         st.rerun()
 
     # Persist sidebar selections for reuse
