@@ -1082,10 +1082,47 @@ async def page():
     except Exception:
         requested_val = None
     if requested_val and requested_val != env.app:
-        candidate = Path(requested_val).expanduser()
-        if not candidate.is_absolute():
-            candidate = Path(env.apps_dir) / requested_val
-        if candidate.exists():
+        candidate = None
+        raw_name = str(requested_val)
+        # 1) Absolute path
+        try:
+            p = Path(raw_name).expanduser()
+            if p.is_absolute() and p.exists():
+                candidate = p
+        except Exception:
+            candidate = None
+        # 2) Relative to apps_dir
+        if candidate is None:
+            p = Path(env.apps_dir) / raw_name
+            if p.exists():
+                candidate = p
+        # 3) Builtin subdir fallbacks (with/without _project)
+        if candidate is None:
+            for suffix in ("", "_project"):
+                p = Path(env.apps_dir) / "builtin" / f"{raw_name}{suffix}"
+                if p.exists():
+                    candidate = p
+                    break
+                p2 = Path(env.apps_dir) / f"{raw_name}{suffix}"
+                if p2.exists():
+                    candidate = p2
+                    break
+        # 4) Match against known projects list
+        if candidate is None:
+            try:
+                for proj_name in getattr(env, "projects", []) or []:
+                    if proj_name == raw_name or proj_name.replace("_project", "") == raw_name:
+                        p = Path(env.apps_dir) / proj_name
+                        if p.exists():
+                            candidate = p
+                            break
+                        p_builtin = Path(env.apps_dir) / "builtin" / proj_name
+                        if p_builtin.exists():
+                            candidate = p_builtin
+                            break
+            except Exception:
+                candidate = None
+        if candidate and candidate != env.active_app:
             try:
                 env.change_app(candidate)
             except Exception as exc:
