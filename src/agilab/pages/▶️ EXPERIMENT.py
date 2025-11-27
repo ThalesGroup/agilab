@@ -43,6 +43,7 @@ from agi_env.defaults import get_default_openai_model
 STEPS_FILE_NAME = "lab_steps.toml"
 DEFAULT_DF = "export.csv"
 JUPYTER_URL = "http://localhost:8888"
+LAST_ACTIVE_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -64,6 +65,14 @@ def convert_paths_to_strings(obj: Any) -> Any:
         return str(obj)
     else:
         return obj
+
+
+def _store_last_active_app(path: Path) -> None:
+    try:
+        LAST_ACTIVE_APP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_ACTIVE_APP_FILE.write_text(str(path), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def on_page_change() -> None:
@@ -1967,6 +1976,18 @@ def sidebar_controls() -> None:
             "active_app": st.session_state.get("lab_dir_selectbox", ""),
         }
     )
+
+    # Persist last active app for cross-page defaults
+    active_app_name = st.session_state.get("lab_dir_selectbox", "")
+    if active_app_name:
+        candidates = [
+            Path(env.apps_dir) / active_app_name,
+            Path(env.apps_dir) / "builtin" / active_app_name,
+        ]
+        for cand in candidates:
+            if cand.exists():
+                _store_last_active_app(cand)
+                break
 
     key = index_page_str + "import_notebook"
     st.sidebar.file_uploader(
