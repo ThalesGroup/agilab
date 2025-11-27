@@ -584,14 +584,17 @@ def page():
             st.session_state.datadir = export_base
             st.session_state["input_datadir"] = str(export_base)
     # Optional relative subdir under the base
-    rel_subdir = st.session_state.get("datadir_rel", env.target)
-    rel_subdir = st.sidebar.text_input(
+    rel_default = st.session_state.get("datadir_rel", env.target)
+    rel_options = [env.target, "example_app/pipeline", "example_app/pipeline", rel_default]
+    rel_options = [opt for opt in dict.fromkeys(rel_options) if opt]
+    rel_subdir = st.sidebar.selectbox(
         "Relative subdir",
-        value=rel_subdir,
+        options=rel_options,
+        index=rel_options.index(rel_default) if rel_default in rel_options else 0,
         key="datadir_rel",
     ).strip()
     base_path = Path(st.session_state.datadir).expanduser()
-    # Avoid doubling the app name: if both base and rel are the same app, drop rel
+    # Avoid doubling the app name: if both base and rel are the same, drop rel
     if base_path.name == rel_subdir:
         final_path = base_path
     else:
