@@ -593,6 +593,10 @@ def main():
     # ---- After init, always show banner+intro and then main UI ----
     env = st.session_state['env']
     _sync_active_app_from_query(env)
+    try:
+        _store_last_active_app(Path(env.apps_dir) / env.app)
+    except Exception:
+        pass
     show_banner_and_intro(resources_path)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
