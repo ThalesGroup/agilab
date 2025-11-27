@@ -9,6 +9,7 @@ dependencies = [
     "agi-env",
     "networkx",
     "plotly",
+    "matplotlib",
 ]
 
 [optional-dependencies]
