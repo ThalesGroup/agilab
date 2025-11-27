@@ -628,8 +628,6 @@ def page():
 
     df = st.session_state.loaded_df
 
-    st.write("DataFrame columns:", df.columns.tolist())
-
     st.sidebar.markdown("### Columns")
     all_cols = list(df.columns)
     flight_col = st.sidebar.selectbox(
