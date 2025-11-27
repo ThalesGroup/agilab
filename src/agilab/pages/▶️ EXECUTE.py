@@ -1074,6 +1074,20 @@ async def page():
         st.rerun()
         return
 
+    # Local helper to read last-active-app from disk
+    def _load_last_active_app() -> Path | None:
+        path = Path.home() / ".local/share/agilab/.last-active-app"
+        try:
+            if path.exists():
+                raw = path.read_text(encoding="utf-8").strip()
+                if raw:
+                    cand = Path(raw).expanduser()
+                    if cand.exists():
+                        return cand
+        except Exception:
+            return None
+        return None
+
     env = st.session_state["env"]
     # Honor active_app passed via query params (keeps in sync with other pages)
     try:
@@ -1127,6 +1141,18 @@ async def page():
                 env.change_app(candidate)
             except Exception as exc:
                 st.warning(f"Unable to switch to project '{requested_val}': {exc}")
+        try:
+            st.query_params["active_app"] = env.app
+        except Exception:
+            pass
+    elif not requested_val:
+        # No query param provided; fall back to last-active-app on disk if it differs
+        last_app = _load_last_active_app()
+        if last_app and last_app != env.active_app and last_app.exists():
+            try:
+                env.change_app(last_app)
+            except Exception as exc:
+                st.warning(f"Unable to switch to last active app '{last_app}': {exc}")
         try:
             st.query_params["active_app"] = env.app
         except Exception:
