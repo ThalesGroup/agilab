@@ -10,6 +10,7 @@ dependencies = [
     "networkx",
     "plotly",
     "matplotlib",
+    "sqlalchemy>=2.0.43",
 ]
 
 [optional-dependencies]
