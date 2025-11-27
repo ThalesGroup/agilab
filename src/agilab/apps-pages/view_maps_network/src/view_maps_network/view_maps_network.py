@@ -630,25 +630,35 @@ def page():
 
     st.write("DataFrame columns:", df.columns.tolist())
 
+    st.sidebar.markdown("### Columns")
+    all_cols = list(df.columns)
+    flight_col = st.sidebar.selectbox(
+        "Flight ID column",
+        options=all_cols,
+        index=all_cols.index("flight_id") if "flight_id" in all_cols else 0,
+        key="flight_id_col",
+    )
+    time_col = st.sidebar.selectbox(
+        "Timestamp column",
+        options=all_cols,
+        index=all_cols.index("datetime") if "datetime" in all_cols else 0,
+        key="time_col",
+    )
+
     # Check and fix flight_id presence
-    if "flight_id" not in df.columns:
-        # Try resetting index if flight_id is in index
-        if "flight_id" in df.index.names:
-            df = df.reset_index()
-            st.session_state.loaded_df = df
-        else:
-            st.error("The dataset must contain a 'flight_id' column.")
-            st.stop()
+    if flight_col not in df.columns:
+        st.error(f"The dataset must contain a '{flight_col}' column.")
+        st.stop()
 
     # Ensure datetime column
-    if "datetime" not in df.columns:
+    if time_col not in df.columns:
         try:
-            df["datetime"] = pd.to_datetime(df.index)
+            df[time_col] = pd.to_datetime(df.index)
         except Exception:
-            st.error("No 'datetime' column found and failed to convert index to datetime.")
+            st.error(f"No '{time_col}' column found and failed to convert index to datetime.")
             st.stop()
 
-    df = df.sort_values(by=["flight_id", "datetime"])
+    df = df.sort_values(by=[flight_col, time_col])
 
     if df.empty:
         st.warning("The dataset is empty. Please select a valid data file.")
@@ -707,20 +717,21 @@ def page():
             if st.button("▷", key="increment_button"):
                 increment_time(unique_timestamps)
 
-    latest_time = df[df["datetime"] <= st.session_state.selected_time]["datetime"].max()
-    df_positions = df[df["datetime"] == latest_time]
-    current_positions = df_positions.groupby("flight_id").last().reset_index()
+    latest_time = df[df[time_col] <= st.session_state.selected_time][time_col].max()
+    df_positions = df[df[time_col] == latest_time]
+    current_positions = df_positions.groupby(flight_col).last().reset_index()
 
     if current_positions.empty:
         st.warning("No data available for the selected time.")
         st.stop()
 
-    if "color_map" not in st.session_state:
-        flight_ids = df["flight_id"].unique()
+    if "color_map" not in st.session_state or st.session_state.get("color_map_key") != flight_col:
+        flight_ids = df[flight_col].unique()
         color_map = plt.get_cmap("tab20", len(flight_ids))
         st.session_state.color_map = {flight_id: mcolors.rgb2hex(color_map(i % 20)) for i, flight_id in enumerate(flight_ids)}
+        st.session_state.color_map_key = flight_col
 
-    current_positions["color"] = current_positions["flight_id"].map(st.session_state.color_map).apply(hex_to_rgba)
+    current_positions["color"] = current_positions[flight_col].map(st.session_state.color_map).apply(hex_to_rgba)
 
     # Layout containers based on toggles
     if show_map and show_graph:
@@ -731,15 +742,15 @@ def page():
 
     if show_map:
         with col1:
-            layers = create_layers_geomap(selected_links, df_positions, current_positions)
-            view_state = pdk.ViewState(
-                latitude=current_positions["lat"].mean(),
-                longitude=current_positions["long"].mean(),
-                zoom=3,
-                pitch=-5,
-                bearing=5,
-                min_pitch=0,
-                max_pitch=85,
+        layers = create_layers_geomap(selected_links, df_positions, current_positions)
+        view_state = pdk.ViewState(
+            latitude=current_positions["lat"].mean(),
+            longitude=current_positions["long"].mean(),
+            zoom=3,
+            pitch=-5,
+            bearing=5,
+            min_pitch=0,
+            max_pitch=85,
             )
             r = pdk.Deck(
                 layers=layers,
@@ -764,19 +775,19 @@ def page():
     if show_graph:
         target_col = col2 if col2 is not None else st.container()
         with target_col:
-            pos = get_fixed_layout(df, layout=layout_type)
-            fig = create_network_graph(
-                df_positions,
-                pos,
-                show_nodes=True,
-                show_edges=True,
-                edge_types=selected_links,
-                metric_type=selected_metric,
-            )
-            st.plotly_chart(fig)
+        pos = get_fixed_layout(df, layout=layout_type)
+        fig = create_network_graph(
+            df_positions,
+            pos,
+            show_nodes=True,
+            show_edges=True,
+            edge_types=selected_links,
+            metric_type=selected_metric,
+        )
+        st.plotly_chart(fig)
 
     if show_metrics:
-        metric_cols = [c for c in ["flight_id", "datetime", "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
+    metric_cols = [c for c in [flight_col, time_col, "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
         if metric_cols:
             st.markdown("### Metrics snapshot")
             st.dataframe(df_positions[metric_cols].sort_values("flight_id"), use_container_width=True)
