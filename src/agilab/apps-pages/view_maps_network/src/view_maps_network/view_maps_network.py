@@ -547,38 +547,43 @@ def page():
         st.session_state.projects = env.projects
     # Data directory + presets
     default_datadir = env.AGILAB_EXPORT_ABS / env.target
+    share_datadir = Path(env.agi_share_dir) / env.target if getattr(env, "agi_share_dir", None) else default_datadir
     if "datadir" not in st.session_state:
         default_datadir.mkdir(parents=True, exist_ok=True)
         st.session_state.datadir = default_datadir
-
-    presets = {
-        "Export (current app)": default_datadir,
-        "Clustershare example_app/pipeline": Path(env.home_abs) / "clustershare" / "example_app" / "pipeline",
-        "Custom…": None,
-    }
-    preset_labels = list(presets.keys())
-    preset_choice = st.sidebar.selectbox(
-        "Quick path",
-        preset_labels,
-        index=preset_labels.index("Export (current app)"),
-        key="preset_path_choice",
+    base_choice = st.sidebar.radio(
+        "Base directory",
+        ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"],
+        index=1,
+        key="base_dir_choice",
     )
-    if presets[preset_choice] is not None:
-        st.session_state.datadir = presets[preset_choice]
-        st.session_state["input_datadir"] = str(presets[preset_choice])
-
-    st.sidebar.text_input(
-        "Data Directory",
-        value=str(st.session_state.datadir),
-        key="input_datadir",
-        on_change=update_datadir,
-        args=("datadir", "input_datadir"),
-    )
+    if base_choice == "AGI_SHARE_DIR":
+        st.session_state.datadir = share_datadir
+        st.session_state["input_datadir"] = str(share_datadir)
+    elif base_choice == "AGILAB_EXPORT":
+        st.session_state.datadir = default_datadir
+        st.session_state["input_datadir"] = str(default_datadir)
+    else:
+        custom_val = st.sidebar.text_input(
+            "Custom data directory",
+            value=st.session_state.get("input_datadir", str(default_datadir)),
+            key="input_datadir",
+            on_change=update_datadir,
+            args=("datadir", "input_datadir"),
+        )
+        try:
+            st.session_state.datadir = Path(custom_val).expanduser()
+        except Exception:
+            st.warning("Invalid custom path; falling back to export.")
+            st.session_state.datadir = default_datadir
+            st.session_state["input_datadir"] = str(default_datadir)
+    # Ensure base dirs exist
+    Path(st.session_state.datadir).mkdir(parents=True, exist_ok=True)
 
     ext_options = ["csv", "parquet", "json", "all"]
     ext_choice = st.sidebar.selectbox("File type", ext_options, index=0, key="file_ext_choice")
 
-    datadir_path = Path(st.session_state.datadir)
+    datadir_path = Path(st.session_state.datadir).expanduser()
     if ext_choice == "all":
         files = list(datadir_path.rglob("*.csv")) + list(datadir_path.rglob("*.parquet")) + list(datadir_path.rglob("*.json"))
     else:
