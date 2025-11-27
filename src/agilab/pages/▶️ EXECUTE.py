@@ -1082,31 +1082,10 @@ async def page():
     except Exception:
         requested_val = None
     if requested_val and requested_val != env.app:
-        candidate = None
-        # First, trust absolute paths
-        try:
-            p = Path(str(requested_val)).expanduser()
-            if p.is_absolute() and p.exists():
-                candidate = p
-        except Exception:
-            candidate = None
-        # Then try relative to apps_dir
-        if candidate is None:
-            p = Path(env.apps_dir) / str(requested_val)
-            if p.exists():
-                candidate = p
-        # Finally, try to resolve by known project names (with/without _project)
-        if candidate is None:
-            try:
-                for proj_name in getattr(env, "projects", []) or []:
-                    if proj_name == requested_val or proj_name.replace("_project", "") == str(requested_val):
-                        p = Path(env.apps_dir) / proj_name
-                        if p.exists():
-                            candidate = p
-                            break
-            except Exception:
-                candidate = None
-        if candidate and candidate != env.active_app:
+        candidate = Path(requested_val).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path(env.apps_dir) / requested_val
+        if candidate.exists():
             try:
                 env.change_app(candidate)
             except Exception as exc:
