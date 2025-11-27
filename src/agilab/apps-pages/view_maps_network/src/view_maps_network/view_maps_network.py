@@ -149,6 +149,12 @@ def create_edges_geomap(df, link_column, current_positions):
     return pd.DataFrame(edges_list)
 
 def create_layers_geomap(selected_links, df, current_positions):
+    required = ["flight_id", "long", "lat", "alt"]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        st.warning(f"Missing required columns for map view: {missing}.")
+        return []
+
     layers = [terrain_layer]
     if "satcom_link" in selected_links:
         satcom_edges_df = create_edges_geomap(df, "satcom_link", current_positions)
