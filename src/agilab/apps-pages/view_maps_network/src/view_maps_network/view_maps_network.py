@@ -633,7 +633,7 @@ def page():
     st.sidebar.markdown("### Columns")
     all_cols = list(df.columns)
     flight_col = st.sidebar.selectbox(
-        "Flight ID column",
+        "ID column",
         options=all_cols,
         index=all_cols.index("flight_id") if "flight_id" in all_cols else 0,
         key="flight_id_col",
