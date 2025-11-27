@@ -670,6 +670,8 @@ def page():
         st.stop()
 
     df = df.sort_values(by=[flight_col, time_col])
+    # Normalize to standard column names for downstream helpers
+    df_std = df.rename(columns={flight_col: "flight_id", time_col: "datetime"}, errors="ignore")
 
     if df.empty:
         st.warning("The dataset is empty. Please select a valid data file.")
@@ -737,22 +739,23 @@ def page():
 
     latest_time = df[df[time_col] <= st.session_state.selected_time][time_col].max()
     df_positions = df[df[time_col] == latest_time]
+    df_positions_std = df_positions.rename(columns={flight_col: "flight_id", time_col: "datetime"}, errors="ignore")
     if df_positions.empty:
         st.warning("No rows found at the selected time.")
         st.stop()
-    current_positions = df_positions.groupby(flight_col).last().reset_index()
+    current_positions = df_positions_std.groupby("flight_id").last().reset_index()
 
     if current_positions.empty:
         st.warning("No data available for the selected time.")
         st.stop()
 
     if "color_map" not in st.session_state or st.session_state.get("color_map_key") != flight_col:
-        flight_ids = df[flight_col].unique()
+        flight_ids = df_std["flight_id"].unique()
         color_map = plt.get_cmap("tab20", len(flight_ids))
         st.session_state.color_map = {flight_id: mcolors.rgb2hex(color_map(i % 20)) for i, flight_id in enumerate(flight_ids)}
         st.session_state.color_map_key = flight_col
 
-    current_positions["color"] = current_positions[flight_col].map(st.session_state.color_map).apply(hex_to_rgba)
+    current_positions["color"] = current_positions["flight_id"].map(st.session_state.color_map).apply(hex_to_rgba)
 
     # Layout containers based on toggles
     if show_map and show_graph:
@@ -763,7 +766,7 @@ def page():
 
     if show_map:
         with col1:
-            layers = create_layers_geomap(selected_links, df_positions, current_positions)
+            layers = create_layers_geomap(selected_links, df_positions_std, current_positions)
             view_state = pdk.ViewState(
                 latitude=current_positions["lat"].mean(),
                 longitude=current_positions["long"].mean(),
@@ -796,9 +799,9 @@ def page():
     if show_graph:
         target_col = col2 if col2 is not None else st.container()
         with target_col:
-            pos = get_fixed_layout(df, layout=layout_type)
+            pos = get_fixed_layout(df_std, layout=layout_type)
             fig = create_network_graph(
-                df_positions,
+                df_positions_std,
                 pos,
                 show_nodes=True,
                 show_edges=True,
