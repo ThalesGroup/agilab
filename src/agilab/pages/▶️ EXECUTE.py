@@ -1139,6 +1139,7 @@ async def page():
         if candidate and candidate != env.active_app:
             try:
                 env.change_app(candidate)
+                st.session_state["project_changed"] = True
             except Exception as exc:
                 st.warning(f"Unable to switch to project '{requested_val}': {exc}")
         try:
@@ -1151,6 +1152,7 @@ async def page():
         if last_app and last_app != env.active_app and last_app.exists():
             try:
                 env.change_app(last_app)
+                st.session_state["project_changed"] = True
             except Exception as exc:
                 st.warning(f"Unable to switch to last active app '{last_app}': {exc}")
         try:
