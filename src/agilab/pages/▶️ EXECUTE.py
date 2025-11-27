@@ -1195,6 +1195,13 @@ async def page():
     projects = list(getattr(env, "projects", []) or [])
     if env.app and env.app not in projects:
         projects = [env.app] + projects
+    # Keep query params aligned before rendering sidebar selection
+    try:
+        st.query_params["active_app"] = env.app
+    except Exception:
+        pass
+    # Seed the selectbox state with the current app
+    st.session_state.setdefault("project_selectbox", env.app)
     current_project = env.app
     if "args_serialized" not in st.session_state:
         st.session_state["args_serialized"] = ""
