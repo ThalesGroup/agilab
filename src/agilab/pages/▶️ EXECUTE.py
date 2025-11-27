@@ -1075,6 +1075,26 @@ async def page():
         return
 
     env = st.session_state["env"]
+    # Honor active_app passed via query params (keeps in sync with other pages)
+    try:
+        requested = st.query_params.get("active_app")
+        requested_val = requested[0] if isinstance(requested, list) else requested
+    except Exception:
+        requested_val = None
+    if requested_val and requested_val != env.app:
+        candidate = Path(requested_val).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path(env.apps_dir) / requested_val
+        if candidate.exists():
+            try:
+                env.change_app(candidate)
+            except Exception as exc:
+                st.warning(f"Unable to switch to project '{requested_val}': {exc}")
+        try:
+            st.query_params["active_app"] = env.app
+        except Exception:
+            pass
+
     st.session_state["_env"] = env
 
     st.set_page_config(layout="wide", menu_items=get_about_content())
