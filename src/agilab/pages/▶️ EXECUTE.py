@@ -40,7 +40,7 @@ import streamlit as st
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
-    cached_load_df, inject_theme, is_valid_ip, find_files
+    cached_load_df, inject_theme, is_valid_ip, find_files, resolve_active_app, store_last_active_app
 )
 
 from agi_env import AgiEnv
@@ -1074,91 +1074,12 @@ async def page():
         st.rerun()
         return
 
-    # Local helper to read last-active-app from disk
-    def _load_last_active_app() -> Path | None:
-        path = Path.home() / ".local/share/agilab/.last-active-app"
-        try:
-            if path.exists():
-                raw = path.read_text(encoding="utf-8").strip()
-                if raw:
-                    cand = Path(raw).expanduser()
-                    if cand.exists():
-                        return cand
-        except Exception:
-            return None
-        return None
-
     env = st.session_state["env"]
-    # Honor active_app passed via query params (keeps in sync with other pages)
-    try:
-        requested = st.query_params.get("active_app")
-        requested_val = requested[0] if isinstance(requested, list) else requested
-    except Exception:
-        requested_val = None
-    if requested_val and requested_val != env.app:
-        candidate = None
-        raw_name = str(requested_val)
-        # 1) Absolute path
-        try:
-            p = Path(raw_name).expanduser()
-            if p.is_absolute() and p.exists():
-                candidate = p
-        except Exception:
-            candidate = None
-        # 2) Relative to apps_dir
-        if candidate is None:
-            p = Path(env.apps_dir) / raw_name
-            if p.exists():
-                candidate = p
-        # 3) Builtin subdir fallbacks (with/without _project)
-        if candidate is None:
-            for suffix in ("", "_project"):
-                p = Path(env.apps_dir) / "builtin" / f"{raw_name}{suffix}"
-                if p.exists():
-                    candidate = p
-                    break
-                p2 = Path(env.apps_dir) / f"{raw_name}{suffix}"
-                if p2.exists():
-                    candidate = p2
-                    break
-        # 4) Match against known projects list
-        if candidate is None:
-            try:
-                for proj_name in getattr(env, "projects", []) or []:
-                    if proj_name == raw_name or proj_name.replace("_project", "") == raw_name:
-                        p = Path(env.apps_dir) / proj_name
-                        if p.exists():
-                            candidate = p
-                            break
-                        p_builtin = Path(env.apps_dir) / "builtin" / proj_name
-                        if p_builtin.exists():
-                            candidate = p_builtin
-                            break
-            except Exception:
-                candidate = None
-        if candidate and candidate != env.active_app:
-            try:
-                env.change_app(candidate)
-                st.session_state["project_changed"] = True
-            except Exception as exc:
-                st.warning(f"Unable to switch to project '{requested_val}': {exc}")
-        try:
-            st.query_params["active_app"] = env.app
-        except Exception:
-            pass
-    elif not requested_val:
-        # No query param provided; fall back to last-active-app on disk if it differs
-        last_app = _load_last_active_app()
-        if last_app and last_app != env.active_app and last_app.exists():
-            try:
-                env.change_app(last_app)
-                st.session_state["project_changed"] = True
-            except Exception as exc:
-                st.warning(f"Unable to switch to last active app '{last_app}': {exc}")
-        try:
-            st.query_params["active_app"] = env.app
-        except Exception:
-            pass
+    current_app, changed_from_query = resolve_active_app(
+        env, preferred_base=Path("/Users/example/PycharmProjects/agilab/src/agilab/apps")
+    )
+    if changed_from_query:
+        st.session_state["project_changed"] = True
 
     st.session_state["_env"] = env
 
@@ -1195,14 +1116,8 @@ async def page():
     projects = list(getattr(env, "projects", []) or [])
     if env.app and env.app not in projects:
         projects = [env.app] + projects
-    # Keep query params aligned before rendering sidebar selection
-    try:
-        st.query_params["active_app"] = env.app
-    except Exception:
-        pass
-    # Seed the selectbox state with the current app
-    st.session_state.setdefault("project_selectbox", env.app)
-    current_project = env.app
+    # Seed the selectbox default without touching widget state
+    current_project = current_app
     if "args_serialized" not in st.session_state:
         st.session_state["args_serialized"] = ""
     if current_project not in projects:
@@ -1210,11 +1125,12 @@ async def page():
     previous_project = current_project
     select_project(projects, current_project)
     project_changed = st.session_state.pop("project_changed", False)
-    try:
-        st.query_params["active_app"] = env.app
-    except Exception:
-        pass
     if project_changed or env.app != previous_project:
+        try:
+            st.query_params["active_app"] = env.app
+        except Exception:
+            pass
+        store_last_active_app(env.active_app)
         app_settings_snapshot = st.session_state.get("app_settings", {})
         # Clear generic & per-project keys to prevent bleed-through
         st.session_state.pop("cluster_enabled", None)
