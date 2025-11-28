@@ -1107,13 +1107,14 @@ def page():
             if st.button("◁", key="decrement_button"):
                 decrement_time(unique_timestamps)
         with colb:
-            st.session_state.selected_time = st.select_slider(
+            selected_val = st.select_slider(
                 "Time",
                 options=unique_timestamps,
                 value=st.session_state.selected_time,
                 format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if hasattr(x, "strftime") else str(x),
                 key="time_slider_control",
             )
+            st.session_state.selected_time = selected_val
             st.caption(f"Selected: {st.session_state.selected_time}")
             idx_now = st.session_state.get("selected_time_idx", 0)
             prog = idx_now / (len(unique_timestamps) - 1) if len(unique_timestamps) > 1 else 1.0
