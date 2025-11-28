@@ -3028,31 +3028,37 @@ class AGI:
             yield conn
             return
 
+        agent_path = None
         try:
             client_keys = None
             ssh_key_override = getattr(env, "ssh_key_path", None)
             if ssh_key_override:
                 client_keys = [str(Path(ssh_key_override).expanduser())]
             else:
-                ssh_dir = Path("~/.ssh").expanduser()
-                keys = []
+                # If a password is provided, disable key/agent auth unless explicitly overridden
+                if env.password:
+                    client_keys = []
+                    agent_path = None
+                else:
+                    ssh_dir = Path("~/.ssh").expanduser()
+                    keys = []
 
-                if ssh_dir.exists():
-                    for file in ssh_dir.iterdir():
-                        if not file.is_file():
-                            continue
+                    if ssh_dir.exists():
+                        for file in ssh_dir.iterdir():
+                            if not file.is_file():
+                                continue
 
-                        name = file.name
-                        if name.startswith('authorized_keys'):
-                            continue
-                        if name.startswith('known_hosts'):
-                            continue
-                        if name.endswith('.pub'):
-                            continue
+                            name = file.name
+                            if name.startswith('authorized_keys'):
+                                continue
+                            if name.startswith('known_hosts'):
+                                continue
+                            if name.endswith('.pub'):
+                                continue
 
-                        keys.append(str(file))
+                            keys.append(str(file))
 
-                client_keys = keys if keys else None
+                    client_keys = keys if keys else None
 
             conn = await asyncio.wait_for(
                 asyncssh.connect(
@@ -3061,6 +3067,7 @@ class AGI:
                     password=env.password,
                     known_hosts=None,
                     client_keys=client_keys,
+                    agent_path=agent_path,
                 ),
                 timeout=timeout_sec
             )
