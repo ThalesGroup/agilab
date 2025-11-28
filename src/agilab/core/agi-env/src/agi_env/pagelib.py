@@ -39,6 +39,89 @@ import tomllib
 
 from sqlalchemy import false
 
+# Shared last-active-app helpers
+def _last_active_app_path() -> Path:
+    return Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
+
+
+def load_last_active_app() -> Path | None:
+    path = _last_active_app_path()
+    try:
+        if path.exists():
+            raw = path.read_text(encoding="utf-8").strip()
+            if raw:
+                cand = Path(raw).expanduser()
+                if cand.exists():
+                    return cand
+    except Exception:
+        return None
+    return None
+
+
+def store_last_active_app(path: Path) -> None:
+    try:
+        path = path.expanduser()
+        target = _last_active_app_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(str(path), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _last_active_app_path() -> Path:
+    return Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
+
+
+def load_last_active_app() -> Path | None:
+    path = _last_active_app_path()
+    try:
+        if path.exists():
+            raw = path.read_text(encoding="utf-8").strip()
+            if raw:
+                cand = Path(raw).expanduser()
+                if cand.exists():
+                    return cand
+    except Exception:
+        return None
+    return None
+
+
+def store_last_active_app(path: Path) -> None:
+    try:
+        path = path.expanduser()
+        target = _last_active_app_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(str(path), encoding="utf-8")
+    except Exception:
+        pass
+
+def _last_active_app_path() -> Path:
+    return Path.home() / ".local/share/agilab/.last-active-app"
+
+
+def load_last_active_app() -> Path | None:
+    path = _last_active_app_path()
+    try:
+        if path.exists():
+            raw = path.read_text(encoding="utf-8").strip()
+            if raw:
+                cand = Path(raw).expanduser()
+                if cand.exists():
+                    return cand
+    except Exception:
+        return None
+    return None
+
+
+def store_last_active_app(path: Path) -> None:
+    try:
+        path = path.expanduser()
+        target = _last_active_app_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(str(path), encoding="utf-8")
+    except Exception:
+        pass
+
 
 
 # Apply the custom CSS
@@ -1482,6 +1565,128 @@ def select_project(projects, current_project):
 
     if selection != current_project:
         on_project_change(selection)
+
+
+def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bool]:
+    """
+    Resolve the active app from ?active_app=... or last-active-app, optionally switching env.
+
+    Returns (current_project_name, project_changed)
+    """
+    project_changed = False
+    try:
+        requested = st.query_params.get("active_app")
+        requested_val = requested[-1] if isinstance(requested, list) else requested
+    except Exception:
+        requested_val = None
+
+    def _candidates(name: str) -> list[Path]:
+        base = preferred_base or Path(env.apps_dir)
+        builtin_base = Path(env.apps_dir) / "builtin"
+        cands = [
+            Path(name).expanduser(),
+            base / name,
+            base / f"{name}_project",
+            Path(env.apps_dir) / name,
+            Path(env.apps_dir) / f"{name}_project",
+            builtin_base / name,
+            builtin_base / f"{name}_project",
+        ]
+        for proj_name in getattr(env, "projects", []) or []:
+            if proj_name == name or proj_name.replace("_project", "") == name:
+                cands.extend(
+                    [
+                        Path(env.apps_dir) / proj_name,
+                        Path(env.apps_dir) / f"{proj_name}_project",
+                        builtin_base / proj_name,
+                        builtin_base / f"{proj_name}_project",
+                    ]
+                )
+                break
+        return cands
+
+    if requested_val and requested_val != env.app:
+        for cand in _candidates(str(requested_val)):
+            if not cand.exists():
+                continue
+            try:
+                env.change_app(cand)
+                project_changed = True
+                store_last_active_app(env.active_app)
+                break
+            except Exception:
+                continue
+    elif not requested_val:
+        last_app = load_last_active_app()
+        if last_app and last_app != env.active_app and last_app.exists():
+            try:
+                env.change_app(last_app)
+                project_changed = True
+            except Exception:
+                pass
+
+    return env.app, project_changed
+
+
+def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bool]:
+    """
+    Resolve the active app from ?active_app=... or last-active-app, optionally switching env.
+
+    Returns (current_project_name, project_changed)
+    """
+    project_changed = False
+    try:
+        requested = st.query_params.get("active_app")
+        requested_val = requested[-1] if isinstance(requested, list) else requested
+    except Exception:
+        requested_val = None
+
+    def _candidates(name: str) -> list[Path]:
+        base = preferred_base or Path(env.apps_dir)
+        builtin_base = Path(env.apps_dir) / "builtin"
+        cands = [
+            Path(name).expanduser(),
+            base / name,
+            base / f"{name}_project",
+            Path(env.apps_dir) / name,
+            Path(env.apps_dir) / f"{name}_project",
+            builtin_base / name,
+            builtin_base / f"{name}_project",
+        ]
+        for proj_name in getattr(env, "projects", []) or []:
+            if proj_name == name or proj_name.replace("_project", "") == name:
+                cands.extend(
+                    [
+                        Path(env.apps_dir) / proj_name,
+                        Path(env.apps_dir) / f"{proj_name}_project",
+                        builtin_base / proj_name,
+                        builtin_base / f"{proj_name}_project",
+                    ]
+                )
+                break
+        return cands
+
+    if requested_val and requested_val != env.app:
+        for cand in _candidates(str(requested_val)):
+            if not cand.exists():
+                continue
+            try:
+                env.change_app(cand)
+                project_changed = True
+                store_last_active_app(env.active_app)
+                break
+            except Exception:
+                continue
+    elif not requested_val:
+        last_app = load_last_active_app()
+        if last_app and last_app != env.active_app and last_app.exists():
+            try:
+                env.change_app(last_app)
+                project_changed = True
+            except Exception:
+                pass
+
+    return env.app, project_changed
 
 
 def open_new_tab(url):
