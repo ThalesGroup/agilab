@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Union
 import asyncio
 import shlex
+from urllib.parse import urlencode
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 import streamlit.components.v1 as components
@@ -462,8 +463,16 @@ async def render_view_page(view_path: Path):
     port = _port_for(f"{view_key}|{active_app_arg}")
     _ensure_sidecar(view_key, view_path, port, active_app_arg)
 
-    # Regular iframe (child keeps its own sidebar if it has one)
-    components.iframe(f"http://127.0.0.1:{port}/?embed=true", height=900)
+    # Regular iframe (child keeps its own sidebar if it has one), preserve extra query params (e.g., datadir_rel)
+    qp = st.query_params
+    extras = {}
+    for k, v in qp.items():
+        if k == "current_page":
+            continue
+        extras[k] = v
+    extras["embed"] = "true"
+    query = urlencode(extras, doseq=True)
+    components.iframe(f"http://127.0.0.1:{port}/?{query}", height=900)
 
     # --- end sidecar embed ---
 

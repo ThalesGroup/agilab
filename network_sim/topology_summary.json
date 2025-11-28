@@ -1,0 +1,9 @@
+{
+  "mode": "synthetic",
+  "nodes": 8,
+  "edges": 36,
+  "flows": 6,
+  "topology_file": "/Users/agi/PycharmProjects/agilab/network_sim/ilp_topology.gml",
+  "demands_file": "/Users/agi/PycharmProjects/agilab/network_sim/ilp_demands.json",
+  "traffic_file": "/Users/agi/PycharmProjects/agilab/network_sim/flows/traffic_df/RouteID=0/part.synthetic.parquet"
+}

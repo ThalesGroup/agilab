@@ -1,0 +1,44 @@
+[
+  {
+    "flow_id": "synth_0",
+    "source": 1,
+    "destination": 0,
+    "bandwidth": 5232.031206086556,
+    "latency": 83.98030319964398
+  },
+  {
+    "flow_id": "synth_1",
+    "source": 4,
+    "destination": 6,
+    "bandwidth": 5134.867660684509,
+    "latency": 220.39202802730492
+  },
+  {
+    "flow_id": "synth_2",
+    "source": 5,
+    "destination": 1,
+    "bandwidth": 5685.264574614613,
+    "latency": 111.8374384148703
+  },
+  {
+    "flow_id": "synth_3",
+    "source": 7,
+    "destination": 0,
+    "bandwidth": 8411.101498862345,
+    "latency": 232.72836836218295
+  },
+  {
+    "flow_id": "synth_4",
+    "source": 6,
+    "destination": 1,
+    "bandwidth": 7409.699998983068,
+    "latency": 193.42801485716865
+  },
+  {
+    "flow_id": "synth_5",
+    "source": 0,
+    "destination": 5,
+    "bandwidth": 5514.306849637276,
+    "latency": 172.19702788618704
+  }
+]
