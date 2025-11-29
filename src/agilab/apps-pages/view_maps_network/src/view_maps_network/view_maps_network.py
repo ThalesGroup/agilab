@@ -139,6 +139,56 @@ link_colors_plotly = {
     "legacy_link": "rgb(128, 0, 128)",
     "ivbl_link": "rgb(255, 69, 0)",
 }
+_DEFAULT_LINK_ORDER = ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]
+
+def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
+    seen = set()
+    candidates: list[Path] = []
+    for base in bases:
+        if not base or not base.exists():
+            continue
+        for pattern in ("edges.parquet", "edges.json", "edges.*.parquet", "edges.*.json"):
+            for p in base.glob(f"**/{pattern}"):
+                if p in seen:
+                    continue
+                seen.add(p)
+                candidates.append(p)
+    return candidates
+
+def _color_to_rgb(color_str: str, idx: int = 0) -> list[int]:
+    try:
+        rgba = mcolors.to_rgba(color_str)
+        return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
+    except Exception:
+        cmap = plt.get_cmap("tab10")
+        rgba = cmap(idx % cmap.N)
+        return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
+
+def _detect_link_columns(df: pd.DataFrame) -> list[str]:
+    skip = {"long", "lat", "alt", "longitude", "latitude", "altitude", "alt_m", "time_col", "id_col", "flight_id", "datetime"}
+    candidates: list[str] = []
+    for col in df.columns:
+        if col in skip:
+            continue
+        sample = df[col].dropna().head(8)
+        if sample.empty:
+            continue
+        looks_like_links = False
+        for val in sample:
+            if isinstance(val, (list, tuple)) and len(val) > 0:
+                looks_like_links = True
+                break
+            if isinstance(val, str) and any(ch in val for ch in ("(", "[", ",")):
+                looks_like_links = True
+                break
+        if looks_like_links:
+            candidates.append(col)
+    ordered = [c for c in _DEFAULT_LINK_ORDER if c in candidates]
+    remaining = [c for c in candidates if c not in ordered]
+    ordered.extend(sorted(remaining))
+    if not ordered:
+        ordered = _DEFAULT_LINK_ORDER.copy()
+    return ordered
 
 def hex_to_rgba(hex_color: str):
     hex_color = hex_color.lstrip("#")
@@ -168,8 +218,10 @@ def create_edges_geomap(df, link_column, current_positions):
             if isinstance(links, tuple):
                 links = [links]
             for source, target in links:
-                source_pos = current_positions.loc[current_positions["flight_id"] == source]
-                target_pos = current_positions.loc[current_positions["flight_id"] == target]
+                source_id = str(source)
+                target_id = str(target)
+                source_pos = current_positions.loc[current_positions["flight_id"] == source_id]
+                target_pos = current_positions.loc[current_positions["flight_id"] == target_id]
                 if not source_pos.empty and not target_pos.empty:
                     mid_long = (source_pos["long"].values[0] + target_pos["long"].values[0]) / 2
                     mid_lat = (source_pos["lat"].values[0] + target_pos["lat"].values[0]) / 2
@@ -184,7 +236,7 @@ def create_edges_geomap(df, link_column, current_positions):
                     )
     return pd.DataFrame(edges_list)
 
-def create_layers_geomap(selected_links, df, current_positions):
+def create_layers_geomap(selected_links, df, current_positions, link_color_map):
     required = ["flight_id", "long", "lat", "alt"]
     missing = [col for col in required if col not in df.columns]
     if missing:
@@ -192,101 +244,30 @@ def create_layers_geomap(selected_links, df, current_positions):
         return []
 
     layers = [terrain_layer]
-    if "satcom_link" in selected_links:
-        satcom_edges_df = create_edges_geomap(df, "satcom_link", current_positions)
-        if not satcom_edges_df.empty:
-            satcom_layer = pdk.Layer(
-                "LineLayer",
-                data=satcom_edges_df,
-                get_source_position="source",
-                get_target_position="target",
-                get_color=[0, 200, 255],
-                get_width=1.5,
-                opacity=0.7,
-            )
-            layers.append(satcom_layer)
-            text_layer = pdk.Layer(
-                "TextLayer",
-                data=satcom_edges_df,
-                get_position="midpoint",
-                get_text="label",
-                get_size=16,
-                get_color=[0, 200, 255],
-                get_alignment_baseline="'bottom'",
-            )
-            layers.append(text_layer)
-    if "optical_link" in selected_links:
-        optical_edges_df = create_edges_geomap(df, "optical_link", current_positions)
-        optical_layer = pdk.Layer(
+    for idx, link_col in enumerate(selected_links):
+        edges_df = create_edges_geomap(df, link_col, current_positions)
+        if edges_df.empty:
+            continue
+        rgb_color = _color_to_rgb(link_color_map.get(link_col, link_colors_plotly.get(link_col, f"C{idx}")), idx=idx)
+        line_layer = pdk.Layer(
             "LineLayer",
-            data=optical_edges_df,
+            data=edges_df,
             get_source_position="source",
             get_target_position="target",
-            get_color=[0, 128, 0],
+            get_color=rgb_color,
             get_width=1.5,
             opacity=0.7,
         )
-        layers.append(optical_layer)
-        if not optical_edges_df.empty:
-            layers.append(
-                pdk.Layer(
-                    "TextLayer",
-                    data=optical_edges_df,
-                    get_position="midpoint",
-                    get_text="label",
-                    get_size=16,
-                    get_color=[0, 128, 0],
-                    get_alignment_baseline="'bottom'",
-                )
-            )
-    if "legacy_link" in selected_links:
-        legacy_edges_df = create_edges_geomap(df, "legacy_link", current_positions)
-        legacy_layer = pdk.Layer(
-            "LineLayer",
-            data=legacy_edges_df,
-            get_source_position="source",
-            get_target_position="target",
-            get_color=[128, 0, 128],
-            get_width=1.5,
-            opacity=1.0,
+        text_layer = pdk.Layer(
+            "TextLayer",
+            data=edges_df,
+            get_position="midpoint",
+            get_text="label",
+            get_size=16,
+            get_color=rgb_color[:3],
+            get_alignment_baseline="'bottom'",
         )
-        layers.append(legacy_layer)
-        if not legacy_edges_df.empty:
-            layers.append(
-                pdk.Layer(
-                    "TextLayer",
-                    data=legacy_edges_df,
-                    get_position="midpoint",
-                    get_text="label",
-                    get_size=16,
-                    get_color=[128, 0, 128],
-                    get_alignment_baseline="'bottom'",
-                )
-            )
-    if "ivbl_link" in selected_links:
-        ivbl_edges_df = create_edges_geomap(df, "ivbl_link", current_positions)
-        ivbl_layer = pdk.Layer(
-            "LineLayer",
-            data=ivbl_edges_df,
-            get_source_position="source",
-            get_target_position="target",
-            get_color=[255, 0, 0],
-            get_width=1.5,
-            opacity=0.7,
-        )
-        layers.append(ivbl_layer)
-        if not ivbl_edges_df.empty:
-            layers.append(
-                pdk.Layer(
-                    "TextLayer",
-                    data=ivbl_edges_df,
-                    get_position="midpoint",
-                    get_text="label",
-                    get_size=16,
-                    get_color=[255, 0, 0],
-                    get_alignment_baseline="'bottom'",
-                )
-            )
+        layers.extend([line_layer, text_layer])
 
     nodes_layer = pdk.Layer(
         "PointCloudLayer",
@@ -351,6 +332,8 @@ def convert_to_tuples(value):
         except (ValueError, SyntaxError) as e:
             st.warning(f"Failed to parse tuples from string: {value}. Error: {e}")
             return []
+    elif isinstance(value, tuple):
+        return [tuple(value)] if len(value) == 2 else []
     elif isinstance(value, list):
         return [tuple(item) for item in value if isinstance(item, (list, tuple)) and len(item) == 2]
     else:
@@ -365,8 +348,8 @@ def parse_edges(column):
             if len(edge) != 2:
                 continue
             try:
-                u = int(edge[0])
-                v = int(edge[1])
+                u = str(edge[0])
+                v = str(edge[1])
                 edges.append((u, v))
             except Exception:
                 continue
@@ -375,6 +358,8 @@ def parse_edges(column):
 def filter_edges(df, edge_columns):
     filtered_edges = {}
     for edge_type in edge_columns:
+        if edge_type not in df:
+            continue
         edge_list = df[edge_type].dropna().tolist()
         filtered_edges[edge_type] = parse_edges(edge_list)
     return filtered_edges
@@ -428,28 +413,27 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
             df = pd.read_json(path)
     except Exception:
         return {}
-    edges_by_type: dict[str, list[tuple[int, int]]] = {
-        "satcom_link": [],
-        "optical_link": [],
-        "legacy_link": [],
-        "ivbl_link": [],
-    }
+    edges_by_type: dict[str, list[tuple[int, int]]] = {k: [] for k in _DEFAULT_LINK_ORDER}
     if {"source", "target", "bearer"}.issubset(df.columns):
         for _, row in df.iterrows():
             try:
-                u = int(row["source"])
-                v = int(row["target"])
+                u = str(row["source"])
+                v = str(row["target"])
                 bearer = str(row["bearer"]).lower()
             except Exception:
                 continue
+            key = None
             if "sat" in bearer:
-                edges_by_type["satcom_link"].append((u, v))
+                key = "satcom_link"
             elif "opt" in bearer:
-                edges_by_type["optical_link"].append((u, v))
+                key = "optical_link"
             elif "legacy" in bearer:
-                edges_by_type["legacy_link"].append((u, v))
+                key = "legacy_link"
             elif "iv" in bearer:
-                edges_by_type["ivbl_link"].append((u, v))
+                key = "ivbl_link"
+            else:
+                key = bearer.replace(" ", "_") or "link"
+            edges_by_type.setdefault(key, []).append((u, v))
     return edges_by_type
 
 def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
@@ -534,11 +518,10 @@ def bezier_curve(x1, y1, x2, y2, control_points=20, offset=0.2):
     y_bezier = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * y_control + t ** 2 * y2
     return x_bezier, y_bezier
 
-def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_type, color_map=None, symbol_map=None):
+def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_type, color_map=None, symbol_map=None, link_color_map=None):
     G = nx.Graph()
     G.add_nodes_from(pos.keys())
-    edge_columns = ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]
-    edges = filter_edges(df, edge_columns)
+    edges = filter_edges(df, edge_types)
     for edge_type, tuples in edges.items():
         for (u, v) in tuples:
             if u in pos and v in pos:
@@ -573,7 +556,7 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
                 edge_trace = go.Scatter(
                     x=edge_x,
                     y=edge_y,
-                    line=dict(width=edge_width, color=link_colors_plotly.get(edge_type, "#888")),
+                    line=dict(width=edge_width, color=(link_color_map or link_colors_plotly).get(edge_type, "#888")),
                     hoverinfo="text",
                     text=edge_texts,
                     mode="lines",
@@ -719,10 +702,12 @@ def page():
         st.session_state.projects = env.projects
     # Restore persisted sidebar settings if available
     vm_settings = st.session_state.get("app_settings", {}).get("view_maps_network", {})
+    base_seed = None
+    input_seed = None
     if vm_settings:
+        base_seed = vm_settings.get("base_dir_choice")
+        input_seed = vm_settings.get("input_datadir")
         for key in (
-            "base_dir_choice",
-            "input_datadir",
             "datadir_rel",
             "file_ext_choice",
             # flight/time columns are detected per file, so don't restore stale values
@@ -736,7 +721,7 @@ def page():
 
     # Data directory + presets (base paths without app suffix)
     export_base = env.AGILAB_EXPORT_ABS
-    share_base = Path(env.agi_share_dir) if getattr(env, "agi_share_dir", None) else export_base
+    share_base = Path(env.agi_share_dir)
     if "datadir" not in st.session_state:
         export_base.mkdir(parents=True, exist_ok=True)
         st.session_state.datadir = export_base
@@ -751,14 +736,8 @@ def page():
     if isinstance(qp_rel, list):
         qp_rel = qp_rel[-1] if qp_rel else None
 
-    # Seed session defaults from query params before widgets are created
-    if "base_dir_choice" not in st.session_state:
-        st.session_state["base_dir_choice"] = qp_base or "AGILAB_EXPORT"
-    if "input_datadir" not in st.session_state:
-        st.session_state["input_datadir"] = qp_input or str(export_base)
-
     base_options = ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"]
-    base_default = qp_base or st.session_state.get("base_dir_choice", "AGILAB_EXPORT")
+    base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
     try:
         base_index = base_options.index(base_default)
     except ValueError:
@@ -778,7 +757,7 @@ def page():
     else:
         custom_val = st.sidebar.text_input(
             "Custom data directory",
-            value=qp_input or st.session_state.get("input_datadir", str(export_base)),
+            value=qp_input or st.session_state.get("input_datadir") or input_seed or str(export_base),
             key="input_datadir",
         )
         try:
@@ -789,7 +768,7 @@ def page():
             st.session_state["input_datadir"] = str(export_base)
     # Optional relative subdir under the base (prefer explicit query param; otherwise session or last stored)
     stored_rel = _load_last_subdir()
-    rel_default = qp_rel if qp_rel not in (None, "") else (st.session_state.get("datadir_rel") or stored_rel)
+    rel_default = qp_rel if qp_rel not in (None, "") else (st.session_state.get("datadir_rel_custom") or st.session_state.get("datadir_rel") or stored_rel)
     # If a query param is provided, ensure the selectbox key picks it up
     if qp_rel not in (None, "") and st.session_state.get("datadir_rel_select") != qp_rel:
         st.session_state["datadir_rel_select"] = qp_rel
@@ -810,9 +789,15 @@ def page():
         key="datadir_rel_select",
         format_func=lambda v: v if v else "(root)",
     )
+    custom_rel = st.sidebar.text_input(
+        "Custom relative subdir (overrides selection)",
+        value=st.session_state.get("datadir_rel_custom", rel_subdir),
+        key="datadir_rel_custom",
+    ).strip()
+    if custom_rel:
+        rel_subdir = custom_rel
     # Keep session in sync without touching the widget key
     st.session_state["datadir_rel"] = rel_subdir
-    st.session_state.pop("datadir_rel_input", None)
     _store_last_subdir(rel_subdir)
     # Persist base, custom path, and rel subdir into query params for reloads
     try:
@@ -1007,8 +992,11 @@ def page():
         df_std["id_col"] = df[flight_col]
     if "time_col" not in df_std.columns:
         df_std["time_col"] = df[time_col]
+    df_std["id_col"] = df_std["id_col"].astype(str)
     if "flight_id" not in df_std.columns:
         df_std["flight_id"] = df_std["id_col"]
+    else:
+        df_std["flight_id"] = df_std["flight_id"].astype(str)
     # Ensure base df has flight_id for downstream map/edge helpers
     df["flight_id"] = df_std["id_col"]
     if "datetime" not in df_std.columns:
@@ -1025,20 +1013,56 @@ def page():
         return
 
     st.sidebar.markdown("### Display options")
+    default_edges_candidates = _candidate_edges_paths(
+        [
+            Path(env.agi_share_dir),
+            env.AGILAB_EXPORT_ABS,
+            Path(st.session_state.datadir),
+        ]
+    )
+    default_edges_path = str(default_edges_candidates[0]) if default_edges_candidates else ""
+    edges_file = st.sidebar.text_input(
+        "Edges file (optional, JSON/Parquet with source/target/bearer)",
+        value=st.session_state.get("edges_file_input", default_edges_path),
+        key="edges_file_input",
+    )
+    if default_edges_candidates:
+        detected_opt = ["(none)"] + [str(p) for p in default_edges_candidates]
+        detected_choice = st.sidebar.selectbox("Detected edges files", detected_opt, index=0)
+        if detected_choice != "(none)":
+            edges_file = detected_choice
+            st.session_state["edges_file_input"] = edges_file
+    edges_path = Path(edges_file).expanduser() if edges_file else None
+    loaded_edges = {}
+    if edges_path and edges_path.exists():
+        loaded_edges = load_edges_file(edges_path)
+    if edges_path and not edges_path.exists():
+        st.sidebar.warning(f"Edges file not found: {edges_path}")
+
+    link_options = _detect_link_columns(df_std)
+    if loaded_edges:
+        for col, edges in loaded_edges.items():
+            df_std[col] = [edges] * len(df_std)
+            df[col] = df_std[col]
+            if col not in link_options:
+                link_options.append(col)
+    link_options = list(dict.fromkeys(link_options))
+    link_color_map = {**link_colors_plotly}
+    for idx, col in enumerate(link_options):
+        link_color_map.setdefault(col, f"C{idx}")
+    link_default = st.session_state.get("link_multiselect")
+    if not link_default:
+        present_defaults = [c for c in _DEFAULT_LINK_ORDER if c in link_options]
+        link_default = present_defaults if present_defaults else link_options[:4]
     selected_links = st.sidebar.multiselect(
-        "Link types",
-        options=["satcom_link", "optical_link", "legacy_link", "ivbl_link"],
-        default=st.session_state.get("link_multiselect", ["satcom_link"]),
+        "Link columns",
+        options=link_options,
+        default=link_default,
         key="link_multiselect",
     )
     show_map = st.sidebar.checkbox("Show map view", value=st.session_state.get("show_map", True), key="show_map")
     show_graph = st.sidebar.checkbox("Show topology graph", value=st.session_state.get("show_graph", True), key="show_graph")
     jitter_overlap = st.sidebar.checkbox("Separate overlapping nodes", value=False, key="jitter_overlap")
-    edges_file = st.sidebar.text_input(
-        "Edges file (optional, JSON/Parquet with source/target/bearer)",
-        value=str((Path(env.agi_share_dir) / "example_app" / "edges.parquet").expanduser()),
-        key="edges_file_input",
-    )
     show_metrics = st.sidebar.checkbox("Show metrics table", value=st.session_state.get("show_metrics", False), key="show_metrics")
 
     layout_type = st.selectbox(
@@ -1052,14 +1076,12 @@ def page():
     available_metrics = [st.session_state.df_cols[-2], st.session_state.df_cols[-1]]
     selected_metric = st.selectbox("Select Metric for Link Weight", available_metrics)
 
-    # Optional: inject edges from external file when link columns are empty
-    edge_cols = ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]
-    if edges_file:
-        loaded = load_edges_file(Path(edges_file))
-        if loaded:
-            for col in edge_cols:
-                df_std[col] = [loaded.get(col, [])] * len(df_std)
-                df[col] = df_std[col]
+    # Ensure link columns exist to avoid KeyError
+    for col in link_options:
+        if col not in df:
+            df[col] = None
+        if col not in df_std:
+            df_std[col] = None
 
     if jitter_overlap:
         dup_mask = df_std.duplicated(subset=["long", "lat"], keep=False)
@@ -1071,11 +1093,6 @@ def page():
     for col in ["bandwidth", "throughput"]:
         if col in df:
             df[col] = df[col].apply(safe_literal_eval)
-    # Ensure link columns exist to avoid KeyError
-    for col in ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]:
-        if col not in df:
-            df[col] = None
-
     metrics = {}
     for col in ["bandwidth", "throughput"]:
         if col in df:
@@ -1171,8 +1188,11 @@ def page():
         df_positions_std["id_col"] = df_positions[flight_col]
     if "time_col" not in df_positions_std.columns:
         df_positions_std["time_col"] = df_positions[time_col]
+    df_positions_std["id_col"] = df_positions_std["id_col"].astype(str)
     if "flight_id" not in df_positions_std.columns:
         df_positions_std["flight_id"] = df_positions_std["id_col"]
+    else:
+        df_positions_std["flight_id"] = df_positions_std["flight_id"].astype(str)
     if "datetime" not in df_positions_std.columns:
         df_positions_std["datetime"] = df_positions_std["time_col"]
     for src, dest in (("longitude", "long"), ("lon", "long"), ("latitude", "lat"), ("alt_m", "alt"), ("altitude", "alt"), ("altitude_m", "alt")):
@@ -1187,13 +1207,14 @@ def page():
     current_positions = df_positions_std.groupby("id_col").last().reset_index()
     if "flight_id" not in current_positions.columns:
         current_positions["flight_id"] = current_positions["id_col"]
+    current_positions["flight_id"] = current_positions["flight_id"].astype(str)
 
     if current_positions.empty:
         st.warning("No data available for the selected time.")
         st.stop()
 
     if "color_map" not in st.session_state or st.session_state.get("color_map_key") != flight_col:
-        flight_ids = df_std["id_col"].unique()
+        flight_ids = df_std["id_col"].astype(str).unique()
         color_map = plt.get_cmap("tab20", len(flight_ids))
         st.session_state.color_map = {flight_id: mcolors.rgb2hex(color_map(i % 20)) for i, flight_id in enumerate(flight_ids)}
         st.session_state.color_map_key = flight_col
@@ -1232,7 +1253,7 @@ def page():
 
     if show_map and map_container is not None:
         with map_container:
-            layers = create_layers_geomap(selected_links, df_positions_std, current_positions)
+            layers = create_layers_geomap(selected_links, df_positions_std, current_positions, link_color_map)
             view_state = pdk.ViewState(
                 latitude=current_positions["lat"].mean(),
                 longitude=current_positions["long"].mean(),
@@ -1308,6 +1329,7 @@ def page():
                 metric_type=selected_metric,
                 color_map=st.session_state.get("color_map"),
                 symbol_map=symbol_map,
+                link_color_map=link_color_map,
             )
             st.plotly_chart(fig, use_container_width=True)
 

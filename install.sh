@@ -21,6 +21,8 @@ export PATH="$HOME/.local/bin:$PATH"
 UV="uv --preview-features extra-build-dependencies"
 
 AGI_INSTALL_PATH="$(realpath '.')"
+# Default share dir (can be overridden via --agi-share-dir or env)
+AGI_SHARE_DIR="${AGI_SHARE_DIR:-clustershare}"
 CURRENT_PATH="$(realpath '.')"
 CLUSTER_CREDENTIALS=""
 OPENAI_API_KEY=""
@@ -31,7 +33,155 @@ APPS_REPOSITORY=""
 CUSTOM_INSTALL_APPS=""
 INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
 INSTALL_BUILTIN_SENTINEL="__AGILAB_BUILTIN_APPS__"
+NON_INTERACTIVE=0
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL
+
+read_env_var() {
+    local file="$1"
+    local key="$2"
+    [[ -f "$file" ]] || { echo ""; return 0; }
+    local line
+    line="$(grep -E "^${key}=" "$file" | tail -1)"
+    line="${line#*=}"
+    line="${line%\"}"
+    line="${line#\"}"
+    echo "$line"
+    return 0
+}
+
+USER_ENV_FILE="$HOME/.agilab/.env"
+REPO_ENV_FILE="$AGI_INSTALL_PATH/.agilab/.env"
+ENV_SHARE_USER="$(read_env_var "$USER_ENV_FILE" AGI_SHARE_DIR)"
+ENV_SHARE_REPO="$(read_env_var "$REPO_ENV_FILE" AGI_SHARE_DIR)"
+DEFAULT_SHARE_DIR="${AGI_SHARE_DIR:-${ENV_SHARE_USER:-$ENV_SHARE_REPO}}"
+DEFAULT_LOCAL_SHARE="${AGI_LOCAL_DIR:-${AGI_LOCAL_SHARE:-$HOME/localshare}}"
+
+share_is_mounted() {
+    local path="$1"
+    [[ -d "$path" ]] || return 1
+    local canonical
+    canonical=$(cd "$path" 2>/dev/null && pwd -P) || return 1
+    # Compare against canonical mount points to avoid symlink mismatch on macOS (/System/Volumes/Data/...)
+    # and support Linux/WSL. Fallback to /proc/mounts if mount is unavailable.
+    local mounts_source
+    if command -v mount >/dev/null 2>&1; then
+        mounts_source=$(mount | awk '{print $3}')
+    elif [[ -r /proc/mounts ]]; then
+        mounts_source=$(awk '{print $2}' /proc/mounts)
+    else
+        # If we cannot inspect mounts, treat existence as not mounted to force the prompt.
+        return 1
+    fi
+
+    while read -r mpath; do
+        [[ -z "$mpath" ]] && continue
+        local mcanonical
+        mcanonical=$(cd "$mpath" 2>/dev/null && pwd -P) || continue
+        if [[ "$mcanonical" == "$canonical" ]]; then
+            return 0
+        fi
+    done <<< "$mounts_source"
+    return 1
+}
+
+ensure_share_dir() {
+    local share_dir="$1"
+    local fallback_dir="$2"
+    if [[ -z "$share_dir" ]]; then
+        if (( NON_INTERACTIVE )); then
+            share_dir="$fallback_dir"
+        elif [[ -t 0 ]]; then
+            read -rp "Enter AGI_SHARE_DIR path (or press Enter to abort): " share_dir
+            if [[ -z "$share_dir" ]]; then
+                echo -e "${RED}AGI_SHARE_DIR not provided. Aborting.${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${YELLOW}AGI_SHARE_DIR not set and no TTY available. Using fallback ${fallback_dir}.${NC}"
+            share_dir="$fallback_dir"
+        fi
+    fi
+
+    # Normalize to absolute path for display/use
+    if [[ -n "$share_dir" ]]; then
+        [[ "$share_dir" == "~"* ]] && share_dir="${share_dir/#\~/$HOME}"
+        [[ "$share_dir" != /* ]] && share_dir="$HOME/$share_dir"
+    fi
+    if [[ -n "$fallback_dir" ]]; then
+        [[ "$fallback_dir" == "~"* ]] && fallback_dir="${fallback_dir/#\~/$HOME}"
+        [[ "$fallback_dir" != /* ]] && fallback_dir="$HOME/$fallback_dir"
+    fi
+    if [[ -n "$share_dir" ]]; then
+        echo -e "${BLUE}AGI_SHARE_DIR resolved to: ${share_dir}${NC}"
+    fi
+
+    # If the share is already mounted, accept it and return.
+    if share_is_mounted "$share_dir"; then
+        export AGI_SHARE_DIR="$share_dir"
+        export AGI_LOCAL_DIR="${AGI_LOCAL_DIR:-$fallback_dir}"
+        return 0
+    fi
+
+    if (( NON_INTERACTIVE )); then
+        if [[ -n "${CLUSTER_CREDENTIALS:-}" ]]; then
+            echo -e "${RED}${share_dir} is not mounted. Cluster mode requires the shared path to be available; aborting (non-interactive).${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}AGI_SHARE_DIR ${share_dir} unavailable; non-interactive mode: using fallback ${fallback_dir}.${NC}"
+        mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
+        export AGI_LOCAL_DIR="$fallback_dir"
+        export AGI_SHARE_DIR="$fallback_dir"
+        return 0
+    fi
+
+    # Try to prompt even if stdin is not a TTY by borrowing /dev/tty when available.
+    prompt_input() {
+        local prompt="$1"
+        if [[ -t 0 ]]; then
+            read -rp "$prompt" choice
+        elif [[ -e /dev/tty ]]; then
+            read -rp "$prompt" choice < /dev/tty
+        else
+            choice=""
+        fi
+    }
+
+    echo -e "${YELLOW}AGI_SHARE_DIR is unavailable at ${share_dir}.${NC}"
+    echo -e "Choose an option:"
+    echo -e "  1) Use local fallback at ${fallback_dir}"
+    echo -e "  2) Wait for ${share_dir} to be mounted (mandatory for cluster installs; will timeout)"
+    choice=""
+    prompt_input "Enter 1 or 2 (default: 1): "
+    case "$choice" in
+        ""|1)
+            mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
+            export AGI_LOCAL_DIR="$fallback_dir"
+            export AGI_SHARE_DIR="$fallback_dir"
+            echo -e "${GREEN}Using local fallback AGI_LOCAL_DIR=${AGI_LOCAL_DIR}.${NC}"
+            ;;
+        2)
+            echo -e "${BLUE}Waiting for ${share_dir} to become available (timeout 120s)...${NC}"
+            local waited=0
+            while [[ $waited -lt 120 ]]; do
+                if [[ -d "$share_dir" ]]; then
+                    export AGI_SHARE_DIR="$share_dir"
+                    echo -e "${GREEN}${share_dir} is available. Continuing.${NC}"
+                    return 0
+                fi
+                sleep 5
+                waited=$((waited + 5))
+            done
+            echo -e "${RED}${share_dir} did not appear within 120s. Aborting.${NC}"
+            exit 1
+            ;;
+        *)
+            echo -e "${YELLOW}No valid input detected; defaulting to local fallback.${NC}"
+            mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
+            export AGI_LOCAL_DIR="$fallback_dir"
+            export AGI_SHARE_DIR="$fallback_dir"
+            ;;
+    esac
+}
 
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
@@ -208,17 +358,38 @@ set_locale() {
 
 verify_share_dir() {
     local share_dir="${AGI_SHARE_DIR:-$HOME/clustershare}"
+    local local_dir="${AGI_LOCAL_DIR:-}"
     [[ "$share_dir" == "~"* ]] && share_dir="${share_dir/#\~/$HOME}"
-    if [[ ! -d "$share_dir" ]]; then
-        echo -e "${RED}AGI_SHARE_DIR missing:${NC} expected data share at '$share_dir'."
-        echo -e "${YELLOW}Mount your cluster share or export AGI_SHARE_DIR to the correct path, then rerun install.sh.${NC}"
+
+    # If we're intentionally using the local fallback, only require existence.
+    if [[ -n "$local_dir" && "$share_dir" == "$local_dir" ]]; then
+        if [[ -d "$share_dir" ]]; then
+            return 0
+        fi
+        echo -e "${RED}Local AGI_SHARE_DIR missing:${NC} expected data dir at '$share_dir'."
         exit 1
     fi
+
+    # Otherwise require a mounted share.
+    if share_is_mounted "$share_dir"; then
+        return 0
+    fi
+
+    echo -e "${RED}AGI_SHARE_DIR missing:${NC} expected mounted data share at '$share_dir'."
+    echo -e "${YELLOW}Mount your cluster share or export AGI_SHARE_DIR to the correct path, then rerun install.sh.${NC}"
+    exit 1
 }
 
 install_dependencies() {
     echo -e "${BLUE}Step: Installing system dependencies...${NC}"
-    read -rp "Do you want to install system dependencies? (y/N): " confirm
+    local confirm="n"
+    if (( NON_INTERACTIVE )); then
+        warn "Non-interactive mode; skipping dependency installation."
+    elif [[ -t 0 ]]; then
+        read -rp "Do you want to install system dependencies? (y/N): " confirm
+    else
+        warn "Non-interactive shell detected; skipping dependency installation by default."
+    fi
     [[ "$confirm" =~ ^[Yy]$ ]] || { warn "Skipping dependency installation."; return; }
 
     if ! command -v uv > /dev/null 2>&1; then
@@ -258,7 +429,17 @@ install_dependencies() {
 
 choose_python_version() {
     echo -e "${BLUE}Choosing Python version...${NC}"
-    read -p "Enter Python major version [3.13]: " PYTHON_VERSION
+    if (( NON_INTERACTIVE )); then
+        PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.13}"
+        echo "Non-interactive mode; defaulting Python version to $PYTHON_VERSION"
+    else
+        if [[ -t 0 ]]; then
+            read -p "Enter Python major version [3.13]: " PYTHON_VERSION
+        else
+            PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.13}"
+            echo "Non-interactive shell; defaulting Python version to $PYTHON_VERSION"
+        fi
+    fi
     PYTHON_VERSION=${PYTHON_VERSION:-3.13}
     echo "You selected Python version $PYTHON_VERSION"
     available_python_versions=$($UV python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
@@ -275,16 +456,26 @@ choose_python_version() {
         fi
     done
 
-    while true; do
-        read -rp "Enter the number of the Python version you want to use (default: 1) " selection
-        selection=${selection:-1}
-        if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
-            chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
-            break
+    if (( NON_INTERACTIVE )); then
+        chosen_python=$(echo "${python_array[0]}" | cut -d' ' -f1)
+        echo "Non-interactive mode: selected first available Python: $chosen_python"
+    else
+        if [[ -t 0 ]]; then
+            while true; do
+                read -rp "Enter the number of the Python version you want to use (default: 1) " selection
+                selection=${selection:-1}
+                if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
+                    chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
+                    break
+                else
+                    echo "Invalid selection. Please try again."
+                fi
+            done
         else
-            echo "Invalid selection. Please try again."
+            chosen_python=$(echo "${python_array[0]}" | cut -d' ' -f1)
+            echo "Selected first available Python: $chosen_python"
         fi
-    done
+    fi
 
     installed_pythons=$($UV python list --only-installed | cut -d' ' -f1)
     if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
@@ -508,7 +699,7 @@ install_pycharm_script() {
 }
 
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps]"
+  echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps]"
     exit 1
 }
 
@@ -521,6 +712,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
         --openai-api-key)      openai_api_key="$2";      shift 2;;
+        --agi-share-dir)       AGI_SHARE_DIR="$2"; shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;
@@ -555,11 +747,20 @@ while [[ "$#" -gt 0 ]]; do
             shift
             ;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
+        --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
-
+export CLUSTER_CREDENTIALS
 export APPS_REPOSITORY
+
+# Confirm or override AGI_SHARE_DIR when interactive (relative paths are resolved under \$HOME)
+if [[ -t 0 ]]; then
+    read -rp "AGI_SHARE_DIR is '$AGI_SHARE_DIR' (relative paths resolve under \$HOME). Press Enter to accept or type a new path: " share_input
+    if [[ -n "$share_input" ]]; then
+        AGI_SHARE_DIR="$share_input"
+    fi
+fi
 
 LOCAL_UNAME="$(id -un 2>/dev/null || whoami)"
 SSH_USER="${cluster_credentials%%:*}"
@@ -577,6 +778,7 @@ if [[ -n "$SSH_USER" && "$SSH_USER" != "$LOCAL_UNAME" ]]; then
 fi
 
 check_internet
+ensure_share_dir "$DEFAULT_SHARE_DIR" "$DEFAULT_LOCAL_SHARE"
 set_locale
 verify_share_dir
 install_dependencies
