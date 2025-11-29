@@ -38,7 +38,7 @@ class Mycode(BaseWorker):
             except ValidationError as exc:
                 raise ValueError(f"Invalid Mycode arguments: {exc}") from exc
         self.args = args
-        share_root = Path(getattr(env, "agi_share_dir", getattr(env, "home_abs", Path.home())))
+        share_root = Path(env.agi_share_dir)
         self.args.data_in = share_root / self.args.data_in
         self.args.data_out = share_root / self.args.data_out
         self.data_out = self.args.data_out

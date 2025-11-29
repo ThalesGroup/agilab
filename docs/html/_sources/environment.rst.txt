@@ -37,10 +37,11 @@ summarises the supported keys.
      - unset
      - API key surfaced to features that rely on OpenAI endpoints.
    * - ``AGI_SHARE_DIR``
-     - ``data``
-     - Subdirectory under the AGILab home where shared datasets and outputs are stored. macOS
-       NFS exports always map this directory to ``nobody:nogroup`` so all cluster nodes can write to
-       the share without inheriting local user IDs.
+     - ``clustershare`` (resolved under ``$HOME`` if relative); falls back to ``AGI_LOCAL_SHARE`` or ``$HOME/localshare`` when unavailable.
+     - Base directory for shared datasets/outputs. For local runs, point this to a writable path; on clusters, mount it so all nodes can read/write.
+   * - ``AGI_LOCAL_SHARE``
+     - ``$HOME/localshare`` (used only when ``AGI_SHARE_DIR`` is unavailable)
+     - Local fallback for datasets/outputs if the primary share is not mounted.
    * - ``AGI_SCHEDULER_IP``
      - ``127.0.0.1``
      - Default scheduler host for distributed runs.
@@ -56,9 +57,9 @@ summarises the supported keys.
    * - ``AGI_PAGES_DIR``
      - ``agilab/apps-pages``
      - Location of Streamlit page bundles loaded by the Explore/Edit views.
-  * - ``APPS_REPOSITORY``
-    - unset
-    - Optional pointer to the repository checkout containing apps or overrides.
+   * - ``APPS_REPOSITORY``
+     - unset
+     - Optional pointer to the repository checkout containing apps or overrides.
    * - ``INSTALL_TYPE``
      - ``1``
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).

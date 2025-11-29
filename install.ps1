@@ -80,6 +80,113 @@ $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 Ensure-Directory $LocalDir
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
+$DefaultShareDir = $env:AGI_SHARE_DIR
+# Fallback to user or repo .agilab/.env if AGI_SHARE_DIR not set
+function Get-EnvValueFromFile {
+    param([string]$FilePath, [string]$Key)
+    if (-not (Test-Path -LiteralPath $FilePath)) { return "" }
+    $line = Select-String -Path $FilePath -Pattern ("^{0}=" -f [regex]::Escape($Key)) | Select-Object -Last 1
+    if ($null -eq $line) { return "" }
+    $value = $line.Line.Split("=",2)[1].Trim('"')
+    return $value
+}
+if (-not $DefaultShareDir) {
+    $DefaultShareDir = Get-EnvValueFromFile (Join-Path $env:USERPROFILE ".agilab\.env") "AGI_SHARE_DIR"
+}
+if (-not $DefaultShareDir) {
+    $DefaultShareDir = Get-EnvValueFromFile (Join-Path $InstallPathFull ".agilab\.env") "AGI_SHARE_DIR"
+}
+$DefaultLocalShare = if ($env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR } elseif ($env:AGI_LOCAL_SHARE) { $env:AGI_LOCAL_SHARE } else { Join-Path $env:USERPROFILE "localshare" }
+
+function Test-ShareMounted {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try {
+        $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+        return $true
+    } catch {
+        # For drive-letter paths, ensure the drive is present.
+        $drive = [System.IO.Path]::GetPathRoot($Path)
+        if ($drive -and (Get-PSDrive -Name $drive.TrimEnd('\','/') -ErrorAction SilentlyContinue)) {
+            return (Test-Path -LiteralPath $Path)
+        }
+        # For UNC paths, a simple Test-Path is the best we can do without mounts.
+        if ($Path.StartsWith("\\")) {
+            return (Test-Path -LiteralPath $Path)
+        }
+        return $false
+    }
+}
+
+function Ensure-ShareDir {
+    param(
+        [string]$ShareDir,
+        [string]$FallbackDir
+    )
+    if ([string]::IsNullOrWhiteSpace($ShareDir)) {
+        $ShareDir = Read-Host "Enter AGI_SHARE_DIR path (or press Enter to abort)"
+        if ([string]::IsNullOrWhiteSpace($ShareDir)) {
+            Write-Failure "AGI_SHARE_DIR not provided. Aborting."
+            exit 1
+        }
+    }
+
+    # Normalize to absolute path for display/use
+    if ($ShareDir.StartsWith("~")) {
+        $ShareDir = $ShareDir -replace '^~', $env:USERPROFILE
+    }
+    if (-not [System.IO.Path]::IsPathRooted($ShareDir)) {
+        $ShareDir = Join-Path $env:USERPROFILE $ShareDir
+    }
+    if ($FallbackDir.StartsWith("~")) {
+        $FallbackDir = $FallbackDir -replace '^~', $env:USERPROFILE
+    }
+    if (-not [System.IO.Path]::IsPathRooted($FallbackDir)) {
+        $FallbackDir = Join-Path $env:USERPROFILE $FallbackDir
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ShareDir)) {
+        Write-Info ("AGI_SHARE_DIR resolved to: {0}" -f $ShareDir)
+    }
+
+    if (Test-ShareMounted -Path $ShareDir) {
+        $env:AGI_SHARE_DIR = $ShareDir
+        if (-not $env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR = $FallbackDir }
+        return
+    }
+
+    Write-Warn "AGI_SHARE_DIR is unavailable at $ShareDir."
+    Write-Host "Choose an option:" -ForegroundColor Yellow
+    Write-Host "  1) Use local fallback at $FallbackDir"
+    Write-Host "  2) Wait for $ShareDir to be mounted (mandatory for cluster installs; timeout 120s)"
+    $choice = Read-Host "Enter 1 or 2 (default: 1)"
+    if ($choice -eq "" -or $choice -eq "1") {
+        Ensure-Directory $FallbackDir
+        $env:AGI_LOCAL_DIR = $FallbackDir
+        $env:AGI_SHARE_DIR = $FallbackDir
+        Write-Success "Using local fallback AGI_LOCAL_DIR=$env:AGI_LOCAL_DIR"
+    }
+    elseif ($choice -eq "2") {
+        Write-Info "Waiting for $ShareDir to become available (timeout 120s)..."
+        $waited = 0
+        while ($waited -lt 120) {
+            if (Test-Path -LiteralPath $ShareDir) {
+                $env:AGI_SHARE_DIR = $ShareDir
+                Write-Success "$ShareDir is available. Continuing."
+                return
+            }
+            Start-Sleep -Seconds 5
+            $waited += 5
+        }
+        Write-Failure "$ShareDir did not appear within 120s. Aborting."
+        exit 1
+    }
+    else {
+        Write-Failure "Please mount $ShareDir and re-run the installer."
+        exit 1
+    }
+}
+
 $LogDir = Join-Path $env:USERPROFILE "log\install_logs"
 Ensure-Directory $LogDir
 $LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
@@ -118,6 +225,9 @@ function Install-Dependencies {
     }
     Write-Warn "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
 }
+
+# Early share check: prompt for fallback when missing
+Ensure-ShareDir -ShareDir $DefaultShareDir -FallbackDir $DefaultLocalShare
 
 function Ensure-Locale {
     Write-Info "Setting locale..."
