@@ -263,6 +263,37 @@ def is_packaging_cmd(cmd: str) -> bool:
     s = cmd.strip()
     return s.startswith("uv ") or s.startswith("pip ") or "uv" in s or "pip" in s
 
+
+def _resolve_share_dir(
+    share_dir_raw: str | None,
+    home_abs: Path,
+    local_fallback: str | None = None,
+    logger: logging.Logger | None = None,
+) -> tuple[Path, bool]:
+    """Resolve AGI_SHARE_DIR, optionally falling back when a local fallback is provided."""
+    share_dir = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
+    share_dir_expanded = share_dir.expanduser()
+    agi_share_dir = share_dir_expanded if share_dir_expanded.is_absolute() else (home_abs / share_dir_expanded).expanduser()
+
+    if agi_share_dir.is_dir():
+        return agi_share_dir, False
+
+    if local_fallback:
+        fallback_path = Path(local_fallback).expanduser()
+        try:
+            fallback_path.mkdir(parents=True, exist_ok=True)
+            if logger:
+                logger.warning(
+                    "AGI_SHARE_DIR '%s' unavailable; falling back to local share '%s'.",
+                    agi_share_dir,
+                    fallback_path,
+                )
+            return fallback_path, True
+        except Exception:
+            pass
+
+    return agi_share_dir, False
+
 class _AgiEnvMeta(type):
     """Delegate AgiEnv class attribute access to the singleton instance.
 
@@ -909,16 +940,43 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.uv_worker = self.uv
             use_freethread = False
 
-        share_dir_raw = self.envars.get("AGI_SHARE_DIR")
-        share_dir = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
-        share_dir_expanded = share_dir.expanduser()
-        if share_dir_expanded.is_absolute():
-            agi_share_dir = share_dir_expanded
-        else:
-            agi_share_dir = (self.home_abs / share_dir_expanded).expanduser()
-        self.AGI_SHARE_DIR = share_dir
-        self.agi_share_dir = agi_share_dir
-        self.AGILAB_SHARE = agi_share_dir
+        share_dir_raw = self.envars.get("AGI_SHARE_DIR") or self.envars.get("AGI_LOCAL_SHARE") or (self.home_abs / "localshare")
+        agi_local_share = self.envars.get("AGI_LOCAL_SHARE") or (self.home_abs / "localshare")
+        resolved_share_dir, used_fallback = _resolve_share_dir(
+            share_dir_raw=share_dir_raw,
+            home_abs=self.home_abs,
+            local_fallback=agi_local_share,
+            logger=AgiEnv.logger,
+        )
+        share_dir_path = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
+        self.AGI_SHARE_DIR = share_dir_path  # configured value (may be relative)
+        self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
+        # Resolved path is authoritative for local access; keep raw for reference
+        self.agi_share_dir_raw = share_dir_path
+        self.agi_share_dir = resolved_share_dir
+        self.AGILAB_SHARE = resolved_share_dir
+        self._used_share_fallback = used_fallback
+
+        # Ensure the chosen share base exists; if not, try local share (if set) or home.
+        if not self.agi_share_dir.is_dir():
+            fallback_base = self.AGI_LOCAL_SHARE or self.home_abs
+            try:
+                Path(fallback_base).expanduser().mkdir(parents=True, exist_ok=True)
+                self.agi_share_dir = Path(fallback_base).expanduser()
+                self.AGILAB_SHARE = self.agi_share_dir
+                AgiEnv.logger.warning(
+                    "AGI_SHARE_DIR '%s' unavailable; using fallback '%s'.",
+                    share_dir_path,
+                    self.agi_share_dir,
+                )
+            except Exception as exc:
+                AgiEnv.logger.error("Failed to ensure share directory at %s: %s", fallback_base, exc)
+
+        # Choose base for per-app data: prefer share if present, otherwise configured local share, otherwise home.
+        data_base = resolved_share_dir if resolved_share_dir.is_dir() else (self.AGI_LOCAL_SHARE or self.home_abs)
+        if not isinstance(data_base, Path):
+            data_base = Path(data_base)
+        data_base = data_base.expanduser()
 
         if self.is_worker_env:
             return
@@ -956,9 +1014,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.setup_app = self.active_app / "build.py"
         self.setup_app_module = "agi_node.agi_dispatcher.build"
 
-        data_rel = share_dir / self.target
+        data_rel = data_base / self.target
         self.dataframe_path = data_rel / "dataframe"
-        self.data_rel = data_rel
+        self.app_data_rel = data_rel
         self.data_root = self.ensure_data_root()
         self._init_projects()
 
@@ -973,14 +1031,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # Ensure packaged datasets are available when running locally (e.g. app_test).
         dataset_archive = getattr(self, "dataset_archive", None)
         if dataset_archive and Path(dataset_archive).exists():
-            dataset_root = (self.home_abs / self.data_rel / "dataset").expanduser()
+            dataset_root = (self.home_abs / self.app_data_rel / "dataset").expanduser()
             existing_files = list(dataset_root.rglob("*")) if dataset_root.exists() else []
             archive_mtime = Path(dataset_archive).stat().st_mtime
             latest_file_mtime = max((p.stat().st_mtime for p in existing_files if p.is_file()), default=0)
             needs_extract = (not existing_files) or (latest_file_mtime < archive_mtime)
             if needs_extract:
                 try:
-                    dest_arg = self.data_rel
+                    dest_arg = self.app_data_rel
                     dest_arg = dest_arg if isinstance(dest_arg, str) else str(dest_arg)
                     self.unzip_data(Path(dataset_archive), dest_arg, force_extract=True)
                 except Exception as exc:  # pragma: no cover - defensive guard
@@ -2523,30 +2581,37 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def ensure_data_root(self) -> Path:
         """Ensure the share directory for this app exists and return its absolute path."""
 
-        data_root = (self.home_abs / self.data_rel).expanduser()
-        share_hint = getattr(self, "agi_share_dir", None) or getattr(self, "AGI_SHARE_DIR", None)
+        app_data_path = Path(self.app_data_rel)
+        data_root = app_data_path if app_data_path.is_absolute() else (self.home_abs / app_data_path).expanduser()
+        share_hint = getattr(self, "agi_share_dir_raw", None)
         share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
 
         try:
             data_root.mkdir(parents=True, exist_ok=True)
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"Required data directory {data_root} is unavailable. "
-                f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted before running install."
-            ) from exc
         except OSError as exc:
-            if exc.errno in {
-                errno.ENOENT,
-                errno.EHOSTDOWN,
-                errno.ESTALE,
-                errno.ENOTCONN,
-                errno.EIO,
-            }:
+            # If share creation fails and a local share is configured, fall back there once.
+            fallback = self.AGI_LOCAL_SHARE
+            if fallback and not data_root.is_relative_to(fallback):
+                fallback_root = Path(fallback).expanduser() / self.target
+                try:
+                    fallback_root.mkdir(parents=True, exist_ok=True)
+                    self.app_data_rel = fallback_root
+                    data_root = fallback_root
+                    AgiEnv.logger.warning(
+                        "AGI_SHARE_DIR (%s) unavailable; using local fallback %s",
+                        share_hint_str,
+                        data_root,
+                    )
+                except Exception as exc2:
+                    raise RuntimeError(
+                        f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
+                        f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted or writable."
+                    ) from exc2
+            else:
                 raise RuntimeError(
                     f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
-                    f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted before running install."
+                    f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted or writable."
                 ) from exc
-            raise
         return data_root
 
     def unzip_data(

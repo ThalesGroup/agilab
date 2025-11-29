@@ -38,9 +38,10 @@ run-configs``—so developers and CI regenerate configs consistently from the sa
 ----------------------------------------------------------------
 ``uv`` emits this when you launch a command from an activated shell whose
 ``$VIRTUAL_ENV`` differs from the target project’s ``.venv`` directory. The message is
-informational—the command will still run using the project lock. If you truly want to
-reuse the activated environment, pass ``--active`` to ``uv``; otherwise you can safely
-ignore the warning.
+informational—the command will still run using the project lock. AGILAB manages multiple
+virtualenvs per app and per install (shared/local), so seeing this warning is normal when
+you hop between them. If you truly want to reuse the activated environment, pass
+``--active`` to ``uv``; otherwise you can safely ignore the warning.
 
 Why does a run create ``distribution.json``?
 -------------------------------------------

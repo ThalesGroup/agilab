@@ -1745,7 +1745,7 @@ if __name__ == "__main__":
                     candidate_roots.append(path)
 
                 _attach_root(getattr(env, "dataframe_path", None))
-                _attach_root(getattr(env, "data_rel", None))
+                _attach_root(env.app_data_rel)
 
                 active_args = st.session_state.app_settings.get("args", {})
                 _attach_root(active_args.get("data_in"))

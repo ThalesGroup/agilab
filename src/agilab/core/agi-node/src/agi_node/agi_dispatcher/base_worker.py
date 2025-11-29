@@ -704,12 +704,47 @@ class BaseWorker(abc.ABC):
         if os.name != "nt":
             normalized_output = normalized_output.replace("\\", "/")
 
-        if reset_target:
+        def _ensure_output_dir(path: str | Path) -> Path:
+            path_obj = Path(path).expanduser()
             try:
-                shutil.rmtree(normalized_output, ignore_errors=True, onerror=self._onerror)
-                os.makedirs(normalized_output, exist_ok=True)
+                path_obj.mkdir(parents=True, exist_ok=True)
+                return path_obj
             except Exception as exc:
-                logger.info("Error removing directory: %s", exc)
+                raise OSError(f"Failed to create output directory {path_obj}: {exc}") from exc
+
+        try:
+            if reset_target:
+                try:
+                    shutil.rmtree(normalized_output, ignore_errors=True, onerror=self._onerror)
+                except Exception as exc:
+                    logger.info("Error removing directory: %s", exc)
+            output_path = _ensure_output_dir(normalized_output)
+            normalized_output = normalize_path(output_path)
+            if os.name != "nt":
+                normalized_output = normalized_output.replace("\\", "/")
+        except OSError:
+            fallback_base = None
+            if env:
+                if getattr(env, "AGI_LOCAL_SHARE", None):
+                    fallback_base = Path(env.AGI_LOCAL_SHARE).expanduser()
+                elif getattr(env, "home_abs", None):
+                    fallback_base = Path(env.home_abs)
+            if fallback_base is None:
+                fallback_base = Path.home()
+            fallback = fallback_base / getattr(env, "target", Path(normalized_output).name)
+            try:
+                fallback = _ensure_output_dir(fallback / target_subdir)
+                normalized_output = normalize_path(fallback)
+                if os.name != "nt":
+                    normalized_output = normalized_output.replace("\\", "/")
+                logger.warning(
+                    "Output path %s unavailable; using fallback %s",
+                    output_path if 'output_path' in locals() else normalized_output,
+                    normalized_output,
+                )
+            except Exception as exc:
+                logger.error("Fallback output directory failed: %s", exc)
+                raise
 
         # Preserve compatibility with workers that rely on these attributes.
         self.home_rel = input_path
