@@ -1847,7 +1847,9 @@ class AGI:
         src = env.dataset_archive
         if src.exists():
             try:
-                install_dataset_dir = env.home_abs / env.data_rel / "dataset"
+                if not env.app_data_rel:
+                    raise FileNotFoundError("App data path not configured")
+                install_dataset_dir = env.home_abs / env.app_data_rel / "dataset"
                 os.makedirs(install_dataset_dir, exist_ok=True)
                 shutil.copy2(src, dest)
             except (FileNotFoundError, PermissionError) as exc:
@@ -1856,7 +1858,7 @@ class AGI:
         post_install_cmd = (
             f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "
             f"--python {pyvers_worker} python -m {env.post_install_rel} "
-            f"{wenv_rel.stem} {env.data_rel}"
+            f"{wenv_rel.stem} {env.app_data_rel}"
         )
         if env.user and env.user != getpass.getuser():
             try:
@@ -1980,7 +1982,10 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m {env.post_install_rel} {wenv_rel.stem} {env.data_rel}"
+        cmd = (
+            f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m "
+            f"{env.post_install_rel} {wenv_rel.stem} {env.app_data_rel}"
+        )
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/

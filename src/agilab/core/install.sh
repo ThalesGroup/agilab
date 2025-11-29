@@ -58,6 +58,11 @@ prompt_for_continuation() {
         return 0
     fi
 
+    if [ ! -t 0 ]; then
+        echo -e "${YELLOW}Test failures detected, non-interactive shell; continuing installation by default.${NC}"
+        return 0
+    fi
+
     echo ""
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${RED}TEST FAILURES DETECTED${NC}"

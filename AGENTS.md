@@ -41,11 +41,9 @@ Use this runbook whenever you:
 - **Missing dependency triage**: Whenever an app run fails because a module cannot be imported, check *both*
   `src/agilab/apps/<app>/pyproject.toml` (manager environment) and
   `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the dependency is declared in the correct scope.
-- **Fast reinstall mode**: Repeat installs now auto-detect prior runs and offer to enable
-  fast mode (skips system deps, locale config, offline extras, matrix refresh). Accept the
-  prompt or pass `./install.sh --fast [--python-version <major.minor>]` / `.\install.ps1 -Fast [-PythonVersion <major.minor>]`
-  for non-interactive speedups. Use `--no-fast` / `-NoFast` or set `AGILAB_AUTO_FAST=0` when you
-  need the full flow, and rerun without fast mode before shipping artifacts.
+- **Installer flags**: For automation, use `./install.sh --non-interactive`/`-y` with required flags
+  (`--cluster-ssh-credentials`, `--openai-api-key`). Optional flags: `--apps-repository`,
+  `--install-path`, `--install-apps [all|builtin|comma list]`, `--test-apps`.
 - **Apps repository symlinks**: Keep the apps repository (``APPS_REPOSITORY``) at the path recorded in
   `~/.local/share/agilab/.env`. On this machine it resolves to `/Users/example/PycharmProjects/agilab-apps`.
   The installer auto-creates symlinks so missing workers
@@ -93,6 +91,10 @@ Use this runbook whenever you:
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
+- **Docs edits**: `docs/html` in this repo is generated; do not edit it directly. Update
+  the docs sources in the apps repository (`agilab-apps/docs/source`) and regenerate.
+- **VIRTUAL_ENV warning**: `uv` may emit `VIRTUAL_ENV=... does not match the project environment path ...; use --active...`.
+  This is expected because AGILAB manages multiple venvs per app/local/shared install. Ignore unless you intend to run against the currently activated venv.
 
 ### Install Error Check (at Codex startup)
 

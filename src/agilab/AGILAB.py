@@ -241,8 +241,8 @@ def _refresh_share_dir(env, new_value: str) -> None:
     env.AGI_SHARE_DIR = share_dir
     env.agi_share_dir = agi_share_dir
     env.AGILAB_SHARE = agi_share_dir
-    env.data_rel = share_dir / env.target
-    env.dataframe_path = env.data_rel / "dataframe"
+    env.app_data_rel = share_dir / env.target
+    env.dataframe_path = env.app_data_rel / "dataframe"
     try:
         env.data_root = env.ensure_data_root()
     except Exception as exc:
@@ -259,7 +259,8 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
         st.session_state.get("agi_share_dir_override_input")
         or agi_env_cls.envars.get("AGI_SHARE_DIR")
         or os.environ.get("AGI_SHARE_DIR")
-        or "clustershare"
+        or agi_env_cls.envars.get("AGI_LOCAL_SHARE")
+        or ""
     )
     share_dir_path = Path(str(current_value)).expanduser()
 
