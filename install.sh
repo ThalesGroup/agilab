@@ -762,6 +762,18 @@ if [[ -t 0 ]]; then
     fi
 fi
 
+if [[ -t 0 ]]; then
+    local_default="${AGI_LOCAL_DIR:-$DEFAULT_LOCAL_SHARE}"
+    read -rp "AGI_LOCAL_DIR fallback is '${local_default}'. Press Enter to accept or type a new path: " local_input
+    if [[ -n "$local_input" ]]; then
+        AGI_LOCAL_DIR="$local_input"
+        DEFAULT_LOCAL_SHARE="$local_input"
+    else
+        AGI_LOCAL_DIR="$local_default"
+        DEFAULT_LOCAL_SHARE="$local_default"
+    fi
+fi
+
 LOCAL_UNAME="$(id -un 2>/dev/null || whoami)"
 SSH_USER="${cluster_credentials%%:*}"
 AGI_CORE_DIST="$AGI_INSTALL_PATH/src/agilab/core/agi-core/dist"
@@ -790,11 +802,15 @@ install_core
 write_env_values
 configure_streamlit
 
+FINAL_STATUS=""
+FINAL_OK=1
 if (( INSTALL_APPS_FLAG )); then
   if ! install_apps; then
     warn "install_apps failed; continuing with PyCharm setup."
     install_pycharm_script # needed to investigate with pycharm why previous script has failed
     refresh_launch_matrix
+    FINAL_STATUS="Install completed with app installation errors; review the log."
+    FINAL_OK=0
   else
     if ! run_repository_tests_with_coverage; then
       warn "Repository coverage run encountered issues; review the log output."
@@ -804,7 +820,7 @@ if (( INSTALL_APPS_FLAG )); then
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
-    echo -e "${GREEN}Installation complete!${NC}"
+    FINAL_STATUS="Installation complete."
   fi
 else
     warn "App installation skipped (use --install-apps to enable)."
@@ -813,7 +829,8 @@ else
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
-    echo -e "${GREEN}Installation complete (apps skipped).${NC}"
+    FINAL_STATUS="Installation complete (apps skipped)."
+    FINAL_OK=1
 fi
 
 END_TIME=$(date +%s)
@@ -821,3 +838,10 @@ ELAPSED=$((END_TIME - START_TIME))
 ELAPSED_MIN=$((ELAPSED / 60))
 ELAPSED_SEC=$((ELAPSED % 60))
 echo -e "${BLUE}Total install duration: ${ELAPSED_MIN}m ${ELAPSED_SEC}s${NC}"
+if [[ -n "$FINAL_STATUS" ]]; then
+    if (( FINAL_OK )); then
+        echo -e "${GREEN}All done: ${FINAL_STATUS}${NC}"
+    else
+        echo -e "${YELLOW}Completed with issues: ${FINAL_STATUS}${NC}"
+    fi
+fi
