@@ -940,7 +940,6 @@ def page():
         "track_id",
     ]
     time_pref = ["datetime", "timestamp", "time", "time_s", "time_ms", "time_us", "date"]
-    had_id_key = "id_col" in st.session_state
     if st.session_state.get("id_col") not in all_cols:
         picked_id = next((c for c in id_pref if c in all_cols), None)
         if not picked_id:
@@ -949,27 +948,24 @@ def page():
         st.session_state["id_col"] = picked_id
     id_default = st.session_state["id_col"]
     time_default = st.session_state.get("time_col")
-    had_time_key = "time_col" in st.session_state
     if time_default not in all_cols:
         time_default = next((c for c in time_pref if c in all_cols), all_cols[0])
         st.session_state["time_col"] = time_default
-    # Avoid Streamlit warning by only passing index when the widget key was not set before creation
-    flight_kwargs = {
-        "label": "ID column",
-        "options": all_cols,
-        "key": "id_col",
-    }
-    if not had_id_key:
-        flight_kwargs["index"] = all_cols.index(id_default)
-    time_kwargs = {
-        "label": "Timestamp column",
-        "options": all_cols,
-        "key": "time_col",
-    }
-    if not had_time_key:
-        time_kwargs["index"] = all_cols.index(time_default)
-    flight_col = st.sidebar.selectbox(**flight_kwargs)
-    time_col = st.sidebar.selectbox(**time_kwargs)
+    id_index = all_cols.index(id_default) if id_default in all_cols else 0
+    time_index = all_cols.index(time_default) if time_default in all_cols else 0
+    # Pass the index aligned with session state to avoid Streamlit default/state conflicts
+    flight_col = st.sidebar.selectbox(
+        "ID column",
+        options=all_cols,
+        index=id_index,
+        key="id_col",
+    )
+    time_col = st.sidebar.selectbox(
+        "Timestamp column",
+        options=all_cols,
+        index=time_index,
+        key="time_col",
+    )
 
     # Check and fix flight_id presence
     if flight_col not in df.columns:
