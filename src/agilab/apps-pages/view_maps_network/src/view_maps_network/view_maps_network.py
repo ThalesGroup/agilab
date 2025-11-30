@@ -840,7 +840,7 @@ def page():
         "input_datadir": st.session_state.get("input_datadir", ""),
         "datadir_rel": st.session_state.get("datadir_rel", ""),
         "file_ext_choice": st.session_state.get("file_ext_choice", "all"),
-        "flight_id_col": st.session_state.get("flight_id_col", ""),
+        "id_col": st.session_state.get("id_col", st.session_state.get("flight_id_col", "")),
         "time_col": st.session_state.get("time_col", ""),
         "link_multiselect": st.session_state.get("link_multiselect", []),
         "show_map": st.session_state.get("show_map", True),
@@ -857,6 +857,7 @@ def page():
     if not files:
         st.session_state.pop("csv_files", None)
         st.session_state.pop("df_file", None)
+        st.session_state.pop("id_col", None)
         st.session_state.pop("flight_id_col", None)
         st.session_state.pop("time_col", None)
         st.warning(f"No files found under {datadir_path} (filter: {ext_choice}). Please choose a directory with data or export from Execute.")
@@ -880,6 +881,7 @@ def page():
     )
     if st.session_state.get("df_file") != prev_df_file:
         st.session_state.pop("loaded_df", None)
+        st.session_state.pop("id_col", None)
         st.session_state.pop("flight_id_col", None)
         st.session_state.pop("time_col", None)
         st.session_state["_prev_df_file"] = st.session_state.get("df_file")
@@ -920,6 +922,10 @@ def page():
         if coord not in df.columns:
             df[coord] = 0.0
 
+    # Migrate legacy state key
+    if "flight_id_col" in st.session_state and "id_col" not in st.session_state:
+        st.session_state["id_col"] = st.session_state.pop("flight_id_col")
+
     st.sidebar.markdown("### Columns")
     all_cols = list(df.columns)
     # Ensure sensible defaults for ID and time columns (per-file detection)
@@ -934,14 +940,14 @@ def page():
         "track_id",
     ]
     time_pref = ["datetime", "timestamp", "time", "time_s", "time_ms", "time_us", "date"]
-    had_flight_key = "flight_id_col" in st.session_state
-    if st.session_state.get("flight_id_col") not in all_cols:
+    had_id_key = "id_col" in st.session_state
+    if st.session_state.get("id_col") not in all_cols:
         picked_id = next((c for c in id_pref if c in all_cols), None)
         if not picked_id:
             # fallback to first non-time column if possible
             picked_id = next((c for c in all_cols if c not in time_pref), all_cols[0])
-        st.session_state["flight_id_col"] = picked_id
-    flight_id_default = st.session_state["flight_id_col"]
+        st.session_state["id_col"] = picked_id
+    id_default = st.session_state["id_col"]
     time_default = st.session_state.get("time_col")
     had_time_key = "time_col" in st.session_state
     if time_default not in all_cols:
@@ -951,10 +957,10 @@ def page():
     flight_kwargs = {
         "label": "ID column",
         "options": all_cols,
-        "key": "flight_id_col",
+        "key": "id_col",
     }
-    if not had_flight_key:
-        flight_kwargs["index"] = all_cols.index(flight_id_default)
+    if not had_id_key:
+        flight_kwargs["index"] = all_cols.index(id_default)
     time_kwargs = {
         "label": "Timestamp column",
         "options": all_cols,
