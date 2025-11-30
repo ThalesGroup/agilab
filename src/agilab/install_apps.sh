@@ -692,13 +692,26 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       echo -e "${GREEN}✓ '$app_name' successfully installed.${NC}"
       echo -e "${GREEN}Checking installation...${NC}"
       if pushd -- "$app_dir_rel" >/dev/null; then
+      ran_app_test=0
       if [[ -f app_test.py ]]; then
         echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
         "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+        ran_app_test=1
       else
-          echo -e "${BLUE}No app_test.py in $app_name, skipping tests.${NC}"
+          if [[ -d test ]]; then
+            if (( DO_TEST_APPS )); then
+              echo -e "${BLUE}No app_test.py in $app_name; pytest suite under test/ will run via --test-apps pass.${NC}"
+            else
+              echo -e "${BLUE}No app_test.py in $app_name; pytest suite detected under test/ (run with --test-apps to execute).${NC}"
+            fi
+          else
+            echo -e "${BLUE}No app_test.py in $app_name, skipping tests.${NC}"
+          fi
       fi
       popd >/dev/null
+      if (( ran_app_test )); then
+        echo -e "${GREEN}All ${app_name} tests finished.${NC}"
+      fi
       else
       echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
       fi
