@@ -6,7 +6,6 @@
 import os
 import sys
 import argparse
-import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -118,6 +117,7 @@ def openai_status_banner(env):
         )
 
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
+TEMPLATE_ENV_PATH = Path(__file__).resolve().parent / "core/agi-env/src/agi_env/resources/.agilab/.env"
 
 
 def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
@@ -404,28 +404,36 @@ def _render_env_editor(env, help_file: Path):
             st.error(f"Failed to save .env file: {exc}")
 
     st.divider()
-    st.markdown(f"#### .env contents ({ENV_FILE_PATH})")
+    st.markdown(f"#### .env contents filtered by template ({TEMPLATE_ENV_PATH})")
     try:
-        lines = ENV_FILE_PATH.read_text(encoding="utf-8").splitlines()
-        filtered: list[str] = []
-        for line in lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if "=" not in stripped:
+        template_keys: List[str] = []
+        with TEMPLATE_ENV_PATH.open("r", encoding="utf-8") as tf:
+            for raw in tf.readlines():
+                stripped = raw.strip()
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                key = stripped.split("=", 1)[0].strip()
+                if key:
+                    template_keys.append(key)
+
+        env_lines = ENV_FILE_PATH.read_text(encoding="utf-8").splitlines()
+        current: Dict[str, str] = {}
+        for raw in env_lines:
+            stripped = raw.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
                 continue
             key, val = stripped.split("=", 1)
-            key = key.strip()
-            if key and not key[0].isdigit():
-                filtered.append(f"{key}={val.strip()}")
+            current[key.strip()] = val.strip()
+
+        filtered = [f"{key}={current.get(key, '')}" for key in template_keys if key in current]
         if filtered:
             st.code("\n".join(filtered))
         else:
-            st.caption("No non-numeric environment variables found in .env.")
+            st.caption("No matching environment variables found in the current .env.")
     except FileNotFoundError:
-        st.caption("No .env file found in the source tree.")
+        st.caption("Template or current .env file not found.")
     except Exception as exc:
-        st.error(f"Unable to read {ENV_FILE_PATH}: {exc}")
+        st.error(f"Unable to read env files: {exc}")
 
 def page(env):
     """Render the main landing page controls and footer for the lab."""
