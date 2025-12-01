@@ -1716,18 +1716,6 @@ def run_all_steps(
                 if save_csv(st.session_state["data"], export_target):
                     st.session_state["df_file_in"] = export_target
                     st.session_state["step_checked"] = True
-            summary = _step_summary(
-                {"Q": query[2] if len(query) > 2 else "", "C": query[4] if len(query) > 4 else ""}
-            )
-            env_label = selected_env or "default env"
-            _append_run_log(
-                index_page_str,
-                f"Step {step + 1}: engine={selected_engine}, env={env_label}, summary=\"{summary}\"",
-            )
-            if log_placeholder is not None:
-                logs = st.session_state.get(f"{index_page_str}__run_logs", [])
-                if logs:
-                    log_placeholder.code("\n".join(logs))
             summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
             env_label = venv_root or "default env"
             _append_run_log(
