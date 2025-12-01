@@ -6,6 +6,7 @@
 import os
 import sys
 import argparse
+import importlib.resources as importlib_resources
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -117,7 +118,10 @@ def openai_status_banner(env):
         )
 
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
-TEMPLATE_ENV_PATH = Path(__file__).resolve().parent / "core/agi-env/src/agi_env/resources/.agilab/.env"
+try:
+    TEMPLATE_ENV_PATH = importlib_resources.files("agi_env") / "resources/.agilab/.env"
+except Exception:
+    TEMPLATE_ENV_PATH = None
 
 
 def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
@@ -404,8 +408,11 @@ def _render_env_editor(env, help_file: Path):
             st.error(f"Failed to save .env file: {exc}")
 
     st.divider()
-    st.markdown(f"#### .env contents filtered by template ({TEMPLATE_ENV_PATH})")
+    st.markdown("#### .env contents filtered by AgiEnv template")
     try:
+        if TEMPLATE_ENV_PATH is None:
+            raise FileNotFoundError("AgiEnv template .env not found in package resources.")
+
         template_keys: List[str] = []
         with TEMPLATE_ENV_PATH.open("r", encoding="utf-8") as tf:
             for raw in tf.readlines():
@@ -431,7 +438,7 @@ def _render_env_editor(env, help_file: Path):
         else:
             st.caption("No matching environment variables found in the current .env.")
     except FileNotFoundError:
-        st.caption("Template or current .env file not found.")
+        st.caption(f"Template or current .env file not found (template: {TEMPLATE_ENV_PATH}, current: {ENV_FILE_PATH}).")
     except Exception as exc:
         st.error(f"Unable to read env files: {exc}")
 
