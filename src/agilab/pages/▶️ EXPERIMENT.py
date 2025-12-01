@@ -261,7 +261,8 @@ def _module_keys(module: Union[str, Path]) -> List[str]:
     keys: List[str] = []
     env = st.session_state.get("env")
     if env:
-        base = Path(getattr(env, "AGILAB_EXPORT_ABS", "") or "")
+        base_val = env.AGILAB_EXPORT_ABS if hasattr(env, "AGILAB_EXPORT_ABS") else ""
+        base = Path(base_val or "")
         if base:
             try:
                 candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
@@ -1861,7 +1862,8 @@ def on_lab_change(new_index_page: str) -> None:
     try:
         env = st.session_state.get("env")
         if env:
-            base = Path(getattr(env, "apps_dir", ""))
+            base_val = env.apps_dir if hasattr(env, "apps_dir") else ""
+            base = Path(base_val)
             builtin_base = base / "builtin"
             for cand in (base / new_index_page, builtin_base / new_index_page, base / f"{new_index_page}_project", builtin_base / f"{new_index_page}_project"):
                 if cand.exists():
@@ -1885,7 +1887,7 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
-    export_root = getattr(env, "AGILAB_EXPORT_ABS", None) or Path(env.home_abs) / "export"
+    export_root = env.AGILAB_EXPORT_ABS if hasattr(env, "AGILAB_EXPORT_ABS") else Path(env.home_abs) / "export"
     Agi_export_abs = Path(export_root)
     modules = scan_dir(Agi_export_abs)
     if not modules:
@@ -2475,7 +2477,7 @@ def display_lab_tab(
 
     current_path = normalize_runtime_path(selected_map.get(step, ""))
     lab_selected_path = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-    env_active_app = normalize_runtime_path(getattr(env, "active_app", ""))
+    env_active_app = normalize_runtime_path(env.active_app if hasattr(env, "active_app") else "")
 
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
@@ -2821,10 +2823,10 @@ def page() -> None:
     """Main page logic handler."""
     global df_file
 
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
-        page_module = importlib.import_module("AGILAB")
-        page_module.main()
-        st.rerun()
+if 'env' not in st.session_state or not (hasattr(st.session_state["env"], "init_done") and st.session_state["env"].init_done):
+    page_module = importlib.import_module("AGILAB")
+    page_module.main()
+    st.rerun()
 
     env: AgiEnv = st.session_state["env"]
     if "openai_api_key" not in st.session_state:
@@ -2894,7 +2896,7 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 
 def main() -> None:
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
+    if 'env' not in st.session_state or not (hasattr(st.session_state["env"], "init_done") and st.session_state["env"].init_done):
         page_module = importlib.import_module("AGILAB")
         page_module.main()
         st.rerun()
