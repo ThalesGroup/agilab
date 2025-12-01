@@ -83,26 +83,15 @@ def _load_last_active_app_name(modules: List[str]) -> Optional[str]:
         return None
     if not stored:
         return None
-
-    def _normalize(candidate: str) -> Optional[str]:
-        if candidate in modules:
-            return candidate
-        if candidate.endswith("_project") and candidate.removesuffix("_project") in modules:
-            return candidate.removesuffix("_project")
-        return None
-
-    # First try raw string
-    name = stored
-    normalized = _normalize(name)
-    if normalized:
-        return normalized
-
-    # Fallback: treat as path and use basename
-    try:
-        name = Path(stored).name
-    except Exception:
-        name = stored
-    return _normalize(name)
+    name = Path(stored).name
+    if name in modules:
+        return name
+    # Allow trailing `_project` to map to a module without the suffix
+    if name.endswith("_project"):
+        alt = name.removesuffix("_project")
+        if alt in modules:
+            return alt
+    return None
 
 
 def _append_run_log(index_page: str, message: str) -> None:
@@ -213,8 +202,9 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
 
     if not candidate.is_absolute():
         env = st.session_state.get("env")
-        if isinstance(env, AgiEnv):
-            candidate = Path(env.apps_dir) / candidate
+        base = getattr(env, "apps_dir", None)
+        if base:
+            candidate = Path(base) / candidate
 
     if candidate.name == ".venv":
         candidate = candidate.parent
@@ -259,14 +249,15 @@ def _module_keys(module: Union[str, Path]) -> List[str]:
     raw_path = Path(module)
     keys: List[str] = []
     env = st.session_state.get("env")
-    if isinstance(env, AgiEnv):
-        base = Path(env.AGILAB_EXPORT_ABS)
-        try:
-            candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
-            rel = str(candidate.relative_to(base))
-            keys.append(rel)
-        except Exception:
-            pass
+    if env:
+        base = Path(getattr(env, "AGILAB_EXPORT_ABS", "") or "")
+        if base:
+            try:
+                candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
+                rel = str(candidate.relative_to(base))
+                keys.append(rel)
+            except Exception:
+                pass
     keys.append(str(raw_path))
     ordered: List[str] = []
     seen: set[str] = set()
@@ -384,7 +375,7 @@ def _prompt_for_openai_api_key(message: str) -> None:
             except Exception:
                 pass
             env_obj = st.session_state.get("env")
-            if hasattr(env_obj, "envars") and env_obj.envars is not None:
+            if getattr(env_obj, "envars", None) is not None:
                 env_obj.envars["OPENAI_API_KEY"] = cleaned
             st.session_state["openai_api_key"] = cleaned
             if save_profile:
@@ -446,7 +437,7 @@ def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
         try:
             from openai import OpenAI as OpenAIClient
         except Exception:
-            OpenAIClient = openai.OpenAI if hasattr(openai, "OpenAI") else None
+            OpenAIClient = getattr(openai, "OpenAI", None)
 
         # Azure path
         if is_azure:
@@ -767,45 +758,24 @@ def _response_to_text(response: Any) -> str:
         return ""
 
     # New SDKs expose an `output_text` convenience attribute.
-    try:
-        text_value = response.output_text
-    except Exception:
-        text_value = None
+    text_value = getattr(response, "output_text", None)
     if isinstance(text_value, str) and text_value.strip():
         return text_value.strip()
 
     collected: List[str] = []
-    try:
-        output_items = response.output
-    except Exception:
-        output_items = []
-
-    for item in output_items or []:
-        try:
-            item_type = item.type
-        except Exception:
-            item_type = None
+    for item in getattr(response, "output", []) or []:
+        item_type = getattr(item, "type", None)
         if item_type == "message":
-            try:
-                parts = item.content
-            except Exception:
-                parts = []
-            for part in parts or []:
-                try:
-                    part_type = part.type
-                except Exception:
-                    part_type = None
+            for part in getattr(item, "content", []) or []:
+                part_type = getattr(part, "type", None)
                 if part_type in {"text", "output_text"}:
-                    try:
-                        part_text = part.text
-                    except Exception:
-                        part_text = ""
+                    part_text = getattr(part, "text", "")
                     if hasattr(part_text, "value"):
                         collected.append(str(part_text.value))
                     else:
                         collected.append(str(part_text))
         elif hasattr(item, "text"):
-            chunk = item.text
+            chunk = getattr(item, "text")
             if hasattr(chunk, "value"):
                 collected.append(str(chunk.value))
             else:
@@ -815,10 +785,7 @@ def _response_to_text(response: Any) -> str:
         return "\n".join(piece for piece in collected if piece).strip()
 
     # Fall back to legacy completions format if present.
-    try:
-        choices = response.choices
-    except Exception:
-        choices = None
+    choices = getattr(response, "choices", None)
     if choices:
         try:
             return choices[0].message.content.strip()
@@ -1110,10 +1077,7 @@ def _load_uoaic_modules():
             # Fallback: load the module directly from files inside the wheel
             short = name.split(".")[-1]
             file_path: Optional[Path] = None
-            try:
-                files = dist.files
-            except Exception:
-                files = None
+            files = getattr(dist, "files", None)
             if files:
                 for entry in files:
                     if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
@@ -1143,7 +1107,7 @@ def _load_uoaic_modules():
                     # Fall through to messaging below
                     pass
 
-            missing = exc.name if hasattr(exc, "name") else ""
+            missing = getattr(exc, "name", "") or ""
             if missing and missing != name:
                 st.error(
                     f"Missing dependency `{missing}` required by universal-offline-ai-chatbot. "
@@ -1252,10 +1216,7 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
 
         model_label = ""
         for attr in ("model_name", "model", "model_id", "model_path", "name"):
-            try:
-                value = llm.__getattribute__(attr)
-            except Exception:
-                value = None
+            value = getattr(llm, attr, None)
             if value:
                 model_label = str(value)
                 break
@@ -1307,10 +1268,7 @@ def chat_universal_offline(
         answer = response.get("result") or response.get("answer") or ""
         source_documents = response.get("source_documents") or []
         for doc in source_documents:
-            try:
-                metadata = doc.metadata
-            except Exception:
-                metadata = {}
+            metadata = getattr(doc, "metadata", {}) if hasattr(doc, "metadata") else {}
             if isinstance(metadata, dict):
                 source = metadata.get("source") or metadata.get("file") or metadata.get("path")
                 page = metadata.get("page") or metadata.get("page_number")
@@ -1392,10 +1350,7 @@ def chat_online(
     except openai.OpenAIError as e:
         # Don’t re-prompt for key here; surface the *actual* problem.
         msg = _redact_sensitive(str(e))
-        try:
-            status = e.status_code
-        except Exception:
-            status = getattr(e, "status", None)
+        status = getattr(e, "status_code", None) or getattr(e, "status", None)
         if status in (401, 403):
             # Most common causes:
             # - Azure key used without proper Azure endpoint/version/deployment
@@ -1892,22 +1847,6 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.pop(key, None)
     st.session_state["lab_dir"] = new_index_page
     st.session_state.page_broken = True
-    env = st.session_state.get("env")
-    if isinstance(env, AgiEnv):
-        try:
-            base = Path(env.apps_dir)
-            builtin_base = base / "builtin"
-            for cand in (
-                base / new_index_page,
-                builtin_base / new_index_page,
-                base / f"{new_index_page}_project",
-                builtin_base / f"{new_index_page}_project",
-            ):
-                if cand.exists():
-                    _store_last_active_app(cand)
-                    break
-        except Exception:
-            pass
 
 
 def open_notebook_in_browser() -> None:
@@ -1924,10 +1863,7 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
-    try:
-        export_root = env.AGILAB_EXPORT_ABS
-    except Exception:
-        export_root = Path(env.home_abs) / "export"
+    export_root = getattr(env, "AGILAB_EXPORT_ABS", None) or Path(env.home_abs) / "export"
     Agi_export_abs = Path(export_root)
     modules = scan_dir(Agi_export_abs)
     if not modules:
@@ -2088,8 +2024,17 @@ def sidebar_controls() -> None:
         }
     )
 
-    # Persist last active app for cross-page defaults (use current lab_dir path)
-    # Last active app is now persisted via on_lab_change when user switches labs.
+    # Persist last active app for cross-page defaults
+    active_app_name = st.session_state.get("lab_dir_selectbox", "")
+    if active_app_name:
+        candidates = [
+            Path(env.apps_dir) / active_app_name,
+            Path(env.apps_dir) / "builtin" / active_app_name,
+        ]
+        for cand in candidates:
+            if cand.exists():
+                _store_last_active_app(cand)
+                break
 
     key = index_page_str + "import_notebook"
     st.sidebar.file_uploader(
@@ -2387,10 +2332,10 @@ def get_available_virtualenvs(env: AgiEnv) -> List[Path]:
         value = getattr(env, attr, None)
         if value:
             base_dirs.append(str(Path(value)))
-    wenv_abs = env.wenv_abs if hasattr(env, "wenv_abs") else None
+    wenv_abs = getattr(env, "wenv_abs", None)
     if wenv_abs:
         base_dirs.append(str(Path(wenv_abs)))
-    agilab_env = env.agi_env if hasattr(env, "agi_env") else None
+    agilab_env = getattr(env, "agi_env", None)
     if agilab_env:
         base_dirs.append(str(Path(agilab_env)))
 
@@ -2517,10 +2462,7 @@ def display_lab_tab(
 
     current_path = normalize_runtime_path(selected_map.get(step, ""))
     lab_selected_path = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-    try:
-        env_active_app = normalize_runtime_path(env.active_app)
-    except Exception:
-        env_active_app = ""
+    env_active_app = normalize_runtime_path(getattr(env, "active_app", ""))
 
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
@@ -2866,10 +2808,10 @@ def page() -> None:
     """Main page logic handler."""
     global df_file
 
-if 'env' not in st.session_state or not (hasattr(st.session_state["env"], "init_done") and st.session_state["env"].init_done):
-    page_module = importlib.import_module("AGILAB")
-    page_module.main()
-    st.rerun()
+    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
+        page_module = importlib.import_module("AGILAB")
+        page_module.main()
+        st.rerun()
 
     env: AgiEnv = st.session_state["env"]
     if "openai_api_key" not in st.session_state:
@@ -2939,7 +2881,7 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 
 def main() -> None:
-    if 'env' not in st.session_state or not (hasattr(st.session_state["env"], "init_done") and st.session_state["env"].init_done):
+    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
         page_module = importlib.import_module("AGILAB")
         page_module.main()
         st.rerun()
