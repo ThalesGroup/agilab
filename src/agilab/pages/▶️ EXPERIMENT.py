@@ -1395,10 +1395,7 @@ def chat_online(
         try:
             status = e.status_code
         except Exception:
-            try:
-                status = e.status
-            except Exception:
-                status = None
+            status = getattr(e, "status", None)
         if status in (401, 403):
             # Most common causes:
             # - Azure key used without proper Azure endpoint/version/deployment
