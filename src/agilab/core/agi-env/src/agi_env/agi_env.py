@@ -2706,14 +2706,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 except Exception:
                     size_mb = None
                 size_hint = f" (~{size_mb:.1f} MB)" if size_mb else ""
-                if AgiEnv.verbose > 0:
+                if AgiEnv.verbose > 1:
                     progress_msg = (
                         f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
                         "(this can take a moment; please wait)."
                     )
                     AgiEnv.logger.info(progress_msg)
                 archive.extractall(path=dest)
-            if AgiEnv.verbose > 0:
+            if AgiEnv.verbose > 1:
                 AgiEnv.logger.info(f"Extracted '{archive_path}' to '{dest}'.")
         except Exception as e:
             AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
