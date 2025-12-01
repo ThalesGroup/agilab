@@ -75,6 +75,15 @@ def _store_last_active_app(path: Path) -> None:
         pass
 
 
+def _append_run_log(index_page: str, message: str) -> None:
+    """Add a log line to the run log buffer (keeps the last 200)."""
+    key = f"{index_page}__run_logs"
+    logs: List[str] = st.session_state.setdefault(key, [])
+    logs.append(message)
+    if len(logs) > 200:
+        st.session_state[key] = logs[-200:]
+
+
 def on_page_change() -> None:
     """Set the 'page_broken' flag in session state."""
     st.session_state.page_broken = True
@@ -1706,6 +1715,14 @@ def run_all_steps(
                 if save_csv(st.session_state["data"], export_target):
                     st.session_state["df_file_in"] = export_target
                     st.session_state["step_checked"] = True
+            _append_run_log(
+                index_page_str,
+                f"Ran step {step + 1} ({selected_engine}) in {selected_env or 'default env'}",
+            )
+            _append_run_log(
+                index_page_str,
+                f"Ran step {idx + 1} ({engine}) in {venv_root or 'default env'}",
+            )
             executed += 1
 
     st.session_state[index_page_str][0] = original_step
@@ -2670,6 +2687,17 @@ def display_lab_tab(
         st.session_state.pop(select_key, None)
         _bump_history_revision()
         st.rerun()
+
+    with st.expander("Run logs", expanded=False):
+        logs = st.session_state.get(f"{index_page_str}__run_logs", [])
+        clear_logs = st.button("Clear logs", key=f"{index_page_str}__clear_logs", type="secondary")
+        if clear_logs:
+            st.session_state[f"{index_page_str}__run_logs"] = []
+            logs = []
+        if logs:
+            st.code("\n".join(logs))
+        else:
+            st.caption("No runs recorded yet.")
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
