@@ -6,6 +6,7 @@
 import os
 import sys
 import argparse
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -405,7 +406,7 @@ def _render_env_editor(env, help_file: Path):
     st.divider()
     st.markdown("#### Current environment variables (runtime)")
     env_items = sorted(
-        ((key, value) for key, value in os.environ.items() if not key[:1].isdigit()),
+        ((key, value) for key, value in os.environ.items() if not re.match(r"^\\d", key or "")),
         key=lambda kv: kv[0],
     )
     if env_items:
