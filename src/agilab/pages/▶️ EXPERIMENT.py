@@ -75,6 +75,25 @@ def _store_last_active_app(path: Path) -> None:
         pass
 
 
+def _load_last_active_app_name(modules: List[str]) -> Optional[str]:
+    """Return the last active app name if it maps to a known module directory."""
+    try:
+        stored = LAST_ACTIVE_APP_FILE.read_text(encoding="utf-8").strip()
+    except Exception:
+        return None
+    if not stored:
+        return None
+    name = Path(stored).name
+    if name in modules:
+        return name
+    # Allow trailing `_project` to map to a module without the suffix
+    if name.endswith("_project"):
+        alt = name.removesuffix("_project")
+        if alt in modules:
+            return alt
+    return None
+
+
 def _append_run_log(index_page: str, message: str) -> None:
     """Add a log line to the run log buffer (keeps the last 200)."""
     key = f"{index_page}__run_logs"
@@ -1650,7 +1669,7 @@ def run_all_steps(
     """Execute all steps sequentially, honouring per-step virtual environments."""
     steps = load_all_steps(module_path, steps_file, index_page_str) or []
     if not steps:
-        st.info("No steps available to run.")
+        st.info(f"No steps available to run from {steps_file}.")
         return
 
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
@@ -1918,10 +1937,12 @@ def sidebar_controls() -> None:
     else:
         st.session_state.pop("gpt_oss_endpoint", None)
 
+    last_active = _load_last_active_app_name(modules)
     persisted_lab = (
         _qp_first("lab_dir_selectbox")
         or st.session_state.get("lab_dir_selectbox")
         or st.session_state.get("lab_dir")
+        or last_active
         or env.target
     )
     if persisted_lab not in modules:
@@ -2334,6 +2355,7 @@ def display_lab_tab(
     query = st.session_state[index_page_str]
     persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
     persisted_count = len(persisted_steps)
+    st.caption(f"Steps file: {steps_file} | Loaded steps: {persisted_count} | Module key: {_module_keys(module_path)[0]}")
     try:
         requested_total = int(query[-1])
     except Exception:
