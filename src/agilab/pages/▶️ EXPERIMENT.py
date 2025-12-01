@@ -213,7 +213,7 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
 
     if not candidate.is_absolute():
         env = st.session_state.get("env")
-        base = getattr(env, "apps_dir", None)
+        base = env.apps_dir if hasattr(env, "apps_dir") else None
         if base:
             candidate = Path(base) / candidate
 
@@ -387,7 +387,7 @@ def _prompt_for_openai_api_key(message: str) -> None:
             except Exception:
                 pass
             env_obj = st.session_state.get("env")
-            if getattr(env_obj, "envars", None) is not None:
+            if hasattr(env_obj, "envars") and env_obj.envars is not None:
                 env_obj.envars["OPENAI_API_KEY"] = cleaned
             st.session_state["openai_api_key"] = cleaned
             if save_profile:
@@ -449,7 +449,7 @@ def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
         try:
             from openai import OpenAI as OpenAIClient
         except Exception:
-            OpenAIClient = getattr(openai, "OpenAI", None)
+            OpenAIClient = openai.OpenAI if hasattr(openai, "OpenAI") else None
 
         # Azure path
         if is_azure:
@@ -770,24 +770,24 @@ def _response_to_text(response: Any) -> str:
         return ""
 
     # New SDKs expose an `output_text` convenience attribute.
-    text_value = getattr(response, "output_text", None)
+    text_value = response.output_text if hasattr(response, "output_text") else None
     if isinstance(text_value, str) and text_value.strip():
         return text_value.strip()
 
     collected: List[str] = []
-    for item in getattr(response, "output", []) or []:
-        item_type = getattr(item, "type", None)
+    for item in (response.output if hasattr(response, "output") else []) or []:
+        item_type = item.type if hasattr(item, "type") else None
         if item_type == "message":
-            for part in getattr(item, "content", []) or []:
-                part_type = getattr(part, "type", None)
+            for part in (item.content if hasattr(item, "content") else []) or []:
+                part_type = part.type if hasattr(part, "type") else None
                 if part_type in {"text", "output_text"}:
-                    part_text = getattr(part, "text", "")
+                    part_text = part.text if hasattr(part, "text") else ""
                     if hasattr(part_text, "value"):
                         collected.append(str(part_text.value))
                     else:
                         collected.append(str(part_text))
         elif hasattr(item, "text"):
-            chunk = getattr(item, "text")
+            chunk = item.text
             if hasattr(chunk, "value"):
                 collected.append(str(chunk.value))
             else:
@@ -797,7 +797,7 @@ def _response_to_text(response: Any) -> str:
         return "\n".join(piece for piece in collected if piece).strip()
 
     # Fall back to legacy completions format if present.
-    choices = getattr(response, "choices", None)
+    choices = response.choices if hasattr(response, "choices") else None
     if choices:
         try:
             return choices[0].message.content.strip()
@@ -1089,7 +1089,7 @@ def _load_uoaic_modules():
             # Fallback: load the module directly from files inside the wheel
             short = name.split(".")[-1]
             file_path: Optional[Path] = None
-            files = getattr(dist, "files", None)
+            files = dist.files if hasattr(dist, "files") else None
             if files:
                 for entry in files:
                     if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
@@ -1119,7 +1119,7 @@ def _load_uoaic_modules():
                     # Fall through to messaging below
                     pass
 
-            missing = getattr(exc, "name", "") or ""
+            missing = exc.name if hasattr(exc, "name") else ""
             if missing and missing != name:
                 st.error(
                     f"Missing dependency `{missing}` required by universal-offline-ai-chatbot. "
@@ -1228,7 +1228,9 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
 
         model_label = ""
         for attr in ("model_name", "model", "model_id", "model_path", "name"):
-            value = getattr(llm, attr, None)
+            value = None
+            if hasattr(llm, attr):
+                value = getattr(llm, attr)
             if value:
                 model_label = str(value)
                 break
@@ -1280,7 +1282,7 @@ def chat_universal_offline(
         answer = response.get("result") or response.get("answer") or ""
         source_documents = response.get("source_documents") or []
         for doc in source_documents:
-            metadata = getattr(doc, "metadata", {}) if hasattr(doc, "metadata") else {}
+            metadata = doc.metadata if hasattr(doc, "metadata") else {}
             if isinstance(metadata, dict):
                 source = metadata.get("source") or metadata.get("file") or metadata.get("path")
                 page = metadata.get("page") or metadata.get("page_number")
@@ -1362,7 +1364,7 @@ def chat_online(
     except openai.OpenAIError as e:
         # Don’t re-prompt for key here; surface the *actual* problem.
         msg = _redact_sensitive(str(e))
-        status = getattr(e, "status_code", None) or getattr(e, "status", None)
+        status = e.status_code if hasattr(e, "status_code") else (e.status if hasattr(e, "status") else None)
         if status in (401, 403):
             # Most common causes:
             # - Azure key used without proper Azure endpoint/version/deployment
@@ -2347,10 +2349,10 @@ def get_available_virtualenvs(env: AgiEnv) -> List[Path]:
         value = getattr(env, attr, None)
         if value:
             base_dirs.append(str(Path(value)))
-    wenv_abs = getattr(env, "wenv_abs", None)
+    wenv_abs = env.wenv_abs if hasattr(env, "wenv_abs") else None
     if wenv_abs:
         base_dirs.append(str(Path(wenv_abs)))
-    agilab_env = getattr(env, "agi_env", None)
+    agilab_env = env.agi_env if hasattr(env, "agi_env") else None
     if agilab_env:
         base_dirs.append(str(Path(agilab_env)))
 
