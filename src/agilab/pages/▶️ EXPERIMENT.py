@@ -2434,73 +2434,66 @@ def display_lab_tab(
     venv_labels = [default_env_label] + available_venvs
     select_key = f"{index_page_str}_venv_{step}"
     with st.container(border=True):
-        st.caption("Execution environment")
-        session_label = st.session_state.get(select_key, "")
-        initial_label = session_label or current_path or lab_selected_path
-        if not initial_label:
-            initial_label = ""
-        if initial_label and initial_label not in venv_labels:
-            venv_labels.append(initial_label)
-        default_label = initial_label or default_env_label
-        if default_label not in venv_labels:
-            venv_labels.append(default_label)
-        if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
-            st.session_state[select_key] = default_label
-        selected_label = st.selectbox(
-            "Active app",
-            venv_labels,
-            key=select_key,
-            help="Choose which virtual environment should execute this step.",
-        )
-        selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
-        previous_path = normalize_runtime_path(selected_map.get(step, ""))
-        if selected_path:
-            selected_map[step] = selected_path
-        else:
-            selected_map.pop(step, None)
-        if selected_path != previous_path:
-            save_step(
-                lab_dir,
-                [query[1], query[2], query[3], query[4]],
-                step,
-                query[-1],
-                steps_file,
-                venv_map=selected_map,
-                engine_map=engine_map,
-            )
-            _bump_history_revision()
-        st.session_state["lab_selected_venv"] = selected_path
+        st.caption("Execution environment & engine")
+        env_col, engine_col = st.columns([3, 2])
 
-    current_entry = all_steps[step] if 0 <= step < len(all_steps) else {}
-    default_engine = (
-        engine_map.get(step)
-        or current_entry.get("R", "")
-        or ("agi.run" if selected_map.get(step) else "runpy")
-    )
-    engine_labels = {
-        "AGI.run (uv exec)": "agi.run",
-        "runpy (snippet runner)": "runpy",
-    }
-    label_to_engine = engine_labels
-    engines = list(engine_labels.values())
-    selected_engine_value = default_engine if default_engine in engines else engines[0]
-    selected_engine_label = next((k for k, v in label_to_engine.items() if v == selected_engine_value), list(engine_labels.keys())[0])
-    with st.container(border=True):
-        st.caption("Run engine")
-        chosen_label = st.selectbox(
-            "Engine",
-            list(engine_labels.keys()),
-            index=list(engine_labels.keys()).index(selected_engine_label),
-            key=f"{index_page_str}_engine_{step}",
-            help="Choose how this step should be executed.",
+        with env_col:
+            session_label = st.session_state.get(select_key, "")
+            initial_label = session_label or current_path or lab_selected_path or ""
+            if initial_label and initial_label not in venv_labels:
+                venv_labels.append(initial_label)
+            default_label = initial_label or default_env_label
+            if default_label not in venv_labels:
+                venv_labels.append(default_label)
+            if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
+                st.session_state[select_key] = default_label
+            selected_label = st.selectbox(
+                "Active app",
+                venv_labels,
+                key=select_key,
+                help="Choose which virtual environment should execute this step.",
+            )
+            selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+            previous_path = normalize_runtime_path(selected_map.get(step, ""))
+            if selected_path:
+                selected_map[step] = selected_path
+            else:
+                selected_map.pop(step, None)
+            st.session_state["lab_selected_venv"] = selected_path
+            venv_changed = selected_path != previous_path
+
+        current_entry = all_steps[step] if 0 <= step < len(all_steps) else {}
+        default_engine = (
+            engine_map.get(step)
+            or current_entry.get("R", "")
+            or ("agi.run" if selected_map.get(step) else "runpy")
         )
-        chosen_engine = engine_labels[chosen_label]
-        previous_engine = engine_map.get(step, "")
-        if chosen_engine:
-            engine_map[step] = chosen_engine
-        else:
-            engine_map.pop(step, None)
-        if chosen_engine != previous_engine:
+        engine_labels = {
+            "AGI.run (uv exec)": "agi.run",
+            "runpy (snippet runner)": "runpy",
+        }
+        label_to_engine = engine_labels
+        engines = list(engine_labels.values())
+        selected_engine_value = default_engine if default_engine in engines else engines[0]
+        selected_engine_label = next((k for k, v in label_to_engine.items() if v == selected_engine_value), list(engine_labels.keys())[0])
+        with engine_col:
+            chosen_label = st.selectbox(
+                "Engine",
+                list(engine_labels.keys()),
+                index=list(engine_labels.keys()).index(selected_engine_label),
+                key=f"{index_page_str}_engine_{step}",
+                help="Choose how this step should be executed.",
+            )
+            chosen_engine = engine_labels[chosen_label]
+            previous_engine = engine_map.get(step, "")
+            if chosen_engine:
+                engine_map[step] = chosen_engine
+            else:
+                engine_map.pop(step, None)
+            st.session_state["lab_selected_engine"] = chosen_engine
+            engine_changed = chosen_engine != previous_engine
+
+        if venv_changed or engine_changed:
             save_step(
                 lab_dir,
                 [query[1], query[2], query[3], query[4]],
@@ -2511,7 +2504,6 @@ def display_lab_tab(
                 engine_map=engine_map,
             )
             _bump_history_revision()
-        st.session_state["lab_selected_engine"] = chosen_engine
 
     # Compute a revisioned key for the prompt to allow forced remount/clear
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
