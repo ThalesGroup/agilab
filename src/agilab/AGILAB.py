@@ -417,9 +417,10 @@ def _render_env_editor(env, help_file: Path):
         with TEMPLATE_ENV_PATH.open("r", encoding="utf-8") as tf:
             for raw in tf.readlines():
                 stripped = raw.strip()
-                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                if not stripped or "=" not in stripped:
                     continue
-                key = stripped.split("=", 1)[0].strip()
+                # Allow commented template entries (lines starting with '#')
+                key = stripped.lstrip("#").split("=", 1)[0].strip()
                 if key:
                     template_keys.append(key)
 
