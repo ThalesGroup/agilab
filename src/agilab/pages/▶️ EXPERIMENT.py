@@ -83,15 +83,26 @@ def _load_last_active_app_name(modules: List[str]) -> Optional[str]:
         return None
     if not stored:
         return None
-    name = Path(stored).name
-    if name in modules:
-        return name
-    # Allow trailing `_project` to map to a module without the suffix
-    if name.endswith("_project"):
-        alt = name.removesuffix("_project")
-        if alt in modules:
-            return alt
-    return None
+
+    def _normalize(candidate: str) -> Optional[str]:
+        if candidate in modules:
+            return candidate
+        if candidate.endswith("_project") and candidate.removesuffix("_project") in modules:
+            return candidate.removesuffix("_project")
+        return None
+
+    # First try raw string
+    name = stored
+    normalized = _normalize(name)
+    if normalized:
+        return normalized
+
+    # Fallback: treat as path and use basename
+    try:
+        name = Path(stored).name
+    except Exception:
+        name = stored
+    return _normalize(name)
 
 
 def _append_run_log(index_page: str, message: str) -> None:
