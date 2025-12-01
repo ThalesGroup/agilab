@@ -198,9 +198,10 @@ def _sync_active_app_from_query(env) -> None:
         except Exception:
             pass
 
-    # Persist the latest active app for reuse on next launch
+    # Persist the latest active app for reuse on next launch only if it changed via request
     try:
-        _store_last_active_app(Path(env.apps_dir) / env.app)
+        if changed:
+            _store_last_active_app(Path(env.apps_dir) / env.app)
     except Exception:
         pass
 
