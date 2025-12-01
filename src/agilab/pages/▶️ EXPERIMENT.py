@@ -1860,9 +1860,13 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.page_broken = True
     try:
         env = st.session_state.get("env")
-        base = Path(getattr(env, "AGILAB_EXPORT_ABS", "")) if env else None
-        if base:
-            _store_last_active_app(base / new_index_page)
+        if env:
+            base = Path(getattr(env, "apps_dir", ""))
+            builtin_base = base / "builtin"
+            for cand in (base / new_index_page, builtin_base / new_index_page, base / f"{new_index_page}_project", builtin_base / f"{new_index_page}_project"):
+                if cand.exists():
+                    _store_last_active_app(cand)
+                    break
     except Exception:
         pass
 
