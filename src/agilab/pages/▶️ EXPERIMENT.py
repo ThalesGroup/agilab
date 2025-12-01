@@ -1847,6 +1847,13 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.pop(key, None)
     st.session_state["lab_dir"] = new_index_page
     st.session_state.page_broken = True
+    try:
+        env = st.session_state.get("env")
+        base = Path(getattr(env, "AGILAB_EXPORT_ABS", "")) if env else None
+        if base:
+            _store_last_active_app(base / new_index_page)
+    except Exception:
+        pass
 
 
 def open_notebook_in_browser() -> None:
@@ -2025,10 +2032,7 @@ def sidebar_controls() -> None:
     )
 
     # Persist last active app for cross-page defaults (use current lab_dir path)
-    try:
-        _store_last_active_app(lab_dir)
-    except Exception:
-        pass
+    # Last active app is now persisted via on_lab_change when user switches labs.
 
     key = index_page_str + "import_notebook"
     st.sidebar.file_uploader(
