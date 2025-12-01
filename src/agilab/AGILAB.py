@@ -404,15 +404,14 @@ def _render_env_editor(env, help_file: Path):
             st.error(f"Failed to save .env file: {exc}")
 
     st.divider()
-    st.markdown("#### Current environment variables (runtime)")
-    env_items = sorted(
-        ((key, value) for key, value in os.environ.items() if not re.match(r"^\\d", key or "")),
-        key=lambda kv: kv[0],
-    )
-    if env_items:
-        st.code("\n".join(f"{key}={value}" for key, value in env_items))
-    else:
-        st.caption("No environment variables set in this session.")
+    st.markdown(f"#### .env contents ({ENV_FILE_PATH})")
+    try:
+        env_text = ENV_FILE_PATH.read_text(encoding="utf-8")
+        st.code(env_text)
+    except FileNotFoundError:
+        st.caption("No .env file found in the source tree.")
+    except Exception as exc:
+        st.error(f"Unable to read {ENV_FILE_PATH}: {exc}")
 
 def page(env):
     """Render the main landing page controls and footer for the lab."""
