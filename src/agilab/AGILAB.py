@@ -406,8 +406,22 @@ def _render_env_editor(env, help_file: Path):
     st.divider()
     st.markdown(f"#### .env contents ({ENV_FILE_PATH})")
     try:
-        env_text = ENV_FILE_PATH.read_text(encoding="utf-8")
-        st.code(env_text)
+        lines = ENV_FILE_PATH.read_text(encoding="utf-8").splitlines()
+        filtered: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "=" not in stripped:
+                continue
+            key, val = stripped.split("=", 1)
+            key = key.strip()
+            if key and not key[0].isdigit():
+                filtered.append(f"{key}={val.strip()}")
+        if filtered:
+            st.code("\n".join(filtered))
+        else:
+            st.caption("No non-numeric environment variables found in .env.")
     except FileNotFoundError:
         st.caption("No .env file found in the source tree.")
     except Exception as exc:
