@@ -404,7 +404,10 @@ def _render_env_editor(env, help_file: Path):
 
     st.divider()
     st.markdown("#### Current environment variables (runtime)")
-    env_items = sorted(os.environ.items())
+    env_items = sorted(
+        ((key, value) for key, value in os.environ.items() if not key[:1].isdigit()),
+        key=lambda kv: kv[0],
+    )
     if env_items:
         st.code("\n".join(f"{key}={value}" for key, value in env_items))
     else:
