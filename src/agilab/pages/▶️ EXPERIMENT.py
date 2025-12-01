@@ -213,8 +213,10 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
 
     if not candidate.is_absolute():
         env = st.session_state.get("env")
-        if isinstance(env, AgiEnv):
-            candidate = Path(env.apps_dir) / candidate
+        try:
+            candidate = Path(env.apps_dir) / candidate  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     if candidate.name == ".venv":
         candidate = candidate.parent
@@ -259,14 +261,13 @@ def _module_keys(module: Union[str, Path]) -> List[str]:
     raw_path = Path(module)
     keys: List[str] = []
     env = st.session_state.get("env")
-    if isinstance(env, AgiEnv):
-        base = Path(env.AGILAB_EXPORT_ABS)
-        try:
-            candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
-            rel = str(candidate.relative_to(base))
-            keys.append(rel)
-        except Exception:
-            pass
+    try:
+        base = Path(env.AGILAB_EXPORT_ABS)  # type: ignore[attr-defined]
+        candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
+        rel = str(candidate.relative_to(base))
+        keys.append(rel)
+    except Exception:
+        base = None
     keys.append(str(raw_path))
     ordered: List[str] = []
     seen: set[str] = set()
@@ -1856,15 +1857,19 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.pop(key, None)
     st.session_state["lab_dir"] = new_index_page
     st.session_state.page_broken = True
+    env = st.session_state.get("env")
     try:
-        env = st.session_state.get("env")
-        if env:
-            base = Path(env.apps_dir)
-            builtin_base = base / "builtin"
-            for cand in (base / new_index_page, builtin_base / new_index_page, base / f"{new_index_page}_project", builtin_base / f"{new_index_page}_project"):
-                if cand.exists():
-                    _store_last_active_app(cand)
-                    break
+        base = Path(env.apps_dir)  # type: ignore[attr-defined]
+        builtin_base = base / "builtin"
+        for cand in (
+            base / new_index_page,
+            builtin_base / new_index_page,
+            base / f"{new_index_page}_project",
+            builtin_base / f"{new_index_page}_project",
+        ):
+            if cand.exists():
+                _store_last_active_app(cand)
+                break
     except Exception:
         pass
 
@@ -1883,7 +1888,10 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
-    export_root = env.AGILAB_EXPORT_ABS if isinstance(env, AgiEnv) else Path(env.home_abs) / "export"
+    try:
+        export_root = env.AGILAB_EXPORT_ABS
+    except Exception:
+        export_root = Path(env.home_abs) / "export"
     Agi_export_abs = Path(export_root)
     modules = scan_dir(Agi_export_abs)
     if not modules:
