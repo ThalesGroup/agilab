@@ -402,6 +402,14 @@ def _render_env_editor(env, help_file: Path):
         except Exception as exc:
             st.error(f"Failed to save .env file: {exc}")
 
+    st.divider()
+    st.markdown("#### Current environment variables (runtime)")
+    env_items = sorted(os.environ.items())
+    if env_items:
+        st.code("\n".join(f"{key}={value}" for key, value in env_items))
+    else:
+        st.caption("No environment variables set in this session.")
+
 def page(env):
     """Render the main landing page controls and footer for the lab."""
     cols = st.columns(1)
