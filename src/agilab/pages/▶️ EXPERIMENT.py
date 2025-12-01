@@ -2024,17 +2024,11 @@ def sidebar_controls() -> None:
         }
     )
 
-    # Persist last active app for cross-page defaults
-    active_app_name = st.session_state.get("lab_dir_selectbox", "")
-    if active_app_name:
-        candidates = [
-            Path(env.apps_dir) / active_app_name,
-            Path(env.apps_dir) / "builtin" / active_app_name,
-        ]
-        for cand in candidates:
-            if cand.exists():
-                _store_last_active_app(cand)
-                break
+    # Persist last active app for cross-page defaults (use current lab_dir path)
+    try:
+        _store_last_active_app(lab_dir)
+    except Exception:
+        pass
 
     key = index_page_str + "import_notebook"
     st.sidebar.file_uploader(
