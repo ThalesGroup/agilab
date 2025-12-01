@@ -213,9 +213,8 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
 
     if not candidate.is_absolute():
         env = st.session_state.get("env")
-        base = env.apps_dir if hasattr(env, "apps_dir") else None
-        if base:
-            candidate = Path(base) / candidate
+        if isinstance(env, AgiEnv):
+            candidate = Path(env.apps_dir) / candidate
 
     if candidate.name == ".venv":
         candidate = candidate.parent
@@ -260,16 +259,14 @@ def _module_keys(module: Union[str, Path]) -> List[str]:
     raw_path = Path(module)
     keys: List[str] = []
     env = st.session_state.get("env")
-    if env:
-        base_val = env.AGILAB_EXPORT_ABS if hasattr(env, "AGILAB_EXPORT_ABS") else ""
-        base = Path(base_val or "")
-        if base:
-            try:
-                candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
-                rel = str(candidate.relative_to(base))
-                keys.append(rel)
-            except Exception:
-                pass
+    if isinstance(env, AgiEnv):
+        base = Path(env.AGILAB_EXPORT_ABS)
+        try:
+            candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
+            rel = str(candidate.relative_to(base))
+            keys.append(rel)
+        except Exception:
+            pass
     keys.append(str(raw_path))
     ordered: List[str] = []
     seen: set[str] = set()
@@ -770,18 +767,39 @@ def _response_to_text(response: Any) -> str:
         return ""
 
     # New SDKs expose an `output_text` convenience attribute.
-    text_value = response.output_text if hasattr(response, "output_text") else None
+    try:
+        text_value = response.output_text
+    except Exception:
+        text_value = None
     if isinstance(text_value, str) and text_value.strip():
         return text_value.strip()
 
     collected: List[str] = []
-    for item in (response.output if hasattr(response, "output") else []) or []:
-        item_type = item.type if hasattr(item, "type") else None
+    try:
+        output_items = response.output
+    except Exception:
+        output_items = []
+
+    for item in output_items or []:
+        try:
+            item_type = item.type
+        except Exception:
+            item_type = None
         if item_type == "message":
-            for part in (item.content if hasattr(item, "content") else []) or []:
-                part_type = part.type if hasattr(part, "type") else None
+            try:
+                parts = item.content
+            except Exception:
+                parts = []
+            for part in parts or []:
+                try:
+                    part_type = part.type
+                except Exception:
+                    part_type = None
                 if part_type in {"text", "output_text"}:
-                    part_text = part.text if hasattr(part, "text") else ""
+                    try:
+                        part_text = part.text
+                    except Exception:
+                        part_text = ""
                     if hasattr(part_text, "value"):
                         collected.append(str(part_text.value))
                     else:
@@ -797,7 +815,10 @@ def _response_to_text(response: Any) -> str:
         return "\n".join(piece for piece in collected if piece).strip()
 
     # Fall back to legacy completions format if present.
-    choices = response.choices if hasattr(response, "choices") else None
+    try:
+        choices = response.choices
+    except Exception:
+        choices = None
     if choices:
         try:
             return choices[0].message.content.strip()
@@ -1089,7 +1110,10 @@ def _load_uoaic_modules():
             # Fallback: load the module directly from files inside the wheel
             short = name.split(".")[-1]
             file_path: Optional[Path] = None
-            files = dist.files if hasattr(dist, "files") else None
+            try:
+                files = dist.files
+            except Exception:
+                files = None
             if files:
                 for entry in files:
                     if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
@@ -1228,9 +1252,10 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
 
         model_label = ""
         for attr in ("model_name", "model", "model_id", "model_path", "name"):
-            value = None
-            if hasattr(llm, attr):
-                value = getattr(llm, attr)
+            try:
+                value = llm.__getattribute__(attr)
+            except Exception:
+                value = None
             if value:
                 model_label = str(value)
                 break
@@ -1282,7 +1307,10 @@ def chat_universal_offline(
         answer = response.get("result") or response.get("answer") or ""
         source_documents = response.get("source_documents") or []
         for doc in source_documents:
-            metadata = doc.metadata if hasattr(doc, "metadata") else {}
+            try:
+                metadata = doc.metadata
+            except Exception:
+                metadata = {}
             if isinstance(metadata, dict):
                 source = metadata.get("source") or metadata.get("file") or metadata.get("path")
                 page = metadata.get("page") or metadata.get("page_number")
@@ -1364,7 +1392,13 @@ def chat_online(
     except openai.OpenAIError as e:
         # Don’t re-prompt for key here; surface the *actual* problem.
         msg = _redact_sensitive(str(e))
-        status = e.status_code if hasattr(e, "status_code") else (e.status if hasattr(e, "status") else None)
+        try:
+            status = e.status_code
+        except Exception:
+            try:
+                status = e.status
+            except Exception:
+                status = None
         if status in (401, 403):
             # Most common causes:
             # - Azure key used without proper Azure endpoint/version/deployment
@@ -1861,18 +1895,22 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.pop(key, None)
     st.session_state["lab_dir"] = new_index_page
     st.session_state.page_broken = True
-    try:
-        env = st.session_state.get("env")
-        if env:
-            base_val = env.apps_dir if hasattr(env, "apps_dir") else ""
-            base = Path(base_val)
+    env = st.session_state.get("env")
+    if isinstance(env, AgiEnv):
+        try:
+            base = Path(env.apps_dir)
             builtin_base = base / "builtin"
-            for cand in (base / new_index_page, builtin_base / new_index_page, base / f"{new_index_page}_project", builtin_base / f"{new_index_page}_project"):
+            for cand in (
+                base / new_index_page,
+                builtin_base / new_index_page,
+                base / f"{new_index_page}_project",
+                builtin_base / f"{new_index_page}_project",
+            ):
                 if cand.exists():
                     _store_last_active_app(cand)
                     break
-    except Exception:
-        pass
+        except Exception:
+            pass
 
 
 def open_notebook_in_browser() -> None:
@@ -1889,7 +1927,10 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
-    export_root = env.AGILAB_EXPORT_ABS if hasattr(env, "AGILAB_EXPORT_ABS") else Path(env.home_abs) / "export"
+    try:
+        export_root = env.AGILAB_EXPORT_ABS
+    except Exception:
+        export_root = Path(env.home_abs) / "export"
     Agi_export_abs = Path(export_root)
     modules = scan_dir(Agi_export_abs)
     if not modules:
@@ -2479,7 +2520,10 @@ def display_lab_tab(
 
     current_path = normalize_runtime_path(selected_map.get(step, ""))
     lab_selected_path = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-    env_active_app = normalize_runtime_path(env.active_app if hasattr(env, "active_app") else "")
+    try:
+        env_active_app = normalize_runtime_path(env.active_app)
+    except Exception:
+        env_active_app = ""
 
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
