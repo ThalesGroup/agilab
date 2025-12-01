@@ -1645,6 +1645,7 @@ def run_all_steps(
     steps_file: Path,
     module_path: Path,
     env: AgiEnv,
+    log_placeholder: Optional[Any] = None,
 ) -> None:
     """Execute all steps sequentially, honouring per-step virtual environments."""
     steps = load_all_steps(module_path, steps_file, index_page_str) or []
@@ -1723,12 +1724,20 @@ def run_all_steps(
                 index_page_str,
                 f"Step {step + 1}: engine={selected_engine}, env={env_label}, summary=\"{summary}\"",
             )
+            if log_placeholder is not None:
+                logs = st.session_state.get(f"{index_page_str}__run_logs", [])
+                if logs:
+                    log_placeholder.code("\n".join(logs))
             summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
             env_label = venv_root or "default env"
             _append_run_log(
                 index_page_str,
                 f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
             )
+            if log_placeholder is not None:
+                logs = st.session_state.get(f"{index_page_str}__run_logs", [])
+                if logs:
+                    log_placeholder.code("\n".join(logs))
             executed += 1
 
     st.session_state[index_page_str][0] = original_step
@@ -2659,6 +2668,27 @@ def display_lab_tab(
     if cleaned_selection != st.session_state.get(order_key):
         st.session_state[order_key] = cleaned_selection
 
+    # Live run log expander (similar to EXECUTE)
+    run_logs_key = f"{index_page_str}__run_logs"
+    st.session_state.setdefault(run_logs_key, [])
+    log_container = st.container()
+    with log_container:
+        with st.expander("Run logs", expanded=False):
+            clear_logs = st.button(
+                "Clear logs",
+                key=f"{index_page_str}__clear_logs",
+                type="secondary",
+                use_container_width=True,
+            )
+            log_placeholder = st.empty()
+            if clear_logs:
+                st.session_state[run_logs_key] = []
+            logs = st.session_state.get(run_logs_key, [])
+            if logs:
+                log_placeholder.code("\n".join(logs))
+            else:
+                log_placeholder.caption("No runs recorded yet.")
+
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
         run_all_clicked = st.button(
@@ -2678,7 +2708,7 @@ def display_lab_tab(
         )
 
     if run_all_clicked:
-        run_all_steps(lab_dir, index_page_str, steps_file, module_path, env)
+        run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=log_placeholder)
     if delete_all_clicked:
         total_steps = st.session_state[index_page_str][-1]
         for idx_remove in reversed(range(total_steps)):
@@ -2693,17 +2723,6 @@ def display_lab_tab(
         st.session_state.pop(select_key, None)
         _bump_history_revision()
         st.rerun()
-
-    with st.expander("Run logs", expanded=False):
-        logs = st.session_state.get(f"{index_page_str}__run_logs", [])
-        clear_logs = st.button("Clear logs", key=f"{index_page_str}__clear_logs", type="secondary")
-        if clear_logs:
-            st.session_state[f"{index_page_str}__run_logs"] = []
-            logs = []
-        if logs:
-            st.code("\n".join(logs))
-        else:
-            st.caption("No runs recorded yet.")
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
