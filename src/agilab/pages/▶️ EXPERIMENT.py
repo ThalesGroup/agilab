@@ -213,9 +213,8 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
 
     if not candidate.is_absolute():
         env = st.session_state.get("env")
-        base = getattr(env, "apps_dir", None)
-        if base:
-            candidate = Path(base) / candidate
+        if isinstance(env, AgiEnv):
+            candidate = Path(env.apps_dir) / candidate
 
     if candidate.name == ".venv":
         candidate = candidate.parent
@@ -260,15 +259,14 @@ def _module_keys(module: Union[str, Path]) -> List[str]:
     raw_path = Path(module)
     keys: List[str] = []
     env = st.session_state.get("env")
-    if env:
-        base = Path(getattr(env, "AGILAB_EXPORT_ABS", "") or "")
-        if base:
-            try:
-                candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
-                rel = str(candidate.relative_to(base))
-                keys.append(rel)
-            except Exception:
-                pass
+    if isinstance(env, AgiEnv):
+        base = Path(env.AGILAB_EXPORT_ABS)
+        try:
+            candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
+            rel = str(candidate.relative_to(base))
+            keys.append(rel)
+        except Exception:
+            pass
     keys.append(str(raw_path))
     ordered: List[str] = []
     seen: set[str] = set()
@@ -386,7 +384,7 @@ def _prompt_for_openai_api_key(message: str) -> None:
             except Exception:
                 pass
             env_obj = st.session_state.get("env")
-            if getattr(env_obj, "envars", None) is not None:
+            if isinstance(env_obj, AgiEnv) and env_obj.envars is not None:
                 env_obj.envars["OPENAI_API_KEY"] = cleaned
             st.session_state["openai_api_key"] = cleaned
             if save_profile:
@@ -1861,7 +1859,7 @@ def on_lab_change(new_index_page: str) -> None:
     try:
         env = st.session_state.get("env")
         if env:
-            base = Path(getattr(env, "apps_dir", ""))
+            base = Path(env.apps_dir)
             builtin_base = base / "builtin"
             for cand in (base / new_index_page, builtin_base / new_index_page, base / f"{new_index_page}_project", builtin_base / f"{new_index_page}_project"):
                 if cand.exists():
@@ -1885,7 +1883,7 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
-    export_root = getattr(env, "AGILAB_EXPORT_ABS", None) or Path(env.home_abs) / "export"
+    export_root = env.AGILAB_EXPORT_ABS if isinstance(env, AgiEnv) else Path(env.home_abs) / "export"
     Agi_export_abs = Path(export_root)
     modules = scan_dir(Agi_export_abs)
     if not modules:
@@ -2341,16 +2339,14 @@ def _cached_virtualenvs(base_dirs: Tuple[str, ...]) -> List[str]:
 def get_available_virtualenvs(env: AgiEnv) -> List[Path]:
     """Return virtual environments relevant to the active AGILab session."""
     base_dirs: List[str] = []
-    for attr in ("active_app", "apps_dir", "runenv"):
-        value = getattr(env, attr, None)
-        if value:
-            base_dirs.append(str(Path(value)))
-    wenv_abs = getattr(env, "wenv_abs", None)
-    if wenv_abs:
-        base_dirs.append(str(Path(wenv_abs)))
-    agilab_env = getattr(env, "agi_env", None)
-    if agilab_env:
-        base_dirs.append(str(Path(agilab_env)))
+    base_dirs.append(str(Path(env.active_app)))
+    base_dirs.append(str(Path(env.apps_dir)))
+    if env.runenv:
+        base_dirs.append(str(Path(env.runenv)))
+    if env.wenv_abs:
+        base_dirs.append(str(Path(env.wenv_abs)))
+    if env.agi_env:
+        base_dirs.append(str(Path(env.agi_env)))
 
     cache_key = tuple(dict.fromkeys(base_dirs))
     venv_paths = _cached_virtualenvs(cache_key) if cache_key else []
