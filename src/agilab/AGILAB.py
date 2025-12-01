@@ -408,7 +408,7 @@ def _render_env_editor(env, help_file: Path):
             st.error(f"Failed to save .env file: {exc}")
 
     st.divider()
-    st.markdown("#### .env contents filtered by AgiEnv template")
+    st.markdown("#### .env contents (template order; all variables)")
     try:
         if TEMPLATE_ENV_PATH is None:
             raise FileNotFoundError("AgiEnv template .env not found in package resources.")
@@ -432,11 +432,13 @@ def _render_env_editor(env, help_file: Path):
             key, val = stripped.split("=", 1)
             current[key.strip()] = val.strip()
 
-        filtered = [f"{key}={current.get(key, '')}" for key in template_keys if key in current]
-        if filtered:
-            st.code("\n".join(filtered))
+        merged = []
+        for key in template_keys:
+            merged.append(f"{key}={current.get(key, '')}")
+        if merged:
+            st.code("\n".join(merged))
         else:
-            st.caption("No matching environment variables found in the current .env.")
+            st.caption("No environment variables found in the current .env.")
     except FileNotFoundError:
         st.caption(f"Template or current .env file not found (template: {TEMPLATE_ENV_PATH}, current: {ENV_FILE_PATH}).")
     except Exception as exc:
