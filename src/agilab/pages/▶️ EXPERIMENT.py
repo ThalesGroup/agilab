@@ -1717,10 +1717,6 @@ def run_all_steps(
                     st.session_state["step_checked"] = True
             _append_run_log(
                 index_page_str,
-                f"Ran step {step + 1} ({selected_engine}) in {selected_env or 'default env'}",
-            )
-            _append_run_log(
-                index_page_str,
                 f"Ran step {idx + 1} ({engine}) in {venv_root or 'default env'}",
             )
             executed += 1
