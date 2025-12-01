@@ -76,6 +76,13 @@ Use this runbook whenever you:
 - **History metadata**: `lab_steps.toml` now records an `M` field for each step so the
   saved history shows which model produced the snippet. Older automations should ignore
   unknown keys.
+- **PyCharm Local History recovery**: If Git does not have the version you need, use
+  PyCharm’s Local History (right-click file → Local History → Show History) or the
+  helper script `pycharm/local_history_helper.py` to back up and scan
+  `~/Library/Caches/JetBrains/<PyCharm>/LocalHistory/changes.storageData` for a
+  filename. Example: `python3 pycharm/local_history_helper.py --grep EXPERIMENT.py --backup /tmp/local-history-backups`.
+  The script does not reconstruct full contents (JetBrains format is proprietary)
+  but preserves the store and surfaces offsets so you can open the snapshots in the IDE.
 - **Shared build tooling**: All packaging routes through
   `python -m agi_node.agi_dispatcher.build --app-path …`. Per-app `build.py` helpers
   are deprecated.
