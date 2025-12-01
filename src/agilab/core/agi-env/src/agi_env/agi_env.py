@@ -2706,18 +2706,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 except Exception:
                     size_mb = None
                 size_hint = f" (~{size_mb:.1f} MB)" if size_mb else ""
-                progress_msg = (
-                    f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
-                    "(this can take a moment; please wait)."
-                )
-                # Surface the progress even when logger is at WARNING level.
-                try:
+                if AgiEnv.verbose > 0:
+                    progress_msg = (
+                        f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
+                        "(this can take a moment; please wait)."
+                    )
                     AgiEnv.logger.info(progress_msg)
-                except Exception:
-                    pass
-                else:
-                    if AgiEnv.logger and not AgiEnv.logger.isEnabledFor(logging.INFO):
-                        print(progress_msg, flush=True)
                 archive.extractall(path=dest)
             if AgiEnv.verbose > 0:
                 AgiEnv.logger.info(f"Extracted '{archive_path}' to '{dest}'.")
