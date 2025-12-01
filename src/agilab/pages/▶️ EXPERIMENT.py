@@ -1549,21 +1549,6 @@ def save_step(
     st.session_state["_experiment_last_save_skipped"] = False
     module_path = Path(module)
     _ensure_primary_module_key(module_path, steps_file)
-    # Persist only D, Q, M, and C (+ R when provided)
-    fields = ["D", "Q", "M", "C"]
-    entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
-    if venv_map is not None:
-        try:
-            entry["E"] = normalize_runtime_path(venv_map.get(int(current_step), ""))
-        except Exception:
-            entry["E"] = ""
-    if engine_map is not None:
-        try:
-            entry["R"] = str(engine_map.get(int(current_step), "") or "")
-        except Exception:
-            entry["R"] = ""
-    else:
-        entry.setdefault("E", "")
     # Normalize types
     try:
         nsteps = int(nsteps)
@@ -1589,16 +1574,37 @@ def save_step(
             if not steps[module_str] or len(alt_entries) > len(steps[module_str]):
                 steps[module_str] = alt_entries
 
+    # Capture any existing entry so we can preserve values when maps aren't provided
+    existing_entry: Dict[str, Any] = {}
+    if 0 <= index_step < len(steps[module_str]):
+        current_entry = steps[module_str][index_step]
+        if isinstance(current_entry, dict):
+            existing_entry = current_entry
+
+    # Persist only D, Q, M, and C (+ E/R when provided)
+    fields = ["D", "Q", "M", "C"]
+    entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
+    if venv_map is not None:
+        try:
+            entry["E"] = normalize_runtime_path(venv_map.get(index_step, ""))
+        except Exception:
+            entry["E"] = ""
+    elif "E" in existing_entry:
+        entry["E"] = normalize_runtime_path(existing_entry.get("E", ""))
+
+    if engine_map is not None:
+        try:
+            entry["R"] = str(engine_map.get(index_step, "") or "")
+        except Exception:
+            entry["R"] = ""
+    elif "R" in existing_entry:
+        entry["R"] = str(existing_entry.get("R", "") or "")
+
     code_text = entry.get("C", "")
     if not isinstance(code_text, str):
         code_text = str(code_text or "")
     if not code_text.strip():
         st.session_state["_experiment_last_save_skipped"] = True
-        existing_entry: Dict[str, Any] = {}
-        if 0 <= index_step < len(steps[module_str]):
-            current_entry = steps[module_str][index_step]
-            if isinstance(current_entry, dict):
-                existing_entry = current_entry
         return len(steps[module_str]), existing_entry
 
     nsteps_saved = len(steps[module_str])
