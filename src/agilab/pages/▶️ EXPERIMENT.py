@@ -327,6 +327,15 @@ def _is_valid_step(entry: Dict[str, Any]) -> bool:
     return False
 
 
+def _looks_like_step(value: Any) -> bool:
+    """Heuristic: True when value represents a non-negative integer step index."""
+    try:
+        iv = int(value)
+        return iv >= 0
+    except Exception:
+        return False
+
+
 def _prune_invalid_entries(entries: List[Dict[str, Any]], keep_index: Optional[int] = None) -> List[Dict[str, Any]]:
     """Remove invalid steps, optionally preserving the entry at keep_index."""
     pruned: List[Dict[str, Any]] = []
@@ -500,7 +509,7 @@ def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
 def _ensure_cached_api_key(envars: Dict[str, str]) -> str:
     """Seed from session, secrets, env, and Azure if present."""
     cached = st.session_state.get("openai_api_key")
-    if cached:
+    if cached and not _is_placeholder_api_key(cached):
         return cached
 
     secret = ""
@@ -515,9 +524,12 @@ def _ensure_cached_api_key(envars: Dict[str, str]) -> str:
         or os.environ.get("OPENAI_API_KEY", "")
         or os.environ.get("AZURE_OPENAI_API_KEY", "")  # Azure fallback
     )
-    if candidate:
+    if candidate and not _is_placeholder_api_key(candidate):
         st.session_state["openai_api_key"] = candidate
-    return candidate
+        return candidate
+
+    st.session_state["openai_api_key"] = ""
+    return ""
 
 
 @st.cache_data(show_spinner=False)
@@ -585,8 +597,15 @@ def on_query_change(
 
     try:
         if st.session_state.get(request_key):
+            raw_text = str(st.session_state[request_key])
+            trimmed = raw_text.strip()
+            # Skip chat calls when the input looks like a pure comment.
+            if trimmed.startswith("#") or trimmed.endswith("#"):
+                st.info("Query skipped because it looks like a comment (starts/ends with '#').")
+                return
+
             answer = ask_gpt(
-                st.session_state[request_key], df_file, index_page, env.envars
+                raw_text, df_file, index_page, env.envars
             )
             detail = answer[4] if len(answer) > 4 else ""
             model_label = answer[2] if len(answer) > 2 else ""
@@ -821,6 +840,28 @@ _API_KEY_PATTERNS = [
     re.compile(r"(sk-proj-[A-Za-z0-9]{4,})([A-Za-z0-9\-*_]{8,})"),
 ]
 
+ENV_FILE_PATH = Path.home() / ".agilab/.env"
+
+
+def _load_env_file_map(path: Path) -> Dict[str, str]:
+    """Return a key/value mapping from the .env file (commented lines included)."""
+    env_map: Dict[str, str] = {}
+    try:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            stripped = raw.strip()
+            if not stripped or "=" not in stripped:
+                continue
+            target = stripped.lstrip("#").strip()
+            if "=" not in target:
+                continue
+            key, val = target.split("=", 1)
+            key = key.strip()
+            if key:
+                env_map[key] = val.strip()
+    except FileNotFoundError:
+        pass
+    return env_map
+
 
 def _redact_sensitive(text: str) -> str:
     """Mask API keys or similar secrets present in provider error messages."""
@@ -846,6 +887,10 @@ def _is_placeholder_api_key(key: Optional[str]) -> bool:
     if "***" in v or "…" in v:
         return True
     if "YOUR-API-KEY" in U or "YOUR_API_KEY" in U:
+        return True
+    if v in {"your-key", "sk-your-key", "sk-XXXX"}:
+        return True
+    if len(v) < 12:
         return True
 
     # Do NOT check prefixes or length; accept Azure / proxy / org-scoped formats.
@@ -1309,6 +1354,11 @@ def chat_online(
     """Robust Chat Completions call: OpenAI, Azure OpenAI, or proxy base_url."""
     import openai
 
+    # Refresh envars from the latest .env so model/key changes take effect without restart.
+    env_file_map = _load_env_file_map(ENV_FILE_PATH)
+    if env_file_map:
+        envars.update(env_file_map)
+
     api_key = _ensure_cached_api_key(envars)
     if not api_key or _is_placeholder_api_key(api_key):
         _prompt_for_openai_api_key(
@@ -1361,7 +1411,13 @@ def chat_online(
         # Don’t re-prompt for key here; surface the *actual* problem.
         msg = _redact_sensitive(str(e))
         status = getattr(e, "status_code", None) or getattr(e, "status", None)
-        if status in (401, 403):
+        if status == 404 or "model_not_found" in msg or "does not exist" in msg:
+            st.info(
+                "The requested model is unavailable. Please select a different model in the LLM provider settings "
+                "or update the model name in the Environment Variables expander (OPENAI_MODEL/AZURE deployment)."
+            )
+            logger.info(f"Model not found/unavailable: {msg}")
+        elif status in (401, 403):
             # Most common causes:
             # - Azure key used without proper Azure endpoint/version/deployment
             # - Wrong org / no access to model
@@ -1619,9 +1675,30 @@ def save_step(
         if isinstance(current_entry, dict):
             existing_entry = current_entry
 
-    # Persist only D, Q, M, and C (+ E/R when provided)
-    fields = ["D", "Q", "M", "C"]
-    entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
+    # Persist only D, Q, M, and C (+ E/R when provided). Handle both shapes:
+    # - [D, Q, M, C]
+    # - [step, D, Q, M, C, ...]
+    if len(query) >= 5 and _looks_like_step(query[0]):
+        d_idx, q_idx, m_idx, c_idx = 1, 2, 3, 4
+    else:
+        d_idx, q_idx, m_idx, c_idx = 0, 1, 2, 3
+
+    entry = {
+        "D": query[d_idx] if d_idx < len(query) else "",
+        "Q": query[q_idx] if q_idx < len(query) else "",
+        "M": query[m_idx] if m_idx < len(query) else "",
+        "C": query[c_idx] if c_idx < len(query) else "",
+    }
+
+    # Prefer the current env's OPENAI_MODEL (or Azure deployment) when available
+    try:
+        env = st.session_state.get("env")
+        if env and getattr(env, "envars", None):
+            model_from_env = env.envars.get("OPENAI_MODEL") or env.envars.get("AZURE_OPENAI_DEPLOYMENT")
+            if model_from_env:
+                entry["M"] = model_from_env
+    except Exception:
+        pass
     if venv_map is not None:
         try:
             entry["E"] = normalize_runtime_path(venv_map.get(index_step, ""))
@@ -1689,6 +1766,7 @@ def run_all_steps(
     original_selected = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
     original_engine = st.session_state.get("lab_selected_engine", "")
     snippet_file = st.session_state.get("snippet_file")
+    display_order: Dict[int, int] = {}
     if not snippet_file:
         st.error("Snippet file is not configured. Reload the page and try again.")
         return
@@ -1746,7 +1824,7 @@ def run_all_steps(
                     st.session_state["df_file_in"] = export_target
                     st.session_state["step_checked"] = True
             summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
-            env_label = venv_root or "default env"
+            env_label = Path(venv_root).name if venv_root else "default env"
             _append_run_log(
                 index_page_str,
                 f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
@@ -1893,7 +1971,12 @@ def sidebar_controls() -> None:
     except Exception:
         export_root = Path(env.home_abs) / "export"
     Agi_export_abs = Path(export_root)
+    if not Agi_export_abs.is_absolute():
+        Agi_export_abs = Path(env.home_abs) / Agi_export_abs
     modules = scan_dir(Agi_export_abs)
+    # Drop a top-level "apps" directory when other labs exist; it isn't a valid lab.
+    if len(modules) > 1 and "apps" in modules:
+        modules = [m for m in modules if m != "apps"]
     if not modules:
         modules = [env.target]
     st.session_state['modules'] = modules
@@ -1973,11 +2056,24 @@ def sidebar_controls() -> None:
         or last_active
         or env.target
     )
+
     if persisted_lab not in modules:
-        persisted_lab = env.target if env.target in modules else modules[0]
+        # If env.target is a name and not present, try its parent or the first module.
+        fallback = env.target if env.target in modules else None
+        if fallback is None and env.target:
+            try:
+                target_name = Path(env.target).name
+                if target_name in modules:
+                    fallback = target_name
+            except Exception:
+                fallback = None
+        persisted_lab = fallback if fallback in modules else modules[0]
+    elif persisted_lab == "apps" and env.target in modules:
+        # Avoid selecting the top-level "apps" directory; prefer the active app/target.
+        persisted_lab = env.target
 
     st.session_state["lab_dir"] = st.sidebar.selectbox(
-        "Lab Directory",
+        "Lab directory",
         modules,
         index=modules.index(persisted_lab),
         on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
@@ -2010,7 +2106,7 @@ def sidebar_controls() -> None:
     index_page_str = str(index_page)
 
     if steps_file_rel:
-        st.sidebar.selectbox("Steps", steps_file_rel, key="index_page", on_change=on_page_change)
+        st.sidebar.selectbox("Steps file", steps_file_rel, key="index_page", on_change=on_page_change)
 
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files
@@ -2026,7 +2122,7 @@ def sidebar_controls() -> None:
     st.session_state["module_path"] = module_path
 
     st.sidebar.selectbox(
-        "DataFrame",
+        "Dataframe",
         df_files_rel,
         key=key_df,
         index=index,
@@ -2057,7 +2153,7 @@ def sidebar_controls() -> None:
 
     key = index_page_str + "import_notebook"
     st.sidebar.file_uploader(
-        "Import Notebook",
+        "Import notebook",
         type="ipynb",
         key=key,
         on_change=on_import_notebook,
@@ -2368,11 +2464,10 @@ def display_lab_tab(
     module_path: Path,
     env: AgiEnv,
 ) -> None:
-    """Display the ASSISTANT tab with steps and query input."""
+    """Display the pipeline tab with steps and query input."""
     query = st.session_state[index_page_str]
     persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
     persisted_count = len(persisted_steps)
-    st.caption(f"Steps file: {steps_file} | Loaded steps: {persisted_count} | Module key: {_module_keys(module_path)[0]}")
     try:
         requested_total = int(query[-1])
     except Exception:
@@ -2383,83 +2478,58 @@ def display_lab_tab(
     if query[-1] != total_steps:
         query[-1] = total_steps
     all_steps = persisted_steps + [{} for _ in range(total_steps - persisted_count)]
-    step = query[0]
+    # Coerce the current step to an int to avoid mismatches when state was stringified
+    try:
+        step = int(query[0])
+    except Exception:
+        step = 0
+    # Persist the canonical int value so the radio keeps the correct selection
+    st.session_state[index_page_str][0] = step
     step_indices = list(range(total_steps))
 
-    order_key = f"{index_page_str}__step_order"
-    existing_order = st.session_state.get(order_key)
-    if isinstance(existing_order, list):
-        sanitized_order = [idx for idx in existing_order if idx in step_indices]
+    # Render steps in their natural order; avoid persisting a separate ordering that can drift
+    displayed_indices = step_indices.copy()
+
+    if total_steps:
+        # Clamp to a valid index instead of silently snapping to the first step
+        step = max(0, min(step, total_steps - 1))
+        st.session_state[index_page_str][0] = step
     else:
-        sanitized_order = step_indices.copy()
-        if not sanitized_order and step_indices:
-            sanitized_order = step_indices.copy()
-    if st.session_state.get(order_key) != sanitized_order:
-        st.session_state[order_key] = sanitized_order
-
-    displayed_indices = sanitized_order
-
-    step_map = {idx: pos for pos, idx in enumerate(displayed_indices)}
-
-    if total_steps and (step not in step_indices or step >= total_steps):
-        fallback = displayed_indices[0] if displayed_indices else 0
-        st.session_state[index_page_str][0] = fallback
-        step = fallback
-    elif displayed_indices and step not in displayed_indices:
-        fallback = displayed_indices[0]
-        st.session_state[index_page_str][0] = fallback
-        step = fallback
-    elif not total_steps:
         st.session_state[index_page_str][0] = 0
         step = 0
 
-    st.subheader("Steps", divider="gray")
     snippet_file = st.session_state.get("snippet_file")
 
     if displayed_indices:
-        cols = st.columns(min(len(displayed_indices), 3) or 1)
-        for display_pos, step_idx in enumerate(displayed_indices):
-            col = cols[display_pos % len(cols)]
-            label_entry = all_steps[step_idx] if step_idx < total_steps else None
-            button_label = _step_button_label(display_pos, step_idx, label_entry)
-            button_type = "primary" if step_idx == step else "secondary"
-            col.button(
-                button_label,
-                type=button_type,
-                use_container_width=True,
-                on_click=on_step_change,
-                args=(module_path, steps_file, step_idx, index_page_str),
-                key=f"{index_page_str}_step_{step_idx}",
-            )
+        display_order = {idx: pos for pos, idx in enumerate(displayed_indices)}
+        def _pipeline_label(idx: int) -> str:
+            entry = all_steps[idx] if idx < total_steps else None
+            return _step_button_label(display_order.get(idx, idx), idx, entry)
+
+        prev_step = step
+        selected_step_idx = st.radio(
+            "Pipeline",
+            displayed_indices,
+            format_func=_pipeline_label,
+            index=next((i for i, idx in enumerate(displayed_indices) if idx == step), 0),
+            horizontal=False,
+            key=f"{index_page_str}_step_pipeline",
+        )
+
+        # Update current step selection
+        if selected_step_idx != prev_step:
+            on_step_change(module_path, steps_file, selected_step_idx, index_page_str)
+        st.session_state[index_page_str][0] = selected_step_idx
+        step = selected_step_idx
     elif total_steps == 0:
         st.info("No steps recorded yet. Ask the assistant to generate your first step.")
     else:
         st.info("No steps selected. Use the controls below to pick which steps are visible.")
 
-    header_col, action_col = st.columns((20, 1))
-    with header_col:
-        display_position = step_map.get(step, step)
-        summary = _step_summary(all_steps[step] if 0 <= step < total_steps else None, width=80)
-        if summary:
-            header_text = f"Step {display_position + 1 if display_position is not None else step + 1}: {summary}"
-        else:
-            header_text = f"Step {display_position + 1 if display_position is not None else step + 1}"
-        st.markdown(f"<h3 style='font-size:16px;'>{header_text}</h3>", unsafe_allow_html=True)
-    with action_col:
-        delete_clicked = st.button(
-            "🗑️",
-            key=f"{index_page_str}_remove_step",
-            disabled=total_steps <= 0,
-            help="Delete this step",
-        )
-
-    if delete_clicked:
-        query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
-        st.session_state[f"{index_page_str}__clear_q"] = True
-        st.session_state[f"{index_page_str}__force_blank_q"] = True
-        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-        st.rerun()
         return
+
+    # Always refresh the current step fields from disk so display stays in sync with lab_steps
+    load_last_step(module_path, steps_file, index_page_str)
 
     available_venvs = [
         normalize_runtime_path(path) for path in get_available_virtualenvs(env)
@@ -2492,77 +2562,10 @@ def display_lab_tab(
     default_env_label = "Use AGILAB environment"
     venv_labels = [default_env_label] + available_venvs
     select_key = f"{index_page_str}_venv_{step}"
-    with st.container(border=True):
-        st.caption("Execution environment & engine")
-        env_col, engine_col = st.columns([3, 2])
+    # Place selectors at top of the query form; the surrounding form handles the border.
+    # Selectors will be rendered inside the query form below.
 
-        with env_col:
-            session_label = st.session_state.get(select_key, "")
-            initial_label = session_label or current_path or lab_selected_path or ""
-            if initial_label and initial_label not in venv_labels:
-                venv_labels.append(initial_label)
-            default_label = initial_label or default_env_label
-            if default_label not in venv_labels:
-                venv_labels.append(default_label)
-            if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
-                st.session_state[select_key] = default_label
-            selected_label = st.selectbox(
-                "Active app",
-                venv_labels,
-                key=select_key,
-                help="Choose which virtual environment should execute this step.",
-            )
-            selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
-            previous_path = normalize_runtime_path(selected_map.get(step, ""))
-            if selected_path:
-                selected_map[step] = selected_path
-            else:
-                selected_map.pop(step, None)
-            st.session_state["lab_selected_venv"] = selected_path
-            venv_changed = selected_path != previous_path
-
-        current_entry = all_steps[step] if 0 <= step < len(all_steps) else {}
-        default_engine = (
-            engine_map.get(step)
-            or current_entry.get("R", "")
-            or ("agi.run" if selected_map.get(step) else "runpy")
-        )
-        engine_labels = {
-            "AGI.run (uv exec)": "agi.run",
-            "runpy (snippet runner)": "runpy",
-        }
-        label_to_engine = engine_labels
-        engines = list(engine_labels.values())
-        selected_engine_value = default_engine if default_engine in engines else engines[0]
-        selected_engine_label = next((k for k, v in label_to_engine.items() if v == selected_engine_value), list(engine_labels.keys())[0])
-        with engine_col:
-            chosen_label = st.selectbox(
-                "Engine",
-                list(engine_labels.keys()),
-                index=list(engine_labels.keys()).index(selected_engine_label),
-                key=f"{index_page_str}_engine_{step}",
-                help="Choose how this step should be executed.",
-            )
-            chosen_engine = engine_labels[chosen_label]
-            previous_engine = engine_map.get(step, "")
-            if chosen_engine:
-                engine_map[step] = chosen_engine
-            else:
-                engine_map.pop(step, None)
-            st.session_state["lab_selected_engine"] = chosen_engine
-            engine_changed = chosen_engine != previous_engine
-
-        if venv_changed or engine_changed:
-            save_step(
-                lab_dir,
-                [query[1], query[2], query[3], query[4]],
-                step,
-                query[-1],
-                steps_file,
-                venv_map=selected_map,
-                engine_map=engine_map,
-            )
-            _bump_history_revision()
+    # Save changes to venv/engine selections happens after the form inputs below.
 
     # Compute a revisioned key for the prompt to allow forced remount/clear
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
@@ -2571,12 +2574,117 @@ def display_lab_tab(
     default_prompt_value = st.session_state.get(prompt_key)
     if default_prompt_value is None:
         st.session_state[prompt_key] = ""
+    # If the prompt key exists but is blank, seed it from the saved Q field so the
+    # text area always shows the stored query for the selected step.
+    if not st.session_state.get(prompt_key) and 0 <= step < total_steps:
+        saved_q = str(all_steps[step].get("Q", "") or "")
+        st.session_state[prompt_key] = saved_q
 
-    st.text_area(
-        "Ask chatGPT:",
-        key=prompt_key,
-        on_change=on_query_change,
-        args=(
+    # Build a tab title using the current step summary
+    display_position = display_order.get(step, step)
+    summary = _step_summary(all_steps[step] if 0 <= step < total_steps else None, width=80)
+    if summary:
+        header_text = f"Step {display_position + 1 if display_position is not None else step + 1}: {summary}"
+    else:
+        header_text = f"Step {display_position + 1 if display_position is not None else step + 1}"
+
+    tab_label = header_text
+    venv_changed = False
+    engine_changed = False
+    save_pressed = False
+    run_pressed = False
+    revert_pressed = False
+
+    # Runner toggle and venv selector (outside form for immediate refresh)
+    env_col, engine_col = st.columns([3, 2], gap="small")
+
+    selected_path = ""
+    previous_path = normalize_runtime_path(selected_map.get(step, ""))
+    with env_col:
+        session_label = st.session_state.get(select_key, "")
+        initial_label = session_label or current_path or lab_selected_path or ""
+        if initial_label and initial_label not in venv_labels:
+            venv_labels.append(initial_label)
+        default_label = initial_label or default_env_label
+        if default_label not in venv_labels:
+            venv_labels.append(default_label)
+        if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
+            st.session_state[select_key] = default_label
+        selected_label = st.selectbox(
+            "venv",
+            venv_labels,
+            key=select_key,
+            help="Choose which virtual environment should execute this step.",
+        )
+        selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+        if selected_path:
+            selected_map[step] = selected_path
+            # Persist last chosen venv across steps and reloads
+            st.session_state["last_selected_venv"] = selected_path
+        else:
+            selected_map.pop(step, None)
+        st.session_state["lab_selected_venv"] = selected_path or st.session_state.get("last_selected_venv", "")
+        venv_changed = selected_path != previous_path
+
+    # Engine is derived from venv selection
+    current_entry = all_steps[step] if 0 <= step < total_steps else {}
+    default_engine = (
+        engine_map.get(step)
+        or current_entry.get("R", "")
+        or ("agi.run" if selected_map.get(step) else "runpy")
+    )
+    computed_engine = "agi.run" if selected_map.get(step) else "runpy"
+    display_engine = computed_engine or default_engine
+    previous_engine = engine_map.get(step, "")
+    engine_map[step] = display_engine
+    st.session_state["lab_selected_engine"] = display_engine
+    engine_changed = display_engine != previous_engine
+
+    with st.form(f"{index_page_str}_query_form"):
+            # Query input first
+            st.text_area(
+                "Ask code generator:",
+                key=prompt_key,
+                placeholder="Enter your code request in natural language",
+                label_visibility="collapsed",
+            )
+
+            # Generate / Revert just below the prompt
+            run_col, revert_col = st.columns([1, 1], gap="small")
+            with run_col:
+                run_pressed = st.form_submit_button("Generate code", type="primary", use_container_width=True)
+            with revert_col:
+                revert_pressed = st.form_submit_button("Revert code", type="secondary", use_container_width=True)
+
+            # Save/delete below runtime selectors (match footer style)
+            save_col, delete_col = st.columns(2)
+            with save_col:
+                save_pressed = st.form_submit_button("Save step (⌘+Enter)", type="secondary", use_container_width=True)
+            with delete_col:
+                delete_clicked = st.form_submit_button("Remove step", type="secondary", use_container_width=True)
+
+            # delete button handled above with save/run
+
+    # Persist venv/engine changes after handling form inputs
+    # Defer persisting venv/engine choices to explicit Save/Run actions to avoid
+    # clobbering other steps when switching selections.
+
+    log_placeholder: Optional[Any] = None
+
+    if revert_pressed:
+        # Reload persisted code for this step and refresh the editor
+        persisted_code = ""
+        if 0 <= step < len(all_steps):
+            persisted_code = str(all_steps[step].get("C", "") or "")
+        st.session_state[index_page_str][4] = persisted_code
+        st.session_state[f"{index_page_str}__clear_q"] = False
+        st.session_state[f"{index_page_str}__force_blank_q"] = False
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        st.rerun()
+        return
+
+    if run_pressed:
+        on_query_change(
             prompt_key,
             lab_dir,
             step,
@@ -2585,10 +2693,31 @@ def display_lab_tab(
             index_page_str,
             env,
             st.session_state.get("lab_llm_provider", env.envars.get("LAB_LLM_PROVIDER", "openai")),
-        ),
-        placeholder="Enter your code request in natural language",
-        label_visibility="collapsed",
-    )
+        )
+        # Log the run for visibility
+        env_label = ""
+        try:
+            env_label = Path(selected_map.get(step, "")).name
+        except Exception:
+            env_label = ""
+        env_label = env_label or "default env"
+        engine_for_log = (
+            locals().get("chosen_engine")
+            or engine_map.get(step)
+            or current_entry.get("R", "")
+            or "agi.run"
+        )
+        summary = _step_summary({"Q": query[2] if len(query) > 2 else "", "C": query[4] if len(query) > 4 else ""})
+        _append_run_log(
+            index_page_str,
+            f"Step {step + 1}: engine={engine_for_log}, env={env_label}, summary=\"{summary}\"",
+        )
+        if log_placeholder is not None:
+            logs = st.session_state.get(f"{index_page_str}__run_logs", [])
+            if logs:
+                log_placeholder.code("\n".join(logs))
+    elif save_pressed:
+        st.info("Step description saved. Click 'Run code generator' to execute.")
 
     code_for_editor = (query[4] or "")
     detail_text = ""
@@ -2618,6 +2747,27 @@ def display_lab_tab(
             props={"style": {"borderRadius": "0px 0px 8px 8px"}},
             key=editor_key,
         )
+
+    # Live run log expander (similar to EXECUTE)
+    run_logs_key = f"{index_page_str}__run_logs"
+    st.session_state.setdefault(run_logs_key, [])
+    log_container = st.container()
+    with log_container:
+        with st.expander("Run logs", expanded=True):
+            clear_logs = st.button(
+                "Clear logs",
+                key=f"{index_page_str}__clear_logs",
+                type="secondary",
+                use_container_width=True,
+            )
+            log_placeholder = st.empty()
+            if clear_logs:
+                st.session_state[run_logs_key] = []
+            logs = st.session_state.get(run_logs_key, [])
+            if logs:
+                log_placeholder.code("\n".join(logs))
+            else:
+                log_placeholder.caption("No runs recorded yet.")
 
     action = snippet_dict.get("type") if snippet_dict else None
     if action == "remove":
@@ -2684,7 +2834,7 @@ def display_lab_tab(
             summary = _step_summary(
                 {"Q": query[2] if len(query) > 2 else "", "C": query[4] if len(query) > 4 else ""}
             )
-            env_label = selected_env or "default env"
+            env_label = Path(selected_env).name if selected_env else "default env"
             _append_run_log(
                 index_page_str,
                 f"Step {step + 1}: engine={selected_engine}, env={env_label}, summary=\"{summary}\"",
@@ -2694,44 +2844,10 @@ def display_lab_tab(
                 if logs:
                     log_placeholder.code("\n".join(logs))
 
-    st.subheader("Execution controls", divider="gray")
-    st.caption("Select the steps to show (uncheck to hide); their order sets the button order.")
-    selected_order = st.multiselect(
-        "Step order & visibility",
-        step_indices,
-        key=order_key,
-        format_func=lambda idx: _step_label_for_multiselect(idx, all_steps[idx] if idx < total_steps else None),
-        help="Reorder or hide steps; changes are kept in session only.",
-    )
-    cleaned_selection = [idx for idx in selected_order if idx in step_indices]
-    if cleaned_selection != st.session_state.get(order_key):
-        st.session_state[order_key] = cleaned_selection
-
-    # Live run log expander (similar to EXECUTE)
-    run_logs_key = f"{index_page_str}__run_logs"
-    st.session_state.setdefault(run_logs_key, [])
-    log_container = st.container()
-    with log_container:
-        with st.expander("Run logs", expanded=False):
-            clear_logs = st.button(
-                "Clear logs",
-                key=f"{index_page_str}__clear_logs",
-                type="secondary",
-                use_container_width=True,
-            )
-            log_placeholder = st.empty()
-            if clear_logs:
-                st.session_state[run_logs_key] = []
-            logs = st.session_state.get(run_logs_key, [])
-            if logs:
-                log_placeholder.code("\n".join(logs))
-            else:
-                log_placeholder.caption("No runs recorded yet.")
-
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
         run_all_clicked = st.button(
-            "Run all steps",
+            "Run pipeline",
             key=f"{index_page_str}_run_all",
             help="Execute every step sequentially using its saved virtual environment.",
             type="secondary",
@@ -2739,7 +2855,7 @@ def display_lab_tab(
         )
     with delete_all_col:
         delete_all_clicked = st.button(
-            "Delete all steps",
+            "Delete pipeline",
             key=f"{index_page_str}_delete_all",
             help="Remove every step in this lab.",
             type="secondary",
@@ -2880,10 +2996,8 @@ def page() -> None:
     gpt_oss_controls(env)
     universal_offline_controls(env)
 
-    lab_tab, history_tab = st.tabs(["ASSISTANT", "HISTORY"])
-    with lab_tab:
-        display_lab_tab(lab_dir, index_page_str, steps_file, module_path, env)
-    with history_tab:
+    display_lab_tab(lab_dir, index_page_str, steps_file, module_path, env)
+    with st.expander("History", expanded=False):
         display_history_tab(steps_file, module_path)
 
 
