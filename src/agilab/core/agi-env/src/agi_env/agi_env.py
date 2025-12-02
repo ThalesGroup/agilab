@@ -949,7 +949,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             logger=AgiEnv.logger,
         )
         share_dir_path = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
-        self.AGI_SHARE_DIR = share_dir_path  # configured value (may be relative)
+        # Expose the effective share directory (fallbacks resolved) to callers.
+        self.AGI_SHARE_DIR = resolved_share_dir
         self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
         # Resolved path is authoritative for local access; keep raw for reference
         self.agi_share_dir_raw = share_dir_path
@@ -1591,7 +1592,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         self.OPENAI_MODEL = envars.get("OPENAI_MODEL") or get_default_openai_model()
-        AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
+        AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log")).expanduser()
+        if not AGILAB_LOG_ABS.is_absolute():
+            AGILAB_LOG_ABS = (self.home_abs / AGILAB_LOG_ABS).resolve()
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
         self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
@@ -1599,7 +1602,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         runenv_base.mkdir(parents=True, exist_ok=True)
         self.runenv = runenv_base / self.target
         self.runenv.mkdir(parents=True, exist_ok=True)
-        AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export"))
+        AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export")).expanduser()
+        if not AGILAB_EXPORT_ABS.is_absolute():
+            AGILAB_EXPORT_ABS = (self.home_abs / AGILAB_EXPORT_ABS).resolve()
         if not AGILAB_EXPORT_ABS.exists():
             AGILAB_EXPORT_ABS.mkdir(parents=True)
         self.AGILAB_EXPORT_ABS = AGILAB_EXPORT_ABS
