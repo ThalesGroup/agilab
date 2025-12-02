@@ -9,7 +9,7 @@ import argparse
 import importlib.resources as importlib_resources
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
@@ -107,13 +107,30 @@ def show_banner_and_intro(resources_path: Path):
     """Render the branding banner."""
     quick_logo(resources_path)
 
+def _clean_openai_key(key: str | None) -> str | None:
+    """Return None for missing/placeholder keys to avoid confusing 401s."""
+    if not key:
+        return None
+    trimmed = key.strip()
+    placeholders = {"your-key", "sk-your-key", "sk-XXXX"}
+    if trimmed in placeholders or len(trimmed) < 12:
+        return None
+    return trimmed
+
+
 def openai_status_banner(env):
-    """Show a non-blocking banner if OpenAI features are unavailable."""
+    """Show a non-blocking banner if OpenAI features are unavailable and direct users to the env editor."""
     import os
-    key = os.environ.get("OPENAI_API_KEY") or getattr(env, "OPENAI_API_KEY", None)
+
+    try:
+        env_key = env.OPENAI_API_KEY
+    except Exception:
+        env_key = None
+
+    key = _clean_openai_key(os.environ.get("OPENAI_API_KEY") or env_key)
     if not key:
         st.warning(
-            "OpenAI features are disabled. Set OPENAI_API_KEY or launch with --openai-api-key to enable GPT tooling.",
+            f"OpenAI features are disabled. Set OPENAI_API_KEY in {ENV_FILE_PATH} via the 'Environment Variables' expander, then reload the app.",
             icon="⚠️",
         )
 
@@ -307,14 +324,25 @@ def _read_env_file(path: Path) -> List[Dict[str, str]]:
         for raw_line in handle.readlines():
             raw = raw_line.rstrip("\n")
             stripped = raw.strip()
-            if not stripped or stripped.startswith("#"):
+            if not stripped:
                 entries.append({"type": "comment", "raw": raw})
+                continue
+
+            # Treat commented KEY=VAL lines as entries so they can be edited/uncommented.
+            target = stripped.lstrip("#").strip()
+            if "=" in target:
+                key, value = target.split("=", 1)
+                entries.append(
+                    {
+                        "type": "entry",
+                        "key": key.strip(),
+                        "value": value,
+                        "raw": raw,
+                        "commented": stripped.startswith("#"),
+                    }
+                )
             else:
-                if "=" in raw:
-                    key, value = raw.split("=", 1)
-                    entries.append({"type": "entry", "key": key.strip(), "value": value, "raw": raw})
-                else:
-                    entries.append({"type": "comment", "raw": raw})
+                entries.append({"type": "comment", "raw": raw})
     return entries
 
 def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str, str], new_entry: Dict[str, str] | None) -> None:
@@ -342,6 +370,73 @@ def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str
     content = "\n".join(lines).rstrip() + "\n"
     path.write_text(content, encoding="utf-8")
 
+
+def _upsert_env_var(path: Path, key: str, value: str) -> None:
+    """Update or append a single KEY=VALUE in the .env file."""
+    path = _ensure_env_file(path)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    rewritten: List[str] = []
+    key_eq = f"{key}="
+    updated = False
+    for raw in lines:
+        stripped = raw.strip()
+        target = stripped.lstrip("#").strip()
+        if target.startswith(key_eq):
+            rewritten.append(f"{key}={value}")
+            updated = True
+        else:
+            rewritten.append(raw)
+    if not updated:
+        rewritten.append(f"{key}={value}")
+    path.write_text("\n".join(rewritten).rstrip() + "\n", encoding="utf-8")
+
+
+def _load_env_file_map(path: Path) -> Dict[str, str]:
+    """Return a key/value mapping from the .env file (commented lines included)."""
+    env_map: Dict[str, str] = {}
+    try:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            stripped = raw.strip()
+            if not stripped or "=" not in stripped:
+                continue
+            target = stripped.lstrip("#").strip()
+            if "=" not in target:
+                continue
+            key, val = target.split("=", 1)
+            key = key.strip()
+            if key:
+                env_map[key] = val.strip()
+    except FileNotFoundError:
+        pass
+    return env_map
+
+
+def _refresh_env_from_file(env: Any) -> None:
+    """Re-load ~/.agilab/.env into env.envars and os.environ when it changes."""
+    try:
+        current_mtime = ENV_FILE_PATH.stat().st_mtime_ns
+    except FileNotFoundError:
+        return
+
+    last_mtime = st.session_state.get("env_file_mtime_ns")
+    if last_mtime is not None and last_mtime == current_mtime:
+        return
+
+    env_map = _load_env_file_map(ENV_FILE_PATH)
+    if not env_map:
+        st.session_state["env_file_mtime_ns"] = current_mtime
+        return
+
+    for key, val in env_map.items():
+        os.environ[key] = val
+        try:
+            if env.envars is not None:
+                env.envars[key] = val
+        except Exception:
+            pass
+    st.session_state["env_file_mtime_ns"] = current_mtime
+
+
 def _render_env_editor(env, help_file: Path):
     feedback = st.session_state.pop("env_editor_feedback", None)
     if feedback:
@@ -352,12 +447,16 @@ def _render_env_editor(env, help_file: Path):
 
     entries = _read_env_file(ENV_FILE_PATH)
     existing_entries = [entry for entry in entries if entry["type"] == "entry"]
+    seen_keys: set[str] = set()
     existing_values = {entry["key"]: entry["value"].strip() for entry in existing_entries}
 
     with st.form("env_editor_form"):
         updated_values: Dict[str, str] = {}
         for entry in existing_entries:
             key = entry["key"]
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
             default_value = entry["value"].strip()
             updated_values[key] = st.text_input(
                 key,
@@ -429,9 +528,12 @@ def _render_env_editor(env, help_file: Path):
         current: Dict[str, str] = {}
         for raw in env_lines:
             stripped = raw.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
+            if not stripped or "=" not in stripped:
                 continue
-            key, val = stripped.split("=", 1)
+            normalized = stripped.lstrip("#").strip()
+            if "=" not in normalized:
+                continue
+            key, val = normalized.split("=", 1)
             current[key.strip()] = val.strip()
 
         merged = []
@@ -615,7 +717,12 @@ def main():
             except Exception:
                 pass
 
-            openai_api_key = env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key
+            try:
+                _refresh_env_from_file(env)
+            except Exception:
+                pass
+
+            openai_api_key = _clean_openai_key(env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key)
             if not openai_api_key:
                 st.warning("OPENAI_API_KEY not set. OpenAI-powered features will be disabled.")
 
@@ -637,6 +744,7 @@ def main():
 
     # ---- After init, always show banner+intro and then main UI ----
     env = st.session_state['env']
+    _refresh_env_from_file(env)
     _sync_active_app_from_query(env)
     try:
         _store_last_active_app(Path(env.apps_dir) / env.app)

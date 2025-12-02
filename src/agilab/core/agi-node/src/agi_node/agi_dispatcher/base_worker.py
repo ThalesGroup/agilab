@@ -197,7 +197,15 @@ class BaseWorker(abc.ABC):
         if not raw.is_absolute():
             base = None
             if env is not None:
-                base = getattr(env, "agi_share_dir", None) or getattr(env, "home_abs", None)
+                try:
+                    base = env.agi_share_dir or env.AGI_SHARE_DIR
+                except AttributeError:
+                    base = None
+                if base is None:
+                    try:
+                        base = env.home_abs
+                    except AttributeError:
+                        base = None
             if base is None:
                 base = Path.home()
             raw = Path(base).expanduser() / raw
