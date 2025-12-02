@@ -8,6 +8,7 @@ import importlib.metadata as importlib_metadata
 import sys
 import sysconfig
 import textwrap
+import subprocess
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -48,6 +49,7 @@ LAST_ACTIVE_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+ANSI_ESCAPE_RE = re.compile(r"\x1b[^m]*m")
 
 
 class JumpToMain(Exception):
@@ -112,6 +114,62 @@ def _append_run_log(index_page: str, message: str) -> None:
     logs.append(message)
     if len(logs) > 200:
         st.session_state[key] = logs[-200:]
+
+
+def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = None) -> None:
+    """Append a log entry and refresh the visible placeholder if provided."""
+    _append_run_log(index_page, message)
+    if placeholder is not None:
+        logs = st.session_state.get(f"{index_page}__run_logs", [])
+        if logs:
+            placeholder.code("\n".join(logs))
+        else:
+            placeholder.caption("No runs recorded yet.")
+
+
+def _stream_run_command(
+    env: AgiEnv,
+    index_page: str,
+    cmd: str,
+    cwd: Path,
+    placeholder: Optional[Any] = None,
+    timeout: Optional[int] = None,
+) -> str:
+    """Run a shell command and stream its output into the run log."""
+    process_env = os.environ.copy()
+    process_env["uv_IGNORE_ACTIVE_VENV"] = "1"
+    lines: List[str] = []
+    with subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True,
+        cwd=Path(cwd).resolve(),
+        env=process_env,
+        text=True,
+        bufsize=1,
+    ) as proc:
+        try:
+            assert proc.stdout is not None
+            for raw_line in proc.stdout:
+                cleaned = ANSI_ESCAPE_RE.sub("", raw_line.rstrip())
+                if cleaned:
+                    lines.append(cleaned)
+                    _push_run_log(index_page, cleaned, placeholder)
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            _push_run_log(index_page, f"Command timed out after {timeout} seconds.", placeholder)
+        except subprocess.CalledProcessError as err:
+            proc.kill()
+            _push_run_log(index_page, f"Command failed: {err}", placeholder)
+        combined = "\n".join(lines).strip()
+        lowered = combined.lower()
+        if "module not found" in lowered:
+            apps_root = getattr(env, "apps_root", None)
+            if apps_root and not (apps_root / ".venv").exists():
+                raise JumpToMain(combined)
+        return combined
 
 
 def on_page_change() -> None:
@@ -1718,9 +1776,11 @@ def save_step(
     code_text = entry.get("C", "")
     if not isinstance(code_text, str):
         code_text = str(code_text or "")
-    if not code_text.strip():
-        st.session_state["_experiment_last_save_skipped"] = True
-        return len(steps[module_str]), existing_entry
+    # If new code is empty, preserve previous code when available
+    if not code_text.strip() and existing_entry.get("C"):
+        entry["C"] = existing_entry.get("C", "")
+    else:
+        entry["C"] = code_text
 
     nsteps_saved = len(steps[module_str])
     nsteps = max(int(nsteps), nsteps_saved)
@@ -1740,9 +1800,35 @@ def save_step(
     except Exception as e:
         st.error(f"Failed to save steps file: {e}")
         logger.error(f"Error writing TOML in save_step: {e}")
+        st.session_state["_experiment_last_save_skipped"] = True
+        return nsteps, entry
 
     toml_to_notebook(steps, steps_file)
     return nsteps, entry
+
+
+def _force_persist_step(
+    module_path: Path,
+    steps_file: Path,
+    step_idx: int,
+    entry: Dict[str, Any],
+) -> None:
+    """Ensure the given entry is written to steps_file at step_idx."""
+    try:
+        module_key = _module_keys(module_path)[0]
+        steps: Dict[str, Any] = {}
+        if steps_file.exists():
+            with open(steps_file, "rb") as f:
+                steps = tomllib.load(f)
+        steps.setdefault(module_key, [])
+        while len(steps[module_key]) <= step_idx:
+            steps[module_key].append({})
+        steps[module_key][step_idx] = convert_paths_to_strings(entry)
+        steps_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(steps_file, "wb") as f:
+            tomli_w.dump(steps, f)
+    except Exception as exc:
+        logger.error(f"Force persist failed for step {step_idx} -> {steps_file}: {exc}")
 
 
 def run_all_steps(
@@ -1754,9 +1840,11 @@ def run_all_steps(
     log_placeholder: Optional[Any] = None,
 ) -> None:
     """Execute all steps sequentially, honouring per-step virtual environments."""
+    _push_run_log(index_page_str, "Run pipeline invoked.", log_placeholder)
     steps = load_all_steps(module_path, steps_file, index_page_str) or []
     if not steps:
         st.info(f"No steps available to run from {steps_file}.")
+        _push_run_log(index_page_str, "Run pipeline aborted: no steps available.", log_placeholder)
         return
 
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
@@ -1769,6 +1857,7 @@ def run_all_steps(
     display_order: Dict[int, int] = {}
     if not snippet_file:
         st.error("Snippet file is not configured. Reload the page and try again.")
+        _push_run_log(index_page_str, "Run pipeline aborted: snippet file not configured.", log_placeholder)
         return
 
     executed = 0
@@ -1777,6 +1866,7 @@ def run_all_steps(
             code = entry.get("C", "")
             if not _is_valid_step(entry) or not code:
                 continue
+            _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
 
             venv_path = normalize_runtime_path(entry.get("E", ""))
             if venv_path:
@@ -1798,25 +1888,50 @@ def run_all_steps(
                 or entry.get("R", "")
                 or ("agi.run" if venv_root else "runpy")
             )
-            if venv_root:
-                target_path = Path(venv_root).expanduser()
-                if engine == "runpy":
-                    run_lab(
-                        [entry.get("D", ""), entry.get("Q", ""), code],
-                        snippet_file,
-                        env.copilot_file,
-                    )
-                else:
-                    run_agi(code, path=target_path)
+            target_base = Path(steps_file).parent.resolve()
+            # Collapse duplicated tail (e.g., export/example_app/export/example_app)
+            if target_base.name == target_base.parent.name:
+                target_base = target_base.parent
+            target_base.mkdir(parents=True, exist_ok=True)
+            if engine == "runpy":
+                output = run_lab(
+                    [entry.get("D", ""), entry.get("Q", ""), code],
+                    snippet_file,
+                    env.copilot_file,
+                )
             else:
-                if engine == "runpy":
-                    run_lab(
-                        [entry.get("D", ""), entry.get("Q", ""), code],
-                        snippet_file,
-                        env.copilot_file,
+                script_path = target_base / "AGI_run.py"
+                script_path.write_text(code)
+                output = _stream_run_command(
+                    env,
+                    index_page_str,
+                    f"uv -q run python {script_path.name}",
+                    cwd=target_base,
+                    placeholder=log_placeholder,
+                )
+
+            # Append execution output to logs for better visibility
+            if output:
+                preview = output.strip()
+                if preview:
+                    _push_run_log(
+                        index_page_str,
+                        f"Output (step {idx + 1}):\n{preview}",
+                        log_placeholder,
                     )
-                else:
-                    run_agi(code)
+                    if "No such file or directory" in preview:
+                        _push_run_log(
+                            index_page_str,
+                            "Hint: the code tried to call a file that is not present in the export environment. "
+                            "Adjust the step to use a path that exists under the export/lab directory.",
+                            log_placeholder,
+                        )
+            else:
+                _push_run_log(
+                    index_page_str,
+                    f"Output (step {idx + 1}): {engine} executed (no captured stdout)",
+                    log_placeholder,
+                )
 
             if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
                 export_target = st.session_state.get("df_file_out", "")
@@ -1825,14 +1940,11 @@ def run_all_steps(
                     st.session_state["step_checked"] = True
             summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
             env_label = Path(venv_root).name if venv_root else "default env"
-            _append_run_log(
+            _push_run_log(
                 index_page_str,
                 f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                log_placeholder,
             )
-            if log_placeholder is not None:
-                logs = st.session_state.get(f"{index_page_str}__run_logs", [])
-                if logs:
-                    log_placeholder.code("\n".join(logs))
             executed += 1
 
     st.session_state[index_page_str][0] = original_step
@@ -1843,8 +1955,10 @@ def run_all_steps(
 
     if executed:
         st.success(f"Executed {executed} step{'s' if executed != 1 else ''}.")
+        _push_run_log(index_page_str, f"Run pipeline completed: {executed} step(s) executed.", log_placeholder)
     else:
         st.info("No runnable code found in the steps.")
+        _push_run_log(index_page_str, "Run pipeline completed: no runnable code found.", log_placeholder)
 
 
 def on_nb_change(
@@ -2081,13 +2195,17 @@ def sidebar_controls() -> None:
     )
 
     steps_file_name = st.session_state["steps_file_name"]
-    lab_dir = Agi_export_abs / st.session_state["lab_dir_selectbox"]
-    st.session_state.df_dir = Agi_export_abs / lab_dir
-    steps_file = lab_dir / steps_file_name
+    export_root = Path(env.AGILAB_EXPORT_ABS).expanduser()
+    if not export_root.is_absolute():
+        export_root = (Path.home() / export_root).resolve()
+    lab_name = Path(st.session_state["lab_dir_selectbox"]).name
+    lab_dir = (export_root / lab_name).resolve()
+    st.session_state.df_dir = lab_dir
+    steps_file = (lab_dir / steps_file_name).resolve()
     st.session_state["steps_file"] = steps_file
 
     # Page title reflecting current lab/project
-    st.markdown(f"### Project: `{st.session_state['lab_dir_selectbox']}`")
+    st.markdown(f"### Pipeline for project: `{st.session_state['lab_dir_selectbox']}`")
 
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
@@ -2465,76 +2583,30 @@ def display_lab_tab(
     env: AgiEnv,
 ) -> None:
     """Display the pipeline tab with steps and query input."""
-    query = st.session_state[index_page_str]
+    # Reset active step and count to reflect persisted steps
     persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
-    persisted_count = len(persisted_steps)
-    try:
-        requested_total = int(query[-1])
-    except Exception:
-        requested_total = persisted_count
-    if requested_total < 0:
-        requested_total = 0
-    total_steps = max(persisted_count, requested_total)
-    if query[-1] != total_steps:
-        query[-1] = total_steps
-    all_steps = persisted_steps + [{} for _ in range(total_steps - persisted_count)]
-    # Coerce the current step to an int to avoid mismatches when state was stringified
-    try:
-        step = int(query[0])
-    except Exception:
-        step = 0
-    # Persist the canonical int value so the radio keeps the correct selection
-    st.session_state[index_page_str][0] = step
-    step_indices = list(range(total_steps))
-
-    # Render steps in their natural order; avoid persisting a separate ordering that can drift
-    displayed_indices = step_indices.copy()
-
-    if total_steps:
-        # Clamp to a valid index instead of silently snapping to the first step
-        step = max(0, min(step, total_steps - 1))
-        st.session_state[index_page_str][0] = step
-    else:
-        st.session_state[index_page_str][0] = 0
-        step = 0
-
-    snippet_file = st.session_state.get("snippet_file")
-
-    if displayed_indices:
-        display_order = {idx: pos for pos, idx in enumerate(displayed_indices)}
-        def _pipeline_label(idx: int) -> str:
-            entry = all_steps[idx] if idx < total_steps else None
-            return _step_button_label(display_order.get(idx, idx), idx, entry)
-
-        prev_step = step
-        selected_step_idx = st.radio(
-            "Pipeline",
-            displayed_indices,
-            format_func=_pipeline_label,
-            index=next((i for i, idx in enumerate(displayed_indices) if idx == step), 0),
-            horizontal=False,
-            key=f"{index_page_str}_step_pipeline",
-        )
-
-        # Update current step selection
-        if selected_step_idx != prev_step:
-            on_step_change(module_path, steps_file, selected_step_idx, index_page_str)
-        st.session_state[index_page_str][0] = selected_step_idx
-        step = selected_step_idx
-    elif total_steps == 0:
-        st.info("No steps recorded yet. Ask the assistant to generate your first step.")
-    else:
-        st.info("No steps selected. Use the controls below to pick which steps are visible.")
-
-        return
-
-    # Always refresh the current step fields from disk so display stays in sync with lab_steps
-    load_last_step(module_path, steps_file, index_page_str)
+    if not persisted_steps and steps_file.exists():
+        try:
+            import tomllib
+            with open(steps_file, "rb") as f:
+                raw = tomllib.load(f)
+            module_key = _module_keys(module_path)[0]
+            fallback_steps = raw.get(module_key, [])
+            if isinstance(fallback_steps, list):
+                persisted_steps = [s for s in fallback_steps if _is_valid_step(s)]
+        except Exception:
+            pass
+    total_steps = len(persisted_steps)
+    st.session_state[index_page_str][0] = 0
+    st.session_state[index_page_str][-1] = total_steps
 
     available_venvs = [
         normalize_runtime_path(path) for path in get_available_virtualenvs(env)
     ]
     available_venvs = [path for path in dict.fromkeys(available_venvs) if path]
+    env_active_app = normalize_runtime_path(getattr(env, "active_app", ""))
+    if env_active_app:
+        available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
 
     venv_state_key = f"{index_page_str}__venv_map"
     selected_map: Dict[int, str] = st.session_state.setdefault(venv_state_key, {})
@@ -2547,302 +2619,530 @@ def display_lab_tab(
         else:
             selected_map.pop(idx_key, None)
 
-    current_path = normalize_runtime_path(selected_map.get(step, ""))
-    lab_selected_path = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-    env_active_app = normalize_runtime_path(getattr(env, "active_app", ""))
-
-    if env_active_app:
-        available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
-
-    for candidate in [current_path, lab_selected_path, *selected_map.values()]:
-        candidate_normalized = normalize_runtime_path(candidate)
-        if candidate_normalized and candidate_normalized not in available_venvs:
-            available_venvs.append(candidate_normalized)
-
-    default_env_label = "Use AGILAB environment"
-    venv_labels = [default_env_label] + available_venvs
-    select_key = f"{index_page_str}_venv_{step}"
-    # Place selectors at top of the query form; the surrounding form handles the border.
-    # Selectors will be rendered inside the query form below.
-
-    # Save changes to venv/engine selections happens after the form inputs below.
-
-    # Compute a revisioned key for the prompt to allow forced remount/clear
-    q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
-    prompt_key = f"{index_page_str}_q__{q_rev}"
-
-    default_prompt_value = st.session_state.get(prompt_key)
-    if default_prompt_value is None:
-        st.session_state[prompt_key] = ""
-    # If the prompt key exists but is blank, seed it from the saved Q field so the
-    # text area always shows the stored query for the selected step.
-    if not st.session_state.get(prompt_key) and 0 <= step < total_steps:
-        saved_q = str(all_steps[step].get("Q", "") or "")
-        st.session_state[prompt_key] = saved_q
-
-    # Build a tab title using the current step summary
-    display_position = display_order.get(step, step)
-    summary = _step_summary(all_steps[step] if 0 <= step < total_steps else None, width=80)
-    if summary:
-        header_text = f"Step {display_position + 1 if display_position is not None else step + 1}: {summary}"
-    else:
-        header_text = f"Step {display_position + 1 if display_position is not None else step + 1}"
-
-    tab_label = header_text
-    venv_changed = False
-    engine_changed = False
-    save_pressed = False
-    run_pressed = False
-    revert_pressed = False
-
-    # Runner toggle and venv selector (outside form for immediate refresh)
-    env_col, engine_col = st.columns([3, 2], gap="small")
-
-    selected_path = ""
-    previous_path = normalize_runtime_path(selected_map.get(step, ""))
-    with env_col:
-        session_label = st.session_state.get(select_key, "")
-        initial_label = session_label or current_path or lab_selected_path or ""
-        if initial_label and initial_label not in venv_labels:
-            venv_labels.append(initial_label)
-        default_label = initial_label or default_env_label
-        if default_label not in venv_labels:
-            venv_labels.append(default_label)
-        if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
-            st.session_state[select_key] = default_label
-        selected_label = st.selectbox(
-            "venv",
-            venv_labels,
-            key=select_key,
-            help="Choose which virtual environment should execute this step.",
-        )
-        selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
-        if selected_path:
-            selected_map[step] = selected_path
-            # Persist last chosen venv across steps and reloads
-            st.session_state["last_selected_venv"] = selected_path
-        else:
-            selected_map.pop(step, None)
-        st.session_state["lab_selected_venv"] = selected_path or st.session_state.get("last_selected_venv", "")
-        venv_changed = selected_path != previous_path
-
-    # Engine is derived from venv selection
-    current_entry = all_steps[step] if 0 <= step < total_steps else {}
-    default_engine = (
-        engine_map.get(step)
-        or current_entry.get("R", "")
-        or ("agi.run" if selected_map.get(step) else "runpy")
-    )
-    computed_engine = "agi.run" if selected_map.get(step) else "runpy"
-    display_engine = computed_engine or default_engine
-    previous_engine = engine_map.get(step, "")
-    engine_map[step] = display_engine
-    st.session_state["lab_selected_engine"] = display_engine
-    engine_changed = display_engine != previous_engine
-
-    with st.form(f"{index_page_str}_query_form"):
-            # Query input first
+    # No steps yet: allow creating the first one via Generate code
+    if total_steps == 0:
+        st.info("No steps recorded yet. Generate your first step below.")
+        new_q_key = f"{index_page_str}_new_q"
+        new_venv_key = f"{index_page_str}_new_venv"
+        if new_q_key not in st.session_state:
+            st.session_state[new_q_key] = ""
+        with st.expander("New step", expanded=True):
             st.text_area(
                 "Ask code generator:",
-                key=prompt_key,
+                key=new_q_key,
                 placeholder="Enter your code request in natural language",
                 label_visibility="collapsed",
             )
-
-            # Generate / Revert just below the prompt
-            run_col, revert_col = st.columns([1, 1], gap="small")
-            with run_col:
-                run_pressed = st.form_submit_button("Generate code", type="primary", use_container_width=True)
-            with revert_col:
-                revert_pressed = st.form_submit_button("Revert code", type="secondary", use_container_width=True)
-
-            # Save/delete below runtime selectors (match footer style)
-            save_col, delete_col = st.columns(2)
-            with save_col:
-                save_pressed = st.form_submit_button("Save step (⌘+Enter)", type="secondary", use_container_width=True)
-            with delete_col:
-                delete_clicked = st.form_submit_button("Remove step", type="secondary", use_container_width=True)
-
-            # delete button handled above with save/run
-
-    # Persist venv/engine changes after handling form inputs
-    # Defer persisting venv/engine choices to explicit Save/Run actions to avoid
-    # clobbering other steps when switching selections.
-
-    log_placeholder: Optional[Any] = None
-
-    if revert_pressed:
-        # Reload persisted code for this step and refresh the editor
-        persisted_code = ""
-        if 0 <= step < len(all_steps):
-            persisted_code = str(all_steps[step].get("C", "") or "")
-        st.session_state[index_page_str][4] = persisted_code
-        st.session_state[f"{index_page_str}__clear_q"] = False
-        st.session_state[f"{index_page_str}__force_blank_q"] = False
-        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-        st.rerun()
+            venv_labels = ["Use AGILAB environment"] + available_venvs
+            selected_new_venv = st.selectbox(
+                "venv",
+                venv_labels,
+                key=new_venv_key,
+                help="Choose which virtual environment should execute this step.",
+            )
+            selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+            run_new = st.button("Generate code", type="primary", use_container_width=True)
+            if run_new:
+                prompt_text = st.session_state.get(new_q_key, "").strip()
+                if prompt_text:
+                    df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                    answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                    venv_map = {0: selected_path} if selected_path else {}
+                    eng_map = {0: "agi.run" if selected_path else "runpy"}
+                save_step(
+                    module_path,
+                    answer,
+                    0,
+                    1,
+                    steps_file,
+                    venv_map=venv_map,
+                    engine_map=eng_map,
+                )
+                _bump_history_revision()
+                st.rerun()
+            else:
+                st.warning("Enter a prompt before generating code.")
         return
 
-    if run_pressed:
-        on_query_change(
-            prompt_key,
-            lab_dir,
-            step,
-            steps_file,
-            st.session_state.df_file,
-            index_page_str,
-            env,
-            st.session_state.get("lab_llm_provider", env.envars.get("LAB_LLM_PROVIDER", "openai")),
-        )
-        # Log the run for visibility
-        env_label = ""
-        try:
-            env_label = Path(selected_map.get(step, "")).name
-        except Exception:
-            env_label = ""
-        env_label = env_label or "default env"
-        engine_for_log = (
-            locals().get("chosen_engine")
-            or engine_map.get(step)
-            or current_entry.get("R", "")
-            or "agi.run"
-        )
-        summary = _step_summary({"Q": query[2] if len(query) > 2 else "", "C": query[4] if len(query) > 4 else ""})
-        _append_run_log(
-            index_page_str,
-            f"Step {step + 1}: engine={engine_for_log}, env={env_label}, summary=\"{summary}\"",
-        )
-        if log_placeholder is not None:
-            logs = st.session_state.get(f"{index_page_str}__run_logs", [])
-            if logs:
-                log_placeholder.code("\n".join(logs))
-    elif save_pressed:
-        st.info("Step description saved. Click 'Run code generator' to execute.")
-
-    code_for_editor = (query[4] or "")
-    detail_text = ""
-    if len(query) > 5 and query[5]:
-        detail_text = str(query[5]).strip()
-
-    if detail_text:
-        if code_for_editor:
-            with st.expander("Assistant notes", expanded=False):
-                st.markdown(detail_text)
-        else:
-            st.info(detail_text)
-
-
-    snippet_dict: Optional[Dict[str, Any]] = None
-    if code_for_editor:
-        # Remount editor only when content actually changes
-        rev = f"{step}-{len(code_for_editor)}"
-        editor_key = f"{index_page_str}a{rev}"
-        snippet_dict = code_editor(
-            code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
-            height=(min(30, len(code_for_editor)) if code_for_editor else 100),
-            theme="contrast",
-            buttons=get_custom_buttons(),
-            info=get_info_bar(),
-            component_props=get_css_text(),
-            props={"style": {"borderRadius": "0px 0px 8px 8px"}},
-            key=editor_key,
-        )
-
-    # Live run log expander (similar to EXECUTE)
     run_logs_key = f"{index_page_str}__run_logs"
     st.session_state.setdefault(run_logs_key, [])
-    log_container = st.container()
-    with log_container:
-        with st.expander("Run logs", expanded=True):
-            clear_logs = st.button(
-                "Clear logs",
-                key=f"{index_page_str}__clear_logs",
-                type="secondary",
-                use_container_width=True,
-            )
-            log_placeholder = st.empty()
-            if clear_logs:
-                st.session_state[run_logs_key] = []
-            logs = st.session_state.get(run_logs_key, [])
-            if logs:
-                log_placeholder.code("\n".join(logs))
-            else:
-                log_placeholder.caption("No runs recorded yet.")
+    log_placeholder: Optional[Any] = None
+    safe_prefix = index_page_str.replace("/", "_")
+    expander_state_key = f"{safe_prefix}_expander_open"
+    expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
 
-    action = snippet_dict.get("type") if snippet_dict else None
-    if action == "remove":
-        if st.session_state[index_page_str][-1] > 0:
-            selected_map.pop(step, None)
-            st.session_state.pop(select_key, None)
-            query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
-            # Request prompt clear and refresh to reflect removed step state
-            st.session_state[f"{index_page_str}__clear_q"] = True
-            st.session_state[f"{index_page_str}__force_blank_q"] = True
-            st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+    for step, entry in enumerate(persisted_steps):
+        # Per-step keys
+        q_key = f"{safe_prefix}_q_step_{step}"
+        code_val_key = f"{safe_prefix}_code_step_{step}"
+        select_key = f"{safe_prefix}_venv_{step}"
+        rev_key = f"{safe_prefix}_editor_rev_{step}"
+        pending_q_key = f"{safe_prefix}_pending_q_{step}"
+        pending_c_key = f"{safe_prefix}_pending_c_{step}"
+        undo_key = f"{safe_prefix}_undo_{step}"
+        apply_q_key = f"{q_key}_apply_pending"
+        apply_c_key = f"{code_val_key}_apply_pending"
+
+        # Apply any pending updates (set during a previous run-trigger) before rendering widgets.
+        pending_q = st.session_state.pop(pending_q_key, None)
+        pending_c = st.session_state.pop(pending_c_key, None)
+        if pending_q is not None:
+            st.session_state[apply_q_key] = pending_q
+        if pending_c is not None:
+            st.session_state[apply_c_key] = pending_c
+        if (pending_q is not None or pending_c is not None) and (q_key in st.session_state or code_val_key in st.session_state):
+            st.session_state.pop(q_key, None)
+            st.session_state.pop(code_val_key, None)
             st.rerun()
-            return
-    elif action == "save":
-        query[4] = snippet_dict["text"]
-        save_query(lab_dir, query, steps_file, index_page_str)
-    elif action == "next":
-        query[4] = snippet_dict["text"]
-        # Save current step
-        save_query(lab_dir, query, steps_file, index_page_str)
-        current_idx = int(query[0])
-        nsteps_now = int(query[-1] or 0)
-        # If we were on the last step, append a new blank step so the new button renders
-        if current_idx >= max(0, nsteps_now - 1):
-            new_total = max(nsteps_now + 1, current_idx + 2)
-            query[-1] = new_total
-            st.session_state[index_page_str][-1] = new_total
-        # Advance to next step index if possible
-        if query[0] < query[-1]:
-            query[0] = current_idx + 1
-            clean_query(index_page_str)
-        # Request prompt clear on next run and bump revision so the widget remounts blank
-        st.session_state[f"{index_page_str}__clear_q"] = True
-        st.session_state[f"{index_page_str}__force_blank_q"] = True
-        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-        # Force UI to refresh and load the newly selected step
-        st.rerun()
-        return
-    elif action == "run":
-        query[4] = snippet_dict["text"]
-        save_query(lab_dir, query, steps_file, index_page_str)
-        if query[4] and not st.session_state.get("step_checked", False):
-            selected_env = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-            engine_map = st.session_state.get(f"{index_page_str}__engine_map", {})
-            selected_engine = engine_map.get(step) or ("agi.run" if selected_env else "runpy")
-            if selected_engine == "runpy":
+
+        initial_q = entry.get("Q", "")
+        initial_c = entry.get("C", "")
+        apply_q = st.session_state.pop(apply_q_key, None)
+        apply_c = st.session_state.pop(apply_c_key, None)
+        if q_key not in st.session_state:
+            st.session_state[q_key] = apply_q if apply_q is not None else initial_q
+        # Do not overwrite an existing widget value after instantiation
+        if code_val_key not in st.session_state:
+            st.session_state[code_val_key] = apply_c if apply_c is not None else initial_c
+        if rev_key not in st.session_state:
+            st.session_state[rev_key] = 0
+        if undo_key not in st.session_state:
+            st.session_state[undo_key] = [(entry.get("Q", ""), entry.get("C", ""))]
+        elif not st.session_state[undo_key]:
+            st.session_state[undo_key] = [(entry.get("Q", ""), entry.get("C", ""))]
+
+        # Seed venv options
+        current_path = normalize_runtime_path(selected_map.get(step, ""))
+        if not current_path:
+            entry_venv = normalize_runtime_path(entry.get("E", ""))
+            if entry_venv:
+                selected_map[step] = entry_venv
+                current_path = entry_venv
+        venv_labels = ["Use AGILAB environment"] + available_venvs
+        if current_path and current_path not in venv_labels:
+            venv_labels.append(current_path)
+
+        live_entry = {
+            "Q": st.session_state.get(q_key, entry.get("Q", "")),
+            "C": st.session_state.get(code_val_key, entry.get("C", "")),
+        }
+        summary = _step_summary(live_entry, width=80) or f"Step {step + 1}"
+        dirty_key = f"{q_key}_dirty"
+        if st.session_state.pop(dirty_key, False):
+            # On a dirty change, refresh the summary by rerunning
+            st.rerun()
+        expanded_flag = expander_state.get(step, False)
+        with st.expander(f"{step + 1}. {summary}", expanded=expanded_flag):
+            # venv selector
+            venv_col, _ = st.columns([3, 2], gap="small")
+            with venv_col:
+                session_label = st.session_state.get(select_key, "")
+                initial_label = session_label or current_path or ""
+                if initial_label and initial_label not in venv_labels:
+                    venv_labels.append(initial_label)
+                default_label = initial_label or venv_labels[0]
+                if default_label not in venv_labels:
+                    venv_labels.append(default_label)
+                if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
+                    st.session_state[select_key] = default_label
+                selected_label = st.selectbox(
+                    "venv",
+                    venv_labels,
+                    key=select_key,
+                    help="Choose which virtual environment should execute this step.",
+                )
+                selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+                if selected_path:
+                    selected_map[step] = selected_path
+                else:
+                    selected_map.pop(step, None)
+
+            # Engine derived from venv selection
+            computed_engine = "agi.run" if selected_map.get(step) else "runpy"
+            engine_map[step] = computed_engine
+            st.session_state["lab_selected_engine"] = computed_engine
+
+            # Form for prompt and code
+            run_pressed = False
+            revert_pressed = False
+            save_pressed = False
+            delete_clicked = False
+            snippet_dict: Optional[Dict[str, Any]] = None
+            st.text_area(
+                "Ask code generator:",
+                key=q_key,
+                placeholder="Enter your code request in natural language",
+                label_visibility="collapsed",
+                on_change=lambda k=q_key: st.session_state.__setitem__(f"{q_key}_dirty", True),
+            )
+            btn_save, btn_run, btn_revert, btn_delete = st.columns([1, 1, 1, 1], gap="small")
+            with btn_save:
+                save_pressed = st.button(
+                    "Save (⌘+Enter)",
+                    type="secondary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_save_{step}",
+                )
+            with btn_run:
+                run_pressed = st.button(
+                    "Gen code",
+                    type="primary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_run_{step}",
+                )
+            with btn_revert:
+                revert_pressed = st.button(
+                    "Undo",
+                    type="secondary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_revert_{step}",
+                )
+            with btn_delete:
+                delete_clicked = st.button(
+                    "Remove",
+                    type="secondary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_delete_{step}",
+                )
+
+            # Code editor rendered outside the form so overlay actions fire without submit
+            code_text = st.session_state.get(code_val_key, "")
+            rev = st.session_state.get(rev_key, 0)
+            editor_key = f"{safe_prefix}a{step}-{rev}"
+            snippet_dict = code_editor(
+                code_text if code_text.endswith("\n") else code_text + "\n",
+                height=(min(30, len(code_text)) if code_text else 100),
+                theme="contrast",
+                buttons=get_custom_buttons(),
+                info=get_info_bar(),
+                component_props=get_css_text(),
+                props={"style": {"borderRadius": "0px 0px 8px 8px"}},
+                key=editor_key,
+            )
+
+            # Handle actions
+            if snippet_dict and snippet_dict.get("text") is not None:
+                st.session_state[code_val_key] = snippet_dict.get("text", "")
+            code_current = st.session_state.get(code_val_key, "")
+
+            if revert_pressed:
+                undo_stack = st.session_state.get(undo_key, [])
+                if len(undo_stack) > 1:
+                    undo_stack.pop()
+                restored_q, restored_c = undo_stack[-1] if undo_stack else ("", "")
+                st.session_state[undo_key] = undo_stack if undo_stack else [(restored_q, restored_c)]
+                # Queue the restore for next render to avoid touching instantiated widgets
+                st.session_state[pending_q_key] = restored_q
+                st.session_state[pending_c_key] = restored_c
+                # Persist the restored content so reload matches what was just shown
+                save_step(
+                    module_path,
+                    [entry.get("D", ""), restored_q, entry.get("M", ""), restored_c],
+                    step,
+                    total_steps,
+                    steps_file,
+                    venv_map=selected_map,
+                    engine_map=engine_map,
+                )
+                _bump_history_revision()
+                expander_state[step] = True
+                st.session_state[expander_state_key] = expander_state
+                st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+                st.rerun()
+
+            if save_pressed:
+                undo_stack = st.session_state.get(undo_key, [])
+                undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
+                st.session_state[undo_key] = undo_stack
+                if not str(code_current or "").strip():
+                    # If editor is empty, fall back to existing code so we still persist something
+                    code_current = entry.get("C", "")
+                st.session_state[code_val_key] = code_current
+                st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+                expander_state[step] = True
+                st.session_state[expander_state_key] = expander_state
+                save_step(
+                    module_path,
+                    [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_current],
+                    step,
+                    total_steps,
+                    steps_file,
+                    venv_map=selected_map,
+                    engine_map=engine_map,
+                )
+                # Force sync to disk in case upstream save was skipped/overwritten
+                _force_persist_step(
+                    module_path,
+                    steps_file,
+                    step,
+                    {
+                        "D": entry.get("D", ""),
+                        "Q": st.session_state.get(q_key, ""),
+                        "M": entry.get("M", ""),
+                        "C": code_current,
+                        "E": normalize_runtime_path(selected_map.get(step, "")),
+                        "R": engine_map.get(step, "") or ("agi.run" if selected_map.get(step) else "runpy"),
+                    },
+                )
+                # Queue what was saved; keys will be applied on next render if not already set
+                st.session_state[pending_q_key] = st.session_state.get(q_key, "")
+                st.session_state[pending_c_key] = code_current
+                st.session_state.pop(q_key, None)
+                st.session_state.pop(code_val_key, None)
+                # _append_run_log(index_page_str, f"Saved step {step + 1}.")
+                _bump_history_revision()
+                st.rerun()
+
+            overlay_type = snippet_dict.get("type") if snippet_dict else None
+            overlay_flag_key = f"{safe_prefix}_overlay_done_{step}"
+            overlay_sig_key = f"{safe_prefix}_overlay_sig_{step}"
+            current_sig = (
+                overlay_type,
+                snippet_dict.get("text") if snippet_dict else None,
+            )
+            last_sig = st.session_state.get(overlay_sig_key)
+            if overlay_type is None:
+                st.session_state.pop(overlay_flag_key, None)
+                st.session_state.pop(overlay_sig_key, None)
+            elif overlay_type in {"save", "run"} and current_sig == last_sig:
+                # Duplicate event from the editor; skip handling to avoid loops
+                continue
+            if snippet_dict and overlay_type == "save":
+                if st.session_state.get(overlay_flag_key):
+                    # Already handled; clear and skip
+                    st.session_state.pop(overlay_flag_key, None)
+                    snippet_dict = None
+                else:
+                    st.session_state[overlay_flag_key] = True
+                    st.session_state[overlay_sig_key] = current_sig
+                undo_stack = st.session_state.get(undo_key, [])
+                undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
+                st.session_state[undo_key] = undo_stack
+                code_current = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
+                if not str(code_current or "").strip():
+                    if not str(entry.get("C", "")).strip():
+                        st.warning("No code to save for this step.")
+                        continue
+                    code_current = entry.get("C", "")
+                st.session_state[code_val_key] = code_current
+                st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+                expander_state[step] = True
+                st.session_state[expander_state_key] = expander_state
+                save_step(
+                    module_path,
+                    [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_current],
+                    step,
+                    total_steps,
+                    steps_file,
+                    venv_map=selected_map,
+                    engine_map=engine_map,
+                )
+                _force_persist_step(
+                    module_path,
+                    steps_file,
+                    step,
+                    {
+                        "D": entry.get("D", ""),
+                        "Q": st.session_state.get(q_key, ""),
+                        "M": entry.get("M", ""),
+                        "C": code_current,
+                        "E": normalize_runtime_path(selected_map.get(step, "")),
+                        "R": engine_map.get(step, "") or ("agi.run" if selected_map.get(step) else "runpy"),
+                    },
+                )
+                # _append_run_log(index_page_str, f"Saved step {step + 1} (overlay).")
+                _bump_history_revision()
+            elif snippet_dict and overlay_type == "run":
+                if st.session_state.get(overlay_flag_key):
+                    # Already handled; clear and skip
+                    st.session_state.pop(overlay_flag_key, None)
+                    snippet_dict = None
+                else:
+                    st.session_state[overlay_flag_key] = True
+                    st.session_state[overlay_sig_key] = current_sig
+                # Execute the current code using the selected engine/venv
+                code_to_run = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
+                venv_root = normalize_runtime_path(selected_map.get(step, ""))
+                engine = (
+                    engine_map.get(step)
+                    or entry.get("R", "")
+                    or ("agi.run" if venv_root else "runpy")
+                )
+                snippet_file = st.session_state.get("snippet_file")
                 if not snippet_file:
                     st.error("Snippet file is not configured. Reload the page and try again.")
-                    return
-                run_lab([query[1], query[2], query[4]], snippet_file, env.copilot_file)
-            elif selected_env:
-                target_path = Path(selected_env).expanduser()
-                run_agi(query[4], path=target_path)
+                else:
+                    target_base = Path(steps_file).parent.resolve()
+                    target_base.mkdir(parents=True, exist_ok=True)
+                    run_output = ""
+                    if engine == "runpy":
+                        run_output = run_lab(
+                            [entry.get("D", ""), st.session_state.get(q_key, ""), code_to_run],
+                            snippet_file,
+                            env.copilot_file,
+                        )
+                    else:
+                        script_path = target_base / "AGI_run.py"
+                        script_path.write_text(code_to_run)
+                        run_output = _stream_run_command(
+                            env,
+                            index_page_str,
+                            f"uv -q run python {script_path.name}",
+                            cwd=target_base,
+                            placeholder=log_placeholder,
+                        )
+                    env_label = Path(venv_root).name if venv_root else "default env"
+                    summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
+                    _push_run_log(
+                        index_page_str,
+                        f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                        log_placeholder,
+                    )
+                    if run_output:
+                        preview = run_output.strip()
+                        if preview:
+                            _push_run_log(
+                                index_page_str,
+                                f"Output (step {step + 1}):\n{preview}",
+                                log_placeholder,
+                            )
+                            if "No such file or directory" in preview:
+                                _push_run_log(
+                                    index_page_str,
+                                    "Hint: the code tried to call a file that is not present in the export environment. "
+                                    "Adjust the step to use a path that exists under the export/lab directory.",
+                                    log_placeholder,
+                                )
+                    elif engine == "runpy":
+                        _push_run_log(
+                            index_page_str,
+                            f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                            log_placeholder,
+                        )
+
+            if run_pressed:
+                undo_stack = st.session_state.get(undo_key, [])
+                undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
+                st.session_state[undo_key] = undo_stack
+                prompt_text = st.session_state.get(q_key, "")
+                answer = ask_gpt(prompt_text, Path(st.session_state.df_file) if st.session_state.get("df_file") else Path(), index_page_str, env.envars)
+                # Merge the model detail (answer[4]) into the generated code (answer[3]) as a leading comment
+                merged_code = None
+                code_txt = answer[3] if len(answer) > 3 else ""
+                detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
+                if code_txt:
+                    summary_line = f"# {detail_txt}\n" if detail_txt else ""
+                    merged_code = f"{summary_line}{code_txt}"
+                    if len(answer) > 3:
+                        answer[3] = merged_code
+                else:
+                    # If no code returned, retain current editor content to avoid wiping the step
+                    merged_code = st.session_state.get(code_val_key, "")
+                    if len(answer) > 3:
+                        answer[3] = merged_code
+                save_step(
+                    module_path,
+                    answer,
+                    step,
+                    total_steps,
+                    steps_file,
+                    venv_map=selected_map,
+                    engine_map=engine_map,
+                )
+                # Force the UI to show exactly what we saved
+                if len(answer) > 1:
+                    st.session_state[pending_q_key] = answer[1]
+                st.session_state[pending_c_key] = merged_code if merged_code is not None else st.session_state.get(code_val_key, "")
+                st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+
+                detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                detail = answer[4] if len(answer) > 4 else ""
+                if detail:
+                    detail_store[step] = detail
+                env_label = Path(selected_map.get(step, "")).name if selected_map.get(step) else "default env"
+                summary = _step_summary({"Q": answer[1] if len(answer) > 1 else "", "C": answer[4] if len(answer) > 4 else ""})
+                _push_run_log(
+                    index_page_str,
+                    f"Step {step + 1}: engine={engine_map.get(step,'')}, env={env_label}, summary=\"{summary}\"",
+                    log_placeholder,
+                )
+                expander_state[step] = True
+                st.session_state[expander_state_key] = expander_state
+                st.rerun()
+                if log_placeholder is not None:
+                    logs = st.session_state.get(run_logs_key, [])
+                    if logs:
+                        log_placeholder.code("\n".join(logs))
+
+            if delete_clicked:
+                selected_map.pop(step, None)
+                st.session_state.pop(select_key, None)
+                remove_step(lab_dir, str(step), steps_file, index_page_str)
+                st.rerun()
+
+    # Add-step expander to append a new step at the end
+    new_q_key = f"{safe_prefix}_new_q"
+    new_venv_key = f"{safe_prefix}_new_venv"
+    if new_q_key not in st.session_state:
+        st.session_state[new_q_key] = ""
+    with st.expander("Add step", expanded=False):
+        st.text_area(
+            "Ask code generator:",
+            key=new_q_key,
+            placeholder="Enter your code request in natural language",
+            label_visibility="collapsed",
+        )
+        venv_labels = ["Use AGILAB environment"] + available_venvs
+        selected_new_venv = st.selectbox(
+            "venv",
+            venv_labels,
+            key=new_venv_key,
+            help="Choose which virtual environment should execute this step.",
+        )
+        selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+        run_new = st.button("Generate code", type="primary", use_container_width=True, key=f"{safe_prefix}_add_step_btn")
+        if run_new:
+            prompt_text = st.session_state.get(new_q_key, "").strip()
+            if prompt_text:
+                df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                new_idx = len(persisted_steps)
+                venv_map = selected_map.copy()
+                engine_map_local = engine_map.copy()
+                if selected_path:
+                    venv_map[new_idx] = selected_path
+                    engine_map_local[new_idx] = "agi.run"
+                else:
+                    engine_map_local[new_idx] = "runpy"
+                save_step(
+                    module_path,
+                    answer,
+                    new_idx,
+                    new_idx + 1,
+                    steps_file,
+                    venv_map=venv_map,
+                    engine_map=engine_map_local,
+                )
+                _bump_history_revision()
+                st.rerun()
             else:
-                if not snippet_file:
-                    st.error("Snippet file is not configured. Reload the page and try again.")
-                    return
-                run_lab([query[1], query[2], query[4]], snippet_file, env.copilot_file)
-            if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                export_target = st.session_state.get("df_file_out", "")
-                if save_csv(st.session_state["data"], export_target):
-                    st.session_state["df_file_in"] = export_target
-                    st.session_state["step_checked"] = True
-            summary = _step_summary(
-                {"Q": query[2] if len(query) > 2 else "", "C": query[4] if len(query) > 4 else ""}
-            )
-            env_label = Path(selected_env).name if selected_env else "default env"
-            _append_run_log(
-                index_page_str,
-                f"Step {step + 1}: engine={selected_engine}, env={env_label}, summary=\"{summary}\"",
-            )
-            if log_placeholder is not None:
-                logs = st.session_state.get(f"{index_page_str}__run_logs", [])
-                if logs:
-                    log_placeholder.code("\n".join(logs))
+                st.warning("Enter a prompt before generating code.")
+
+    with st.expander("Run logs", expanded=True):
+        clear_logs = st.button(
+            "Clear logs",
+            key=f"{index_page_str}__clear_logs_global",
+            type="secondary",
+            use_container_width=True,
+        )
+        if clear_logs:
+            st.session_state[run_logs_key] = []
+        log_placeholder = st.empty()
+        logs = st.session_state.get(run_logs_key, [])
+        if logs:
+            log_placeholder.code("\n".join(logs))
+        else:
+            log_placeholder.caption("No runs recorded yet.")
 
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
@@ -2863,7 +3163,11 @@ def display_lab_tab(
         )
 
     if run_all_clicked:
+        _push_run_log(index_page_str, "Run pipeline started…", log_placeholder)
+        # Collapse all step expanders after running the pipeline
+        st.session_state[expander_state_key] = {}
         run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=log_placeholder)
+        st.rerun()
     if delete_all_clicked:
         total_steps = st.session_state[index_page_str][-1]
         for idx_remove in reversed(range(total_steps)):
@@ -2965,7 +3269,8 @@ def page() -> None:
 
     sidebar_controls()
 
-    lab_dir = Path(st.session_state["lab_dir"])
+    # Use the steps file parent as the concrete lab directory path
+    lab_dir = Path(st.session_state["steps_file"]).parent
     index_page = st.session_state.get("index_page", lab_dir)
     index_page_str = str(index_page)
     steps_file = st.session_state["steps_file"]
@@ -2997,7 +3302,7 @@ def page() -> None:
     universal_offline_controls(env)
 
     display_lab_tab(lab_dir, index_page_str, steps_file, module_path, env)
-    with st.expander("History", expanded=False):
+    with st.expander("lab_steps.toml", expanded=False):
         display_history_tab(steps_file, module_path)
 
 
