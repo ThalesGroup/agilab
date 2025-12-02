@@ -1682,6 +1682,14 @@ def page():
 
     render_logo()
 
+    # Quick access to EXPERIMENT history
+    if st.sidebar.button("Open HISTORY (EXPERIMENT)"):
+        try:
+            st.switch_page("▶️ EXPERIMENT.py")
+        except Exception:
+            st.experimental_set_query_params(page="EXPERIMENT")
+            st.rerun()
+
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
         st.session_state["server_started"] = True
