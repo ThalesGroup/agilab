@@ -81,43 +81,5 @@
       "borderColor": "#4A90E2",
       "color": "#4A90E2"
     }
-  },
-  {
-    "name": "Next",
-    "hasText": true,
-    "showWithIcon": true,
-    "commands": [
-      "save-state",
-      [
-        "response",
-        "next"
-      ]
-    ],
-    "style": {
-      "bottom": "0.4rem",
-      "right": "28.4rem",
-      "backgroundColor": "#ffffff",
-      "borderColor": "#4A90E2",
-      "color": "#4A90E2"
-    }
-  },
-  {
-    "name": "Remove",
-    "hasText": true,
-    "showWithIcon": true,
-    "commands": [
-      "save-state",
-      [
-        "response",
-        "remove"
-      ]
-    ],
-    "style": {
-      "bottom": "0.4rem",
-      "right": "14.4rem",
-      "backgroundColor": "#ffffff",
-      "borderColor": "#4A90E2",
-      "color": "#4A90E2"
-    }
   }
 ]
