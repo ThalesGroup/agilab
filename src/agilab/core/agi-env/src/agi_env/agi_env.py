@@ -45,6 +45,7 @@ import socket
 import subprocess
 import sys
 import traceback
+from typing import Optional
 from functools import lru_cache
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import tempfile
@@ -265,34 +266,46 @@ def is_packaging_cmd(cmd: str) -> bool:
 
 
 def _resolve_share_dir(
-    share_dir_raw: str | None,
+    cluster_share_raw: str | None,
+    local_fallback_raw: str | None,
     home_abs: Path,
-    local_fallback: str | None = None,
     logger: logging.Logger | None = None,
-) -> tuple[Path, bool]:
-    """Resolve AGI_SHARE_DIR, optionally falling back when a local fallback is provided."""
-    share_dir = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
-    share_dir_expanded = share_dir.expanduser()
-    agi_share_dir = share_dir_expanded if share_dir_expanded.is_absolute() else (home_abs / share_dir_expanded).expanduser()
+) -> tuple[Path, bool, Optional[Path]]:
+    """Return the preferred share directory path and whether the fallback was used.
 
-    if agi_share_dir.is_dir():
-        return agi_share_dir, False
+    The resolution is intentionally simple:
+      1. Use ``AGI_CLUSTER_SHARE`` (or legacy ``AGI_SHARE_DIR``) when it exists.
+      2. Otherwise fall back to ``AGI_LOCAL_SHARE`` (defaulting to ``~/localshare``).
+    """
 
-    if local_fallback:
-        fallback_path = Path(local_fallback).expanduser()
+    def _expand(raw: str | Path) -> Path:
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = (home_abs / path).expanduser()
+        return path
+
+    cluster_candidate: Optional[Path] = None
+    if cluster_share_raw:
+        cluster_candidate = _expand(cluster_share_raw)
         try:
-            fallback_path.mkdir(parents=True, exist_ok=True)
-            if logger:
-                logger.warning(
-                    "AGI_SHARE_DIR '%s' unavailable; falling back to local share '%s'.",
-                    agi_share_dir,
-                    fallback_path,
-                )
-            return fallback_path, True
+            if cluster_candidate.is_dir():
+                return cluster_candidate, False, cluster_candidate
         except Exception:
             pass
+        if logger:
+            logger.warning(
+                "AGI_CLUSTER_SHARE '%s' unavailable; falling back to AGI_LOCAL_SHARE.",
+                cluster_candidate,
+            )
 
-    return agi_share_dir, False
+    fallback_raw = local_fallback_raw or (home_abs / "localshare")
+    fallback_path = _expand(fallback_raw)
+    try:
+        fallback_path.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        if logger:
+            logger.error("Failed to prepare AGI_LOCAL_SHARE at %s: %s", fallback_path, exc)
+    return fallback_path, True, cluster_candidate
 
 class _AgiEnvMeta(type):
     """Delegate AgiEnv class attribute access to the singleton instance.
@@ -940,22 +953,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.uv_worker = self.uv
             use_freethread = False
 
-        share_dir_raw = self.envars.get("AGI_SHARE_DIR") or self.envars.get("AGI_LOCAL_SHARE") or (self.home_abs / "localshare")
+        cluster_share_raw = (
+            self.envars.get("AGI_CLUSTER_SHARE")
+            or self.envars.get("AGI_SHARE_DIR")
+        )
         agi_local_share = self.envars.get("AGI_LOCAL_SHARE") or (self.home_abs / "localshare")
-        resolved_share_dir, used_fallback = _resolve_share_dir(
-            share_dir_raw=share_dir_raw,
-            home_abs=self.home_abs,
-            local_fallback=agi_local_share,
+        resolved_share_dir, used_fallback, cluster_candidate = _resolve_share_dir(
+            cluster_share_raw,
+            agi_local_share,
+            self.home_abs,
             logger=AgiEnv.logger,
         )
-        share_dir_path = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
+        self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
         # Expose the effective share directory (fallbacks resolved) to callers.
         self.AGI_SHARE_DIR = resolved_share_dir
-        self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
-        # Resolved path is authoritative for local access; keep raw for reference
-        self.agi_share_dir_raw = share_dir_path
         self.agi_share_dir = resolved_share_dir
         self.AGILAB_SHARE = resolved_share_dir
+        self.agi_share_dir_raw = (
+            Path(cluster_share_raw).expanduser()
+            if cluster_share_raw
+            else resolved_share_dir
+        )
         self._used_share_fallback = used_fallback
 
         # Ensure the chosen share base exists; if not, try local share (if set) or home.
@@ -966,8 +984,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 self.agi_share_dir = Path(fallback_base).expanduser()
                 self.AGILAB_SHARE = self.agi_share_dir
                 AgiEnv.logger.warning(
-                    "AGI_SHARE_DIR '%s' unavailable; using fallback '%s'.",
-                    share_dir_path,
+                    "AGI_CLUSTER_SHARE '%s' unavailable; using fallback '%s'.",
+                    cluster_candidate if cluster_candidate else "(unset)",
                     self.agi_share_dir,
                 )
             except Exception as exc:
