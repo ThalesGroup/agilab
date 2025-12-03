@@ -2704,7 +2704,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if dataset.exists() and force_refresh:
             try:
-                shutil.rmtree(dataset)
+                def _ignore_missing(func, path, excinfo):
+                    exc = excinfo[1]
+                    if isinstance(exc, FileNotFoundError):
+                        return
+                    raise exc
+
+                shutil.rmtree(dataset, onerror=_ignore_missing)
+            except FileNotFoundError:
+                # Finder metadata files ("._*") may disappear during rmtree on macOS.
+                # Treat missing entries as success so installs remain idempotent.
+                pass
             except PermissionError as exc:
                 if AgiEnv.verbose > 0:
                     AgiEnv.logger.info(
