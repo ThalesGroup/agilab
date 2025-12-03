@@ -15,13 +15,13 @@
 | asttokens | APACHE 2.0 |
 | async-lru | MIT LICENSE |
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
-| attrs | MIT LICENSE |
+| attrs | MIT |
 | babel | BSD LICENSE |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
 | bleach | APACHE SOFTWARE LICENSE |
 | blinker | MIT LICENSE |
-| brotli | MIT |
+| brotli | MIT LICENSE |
 | cachetools | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | MIT |
@@ -32,7 +32,7 @@
 | comm | BSD LICENSE |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cython | APACHE SOFTWARE LICENSE |
-| dask | BSD-3-CLAUSE |
+| dask | BSD LICENSE |
 | debugpy | MIT LICENSE |
 | decorator | BSD LICENSE |
 | defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
@@ -44,14 +44,14 @@
 | gitdb | BSD LICENSE |
 | gitpython | BSD-3-CLAUSE |
 | h11 | MIT LICENSE |
-| httpcore | BSD-3-CLAUSE |
+| httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
 | humanize | MIT License |
-| idna | BSD-3-CLAUSE |
+| idna | BSD LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | invoke | BSD LICENSE |
 | ipykernel | BSD-3-CLAUSE |
-| ipython | BSD-3-CLAUSE |
+| ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | ipywidgets | BSD LICENSE |
 | isoduration | ISC LICENSE _ISCL_ |
@@ -75,6 +75,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | lark | MIT LICENSE |
+| librt | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | markupsafe | BSD-3-CLAUSE |
@@ -142,7 +143,6 @@
 | setuptools | MIT |
 | six | MIT LICENSE |
 | smmap | BSD LICENSE |
-| sniffio | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
 | soupsieve | MIT LICENSE |
 | stack-data | MIT LICENSE |
