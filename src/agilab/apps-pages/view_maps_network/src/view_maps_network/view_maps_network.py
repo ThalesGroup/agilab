@@ -946,24 +946,19 @@ def page():
             # fallback to first non-time column if possible
             picked_id = next((c for c in all_cols if c not in time_pref), all_cols[0])
         st.session_state["id_col"] = picked_id
-    id_default = st.session_state["id_col"]
-    time_default = st.session_state.get("time_col")
-    if time_default not in all_cols:
+    if st.session_state.get("time_col") not in all_cols:
         time_default = next((c for c in time_pref if c in all_cols), all_cols[0])
         st.session_state["time_col"] = time_default
-    id_index = all_cols.index(id_default) if id_default in all_cols else 0
-    time_index = all_cols.index(time_default) if time_default in all_cols else 0
-    # Pass the index aligned with session state to avoid Streamlit default/state conflicts
+
+    # With session state primed above, avoid passing index/defaults to prevent Streamlit warnings
     flight_col = st.sidebar.selectbox(
         "ID column",
         options=all_cols,
-        index=id_index,
         key="id_col",
     )
     time_col = st.sidebar.selectbox(
         "Timestamp column",
         options=all_cols,
-        index=time_index,
         key="time_col",
     )
 
