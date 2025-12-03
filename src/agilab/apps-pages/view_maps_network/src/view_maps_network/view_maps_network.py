@@ -140,6 +140,20 @@ link_colors_plotly = {
     "ivbl_link": "rgb(255, 69, 0)",
 }
 _DEFAULT_LINK_ORDER = ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]
+_LINK_LABELS = {
+    "satcom_link": "SAT",
+    "optical_link": "OPT",
+    "legacy_link": "LEG",
+    "ivbl_link": "IVDL",
+}
+
+def _label_for_link(column: str) -> str:
+    if column in _LINK_LABELS:
+        return _LINK_LABELS[column]
+    label = column
+    if label.endswith("_link"):
+        label = label[: -len("_link")]
+    return label.replace("_", " ").upper()
 
 def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
     seen = set()
@@ -212,6 +226,7 @@ def create_edges_geomap(df, link_column, current_positions):
         [link_column, "flight_id", "long", "lat", "alt"],
     ]
     edges_list = []
+    label_text = _label_for_link(link_column)
     for _, row in link_edges.iterrows():
         links = row[link_column]
         if links is not None:
@@ -230,7 +245,7 @@ def create_edges_geomap(df, link_column, current_positions):
                         {
                             "source": source_pos[["long", "lat", "alt"]].values[0].tolist(),
                             "target": target_pos[["long", "lat", "alt"]].values[0].tolist(),
-                            "label": f"{source}->{target}",
+                            "label": label_text,
                             "midpoint": [mid_long, mid_lat, mid_alt],
                         }
                     )
@@ -266,6 +281,10 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map):
             get_size=16,
             get_color=rgb_color[:3],
             get_alignment_baseline="'bottom'",
+            billboard=True,
+            get_angle=0,
+            get_text_anchor='"middle"',
+            pickable=False,
         )
         layers.extend([line_layer, text_layer])
 
@@ -410,30 +429,50 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
         if path.suffix.lower() in {".parquet", ".pq", ".parq"}:
             df = pd.read_parquet(path)
         else:
-            df = pd.read_json(path)
+            read_kwargs = {}
+            if path.suffix.lower() in {".jsonl", ".ndjson"}:
+                read_kwargs["lines"] = True
+            df = pd.read_json(path, **read_kwargs)
     except Exception:
         return {}
+    # Allow case-insensitive / synonym column names
+    col_map = {c.lower(): c for c in df.columns}
+    source_col = col_map.get("source") or col_map.get("src") or col_map.get("from")
+    target_col = col_map.get("target") or col_map.get("dst") or col_map.get("to")
+    bearer_col = (
+        col_map.get("bearer")
+        or col_map.get("link_type")
+        or col_map.get("type")
+        or col_map.get("link")
+    )
+    if not (source_col and target_col and bearer_col):
+        return {}
+
     edges_by_type: dict[str, list[tuple[int, int]]] = {k: [] for k in _DEFAULT_LINK_ORDER}
-    if {"source", "target", "bearer"}.issubset(df.columns):
-        for _, row in df.iterrows():
-            try:
-                u = str(row["source"])
-                v = str(row["target"])
-                bearer = str(row["bearer"]).lower()
-            except Exception:
-                continue
-            key = None
-            if "sat" in bearer:
-                key = "satcom_link"
-            elif "opt" in bearer:
-                key = "optical_link"
-            elif "legacy" in bearer:
-                key = "legacy_link"
-            elif "iv" in bearer:
-                key = "ivbl_link"
-            else:
-                key = bearer.replace(" ", "_") or "link"
-            edges_by_type.setdefault(key, []).append((u, v))
+    for _, row in df.iterrows():
+        try:
+            u = str(row[source_col])
+            v = str(row[target_col])
+            bearer_raw = str(row[bearer_col]).strip()
+        except Exception:
+            continue
+        if not u or not v or not bearer_raw:
+            continue
+        bearer = bearer_raw.lower()
+        if "sat" in bearer:
+            key = "satcom_link"
+        elif "opt" in bearer:
+            key = "optical_link"
+        elif "legacy" in bearer:
+            key = "legacy_link"
+        elif "iv" in bearer:
+            key = "ivbl_link"
+        else:
+            key = bearer.replace(" ", "_")
+        key = key or "link"
+        edges_by_type.setdefault(key, []).append((u, v))
+    # Drop empty groups
+    edges_by_type = {k: v for k, v in edges_by_type.items() if v}
     return edges_by_type
 
 def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
@@ -1023,25 +1062,38 @@ def page():
             Path(env.agi_share_dir),
             env.AGILAB_EXPORT_ABS,
             Path(st.session_state.datadir),
+            Path(env.agi_share_dir) / "example_app" / "dataframe",
+            Path(env.agi_share_dir) / "example_app" / "dataframe",
         ]
     )
-    default_edges_path = str(default_edges_candidates[0]) if default_edges_candidates else ""
+    example_edges_path = str(Path(env.agi_share_dir) / "example_app/pipeline/routing_edges.jsonl")
+    edges_placeholder = f"e.g. {example_edges_path}"
     edges_file = st.sidebar.text_input(
         "Edges file (optional, JSON/Parquet with source/target/bearer)",
-        value=st.session_state.get("edges_file_input", default_edges_path),
+        value=st.session_state.get("edges_file_input", ""),
+        placeholder=edges_placeholder,
         key="edges_file_input",
     )
     if default_edges_candidates:
         detected_opt = ["(none)"] + [str(p) for p in default_edges_candidates]
-        detected_choice = st.sidebar.selectbox("Detected edges files", detected_opt, index=0)
+        detected_choice = st.sidebar.selectbox("Detected edges files", detected_opt, index=0, key="edges_detected_select")
         if detected_choice != "(none)":
+            st.session_state["edges_file_input"] = detected_choice
             edges_file = detected_choice
-            st.session_state["edges_file_input"] = edges_file
-    edges_path = Path(edges_file).expanduser() if edges_file else None
+    edges_clean = edges_file.strip()
+    if edges_clean == example_edges_path and not Path(edges_clean).expanduser().exists():
+        edges_clean = ""
+        st.session_state["edges_file_input"] = ""
+    edges_path = Path(edges_clean).expanduser() if edges_clean else None
     loaded_edges = {}
     if edges_path and edges_path.exists():
         loaded_edges = load_edges_file(edges_path)
-    if edges_path and not edges_path.exists():
+        if not loaded_edges:
+            st.sidebar.info(
+                "Edges file loaded but no valid 'source/target/bearer' rows were detected. "
+                "Ensure the file includes those columns."
+            )
+    if edges_clean and edges_path and not edges_path.exists():
         st.sidebar.warning(f"Edges file not found: {edges_path}")
 
     link_options = _detect_link_columns(df_std)
@@ -1109,22 +1161,16 @@ def page():
     if not unique_timestamps:
         st.error(f"No timestamps found in '{time_col}'.")
         st.stop()
-    # Initialize selected time once; keep user/autoplay choice on reruns
+    # Initialize selected time once; keep user choice on reruns
     if "selected_time" not in st.session_state or st.session_state.selected_time not in unique_timestamps:
         st.session_state.selected_time = unique_timestamps[0]
     # Track index explicitly to avoid equality drift with numpy types
     if "selected_time_idx" not in st.session_state or st.session_state.selected_time not in unique_timestamps:
         st.session_state.selected_time_idx = unique_timestamps.index(st.session_state.selected_time) if st.session_state.selected_time in unique_timestamps else 0
 
-    # Time controls with optional autoplay
-    if "auto_play" not in st.session_state:
-        st.session_state.auto_play = False
-    if "_auto_play_tick" not in st.session_state:
-        st.session_state["_auto_play_tick"] = 0
-    if "auto_step" not in st.session_state:
-        st.session_state.auto_step = 1
+    # Time controls
     with st.container():
-        cola, colb, colc, col_step, col_play = st.columns([0.3, 7.5, 0.6, 1.0, 0.8])
+        cola, colb, colc = st.columns([0.3, 7.5, 0.6])
         with cola:
             if st.button("◁", key="decrement_button"):
                 decrement_time(unique_timestamps)
@@ -1146,32 +1192,6 @@ def page():
         with colc:
             if st.button("▷", key="increment_button"):
                 increment_time(unique_timestamps)
-        with col_step:
-            st.session_state.auto_step = st.number_input(
-                "Step",
-                min_value=1,
-                max_value=len(unique_timestamps),
-                value=st.session_state.auto_step,
-                step=1,
-                key="auto_step_input",
-            )
-        with col_play:
-            play_label = "⏸" if st.session_state.auto_play else "▶️"
-            if st.button(play_label, key="play_toggle"):
-                st.session_state.auto_play = not st.session_state.auto_play
-
-    # Autoplay: advance by step per rerun until the end
-    if st.session_state.auto_play:
-        idx = st.session_state.get("selected_time_idx", 0)
-        step = st.session_state.get("auto_step", 1)
-        next_idx = min(idx + step, len(unique_timestamps) - 1)
-        if next_idx > idx:
-            st.session_state.selected_time_idx = next_idx
-            st.session_state.selected_time = unique_timestamps[next_idx]
-            st.session_state["_auto_play_tick"] = st.session_state.get("_auto_play_tick", 0) + 1
-            st.rerun()
-        else:
-            st.session_state.auto_play = False
 
     # Per-node latest position up to the selected time (avoid dropping sparse nodes); fall back to last known
     df_time_masked = df[df[time_col] <= st.session_state.selected_time]
