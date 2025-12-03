@@ -1594,6 +1594,8 @@ def remove_step(
     venv_store = st.session_state.setdefault(venv_key, {})
     engine_key = f"{index_page}__engine_map"
     engine_store = st.session_state.setdefault(engine_key, {})
+    sequence_key = f"{index_page}__run_sequence"
+    sequence_store = st.session_state.setdefault(sequence_key, list(range(nsteps)))
     if 0 <= index_step < nsteps:
         del steps[module_key][index_step]
         nsteps -= 1
@@ -1620,10 +1622,21 @@ def remove_step(
             elif idx > index_step:
                 eshifted[idx - 1] = engine
         st.session_state[engine_key] = eshifted
+        new_sequence: List[int] = []
+        for idx in sequence_store:
+            if idx == index_step:
+                continue
+            new_idx = idx - 1 if idx > index_step else idx
+            if 0 <= new_idx < nsteps and new_idx not in new_sequence:
+                new_sequence.append(new_idx)
+        if nsteps > 0 and not new_sequence:
+            new_sequence = list(range(nsteps))
+        st.session_state[sequence_key] = new_sequence
     else:
         st.session_state[index_page][0] = 0
         st.session_state[venv_key] = venv_store
         st.session_state[engine_key] = engine_store
+        st.session_state[sequence_key] = [idx for idx in sequence_store if idx < nsteps]
 
     steps[module_key] = _prune_invalid_entries(steps[module_key])
     nsteps = len(steps[module_key])
@@ -1845,6 +1858,7 @@ def run_all_steps(
 
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
     engine_map = st.session_state.setdefault(f"{index_page_str}__engine_map", {})
+    sequence_state_key = f"{index_page_str}__run_sequence"
     details_store = st.session_state.setdefault(f"{index_page_str}__details", {})
     original_step = st.session_state[index_page_str][0]
     original_selected = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
@@ -1856,9 +1870,15 @@ def run_all_steps(
         _push_run_log(index_page_str, "Run pipeline aborted: snippet file not configured.", log_placeholder)
         return
 
+    raw_sequence = st.session_state.get(sequence_state_key, [])
+    sequence = [idx for idx in raw_sequence if 0 <= idx < len(steps)]
+    if not sequence:
+        sequence = list(range(len(steps)))
+
     executed = 0
     with st.spinner("Running all steps…"):
-        for idx, entry in enumerate(steps):
+        for idx in sequence:
+            entry = steps[idx]
             code = entry.get("C", "")
             if not _is_valid_step(entry) or not code:
                 continue
@@ -2205,10 +2225,25 @@ def sidebar_controls() -> None:
 
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
-    steps_files_path = [Path(file) for file in steps_files]
-    steps_files_rel = [file.relative_to(Agi_export_abs) for file in steps_files_path]
+    lab_root = Path(st.session_state["lab_dir_selectbox"]).name
+    steps_files_path = [
+        Path(file)
+        for file in steps_files
+        if Path(file).is_file()
+        and Path(file).suffix.lower() == ".toml"
+        and "lab_steps" in Path(file).name
+    ]
     steps_file_rel = sorted(
-        [file for file in steps_files_rel if file.parts[0].startswith(st.session_state["lab_dir"])]
+        [
+            rel_path
+            for rel_path in (
+                file.relative_to(Agi_export_abs)
+                for file in steps_files_path
+                if file.is_relative_to(Agi_export_abs)
+            )
+            if rel_path.parts and rel_path.parts[0] == lab_root
+        ],
+        key=str,
     )
 
     if "index_page" not in st.session_state:
@@ -2600,8 +2635,23 @@ def display_lab_tab(
     total_steps = len(persisted_steps)
     st.session_state[index_page_str][0] = 0
     st.session_state[index_page_str][-1] = total_steps
+    sequence_state_key = f"{index_page_str}__run_sequence"
+    if total_steps == 0:
+        st.session_state[sequence_state_key] = []
+    else:
+        current_sequence = [idx for idx in st.session_state.get(sequence_state_key, []) if 0 <= idx < total_steps]
+        for idx in range(total_steps):
+            if idx not in current_sequence:
+                current_sequence.append(idx)
+        st.session_state[sequence_state_key] = current_sequence
 
     safe_prefix = index_page_str.replace("/", "_")
+    total_steps_key = f"{safe_prefix}_total_steps"
+    prev_total = st.session_state.get(total_steps_key)
+    if prev_total != total_steps:
+        st.session_state[total_steps_key] = total_steps
+        expander_reset_key = f"{safe_prefix}_expander_open"
+        st.session_state[expander_reset_key] = {}
 
     available_venvs = [
         normalize_runtime_path(path) for path in get_available_virtualenvs(env)
@@ -2690,7 +2740,6 @@ def display_lab_tab(
         undo_key = f"{safe_prefix}_undo_{step}"
         apply_q_key = f"{q_key}_apply_pending"
         apply_c_key = f"{code_val_key}_apply_pending"
-
         # Apply any pending updates (set during a previous run-trigger) before rendering widgets.
         pending_q = st.session_state.pop(pending_q_key, None)
         pending_c = st.session_state.pop(pending_c_key, None)
@@ -3146,6 +3195,41 @@ def display_lab_tab(
         else:
             log_placeholder.caption("No runs recorded yet.")
 
+    sequence_state_key = f"{index_page_str}__run_sequence"
+    sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
+    if total_steps > 0:
+        sequence_options = list(range(total_steps))
+        summary_labels = {
+            idx: _step_summary(persisted_steps[idx], width=80) or f"Step {idx + 1}"
+            for idx in sequence_options
+        }
+        stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
+        if not stored_sequence:
+            stored_sequence = sequence_options
+            st.session_state[sequence_state_key] = stored_sequence
+        if sequence_widget_key not in st.session_state:
+            st.session_state[sequence_widget_key] = stored_sequence
+        else:
+            st.session_state[sequence_widget_key] = [
+                idx for idx in st.session_state[sequence_widget_key] if idx in sequence_options
+            ]
+            if not st.session_state[sequence_widget_key]:
+                st.session_state[sequence_widget_key] = stored_sequence
+
+        def _format_sequence_option(idx: int) -> str:
+            label = summary_labels.get(idx, f"Step {idx + 1}")
+            return f"Step {idx + 1}: {label}"
+
+        selected_sequence = st.multiselect(
+            "Execution sequence",
+            options=sequence_options,
+            key=sequence_widget_key,
+            format_func=_format_sequence_option,
+            help="Select which steps to run. They execute in the order shown.",
+        )
+        sanitized_selection = [idx for idx in selected_sequence if idx in sequence_options]
+        st.session_state[sequence_state_key] = sanitized_selection or sequence_options
+
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
         run_all_clicked = st.button(
@@ -3177,6 +3261,8 @@ def display_lab_tab(
         st.session_state[index_page_str] = [0, "", "", "", "", "", 0]
         st.session_state[f"{index_page_str}__details"] = {}
         st.session_state[f"{index_page_str}__venv_map"] = {}
+        st.session_state[f"{index_page_str}__run_sequence"] = []
+        st.session_state.pop(sequence_widget_key, None)
         st.session_state["lab_selected_venv"] = ""
         st.session_state[f"{index_page_str}__clear_q"] = True
         st.session_state[f"{index_page_str}__force_blank_q"] = True
