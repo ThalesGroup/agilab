@@ -375,6 +375,58 @@ def _ensure_primary_module_key(module: Union[str, Path], steps_file: Path) -> No
         logger.warning("Failed to normalize module keys for %s", steps_file)
 
 
+def _sequence_meta_key(module_key: str) -> str:
+    return f"{module_key}__sequence"
+
+
+def _load_sequence_preferences(module: Union[str, Path], steps_file: Path) -> List[int]:
+    """Return the stored execution order for a module, if any."""
+    module_key = _module_keys(module)[0]
+    try:
+        with open(steps_file, "rb") as f:
+            data = tomllib.load(f)
+    except FileNotFoundError:
+        return []
+    except tomllib.TOMLDecodeError as exc:
+        logger.warning("Failed to parse sequence metadata from %s: %s", steps_file, exc)
+        return []
+    meta = data.get("__meta__", {})
+    raw_sequence = meta.get(_sequence_meta_key(module_key), [])
+    if not isinstance(raw_sequence, list):
+        return []
+    return [idx for idx in raw_sequence if isinstance(idx, int) and idx >= 0]
+
+
+def _persist_sequence_preferences(
+    module: Union[str, Path],
+    steps_file: Path,
+    sequence: List[int],
+) -> None:
+    """Persist the execution sequence ordering alongside the steps file."""
+    module_key = _module_keys(module)[0]
+    normalized = [int(idx) for idx in sequence if isinstance(idx, int) and idx >= 0]
+    try:
+        if steps_file.exists():
+            with open(steps_file, "rb") as f:
+                data = tomllib.load(f)
+        else:
+            data = {}
+    except tomllib.TOMLDecodeError as exc:
+        logger.error("Failed to load steps while saving sequence metadata: %s", exc)
+        return
+    meta = data.setdefault("__meta__", {})
+    meta_key = _sequence_meta_key(module_key)
+    if meta.get(meta_key) == normalized:
+        return
+    meta[meta_key] = normalized
+    try:
+        steps_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(steps_file, "wb") as f:
+            tomli_w.dump(convert_paths_to_strings(data), f)
+    except Exception as exc:
+        logger.error("Failed to persist execution sequence to %s: %s", steps_file, exc)
+
+
 def _is_valid_step(entry: Dict[str, Any]) -> bool:
     """Return True if a step contains meaningful content."""
     if not entry:
@@ -1641,6 +1693,8 @@ def remove_step(
     steps[module_key] = _prune_invalid_entries(steps[module_key])
     nsteps = len(steps[module_key])
     st.session_state[index_page][-1] = nsteps
+    current_sequence = st.session_state.get(sequence_key, [])
+    _persist_sequence_preferences(module_path, steps_file, current_sequence)
 
     serializable_steps = convert_paths_to_strings(steps)
     try:
@@ -2633,21 +2687,34 @@ def display_lab_tab(
         except Exception:
             pass
     total_steps = len(persisted_steps)
-    st.session_state[index_page_str][0] = 0
-    st.session_state[index_page_str][-1] = total_steps
-    sequence_state_key = f"{index_page_str}__run_sequence"
-    if total_steps == 0:
-        st.session_state[sequence_state_key] = []
-    else:
-        current_sequence = [idx for idx in st.session_state.get(sequence_state_key, []) if 0 <= idx < total_steps]
-        for idx in range(total_steps):
-            if idx not in current_sequence:
-                current_sequence.append(idx)
-        st.session_state[sequence_state_key] = current_sequence
-
     safe_prefix = index_page_str.replace("/", "_")
     total_steps_key = f"{safe_prefix}_total_steps"
     prev_total = st.session_state.get(total_steps_key)
+    st.session_state[index_page_str][0] = 0
+    st.session_state[index_page_str][-1] = total_steps
+
+    sequence_state_key = f"{index_page_str}__run_sequence"
+    stored_sequence = st.session_state.get(sequence_state_key)
+    if stored_sequence is None:
+        stored_sequence = _load_sequence_preferences(module_path, steps_file)
+        st.session_state[sequence_state_key] = stored_sequence
+
+    if total_steps == 0:
+        if stored_sequence:
+            st.session_state[sequence_state_key] = []
+            _persist_sequence_preferences(module_path, steps_file, [])
+    else:
+        current_sequence = [idx for idx in stored_sequence if 0 <= idx < total_steps]
+        if not current_sequence:
+            current_sequence = list(range(total_steps))
+        elif isinstance(prev_total, int) and total_steps > prev_total:
+            for idx in range(prev_total, total_steps):
+                if idx not in current_sequence:
+                    current_sequence.append(idx)
+        if current_sequence != st.session_state[sequence_state_key]:
+            st.session_state[sequence_state_key] = current_sequence
+            _persist_sequence_preferences(module_path, steps_file, current_sequence)
+
     if prev_total != total_steps:
         st.session_state[total_steps_key] = total_steps
         expander_reset_key = f"{safe_prefix}_expander_open"
@@ -3005,6 +3072,13 @@ def display_lab_tab(
                 )
                 # _append_run_log(index_page_str, f"Saved step {step + 1} (overlay).")
                 _bump_history_revision()
+                # Mirror the manual save flow so the expander stays open after rerun.
+                st.session_state[pending_q_key] = st.session_state.get(q_key, "")
+                st.session_state[pending_c_key] = code_current
+                st.session_state.pop(q_key, None)
+                st.session_state.pop(code_val_key, None)
+                st.session_state[expander_state_key] = expander_state
+                st.rerun()
             elif snippet_dict and overlay_type == "run":
                 if st.session_state.get(overlay_flag_key):
                     # Already handled; clear and skip
@@ -3230,7 +3304,10 @@ def display_lab_tab(
             help="Select which steps to run. They execute in the order shown.",
         )
         sanitized_selection = [idx for idx in selected_sequence if idx in sequence_options]
-        st.session_state[sequence_state_key] = sanitized_selection or sequence_options
+        final_sequence = sanitized_selection or sequence_options
+        if st.session_state.get(sequence_state_key) != final_sequence:
+            st.session_state[sequence_state_key] = final_sequence
+            _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
@@ -3256,6 +3333,7 @@ def display_lab_tab(
         st.session_state[expander_state_key] = {}
         run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=log_placeholder)
         st.rerun()
+
     if delete_all_clicked:
         total_steps = st.session_state[index_page_str][-1]
         for idx_remove in reversed(range(total_steps)):
@@ -3271,6 +3349,7 @@ def display_lab_tab(
         st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
         st.session_state.pop(select_key, None)
         _bump_history_revision()
+        _persist_sequence_preferences(module_path, steps_file, [])
         st.rerun()
 
     if st.session_state.pop("_experiment_reload_required", False):
