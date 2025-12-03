@@ -34,7 +34,7 @@ Main Content Area
       * ``Next`` persists the snippet and advances to a fresh step.
       * ``Remove`` deletes the step from ``lab_steps.toml``.
       * ``Run`` writes the snippet to ``lab_snippet.py``, executes it and stores any
-        produced dataframe under ``lab_export_out.csv`` so the preview and the
+        produced dataframe under ``lab_out.csv`` so the preview and the
         Execute/Explore pages can consume the result.
 
       The runtime is chosen from the *Execution environment* box below the editor.

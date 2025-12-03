@@ -42,7 +42,7 @@ from agi_env.defaults import get_default_openai_model
 
 # Constants
 STEPS_FILE_NAME = "lab_steps.toml"
-DEFAULT_DF = "export.csv"
+DEFAULT_DF = "lab_out.csv"
 JUPYTER_URL = "http://localhost:8888"
 LAST_ACTIVE_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
 
@@ -1776,11 +1776,7 @@ def save_step(
     code_text = entry.get("C", "")
     if not isinstance(code_text, str):
         code_text = str(code_text or "")
-    # If new code is empty, preserve previous code when available
-    if not code_text.strip() and existing_entry.get("C"):
-        entry["C"] = existing_entry.get("C", "")
-    else:
-        entry["C"] = code_text
+    entry["C"] = code_text
 
     nsteps_saved = len(steps[module_str])
     nsteps = max(int(nsteps), nsteps_saved)
@@ -2582,6 +2578,11 @@ def display_lab_tab(
     module_path: Path,
     env: AgiEnv,
 ) -> None:
+    def _normalize_editor_text(raw: Optional[str]) -> str:
+        if raw is None:
+            return ""
+        text = str(raw)
+        return text if text.strip() else ""
     """Display the pipeline tab with steps and query input."""
     # Reset active step and count to reflect persisted steps
     persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
@@ -2599,6 +2600,8 @@ def display_lab_tab(
     total_steps = len(persisted_steps)
     st.session_state[index_page_str][0] = 0
     st.session_state[index_page_str][-1] = total_steps
+
+    safe_prefix = index_page_str.replace("/", "_")
 
     available_venvs = [
         normalize_runtime_path(path) for path in get_available_virtualenvs(env)
@@ -2630,7 +2633,7 @@ def display_lab_tab(
             st.text_area(
                 "Ask code generator:",
                 key=new_q_key,
-                placeholder="Enter your code request in natural language",
+                placeholder="Enter a prompt describing the code you want generated",
                 label_visibility="collapsed",
             )
             venv_labels = ["Use AGILAB environment"] + available_venvs
@@ -2640,34 +2643,39 @@ def display_lab_tab(
                 key=new_venv_key,
                 help="Choose which virtual environment should execute this step.",
             )
-            selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+            selected_path = (
+                "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+            )
             run_new = st.button("Generate code", type="primary", use_container_width=True)
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
-                if prompt_text:
+                if not prompt_text:
+                    st.warning("Enter a prompt before generating code.")
+                else:
                     df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
                     answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
                     venv_map = {0: selected_path} if selected_path else {}
                     eng_map = {0: "agi.run" if selected_path else "runpy"}
-                save_step(
-                    module_path,
-                    answer,
-                    0,
-                    1,
-                    steps_file,
-                    venv_map=venv_map,
-                    engine_map=eng_map,
-                )
-                _bump_history_revision()
-                st.rerun()
-            else:
-                st.warning("Enter a prompt before generating code.")
+                    expander_state_key = f"{safe_prefix}_expander_open"
+                    expander_state = st.session_state.setdefault(expander_state_key, {})
+                    expander_state[0] = True
+                    st.session_state[expander_state_key] = expander_state
+                    save_step(
+                        module_path,
+                        answer,
+                        0,
+                        1,
+                        steps_file,
+                        venv_map=venv_map,
+                        engine_map=eng_map,
+                    )
+                    _bump_history_revision()
+                    st.rerun()
         return
 
     run_logs_key = f"{index_page_str}__run_logs"
     st.session_state.setdefault(run_logs_key, [])
     log_placeholder: Optional[Any] = None
-    safe_prefix = index_page_str.replace("/", "_")
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
 
@@ -2706,10 +2714,9 @@ def display_lab_tab(
             st.session_state[code_val_key] = apply_c if apply_c is not None else initial_c
         if rev_key not in st.session_state:
             st.session_state[rev_key] = 0
-        if undo_key not in st.session_state:
-            st.session_state[undo_key] = [(entry.get("Q", ""), entry.get("C", ""))]
-        elif not st.session_state[undo_key]:
-            st.session_state[undo_key] = [(entry.get("Q", ""), entry.get("C", ""))]
+        if undo_key not in st.session_state or not st.session_state[undo_key]:
+            initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
+            st.session_state[undo_key] = [initial_snapshot]
 
         # Seed venv options
         current_path = normalize_runtime_path(selected_map.get(step, ""))
@@ -2771,7 +2778,7 @@ def display_lab_tab(
             st.text_area(
                 "Ask code generator:",
                 key=q_key,
-                placeholder="Enter your code request in natural language",
+                placeholder="Enter a prompt describing the code you want generated",
                 label_visibility="collapsed",
                 on_change=lambda k=q_key: st.session_state.__setitem__(f"{q_key}_dirty", True),
             )
@@ -2822,7 +2829,7 @@ def display_lab_tab(
 
             # Handle actions
             if snippet_dict and snippet_dict.get("text") is not None:
-                st.session_state[code_val_key] = snippet_dict.get("text", "")
+                st.session_state[code_val_key] = _normalize_editor_text(snippet_dict.get("text"))
             code_current = st.session_state.get(code_val_key, "")
 
             if revert_pressed:
@@ -2854,9 +2861,6 @@ def display_lab_tab(
                 undo_stack = st.session_state.get(undo_key, [])
                 undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
                 st.session_state[undo_key] = undo_stack
-                if not str(code_current or "").strip():
-                    # If editor is empty, fall back to existing code so we still persist something
-                    code_current = entry.get("C", "")
                 st.session_state[code_val_key] = code_current
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
                 expander_state[step] = True
@@ -2918,12 +2922,10 @@ def display_lab_tab(
                 undo_stack = st.session_state.get(undo_key, [])
                 undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
                 st.session_state[undo_key] = undo_stack
-                code_current = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
-                if not str(code_current or "").strip():
-                    if not str(entry.get("C", "")).strip():
-                        st.warning("No code to save for this step.")
-                        continue
-                    code_current = entry.get("C", "")
+                code_current = snippet_dict.get("text")
+                if code_current is None:
+                    code_current = st.session_state.get(code_val_key, "")
+                code_current = _normalize_editor_text(code_current)
                 st.session_state[code_val_key] = code_current
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
                 expander_state[step] = True
@@ -3089,7 +3091,7 @@ def display_lab_tab(
         st.text_area(
             "Ask code generator:",
             key=new_q_key,
-            placeholder="Enter your code request in natural language",
+            placeholder="Enter a prompt describing the code you want generated",
             label_visibility="collapsed",
         )
         venv_labels = ["Use AGILAB environment"] + available_venvs
@@ -3195,7 +3197,9 @@ def display_lab_tab(
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         st.dataframe(loaded_df)
     else:
-        st.info("No data loaded yet. Click 'Run' to load dataset.")
+        st.info(
+            f"No data loaded yet. Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector."
+        )
 
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
@@ -3291,9 +3295,10 @@ def page() -> None:
 
     df_file = st.session_state.get("df_file")
     if not df_file or not Path(df_file).exists():
-        st.warning(
+        default_df_path = (lab_dir / DEFAULT_DF).resolve()
+        st.info(
             f"No dataframe exported for {lab_dir.name}. "
-            "You can proceed without a dataframe; data-dependent steps may need an export/export.csv."
+            f"You can proceed without a dataframe; data-dependent steps may need {default_df_path}."
         )
         st.session_state["df_file"] = None
 
@@ -3341,9 +3346,7 @@ def main() -> None:
 
         df_dir_def = Path(env.AGILAB_EXPORT_ABS) / env.target
         st.session_state.setdefault("steps_file", Path(env.active_app) / STEPS_FILE_NAME)
-        st.session_state.setdefault(
-            "df_file_out", str(df_dir_def / ("lab_" + DEFAULT_DF.replace(".csv", "_out.csv")))
-        )
+        st.session_state.setdefault("df_file_out", str(df_dir_def / DEFAULT_DF))
         st.session_state.setdefault("df_file", str(df_dir_def / DEFAULT_DF))
 
         df_file = Path(st.session_state["df_file"]) if st.session_state["df_file"] else None

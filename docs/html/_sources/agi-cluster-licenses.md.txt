@@ -67,6 +67,7 @@
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
 | lark | MIT LICENSE |
+| librt | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | markupsafe | BSD-3-CLAUSE |
@@ -124,7 +125,6 @@
 | send2trash | BSD LICENSE |
 | setuptools | MIT |
 | six | MIT LICENSE |
-| sniffio | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
 | soupsieve | MIT LICENSE |
 | stack-data | MIT LICENSE |

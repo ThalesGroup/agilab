@@ -196,6 +196,7 @@
 | langsmith | MIT |
 | lark | MIT LICENSE |
 | legacy-cgi | PSF-2.0 |
+| librt | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | lxml | BSD-3-CLAUSE |
@@ -229,7 +230,7 @@
 | nbconvert | BSD LICENSE |
 | nbformat | BSD LICENSE |
 | nest-asyncio | BSD LICENSE |
-| networkx | BSD LICENSE |
+| networkx | BSD-3-CLAUSE |
 | nh3 | MIT |
 | noise | MIT LICENSE |
 | notebook | BSD LICENSE |
@@ -399,6 +400,7 @@
 | tzlocal | MIT LICENSE |
 | uri-template | MIT LICENSE |
 | urllib3 | MIT |
+| uuid-utils | BSD LICENSE |
 | uvicorn | BSD-3-CLAUSE |
 | validators | MIT LICENSE |
 | watchdog | APACHE SOFTWARE LICENSE |
@@ -407,7 +409,7 @@
 | webencodings | BSD LICENSE |
 | websocket-client | APACHE SOFTWARE LICENSE |
 | websockets | BSD LICENSE |
-| werkzeug | BSD LICENSE |
+| werkzeug | BSD-3-CLAUSE |
 | wheel | MIT LICENSE |
 | widgetsnbextension | BSD LICENSE |
 | yarl | APACHE SOFTWARE LICENSE |
