@@ -2782,13 +2782,15 @@ def display_lab_tab(
             "Q": st.session_state.get(q_key, entry.get("Q", "")),
             "C": st.session_state.get(code_val_key, entry.get("C", "")),
         }
-        summary = _step_summary(live_entry, width=80) or f"Step {step + 1}"
+        summary = _step_summary(live_entry, width=80)
         dirty_key = f"{q_key}_dirty"
         if st.session_state.pop(dirty_key, False):
             # On a dirty change, refresh the summary by rerunning
             st.rerun()
         expanded_flag = expander_state.get(step, False)
-        with st.expander(f"{step + 1}. {summary}", expanded=expanded_flag):
+        title_suffix = summary if summary else "No description yet"
+        expander_title = f"{step + 1} {title_suffix}"
+        with st.expander(expander_title, expanded=expanded_flag):
             # venv selector
             venv_col, _ = st.columns([3, 2], gap="small")
             with venv_col:
@@ -3199,10 +3201,10 @@ def display_lab_tab(
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
     if total_steps > 0:
         sequence_options = list(range(total_steps))
-        summary_labels = {
-            idx: _step_summary(persisted_steps[idx], width=80) or f"Step {idx + 1}"
-            for idx in sequence_options
-        }
+        summary_labels = {}
+        for idx in sequence_options:
+            label = _step_summary(persisted_steps[idx], width=80)
+            summary_labels[idx] = label if label else f"{idx + 1}"
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
         if not stored_sequence:
             stored_sequence = sequence_options
@@ -3217,8 +3219,8 @@ def display_lab_tab(
                 st.session_state[sequence_widget_key] = stored_sequence
 
         def _format_sequence_option(idx: int) -> str:
-            label = summary_labels.get(idx, f"Step {idx + 1}")
-            return f"Step {idx + 1}: {label}"
+            label = summary_labels.get(idx, f"{idx + 1}")
+            return f"{idx + 1} {label}"
 
         selected_sequence = st.multiselect(
             "Execution sequence",
