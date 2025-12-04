@@ -265,11 +265,25 @@ def is_packaging_cmd(cmd: str) -> bool:
     return s.startswith("uv ") or s.startswith("pip ") or "uv" in s or "pip" in s
 
 
+def _relative_to_user_home(path: Path) -> Path | None:
+    parts = path.parts
+    if len(parts) < 3:
+        return None
+    root_marker = parts[1].lower()
+    if root_marker not in {"users", "home"}:
+        return None
+    if len(parts) == 3:
+        return Path()
+    return Path(*parts[3:])
+
+
 def _resolve_share_dir(
     cluster_share_raw: str | None,
     local_fallback_raw: str | None,
     home_abs: Path,
     logger: logging.Logger | None = None,
+    *,
+    keep_relative: bool = False,
 ) -> tuple[Path, bool, Optional[Path]]:
     """Return the preferred share directory path and whether the fallback was used.
 
@@ -278,25 +292,37 @@ def _resolve_share_dir(
       2. Otherwise fall back to ``AGI_LOCAL_SHARE`` (defaulting to ``~/localshare``).
     """
 
-    def _expand(raw: str | Path) -> Path:
-        path = Path(raw).expanduser()
-        if not path.is_absolute():
-            path = (home_abs / path).expanduser()
-        return path
+    def _expand(raw: str | Path, *, allow_relative: bool = False) -> Path:
+        expanded = Path(raw).expanduser()
+        if allow_relative and not expanded.is_absolute():
+            # Preserve relative inputs so workers can reinterpret them against
+            # their own home or mount point.
+            return Path(raw)
+        if not expanded.is_absolute():
+            expanded = (home_abs / expanded).expanduser()
+        return expanded
 
     cluster_candidate: Optional[Path] = None
     if cluster_share_raw:
-        cluster_candidate = _expand(cluster_share_raw)
-        try:
-            if cluster_candidate.is_dir():
-                return cluster_candidate, False, cluster_candidate
-        except Exception:
-            pass
-        if logger:
-            logger.warning(
-                "AGI_CLUSTER_SHARE '%s' unavailable; falling back to AGI_LOCAL_SHARE.",
-                cluster_candidate,
-            )
+        cluster_candidate = _expand(cluster_share_raw, allow_relative=keep_relative)
+        if keep_relative and isinstance(cluster_candidate, Path) and cluster_candidate.is_absolute():
+            rel_candidate = _relative_to_user_home(cluster_candidate)
+            if rel_candidate is not None:
+                cluster_candidate = rel_candidate
+        if not (keep_relative and isinstance(cluster_candidate, Path) and not cluster_candidate.is_absolute()):
+            try:
+                if not cluster_candidate.is_dir() and logger:
+                    logger.warning(
+                        "AGI_CLUSTER_SHARE '%s' is not accessible; continuing with the configured path.",
+                        cluster_candidate,
+                    )
+            except Exception:
+                if logger:
+                    logger.warning(
+                        "AGI_CLUSTER_SHARE '%s' could not be inspected; continuing with the configured path.",
+                        cluster_candidate,
+                    )
+        return cluster_candidate, False, cluster_candidate
 
     fallback_raw = local_fallback_raw or (home_abs / "localshare")
     fallback_path = _expand(fallback_raw)
@@ -963,12 +989,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             agi_local_share,
             self.home_abs,
             logger=AgiEnv.logger,
+            keep_relative=self.is_worker_env,
         )
         self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
         # Expose the effective share directory (fallbacks resolved) to callers.
         self.AGI_SHARE_DIR = resolved_share_dir
         self.agi_share_dir = resolved_share_dir
-        self.AGILAB_SHARE = resolved_share_dir
         self.agi_share_dir_raw = (
             Path(cluster_share_raw).expanduser()
             if cluster_share_raw
@@ -976,23 +1002,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         )
         self._used_share_fallback = used_fallback
 
-        # Ensure the chosen share base exists; if not, try local share (if set) or home.
-        if not self.agi_share_dir.is_dir():
-            fallback_base = self.AGI_LOCAL_SHARE or self.home_abs
+        # Ensure the chosen share base exists; creation errors should surface so operators can fix mounts.
+        if not self.is_worker_env:
             try:
-                Path(fallback_base).expanduser().mkdir(parents=True, exist_ok=True)
-                self.agi_share_dir = Path(fallback_base).expanduser()
-                self.AGILAB_SHARE = self.agi_share_dir
-                AgiEnv.logger.warning(
-                    "AGI_CLUSTER_SHARE '%s' unavailable; using fallback '%s'.",
-                    cluster_candidate if cluster_candidate else "(unset)",
-                    self.agi_share_dir,
-                )
+                self.agi_share_dir.mkdir(parents=True, exist_ok=True)
             except Exception as exc:
-                AgiEnv.logger.error("Failed to ensure share directory at %s: %s", fallback_base, exc)
+                AgiEnv.logger.warning(
+                    "Unable to create AGI_SHARE_DIR '%s': %s. Continuing with the configured path.",
+                    self.agi_share_dir,
+                    exc,
+                )
 
-        # Choose base for per-app data: prefer share if present, otherwise configured local share, otherwise home.
-        data_base = resolved_share_dir if resolved_share_dir.is_dir() else (self.AGI_LOCAL_SHARE or self.home_abs)
+        data_base = resolved_share_dir
         if not isinstance(data_base, Path):
             data_base = Path(data_base)
         data_base = data_base.expanduser()
@@ -2605,36 +2626,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """Ensure the share directory for this app exists and return its absolute path."""
 
         app_data_path = Path(self.app_data_rel)
-        data_root = app_data_path if app_data_path.is_absolute() else (self.home_abs / app_data_path).expanduser()
+        share_base = Path(getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home()))).expanduser()
+        data_root = app_data_path if app_data_path.is_absolute() else (share_base / app_data_path).expanduser()
         share_hint = getattr(self, "agi_share_dir_raw", None)
         share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
 
         try:
             data_root.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            # If share creation fails and a local share is configured, fall back there once.
-            fallback = self.AGI_LOCAL_SHARE
-            if fallback and not data_root.is_relative_to(fallback):
-                fallback_root = Path(fallback).expanduser() / self.target
-                try:
-                    fallback_root.mkdir(parents=True, exist_ok=True)
-                    self.app_data_rel = fallback_root
-                    data_root = fallback_root
-                    AgiEnv.logger.warning(
-                        "AGI_SHARE_DIR (%s) unavailable; using local fallback %s",
-                        share_hint_str,
-                        data_root,
-                    )
-                except Exception as exc2:
-                    raise RuntimeError(
-                        f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
-                        f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted or writable."
-                    ) from exc2
-            else:
-                raise RuntimeError(
-                    f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
-                    f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted or writable."
-                ) from exc
+            raise RuntimeError(
+                f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
+                f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted or writable."
+            ) from exc
         return data_root
 
     def unzip_data(
@@ -2649,18 +2652,36 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             AgiEnv.logger.warning(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
             return  # Do not exit, just warn
 
-        # Normalize extract_to to a Path relative to cwd or absolute
-        dest = Path(self.home_abs).expanduser() / extract_to
-        dest_parent = dest.parent
-        try:
-            dest_parent.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
+        # Normalize extract_to to a Path relative to cwd or absolute.
+        extract_rel = Path(extract_to) if extract_to is not None else Path(self.app_data_rel)
+
+        def _resolve_destination(base: Path, candidate: Path) -> Path:
+            return candidate if candidate.is_absolute() else (base / candidate)
+
+        def _prepare_parent(path: Path) -> Path | None:
+            parent = path.parent
+            try:
+                parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:  # pragma: no cover - defensive guard
+                AgiEnv.logger.warning(
+                    "Unable to prepare dataset parent '%s': %s.",
+                    parent,
+                    exc,
+                )
+                return None
+            return parent
+
+        share_base = Path(getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home()))).expanduser()
+        dest = _resolve_destination(share_base, extract_rel)
+        dest_parent = _prepare_parent(dest)
+
+        if dest_parent is None:
             AgiEnv.logger.warning(
-                "Unable to prepare dataset parent '%s': %s. Skipping extraction.",
-                dest_parent,
-                exc,
+                "Skipping dataset extraction; unable to prepare dataset parent '%s'.",
+                dest.parent,
             )
             return
+
         dataset = dest / "dataset"
 
         env_force = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}

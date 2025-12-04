@@ -9,6 +9,7 @@
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
 
   
@@ -18,6 +19,7 @@
       <script src="../../_static/documentation_options.js?v=8d563738"></script>
       <script src="../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/design-tabs.js?v=f930bc37"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" /> 
@@ -296,7 +298,14 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul class="simple">
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-node-licenses.html">Agi-node Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-env-licenses.html">Agi-env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-core-licenses.html">Agi-core Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../mycode-project-licenses.html">Mycode-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../example-app-project-licenses.html">Example-app-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../flight-project-licenses.html">Flight-project Licenses</a></li>
 </ul>
 </li>
 </ul>
@@ -316,7 +325,11 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../experiment-help.html">▶️ EXPERIMENT</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../experiment-help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../experiment-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experiment-help.html#main-content-area">Main Content Area</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../experiment-help.html#assistant">ASSISTANT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../experiment-help.html#history">HISTORY</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../explore-help.html">▶️ EXPLORE</a><ul>
@@ -666,11 +679,25 @@
 
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_relative_to_user_home</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">parts</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">root_marker</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">root_marker</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="s2">&quot;home&quot;</span><span class="p">}:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Path</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">[</span><span class="mi">3</span><span class="p">:])</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_share_dir</span><span class="p">(</span>
     <span class="n">cluster_share_raw</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">local_fallback_raw</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">home_abs</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
     <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">keep_relative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the preferred share directory path and whether the fallback was used.</span>
 
@@ -679,25 +706,37 @@
 <span class="sd">      2. Otherwise fall back to ``AGI_LOCAL_SHARE`` (defaulting to ``~/localshare``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_expand</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
-        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
-            <span class="n">path</span> <span class="o">=</span> <span class="p">(</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">path</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_expand</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">allow_relative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+        <span class="n">expanded</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">allow_relative</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">expanded</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="c1"># Preserve relative inputs so workers can reinterpret them against</span>
+            <span class="c1"># their own home or mount point.</span>
+            <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expanded</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="n">expanded</span> <span class="o">=</span> <span class="p">(</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">expanded</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">expanded</span>
 
     <span class="n">cluster_candidate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">cluster_share_raw</span><span class="p">:</span>
-        <span class="n">cluster_candidate</span> <span class="o">=</span> <span class="n">_expand</span><span class="p">(</span><span class="n">cluster_share_raw</span><span class="p">)</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">cluster_candidate</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
-                <span class="k">return</span> <span class="n">cluster_candidate</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">cluster_candidate</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">pass</span>
-        <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">&quot;AGI_CLUSTER_SHARE &#39;</span><span class="si">%s</span><span class="s2">&#39; unavailable; falling back to AGI_LOCAL_SHARE.&quot;</span><span class="p">,</span>
-                <span class="n">cluster_candidate</span><span class="p">,</span>
-            <span class="p">)</span>
+        <span class="n">cluster_candidate</span> <span class="o">=</span> <span class="n">_expand</span><span class="p">(</span><span class="n">cluster_share_raw</span><span class="p">,</span> <span class="n">allow_relative</span><span class="o">=</span><span class="n">keep_relative</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">keep_relative</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cluster_candidate</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cluster_candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="n">rel_candidate</span> <span class="o">=</span> <span class="n">_relative_to_user_home</span><span class="p">(</span><span class="n">cluster_candidate</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">rel_candidate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">cluster_candidate</span> <span class="o">=</span> <span class="n">rel_candidate</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">keep_relative</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cluster_candidate</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">cluster_candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster_candidate</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">logger</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">&quot;AGI_CLUSTER_SHARE &#39;</span><span class="si">%s</span><span class="s2">&#39; is not accessible; continuing with the configured path.&quot;</span><span class="p">,</span>
+                        <span class="n">cluster_candidate</span><span class="p">,</span>
+                    <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">&quot;AGI_CLUSTER_SHARE &#39;</span><span class="si">%s</span><span class="s2">&#39; could not be inspected; continuing with the configured path.&quot;</span><span class="p">,</span>
+                        <span class="n">cluster_candidate</span><span class="p">,</span>
+                    <span class="p">)</span>
+        <span class="k">return</span> <span class="n">cluster_candidate</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">cluster_candidate</span>
 
     <span class="n">fallback_raw</span> <span class="o">=</span> <span class="n">local_fallback_raw</span> <span class="ow">or</span> <span class="p">(</span><span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;localshare&quot;</span><span class="p">)</span>
     <span class="n">fallback_path</span> <span class="o">=</span> <span class="n">_expand</span><span class="p">(</span><span class="n">fallback_raw</span><span class="p">)</span>
@@ -1374,12 +1413,12 @@
             <span class="n">agi_local_share</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span><span class="p">,</span>
             <span class="n">logger</span><span class="o">=</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="p">,</span>
+            <span class="n">keep_relative</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGI_LOCAL_SHARE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">agi_local_share</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span> <span class="k">if</span> <span class="n">agi_local_share</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="c1"># Expose the effective share directory (fallbacks resolved) to callers.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGI_SHARE_DIR</span> <span class="o">=</span> <span class="n">resolved_share_dir</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span> <span class="o">=</span> <span class="n">resolved_share_dir</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">=</span> <span class="n">resolved_share_dir</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir_raw</span> <span class="o">=</span> <span class="p">(</span>
             <span class="n">Path</span><span class="p">(</span><span class="n">cluster_share_raw</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">cluster_share_raw</span>
@@ -1387,23 +1426,18 @@
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_used_share_fallback</span> <span class="o">=</span> <span class="n">used_fallback</span>
 
-        <span class="c1"># Ensure the chosen share base exists; if not, try local share (if set) or home.</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
-            <span class="n">fallback_base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGI_LOCAL_SHARE</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span>
+        <span class="c1"># Ensure the chosen share base exists; creation errors should surface so operators can fix mounts.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">Path</span><span class="p">(</span><span class="n">fallback_base</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">fallback_base</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="s2">&quot;AGI_CLUSTER_SHARE &#39;</span><span class="si">%s</span><span class="s2">&#39; unavailable; using fallback &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span>
-                    <span class="n">cluster_candidate</span> <span class="k">if</span> <span class="n">cluster_candidate</span> <span class="k">else</span> <span class="s2">&quot;(unset)&quot;</span><span class="p">,</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span><span class="p">,</span>
-                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to ensure share directory at </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">fallback_base</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Unable to create AGI_SHARE_DIR &#39;</span><span class="si">%s</span><span class="s2">&#39;: </span><span class="si">%s</span><span class="s2">. Continuing with the configured path.&quot;</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_dir</span><span class="p">,</span>
+                    <span class="n">exc</span><span class="p">,</span>
+                <span class="p">)</span>
 
-        <span class="c1"># Choose base for per-app data: prefer share if present, otherwise configured local share, otherwise home.</span>
-        <span class="n">data_base</span> <span class="o">=</span> <span class="n">resolved_share_dir</span> <span class="k">if</span> <span class="n">resolved_share_dir</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">AGI_LOCAL_SHARE</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span><span class="p">)</span>
+        <span class="n">data_base</span> <span class="o">=</span> <span class="n">resolved_share_dir</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data_base</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
             <span class="n">data_base</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">data_base</span><span class="p">)</span>
         <span class="n">data_base</span> <span class="o">=</span> <span class="n">data_base</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
@@ -3118,36 +3152,18 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Ensure the share directory for this app exists and return its absolute path.&quot;&quot;&quot;</span>
 
         <span class="n">app_data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_data_rel</span><span class="p">)</span>
-        <span class="n">data_root</span> <span class="o">=</span> <span class="n">app_data_path</span> <span class="k">if</span> <span class="n">app_data_path</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">app_data_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="n">share_base</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;agi_share_dir&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;home_abs&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">())))</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="n">data_root</span> <span class="o">=</span> <span class="n">app_data_path</span> <span class="k">if</span> <span class="n">app_data_path</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="k">else</span> <span class="p">(</span><span class="n">share_base</span> <span class="o">/</span> <span class="n">app_data_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
         <span class="n">share_hint</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;agi_share_dir_raw&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="n">share_hint_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">share_hint</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">())</span> <span class="k">if</span> <span class="n">share_hint</span> <span class="k">else</span> <span class="s2">&quot;AGI_SHARE_DIR&quot;</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">data_root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-            <span class="c1"># If share creation fails and a local share is configured, fall back there once.</span>
-            <span class="n">fallback</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGI_LOCAL_SHARE</span>
-            <span class="k">if</span> <span class="n">fallback</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">data_root</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span><span class="n">fallback</span><span class="p">):</span>
-                <span class="n">fallback_root</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">fallback</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">fallback_root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">app_data_rel</span> <span class="o">=</span> <span class="n">fallback_root</span>
-                    <span class="n">data_root</span> <span class="o">=</span> <span class="n">fallback_root</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="s2">&quot;AGI_SHARE_DIR (</span><span class="si">%s</span><span class="s2">) unavailable; using local fallback </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
-                        <span class="n">share_hint_str</span><span class="p">,</span>
-                        <span class="n">data_root</span><span class="p">,</span>
-                    <span class="p">)</span>
-                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc2</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Unable to reach data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">exc</span><span class="o">.</span><span class="n">strerror</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">exc</span><span class="si">}</span><span class="s2">). &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;Verify AGI_SHARE_DIR (</span><span class="si">{</span><span class="n">share_hint_str</span><span class="si">}</span><span class="s2">) is mounted or writable.&quot;</span>
-                    <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc2</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Unable to reach data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">exc</span><span class="o">.</span><span class="n">strerror</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">exc</span><span class="si">}</span><span class="s2">). &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;Verify AGI_SHARE_DIR (</span><span class="si">{</span><span class="n">share_hint_str</span><span class="si">}</span><span class="s2">) is mounted or writable.&quot;</span>
-                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unable to reach data directory </span><span class="si">{</span><span class="n">data_root</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">exc</span><span class="o">.</span><span class="n">strerror</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">exc</span><span class="si">}</span><span class="s2">). &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Verify AGI_SHARE_DIR (</span><span class="si">{</span><span class="n">share_hint_str</span><span class="si">}</span><span class="s2">) is mounted or writable.&quot;</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
         <span class="k">return</span> <span class="n">data_root</span></div>
 
 
@@ -3165,18 +3181,36 @@
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Archive &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39; does not exist. Skipping extraction.&quot;</span><span class="p">)</span>
             <span class="k">return</span>  <span class="c1"># Do not exit, just warn</span>
 
-        <span class="c1"># Normalize extract_to to a Path relative to cwd or absolute</span>
-        <span class="n">dest</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span> <span class="o">/</span> <span class="n">extract_to</span>
-        <span class="n">dest_parent</span> <span class="o">=</span> <span class="n">dest</span><span class="o">.</span><span class="n">parent</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">dest_parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="c1"># Normalize extract_to to a Path relative to cwd or absolute.</span>
+        <span class="n">extract_rel</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">extract_to</span><span class="p">)</span> <span class="k">if</span> <span class="n">extract_to</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_data_rel</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_destination</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">candidate</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">candidate</span> <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="k">else</span> <span class="p">(</span><span class="n">base</span> <span class="o">/</span> <span class="n">candidate</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_parent</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">parent</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">parent</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># pragma: no cover - defensive guard</span>
+                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Unable to prepare dataset parent &#39;</span><span class="si">%s</span><span class="s2">&#39;: </span><span class="si">%s</span><span class="s2">.&quot;</span><span class="p">,</span>
+                    <span class="n">parent</span><span class="p">,</span>
+                    <span class="n">exc</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">parent</span>
+
+        <span class="n">share_base</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;agi_share_dir&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;home_abs&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">())))</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="n">_resolve_destination</span><span class="p">(</span><span class="n">share_base</span><span class="p">,</span> <span class="n">extract_rel</span><span class="p">)</span>
+        <span class="n">dest_parent</span> <span class="o">=</span> <span class="n">_prepare_parent</span><span class="p">(</span><span class="n">dest</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dest_parent</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">&quot;Unable to prepare dataset parent &#39;</span><span class="si">%s</span><span class="s2">&#39;: </span><span class="si">%s</span><span class="s2">. Skipping extraction.&quot;</span><span class="p">,</span>
-                <span class="n">dest_parent</span><span class="p">,</span>
-                <span class="n">exc</span><span class="p">,</span>
+                <span class="s2">&quot;Skipping dataset extraction; unable to prepare dataset parent &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span>
+                <span class="n">dest</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">return</span>
+
         <span class="n">dataset</span> <span class="o">=</span> <span class="n">dest</span> <span class="o">/</span> <span class="s2">&quot;dataset&quot;</span>
 
         <span class="n">env_force</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGILAB_FORCE_DATA_REFRESH&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;0&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;false&quot;</span><span class="p">,</span> <span class="s2">&quot;False&quot;</span><span class="p">}</span>
@@ -3220,7 +3254,17 @@
 
         <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">force_refresh</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">_ignore_missing</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">excinfo</span><span class="p">):</span>
+                    <span class="n">exc</span> <span class="o">=</span> <span class="n">excinfo</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="ne">FileNotFoundError</span><span class="p">):</span>
+                        <span class="k">return</span>
+                    <span class="k">raise</span> <span class="n">exc</span>
+
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">_ignore_missing</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="c1"># Finder metadata files (&quot;._*&quot;) may disappear during rmtree on macOS.</span>
+                <span class="c1"># Treat missing entries as success so installs remain idempotent.</span>
+                <span class="k">pass</span>
             <span class="k">except</span> <span class="ne">PermissionError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>

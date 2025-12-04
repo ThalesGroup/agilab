@@ -417,13 +417,35 @@ environment instance; call <code class="xref py py-func docutils literal notrans
 environment, or <code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.current()</span></code> to access the active one.</p>
 </div>
 </section>
+<section id="share-directory-resolution">
+<h3>Share directory resolution<a class="headerlink" href="#share-directory-resolution" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code> exposes the resolved data root through <a href="#id1"><span class="problematic" id="id2">:pyattr:`env.agi_share_dir`</span></a>.
+The path is derived from <code class="docutils literal notranslate"><span class="pre">AGI_CLUSTER_SHARE</span></code> (or legacy <code class="docutils literal notranslate"><span class="pre">AGI_SHARE_DIR</span></code>)
+with <code class="docutils literal notranslate"><span class="pre">AGI_LOCAL_SHARE</span></code> as a fallback. The behaviour differs slightly
+depending on where the environment runs:</p>
+<ul class="simple">
+<li><p><strong>Manager / developer shells</strong> – relative inputs are expanded against
+<a href="#id3"><span class="problematic" id="id4">:pyattr:`env.home_abs`</span></a> and the directory is created eagerly. Any missing or
+read-only share will raise an error so operators can fix the mount point.</p></li>
+<li><p><strong>Remote workers</strong> – the configured value remains relative (for example,
+<code class="docutils literal notranslate"><span class="pre">clustershare/example_app</span></code>) and is not created automatically. Workers
+never fall back to per-user paths; instead the configured share path must be
+mounted and writable on the remote host. When an absolute path under
+<code class="docutils literal notranslate"><span class="pre">/Users/&lt;user&gt;</span></code> or <code class="docutils literal notranslate"><span class="pre">/home/&lt;user&gt;</span></code> is provided, the leading segments are
+stripped so the worker can re-root the remainder under its own home directory
+or mount point.</p></li>
+</ul>
+<p>Because the worker value stays relative, it will fail fast if <code class="docutils literal notranslate"><span class="pre">agi_share_dir</span></code>
+is not mounted. This makes data provenance explicit and avoids hidden copies of
+datasets on remote machines.</p>
+</section>
 </section>
 <section id="reference">
 <h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
 <a class="reference internal image-reference" href="_images/packages_agi_env.svg"><img alt="Packages diagram for agi-env" class="align-center" src="_images/packages_agi_env.svg" style="width: 400px;" />
 </a>
 <p id="module-agi_env.agi_env">AGILab environment bootstrapper and utility helpers.</p>
-<p>The module exposes the <a class="reference internal" href="#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a> class which orchestrates project discovery,
+<p>The module exposes the <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a> class which orchestrates project discovery,
 virtual-environment management, packaging helpers, and convenience utilities used
 by installers as well as runtime workers. Supporting free functions provide small
 parsing and path utilities leveraged during setup.</p>
@@ -434,8 +456,8 @@ parsing and path utilities leveraged during setup.</p>
 truth; class attribute reads proxy to the singleton instance when initialised.
 Methods and descriptors are never shadowed by the delegation.</p></li>
 <li><p>A small subset of helpers is pre‑init safe and can be used before constructing
-an instance: <a class="reference internal" href="#agi_env.agi_env.AgiEnv.set_env_var" title="agi_env.agi_env.AgiEnv.set_env_var"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.set_env_var()</span></code></a>, <a class="reference internal" href="#agi_env.agi_env.AgiEnv.read_agilab_path" title="agi_env.agi_env.AgiEnv.read_agilab_path"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.read_agilab_path()</span></code></a>,
-<code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv._build_env()</span></code>, and <a class="reference internal" href="#agi_env.agi_env.AgiEnv.log_info" title="agi_env.agi_env.AgiEnv.log_info"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.log_info()</span></code></a>. These functions avoid
+an instance: <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.set_env_var" title="agi_env.agi_env.AgiEnv.set_env_var"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.set_env_var()</span></code></a>, <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.read_agilab_path" title="agi_env.agi_env.AgiEnv.read_agilab_path"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.read_agilab_path()</span></code></a>,
+<code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv._build_env()</span></code>, and <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.log_info" title="agi_env.agi_env.AgiEnv.log_info"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.log_info()</span></code></a>. These functions avoid
 hard failures when the shared logger/environment has not been configured yet.
 Logging in that mode is best‑effort and may fall back to <code class="docutils literal notranslate"><span class="pre">print</span></code>.</p></li>
 </ul>
@@ -448,8 +470,8 @@ Logging in that mode is best‑effort and may fall back to <code class="docutils
 <section id="singleton-access">
 <h3>Singleton access<a class="headerlink" href="#singleton-access" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>Repeated instantiation reuses the same instance. Use <a class="reference internal" href="#agi_env.agi_env.AgiEnv.reset" title="agi_env.agi_env.AgiEnv.reset"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.reset()</span></code></a>
-to drop it, or <a class="reference internal" href="#agi_env.agi_env.AgiEnv.current" title="agi_env.agi_env.AgiEnv.current"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.current()</span></code></a> to retrieve it.</p></li>
+<li><p>Repeated instantiation reuses the same instance. Use <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.reset" title="agi_env.agi_env.AgiEnv.reset"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.reset()</span></code></a>
+to drop it, or <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.current" title="agi_env.agi_env.AgiEnv.current"><code class="xref py py-func docutils literal notranslate"><span class="pre">AgiEnv.current()</span></code></a> to retrieve it.</p></li>
 <li><p>Reading <code class="docutils literal notranslate"><span class="pre">AgiEnv.attr</span></code> proxies to the singleton’s attribute when the
 instance exists; callables/properties are always returned from the class.</p></li>
 </ul>
@@ -481,7 +503,7 @@ instance exists; callables/properties are always returned from the class.</p></l
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.active">
 <span class="sig-name descname"><span class="pre">active</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.active"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.active" title="Link to this definition"></a></dt>
-<dd><p>Switch <a class="reference internal" href="#agi_env.agi_env.AgiEnv.app" title="agi_env.agi_env.AgiEnv.app"><code class="xref py py-attr docutils literal notranslate"><span class="pre">app</span></code></a> to <code class="docutils literal notranslate"><span class="pre">target</span></code> if it differs from the current one.</p>
+<dd><p>Switch <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.app" title="agi_env.agi_env.AgiEnv.app"><code class="xref py py-attr docutils literal notranslate"><span class="pre">app</span></code></a> to <code class="docutils literal notranslate"><span class="pre">target</span></code> if it differs from the current one.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -580,7 +602,7 @@ in-file identifiers and class names.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.current">
-<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">current</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><span class="pre">AgiEnv</span></a></span></span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.current"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.current" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">current</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><span class="pre">AgiEnv</span></a></span></span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.current"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.current" title="Link to this definition"></a></dt>
 <dd><p>Return the currently initialised environment instance.</p>
 </dd></dl>
 
@@ -817,7 +839,7 @@ Raises on non-zero exit (logs stderr tail).</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_env_var">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_env_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_env_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_env_var" title="Link to this definition"></a></dt>
-<dd><p>Persist <code class="docutils literal notranslate"><span class="pre">key</span></code>/<code class="docutils literal notranslate"><span class="pre">value</span></code> in <a class="reference internal" href="#agi_env.agi_env.AgiEnv.envars" title="agi_env.agi_env.AgiEnv.envars"><code class="xref py py-attr docutils literal notranslate"><span class="pre">envars</span></code></a>, <code class="docutils literal notranslate"><span class="pre">os.environ</span></code> and the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file.</p>
+<dd><p>Persist <code class="docutils literal notranslate"><span class="pre">key</span></code>/<code class="docutils literal notranslate"><span class="pre">value</span></code> in <a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv.envars" title="agi_env.agi_env.AgiEnv.envars"><code class="xref py py-attr docutils literal notranslate"><span class="pre">envars</span></code></a>, <code class="docutils literal notranslate"><span class="pre">os.environ</span></code> and the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file.</p>
 </dd></dl>
 
 <dl class="py attribute">

@@ -594,25 +594,18 @@ def render_cluster_settings_ui():
             if normalized != current:
                 AgiEnv.set_env_var(key, normalized)
 
-        share_root = getattr(env, "AGILAB_SHARE", None)
-        share_candidate: Optional[Path] = None
+        share_candidate: Optional[Path] = env.agi_share_dir
         share_resolved: Optional[Path] = None
-        if isinstance(share_root, Path):
-            share_candidate = share_root
-        elif isinstance(share_root, str) and share_root.strip():
-            share_candidate = Path(share_root.strip())
+        is_symlink = False
         if share_candidate is not None:
-            base_home = getattr(env, "home_abs", Path.home())
             if not share_candidate.is_absolute():
-                share_candidate = (base_home / share_candidate)
+                share_candidate = (env.home_abs / share_candidate)
             share_candidate = share_candidate.expanduser()
             is_symlink = share_candidate.is_symlink()
             try:
                 share_resolved = share_candidate.resolve()
             except Exception:
                 share_resolved = share_candidate
-        else:
-            is_symlink = False
 
         if share_candidate is not None:
             if share_resolved and share_resolved != share_candidate:
@@ -1385,16 +1378,10 @@ if __name__ == "__main__":
             cluster_params = st.session_state.app_settings.setdefault("cluster", {})
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
             if cluster_enabled:
-                share_root = getattr(env, "AGILAB_SHARE", None)
-                share_candidate = None
-                if isinstance(share_root, Path):
-                    share_candidate = share_root
-                elif isinstance(share_root, str) and share_root.strip():
-                    share_candidate = Path(share_root.strip())
+                share_candidate: Optional[Path] = env.agi_share_dir
                 if share_candidate is not None:
-                    base_home = getattr(env, "home_abs", Path.home())
                     if not share_candidate.is_absolute():
-                        share_candidate = base_home / share_candidate
+                        share_candidate = env.home_abs / share_candidate
                     share_candidate = share_candidate.expanduser()
                     is_symlink = share_candidate.is_symlink()
                     try:
