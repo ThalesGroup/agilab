@@ -2800,6 +2800,7 @@ def display_lab_tab(
         return
 
     run_logs_key = f"{index_page_str}__run_logs"
+    run_placeholder_key = f"{index_page_str}__run_placeholder"
     st.session_state.setdefault(run_logs_key, [])
     log_placeholder: Optional[Any] = None
     expander_state_key = f"{safe_prefix}_expander_open"
@@ -3125,6 +3126,7 @@ def display_lab_tab(
                 engine_map[step] = engine
                 if venv_root:
                     st.session_state["lab_selected_venv"] = venv_root
+                stored_placeholder = st.session_state.get(run_placeholder_key)
                 snippet_file = st.session_state.get("snippet_file")
                 if not snippet_file:
                     st.error("Snippet file is not configured. Reload the page and try again.")
@@ -3146,14 +3148,14 @@ def display_lab_tab(
                             index_page_str,
                             f"uv -q run python {script_path.name}",
                             cwd=target_base,
-                            placeholder=log_placeholder,
+                            placeholder=stored_placeholder,
                         )
                     env_label = Path(venv_root).name if venv_root else "default env"
                     summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
                     _push_run_log(
                         index_page_str,
                         f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                        log_placeholder,
+                        stored_placeholder,
                     )
                     if run_output:
                         preview = run_output.strip()
@@ -3161,20 +3163,20 @@ def display_lab_tab(
                             _push_run_log(
                                 index_page_str,
                                 f"Output (step {step + 1}):\n{preview}",
-                                log_placeholder,
+                                stored_placeholder,
                             )
                             if "No such file or directory" in preview:
                                 _push_run_log(
                                     index_page_str,
                                     "Hint: the code tried to call a file that is not present in the export environment. "
                                     "Adjust the step to use a path that exists under the export/lab directory.",
-                                    log_placeholder,
+                                    stored_placeholder,
                                 )
                     elif engine == "runpy":
                         _push_run_log(
                             index_page_str,
                             f"Output (step {step + 1}): runpy executed (no captured stdout)",
-                            log_placeholder,
+                            stored_placeholder,
                         )
 
             if run_pressed:
@@ -3295,6 +3297,7 @@ def display_lab_tab(
         if clear_logs:
             st.session_state[run_logs_key] = []
         log_placeholder = st.empty()
+        st.session_state[run_placeholder_key] = log_placeholder
         logs = st.session_state.get(run_logs_key, [])
         if logs:
             log_placeholder.code("\n".join(logs))
