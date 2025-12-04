@@ -225,6 +225,40 @@ class AGI:
     _service_stop_timeout: Optional[float] = 30.0
     _service_poll_interval: Optional[float] = None
 
+    @staticmethod
+    def _share_relative_arg(env: AgiEnv, value: Path | str | None) -> str:
+        """Return *value* relative to the configured agi_share_dir for worker usage."""
+
+        if value is None:
+            return ""
+
+        candidate = Path(str(value))
+        if not candidate.is_absolute():
+            return candidate.as_posix()
+
+        share_base = getattr(env, "agi_share_dir_abs", None)
+        if share_base:
+            base_path = Path(str(share_base)).expanduser()
+            try:
+                rel = candidate.relative_to(base_path)
+                return rel.as_posix() if rel.parts else "."
+            except ValueError:
+                pass
+
+        home_abs = getattr(env, "home_abs", None)
+        if home_abs:
+            try:
+                rel = candidate.relative_to(Path(str(home_abs)).expanduser())
+                return rel.as_posix() if rel.parts else "."
+            except ValueError:
+                pass
+
+        logger.warning(
+            "Unable to express %s relative to agi_share_dir; falling back to absolute path",
+            candidate,
+        )
+        return candidate.as_posix()
+
     def __init__(self, target: str, verbose: int = 1):
         """
         Initialize a Agi object with a target and verbosity level.
@@ -1982,9 +2016,10 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
+        remote_app_data = AGI._share_relative_arg(env, env.app_data_rel)
         cmd = (
             f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m "
-            f"{env.post_install_rel} {wenv_rel.stem} {env.app_data_rel}"
+            f"{env.post_install_rel} {wenv_rel.stem} {remote_app_data}"
         )
         await AGI.exec_ssh(ip, cmd)
 
