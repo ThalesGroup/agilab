@@ -3128,6 +3128,9 @@ def display_lab_tab(
                 if venv_root:
                     st.session_state["lab_selected_venv"] = venv_root
                 stored_placeholder = st.session_state.get(run_placeholder_key)
+                st.session_state[run_logs_key] = []
+                if stored_placeholder is not None:
+                    stored_placeholder.caption("Starting overlay run…")
                 snippet_file = st.session_state.get("snippet_file")
                 if not snippet_file:
                     st.error("Snippet file is not configured. Reload the page and try again.")
