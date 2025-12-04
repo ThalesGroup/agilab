@@ -16,7 +16,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/apps/{APP}_project/test/_test_{APP}_manager.py" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/apps/{APP}_project/test/test_{APP}_manager.py" />
     <option name="PATTERN" value="" />
     <option name="USE_PATTERN" value="false" />
     <option name="TEST_TYPE" value="TEST_SCRIPT" />
