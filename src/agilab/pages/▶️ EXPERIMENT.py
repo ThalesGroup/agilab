@@ -1712,13 +1712,22 @@ def toml_to_notebook(toml_data: Dict[str, Any], toml_path: Path) -> None:
     """Convert TOML steps data to a Jupyter notebook file."""
     notebook_data = {"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
     for module, steps in toml_data.items():
+        if module == "__meta__" or not isinstance(steps, list):
+            continue
         for step in steps:
+            code_text = ""
+            if isinstance(step, dict):
+                code_text = str(step.get("C", "") or "")
+            elif isinstance(step, str):
+                code_text = step
+            if not code_text:
+                continue
             code_cell = {
                 "cell_type": "code",
                 "execution_count": None,
                 "metadata": {},
                 "outputs": [],
-                "source": (step.get("C", "").splitlines(keepends=True) if step.get("C") else []),
+                "source": code_text.splitlines(keepends=True),
             }
             notebook_data["cells"].append(code_cell)
     notebook_path = toml_path.with_suffix(".ipynb")
@@ -2903,7 +2912,7 @@ def display_lab_tab(
             btn_save, btn_run, btn_revert, btn_delete = st.columns([1, 1, 1, 1], gap="small")
             with btn_save:
                 save_pressed = st.button(
-                    "Save (⌘+Enter)",
+                    "Save",
                     type="secondary",
                     use_container_width=True,
                     key=f"{safe_prefix}_save_{step}",
@@ -3037,6 +3046,8 @@ def display_lab_tab(
                 else:
                     st.session_state[overlay_flag_key] = True
                     st.session_state[overlay_sig_key] = current_sig
+                if snippet_dict is None:
+                    continue
                 undo_stack = st.session_state.get(undo_key, [])
                 undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
                 st.session_state[undo_key] = undo_stack
@@ -3087,14 +3098,33 @@ def display_lab_tab(
                 else:
                     st.session_state[overlay_flag_key] = True
                     st.session_state[overlay_sig_key] = current_sig
+                if snippet_dict is None:
+                    continue
                 # Execute the current code using the selected engine/venv
                 code_to_run = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
                 venv_root = normalize_runtime_path(selected_map.get(step, ""))
+                entry_runtime = normalize_runtime_path(entry.get("E", ""))
+                if not venv_root and entry_runtime:
+                    venv_root = entry_runtime
+                    selected_map[step] = entry_runtime
+                if not venv_root:
+                    fallback_venv = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+                    if fallback_venv:
+                        venv_root = fallback_venv
+                        selected_map[step] = fallback_venv
+                        if fallback_venv not in venv_labels:
+                            venv_labels.append(fallback_venv)
+                        st.session_state[select_key] = fallback_venv
                 engine = (
                     engine_map.get(step)
                     or entry.get("R", "")
                     or ("agi.run" if venv_root else "runpy")
                 )
+                if venv_root and engine == "runpy":
+                    engine = "agi.run"
+                engine_map[step] = engine
+                if venv_root:
+                    st.session_state["lab_selected_venv"] = venv_root
                 snippet_file = st.session_state.get("snippet_file")
                 if not snippet_file:
                     st.error("Snippet file is not configured. Reload the page and try again.")
