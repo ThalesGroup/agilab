@@ -263,7 +263,6 @@ def _refresh_share_dir(env, new_value: str) -> None:
 
     env.AGI_SHARE_DIR = share_dir
     env.agi_share_dir = agi_share_dir
-    env.AGILAB_SHARE = agi_share_dir
     env.app_data_rel = share_dir / env.target
     env.dataframe_path = env.app_data_rel / "dataframe"
     try:
