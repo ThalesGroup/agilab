@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 # Removed unused imports: validator, conint, confloat
 
-import env  # Added import for environment-specific checks
 import py7zr  # Added import for handling .7z archives
 
 from dag_worker import DagWorker  # Corrected import
@@ -22,10 +21,10 @@ class DagArgs(BaseModel):
     A class representing DagArgs.
 
     Attributes:
-        data_in (str): Relative path to the data directory. Defaults to '~/data/DagApp'.
+        data_in (str): Relative path to the data directory. Defaults to 'data/DagApp'.
     """
 
-    data_in: str = "~/data/DagApp"  # Added a default attribute
+    data_in: str = "data/DagApp"
 
 
 class DagAppWorker(DagWorker):
@@ -46,7 +45,7 @@ class DagAppWorker(DagWorker):
 
         Args:
             **args (dict): Keyword arguments to initialize the object.
-                - data_in (str): Relative path to the data directory. Defaults to '~/data/DagApp'.
+                - data_in (str): Relative path to the data directory. Defaults to 'data/DagApp'.
 
         Returns:
             None
@@ -58,13 +57,18 @@ class DagAppWorker(DagWorker):
         super().__init__()  # Initialize the parent class
 
         # Retrieve 'data_in' from args or use default
-        home_rel = args.get("data_in", "~/data/DagApp")
+        home_rel = Path(args.get("data_in", "data/DagApp"))
 
-        if env.is_managed_pc:
-            home_rel = home_rel.replace("~", "~/MyApp")
+        share_root = Path(
+            getattr(
+                self.env,
+                "agi_share_dir_abs",
+                getattr(self.env, "agi_share_dir", getattr(self.env, "home_abs", Path.home())),
+            )
+        ).expanduser()
 
-        path_abs = Path(home_rel).expanduser()
-        self.path_rel = home_rel
+        path_abs = home_rel.expanduser() if home_rel.is_absolute() else (share_root / home_rel).expanduser()
+        self.path_rel = str(home_rel)
 
         try:
             if not path_abs.exists():

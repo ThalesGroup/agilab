@@ -1000,10 +1000,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         )
         self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
         # Expose the effective share directory (fallbacks resolved) to callers.
-        self.AGI_SHARE_DIR = resolved_share_dir
-        self.agi_share_dir = resolved_share_dir
-        share_dir_abs = Path(resolved_share_dir).expanduser()
+        resolved_share_dir_path = Path(resolved_share_dir)
+        share_dir_abs = resolved_share_dir_path.expanduser()
         home_abs_path = Path(self.home_abs).expanduser()
+        worker_rel_share: Path | None = None
+
         if not share_dir_abs.is_absolute():
             share_dir_abs = (home_abs_path / share_dir_abs).expanduser()
         elif self.is_worker_env:
@@ -1014,12 +1015,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             # used instead of the fallback localshare.
             remapped_rel = _relative_to_user_home(share_dir_abs)
             if remapped_rel is not None:
+                worker_rel_share = remapped_rel
                 share_dir_abs = (home_abs_path / remapped_rel).expanduser()
+
+        if self.is_worker_env and worker_rel_share is None and not resolved_share_dir_path.is_absolute():
+            # When the resolved share dir was already relative (e.g. "clustershare"),
+            # keep exposing the relative token to callers so remote workers never see
+            # manager-specific prefixes.
+            worker_rel_share = resolved_share_dir_path
+
+        if worker_rel_share is not None:
+            self.AGI_SHARE_DIR = worker_rel_share
+            self.agi_share_dir = worker_rel_share
+        else:
+            self.AGI_SHARE_DIR = resolved_share_dir_path
+            self.agi_share_dir = resolved_share_dir_path
+
         self.agi_share_dir_abs = share_dir_abs
         self.agi_share_dir_raw = (
             Path(cluster_share_raw).expanduser()
             if cluster_share_raw
-            else resolved_share_dir
+            else resolved_share_dir_path
         )
         self._used_share_fallback = used_fallback
 
@@ -1034,10 +1050,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     exc,
                 )
 
-        data_base = resolved_share_dir
-        if not isinstance(data_base, Path):
-            data_base = Path(data_base)
-        data_base = data_base.expanduser()
+        data_base = resolved_share_dir_path.expanduser()
 
         if self.is_worker_env:
             return

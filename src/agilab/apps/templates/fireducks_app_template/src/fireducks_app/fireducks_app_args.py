@@ -21,7 +21,7 @@ class FireducksAppArgs(BaseModel):
             data["data_in"] = data.pop("data_uri")
         return data
 
-    data_in: Path = Field(default_factory=lambda: Path("~/data/FireducksApp"))
+    data_in: Path = Field(default_factory=lambda: Path("data/FireducksApp"))
 
 
 class FireducksAppArgsTD(TypedDict, total=False):
