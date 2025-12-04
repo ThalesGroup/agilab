@@ -182,6 +182,25 @@ class BaseWorker(abc.ABC):
         except Exception:
             return path_obj.expanduser()
 
+    @staticmethod
+    def _share_root_path(env: AgiEnv | None) -> Path | None:
+        if env is None:
+            return None
+        candidates = (
+            getattr(env, "agi_share_dir_abs", None),
+            getattr(env, "agi_share_dir", None),
+            getattr(env, "AGI_SHARE_DIR", None),
+        )
+        for candidate in candidates:
+            if candidate:
+                base = Path(candidate).expanduser()
+                if not base.is_absolute():
+                    home = Path(getattr(env, "home_abs", Path.home())).expanduser()
+                    base = (home / base).expanduser()
+                return base
+        home = getattr(env, "home_abs", None)
+        return Path(home).expanduser() if home else None
+
     @classmethod
     def _resolve_data_dir(
         cls,
@@ -195,19 +214,7 @@ class BaseWorker(abc.ABC):
 
         raw = Path(str(data_path)).expanduser()
         if not raw.is_absolute():
-            base = None
-            if env is not None:
-                try:
-                    base = env.agi_share_dir or env.AGI_SHARE_DIR
-                except AttributeError:
-                    base = None
-                if base is None:
-                    try:
-                        base = env.home_abs
-                    except AttributeError:
-                        base = None
-            if base is None:
-                base = Path.home()
+            base = cls._share_root_path(env) or Path.home()
             raw = Path(base).expanduser() / raw
 
         remapped = cls._remap_managed_pc_path(raw, env=env)
@@ -696,7 +703,7 @@ class BaseWorker(abc.ABC):
         else:
             candidate = Path(str(target_path)).expanduser()
             if not candidate.is_absolute():
-                share_root = getattr(env, "agi_share_dir", None)
+                share_root = type(self)._share_root_path(env)
                 has_nested_segments = len(candidate.parts) > 1
                 if has_nested_segments:
                     anchor = share_root or base_parent.parent or base_parent
