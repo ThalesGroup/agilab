@@ -11,7 +11,7 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv ({APP}_worker)" />
-    <option name="WORKING_DIRECTORY" value="$USER_HOME$/wenv/{APP}_worker" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/apps/{APP}_project" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
