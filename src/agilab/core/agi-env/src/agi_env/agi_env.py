@@ -995,6 +995,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # Expose the effective share directory (fallbacks resolved) to callers.
         self.AGI_SHARE_DIR = resolved_share_dir
         self.agi_share_dir = resolved_share_dir
+        share_dir_abs = Path(resolved_share_dir).expanduser()
+        if not share_dir_abs.is_absolute():
+            share_dir_abs = (Path(self.home_abs).expanduser() / share_dir_abs).expanduser()
+        self.agi_share_dir_abs = share_dir_abs
         self.agi_share_dir_raw = (
             Path(cluster_share_raw).expanduser()
             if cluster_share_raw
@@ -2626,7 +2630,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """Ensure the share directory for this app exists and return its absolute path."""
 
         app_data_path = Path(self.app_data_rel)
-        share_base = Path(getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home()))).expanduser()
+        share_base = Path(
+            getattr(
+                self,
+                "agi_share_dir_abs",
+                getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home())),
+            )
+        ).expanduser()
         data_root = app_data_path if app_data_path.is_absolute() else (share_base / app_data_path).expanduser()
         share_hint = getattr(self, "agi_share_dir_raw", None)
         share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
@@ -2671,7 +2681,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return None
             return parent
 
-        share_base = Path(getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home()))).expanduser()
+        share_base = Path(
+            getattr(
+                self,
+                "agi_share_dir_abs",
+                getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home())),
+            )
+        ).expanduser()
         dest = _resolve_destination(share_base, extract_rel)
         dest_parent = _prepare_parent(dest)
 
