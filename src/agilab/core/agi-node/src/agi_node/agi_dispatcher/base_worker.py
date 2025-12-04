@@ -1207,9 +1207,31 @@ class BaseWorker(abc.ABC):
             if worker_id is not None:
                 workers_plan = _expand_chunk(workers_plan)
                 workers_plan_metadata = _expand_chunk(workers_plan_metadata)
+                plan_chunk = (
+                    workers_plan[worker_id]
+                    if isinstance(workers_plan, list) and len(workers_plan) > worker_id
+                    else []
+                )
+                metadata_chunk = (
+                    workers_plan_metadata[worker_id]
+                    if isinstance(workers_plan_metadata, list)
+                    and len(workers_plan_metadata) > worker_id
+                    else []
+                )
                 logging.info(f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}")
-                logging.info(f"work #{worker_id + 1} / {len(workers_plan)}")
+                logging.info(
+                    "work #%s / %s - plan batches=%s metadata batches=%s",
+                    worker_id + 1,
+                    len(workers_plan) if isinstance(workers_plan, list) else "?",
+                    len(plan_chunk),
+                    len(metadata_chunk),
+                )
                 BaseWorker._insts[worker_id].works(workers_plan, workers_plan_metadata)
+                logging.info(
+                    "worker #%s completed %s plan batches",
+                    worker_id,
+                    len(plan_chunk),
+                )
             else:
                 logging.error(f"this worker is not initialized")
                 raise Exception(f"failed to do_works")

@@ -226,6 +226,12 @@ class AGI:
     _service_poll_interval: Optional[float] = None
 
     @staticmethod
+    def _worker_address(worker: str) -> str:
+        if not worker:
+            return worker
+        return worker if "://" in worker else f"tcp://{worker}"
+
+    @staticmethod
     def _share_relative_arg(env: AgiEnv, value: Path | str | None) -> str:
         """Return *value* relative to the configured agi_share_dir for worker usage."""
 
@@ -578,6 +584,9 @@ class AGI:
 
         dask_workers = list(AGI._dask_workers)
 
+        worker_pairs = [
+            (worker, AGI._worker_address(worker)) for worker in dask_workers
+        ]
         init_futures = [
             client.submit(
                 BaseWorker._new,
@@ -588,21 +597,22 @@ class AGI:
                 worker_id=index,
                 worker=worker,
                 args=AGI._args,
-                workers=[worker],
+                workers=[address],
                 allow_other_workers=False,
                 pure=False,
                 key=f"agi-worker-init-{env.target}-{worker.replace(':', '-')}",
             )
-            for index, worker in enumerate(dask_workers)
+            for index, (worker, address) in enumerate(worker_pairs)
         ]
         client.gather(init_futures)
 
         service_futures: Dict[str, Any] = {}
         for worker in dask_workers:
+            worker_addr = AGI._worker_address(worker)
             future = client.submit(
                 BaseWorker.loop,
                 poll_interval=poll_interval,
-                workers=[worker],
+                workers=[worker_addr],
                 allow_other_workers=False,
                 pure=False,
                 key=f"agi-serve-loop-{env.target}-{worker.replace(':', '-')}",
@@ -2686,6 +2696,9 @@ class AGI:
         dask_workers = list(AGI._dask_workers)
         client = AGI._dask_client
 
+        worker_pairs = [
+            (worker, AGI._worker_address(worker)) for worker in dask_workers
+        ]
         AGI._dask_client.gather(
             [
                 client.submit(
@@ -2697,9 +2710,9 @@ class AGI:
                     worker_id=dask_workers.index(worker),
                     worker=worker,
                     args=AGI._args,
-                    workers=[worker],
+                    workers=[address],
                 )
-                for worker in dask_workers
+                for worker, address in worker_pairs
             ]
         )
 
@@ -2724,13 +2737,14 @@ class AGI:
 
         futures: dict[str, Any] = {}
         for idx, worker in enumerate(dask_workers):
+            worker_addr = AGI._worker_address(worker)
             plan_payload = _wrap_chunk(workers_plan or [], idx)
             metadata_payload = _wrap_chunk(workers_plan_metadata or [], idx)
             futures[worker] = client.submit(
                 BaseWorker._do_works,
                 plan_payload,
                 metadata_payload,
-                workers=[worker],
+                workers=[worker_addr],
             )
 
         worker_logs: dict[str, Any] = {}
@@ -2878,13 +2892,15 @@ class AGI:
         """
         balancer calibration
         """
+        worker_addresses = [
+            AGI._worker_address(worker) for worker in (AGI._dask_workers or [])
+        ]
         res_workers_info = AGI._dask_client.gather(
             [
                 AGI._dask_client.run(
-                    # BaseWorker.get_logs_and_result,
                     BaseWorker._get_worker_info,
                     BaseWorker._worker_id,
-                    workers=AGI._dask_workers,
+                    workers=worker_addresses,
                 )
             ]
         )
