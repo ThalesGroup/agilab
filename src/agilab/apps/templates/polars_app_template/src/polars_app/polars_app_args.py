@@ -21,7 +21,7 @@ class PolarsAppArgs(BaseModel):
             data["data_in"] = data.pop("data_uri")
         return data
 
-    data_in: Path = Field(default_factory=lambda: Path("~/data/PolarsApp"))
+    data_in: Path = Field(default_factory=lambda: Path("data/PolarsApp"))
 
 
 class PolarsAppArgsTD(TypedDict, total=False):

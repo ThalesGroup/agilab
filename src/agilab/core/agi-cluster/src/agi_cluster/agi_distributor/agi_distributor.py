@@ -1043,7 +1043,8 @@ class AGI:
             if not (cli_abs).exists():
                 shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli_abs)
             if force:
-                cmd = f"{kill_prefix} '{cli_abs}' kill"
+                exclude_arg = f" {current_pid}" if current_pid else ""
+                cmd = f"{kill_prefix} '{cli_abs}' kill{exclude_arg}"
                 cmds.append(cmd)
         else:
             if force:

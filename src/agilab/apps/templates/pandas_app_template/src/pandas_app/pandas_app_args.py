@@ -21,7 +21,7 @@ class PandasAppArgs(BaseModel):
             data["data_in"] = data.pop("data_uri")
         return data
 
-    data_in: Path = Field(default_factory=lambda: Path("~/data/PandasApp"))
+    data_in: Path = Field(default_factory=lambda: Path("data/PandasApp"))
 
 
 class PandasAppArgsTD(TypedDict, total=False):
