@@ -2707,12 +2707,35 @@ class AGI:
         t = time.time()
 
         # --- Capture logs from each worker! ---
-        worker_logs = client.run(
-            BaseWorker._do_works,
-            workers_plan,
-            workers_plan_metadata,
-            workers=dask_workers,
-        )
+        def _wrap_chunk(sequence, idx):
+            if isinstance(sequence, list):
+                total = len(sequence)
+                chunk = sequence[idx] if idx < total else []
+            else:
+                total = 0
+                chunk = []
+            return {
+                "__agi_worker_chunk__": True,
+                "worker_idx": idx,
+                "total_workers": total,
+                "chunk": chunk,
+            }
+
+        futures: dict[str, Any] = {}
+        for idx, worker in enumerate(dask_workers):
+            plan_payload = _wrap_chunk(workers_plan or [], idx)
+            metadata_payload = _wrap_chunk(workers_plan_metadata or [], idx)
+            futures[worker] = client.submit(
+                BaseWorker._do_works,
+                plan_payload,
+                metadata_payload,
+                workers=[worker],
+            )
+
+        worker_logs: dict[str, Any] = {}
+        gathered = client.gather(list(futures.values()))
+        for worker, log in zip(futures.keys(), gathered):
+            worker_logs[worker] = log
 
         # LOG ONLY, no print:
         for worker, log in worker_logs.items():
