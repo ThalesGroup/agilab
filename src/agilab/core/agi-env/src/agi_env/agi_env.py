@@ -309,6 +309,8 @@ def _resolve_share_dir(
             rel_candidate = _relative_to_user_home(cluster_candidate)
             if rel_candidate is not None:
                 cluster_candidate = rel_candidate
+        if keep_relative and isinstance(cluster_candidate, Path) and not cluster_candidate.is_absolute():
+            return cluster_candidate, False, cluster_candidate
         if not (keep_relative and isinstance(cluster_candidate, Path) and not cluster_candidate.is_absolute()):
             try:
                 if not cluster_candidate.is_dir() and logger:
@@ -1001,8 +1003,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.AGI_SHARE_DIR = resolved_share_dir
         self.agi_share_dir = resolved_share_dir
         share_dir_abs = Path(resolved_share_dir).expanduser()
+        home_abs_path = Path(self.home_abs).expanduser()
         if not share_dir_abs.is_absolute():
-            share_dir_abs = (Path(self.home_abs).expanduser() / share_dir_abs).expanduser()
+            share_dir_abs = (home_abs_path / share_dir_abs).expanduser()
+        elif self.is_worker_env:
+            # Workers carried across platforms may reference the manager's home
+            # directory (e.g. /Users/<user>/...), which is not meaningful on the
+            # remote host. When possible, rewrite that absolute path relative to
+            # the worker's own home so the mounted share under ~/clustershare is
+            # used instead of the fallback localshare.
+            remapped_rel = _relative_to_user_home(share_dir_abs)
+            if remapped_rel is not None:
+                share_dir_abs = (home_abs_path / remapped_rel).expanduser()
         self.agi_share_dir_abs = share_dir_abs
         self.agi_share_dir_raw = (
             Path(cluster_share_raw).expanduser()
