@@ -23,8 +23,8 @@ class MycodeArgs(BaseModel):
             data["data_in"] = data.pop("data_uri")
         return data
 
-    data_in: Path = Field(default_factory=lambda: Path("~/data/mycode"))
-    data_out: Path = Field(default_factory=lambda: Path("~/data/output/mycode"))
+    data_in: Path = Field(default_factory=lambda: Path("data/mycode"))
+    data_out: Path = Field(default_factory=lambda: Path("data/output/mycode"))
     files: str = "*"
     nfile: int = 1
     nskip: int = 0
