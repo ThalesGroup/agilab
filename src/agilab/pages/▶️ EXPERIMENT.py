@@ -1979,12 +1979,13 @@ def run_all_steps(
                     env.copilot_file,
                 )
             else:
-                script_path = target_base / "AGI_run.py"
+                script_path = (target_base / "AGI_run.py").resolve()
                 script_path.write_text(code)
+                python_cmd = Path(sys.executable)
                 output = _stream_run_command(
                     env,
                     index_page_str,
-                    f"uv -q run python {script_path.name}",
+                    f"{python_cmd} {script_path}",
                     cwd=target_base,
                     placeholder=log_placeholder,
                 )
@@ -3141,12 +3142,13 @@ def display_lab_tab(
                             env.copilot_file,
                         )
                     else:
-                        script_path = target_base / "AGI_run.py"
+                        script_path = (target_base / "AGI_run.py").resolve()
                         script_path.write_text(code_to_run)
+                        python_cmd = Path(sys.executable)
                         run_output = _stream_run_command(
                             env,
                             index_page_str,
-                            f"uv -q run python {script_path.name}",
+                            f"{python_cmd} {script_path}",
                             cwd=target_base,
                             placeholder=stored_placeholder,
                         )
