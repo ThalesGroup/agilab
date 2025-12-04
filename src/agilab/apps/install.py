@@ -152,9 +152,9 @@ def ensure_data_storage(env: AgiEnv) -> None:
 
     if not env.app_data_rel:
         raise RuntimeError("App data path is not configured on environment.")
-    data_root = (env.home_abs / env.app_data_rel).expanduser()
-    if data_root is None:
-        raise RuntimeError("App data path is not configured on environment.")
+    app_data_path = Path(env.app_data_rel)
+    share_base = Path(env.agi_share_dir).expanduser()
+    data_root = app_data_path.expanduser() if app_data_path.is_absolute() else (share_base / app_data_path).expanduser()
     share_hint = env.agi_share_dir
     share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
     try:
