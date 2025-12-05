@@ -752,15 +752,6 @@ def main():
     show_banner_and_intro(resources_path)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
-    try:
-        st.info(
-            "Tip: If AGILab refuses to start, inspect the newest installer log "
-            "(see “Install Error Check (at Codex startup)” in AGENTS.md):\n"
-            " • Windows: C\\\\Users\\\\<you>\\\\log\\\\install_logs\n"
-            " • macOS/Linux: $HOME/log/install_logs"
-        )
-    except Exception:
-        pass
     page(env)
 
 
