@@ -408,7 +408,7 @@ def page():
     if "datadir" not in st.session_state:
         st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
     if "beamdir" not in st.session_state:
-        base_share = Path(env.agi_share_dir)
+        base_share = env.share_root_path()
         st.session_state["beamdir"] = base_share / env.target.replace("_project", "")
     if "coltype" not in st.session_state:
         st.session_state["coltype"] = var[0]
