@@ -1674,16 +1674,36 @@ if __name__ == "__main__":
             with target_expander:
                 log_placeholder = st.empty()
             _reset_traceback_skip()
+            log_dir = Path(env.runenv or (Path.home() / "log" / "execute" / env.app))
+            log_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file_path = log_dir / f"run_{timestamp}.log"
+            st.session_state["last_run_log_path"] = str(log_file_path)
+
+            async def _run_and_stream():
+                nonlocal log_file_path
+                with log_file_path.open("w", encoding="utf-8") as log_file:
+                    def _fanout(message: str) -> None:
+                        clean = strip_ansi(message or "").rstrip()
+                        if clean:
+                            log_file.write(clean + "\n")
+                            log_file.flush()
+                        update_log(log_placeholder, message)
+
+                    _, stderr_text = await env.run_agi(
+                        cmd.replace("asyncio.run(main())", env.snippet_tail),
+                        log_callback=_fanout,
+                        venv=project_path,
+                    )
+                    return stderr_text
+
             with st.spinner("Running AGI..."):
-                _, stderr = await env.run_agi(
-                    cmd.replace("asyncio.run(main())", env.snippet_tail),
-                    log_callback=lambda message: update_log(log_placeholder, message),
-                    venv=project_path,
-                )
+                stderr = await _run_and_stream()
                 st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
             with target_expander:
                 log_placeholder.empty()
                 display_log(st.session_state["run_log_cache"], stderr)
+                st.caption(f"Logs saved to {log_file_path}")
             st.session_state["dataframe_deleted"] = False
             return target_expander
 

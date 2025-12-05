@@ -1183,6 +1183,39 @@ class BaseWorker(abc.ABC):
             raise err
 
     @staticmethod
+    def _expand_chunk(payload, worker_id):
+        """Unwrap per-worker payload chunk back into legacy list form."""
+
+        if not isinstance(payload, dict) or not payload.get("__agi_worker_chunk__"):
+            return payload, None, None
+
+        chunk = payload.get("chunk", [])
+        total_workers = payload.get("total_workers")
+        worker_idx = payload.get("worker_idx", worker_id if worker_id is not None else 0)
+
+        if isinstance(total_workers, int) and total_workers > 0:
+            reconstructed_len = max(total_workers, worker_idx + 1)
+        else:
+            reconstructed_len = worker_idx + 1
+
+        def _placeholder():
+            if isinstance(chunk, list):
+                return []
+            if isinstance(chunk, dict):
+                return {}
+            return None
+
+        reconstructed = [_placeholder() for _ in range(reconstructed_len)]
+        if worker_idx >= len(reconstructed):
+            reconstructed.extend(
+                _placeholder() for _ in range(worker_idx - len(reconstructed) + 1)
+            )
+        reconstructed[worker_idx] = chunk
+
+        chunk_len = len(chunk) if hasattr(chunk, "__len__") else (1 if chunk else 0)
+        return reconstructed, chunk_len, reconstructed_len
+
+    @staticmethod
     def _do_works(workers_plan, workers_plan_metadata):
         """run of workers
 
@@ -1204,34 +1237,54 @@ class BaseWorker(abc.ABC):
         try:
             worker_id = BaseWorker._worker_id
             if worker_id is not None:
-                plan_chunk = (
-                    workers_plan[worker_id]
-                    if isinstance(workers_plan, list) and len(workers_plan) > worker_id
+                expanded_plan, plan_chunk_len, plan_total_workers = BaseWorker._expand_chunk(
+                    workers_plan, worker_id
+                )
+                expanded_meta, meta_chunk_len, _ = BaseWorker._expand_chunk(
+                    workers_plan_metadata, worker_id
+                )
+
+                if expanded_plan is None:
+                    expanded_plan = workers_plan
+                if expanded_meta is None:
+                    expanded_meta = workers_plan_metadata
+
+                plan_entry = (
+                    expanded_plan[worker_id]
+                    if isinstance(expanded_plan, list)
+                    and len(expanded_plan) > worker_id
                     else []
                 )
-                metadata_chunk = (
-                    workers_plan_metadata[worker_id]
-                    if isinstance(workers_plan_metadata, list)
-                    and len(workers_plan_metadata) > worker_id
+                metadata_entry = (
+                    expanded_meta[worker_id]
+                    if isinstance(expanded_meta, list)
+                    and len(expanded_meta) > worker_id
                     else []
                 )
-                logging.info(f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}")
+
+                logging.info(
+                    f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}"
+                )
                 logging.info(
                     "work #%s / %s - plan batches=%s metadata batches=%s",
                     worker_id + 1,
-                    len(workers_plan) if isinstance(workers_plan, list) else "?",
-                    len(plan_chunk),
-                    len(metadata_chunk),
+                    plan_total_workers
+                    if plan_total_workers is not None
+                    else (len(expanded_plan) if isinstance(expanded_plan, list) else "?"),
+                    plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
+                    meta_chunk_len if meta_chunk_len is not None else len(metadata_entry),
                 )
-                BaseWorker._insts[worker_id].works(workers_plan, workers_plan_metadata)
+
+                BaseWorker._insts[worker_id].works(expanded_plan, expanded_meta)
+
                 logging.info(
                     "worker #%s completed %s plan batches",
                     worker_id,
-                    len(plan_chunk),
+                    plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
                 )
             else:
-                logging.error(f"this worker is not initialized")
-                raise Exception(f"failed to do_works")
+                logging.error("this worker is not initialized")
+                raise Exception("failed to do_works")
 
         except Exception as e:
             import traceback
