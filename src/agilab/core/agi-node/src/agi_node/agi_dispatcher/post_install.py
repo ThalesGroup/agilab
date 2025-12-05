@@ -20,7 +20,7 @@ from agi_env import AgiEnv
 
 
 def _usage() -> None:
-    print("Usage: python post_install.py <app> [destination]")
+    print("Usage: python post_install.py <app>")
 
 
 def _build_env(app_arg: Path) -> AgiEnv:
@@ -35,7 +35,7 @@ def _build_env(app_arg: Path) -> AgiEnv:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    if len(args) not in (1, 2):
+    if len(args) != 1:
         _usage()
         return 1
     candidate = Path(args[0]).expanduser()
@@ -45,9 +45,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         app_arg = Path.home() / "wenv" / candidate
 
-    dest_arg = args[1] if len(args) == 2 else None
-
     env = _build_env(app_arg)
+    dest_arg = Path.home() / env.agi_share_dir / app_arg.name.replace("_project", "")
     archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
     print("archive:", archive)
 
