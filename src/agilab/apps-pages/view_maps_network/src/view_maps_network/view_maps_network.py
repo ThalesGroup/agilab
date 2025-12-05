@@ -760,7 +760,7 @@ def page():
 
     # Data directory + presets (base paths without app suffix)
     export_base = env.AGILAB_EXPORT_ABS
-    share_base = Path(env.agi_share_dir)
+    share_base = env.share_root_path()
     if "datadir" not in st.session_state:
         export_base.mkdir(parents=True, exist_ok=True)
         st.session_state.datadir = export_base
@@ -1059,14 +1059,14 @@ def page():
     st.sidebar.markdown("### Display options")
     default_edges_candidates = _candidate_edges_paths(
         [
-            Path(env.agi_share_dir),
+            env.share_root_path(),
             env.AGILAB_EXPORT_ABS,
             Path(st.session_state.datadir),
-            Path(env.agi_share_dir) / "example_app" / "dataframe",
-            Path(env.agi_share_dir) / "example_app" / "dataframe",
+            env.share_root_path() / "example_app" / "dataframe",
+            env.share_root_path() / "example_app" / "dataframe",
         ]
     )
-    example_edges_path = str(Path(env.agi_share_dir) / "example_app/pipeline/routing_edges.jsonl")
+    example_edges_path = str(env.share_root_path() / "example_app/pipeline/routing_edges.jsonl")
     edges_placeholder = f"e.g. {example_edges_path}"
     edges_file = st.sidebar.text_input(
         "Edges file (optional, JSON/Parquet with source/target/bearer)",
@@ -1366,13 +1366,13 @@ def page():
 
     # Live allocations overlay (routing/ILP trainers)
     st.markdown("### 📡 Live allocations (routing/ILP)")
-    alloc_path_default = Path(env.agi_share_dir) / "example_app/dataframe/trainer_routing/allocations_steps.parquet"
+    alloc_path_default = env.share_root_path() / "example_app/dataframe/trainer_routing/allocations_steps.parquet"
     alloc_path = st.text_input(
         "Allocations file (JSON or Parquet)",
         value=str(alloc_path_default),
         key="alloc_path_input",
     )
-    traj_glob_default = Path(env.agi_share_dir) / "example_app/dataframe/flight_simulation/*.parquet"
+    traj_glob_default = env.share_root_path() / "example_app/dataframe/flight_simulation/*.parquet"
     traj_glob = st.text_input(
         "Trajectory glob",
         value=str(traj_glob_default),

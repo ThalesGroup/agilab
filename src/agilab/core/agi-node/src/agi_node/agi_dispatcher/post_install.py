@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
         app_arg = Path.home() / "wenv" / candidate
 
     env = _build_env(app_arg)
-    dest_arg = Path.home() / env.agi_share_dir / app_arg.name.replace("_project", "")
+    dest_arg = env.resolve_share_path(app_arg.name.replace("_project", ""))
     archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
     print("archive:", archive)
 
