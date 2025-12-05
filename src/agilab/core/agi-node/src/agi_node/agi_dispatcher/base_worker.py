@@ -1191,47 +1191,12 @@ class BaseWorker(abc.ABC):
         if not already_has_handler:
             logger.addHandler(handler)
 
-        def _expand_chunk(payload):
-            if isinstance(payload, dict) and payload.get("__agi_worker_chunk__"):
-                worker_idx = int(payload.get("worker_idx", 0))
-                total_workers = int(payload.get("total_workers", worker_idx + 1))
-                chunk = payload.get("chunk") or []
-                size = max(worker_idx + 1, total_workers)
-                expanded = [[] for _ in range(size)]
-                expanded[worker_idx] = chunk
-                return expanded
-            return payload
-
         try:
             worker_id = BaseWorker._worker_id
-            if worker_id is not None:
-                workers_plan = _expand_chunk(workers_plan)
-                workers_plan_metadata = _expand_chunk(workers_plan_metadata)
-                plan_chunk = (
-                    workers_plan[worker_id]
-                    if isinstance(workers_plan, list) and len(workers_plan) > worker_id
-                    else []
-                )
-                metadata_chunk = (
-                    workers_plan_metadata[worker_id]
-                    if isinstance(workers_plan_metadata, list)
-                    and len(workers_plan_metadata) > worker_id
-                    else []
-                )
+            if worker_id is not None :
                 logging.info(f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}")
-                logging.info(
-                    "work #%s / %s - plan batches=%s metadata batches=%s",
-                    worker_id + 1,
-                    len(workers_plan) if isinstance(workers_plan, list) else "?",
-                    len(plan_chunk),
-                    len(metadata_chunk),
-                )
+                logging.info(f"work #{worker_id + 1} / {len(workers_plan)}")
                 BaseWorker._insts[worker_id].works(workers_plan, workers_plan_metadata)
-                logging.info(
-                    "worker #%s completed %s plan batches",
-                    worker_id,
-                    len(plan_chunk),
-                )
             else:
                 logging.error(f"this worker is not initialized")
                 raise Exception(f"failed to do_works")
