@@ -156,7 +156,7 @@ def ensure_data_storage(env: AgiEnv) -> None:
     share_base = Path(env.agi_share_dir).expanduser()
     data_root = app_data_path.expanduser() if app_data_path.is_absolute() else (share_base / app_data_path).expanduser()
     share_hint = env.agi_share_dir
-    share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
+    share_hint_str = str(Path(share_hint).expanduser())
     try:
         data_root.mkdir(parents=True, exist_ok=True)
     except FileNotFoundError as exc:

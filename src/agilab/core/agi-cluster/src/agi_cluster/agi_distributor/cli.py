@@ -157,6 +157,7 @@ def _poll_until_dead(pids, total=GRACE_TOTAL, interval=POLL_INTERVAL):
             time.sleep(interval)
     return remaining
 
+
 def kill(exclude_pids=None):
     if exclude_pids is None:
         exclude_pids = set()

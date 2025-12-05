@@ -186,6 +186,16 @@ class BaseWorker(abc.ABC):
     def _share_root_path(env: AgiEnv | None) -> Path | None:
         if env is None:
             return None
+
+        share_getter = getattr(env, "share_base_path", None)
+        if callable(share_getter):
+            try:
+                base = Path(share_getter()).expanduser()
+                if base:
+                    return base
+            except Exception:  # pragma: no cover - defensive guard
+                logger.debug("share_base_path() failed; falling back to legacy resolution", exc_info=True)
+
         candidates = (
             getattr(env, "agi_share_dir_abs", None),
             getattr(env, "agi_share_dir", None),
@@ -1193,10 +1203,32 @@ class BaseWorker(abc.ABC):
 
         try:
             worker_id = BaseWorker._worker_id
-            if worker_id is not None :
+            if worker_id is not None:
+                plan_chunk = (
+                    workers_plan[worker_id]
+                    if isinstance(workers_plan, list) and len(workers_plan) > worker_id
+                    else []
+                )
+                metadata_chunk = (
+                    workers_plan_metadata[worker_id]
+                    if isinstance(workers_plan_metadata, list)
+                    and len(workers_plan_metadata) > worker_id
+                    else []
+                )
                 logging.info(f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}")
-                logging.info(f"work #{worker_id + 1} / {len(workers_plan)}")
+                logging.info(
+                    "work #%s / %s - plan batches=%s metadata batches=%s",
+                    worker_id + 1,
+                    len(workers_plan) if isinstance(workers_plan, list) else "?",
+                    len(plan_chunk),
+                    len(metadata_chunk),
+                )
                 BaseWorker._insts[worker_id].works(workers_plan, workers_plan_metadata)
+                logging.info(
+                    "worker #%s completed %s plan batches",
+                    worker_id,
+                    len(plan_chunk),
+                )
             else:
                 logging.error(f"this worker is not initialized")
                 raise Exception(f"failed to do_works")

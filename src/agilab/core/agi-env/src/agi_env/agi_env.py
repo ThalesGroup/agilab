@@ -45,12 +45,12 @@ import socket
 import subprocess
 import sys
 import traceback
-from typing import Optional
 from functools import lru_cache
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import tempfile
 from dotenv import dotenv_values, set_key
 import tomlkit
+from typing import Tuple, Optional
 import logging
 import astor
 from pathspec import PathSpec
@@ -264,76 +264,6 @@ def is_packaging_cmd(cmd: str) -> bool:
     s = cmd.strip()
     return s.startswith("uv ") or s.startswith("pip ") or "uv" in s or "pip" in s
 
-
-def _relative_to_user_home(path: Path) -> Path | None:
-    parts = path.parts
-    if len(parts) < 3:
-        return None
-    root_marker = parts[1].lower()
-    if root_marker not in {"users", "home"}:
-        return None
-    if len(parts) == 3:
-        return Path()
-    return Path(*parts[3:])
-
-
-def _resolve_share_dir(
-    cluster_share_raw: str | None,
-    local_fallback_raw: str | None,
-    home_abs: Path,
-    logger: logging.Logger | None = None,
-    *,
-    keep_relative: bool = False,
-) -> tuple[Path, bool, Optional[Path]]:
-    """Return the preferred share directory path and whether the fallback was used.
-
-    The resolution is intentionally simple:
-      1. Use ``AGI_CLUSTER_SHARE`` (or legacy ``AGI_SHARE_DIR``) when it exists.
-      2. Otherwise fall back to ``AGI_LOCAL_SHARE`` (defaulting to ``~/localshare``).
-    """
-
-    def _expand(raw: str | Path, *, allow_relative: bool = False) -> Path:
-        expanded = Path(raw).expanduser()
-        if allow_relative and not expanded.is_absolute():
-            # Preserve relative inputs so workers can reinterpret them against
-            # their own home or mount point.
-            return Path(raw)
-        if not expanded.is_absolute():
-            expanded = (home_abs / expanded).expanduser()
-        return expanded
-
-    cluster_candidate: Optional[Path] = None
-    if cluster_share_raw:
-        cluster_candidate = _expand(cluster_share_raw, allow_relative=keep_relative)
-        if keep_relative and isinstance(cluster_candidate, Path) and cluster_candidate.is_absolute():
-            rel_candidate = _relative_to_user_home(cluster_candidate)
-            if rel_candidate is not None:
-                cluster_candidate = rel_candidate
-        if keep_relative and isinstance(cluster_candidate, Path) and not cluster_candidate.is_absolute():
-            return cluster_candidate, False, cluster_candidate
-        if not (keep_relative and isinstance(cluster_candidate, Path) and not cluster_candidate.is_absolute()):
-            try:
-                if not cluster_candidate.is_dir() and logger:
-                    logger.warning(
-                        "AGI_CLUSTER_SHARE '%s' is not accessible; continuing with the configured path.",
-                        cluster_candidate,
-                    )
-            except Exception:
-                if logger:
-                    logger.warning(
-                        "AGI_CLUSTER_SHARE '%s' could not be inspected; continuing with the configured path.",
-                        cluster_candidate,
-                    )
-        return cluster_candidate, False, cluster_candidate
-
-    fallback_raw = local_fallback_raw or (home_abs / "localshare")
-    fallback_path = _expand(fallback_raw)
-    try:
-        fallback_path.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        if logger:
-            logger.error("Failed to prepare AGI_LOCAL_SHARE at %s: %s", fallback_path, exc)
-    return fallback_path, True, cluster_candidate
 
 class _AgiEnvMeta(type):
     """Delegate AgiEnv class attribute access to the singleton instance.
@@ -622,15 +552,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
 
         install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars, active_app_override)
-        heuristic_source = install_type == 1
-        heuristic_worker = install_type == 2
-
-        if env_is_source is None and heuristic_source:
+        if env_is_source is None and install_type == 1:
             self.is_source_env = True
-        if heuristic_worker:
+        if env_is_worker is None and install_type == 2:
             self.is_worker_env = True
-        elif env_is_worker is None:
-            self.is_worker_env = False
         if self.is_worker_env:
             self.skip_repo_links = True
 
@@ -986,71 +911,112 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.uv_worker = self.uv
             use_freethread = False
 
-        cluster_share_raw = (
-            self.envars.get("AGI_CLUSTER_SHARE")
-            or self.envars.get("AGI_SHARE_DIR")
-        )
-        agi_local_share = self.envars.get("AGI_LOCAL_SHARE") or (self.home_abs / "localshare")
-        resolved_share_dir, used_fallback, cluster_candidate = _resolve_share_dir(
-            cluster_share_raw,
-            agi_local_share,
-            self.home_abs,
-            logger=AgiEnv.logger,
-            keep_relative=self.is_worker_env,
-        )
-        self.AGI_LOCAL_SHARE = Path(agi_local_share).expanduser() if agi_local_share else None
-        # Expose the effective share directory (fallbacks resolved) to callers.
-        resolved_share_dir_path = Path(resolved_share_dir)
-        share_dir_abs = resolved_share_dir_path.expanduser()
-        home_abs_path = Path(self.home_abs).expanduser()
-        worker_rel_share: Path | None = None
+        self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE", 'localshare')
+        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE", 'clustershare')
 
-        if not share_dir_abs.is_absolute():
-            share_dir_abs = (home_abs_path / share_dir_abs).expanduser()
-        elif self.is_worker_env:
-            # Workers carried across platforms may reference the manager's home
-            # directory (e.g. /Users/<user>/...), which is not meaningful on the
-            # remote host. When possible, rewrite that absolute path relative to
-            # the worker's own home so the mounted share under ~/clustershare is
-            # used instead of the fallback localshare.
-            remapped_rel = _relative_to_user_home(share_dir_abs)
-            if remapped_rel is not None:
-                worker_rel_share = remapped_rel
-                share_dir_abs = (home_abs_path / remapped_rel).expanduser()
+        def _abs_path(path_str: str) -> str:
+            """Absolute path; relative paths are relative to $HOME."""
+            p = Path(path_str).expanduser()
+            if not p.is_absolute():
+                p = Path.home() / p
+            return os.path.normpath(os.path.abspath(str(p)))
 
-        if self.is_worker_env and worker_rel_share is None and not resolved_share_dir_path.is_absolute():
-            # When the resolved share dir was already relative (e.g. "clustershare"),
-            # keep exposing the relative token to callers so remote workers never see
-            # manager-specific prefixes.
-            worker_rel_share = resolved_share_dir_path
-
-        if worker_rel_share is not None:
-            self.AGI_SHARE_DIR = worker_rel_share
-            self.agi_share_dir = worker_rel_share
-        else:
-            self.AGI_SHARE_DIR = resolved_share_dir_path
-            self.agi_share_dir = resolved_share_dir_path
-
-        self.agi_share_dir_abs = share_dir_abs
-        self.agi_share_dir_raw = (
-            Path(cluster_share_raw).expanduser()
-            if cluster_share_raw
-            else resolved_share_dir_path
-        )
-        self._used_share_fallback = used_fallback
-
-        # Ensure the chosen share base exists; creation errors should surface so operators can fix mounts.
-        if not self.is_worker_env:
+        def _is_usable_dir(p: str) -> bool:
+            """Directory exists and is readable/writable."""
+            if not os.path.isdir(p):
+                return False
             try:
-                self.agi_share_dir.mkdir(parents=True, exist_ok=True)
-            except Exception as exc:
-                AgiEnv.logger.warning(
-                    "Unable to create AGI_SHARE_DIR '%s': %s. Continuing with the configured path.",
-                    self.agi_share_dir,
-                    exc,
-                )
+                os.listdir(p)
+                testfile = os.path.join(p, ".agi_mount_test")
+                with open(testfile, "w") as f:
+                    f.write("ok")
+                os.remove(testfile)
+                return True
+            except Exception:
+                return False
 
-        data_base = resolved_share_dir_path.expanduser()
+        def _same_storage(a: str, b: str) -> bool:
+            """True if a and b are the same inode/device (bind or symlink)."""
+            try:
+                sa = os.stat(os.path.realpath(a))
+                sb = os.stat(os.path.realpath(b))
+                return (sa.st_dev, sa.st_ino) == (sb.st_dev, sb.st_ino)
+            except FileNotFoundError:
+                return False
+
+        def _fstab_bind_source_for_target(target: str) -> Optional[str]:
+            """
+            If /etc/fstab contains a bind mount for 'target',
+            return the bind source path; else None.
+            """
+            try:
+                with open("/etc/fstab", "r") as f:
+                    for raw in f:
+                        line = raw.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        parts = line.split()
+                        if len(parts) < 4:
+                            continue
+                        src, tgt, fstype, opts = parts[:4]
+                        if os.path.normpath(tgt) == target and "bind" in opts.split(","):
+                            return os.path.normpath(src)
+            except FileNotFoundError:
+                pass
+            return None
+
+        def is_mounted(p: str) -> bool:
+            """
+            "Mounted enough to use" for AGI_CLUSTER_SHARE.
+
+            Returns True if:
+              1) path is a usable directory, AND
+              2) either:
+                 a) it is an actual mount target in this namespace, OR
+                 b) /etc/fstab defines a bind mount for it and it points to the same storage
+                    as the bind source (even if the bind isn't visible here), OR
+                 c) no bind rule found; we accept usability alone.
+
+            This matches your real intent: prefer clustershare when it works.
+            """
+
+            # Must be usable first (your real requirement)
+            if not _is_usable_dir(p):
+                return False
+
+            # If it shows up as a mount target here, great.
+            try:
+                with open("/proc/self/mountinfo", "r") as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) > 4 and os.path.normpath(parts[4]) == p:
+                            return True
+            except FileNotFoundError:
+                # Non-Linux / no proc: fall back to usability only
+                return True
+
+            # Not a visible mountpoint here.
+            # If fstab says it's a bind mount, verify it really points to the bind source.
+            bind_src = _fstab_bind_source_for_target(p)
+            if bind_src:
+                # bind_src may be relative in fstab (rare), normalize it similarly
+                bind_src_abs = _abs_path(bind_src) if not os.path.isabs(bind_src) else bind_src
+                return _same_storage(p, bind_src_abs)
+
+            # No bind rule found; directory is usable, so accept it.
+            return True
+
+        candidate =  _abs_path(self.AGI_CLUSTER_SHARE)
+        if is_mounted(candidate):
+            self.agi_share_dir = self.AGI_CLUSTER_SHARE
+            AgiEnv.logger.info(
+                f"self.agi_share_dir = AGI_CLUSTER_SHARE = {candidate}"
+            )
+        else:
+            self.agi_share_dir = self.AGI_LOCAL_SHARE
+            AgiEnv.logger.info(
+                f"self.agi_share_dir = AGI_LOCAL_SHARE = {candidate}"
+            )
 
         if self.is_worker_env:
             return
@@ -1088,10 +1054,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.setup_app = self.active_app / "build.py"
         self.setup_app_module = "agi_node.agi_dispatcher.build"
 
-        data_rel = data_base / self.target
-        self.dataframe_path = data_rel / "dataframe"
-        self.app_data_rel = data_rel
-        self.data_root = self.ensure_data_root()
         self._init_projects()
 
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
@@ -1104,8 +1066,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.help_path = "https://thalesgroup.github.io/agilab"
         # Ensure packaged datasets are available when running locally (e.g. app_test).
         dataset_archive = getattr(self, "dataset_archive", None)
+        self.app_data_rel = self.agi_share_dir + os.sep + self.app
         if dataset_archive and Path(dataset_archive).exists():
-            dataset_root = (self.home_abs / self.app_data_rel / "dataset").expanduser()
+            dataset_root = (self.home_abs / self.agi_share_dir / "dataset").expanduser()
             existing_files = list(dataset_root.rglob("*")) if dataset_root.exists() else []
             archive_mtime = Path(dataset_archive).stat().st_mtime
             latest_file_mtime = max((p.stat().st_mtime for p in existing_files if p.is_file()), default=0)
@@ -1128,20 +1091,19 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             sys.path.append(app_src_str)
 
         # Populate examples/apps in standard environments
-        if True:
-            examples_candidates = [
-                self.agilab_pck / "agilab/examples",
-                self.agilab_pck / "examples",
-            ]
-            for candidate in examples_candidates:
-                if candidate.exists():
-                    self.examples = candidate
-                    break
-            else:
-                self.examples = examples_candidates[-1]
-            # examples path available via singleton delegation if accessed as AgiEnv.examples
-            self.init_envars_app(self.envars)
-            self._init_apps()
+        examples_candidates = [
+            self.agilab_pck / "agilab/examples",
+            self.agilab_pck / "examples",
+        ]
+        for candidate in examples_candidates:
+            if candidate.exists():
+                self.examples = candidate
+                break
+        else:
+            self.examples = examples_candidates[-1]
+        # examples path available via singleton delegation if accessed as AgiEnv.examples
+        self.init_envars_app(self.envars)
+        self._init_apps()
 
         if os.name == "nt":
             self.export_local_bin = ""
@@ -2656,29 +2618,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return all(0 <= int(part) <= 255 for part in parts)
         return False
 
-    def ensure_data_root(self) -> Path:
-        """Ensure the share directory for this app exists and return its absolute path."""
-
-        app_data_path = Path(self.app_data_rel)
-        share_base = Path(
-            getattr(
-                self,
-                "agi_share_dir_abs",
-                getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home())),
-            )
-        ).expanduser()
-        data_root = app_data_path if app_data_path.is_absolute() else (share_base / app_data_path).expanduser()
-        share_hint = getattr(self, "agi_share_dir_raw", None)
-        share_hint_str = str(Path(share_hint).expanduser()) if share_hint else "AGI_SHARE_DIR"
-
-        try:
-            data_root.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            raise RuntimeError(
-                f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
-                f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted or writable."
-            ) from exc
-        return data_root
 
     def unzip_data(
         self,
@@ -2711,14 +2650,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return None
             return parent
 
-        share_base = Path(
-            getattr(
-                self,
-                "agi_share_dir_abs",
-                getattr(self, "agi_share_dir", getattr(self, "home_abs", Path.home())),
-            )
-        ).expanduser()
-        dest = _resolve_destination(share_base, extract_rel)
+        dest = _resolve_destination(self.agi_share_dir, extract_rel)
         dest_parent = _prepare_parent(dest)
 
         if dest_parent is None:
@@ -2821,6 +2753,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if isinstance(e, RuntimeError):
                 raise
             raise RuntimeError(f"Extraction failed for '{archive_path}'") from e
+
 
     @staticmethod
     def check_internet():

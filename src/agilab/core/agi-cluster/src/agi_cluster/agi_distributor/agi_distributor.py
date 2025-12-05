@@ -225,40 +225,6 @@ class AGI:
     _service_stop_timeout: Optional[float] = 30.0
     _service_poll_interval: Optional[float] = None
 
-    @staticmethod
-    def _share_relative_arg(env: AgiEnv, value: Path | str | None) -> str:
-        """Return *value* relative to the configured agi_share_dir for worker usage."""
-
-        if value is None:
-            return ""
-
-        candidate = Path(str(value))
-        if not candidate.is_absolute():
-            return candidate.as_posix()
-
-        share_base = getattr(env, "agi_share_dir_abs", None)
-        if share_base:
-            base_path = Path(str(share_base)).expanduser()
-            try:
-                rel = candidate.relative_to(base_path)
-                return rel.as_posix() if rel.parts else "."
-            except ValueError:
-                pass
-
-        home_abs = getattr(env, "home_abs", None)
-        if home_abs:
-            try:
-                rel = candidate.relative_to(Path(str(home_abs)).expanduser())
-                return rel.as_posix() if rel.parts else "."
-            except ValueError:
-                pass
-
-        logger.warning(
-            "Unable to express %s relative to agi_share_dir; falling back to absolute path",
-            candidate,
-        )
-        return candidate.as_posix()
-
     def __init__(self, target: str, verbose: int = 1):
         """
         Initialize a Agi object with a target and verbosity level.
@@ -1882,9 +1848,9 @@ class AGI:
         src = env.dataset_archive
         if src.exists():
             try:
-                if not env.app_data_rel:
+                if not env.agi_share_dir:
                     raise FileNotFoundError("App data path not configured")
-                install_dataset_dir = env.home_abs / env.app_data_rel / "dataset"
+                install_dataset_dir = env.home_abs / env.agi_share_dir / "dataset"
                 os.makedirs(install_dataset_dir, exist_ok=True)
                 shutil.copy2(src, dest)
             except (FileNotFoundError, PermissionError) as exc:
@@ -1893,7 +1859,7 @@ class AGI:
         post_install_cmd = (
             f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "
             f"--python {pyvers_worker} python -m {env.post_install_rel} "
-            f"{wenv_rel.stem} {env.app_data_rel}"
+            f"{wenv_rel.stem}"
         )
         if env.user and env.user != getpass.getuser():
             try:
@@ -2017,10 +1983,9 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
-        remote_app_data = AGI._share_relative_arg(env, env.app_data_rel)
         cmd = (
             f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m "
-            f"{env.post_install_rel} {wenv_rel.stem} {remote_app_data}"
+            f"{env.post_install_rel} {wenv_rel.stem}"
         )
         await AGI.exec_ssh(ip, cmd)
 
@@ -2686,52 +2651,34 @@ class AGI:
         dask_workers = list(AGI._dask_workers)
         client = AGI._dask_client
 
-        if env.debug:
-            BaseWorker._new(
-                        env=0 if env.debug else None,
-                        app=env.target_worker,
-                        mode=AGI._mode,
-                        verbose=AGI.verbose,
-                        worker_id=0,
-                        worker=dask_workers[0],
-                        args=AGI._args,
-                    )
-
-        else:
-            AGI._dask_client.gather(
-                [
-                    client.submit(
-                        BaseWorker._new,
-                        env=0 if env.debug else None,
-                        app=env.target_worker,
-                        mode=AGI._mode,
-                        verbose=AGI.verbose,
-                        worker_id=dask_workers.index(worker),
-                        worker=worker,
-                        args=AGI._args,
-                        workers=[worker],
-                    )
-                    for worker in dask_workers
-                ]
-            )
+        AGI._dask_client.gather(
+            [
+                client.submit(
+                    BaseWorker._new,
+                    env=0 if env.debug else None,
+                    app=env.target_worker,
+                    mode=AGI._mode,
+                    verbose=AGI.verbose,
+                    worker_id=dask_workers.index(worker),
+                    worker=worker,
+                    args=AGI._args,
+                    workers=[worker],
+                )
+                for worker in dask_workers
+            ]
+        )
 
         await AGI._calibration()
 
         t = time.time()
 
-        if env.debug:
-            BaseWorker._do_works(
-                workers_plan,
-                workers_plan_metadata
-            )
-        else:
-            # --- Capture logs from each worker! ---
-            worker_logs = client.run(
-                BaseWorker._do_works,
-                workers_plan,
-                workers_plan_metadata,
-                workers=dask_workers,
-            )
+        # --- Capture logs from each worker! ---
+        worker_logs = client.run(
+            BaseWorker._do_works,
+            workers_plan,
+            workers_plan_metadata,
+            workers=dask_workers,
+        )
 
         # LOG ONLY, no print:
         for worker, log in worker_logs.items():
