@@ -114,7 +114,7 @@ class WorkDispatcher:
 
         if not file.exists() or rebuild_tree:
             workers_plan, workers_plan_metadata, part, nb_unit, weight_unit = (
-                target_inst.build_distribution(workers)
+                czan
             )
 
             data = {
