@@ -594,7 +594,14 @@ def render_cluster_settings_ui():
             if normalized != current:
                 AgiEnv.set_env_var(key, normalized)
 
-        share_candidate: Optional[Path] = env.agi_share_dir
+        share_candidate_obj = getattr(env, "agi_share_dir", None)
+        share_candidate: Optional[Path]
+        if isinstance(share_candidate_obj, Path):
+            share_candidate = share_candidate_obj
+        elif share_candidate_obj is not None:
+            share_candidate = Path(str(share_candidate_obj))
+        else:
+            share_candidate = None
         share_resolved: Optional[Path] = None
         is_symlink = False
         if share_candidate is not None:
