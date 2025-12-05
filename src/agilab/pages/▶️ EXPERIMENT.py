@@ -9,6 +9,7 @@ import sys
 import sysconfig
 import textwrap
 import subprocess
+from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -119,12 +120,31 @@ def _append_run_log(index_page: str, message: str) -> None:
 def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = None) -> None:
     """Append a log entry and refresh the visible placeholder if provided."""
     _append_run_log(index_page, message)
+    log_file_key = f"{index_page}__run_log_file"
+    log_file_path = st.session_state.get(log_file_key)
+    if log_file_path:
+        log_text = (message or "").rstrip("\n")
+        if log_text:
+            try:
+                path_obj = Path(log_file_path).expanduser()
+                path_obj.parent.mkdir(parents=True, exist_ok=True)
+                with path_obj.open("a", encoding="utf-8") as log_file:
+                    log_file.write(log_text + "\n")
+            except Exception as exc:
+                logger.debug(f"Failed to append experiment log to {log_file_path}: {exc}")
     if placeholder is not None:
         logs = st.session_state.get(f"{index_page}__run_logs", [])
         if logs:
             placeholder.code("\n".join(logs))
         else:
             placeholder.caption("No runs recorded yet.")
+
+
+def _get_run_placeholder(index_page: str) -> Optional[Any]:
+    """Return the cached run-log placeholder (if the UI has rendered it)."""
+    key = f"{index_page}__run_placeholder"
+    placeholder = st.session_state.get(key)
+    return placeholder
 
 
 def _stream_run_command(
@@ -1912,6 +1932,8 @@ def run_all_steps(
     log_placeholder: Optional[Any] = None,
 ) -> None:
     """Execute all steps sequentially, honouring per-step virtual environments."""
+    if log_placeholder is None:
+        log_placeholder = _get_run_placeholder(index_page_str)
     _push_run_log(index_page_str, "Run pipeline invoked.", log_placeholder)
     steps = load_all_steps(module_path, steps_file, index_page_str) or []
     if not steps:
@@ -2803,7 +2825,6 @@ def display_lab_tab(
     run_logs_key = f"{index_page_str}__run_logs"
     run_placeholder_key = f"{index_page_str}__run_placeholder"
     st.session_state.setdefault(run_logs_key, [])
-    log_placeholder: Optional[Any] = None
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
 
@@ -3228,15 +3249,11 @@ def display_lab_tab(
                 _push_run_log(
                     index_page_str,
                     f"Step {step + 1}: engine={engine_map.get(step,'')}, env={env_label}, summary=\"{summary}\"",
-                    log_placeholder,
+                    _get_run_placeholder(index_page_str),
                 )
                 expander_state[step] = True
                 st.session_state[expander_state_key] = expander_state
                 st.rerun()
-                if log_placeholder is not None:
-                    logs = st.session_state.get(run_logs_key, [])
-                    if logs:
-                        log_placeholder.code("\n".join(logs))
 
             if delete_clicked:
                 selected_map.pop(step, None)
@@ -3308,6 +3325,9 @@ def display_lab_tab(
             log_placeholder.code("\n".join(logs))
         else:
             log_placeholder.caption("No runs recorded yet.")
+        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
+        if last_log_file:
+            st.caption(f"Most recent pipeline log: {last_log_file}")
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
@@ -3366,10 +3386,35 @@ def display_lab_tab(
         )
 
     if run_all_clicked:
-        _push_run_log(index_page_str, "Run pipeline started…", log_placeholder)
+        log_dir_candidate = env.runenv or (Path.home() / "log" / "execute" / env.app)
+        log_dir_path = Path(log_dir_candidate).expanduser()
+        log_file_path: Optional[Path] = None
+        try:
+            log_dir_path.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file_path = log_dir_path / f"pipeline_{timestamp}.log"
+            log_file_path.write_text("", encoding="utf-8")
+            log_file_key = f"{index_page_str}__run_log_file"
+            st.session_state[log_file_key] = str(log_file_path)
+            st.session_state[f"{index_page_str}__last_run_log_file"] = str(log_file_path)
+            _push_run_log(
+                index_page_str,
+                f"Run pipeline started… logs will be saved to {log_file_path}",
+                log_placeholder,
+            )
+        except Exception as exc:
+            _push_run_log(
+                index_page_str,
+                f"Run pipeline started… (unable to prepare log file: {exc})",
+                log_placeholder,
+            )
+            log_file_path = None
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
-        run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=log_placeholder)
+        try:
+            run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=log_placeholder)
+        finally:
+            st.session_state.pop(f"{index_page_str}__run_log_file", None)
         st.rerun()
 
     if delete_all_clicked:
