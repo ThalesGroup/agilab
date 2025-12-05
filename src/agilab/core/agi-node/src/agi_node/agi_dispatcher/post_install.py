@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print("destination", dest_arg)
-    env.unzip_data(archive, dest_arg, force_extract=True)
+    env.unzip_data(archive, dest_arg)
     return 0
 
 
