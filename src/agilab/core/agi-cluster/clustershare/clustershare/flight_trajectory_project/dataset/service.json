@@ -1,0 +1,42 @@
+[
+  {
+    "name": "voice",
+    "throughput": 0.256,
+    "packet_size": 0.000480
+  },
+  {
+    "name": "command_and_control",
+    "throughput": 0.500,
+    "packet_size": 0.000500
+  },
+  {
+    "name": "telemetry",
+    "throughput": 0.128,
+    "packet_size": 0.000128
+  },
+  {
+    "name": "sensor_network",
+    "throughput": 0.064,
+    "packet_size": 0.000064
+  },
+  {
+    "name": "data_link",
+    "throughput": 1.000,
+    "packet_size": 0.001000
+  },
+  {
+    "name": "image_intel",
+    "throughput": 0.512,
+    "packet_size": 0.000512
+  },
+  {
+    "name": "uav_video",
+    "throughput": 3.000,
+    "packet_size": 0.003000
+  },
+  {
+    "name": "satcom_burst",
+    "throughput": 5.000,
+    "packet_size": 0.005000
+  }
+]

@@ -1,0 +1,734 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_01",
+        "start_code": "SEA",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "SEA",
+          "PDX",
+          "RNO",
+          "SMF",
+          "OAK",
+          "SJC",
+          "LAX",
+          "SNA",
+          "SAN",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_02",
+        "start_code": "PDX",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "PDX",
+          "SEA",
+          "RNO",
+          "SMF",
+          "OAK",
+          "SJC",
+          "LAX",
+          "SNA",
+          "SAN",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_03",
+        "start_code": "SJC",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "SJC",
+          "OAK",
+          "SMF",
+          "RNO",
+          "LAX",
+          "SNA",
+          "SAN",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_04",
+        "start_code": "OAK",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "OAK",
+          "SJC",
+          "SMF",
+          "RNO",
+          "LAX",
+          "SNA",
+          "SAN",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_05",
+        "start_code": "SMF",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "SMF",
+          "OAK",
+          "SJC",
+          "RNO",
+          "LAX",
+          "SNA",
+          "SAN",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_06",
+        "start_code": "RNO",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "RNO",
+          "SMF",
+          "OAK",
+          "SJC",
+          "LAX",
+          "SNA",
+          "SAN",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_07",
+        "start_code": "LAX",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "LAX",
+          "SNA",
+          "SAN",
+          "SJC",
+          "OAK",
+          "SMF",
+          "RNO",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_08",
+        "start_code": "SNA",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "SNA",
+          "LAX",
+          "SAN",
+          "SJC",
+          "OAK",
+          "SMF",
+          "RNO",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -117.1933,
+            32.7338,
+            5
+          ],
+          [
+            -117.8682,
+            33.6757,
+            17
+          ],
+          [
+            -118.4085,
+            33.9416,
+            38
+          ],
+          [
+            -121.929,
+            37.3626,
+            19
+          ],
+          [
+            -122.2197,
+            37.7126,
+            3
+          ],
+          [
+            -121.5908,
+            38.6954,
+            8
+          ],
+          [
+            -119.7681,
+            39.4991,
+            1346
+          ],
+          [
+            -122.5951,
+            45.5898,
+            9
+          ],
+          [
+            -122.3088,
+            47.4502,
+            130
+          ],
+          [
+            -122.379,
+            37.6213,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "route_label": "uswc_forward_09",
+        "start_code": "SAN",
+        "end_code": "SFO",
+        "waypoint_codes": [
+          "SAN",
+          "SNA",
+          "LAX",
+          "SJC",
+          "OAK",
+          "SMF",
+          "RNO",
+          "PDX",
+          "SEA",
+          "SFO"
+        ],
+        "kinematics": {
+          "speed_m_s": 230.0,
+          "sample_interval_s": 45,
+          "start_time": "2025-11-01T09:00:00Z",
+          "interpolation": "great_circle"
+        }
+      }
+    }
+  ]
+}

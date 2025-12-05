@@ -113,9 +113,13 @@ class WorkDispatcher:
                 rebuild_tree = True
 
         if not file.exists() or rebuild_tree:
-            workers_plan, workers_plan_metadata, part, nb_unit, weight_unit = (
-                czan
-            )
+            (
+                workers_plan,
+                workers_plan_metadata,
+                part,
+                nb_unit,
+                weight_unit,
+            ) = target_inst.build_distribution(workers)
 
             data = {
                 "target_args": args,
