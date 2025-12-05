@@ -1848,13 +1848,12 @@ class AGI:
         src = env.dataset_archive
         if src.exists():
             try:
-                if not env.agi_share_dir:
-                    raise FileNotFoundError("App data path not configured")
-                install_dataset_dir = env.home_abs / env.agi_share_dir / "dataset"
+                share_root = env.share_root_path()
+                install_dataset_dir = share_root / "dataset"
                 os.makedirs(install_dataset_dir, exist_ok=True)
                 shutil.copy2(src, dest)
-            except (FileNotFoundError, PermissionError) as exc:
-                logger.warning("Skipping dataset copy to %s: %s", install_dataset_dir, exc)
+            except (FileNotFoundError, PermissionError, RuntimeError) as exc:
+                logger.warning("Skipping dataset copy to %s: %s", install_dataset_dir if 'install_dataset_dir' in locals() else "<share root>", exc)
 
         post_install_cmd = (
             f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "

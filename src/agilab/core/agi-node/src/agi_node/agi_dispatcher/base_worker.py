@@ -187,14 +187,15 @@ class BaseWorker(abc.ABC):
         if env is None:
             return None
 
-        share_getter = getattr(env, "share_base_path", None)
-        if callable(share_getter):
-            try:
-                base = Path(share_getter()).expanduser()
-                if base:
-                    return base
-            except Exception:  # pragma: no cover - defensive guard
-                logger.debug("share_base_path() failed; falling back to legacy resolution", exc_info=True)
+        for accessor in ("share_root_path", "share_base_path"):
+            share_getter = getattr(env, accessor, None)
+            if callable(share_getter):
+                try:
+                    base = Path(share_getter()).expanduser()
+                    if base:
+                        return base
+                except Exception:  # pragma: no cover - defensive guard
+                    logger.debug("%s() failed; falling back to legacy resolution", accessor, exc_info=True)
 
         candidates = (
             getattr(env, "agi_share_dir_abs", None),

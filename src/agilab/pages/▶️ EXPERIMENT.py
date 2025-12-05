@@ -2825,25 +2825,6 @@ def display_lab_tab(
     run_logs_key = f"{index_page_str}__run_logs"
     run_placeholder_key = f"{index_page_str}__run_placeholder"
     st.session_state.setdefault(run_logs_key, [])
-    with st.expander("Run logs", expanded=True):
-        clear_logs = st.button(
-            "Clear logs",
-            key=f"{index_page_str}__clear_logs_global",
-            type="secondary",
-            use_container_width=True,
-        )
-        if clear_logs:
-            st.session_state[run_logs_key] = []
-        log_placeholder = st.empty()
-        st.session_state[run_placeholder_key] = log_placeholder
-        logs = st.session_state.get(run_logs_key, [])
-        if logs:
-            log_placeholder.code("\n".join(logs))
-        else:
-            log_placeholder.caption("No runs recorded yet.")
-        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
-        if last_log_file:
-            st.caption(f"Most recent pipeline log: {last_log_file}")
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
 
@@ -3385,6 +3366,7 @@ def display_lab_tab(
         )
 
     if run_all_clicked:
+        run_placeholder = _get_run_placeholder(index_page_str)
         log_dir_candidate = env.runenv or (Path.home() / "log" / "execute" / env.app)
         log_dir_path = Path(log_dir_candidate).expanduser()
         log_file_path: Optional[Path] = None
@@ -3399,19 +3381,19 @@ def display_lab_tab(
             _push_run_log(
                 index_page_str,
                 f"Run pipeline started… logs will be saved to {log_file_path}",
-                log_placeholder,
+                run_placeholder,
             )
         except Exception as exc:
             _push_run_log(
                 index_page_str,
                 f"Run pipeline started… (unable to prepare log file: {exc})",
-                log_placeholder,
+                run_placeholder,
             )
             log_file_path = None
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
-            run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=log_placeholder)
+            run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=run_placeholder)
         finally:
             st.session_state.pop(f"{index_page_str}__run_log_file", None)
         st.rerun()
@@ -3449,6 +3431,26 @@ def display_lab_tab(
         st.info(
             f"No data loaded yet. Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector."
         )
+
+    with st.expander("Run logs", expanded=True):
+        clear_logs = st.button(
+            "Clear logs",
+            key=f"{index_page_str}__clear_logs_global",
+            type="secondary",
+            use_container_width=True,
+        )
+        if clear_logs:
+            st.session_state[run_logs_key] = []
+        log_placeholder = st.empty()
+        st.session_state[run_placeholder_key] = log_placeholder
+        logs = st.session_state.get(run_logs_key, [])
+        if logs:
+            log_placeholder.code("\n".join(logs))
+        else:
+            log_placeholder.caption("No runs recorded yet.")
+        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
+        if last_log_file:
+            st.caption(f"Most recent pipeline log: {last_log_file}")
 
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
@@ -3556,8 +3558,8 @@ def page() -> None:
     universal_offline_controls(env)
 
     display_lab_tab(lab_dir, index_page_str, steps_file, module_path, env)
-    with st.expander("lab_steps.toml", expanded=False):
-        display_history_tab(steps_file, module_path)
+    # Disabled per request to hide the lab_steps.toml expander from the main UI.
+    # display_history_tab(steps_file, module_path)
 
 
 @st.cache_data

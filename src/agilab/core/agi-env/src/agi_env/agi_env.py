@@ -474,6 +474,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self._agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
         self.home_abs = home_abs
+        self._share_root_cache: Path | None = None
 
         if verbose is None:
             verbose = 0
@@ -1017,6 +1018,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             AgiEnv.logger.warning(
                 f"AGI_CLUSTER_SHARE is not mounted at {candidate}\nself.agi_share_dir fallback to AGI_LOCAL_SHARE = {candidate}"
             )
+        self._share_root_cache = None
 
         if self.is_worker_env:
             return
@@ -1255,6 +1257,49 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         AgiEnv.envars[key] = value
         os.environ[key] = str(value)
         AgiEnv._update_env_file({key: value})
+
+    # ------------------------------------------------------------------
+    # Shared storage helpers
+    # ------------------------------------------------------------------
+    def share_root_path(self) -> Path:
+        """Return the absolute path corresponding to ``agi_share_dir``."""
+
+        if self._share_root_cache is not None:
+            return self._share_root_cache
+
+        share = getattr(self, "agi_share_dir", None)
+        if not share:
+            raise RuntimeError("agi_share_dir is not configured; cannot resolve shared storage path.")
+
+        share_path = Path(share).expanduser()
+        if not share_path.is_absolute():
+            base = Path.home()
+            env_home = getattr(self, "home_abs", None)
+            # Worker environments inherit persisted metadata from the manager.
+            # Prefer the runtime home directory so relative shares resolve on the worker.
+            if env_home and not getattr(self, "is_worker_env", False):
+                base = Path(env_home)
+            share_path = Path(base).expanduser() / share_path
+
+        share_path = share_path.resolve(strict=False)
+        self._share_root_cache = share_path
+        return share_path
+
+    def resolve_share_path(self, path: str | Path | None) -> Path:
+        """
+        Resolve ``path`` relative to the shared storage root.
+
+        ``None`` or ``"."`` returns the root itself; absolute inputs pass through unchanged.
+        """
+
+        if path in (None, "", "."):
+            return self.share_root_path()
+
+        candidate = Path(path).expanduser()
+        if candidate.is_absolute():
+            return candidate.resolve(strict=False)
+
+        return (self.share_root_path() / candidate).resolve(strict=False)
 
     @classmethod
     def _ensure_defaults(cls):
