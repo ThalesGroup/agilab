@@ -2686,34 +2686,52 @@ class AGI:
         dask_workers = list(AGI._dask_workers)
         client = AGI._dask_client
 
-        AGI._dask_client.gather(
-            [
-                client.submit(
-                    BaseWorker._new,
-                    env=0 if env.debug else None,
-                    app=env.target_worker,
-                    mode=AGI._mode,
-                    verbose=AGI.verbose,
-                    worker_id=dask_workers.index(worker),
-                    worker=worker,
-                    args=AGI._args,
-                    workers=[worker],
-                )
-                for worker in dask_workers
-            ]
-        )
+        if env.debug:
+            BaseWorker._new(
+                        env=0 if env.debug else None,
+                        app=env.target_worker,
+                        mode=AGI._mode,
+                        verbose=AGI.verbose,
+                        worker_id=0,
+                        worker=dask_workers[0],
+                        args=AGI._args,
+                    )
+
+        else:
+            AGI._dask_client.gather(
+                [
+                    client.submit(
+                        BaseWorker._new,
+                        env=0 if env.debug else None,
+                        app=env.target_worker,
+                        mode=AGI._mode,
+                        verbose=AGI.verbose,
+                        worker_id=dask_workers.index(worker),
+                        worker=worker,
+                        args=AGI._args,
+                        workers=[worker],
+                    )
+                    for worker in dask_workers
+                ]
+            )
 
         await AGI._calibration()
 
         t = time.time()
 
-        # --- Capture logs from each worker! ---
-        worker_logs = client.run(
-            BaseWorker._do_works,
-            workers_plan,
-            workers_plan_metadata,
-            workers=dask_workers,
-        )
+        if env.debug:
+            BaseWorker._do_works(
+                workers_plan,
+                workers_plan_metadata
+            )
+        else:
+            # --- Capture logs from each worker! ---
+            worker_logs = client.run(
+                BaseWorker._do_works,
+                workers_plan,
+                workers_plan_metadata,
+                workers=dask_workers,
+            )
 
         # LOG ONLY, no print:
         for worker, log in worker_logs.items():
