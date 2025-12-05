@@ -2825,6 +2825,25 @@ def display_lab_tab(
     run_logs_key = f"{index_page_str}__run_logs"
     run_placeholder_key = f"{index_page_str}__run_placeholder"
     st.session_state.setdefault(run_logs_key, [])
+    with st.expander("Run logs", expanded=True):
+        clear_logs = st.button(
+            "Clear logs",
+            key=f"{index_page_str}__clear_logs_global",
+            type="secondary",
+            use_container_width=True,
+        )
+        if clear_logs:
+            st.session_state[run_logs_key] = []
+        log_placeholder = st.empty()
+        st.session_state[run_placeholder_key] = log_placeholder
+        logs = st.session_state.get(run_logs_key, [])
+        if logs:
+            log_placeholder.code("\n".join(logs))
+        else:
+            log_placeholder.caption("No runs recorded yet.")
+        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
+        if last_log_file:
+            st.caption(f"Most recent pipeline log: {last_log_file}")
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
 
@@ -3308,26 +3327,6 @@ def display_lab_tab(
                 st.rerun()
             else:
                 st.warning("Enter a prompt before generating code.")
-
-    with st.expander("Run logs", expanded=True):
-        clear_logs = st.button(
-            "Clear logs",
-            key=f"{index_page_str}__clear_logs_global",
-            type="secondary",
-            use_container_width=True,
-        )
-        if clear_logs:
-            st.session_state[run_logs_key] = []
-        log_placeholder = st.empty()
-        st.session_state[run_placeholder_key] = log_placeholder
-        logs = st.session_state.get(run_logs_key, [])
-        if logs:
-            log_placeholder.code("\n".join(logs))
-        else:
-            log_placeholder.caption("No runs recorded yet.")
-        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
-        if last_log_file:
-            st.caption(f"Most recent pipeline log: {last_log_file}")
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
