@@ -1009,13 +1009,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         candidate =  _abs_path(self.AGI_CLUSTER_SHARE)
         if is_mounted(candidate):
             self.agi_share_dir = self.AGI_CLUSTER_SHARE
-            AgiEnv.logger.info(
-                f"self.agi_share_dir = AGI_CLUSTER_SHARE = {candidate}"
-            )
+            #AgiEnv.logger.info(
+            #    f"self.agi_share_dir = AGI_CLUSTER_SHARE = {candidate}"
+            #)
         else:
             self.agi_share_dir = self.AGI_LOCAL_SHARE
-            AgiEnv.logger.info(
-                f"self.agi_share_dir = AGI_LOCAL_SHARE = {candidate}"
+            AgiEnv.logger.warning(
+                f"AGI_CLUSTER_SHARE is not mounted at {candidate}\nself.agi_share_dir fallback to AGI_LOCAL_SHARE = {candidate}"
             )
 
         if self.is_worker_env:

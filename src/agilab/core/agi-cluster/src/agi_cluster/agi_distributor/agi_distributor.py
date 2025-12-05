@@ -2672,13 +2672,35 @@ class AGI:
 
         t = time.time()
 
-        # --- Capture logs from each worker! ---
-        worker_logs = client.run(
-            BaseWorker._do_works,
-            workers_plan,
-            workers_plan_metadata,
-            workers=dask_workers,
-        )
+        def _wrap_chunk(payload, worker_index):
+            if not isinstance(payload, list):
+                return payload
+            chunk = payload[worker_index] if worker_index < len(payload) else []
+            return {
+                "__agi_worker_chunk__": True,
+                "chunk": chunk,
+                "total_workers": len(payload),
+                "worker_idx": worker_index,
+            }
+
+        futures = {}
+        for worker_idx, worker_addr in enumerate(dask_workers):
+            plan_payload = _wrap_chunk(workers_plan or [], worker_idx)
+            metadata_payload = _wrap_chunk(workers_plan_metadata or [], worker_idx)
+            futures[worker_addr] = client.submit(
+                BaseWorker._do_works,
+                plan_payload,
+                metadata_payload,
+                workers=[worker_addr],
+            )
+
+        gathered_logs = client.gather(list(futures.values())) if futures else []
+        worker_logs: Dict[str, str] = {}
+        for idx, worker_addr in enumerate(futures.keys()):
+            log_value = gathered_logs[idx] if idx < len(gathered_logs) else ""
+            worker_logs[worker_addr] = log_value or ""
+        if AGI.debug and not worker_logs:
+            worker_logs = {worker: "" for worker in dask_workers}
 
         # LOG ONLY, no print:
         for worker, log in worker_logs.items():
