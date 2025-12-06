@@ -8,8 +8,8 @@ from agi_env import AgiEnv
 @pytest.fixture
 def env():
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
-    apps_dir = agipath / 'apps'
-    return AgiEnv(apps_dir=apps_dir, app='flight_project', verbose=1)
+    apps_path = agipath / 'apps'
+    return AgiEnv(apps_path=apps_path, app='flight_project', verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     txt = 'foo foo_bar barfoo bar Foo foo.'
@@ -29,7 +29,7 @@ def test_change_app_reinitializes_on_change(monkeypatch, env):
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
         env.change_app(mycode_name)
     assert called['count'] == 1
-    assert called['kwargs'].get('apps_dir') == apps_path
+    assert called['kwargs'].get('apps_path') == apps_path
     assert called['kwargs'].get('app') == mycode_name
     assert 'install_type' not in called['kwargs']
 

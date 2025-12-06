@@ -15,7 +15,7 @@ from agi_node.agi_dispatcher import BaseWorker
 
 
 async def main() -> None:
-    env = AgiEnv(apps_dir=ROOT.parents[2], active_app="mycode_project", verbose=1)
+    env = AgiEnv(apps_path=ROOT.parents[2], active_app="mycode_project", verbose=1)
     args = {
         "param1": 0,
         "param2": "some text",

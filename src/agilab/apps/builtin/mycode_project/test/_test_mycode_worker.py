@@ -17,7 +17,7 @@ from agi_node.agi_dispatcher import BaseWorker
 
 async def _build_worker(mode: int) -> None:
     active_app = ROOT.parents[1]
-    env = AgiEnv(apps_dir=ROOT.parents[2], active_app=active_app.name, verbose=1)
+    env = AgiEnv(apps_path=ROOT.parents[2], active_app=active_app.name, verbose=1)
 
     wenv = env.wenv_abs
     build_cmd = f"uv run --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv}"

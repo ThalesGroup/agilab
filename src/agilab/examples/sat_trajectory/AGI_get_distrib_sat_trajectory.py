@@ -1,13 +1,15 @@
 
 import asyncio
+import os
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "/Users/agi/PycharmProjects/agilab/src/agilab/apps"
+AGILAB_PATH = os.open(f"{Path.home()}/.local/share/agilab/.agilab-path").read().strip()
+APPS_PATH = Path(AGILAB_PATH) / "apps"
 APP = "sat_trajectory_project"
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
+    app_env = AgiEnv(apps_dir=APPS_PATH, app=APP, verbose=1)
     res = await AGI.get_distrib(app_env,
                                data_in="sat_trajectory/dataset", duration_s=86400, step_s=1, number_of_sat=25, input_TLE="TLE", input_antenna="antenna_conf.json", input_sat="sat.json")
     print(res)

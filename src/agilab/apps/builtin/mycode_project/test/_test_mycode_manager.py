@@ -16,7 +16,7 @@ from mycode import Mycode, MycodeArgs
 
 
 def _build_env() -> AgiEnv:
-    return AgiEnv(apps_dir=ROOT.parents[2], active_app="mycode_project", verbose=1)
+    return AgiEnv(apps_path=ROOT.parents[2], active_app="mycode_project", verbose=1)
 
 
 async def main() -> None:

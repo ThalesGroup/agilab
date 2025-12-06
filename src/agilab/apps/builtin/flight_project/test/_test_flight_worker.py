@@ -27,8 +27,8 @@ async def main():
     sys.path.insert(0, active_app_path / 'src')
     sys.path.insert(0, str(Path.home() / 'wenv/flight_worker/dist'))
 
-    apps_dir = base_path.parents[2]
-    env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=True)
+    apps_path = base_path.parents[2]
+    env = AgiEnv(apps_path=apps_path, active_app=active_app_path.name, verbose=True)
     # build the egg using the shared build module
     wenv = env.wenv_abs
     menv = env.wenv_abs

@@ -5,7 +5,7 @@ from datetime import date
 from agi_env import AgiEnv
 
 script_path = Path(__file__).resolve()
-apps_dir = script_path.parents[2]
+apps_path = script_path.parents[2]
 active_app = script_path.parents[1]
 path = str(active_app / "src")
 if path not in sys.path:
@@ -14,7 +14,7 @@ from flight import Flight
 
 @pytest.fixture
 def flight():
-    env = AgiEnv(apps_dir=apps_dir, active_app=active_app.name, verbose=True)
+    env = AgiEnv(apps_path=apps_path, active_app=active_app.name, verbose=True)
     return Flight(
         env=env,
         verbose=True,

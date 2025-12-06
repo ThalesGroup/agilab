@@ -7,7 +7,7 @@ from pathlib import Path
 
 async def main():
     script_path = Path(__file__).resolve()
-    env = AgiEnv(apps_dir=script_path.parents[2], active_app=script_path.parents[1].name, verbose=True)
+    env = AgiEnv(apps_path=script_path.parents[2], active_app=script_path.parents[1].name, verbose=True)
 
     # Instantiate Flight with your parameters
     flight = Flight(
