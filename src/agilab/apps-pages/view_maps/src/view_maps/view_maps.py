@@ -41,10 +41,10 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 def _default_app() -> Path | None:
-    apps_dir = Path(__file__).resolve().parents[4] / "apps"
-    if not apps_dir.exists():
+    apps_path = Path(__file__).resolve().parents[4] / "apps"
+    if not apps_path.exists():
         return None
-    for candidate in sorted(apps_dir.iterdir()):
+    for candidate in sorted(apps_path.iterdir()):
         if candidate.is_dir() and candidate.name.endswith("_project"):
             return candidate
     return None
@@ -640,12 +640,12 @@ def main():
 
         # Derive the short app name (e.g., 'flight_project')
         app = active_app.name
-        st.session_state["apps_dir"] = str(active_app.parent)
+        st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
         st.info(f"active_app: {active_app}")
         env = AgiEnv(
-            apps_dir=active_app.parent,
+            apps_path=active_app.parent,
             app=app,
             verbose=1,
         )

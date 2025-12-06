@@ -50,7 +50,7 @@ def _guard_against_uvx_in_source_tree() -> None:
         raise SystemExit(message)
 
 
-def _resolve_apps_dir(cli_value: str | None) -> str | None:
+def _resolve_apps_path(cli_value: str | None) -> str | None:
     """Return the CLI provided apps dir, or the repo apps dir when running from source."""
     if cli_value:
         return cli_value
@@ -92,7 +92,7 @@ def main():
     # Collect custom arguments (only pass what is provided).
     custom_args = []
 
-    resolved_apps_dir = _resolve_apps_dir(args.apps_dir)
+    resolved_apps_path = _resolve_apps_path(args.apps_path)
 
     # SSH credentials are optional at wrapper level; pass through if provided.
     if args.cluster_ssh_credentials:
@@ -102,8 +102,8 @@ def main():
     if args.openai_api_key:
         custom_args.extend(["--openai-api-key", args.openai_api_key])
 
-    if resolved_apps_dir:
-        custom_args.extend(["--apps-dir", resolved_apps_dir])
+    if resolved_apps_path:
+        custom_args.extend(["--apps-dir", resolved_apps_path])
 
     if unknown:
         custom_args.extend(unknown)

@@ -93,11 +93,11 @@ def _port_for(key: str) -> int:
 jobs = bg.BackgroundJobManager()
 
 
-def _default_app_path(apps_dir: Path | None) -> Path | None:
-    """Return the first *_project directory found under apps_dir."""
-    if not apps_dir or not apps_dir.exists():
+def _default_app_path(apps_path: Path | None) -> Path | None:
+    """Return the first *_project directory found under apps_path."""
+    if not apps_path or not apps_path.exists():
         return None
-    for candidate in sorted(apps_dir.iterdir()):
+    for candidate in sorted(apps_path.iterdir()):
         if candidate.is_dir() and candidate.name.endswith("_project"):
             return candidate
     return None
