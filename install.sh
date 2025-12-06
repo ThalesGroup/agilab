@@ -33,8 +33,9 @@ APPS_REPOSITORY=""
 CUSTOM_INSTALL_APPS=""
 INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
 INSTALL_BUILTIN_SENTINEL="__AGILAB_BUILTIN_APPS__"
+INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE:-$HOME/.local/share/agilab/installed_apps.txt}"
 NON_INTERACTIVE=0
-export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL
+export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
 
 read_env_var() {
     local file="$1"
@@ -612,6 +613,22 @@ run_repository_tests_with_coverage() {
     local coverage_status=0
     local -a app_test_dirs=()
     local -a page_test_dirs=()
+    local installed_apps_file="${INSTALLED_APPS_FILE:-$HOME/.local/share/agilab/installed_apps.txt}"
+    local -a installed_apps=()
+    if [[ -f "$installed_apps_file" ]]; then
+        while IFS= read -r app || [[ -n "$app" ]]; do
+            app="${app%%#*}"
+            app="${app//$'\r'/}"
+            app="${app//$'\t'/}"
+            app="${app// }"
+            [[ -n "$app" ]] && installed_apps+=("$app")
+        done < "$installed_apps_file"
+    fi
+    local has_app_filter=0
+    if (( ${#installed_apps[@]} )); then
+        has_app_filter=1
+        echo -e "${BLUE}App coverage limited to installed set from ${installed_apps_file}.${NC}"
+    fi
     local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
     local extra_pythonpath="${repo_root}/src/agilab/core/agi-env/src:${repo_root}/src/agilab/core/agi-node/src:${repo_root}/src/agilab/core/agi-cluster/src"
     local repo_pythonpath="$repo_root"
@@ -621,7 +638,25 @@ run_repository_tests_with_coverage() {
 
     if [[ -d "$repo_root/src/agilab/apps" ]]; then
         while IFS= read -r dir; do
-            app_test_dirs+=("$dir")
+            local app_dir
+            local app_name
+            app_dir="$(dirname "$dir")"
+            app_name="$(basename "$app_dir")"
+            local include_dir=1
+            if (( has_app_filter )); then
+                include_dir=0
+                for selected_app in "${installed_apps[@]}"; do
+                    if [[ "$selected_app" == "$app_name" ]]; then
+                        include_dir=1
+                        break
+                    fi
+                done
+            fi
+            if (( include_dir )); then
+                app_test_dirs+=("$dir")
+            else
+                echo -e "${YELLOW}Skipping tests for '${app_name}' (not installed in this run).${NC}"
+            fi
         done < <(find "$repo_root/src/agilab/apps" -mindepth 2 -maxdepth 2 -type d -name 'test' -not -path '*/.venv/*' 2>/dev/null)
     fi
 
@@ -682,11 +717,13 @@ install_apps() {
   if [[ -n "$CUSTOM_INSTALL_APPS" ]]; then
     APPS_DEST_BASE="${agilab_public}/apps" \
     PAGES_DEST_BASE="${agilab_public}/apps-pages" \
+    INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE}" \
     BUILTIN_APPS="$CUSTOM_INSTALL_APPS" \
       ./install_apps.sh "${install_args[@]}"
   else
     APPS_DEST_BASE="${agilab_public}/apps" \
     PAGES_DEST_BASE="${agilab_public}/apps-pages" \
+    INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE}" \
       ./install_apps.sh "${install_args[@]}"
   fi
   popd > /dev/null
