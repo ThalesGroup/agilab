@@ -17,12 +17,10 @@ def _share_base() -> Path:
             env = AgiEnv(app="sb3_trainer")
 
     if env is not None:
-        base = getattr(env, "agi_share_dir_abs", None) or getattr(env, "agi_share_dir", None)
-        if base:
-            base_path = Path(str(base)).expanduser()
-            if base_path.is_absolute():
-                return base_path
-            return (Path(getattr(env, "home_abs", Path.home())).expanduser() / base_path).expanduser()
+        try:
+            return env.share_root_path()
+        except Exception:
+            pass
 
     raw = os.environ.get("AGI_SHARE_DIR") or os.environ.get("AGI_CLUSTER_SHARE")
     if raw:

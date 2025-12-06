@@ -594,31 +594,27 @@ def render_cluster_settings_ui():
             if normalized != current:
                 AgiEnv.set_env_var(key, normalized)
 
-        share_candidate_obj = getattr(env, "agi_share_dir", None)
-        share_candidate: Optional[Path]
-        if isinstance(share_candidate_obj, Path):
-            share_candidate = share_candidate_obj
-        elif share_candidate_obj is not None:
-            share_candidate = Path(str(share_candidate_obj))
-        else:
-            share_candidate = None
-        share_resolved: Optional[Path] = None
+        share_raw = getattr(env, "agi_share_dir", None)
+        share_display: str
+        resolved_display: Optional[Path] = None
         is_symlink = False
-        if share_candidate is not None:
-            if not share_candidate.is_absolute():
-                share_candidate = (env.home_abs / share_candidate)
-            share_candidate = share_candidate.expanduser()
-            is_symlink = share_candidate.is_symlink()
+        if share_raw:
+            share_display = str(share_raw)
             try:
-                share_resolved = share_candidate.resolve()
+                share_root = env.share_root_path()
             except Exception:
-                share_resolved = share_candidate
-
-        if share_candidate is not None:
-            if share_resolved and share_resolved != share_candidate:
-                share_display = f"{share_candidate} → {share_resolved}"
-            else:
-                share_display = str(share_candidate)
+                share_root = None
+            if share_root is not None:
+                resolved_display = share_root
+                try:
+                    is_symlink = share_root.is_symlink()
+                    resolved_target = share_root.resolve(strict=False)
+                except Exception:
+                    resolved_target = share_root
+                if resolved_target != share_root:
+                    resolved_display = resolved_target
+            if resolved_display and str(resolved_display) != share_display:
+                share_display = f"{share_display} → {resolved_display}"
         else:
             share_display = (
                 "not set. Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
