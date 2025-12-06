@@ -1253,11 +1253,11 @@ import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "{env.apps_dir}"
+APPS_PATH = "{env.apps_dir}"
 APP = "{env.app}"
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_PATH, app=APP, verbose={verbose})
     res = await AGI.install(app_env, 
                             modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
@@ -1418,11 +1418,11 @@ import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "{env.apps_dir}"
+APPS_PATH = "{env.apps_dir}"
 APP = "{env.app}"
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_PATH, app=APP, verbose={verbose})
     res = await AGI.get_distrib(app_env,
                                scheduler={scheduler}, 
                                workers={workers},
@@ -1597,11 +1597,11 @@ import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = "{env.apps_dir}"
+APPS_PATH = "{env.apps_dir}"
 APP = "{env.app}"
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_PATH, app=APP, verbose={verbose})
     res = await AGI.run(app_env, 
                         mode={run_mode if run_mode is not None else "None"}, 
                         scheduler={scheduler}, 

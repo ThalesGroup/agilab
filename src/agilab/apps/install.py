@@ -203,7 +203,7 @@ async def main():
         app_path = Path(args.active_app).expanduser()
         try:
             app_env = AgiEnv(
-                apps_dir=app_path.parent,
+                apps_path=app_path.parent,
                 app=app_path.name,
                 verbose=args.verbose,
             )

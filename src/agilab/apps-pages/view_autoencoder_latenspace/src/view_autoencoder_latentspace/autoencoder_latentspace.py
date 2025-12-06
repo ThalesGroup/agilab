@@ -545,11 +545,11 @@ def main():
 
         # Short app name
         app = active_app.name
-        st.session_state["apps_dir"] = str(active_app.parent)
+        st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
         env = AgiEnv(
-            apps_dir=active_app.parent,
+            apps_path=active_app.parent,
             app=app,
             verbose=1,
         )

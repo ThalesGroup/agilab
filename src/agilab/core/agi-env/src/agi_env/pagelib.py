@@ -681,7 +681,7 @@ def get_templates():
     """
     env = st.session_state["env"]
     candidates = []
-    templates_root = env.apps_dir / "templates"
+    templates_root = env.apps_path / "templates"
     if templates_root.exists():
         candidates.extend(p.name for p in templates_root.iterdir() if p.is_dir())
 
@@ -692,7 +692,7 @@ def get_templates():
             candidates.extend(p.name for p in agilab_templates.iterdir() if p.is_dir())
 
     if not candidates:
-        candidates.extend(p.stem for p in env.apps_dir.glob("*template"))
+        candidates.extend(p.stem for p in env.apps_path.glob("*template"))
 
     return sorted(dict.fromkeys(candidates))
 
@@ -774,7 +774,7 @@ def on_project_change(project, switch_to_select=False):
     try:
 
         # Change the app/project
-        env.change_app(env.apps_dir / project)
+        env.change_app(env.apps_path / project)
         
 
         module = env.target
@@ -1525,7 +1525,7 @@ def select_project(projects, current_project):
     env = st.session_state.get("env")
     if env is not None:
         try:
-            projects = env.get_projects(env.apps_dir, getattr(env, "builtin_apps_dir", None))
+            projects = env.get_projects(env.apps_path, getattr(env, "builtin_apps_path", None))
             env.projects = projects
         except Exception:
             pass
@@ -1581,14 +1581,14 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
         requested_val = None
 
     def _candidates(name: str) -> list[Path]:
-        base = preferred_base or Path(env.apps_dir)
-        builtin_base = Path(env.apps_dir) / "builtin"
+        base = preferred_base or Path(env.apps_path)
+        builtin_base = Path(env.apps_path) / "builtin"
         cands = [
             Path(name).expanduser(),
             base / name,
             base / f"{name}_project",
-            Path(env.apps_dir) / name,
-            Path(env.apps_dir) / f"{name}_project",
+            Path(env.apps_path) / name,
+            Path(env.apps_path) / f"{name}_project",
             builtin_base / name,
             builtin_base / f"{name}_project",
         ]
@@ -1596,8 +1596,8 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
             if proj_name == name or proj_name.replace("_project", "") == name:
                 cands.extend(
                     [
-                        Path(env.apps_dir) / proj_name,
-                        Path(env.apps_dir) / f"{proj_name}_project",
+                        Path(env.apps_path) / proj_name,
+                        Path(env.apps_path) / f"{proj_name}_project",
                         builtin_base / proj_name,
                         builtin_base / f"{proj_name}_project",
                     ]
@@ -1642,14 +1642,14 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
         requested_val = None
 
     def _candidates(name: str) -> list[Path]:
-        base = preferred_base or Path(env.apps_dir)
-        builtin_base = Path(env.apps_dir) / "builtin"
+        base = preferred_base or Path(env.apps_path)
+        builtin_base = Path(env.apps_path) / "builtin"
         cands = [
             Path(name).expanduser(),
             base / name,
             base / f"{name}_project",
-            Path(env.apps_dir) / name,
-            Path(env.apps_dir) / f"{name}_project",
+            Path(env.apps_path) / name,
+            Path(env.apps_path) / f"{name}_project",
             builtin_base / name,
             builtin_base / f"{name}_project",
         ]
@@ -1657,8 +1657,8 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
             if proj_name == name or proj_name.replace("_project", "") == name:
                 cands.extend(
                     [
-                        Path(env.apps_dir) / proj_name,
-                        Path(env.apps_dir) / f"{proj_name}_project",
+                        Path(env.apps_path) / proj_name,
+                        Path(env.apps_path) / f"{proj_name}_project",
                         builtin_base / proj_name,
                         builtin_base / f"{proj_name}_project",
                     ]

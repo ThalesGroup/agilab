@@ -157,14 +157,14 @@ def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
         candidates.append(provided)
     else:
         candidates.append((Path.cwd() / provided).resolve())
-        candidates.append((env.apps_dir / provided).resolve())
-        candidates.append((env.apps_dir / provided.name).resolve())
+        candidates.append((env.apps_path / provided).resolve())
+        candidates.append((env.apps_path / provided.name).resolve())
 
     # Shortcut when the value already matches a known project name.
     if raw_value in env.projects:
-        candidates.insert(0, (env.apps_dir / raw_value).resolve())
+        candidates.insert(0, (env.apps_path / raw_value).resolve())
     elif provided.name in env.projects:
-        candidates.insert(0, (env.apps_dir / provided.name).resolve())
+        candidates.insert(0, (env.apps_path / provided.name).resolve())
 
     for candidate in candidates:
         try:
@@ -218,7 +218,7 @@ def _sync_active_app_from_query(env) -> None:
     # Persist the latest active app for reuse on next launch only if it changed via request
     try:
         if changed:
-            _store_last_active_app(Path(env.apps_dir) / env.app)
+            _store_last_active_app(Path(env.apps_path) / env.app)
     except Exception:
         pass
 
@@ -670,25 +670,25 @@ def main():
 
             args, _ = parser.parse_known_args()
 
-            if args.apps_dir is None:
+            if args.apps_path is None:
                 with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
                     agilab_path = f.read()
                     before, sep, after = agilab_path.rpartition(".venv")
-                    args.apps_dir = Path(before) / "apps"
+                    args.apps_path = Path(before) / "apps"
 
-            if args.apps_dir is None:
+            if args.apps_path is None:
                 st.error("Error: Missing mandatory parameter: --apps-dir")
                 sys.exit(1)
 
-            apps_dir = Path(args.apps_dir).expanduser() if args.apps_dir else None
-            if apps_dir is None:
+            apps_path = Path(args.apps_path).expanduser() if args.apps_path else None
+            if apps_path is None:
                 st.error("Error: Missing mandatory parameter: --apps-dir")
                 sys.exit(1)
 
-            st.session_state["apps_dir"] = str(apps_dir)
+            st.session_state["apps_path"] = str(apps_path)
 
             try:
-                env = AgiEnv(apps_dir=apps_dir, verbose=1)
+                env = AgiEnv(apps_path=apps_path, verbose=1)
             except RuntimeError as exc:
                 if _handle_data_root_failure(exc, agi_env_cls=AgiEnv):
                     return
@@ -711,7 +711,7 @@ def main():
                 st.session_state["server_started"] = True
 
             try:
-                _store_last_active_app(Path(env.apps_dir) / env.app)
+                _store_last_active_app(Path(env.apps_path) / env.app)
             except Exception:
                 pass
 
@@ -730,7 +730,7 @@ def main():
             AgiEnv.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
             AgiEnv.set_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
             AgiEnv.set_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
-            AgiEnv.set_env_var("APPS_DIR", str(apps_dir))
+            AgiEnv.set_env_var("APPS_DIR", str(apps_path))
 
             st.session_state["first_run"] = False
             try:
@@ -745,7 +745,7 @@ def main():
     _refresh_env_from_file(env)
     _sync_active_app_from_query(env)
     try:
-        _store_last_active_app(Path(env.apps_dir) / env.app)
+        _store_last_active_app(Path(env.apps_path) / env.app)
     except Exception:
         pass
     show_banner_and_intro(resources_path)
