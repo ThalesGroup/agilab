@@ -34,6 +34,12 @@ ALL_APPS_SENTINEL="${INSTALL_ALL_SENTINEL:-__AGILAB_ALL_APPS__}"
 BUILTIN_ONLY_SENTINEL="${INSTALL_BUILTIN_SENTINEL:-__AGILAB_BUILTIN_APPS__}"
 NEED_APP_DISCOVERY=1
 FORCE_BUILTIN_ONLY=0
+FILTER_BUILTINS_BY_DEFAULT=1
+declare -a BUILTIN_SKIP_BY_DEFAULT=(
+  mycode_project
+  flight_project
+)
+INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE:-$HOME/.local/share/agilab/installed_apps.txt}"
 
 
 # Load env + normalize Python version
@@ -359,6 +365,7 @@ done
 # sentinel "__AGILAB_ALL_APPS__" (wired through --install-apps all) skips the
 # picker but keeps the default "install everything" selection.
 if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]/}" ]]; then
+  FILTER_BUILTINS_BY_DEFAULT=0
   if [[ "${BUILTIN_APPS_OVERRIDE}" == "$ALL_APPS_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
@@ -377,6 +384,7 @@ if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]
     NEED_APP_DISCOVERY=0
   fi
 elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]]/}" ]]; then
+  FILTER_BUILTINS_BY_DEFAULT=0
   if [[ "${BUILTIN_APPS_FROM_ENV}" == "$ALL_APPS_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
@@ -428,12 +436,38 @@ if (( FORCE_BUILTIN_ONLY )); then
   REPOSITORY_APPS=()
 fi
 
+declare -a SELECTED_BUILTIN_APPS=()
+declare -a BUILTIN_SKIPPED_BY_DEFAULT=()
+if (( FILTER_BUILTINS_BY_DEFAULT )); then
+  for app in "${BUILTIN_APPS[@]}"; do
+    skip=0
+    for blocked in "${BUILTIN_SKIP_BY_DEFAULT[@]}"; do
+      if [[ "$app" == "$blocked" ]]; then
+        skip=1
+        break
+      fi
+    done
+    if (( skip )); then
+      BUILTIN_SKIPPED_BY_DEFAULT+=("$app")
+      continue
+    fi
+    SELECTED_BUILTIN_APPS+=("$app")
+  done
+else
+  SELECTED_BUILTIN_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
+fi
+
+if (( FILTER_BUILTINS_BY_DEFAULT )) && (( ${#BUILTIN_SKIPPED_BY_DEFAULT[@]} )); then
+  echo -e "${YELLOW}(Apps) Skipping built-ins by default:${NC} ${BUILTIN_SKIPPED_BY_DEFAULT[*]}"
+  echo -e "${YELLOW}Tip:${NC} Pass --install-apps <name|all> or select them from the picker to include them."
+fi
+
 if (( FORCE_APP_SELECTION )); then
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
 elif (( SKIP_REPOSITORY_APPS == 0 )); then
-  INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"} ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
+  INCLUDED_APPS=(${SELECTED_BUILTIN_APPS+"${SELECTED_BUILTIN_APPS[@]}"} ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
 else
-  INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
+  INCLUDED_APPS=(${SELECTED_BUILTIN_APPS+"${SELECTED_BUILTIN_APPS[@]}"})
 fi
 declare -a ALL_APPS=()
 declare -a INCLUDED_APPS_UNIQ=()
@@ -460,47 +494,69 @@ for item in "${INCLUDED_APPS[@]}"; do
 done
 
 # Offer an interactive picker when we still need confirmation.
-if (( PROMPT_FOR_APPS )) && [[ -t 0 ]]; then
-  echo -e "${BLUE}Available apps:${NC}"
-  for idx in "${!INCLUDED_APPS_UNIQ[@]}"; do
-    printf "  %2d) %s\n" $((idx + 1)) "${INCLUDED_APPS_UNIQ[$idx]}"
-  done
-  read -rp "Numbers/ranges (1 3-5, blank = all): " selection
-  if [[ -n "$selection" ]]; then
-    selection="${selection//,/ }"
-    declare -a picked=()
-    for token in $selection; do
-      if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-        start=${BASH_REMATCH[1]}
-        end=${BASH_REMATCH[2]}
-        if (( end < start )); then
-          echo -e "${YELLOW}Ignoring invalid range: $token${NC}"
-          continue
-        fi
-        for ((num=start; num<=end; num++)); do
-          idx=$((num - 1))
-          if (( idx >= 0 && idx < ${#INCLUDED_APPS_UNIQ[@]} )); then
-            picked+=("${INCLUDED_APPS_UNIQ[$idx]}")
+if (( PROMPT_FOR_APPS )); then
+  if [[ -t 0 ]]; then
+    declare -a PROMPT_APPS=()
+    if (( ${#ALL_APPS[@]} )); then
+      PROMPT_APPS=("${ALL_APPS[@]}")
+    else
+      PROMPT_APPS=("${INCLUDED_APPS_UNIQ[@]}")
+    fi
+    echo -e "${BLUE}Available apps:${NC}"
+    for idx in "${!PROMPT_APPS[@]}"; do
+      app="${PROMPT_APPS[$idx]}"
+      marker="[ ]"
+      if [[ " ${INCLUDED_APPS_UNIQ[*]} " == *" ${app} "* ]]; then
+        marker="[x]"
+      fi
+      printf "  %2d) %s %s\n" $((idx + 1)) "$marker" "$app"
+    done
+    read -rp "Numbers/ranges (1 3-5, blank = defaults): " selection
+    if [[ -n "$selection" ]]; then
+      selection="${selection//,/ }"
+      declare -a picked=()
+      for token in $selection; do
+        if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+          start=${BASH_REMATCH[1]}
+          end=${BASH_REMATCH[2]}
+          if (( end < start )); then
+            echo -e "${YELLOW}Ignoring invalid range: $token${NC}"
+            continue
+          fi
+          for ((num=start; num<=end; num++)); do
+            idx=$((num - 1))
+            if (( idx >= 0 && idx < ${#PROMPT_APPS[@]} )); then
+              picked+=("${PROMPT_APPS[$idx]}")
+            else
+              echo -e "${YELLOW}Ignoring out-of-range selection: $num${NC}"
+            fi
+          done
+        elif [[ "$token" =~ ^[0-9]+$ ]]; then
+          idx=$((token - 1))
+          if (( idx >= 0 && idx < ${#PROMPT_APPS[@]} )); then
+            picked+=("${PROMPT_APPS[$idx]}")
           else
-            echo -e "${YELLOW}Ignoring out-of-range selection: $num${NC}"
+            echo -e "${YELLOW}Ignoring out-of-range selection: $token${NC}"
+          fi
+        else
+          echo -e "${YELLOW}Ignoring invalid selection: $token${NC}"
+        fi
+      done
+      if (( ${#picked[@]} )); then
+        declare -a unique_picked=()
+        for item in "${picked[@]}"; do
+          [[ -z "$item" ]] && continue
+          if [[ " ${unique_picked[*]} " != *" ${item} "* ]]; then
+            unique_picked+=("$item")
           fi
         done
-      elif [[ "$token" =~ ^[0-9]+$ ]]; then
-        idx=$((token - 1))
-        if (( idx >= 0 && idx < ${#INCLUDED_APPS_UNIQ[@]} )); then
-          picked+=("${INCLUDED_APPS_UNIQ[$idx]}")
-        else
-          echo -e "${YELLOW}Ignoring out-of-range selection: $token${NC}"
-        fi
+        INCLUDED_APPS_UNIQ=("${unique_picked[@]}")
       else
-        echo -e "${YELLOW}Ignoring invalid selection: $token${NC}"
+        echo -e "${YELLOW}No valid selections detected; keeping defaults.${NC}"
       fi
-    done
-    if (( ${#picked[@]} )); then
-      INCLUDED_APPS_UNIQ=("${picked[@]}")
-else
-  echo -e "${YELLOW}Non-interactive session detected; installing default apps: ${INCLUDED_APPS_UNIQ[*]}.${NC}"
-fi
+    fi
+  else
+    echo -e "${YELLOW}Non-interactive session detected; installing default apps: ${INCLUDED_APPS_UNIQ[*]}.${NC}"
   fi
 fi
 
@@ -535,6 +591,16 @@ else
 fi
 if (( ${#FILTERED_APPS[@]} )); then
   echo -e "${YELLOW}Apps filtered out:${NC} ${FILTERED_APPS[*]}"
+fi
+
+if [[ -n "$INSTALLED_APPS_FILE" ]]; then
+  mkdir -p -- "$(dirname "$INSTALLED_APPS_FILE")"
+  if (( ${#INCLUDED_APPS_UNIQ[@]} )); then
+    printf "%s\n" "${INCLUDED_APPS_UNIQ[@]}" > "$INSTALLED_APPS_FILE"
+  else
+    : > "$INSTALLED_APPS_FILE"
+  fi
+  echo -e "${BLUE}Installed apps manifest:${NC} $INSTALLED_APPS_FILE"
 fi
 
 echo
