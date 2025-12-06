@@ -1,8 +1,0 @@
-{
-    "classique_plane":[
-        {"bearing":0.0,"pitch":90.0,"Half-Power_Beamwidth":[1000,1000],"peak_gain_dbi":0.0,"frequency_MHz":300,"ref_loss_db":3.0,"ref_frac":0.5,"efficiency":0.6,"power":25,"shannon_bande_Hz":25000,"directional":false}
-    ],
-    "sat":[
-        {"bearing":0.0,"pitch":-90.0,"Half-Power_Beamwidth":[1.5,1.5],"peak_gain_dbi":30.0,"frequency_MHz":5000,"ref_loss_db":3.0,"ref_frac":0.5,"efficiency":0.65,"power":25,"shannon_bande_Hz":36000000,"directional":true}
-    ]
-}
