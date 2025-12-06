@@ -358,7 +358,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         with cls._lock:
             cls._instance = None
     install_type = None  # deprecated: derived from flags for backward compatibility
-    apps_dir = None
+    apps_path = None
     app = None
     target = None
     TABLE_MAX_ROWS = None
@@ -389,7 +389,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     _pythonpath_entries: list[str] = []
 
     def __init__(self,
-                 apps_dir: Path | None = None,
+                 apps_path: Path | None = None,
                  app: str | None = None,
                  verbose: int | None = None,
                  debug: bool = False,
@@ -412,7 +412,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.skip_repo_links = False
 
-        def _resolve_install_type(apps_dir: str | None,
+        def _resolve_install_type(apps_path: str | None,
                                   agilab_pck: Path,
                                   envars: dict | None,
                                   active_app_override: Path | None = None) -> int:
@@ -421,22 +421,22 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             Precedence:
             1. honour explicit overrides from environment variables (``AGILAB_INSTALL_TYPE``
                or ``INSTALL_TYPE``) when they are valid integers;
-            2. when no ``apps_dir`` is provided, assume a worker-only environment (type 2);
+            2. when no ``apps_path`` is provided, assume a worker-only environment (type 2);
             3. otherwise rely on the directory layout to distinguish source checkouts (type 1)
                from packaged installs (type 0), falling back to the legacy heuristic based on
                ``agilab_pck`` when needed.
             """
             try:
-                # Heuristic: if apps_dir is not provided (BaseWorker.new) or it resides inside a worker env folder (wenv/*_worker),
+                # Heuristic: if apps_path is not provided (BaseWorker.new) or it resides inside a worker env folder (wenv/*_worker),
                 # treat this as a worker-only environment regardless of source/layout markers.
-                if active_app_override is not None and apps_dir is None:
+                if active_app_override is not None and apps_path is None:
                     return 1
 
-                if apps_dir is None or "wenv" in set(apps_dir.resolve().parts):
+                if apps_path is None or "wenv" in set(apps_path.resolve().parts):
                     self.is_worker_env = True
                     return 2
 
-                elif apps_dir.parents[1].name == "src":
+                elif apps_path.parents[1].name == "src":
                     return 1
 
             except Exception:
@@ -511,31 +511,31 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             part.startswith(".venv") for part in agilab_pkg_dir.parts
         )
 
-        if apps_dir is not None:
-            apps_dir = Path(apps_dir).expanduser()
+        if apps_path is not None:
+            apps_path = Path(apps_path).expanduser()
             try:
-                apps_dir = apps_dir.resolve()
+                apps_path = apps_path.resolve()
             except FileNotFoundError:
                 pass
         elif envars.get("APPS_DIR"):
-            apps_dir = Path(envars["APPS_DIR"]).expanduser()
+            apps_path = Path(envars["APPS_DIR"]).expanduser()
             try:
-                apps_dir = apps_dir.resolve()
+                apps_path = apps_path.resolve()
             except Exception:
                 pass
         elif active_app_override is not None:
-            # Use the provided active_app path as the anchor when no apps_dir is supplied.
+            # Use the provided active_app path as the anchor when no apps_path is supplied.
             try:
                 candidate_parent = active_app_override.parent.resolve()
             except Exception:
                 candidate_parent = active_app_override.parent
 
-            # If the active_app sits under apps/builtin/<app>, keep apps_dir at apps/
+            # If the active_app sits under apps/builtin/<app>, keep apps_path at apps/
             if candidate_parent.name == "builtin" and candidate_parent.parent.name == "apps":
-                apps_dir = candidate_parent.parent
-                self.builtin_apps_dir = candidate_parent
+                apps_path = candidate_parent.parent
+                self.builtin_apps_path = candidate_parent
             else:
-                apps_dir = candidate_parent
+                apps_path = candidate_parent
 
         # Honour env flags when present
         env_is_source = envars.get("IS_SOURCE_ENV")
@@ -552,7 +552,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             except Exception:
                 self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
 
-        install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars, active_app_override)
+        install_type = _resolve_install_type(apps_path, agilab_pck, self.envars, active_app_override)
         if env_is_source is None and install_type == 1:
             self.is_source_env = True
         if env_is_worker is None and install_type == 2:
@@ -562,24 +562,24 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         repo_root = agilab_pck.parents[1] if len(agilab_pck.parents) > 1 else agilab_pck
         builtin_candidates = [
-            apps_dir if apps_dir and apps_dir.name == "builtin" else None,
-            apps_dir / "builtin" if apps_dir else None,
+            apps_path if apps_path and apps_path.name == "builtin" else None,
+            apps_path / "builtin" if apps_path else None,
             repo_root / "apps" / "builtin",
             agilab_pck / "apps" / "builtin",
         ]
-        self.builtin_apps_dir = next((c for c in builtin_candidates if c and c.exists()), None)
+        self.builtin_apps_path = next((c for c in builtin_candidates if c and c.exists()), None)
 
-        # Default apps_dir for non-worker envs when not provided
-        if not self.is_worker_env and apps_dir is None:
+        # Default apps_path for non-worker envs when not provided
+        if not self.is_worker_env and apps_path is None:
             repo_apps = self._get_apps_repository_root()
             default_apps_root = agilab_pck / "apps"
 
             # Prefer an explicit APPS_REPOSITORY if present
             if repo_apps is not None:
-                apps_dir = default_apps_root if default_apps_root.exists() else repo_apps
+                apps_path = default_apps_root if default_apps_root.exists() else repo_apps
                 self.apps_repository_root = repo_apps
             else:
-                apps_dir = default_apps_root
+                apps_path = default_apps_root
 
         if self.is_worker_env:
             if not app:
@@ -593,16 +593,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if active_app_override is not None and Path(active_app_override).exists():
                 active_app = Path(active_app_override)
             else:
-                base_dir = apps_dir if apps_dir is not None else Path()
+                base_dir = apps_path if apps_path is not None else Path()
                 try:
                     base_dir = base_dir.resolve()
                 except Exception:
                     pass
                 active_app = base_dir / app
 
-                # Prefer builtin copy only when the app is absent from apps_dir.
-                if self.builtin_apps_dir:
-                    candidate_builtin = self.builtin_apps_dir / app
+                # Prefer builtin copy only when the app is absent from apps_path.
+                if self.builtin_apps_path:
+                    candidate_builtin = self.builtin_apps_path / app
                     try:
                         if not active_app.exists() and candidate_builtin.exists():
                             active_app = candidate_builtin
@@ -612,16 +612,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not app.endswith('_project') and not app.endswith('_worker'):
             raise ValueError(f"{app} must end with '_project' or '_worker'")
 
-        # If apps_dir contains a builtin subdir, prefer that as the builtin root.
-        if apps_dir and (apps_dir / "builtin").exists():
-            self.builtin_apps_dir = apps_dir / "builtin"
+        # If apps_path contains a builtin subdir, prefer that as the builtin root.
+        if apps_path and (apps_path / "builtin").exists():
+            self.builtin_apps_path = apps_path / "builtin"
 
         self.app = app
         try:
             self.active_app = active_app.resolve()
         except Exception:
             self.active_app = active_app
-        self.apps_dir = apps_dir
+        self.apps_path = apps_path
         self.apps_repository_root: Path | None = None
 
         target = app.replace("_project", "").replace("_worker","").replace("-", "_")
@@ -701,27 +701,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         apps_root = self.agilab_pck / "apps"
         is_builtin_app = False
         try:
-            if self.builtin_apps_dir and self.active_app.resolve().is_relative_to(self.builtin_apps_dir.resolve()):
+            if self.builtin_apps_path and self.active_app.resolve().is_relative_to(self.builtin_apps_path.resolve()):
                 is_builtin_app = True
         except Exception:
             is_builtin_app = False
 
         if (not self.is_worker_env) and not self.skip_repo_links and not is_builtin_app:
-            os.makedirs(apps_dir, exist_ok=True)
+            os.makedirs(apps_path, exist_ok=True)
 
             link_source = self.apps_repository_root or self._get_apps_repository_root()
 
             if link_source is not None and link_source.exists():
                 same_tree = False
-                if apps_dir is not None:
+                if apps_path is not None:
                     try:
-                        same_tree = apps_dir.resolve(strict=False) == link_source.resolve()
+                        same_tree = apps_path.resolve(strict=False) == link_source.resolve()
                     except Exception:
                         same_tree = False
 
                 if not same_tree:
                     for src_app in link_source.glob("*_project"):
-                        dest_app = apps_dir / src_app.relative_to(link_source)
+                        dest_app = apps_path / src_app.relative_to(link_source)
                         # Avoid self-referential symlinks when the public destination
                         # already resides inside the apps repository tree.
                         if dest_app.resolve(strict=False) == src_app.resolve():
@@ -841,7 +841,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                                 f"Unable to copy packaged worker app from {packaged_app} to {self.app}: {exc}"
                             )
                     elif not self.is_worker_env and apps_root.exists():
-                        self.copy_existing_projects(apps_root, apps_dir)
+                        self.copy_existing_projects(apps_root, apps_path)
 
                 if (
                     not self.is_worker_env
@@ -881,7 +881,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 #        "Worker sources not found (is_worker_env=True) at %s", self.worker_path
                 #    )
 
-        self.apps_dir = apps_dir
+        self.apps_path = apps_path
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
             distribution_tree.unlink()
@@ -1049,7 +1049,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
         self.ssh_key_path = str(Path(ssh_key_env).expanduser()) if ssh_key_env else None
 
-        self.projects = self.get_projects(self.apps_dir, self.builtin_apps_dir)
+        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path)
         if not self.projects:
             AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")
 
@@ -1486,10 +1486,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if self.apps_repository_root is None:
             self.apps_repository_root = self._get_apps_repository_root()
 
-        self.projects = self.get_projects(self.apps_dir, self.builtin_apps_dir, self.apps_repository_root)
+        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path, self.apps_repository_root)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.app = self.apps_dir / project
+                self.app = self.apps_path / project
                 self.app = project
                 break
 
@@ -2272,13 +2272,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if requested_name == current_name:
             return
 
-        apps_dir = getattr(self, "apps_dir", None) or AgiEnv.apps_dir
-        active_app = apps_dir / requested_name
+        apps_path = getattr(self, "apps_path", None) or AgiEnv.apps_path
+        active_app = apps_path / requested_name
 
         try:
             type(self).__init__(
                 self,
-                apps_dir=active_app.parent,
+                apps_path=active_app.parent,
                 app=requested_name,
                 verbose=AgiEnv.verbose,
             )
@@ -2442,15 +2442,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         then cleaning up any leftovers.
 
         Args:
-            target_project: Path under self.apps_dir (e.g. Path("flight_project"))
-            dest_project:   Path under self.apps_dir (e.g. Path("tata_project"))
+            target_project: Path under self.apps_path (e.g. Path("flight_project"))
+            dest_project:   Path under self.apps_path (e.g. Path("tata_project"))
         """
 
         # normalize names
-        templates_root = self.apps_dir / "templates"
+        templates_root = self.apps_path / "templates"
         if not target_project.name.endswith("_project"):
             candidate = target_project.with_name(target_project.name + "_project")
-            if (self.apps_dir / candidate).exists() or (templates_root / candidate).exists():
+            if (self.apps_path / candidate).exists() or (templates_root / candidate).exists():
                 target_project = candidate
         if not dest_project.name.endswith("_project"):
             dest_project = dest_project.with_name(dest_project.name + "_project")
@@ -2465,10 +2465,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         tm = _strip(target_project)
         dm = _strip(dest_project)
-        source_root = self.apps_dir / target_project
+        source_root = self.apps_path / target_project
         if not source_root.exists() and templates_root.exists():
             source_root = templates_root / target_project
-        dest_root   = self.apps_dir / dest_project
+        dest_root   = self.apps_path / dest_project
 
         if not source_root.exists():
             AgiEnv.logger.info(f"Source project '{target_project}' does not exist.")

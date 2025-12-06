@@ -30,7 +30,7 @@ def _build_env(app_arg: Path) -> AgiEnv:
     like is_worker_env and is_source_env based on the provided paths.
     """
 
-    return AgiEnv(apps_dir=app_arg.parent, active_app=app_arg.name)
+    return AgiEnv(apps_path=app_arg.parent, active_app=app_arg.name)
 
 
 def main(argv: list[str] | None = None) -> int:

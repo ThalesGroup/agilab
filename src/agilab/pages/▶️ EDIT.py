@@ -414,7 +414,7 @@ def import_project(project_zip, ignore=False):
     env = st.session_state["env"]
     zip_path = env.export_apps / project_zip
     project_name = Path(project_zip).stem
-    target_dir = env.apps_dir / project_name
+    target_dir = env.apps_path / project_name
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(target_dir)
     if ignore:

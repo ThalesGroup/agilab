@@ -57,7 +57,7 @@ BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
 BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
 
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
-AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+AGILAB_REPO="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 APPS_REPOSITORY="${APPS_REPOSITORY:-}"
 
 PAGES_TARGET_BASE=""
@@ -128,7 +128,7 @@ resolve_physical_dir() {
 # Other return codes bubble up for unexpected failures so callers can react.
 app_dir_on_disk() {
   local rel="$1"
-  local base="$AGILAB_PUBLIC/apps"
+  local base="$AGILAB_REPO/apps"
   if [[ -d "$base/builtin/$rel" ]]; then
     printf '%s/builtin/%s' "$base" "$rel"
   else
@@ -153,7 +153,7 @@ from agi_env import AgiEnv
 
 app_path = Path(sys.argv[1])
 try:
-    env = AgiEnv(apps_dir=app_path.parent, app=app_path.name, verbose=0)
+    env = AgiEnv(apps_path=app_path.parent, app=app_path.name, verbose=0)
 except FileNotFoundError as exc:
     sys.stdout.write(f"DATA_UNAVAILABLE::{exc}")
     sys.exit(3)
@@ -255,8 +255,8 @@ append_unique() {
 }
 
 # Destination base for creating local app symlinks (defaults to current dir)
-: "${APPS_DEST_BASE:="$AGILAB_PUBLIC/apps"}"
-: "${PAGES_DEST_BASE:="$AGILAB_PUBLIC/apps-pages"}"
+: "${APPS_DEST_BASE:="$AGILAB_REPO/apps"}"
+: "${PAGES_DEST_BASE:="$AGILAB_REPO/apps-pages"}"
 
 mkdir -p -- "$APPS_DEST_BASE"
 mkdir -p -- "$PAGES_DEST_BASE"
@@ -545,13 +545,13 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
   if [[ -d "$repo_agilab_dir" ]]; then
     pushd "$repo_agilab_dir" > /dev/null
     rm -f core
-    if [[ -d "$AGILAB_PUBLIC/core" ]]; then
-      target="$AGILAB_PUBLIC/core"
-    elif [[ -d "$AGILAB_PUBLIC/src/agilab/core" ]]; then
-      target="$AGILAB_PUBLIC/src/agilab/core"
+    if [[ -d "$AGILAB_REPO/core" ]]; then
+      target="$AGILAB_REPO/core"
+    elif [[ -d "$AGILAB_REPO/src/agilab/core" ]]; then
+      target="$AGILAB_REPO/src/agilab/core"
     else
-      echo "ERROR: can't find 'core' under \$AGILAB_PUBLIC ($AGILAB_PUBLIC)."
-      echo "Tried: \$AGILAB_PUBLIC/core and \$AGILAB_PUBLIC/src/agilab/core"
+      echo "ERROR: can't find 'core' under \$AGILAB_REPO ($AGILAB_REPO)."
+      echo "Tried: \$AGILAB_REPO/core and \$AGILAB_REPO/src/agilab/core"
       exit 1
     fi
     ln -s "$target" core
@@ -562,7 +562,7 @@ print(f"Repository core -> {p}")
 PY
 
     repo_templates_dir="apps/templates"
-    public_templates_dir="$AGILAB_PUBLIC/apps/templates"
+    public_templates_dir="$AGILAB_REPO/apps/templates"
     if [[ -d "$public_templates_dir" ]]; then
       mkdir -p apps
       if [[ -L "$repo_templates_dir" ]]; then
@@ -639,7 +639,7 @@ INCLUDED_PAGES=("${INCLUDED_PAGES_UNIQ[@]}")
 INCLUDED_APPS=("${INCLUDED_APPS_UNIQ[@]}")
 
 # --- Run installer for each page (stable CWD so ../core/agi-cluster resolves) -----
-pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
+pushd -- "$AGILAB_REPO/apps-pages" >/dev/null
 
 for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     echo -e "${BLUE}Installing $page...${NC}"
@@ -655,7 +655,7 @@ done
 popd >/dev/null
 
 # --- Run installer for each app (stable CWD so ../core/agi-cluster resolves) -----
-pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
+pushd -- "$AGILAB_REPO/apps" >/dev/null
 
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   app_name="$app"
@@ -686,9 +686,9 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
 
   echo -e "${BLUE}Installing $app_name...${NC}"
-  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_PUBLIC}/apps/$app_dir_rel\""
+  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
-    "${AGILAB_PUBLIC}/apps/$app_dir_rel"; then
+    "${AGILAB_REPO}/apps/$app_dir_rel"; then
       echo -e "${GREEN}✓ '$app_name' successfully installed.${NC}"
       echo -e "${GREEN}Checking installation...${NC}"
       if pushd -- "$app_dir_rel" >/dev/null; then
@@ -726,7 +726,7 @@ popd >/dev/null
 # --- Optional pytest pass for apps -------------------------------------------
 if (( DO_TEST_APPS )); then
   echo -e "${BLUE}Running pytest for installed apps...${NC}"
-  pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
+  pushd -- "$AGILAB_REPO/apps" >/dev/null
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   app_name="$app"
   if [[ "$app_name" != *_project && "$app_name" != *_worker ]]; then

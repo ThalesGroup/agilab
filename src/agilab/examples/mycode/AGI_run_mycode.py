@@ -7,23 +7,17 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
 
-def _resolve_apps_dir() -> Path:
-    apps_dir_env = os.environ.get("APPS_DIR")
-    if apps_dir_env:
-        return Path(apps_dir_env).expanduser().resolve()
-    return Path(__file__).resolve().parents[2] / "apps"
-
-
-APPS_DIR = str(_resolve_apps_dir())
+AGILAB_PATH = os.open(f"{Path.home()}/.local/share/agilab/.agilab-path").read().strip()
+APPS_PATH = Path(AGILAB_PATH) / "apps"
 APP = "mycode_project"
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
+    app_env = AgiEnv(apps_dir=APPS_PATH, app=APP, verbose=1)
     res = await AGI.run(
         app_env,
         mode=13,
         scheduler="127.0.0.1",
-        workers={"127.0.0.1": 2},
+        workers={"127.0.0.1": 1},
     )
     print(res)
     return res
