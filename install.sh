@@ -566,6 +566,8 @@ write_env_values() {
     agilab_env="$HOME/.agilab/.env"
 
     [[ -f "$shared_env" ]] || { echo -e "${RED}Error: $shared_env does not exist.${NC}"; return 1; }
+    mkdir -p "$(dirname "$agilab_env")"
+    [[ -f "$agilab_env" ]] || touch "$agilab_env"
 
     # Detect platform for sed
     if [[ "$OSTYPE" == "darwin"* ]]; then
