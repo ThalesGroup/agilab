@@ -411,6 +411,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             active_app_override = None
 
         self.skip_repo_links = False
+        self.AGILAB_SHARE_HINT = None
+        self.AGILAB_SHARE_REL = None
 
         def _resolve_install_type(apps_path: str | None,
                                   agilab_pck: Path,
@@ -625,6 +627,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.apps_repository_root: Path | None = None
 
         target = app.replace("_project", "").replace("_worker","").replace("-", "_")
+        self.share_target_name = target
 
         self.verbose = verbose
         self.python_variante = python_variante
@@ -1021,9 +1024,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()
-        target_name = getattr(self, "target", self.app)
+        share_target_name = self._share_target_name()
+        self.share_target_name = share_target_name
         self.agi_share_dir_abs = share_root_abs
-        self.app_data_rel = share_root_abs / target_name
+        self.app_data_rel = share_root_abs / share_target_name
         self.dataframe_path = self.app_data_rel / "dataframe"
 
         if self.is_worker_env:
@@ -1287,6 +1291,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         share_path = share_path.resolve(strict=False)
         self._share_root_cache = share_path
         return share_path
+
+    def _share_target_name(self) -> str:
+        """Return the logical app name for share paths (strip *_project/_worker)."""
+        name = self.target or ""
+        if not name:
+            name = self.app or ""
+        if not name:
+            name = "app"
+        for suffix in ("_project", "_worker"):
+            if name.endswith(suffix):
+                return name[: -len(suffix)]
+        return name
 
     def resolve_share_path(self, path: str | Path | None) -> Path:
         """
