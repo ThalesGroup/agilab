@@ -218,6 +218,7 @@ class AGI:
     _work_plan: Optional[Any] = None
     _work_plan_metadata: Optional[Any] = None
     debug: Optional[bool] = None  # Cache with default local IPs
+    _dask_log_level: str = os.environ.get("AGI_DASK_LOG_LEVEL", "critical").strip()
     env: Optional[AgiEnv] = None
     _service_futures: Dict[str, Any] = {}
     _service_workers: List[str] = []
@@ -2196,11 +2197,12 @@ class AGI:
                 except Exception as e:
                     raise
 
-            # clean scheduler
-            try:
-                await AGI._kill(AGI._scheduler_ip, os.getpid(), force=True)
-            except Exception as e:
-                raise
+            # clean scheduler (avoid duplicate kill when scheduler host already handled as worker)
+            if AGI._scheduler_ip not in AGI._workers:
+                try:
+                    await AGI._kill(AGI._scheduler_ip, os.getpid(), force=True)
+                except Exception as e:
+                    raise
 
             toml_local = env.active_app / "pyproject.toml"
             wenv_rel = env.wenv_rel
@@ -2236,12 +2238,14 @@ class AGI:
             if cmd_prefix:
                 AgiEnv.set_env_var(f"{AGI._scheduler_ip}_CMD_PREFIX", cmd_prefix)
 
+        dask_env = AGI._dask_env_prefix()
         if env.is_local(AGI._scheduler_ip):
             await asyncio.sleep(1)  # non-blocking sleep
             local_prefix = cmd_prefix or getattr(env, "export_local_bin", "") or ""
             cmd = (
-                f"{local_prefix}{env.uv} run --no-sync --project {env.wenv_abs} "
-                f"dask scheduler --port {AGI._scheduler_port} "
+                f"{local_prefix}{dask_env}{env.uv} run --no-sync --project {env.wenv_abs} "
+                f"dask scheduler "
+                f"--port {AGI._scheduler_port} "
                 f"--host {AGI._scheduler_ip} "
                 f"--dashboard-address :0 "
                 f"--pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
@@ -2262,7 +2266,9 @@ class AGI:
             await AGI.send_file(env, AGI._scheduler_ip, toml_local, toml_wenv)
 
             cmd = (
-                f"{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync dask scheduler --port {AGI._scheduler_port} "
+                f"{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync "
+                f"dask scheduler "
+                f"--port {AGI._scheduler_port} "
                 f"--host {AGI._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
             )
             # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
@@ -2341,6 +2347,16 @@ class AGI:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
     @staticmethod
+    def _dask_env_prefix() -> str:
+        level = AGI._dask_log_level
+        if not level:
+            return ""
+        env_vars = [
+            f"DASK_DISTRIBUTED__LOGGING__distributed={level}",
+        ]
+        return "".join(f"{var} " for var in env_vars)
+
+    @staticmethod
     async def _start(scheduler: Optional[str]) -> bool:
         """_start(
         Start Dask workers locally and remotely,
@@ -2348,6 +2364,7 @@ class AGI:
         compatible with Windows and POSIX.
         """
         env = AGI.env
+        dask_env = AGI._dask_env_prefix()
 
         # Start scheduler first
         if not await AGI._start_scheduler(scheduler):
@@ -2371,8 +2388,9 @@ class AGI:
                     if is_local:
                         wenv_abs = env.wenv_abs
                         cmd = (
-                            # f'{export_cmd} '
-                            f'{cmd_prefix}{env.uv} --project {wenv_abs} run --no-sync dask worker tcp://{AGI._scheduler} --no-nanny '
+                            f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_abs} run --no-sync '
+                            f'dask worker '
+                            f'tcp://{AGI._scheduler} --no-nanny '
                             f'--pid-file {wenv_abs / pid_file}'
                         )
                         # Run locally in background (non-blocking)
@@ -2380,8 +2398,9 @@ class AGI:
                     else:
                         wenv_rel = env.wenv_rel
                         cmd = (
-                            f'{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync '
-                            f'dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
+                            f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync '
+                            f'dask worker '
+                            f'tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
                         )
                         asyncio.create_task(AGI.exec_ssh_async(ip, cmd))
                         logger.info(f"Launched remote worker in background on {ip}: {cmd}")

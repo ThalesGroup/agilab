@@ -1,12 +1,11 @@
 
 import asyncio
-import os
 from pathlib import Path
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
 
-AGILAB_PATH = os.open(f"{Path.home()}/.local/share/agilab/.agilab-path").read().strip()
+AGILAB_PATH = open(f"{Path.home()}/.local/share/agilab/.agilab-path").read().strip()
 APPS_PATH = Path(AGILAB_PATH) / "apps"
 APP = "mycode_project"
 

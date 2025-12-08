@@ -1563,7 +1563,7 @@ def handle_project_delete():
                 cleanup_errors,
             )
             try:
-                data_root = (env.home_abs / env.app_data_rel).expanduser()
+                data_root = Path(env.app_data_rel).expanduser()
             except Exception:
                 data_root = None
             if data_root and data_root.name == target_name:
