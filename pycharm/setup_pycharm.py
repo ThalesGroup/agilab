@@ -23,8 +23,8 @@ class Config:
         self.PROJECT_NAME = self.IDEA_DIR.parent.name
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
         self.PROJECT_SDK_TYPE = sdk_type
-        apps_path = self.ROOT / "src" / self.PROJECT_NAME / "apps"
-        self.APPS_PATH = [apps_path, apps_path/ "builtin"]
+        self.APPS_PATH = self.ROOT / "src" / self.PROJECT_NAME / "apps"
+        self.APPS_PATH_SET = [self.APPS_PATH, self.APPS_PATH/ "builtin"]
         self.APPS_PAGES_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps-pages"
         self.CORE_DIR = self.ROOT / "src" / self.PROJECT_NAME / "core"
 
@@ -68,7 +68,7 @@ class Config:
     def __eligible_apps(self) -> List[Path]:
         out: List[Path] = []
 
-        for apps_dir in self.APPS_PATH:
+        for apps_dir in self.APPS_PATH_SET:
             if not apps_dir.exists():
                 continue
             for p in sorted(apps_dir.iterdir()):
@@ -641,7 +641,7 @@ class Project:
             return
         for name in app_names:
             logging.info(f"Generating run configs for '{name}' via {self.cfg.GEN_SCRIPT.name} …")
-            subprocess.run([sys.executable, str(self.cfg.GEN_SCRIPT), name], check=True, cwd=str(self.cfg.ROOT))
+            subprocess.run([sys.executable, str(self.cfg.GEN_SCRIPT), f'{name}'], check=True, cwd=str(self.cfg.ROOT))
 
     def python_terminal_settings(self):
         term_cfg = self.cfg.IDEA_DIR / "python-terminal.xml"
@@ -729,8 +729,7 @@ def main():
         sdk_worker = f"uv ({project}_worker)"
         jdk_table.add_jdk(sdk_worker, worker_py)
         jdk_table.set_associated_project(sdk_worker, worker_py)
-
-        realized_apps.append(app.name)
+        realized_apps.append(app.relative_to(cfg.APPS_PATH))
 
     realized_apps_pages = []
     for apps_page in cfg.eligible_apps_pages:
@@ -778,7 +777,7 @@ def main():
     model.generate_run_configs_for_apps([p for p in realized_apps])
 
     logging.info("Project setup completed successfully.")
-    logging.info(f"Realized apps: {', '.join([app for app in realized_apps])}")
+    logging.info(f"Realized apps: {', '.join(str(app) for app in realized_apps)}")
     logging.info(f"Realized core: {', '.join([core for core in realized_core])}")
     logging.info(f"Realized apps-pages: {', '.join([apps_page for apps_page in realized_apps_pages])}")
 
