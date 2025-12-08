@@ -263,11 +263,10 @@ def _refresh_share_dir(env, new_value: str) -> None:
     # Persist the raw value (without forcing absolutes) so workers can resolve
     # relative mounts appropriately; share_root_path() performs the expansion.
     env.agi_share_dir = share_value
-    if hasattr(env, "_share_root_cache"):
-        env._share_root_cache = share_dir
+    env._share_root_cache = share_dir
     env.agi_share_dir_abs = share_dir
-    target_name = getattr(env, "target", getattr(env, "app", "app"))
-    env.app_data_rel = share_dir / target_name
+    share_target = env.share_target_name
+    env.app_data_rel = share_dir / share_target
     env.dataframe_path = env.app_data_rel / "dataframe"
     try:
         env.data_root = env.ensure_data_root()

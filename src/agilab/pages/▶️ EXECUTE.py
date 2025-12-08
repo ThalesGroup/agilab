@@ -594,7 +594,7 @@ def render_cluster_settings_ui():
             if normalized != current:
                 AgiEnv.set_env_var(key, normalized)
 
-        share_raw = getattr(env, "agi_share_dir", None)
+        share_raw = env.agi_share_dir
         share_display: str
         resolved_display: Optional[Path] = None
         is_symlink = False
@@ -628,7 +628,7 @@ def render_cluster_settings_ui():
         user_widget_key = f"cluster_user__{env.app}"
         stored_user = cluster_params.get("user")
         if stored_user in (None, ""):
-            stored_user = getattr(env, "user", "") or ""
+            stored_user = env.user or ""
         if user_widget_key not in st.session_state:
             st.session_state[user_widget_key] = stored_user
         auth_toggle_key = f"cluster_use_key__{env.app}"
@@ -682,7 +682,7 @@ def render_cluster_settings_ui():
             ssh_key_widget_key = f"cluster_ssh_key__{env.app}"
             stored_key = cluster_params.get("ssh_key_path")
             if stored_key in (None, ""):
-                stored_key = getattr(env, "ssh_key_path", "") or ""
+                stored_key = env.ssh_key_path or ""
             if ssh_key_widget_key not in st.session_state:
                 st.session_state[ssh_key_widget_key] = stored_key
             with credential_col:
@@ -1103,13 +1103,13 @@ async def page():
         "export_tab_previous_project": None,
         "env": env,
         "_env": env,
-        "TABLE_MAX_ROWS": getattr(env, "TABLE_MAX_ROWS", None),
+        "TABLE_MAX_ROWS": env.TABLE_MAX_ROWS,
         "_experiment_reload_required": False,
         "dataframe_deleted": False,
     }
 
     init_session_state(defaults)
-    projects = list(getattr(env, "projects", []) or [])
+    projects = list(env.projects or [])
     if env.app and env.app not in projects:
         projects = [env.app] + projects
     # Seed the selectbox default without touching widget state
@@ -1754,7 +1754,7 @@ if __name__ == "__main__":
                         path = Path.home() / path
                     candidate_roots.append(path)
 
-                _attach_root(getattr(env, "dataframe_path", None))
+                _attach_root(env.dataframe_path)
                 _attach_root(env.app_data_rel)
 
                 active_args = st.session_state.app_settings.get("args", {})
