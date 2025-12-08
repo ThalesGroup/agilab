@@ -504,7 +504,7 @@ def _read_version_from_pyproject(env) -> str | None:
     Returns version string or None.
     """
     try:
-        root = getattr(env, "agilab_pck", None)
+        root = env.agilab_pck if env else None
         py_paths: list[Path] = []
         if root:
             py_paths.append(Path(root) / "pyproject.toml")
@@ -549,13 +549,13 @@ def _detect_agilab_version(env) -> str:
     - Fallback to installed distribution metadata.
     - Return empty string if unavailable.
     """
-    if getattr(env, "is_source_env", False):
+    if env and env.is_source_env:
         v = _read_version_from_pyproject(env)
         if v:
             # Append a dev suffix with git metadata when available
             suffix = ""
             try:
-                repo = Path(getattr(env, "agilab_pck", "."))
+                repo = Path(env.agilab_pck or ".")
                 # Short SHA
                 sha = subprocess.run(
                     ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
@@ -685,7 +685,7 @@ def get_templates():
     if templates_root.exists():
         candidates.extend(p.name for p in templates_root.iterdir() if p.is_dir())
 
-    agilab_templates = getattr(env, "agilab_pck", None)
+    agilab_templates = env.agilab_pck
     if agilab_templates:
         agilab_templates = Path(agilab_templates) / "agilab/templates"
         if agilab_templates.exists():
@@ -1525,7 +1525,7 @@ def select_project(projects, current_project):
     env = st.session_state.get("env")
     if env is not None:
         try:
-            projects = env.get_projects(env.apps_path, getattr(env, "builtin_apps_path", None))
+            projects = env.get_projects(env.apps_path, env.builtin_apps_path)
             env.projects = projects
         except Exception:
             pass
@@ -1592,7 +1592,7 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
             builtin_base / name,
             builtin_base / f"{name}_project",
         ]
-        for proj_name in getattr(env, "projects", []) or []:
+        for proj_name in env.projects or []:
             if proj_name == name or proj_name.replace("_project", "") == name:
                 cands.extend(
                     [
@@ -1653,7 +1653,7 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
             builtin_base / name,
             builtin_base / f"{name}_project",
         ]
-        for proj_name in getattr(env, "projects", []) or []:
+        for proj_name in env.projects or []:
             if proj_name == name or proj_name.replace("_project", "") == name:
                 cands.extend(
                     [

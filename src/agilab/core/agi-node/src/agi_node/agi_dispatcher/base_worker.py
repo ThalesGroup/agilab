@@ -112,8 +112,8 @@ class BaseWorker(abc.ABC):
         *,
         env: AgiEnv | None = None,
     ) -> Path:
-        env = env or getattr(cls, "env", None)
-        if not getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc):
+        env = env or cls.env
+        if env is None or not env._is_managed_pc:
             return Path(value)
 
         home = Path.home()
@@ -133,7 +133,7 @@ class BaseWorker(abc.ABC):
         env: AgiEnv | None = None,
     ) -> Any:
         cls._ensure_managed_pc_share_dir(env)
-        fields = getattr(cls, "managed_pc_path_fields", ())
+        fields = cls.managed_pc_path_fields
         if not fields:
             return args
 
@@ -155,13 +155,13 @@ class BaseWorker(abc.ABC):
     def _ensure_managed_pc_share_dir(cls, env: AgiEnv | None) -> None:
         if env is None:
             return
-        if not getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc):
+        if not env._is_managed_pc:
             return
 
         home = Path.home()
         managed_root = home / cls.managed_pc_home_suffix
 
-        agi_share_dir = getattr(env, "agi_share_dir", None)
+        agi_share_dir = env.agi_share_dir
         if agi_share_dir is None:
             return
 
@@ -187,28 +187,25 @@ class BaseWorker(abc.ABC):
         if env is None:
             return None
 
-        for accessor in ("share_root_path", "share_base_path"):
-            share_getter = getattr(env, accessor, None)
-            if callable(share_getter):
-                try:
-                    base = Path(share_getter()).expanduser()
-                    if base:
-                        return base
-                except Exception:  # pragma: no cover - defensive guard
-                    logger.debug("%s() failed; falling back to legacy resolution", accessor, exc_info=True)
+        try:
+            base = Path(env.share_root_path()).expanduser()
+            if base:
+                return base
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("share_root_path() failed; falling back to legacy resolution", exc_info=True)
 
         candidates = (
-            getattr(env, "agi_share_dir_abs", None),
-            getattr(env, "agi_share_dir", None),
+            env.agi_share_dir_abs,
+            env.agi_share_dir,
         )
         for candidate in candidates:
             if candidate:
                 base = Path(candidate).expanduser()
                 if not base.is_absolute():
-                    home = Path(getattr(env, "home_abs", Path.home())).expanduser()
+                    home = Path(env.home_abs).expanduser()
                     base = (home / base).expanduser()
                 return base
-        home = getattr(env, "home_abs", None)
+        home = env.home_abs
         return Path(home).expanduser() if home else None
 
     @classmethod
@@ -288,23 +285,21 @@ class BaseWorker(abc.ABC):
         env: AgiEnv | None, share_base: Path
     ) -> set[str]:
         aliases = {share_base.name, "data", "clustershare", "datashare"}
-        share_hint = getattr(env, "AGILAB_SHARE_HINT", None)
-        if share_hint:
-            hint_path = Path(str(share_hint))
-            parts = [p for p in hint_path.parts if p not in {"", "."}]
-            aliases.update(parts[-2:])
-        share_rel = getattr(env, "AGILAB_SHARE_REL", None)
-        if share_rel:
-            try:
-                aliases.add(Path(share_rel).name)
-            except Exception:
-                pass
-        agi_share_dir = getattr(env, "agi_share_dir", None)
-        if agi_share_dir:
-            try:
-                aliases.add(Path(agi_share_dir).name)
-            except Exception:
-                pass
+        if env:
+            if env.AGILAB_SHARE_HINT:
+                hint_path = Path(str(env.AGILAB_SHARE_HINT))
+                parts = [p for p in hint_path.parts if p not in {"", "."}]
+                aliases.update(parts[-2:])
+            if env.AGILAB_SHARE_REL:
+                try:
+                    aliases.add(Path(env.AGILAB_SHARE_REL).name)
+                except Exception:
+                    pass
+            if env.agi_share_dir:
+                try:
+                    aliases.add(Path(env.agi_share_dir).name)
+                except Exception:
+                    pass
         return {alias for alias in aliases if alias}
 
 
@@ -702,7 +697,7 @@ class BaseWorker(abc.ABC):
         if source_path is None:
             raise ValueError("setup_data_directories requires a source_path value")
 
-        env = getattr(self, "env", None)
+        env = self.env
         input_path = type(self)._resolve_data_dir(env, source_path)
 
         normalized_input = self.normalize_dataset_path(input_path)
@@ -750,13 +745,14 @@ class BaseWorker(abc.ABC):
         except OSError:
             fallback_base = None
             if env:
-                if getattr(env, "AGI_LOCAL_SHARE", None):
+                if env.AGI_LOCAL_SHARE:
                     fallback_base = Path(env.AGI_LOCAL_SHARE).expanduser()
-                elif getattr(env, "home_abs", None):
+                elif env.home_abs:
                     fallback_base = Path(env.home_abs)
             if fallback_base is None:
                 fallback_base = Path.home()
-            fallback = fallback_base / getattr(env, "target", Path(normalized_output).name)
+            fallback_target = env.target if env else Path(normalized_output).name
+            fallback = fallback_base / fallback_target
             try:
                 fallback = _ensure_output_dir(fallback / target_subdir)
                 normalized_output = normalize_path(fallback)
