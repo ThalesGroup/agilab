@@ -46,8 +46,9 @@ def main(argv: list[str] | None = None) -> int:
         app_arg = Path.home() / "wenv" / candidate
 
     env = _build_env(app_arg)
-    dest_arg = env.resolve_share_path(app_arg.name.replace("_project", ""))
-    archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
+    target_name = env.share_target_name
+    dest_arg = env.resolve_share_path(target_name)
+    archive = env.agilab_pck / "apps" / f"{target_name}_project" / "src" / f"{target_name}_worker" / "dataset.7z"
     print("archive:", archive)
 
     if not archive.exists():
