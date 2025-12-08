@@ -1020,6 +1020,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             )
         self._share_root_cache = None
 
+        share_root_abs = self.share_root_path()
+        target_name = getattr(self, "target", self.app)
+        self.agi_share_dir_abs = share_root_abs
+        self.app_data_rel = share_root_abs / target_name
+        self.dataframe_path = self.app_data_rel / "dataframe"
+
         if self.is_worker_env:
             return
 
@@ -1068,18 +1074,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.help_path = "https://thalesgroup.github.io/agilab"
         # Ensure packaged datasets are available when running locally (e.g. app_test).
         dataset_archive = getattr(self, "dataset_archive", None)
-        self.app_data_rel = self.agi_share_dir + os.sep + self.app
-        if dataset_archive and Path(dataset_archive).exists():
-            dataset_root = (self.home_abs / self.agi_share_dir / "dataset").expanduser()
+        if not self.is_worker_env and dataset_archive and Path(dataset_archive).exists():
+            dataset_root = (Path(self.app_data_rel) / "dataset").expanduser()
             existing_files = list(dataset_root.rglob("*")) if dataset_root.exists() else []
             archive_mtime = Path(dataset_archive).stat().st_mtime
             latest_file_mtime = max((p.stat().st_mtime for p in existing_files if p.is_file()), default=0)
             needs_extract = (not existing_files) or (latest_file_mtime < archive_mtime)
             if needs_extract:
                 try:
-                    dest_arg = self.app_data_rel
-                    dest_arg = dest_arg if isinstance(dest_arg, str) else str(dest_arg)
-                    self.unzip_data(Path(dataset_archive), dest_arg, force_extract=True)
+                    self.unzip_data(Path(dataset_archive), self.app_data_rel, force_extract=True)
                 except Exception as exc:  # pragma: no cover - defensive guard
                     AgiEnv.logger.warning(
                         "Failed to extract packaged dataset %s: %s",
@@ -2695,7 +2698,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return None
             return parent
 
-        dest = _resolve_destination(self.agi_share_dir, extract_rel)
+        base_share = getattr(self, "agi_share_dir_abs", None) or self.share_root_path()
+        dest = _resolve_destination(Path(base_share), extract_rel)
         dest_parent = _prepare_parent(dest)
 
         if dest_parent is None:

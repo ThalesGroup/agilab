@@ -150,11 +150,16 @@ def resolve_share_mount() -> Path:
 def ensure_data_storage(env: AgiEnv) -> None:
     """Guarantee the app data directory is available before invoking AGI installers."""
 
+    if getattr(env, "is_worker_env", False):
+        return
     if not env.app_data_rel:
         raise RuntimeError("App data path is not configured on environment.")
-    app_data_path = Path(env.app_data_rel)
+    app_data_path = Path(env.app_data_rel).expanduser()
     share_base = env.share_root_path()
-    data_root = env.resolve_share_path(app_data_path)
+    if app_data_path.is_absolute():
+        data_root = app_data_path.resolve(strict=False)
+    else:
+        data_root = (share_base / app_data_path).resolve(strict=False)
     share_hint = getattr(env, "agi_share_dir", None)
     share_hint_str = str(Path(share_hint).expanduser()) if share_hint else str(share_base)
     try:

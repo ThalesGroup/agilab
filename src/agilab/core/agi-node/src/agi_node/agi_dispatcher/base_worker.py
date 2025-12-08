@@ -200,7 +200,6 @@ class BaseWorker(abc.ABC):
         candidates = (
             getattr(env, "agi_share_dir_abs", None),
             getattr(env, "agi_share_dir", None),
-            getattr(env, "AGI_SHARE_DIR", None),
         )
         for candidate in candidates:
             if candidate:
