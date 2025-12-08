@@ -594,7 +594,7 @@ def render_cluster_settings_ui():
             if normalized != current:
                 AgiEnv.set_env_var(key, normalized)
 
-        share_raw = env.agi_share_dir
+        share_raw = env.agi_share_path
         share_display: str
         resolved_display: Optional[Path] = None
         is_symlink = False
@@ -619,7 +619,7 @@ def render_cluster_settings_ui():
             share_display = (
                 "not set. Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
             )
-        st.markdown(f"**agi_share_dir:** {share_display}")
+        st.markdown(f"**agi_share_path:** {share_display}")
 
         # per-project widget key & seeding; do not also pass value=
         scheduler_widget_key = f"cluster_scheduler__{env.app}"
@@ -1381,7 +1381,7 @@ if __name__ == "__main__":
             cluster_params = st.session_state.app_settings.setdefault("cluster", {})
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
             if cluster_enabled:
-                share_candidate: Optional[Path] = env.agi_share_dir
+                share_candidate: Optional[Path] = env.agi_share_path
                 if share_candidate is not None:
                     if not share_candidate.is_absolute():
                         share_candidate = env.home_abs / share_candidate

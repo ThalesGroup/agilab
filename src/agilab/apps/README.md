@@ -44,7 +44,7 @@ with real Stream 1 outputs when available.
 - **Time-stepped routing RL (`example_app_project` routing trainer):**
   - Inputs: demands (`example_app/dataframe/ilp_demands.json`), trajectories (`example_app/dataframe/flight_simulation/*.parquet`), link assets (`example_app/dataset` heatmaps + antennas).
   - Environment (TimeRoutingEnv): interpolates positions per step; computes per-demand capacities via LOS/link budget (falls back to FSPL if needed); action = per-demand allocation fractions; reward = delivered bandwidth with priority and latency penalties; predictive path selection (make-before-break) plus contention scaling to respect capacities.
-  - Trainer: PPO acts over a fixed horizon; logs per-step allocations/capacities to `example_app/dataframe/trainer_routing/allocations_steps.{json,parquet}` (relative to `agi_share_dir`).
+  - Trainer: PPO acts over a fixed horizon; logs per-step allocations/capacities to `example_app/dataframe/trainer_routing/allocations_steps.{json,parquet}` (relative to `agi_share_path`).
 - **Visualisation/verification:**
   - `view_maps_network` animates trajectories + per-step allocations.
   - `example_app_project/tools/verify_allocations.py` checks capacity/time-window violations.

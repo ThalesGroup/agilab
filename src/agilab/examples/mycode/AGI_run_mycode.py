@@ -10,7 +10,7 @@ APPS_PATH = Path(AGILAB_PATH) / "apps"
 APP = "mycode_project"
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_PATH, app=APP, verbose=1)
+    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
     res = await AGI.run(
         app_env,
         mode=13,
