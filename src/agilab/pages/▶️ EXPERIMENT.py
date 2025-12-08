@@ -186,7 +186,7 @@ def _stream_run_command(
         combined = "\n".join(lines).strip()
         lowered = combined.lower()
         if "module not found" in lowered:
-            apps_root = env.apps_root
+            apps_root = env.apps_path
             if apps_root and not (apps_root / ".venv").exists():
                 raise JumpToMain(combined)
         return combined
@@ -292,7 +292,7 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
     if not candidate.is_absolute():
         env = st.session_state.get("env")
         try:
-            candidate = Path(env.apps_dir) / candidate  # type: ignore[attr-defined]
+            candidate = Path(env.apps_path) / candidate  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -2086,7 +2086,7 @@ def on_nb_change(
         engine_map=engine_map,
     )
     _bump_history_revision()
-    project_path = env.apps_dir / project
+    project_path = env.apps_path / project
     if notebook_file.exists():
         cmd = f"uv -q run jupyter notebook {notebook_file}"
         code = (
@@ -2153,7 +2153,7 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.page_broken = True
     env = st.session_state.get("env")
     try:
-        base = Path(env.apps_dir)  # type: ignore[attr-defined]
+        base = Path(env.apps_path)  # type: ignore[attr-defined]
         builtin_base = base / "builtin"
         for cand in (
             base / new_index_page,
@@ -2679,7 +2679,7 @@ def get_available_virtualenvs(env: AgiEnv) -> List[Path]:
     """Return virtual environments relevant to the active AGILab session."""
     base_dirs: List[str] = []
     base_dirs.append(str(Path(env.active_app)))
-    base_dirs.append(str(Path(env.apps_dir)))
+    base_dirs.append(str(Path(env.apps_path)))
     if env.runenv:
         base_dirs.append(str(Path(env.runenv)))
     if env.wenv_abs:
@@ -3589,7 +3589,7 @@ def main() -> None:
 
         st.session_state.setdefault("steps_file_name", STEPS_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
-        st.session_state.setdefault("projects", env.apps_dir)
+        st.session_state.setdefault("projects", env.apps_path)
         st.session_state.setdefault("snippet_file", Path(env.AGILAB_LOG_ABS) / "lab_snippet.py")
         st.session_state.setdefault("server_started", False)
         st.session_state.setdefault("mlflow_port", 5000)
@@ -3612,7 +3612,7 @@ def main() -> None:
         # Initialize session defaults
         defaults = {
             "response_dict": {"type": "", "text": ""},
-            "apps_abs": env.apps_dir,
+            "apps_abs": env.apps_path,
             "page_broken": False,
             "step_checked": False,
             "virgin_page": True,
