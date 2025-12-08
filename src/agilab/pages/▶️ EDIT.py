@@ -1257,7 +1257,7 @@ def _render_python_env(env):
         st.warning("App settings file not found.")
 
 def _render_worker_python_env(env):
-    worker_pyproject = getattr(env, "worker_pyproject", None)
+    worker_pyproject = env.worker_pyproject
     if worker_pyproject and worker_pyproject.exists():
         render_code_editor(
             worker_pyproject,
@@ -1319,7 +1319,7 @@ def _render_app_settings(env):
         st.warning("App settings file not found.")
 
 def _render_app_args_module(env):
-    target = getattr(env, "target", None)
+    target = env.target
     if not target:
         st.warning("Active app module not resolved; argument helpers unavailable.")
         return
@@ -1548,12 +1548,12 @@ def handle_project_delete():
                 return
 
             cleanup_errors = []
-            target_name = getattr(env, "target", env.app.replace("_project", ""))
+            target_name = env.target
 
             _cleanup_run_configuration_artifacts(env.app, target_name, cleanup_errors)
             _cleanup_module_artifacts(env.app, target_name, cleanup_errors)
             _safe_remove_path(
-                getattr(env, "wenv_abs", None),
+                env.wenv_abs,
                 f"worker environment for {target_name}",
                 cleanup_errors,
             )
