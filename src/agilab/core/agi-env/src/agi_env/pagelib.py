@@ -160,7 +160,7 @@ def run_with_output(env, cmd, cwd="./", timeout=None):
         try:
             outs, _ = proc.communicate(timeout=timeout)
             if "module not found" in outs:
-                if not (env.apps_root / ".venv").exists():
+                if not (env.apps_path / ".venv").exists():
                     raise JumpToMain(outs)
             elif proc.returncode or "failed" in outs.lower() or "error" in outs.lower():
                 pass

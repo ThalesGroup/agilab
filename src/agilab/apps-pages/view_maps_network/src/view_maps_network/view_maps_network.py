@@ -92,7 +92,7 @@ st.title(":world_map: Maps Network Graph")
 if 'env' not in st.session_state:
     active_app_path = _resolve_active_app()
     app_name = active_app_path.name
-    env = AgiEnv(apps_dir=active_app_path.parent, app=app_name, verbose=0)
+    env = AgiEnv(apps_path=active_app_path.parent, app=app_name, verbose=0)
     env.init_done = True
     st.session_state['env'] = env
     st.session_state['IS_SOURCE_ENV'] = env.is_source_env

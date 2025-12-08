@@ -308,7 +308,7 @@ async def main():
             apps_dir_path = active_app_path.parent
 
         env = AgiEnv(
-            apps_dir=apps_dir_path,
+            apps_path=apps_dir_path,
             app=app_name,
             verbose=0,
         )
@@ -338,11 +338,11 @@ async def main():
     if env.app:
         st.query_params["active_app"] = env.app
     if env.app:
-        _store_last_app(Path(env.apps_dir) / env.app)
+        _store_last_app(Path(env.apps_path) / env.app)
 
     # Where to store selected pages per project
     project = env.app
-    app_settings = Path(env.apps_dir) / project / "src" / "app_settings.toml"
+    app_settings = Path(env.apps_path) / project / "src" / "app_settings.toml"
 
     # Discover pages dynamically under AGILAB_PAGES_ABS
     all_views = discover_views(Path(env.AGILAB_PAGES_ABS))
@@ -444,10 +444,10 @@ async def render_view_page(view_path: Path):
     # Unique key for port hashing (works even if two Page share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
     active_app_path: Path | None = None
-    if env.apps_dir:
+    if env.apps_path:
         for name in (env.target, env.app):
             if name:
-                candidate = Path(env.apps_dir) / name
+                candidate = Path(env.apps_path) / name
                 if candidate.exists():
                     active_app_path = candidate
                     break
