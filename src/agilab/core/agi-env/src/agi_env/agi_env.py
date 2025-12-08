@@ -519,8 +519,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 apps_path = apps_path.resolve()
             except FileNotFoundError:
                 pass
-        elif envars.get("APPS_DIR"):
-            apps_path = Path(envars["APPS_DIR"]).expanduser()
+        elif envars.get("APPS_PATH"):
+            apps_path = Path(envars["APPS_PATH"]).expanduser()
             try:
                 apps_path = apps_path.resolve()
             except Exception:

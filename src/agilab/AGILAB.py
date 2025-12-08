@@ -734,7 +734,7 @@ def main():
             AgiEnv.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
             AgiEnv.set_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
             AgiEnv.set_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
-            AgiEnv.set_env_var("APPS_DIR", str(apps_path))
+            AgiEnv.set_env_var("APPS_PATH", str(apps_path))
 
             st.session_state["first_run"] = False
             try:

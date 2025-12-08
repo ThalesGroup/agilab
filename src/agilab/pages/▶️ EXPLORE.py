@@ -242,12 +242,12 @@ async def main():
     requested_app = qp.get("active_app")
 
     if 'env' not in st.session_state:
-        apps_dir_value = st.session_state.get("apps_dir")
-        apps_dir_path = Path(apps_dir_value).expanduser() if apps_dir_value else None
-        if apps_dir_path is None:
-            repo_apps_dir = Path(__file__).resolve().parents[2] / "apps"
-            if repo_apps_dir.exists():
-                apps_dir_path = repo_apps_dir
+        apps_path_value = st.session_state.get("apps_path")
+        apps_path = Path(apps_path_value).expanduser() if apps_path_value else None
+        if apps_path is None:
+            repo_apps_path = Path(__file__).resolve().parents[2] / "apps"
+            if repo_apps_path.exists():
+                apps_path = repo_apps_path
 
         # Derive active app path
         active_app_path = None
@@ -258,8 +258,8 @@ async def main():
             candidate = Path(value).expanduser()
             if candidate.is_absolute() and candidate.exists():
                 return candidate
-            if apps_dir_path:
-                candidate = Path(apps_dir_path) / value
+            if apps_path:
+                candidate = Path(apps_path) / value
                 if candidate.exists():
                     return candidate
             return None
@@ -268,13 +268,13 @@ async def main():
             candidate = _resolve_requested_app(requested_app)
             if candidate is not None:
                 active_app_path = candidate
-                if apps_dir_path is None:
-                    apps_dir_path = candidate.parent
+                if apps_path is None:
+                    apps_path = candidate.parent
 
         if active_app_path is None:
             stored_app = st.session_state.get("app")
-            if stored_app and apps_dir_path:
-                candidate = apps_dir_path / stored_app
+            if stored_app and apps_path:
+                candidate = apps_path / stored_app
                 if candidate.exists():
                     active_app_path = candidate
 
@@ -284,18 +284,18 @@ async def main():
                 candidate = Path(env_app).expanduser()
                 if candidate.exists():
                     active_app_path = candidate
-                    if not apps_dir_path:
-                        apps_dir_path = candidate.parent
+                    if not apps_path:
+                        apps_path = candidate.parent
 
         if active_app_path is None:
             last_app = _load_last_app()
             if last_app is not None:
                 active_app_path = last_app
-                if not apps_dir_path:
-                    apps_dir_path = last_app.parent
+                if not apps_path:
+                    apps_path = last_app.parent
 
         if active_app_path is None:
-            active_app_path = _default_app_path(apps_dir_path)
+            active_app_path = _default_app_path(apps_path)
 
         if active_app_path is None:
             st.error(
@@ -304,11 +304,11 @@ async def main():
             st.stop()
 
         app_name = active_app_path.name
-        if apps_dir_path is None:
-            apps_dir_path = active_app_path.parent
+        if apps_path is None:
+            apps_path = active_app_path.parent
 
         env = AgiEnv(
-            apps_path=apps_dir_path,
+            apps_path=apps_path,
             app=app_name,
             verbose=0,
         )
@@ -316,8 +316,8 @@ async def main():
         st.session_state['env'] = env
         st.session_state['IS_SOURCE_ENV'] = env.is_source_env
         st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-        if apps_dir_path:
-            st.session_state['apps_dir'] = str(apps_dir_path)
+        if apps_path:
+            st.session_state['apps_path'] = str(apps_path)
         if app_name:
             st.session_state['app'] = app_name
         _store_last_app(active_app_path)

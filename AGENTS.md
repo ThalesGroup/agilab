@@ -454,7 +454,7 @@ by parsing .idea/runConfigurations/*.xml:
 ## AgiEnv environment flags and path discovery
 
 - `AgiEnv.is_source_env`: True when running from a source checkout (not from site/dist-packages).
-- `AgiEnv.is_worker_env`: True in worker-only contexts (apps_dir unset or under a `wenv/*_worker`).
+- `AgiEnv.is_worker_env`: True in worker-only contexts (apps_path unset or under a `wenv/*_worker`).
 - `AgiEnv.is_local_worker`: True when the environment resides under the user's home “agilab” tree.
 - `AgiEnv._ensure_path_cache` reads `~/.local/share/agilab/.agilab-path` first; the file
   stores the absolute path to `agilab/src/agilab` in repo checkouts (source layout).

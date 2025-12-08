@@ -72,7 +72,11 @@ def test_setup_args_applies_defaults_and_creates_output(tmp_path):
 def test_remap_managed_pc_path_when_managed():
     home = Path.home()
     sample = home / "dataset" / "file.csv"
-    env = SimpleNamespace(_is_managed_pc=True)
+    env = SimpleNamespace(
+        _is_managed_pc=True,
+        agi_share_path=Path("clustershare"),
+        agi_share_path_abs=Path.home() / "clustershare",
+    )
 
     remapped = BaseWorker._remap_managed_pc_path(sample, env=env)
 
@@ -84,7 +88,11 @@ def test_apply_managed_pc_path_overrides():
     class OverrideWorker(BaseWorker):
         managed_pc_path_fields = ("payload",)
 
-    env = SimpleNamespace(_is_managed_pc=True)
+    env = SimpleNamespace(
+        _is_managed_pc=True,
+        agi_share_path=Path("clustershare"),
+        agi_share_path_abs=Path.home() / "clustershare",
+    )
     path = Path.home() / "payload"
     args = SimpleNamespace(payload=path)
 

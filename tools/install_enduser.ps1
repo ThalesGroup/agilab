@@ -339,7 +339,7 @@ if ($Source -eq 'local') {
     }
 }
 
-Set-PersistEnvVar -Key "APPS_DIR" -Value $AppsRoot -EnvFile $EnvFile
+Set-PersistEnvVar -Key "APPS_PATH" -Value $AppsRoot -EnvFile $EnvFile
 
 Write-Host "===================================="
 Write-Host " MODE:     $Source"
@@ -482,5 +482,4 @@ if ($venvPython) {
     Write-Warning "Python interpreter not found in $Venv; skipping package list."
 }
 Write-Host "===================================="
-
 
