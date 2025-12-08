@@ -1283,17 +1283,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if self._share_root_cache is not None:
             return self._share_root_cache
 
-        share = getattr(self, "agi_share_path", None)
+        share = self.agi_share_path
         if not share:
             raise RuntimeError("agi_share_path is not configured; cannot resolve shared storage path.")
 
         share_path = Path(share).expanduser()
         if not share_path.is_absolute():
             base = Path.home()
-            env_home = getattr(self, "home_abs", None)
+            env_home = self.home_abs
             # Worker environments inherit persisted metadata from the manager.
             # Prefer the runtime home directory so relative shares resolve on the worker.
-            if env_home and not getattr(self, "is_worker_env", False):
+            if env_home and not self.is_worker_env:
                 base = Path(env_home)
             share_path = Path(base).expanduser() / share_path
 
@@ -1363,15 +1363,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     else:
                         raise ValueError("Installation path file is empty or invalid.")
             except FileNotFoundError:
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.error(f"File {where_is_agi} does not exist.")
             except PermissionError:
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.error(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.error(f"An error occurred: {e}")
         else:
@@ -1746,14 +1746,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if not dst_item.exists():
             if not src_item.exists():
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.info(f"[WARN] Source file missing (skipped): {src_item}")
                 return
             try:
                 shutil.copy2(src_item, dst_item)
             except Exception as e:
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
 
@@ -1815,19 +1815,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             bin_path = "Scripts" if os.name == "nt" else "bin"
             venv_bin = venv_path / bin_path
             proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
-            if "UV_CACHE_DIR" not in proc_env:
-                uv_cache_dir = venv_path.parent / ".uv-cache"
-                try:
-                    uv_cache_dir.mkdir(parents=True, exist_ok=True)
-                except Exception:
-                    fallback_cache = Path(tempfile.gettempdir()) / "agilab-uv-cache"
-                    try:
-                        fallback_cache.mkdir(parents=True, exist_ok=True)
-                        uv_cache_dir = fallback_cache
-                    except Exception:
-                        uv_cache_dir = None
-                if uv_cache_dir is not None:
-                    proc_env["UV_CACHE_DIR"] = str(uv_cache_dir)
 
         instance = AgiEnv._instance
         if instance is not None and getattr(instance, "_pythonpath_entries", None):
@@ -1861,102 +1848,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return proc_env
 
     @staticmethod
-    def _resolve_python_from_venv(venv: Path | str | None) -> Path | None:
-        if venv is None:
-            return None
-        venv_path = Path(venv)
-        candidates = [
-            venv_path / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"),
-            venv_path / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"),
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
-        try:
-            return Path(sys.executable)
-        except Exception:
-            return None
-
-    @staticmethod
-    def _translate_uv_python_cmd(
-        cmd: str,
-        venv: Path | str | None,
-        *,
-        prefer_system_python: bool = False,
-    ) -> list[str] | None:
-        try:
-            tokens = shlex.split(cmd)
-        except ValueError:
-            return None
-        if not tokens:
-            return None
-        first = Path(tokens[0]).name
-        if "uv" not in first:
-            return None
-        try:
-            run_idx = tokens.index("run")
-        except ValueError:
-            return None
-        python_idx = None
-        for idx in range(run_idx + 1, len(tokens)):
-            if tokens[idx].startswith("python"):
-                python_idx = idx
-                break
-        if python_idx is None:
-            return None
-        python_args = tokens[python_idx + 1 :]
-        instance = AgiEnv._instance
-        worker_root = None
-        if instance is not None:
-            try:
-                worker_root = Path(instance.worker_path).parent
-            except Exception:
-                worker_root = None
-        if worker_root and worker_root.exists():
-            i = 0
-            while i < len(python_args):
-                token = python_args[i]
-                if token == "--app-path" and i + 1 < len(python_args):
-                    candidate = Path(python_args[i + 1])
-                    if not (candidate / "src").exists():
-                        python_args[i + 1] = str(worker_root)
-                elif token == "--project" and i + 1 < len(python_args):
-                    candidate = Path(python_args[i + 1])
-                    if not (candidate / "pyproject.toml").exists():
-                        python_args[i + 1] = str(worker_root)
-                i += 1
-        if not python_args:
-            return None
-        python_bin: Path | None = None
-        if not prefer_system_python:
-            python_bin = AgiEnv._resolve_python_from_venv(venv)
-        if python_bin is None:
-            try:
-                python_bin = Path(sys.executable)
-            except Exception:
-                return None
-        return [str(python_bin), *python_args]
-
-    @staticmethod
-    def _ensure_worker_files(venv: Path | str | None) -> None:
-        if venv is None:
-            return
-        instance = AgiEnv._instance
-        if instance is None:
-            return
-        try:
-            venv_path = Path(venv)
-            worker_root = Path(instance.worker_path).parent
-        except Exception:
-            return
-        if not worker_root.exists():
-            return
-        try:
-            shutil.copytree(worker_root, venv_path, dirs_exist_ok=True)
-        except Exception:
-            pass
-
-    @staticmethod
     def log_info(line: str) -> None:
         """Lightweight info logger retained for legacy hooks (e.g. pre_install scripts)."""
 
@@ -1967,19 +1858,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             print(line)
 
+    """
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
-        """
+        #""
         Run a shell command inside a virtual environment.
         Streams stdout/stderr live without blocking (Windows-safe).
         Returns the full stdout string.
-        """
+        #""
         if (AgiEnv.verbose or 0) > 0:
             try:
                 vname = Path(venv).name if venv is not None else "<venv>"
             except Exception:
                 vname = str(venv)
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(f"@{vname}: {cmd}")
 
@@ -1998,9 +1890,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         shell_executable = None if sys.platform == "win32" else "/bin/bash"
 
         if wait:
-            async def _run_subprocess(command_input, use_shell):
-                lines: list[str] = []
-
+            try:
+                result = []
                 async def read_stream(stream, callback=None):
                     enc = sys.stdout.encoding or "utf-8"
                     while True:
@@ -2013,96 +1904,50 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         safe = text.encode(enc, errors="replace").decode(enc)
                         plain = AgiLogger.decolorize(safe)
                         msg = strip_time_level_prefix(plain)
+                        # If callback looks like a logging function, pass extra
                         try:
                             callback(msg, extra={"subprocess": True})
                         except TypeError:
                             callback(msg)
-                        lines.append(msg)
+                        result.append(msg)
 
-                _logger = getattr(AgiEnv, "logger", None)
-                out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
-                err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
-
-                if use_shell:
-                    if isinstance(command_input, str):
-                        shell_cmd = command_input
-                    else:
-                        shell_cmd = " ".join(shlex.quote(str(part)) for part in command_input)
+                try:
+                    cmd_list = shlex.split(cmd)
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd_list,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                    )
+                except:
                     proc = await asyncio.create_subprocess_shell(
-                        shell_cmd,
+                        cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                         cwd=str(cwd) if cwd else None,
                         env=process_env,
                         executable=shell_executable,
                     )
-                else:
-                    if isinstance(command_input, str):
-                        tokens = shlex.split(command_input)
-                    else:
-                        tokens = [str(part) for part in command_input]
-                    proc = await asyncio.create_subprocess_exec(
-                        *tokens,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        cwd=str(cwd) if cwd else None,
-                        env=process_env,
-                    )
 
-                try:
-                    await asyncio.wait_for(
-                        asyncio.gather(
-                            read_stream(proc.stdout, out_cb),
-                            read_stream(proc.stderr, err_cb),
-                        ),
-                        timeout=timeout,
-                    )
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    raise
-                return lines, await proc.wait()
+                _logger = AgiEnv.logger
+                out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
+                err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
+                await asyncio.wait_for(asyncio.gather(
+                    read_stream(proc.stdout, out_cb),
+                    read_stream(proc.stderr, err_cb),
+                ), timeout=timeout)
 
-            try:
-                try:
-                    primary_tokens = shlex.split(cmd)
-                    use_shell = False
-                except ValueError:
-                    primary_tokens = cmd
-                    use_shell = True
-
-                result, returncode = await _run_subprocess(primary_tokens, use_shell)
-                log_blob = "\n".join(result).lower()
-                module_missing = "modulenotfounderror" in log_blob or "module not found" in log_blob
-                fallback_tokens = AgiEnv._translate_uv_python_cmd(
-                    cmd,
-                    venv,
-                    prefer_system_python=module_missing,
-                )
-                if module_missing:
-                    AgiEnv._ensure_worker_files(venv)
-                should_retry = (
-                    fallback_tokens is not None
-                    and (
-                        returncode == 101
-                        or "system-configuration" in log_blob
-                        or "tokio executor failed" in log_blob
-                        or module_missing
-                    )
-                )
-
-                if returncode != 0 and should_retry:
-                    logger = getattr(AgiEnv, "logger", None)
-                    if logger:
-                        logger.info("Retrying uv command without wrapper using interpreter %s", fallback_tokens[0])
-                    result, returncode = await _run_subprocess(fallback_tokens, False)
-                    log_blob = "\n".join(result).lower()
+                returncode = await proc.wait()
 
                 if returncode != 0:
-                    logger = getattr(AgiEnv, "logger", None)
+                    # Promote to ERROR with context even if lines were logged as INFO
+                    logger = AgiEnv.logger
                     if logger:
                         logger.error("Command failed with exit code %s: %s", returncode, cmd)
 
                     diagnostic_hint = None
+                    log_blob = "\n".join(result).lower()
                     network_markers = (
                         "failed to establish a new connection",
                         "temporary failure in name resolution",
@@ -2124,9 +1969,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
+                proc.kill()
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.error(traceback.format_exc())
                 if isinstance(e, RuntimeError):
@@ -2134,6 +1980,197 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 raise RuntimeError(f"Command execution error: {e}") from e
 
         else:
+            asyncio.create_task(asyncio.create_subprocess_shell(
+                cmd,
+                cwd=str(cwd),
+                env=process_env,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                executable=shell_executable
+            ))
+            return 0
+    """
+    @staticmethod
+    async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
+        """
+        Run a shell command inside a virtual environment.
+        Streams stdout/stderr live without blocking (Windows-safe).
+        Returns the full stdout string.
+        """
+        if (AgiEnv.verbose or 0) > 0:
+            try:
+                vname = Path(venv).name if venv is not None else "<venv>"
+            except Exception:
+                vname = str(venv)
+            logger = AgiEnv.logger
+            if logger:
+                logger.info(f"@{vname}: {cmd}")
+
+        # Inject uv preview flag to silence extra-build-dependencies warnings
+        try:
+            if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
+                import re as _re
+                cmd = _re.sub(
+                    r"(^|\s)uv(\s+)",
+                    r"\1uv --preview-features extra-build-dependencies \2",
+                    cmd,
+                    count=1,
+                )
+        except Exception:
+            pass
+
+        if not cwd:
+            cwd = venv
+        process_env = AgiEnv._build_env(venv)
+
+        # --- OPTION 3: handle `export PATH="...:$PATH"; <cmd>` in Python env instead of shell ---
+        if isinstance(cmd, str):
+            try:
+                import os
+                import re
+
+                # e.g.
+                #   export PATH="~/.local/bin:$PATH";uv --quiet self update
+                #   export PATH=~/.local/bin:$PATH; uv --quiet self update
+                #   export PATH="~/.local/bin:$PATH";
+                m = re.match(
+                    r'^\s*export\s+PATH=(?P<quote>["\']?)(?P<value>.+?)(?P=quote);?(?P<rest>.*)$',
+                    cmd,
+                    re.DOTALL,
+                )
+                if m:
+                    raw_value = m.group("value").strip()
+                    rest = m.group("rest")
+
+                    current_path = (
+                            process_env.get("PATH")
+                            or os.environ.get("PATH")
+                            or ""
+                    )
+
+                    # Expand ~ at the beginning of segments
+                    raw_value = os.path.expanduser(raw_value)
+
+                    # Replace $PATH / ${PATH} with the existing PATH
+                    new_path = (
+                        raw_value
+                        .replace("${PATH}", current_path)
+                        .replace("$PATH", current_path)
+                    )
+                    process_env["PATH"] = new_path
+
+                    # Strip leading separators/spaces from the remaining command
+                    rest = (rest or "").lstrip(" ;")
+                    cmd = rest or None  # None means "nothing left to run"
+            except Exception:
+                # If anything goes wrong, silently ignore and run the original cmd
+                pass
+
+        shell_executable = None if sys.platform == "win32" else "/bin/bash"
+
+        if wait:
+            # If cmd reduced to just an env tweak (`export PATH=...` with no rest), no-op
+            if not cmd:
+                return ""
+
+            try:
+                result = []
+
+                async def read_stream(stream, callback=None):
+                    enc = sys.stdout.encoding or "utf-8"
+                    while True:
+                        line = await stream.readline()
+                        if not line:
+                            break
+                        text = line.decode("utf-8", errors="replace").rstrip()
+                        if not text:
+                            continue
+                        safe = text.encode(enc, errors="replace").decode(enc)
+                        plain = AgiLogger.decolorize(safe)
+                        msg = strip_time_level_prefix(plain)
+                        # If callback looks like a logging function, pass extra
+                        try:
+                            callback(msg, extra={"subprocess": True})
+                        except TypeError:
+                            callback(msg)
+                        result.append(msg)
+
+                try:
+                    cmd_list = shlex.split(cmd)
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd_list,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                    )
+                except Exception:
+                    proc = await asyncio.create_subprocess_shell(
+                        cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                        executable=shell_executable,
+                    )
+
+                _logger = AgiEnv.logger
+                out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
+                err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        read_stream(proc.stdout, out_cb),
+                        read_stream(proc.stderr, err_cb),
+                    ),
+                    timeout=timeout,
+                )
+
+                returncode = await proc.wait()
+
+                if returncode != 0:
+                    # Promote to ERROR with context even if lines were logged as INFO
+                    logger = AgiEnv.logger
+                    if logger:
+                        logger.error("Command failed with exit code %s: %s", returncode, cmd)
+
+                    diagnostic_hint = None
+                    log_blob = "\n".join(result).lower()
+                    network_markers = (
+                        "failed to establish a new connection",
+                        "temporary failure in name resolution",
+                        "nodename nor servname provided",
+                        "no route to host",
+                    )
+                    if "pip install" in cmd and any(marker in log_blob for marker in network_markers):
+                        diagnostic_hint = (
+                            "pip could not reach the package index (network access is required to "
+                            "install build dependencies such as hatchling). Pre-install those "
+                            "dependencies locally or enable outbound connectivity, then rerun."
+                        )
+
+                    error_msg = f"Command failed with exit code {returncode}: {cmd}"
+                    if diagnostic_hint:
+                        error_msg = f"{error_msg}\n{diagnostic_hint}"
+
+                    raise RuntimeError(error_msg)
+
+                return "\n".join(result)
+            except asyncio.TimeoutError:
+                proc.kill()
+                raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
+            except Exception as e:
+                logger = AgiEnv.logger
+                if logger:
+                    logger.error(traceback.format_exc())
+                if isinstance(e, RuntimeError):
+                    raise
+                raise RuntimeError(f"Command execution error: {e}") from e
+
+        else:
+            # fire-and-forget mode
+            if not cmd:
+                return 0
+
             asyncio.create_task(
                 asyncio.create_subprocess_shell(
                     cmd,
@@ -2229,7 +2266,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         returncode = proc.returncode
 
         if returncode != 0:
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.error("Command failed with exit code %s: %s", returncode, cmd)
             raise RuntimeError(f"Command failed (exit {returncode})")
@@ -2314,7 +2351,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         Raises on non-zero exit (logs stderr tail).
         """
         if (AgiEnv.verbose or 0) > 0:
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(f"Executing in {venv}: {cmd}")
 
@@ -2371,7 +2408,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 safe = text.encode(enc, errors="replace").decode(enc)
                 plain = AgiLogger.decolorize(safe)
                 msg = strip_time_level_prefix(plain)
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if callback is (logger.info if logger else None) or callback is (logger.error if logger else None):
                     callback(msg, extra={"subprocess": True})
                 else:
@@ -2379,7 +2416,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 result.append(msg)
 
         try:
-            _logger = getattr(AgiEnv, "logger", None)
+            _logger = AgiEnv.logger
             out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
             err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
             await asyncio.wait_for(
@@ -2392,7 +2429,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             )
         except Exception as err:
             proc.kill()
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.error(f"Error during: {cmd}")
                 logger.error(err)
@@ -2402,7 +2439,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         rc = proc.returncode
         if rc != 0:
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.error("Command failed with exit code %s: %s", rc, cmd)
             raise RuntimeError(f"Command failed with exit code {rc}: {cmd}")
@@ -2423,20 +2460,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         try:
             if dest.exists() or dest.is_symlink():
                 if dest.is_symlink() and dest.resolve() == src.resolve():
-                    logger = getattr(AgiEnv, "logger", None)
+                    logger = AgiEnv.logger
                     if logger:
                         logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
                     return
-                logger = getattr(AgiEnv, "logger", None)
+                logger = AgiEnv.logger
                 if logger:
                     logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
                 dest.unlink()
             dest.symlink_to(src, target_is_directory=src.is_dir())
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(f"Symlink created: @{dest.name} -> {src}")
         except Exception as e:
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
 
@@ -2451,13 +2488,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             except Exception:
                 return str(value)
 
+        # Normalize *both* current and requested app identifiers
         current_name = _app_name(getattr(self, "app", None))
         requested_name = _app_name(app)
 
+        if not requested_name:
+            raise ValueError("app name must be non-empty")
+
+        # No-op when the requested app is already active
         if requested_name == current_name:
             return
 
         apps_path = getattr(self, "apps_path", None) or AgiEnv.apps_path
+        if apps_path is None:
+            raise RuntimeError("apps_path is not configured on AgiEnv")
+
         active_app = apps_path / requested_name
 
         try:
@@ -2520,11 +2565,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         try:
             # Using the mklink command to create a junction (/J) which doesn't require admin rights.
             subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(f"Created junction: {dest} -> {source}")
         except subprocess.CalledProcessError as e:
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create junction. Error: {e}")
 
@@ -2546,7 +2591,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         # Check if Developer Mode is enabled or if the process has admin rights
         if not AgiEnv.has_admin_rights():
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(
                     "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
@@ -2557,12 +2602,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         success = CreateSymbolicLink(str(dest), str(source), flags)
         if success:
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
         else:
             error_code = ctypes.GetLastError()
-            logger = getattr(AgiEnv, "logger", None)
+            logger = AgiEnv.logger
             if logger:
                 logger.info(
                     f"Failed to create symbolic link for .venv. Error code: {error_code}"
@@ -2880,7 +2925,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return None
             return parent
 
-        base_share = getattr(self, "agi_share_path_abs", None) or self.share_root_path()
+        base_share = self.agi_share_path_abs
         dest = _resolve_destination(Path(base_share), extract_rel)
         dest_parent = _prepare_parent(dest)
 
@@ -2896,7 +2941,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         env_force = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
         force_refresh = force_extract or env_force
 
-        desired_user = getattr(self, "user", None)
+        desired_user = self.user
         current_owner = Path(self.home_abs).name
 
         if (

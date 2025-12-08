@@ -23,7 +23,8 @@ class Config:
         self.PROJECT_NAME = self.IDEA_DIR.parent.name
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
         self.PROJECT_SDK_TYPE = sdk_type
-        self.APPS_PATH = self.ROOT / "src" / self.PROJECT_NAME / "apps"
+        apps_path = self.ROOT / "src" / self.PROJECT_NAME / "apps"
+        self.APPS_PATH = [apps_path, apps_path/ "builtin"]
         self.APPS_PAGES_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps-pages"
         self.CORE_DIR = self.ROOT / "src" / self.PROJECT_NAME / "core"
 
@@ -66,14 +67,17 @@ class Config:
 
     def __eligible_apps(self) -> List[Path]:
         out: List[Path] = []
-        if not self.APPS_PATH.exists():
-            return out
-        for p in sorted(self.APPS_PATH.iterdir()):
-            if not p.is_dir():
+
+        for apps_dir in self.APPS_PATH:
+            if not apps_dir.exists():
                 continue
-            if not p.name.endswith("_project"):  # rule requested
-                continue
-            out.append(p)
+            for p in sorted(apps_dir.iterdir()):
+                if not p.is_dir():
+                    continue
+                if not p.name.endswith("_project"):
+                    continue
+                out.append(p)
+
         return out
 
     def __eligible_apps_pages(self) -> List[Path]:
@@ -727,7 +731,7 @@ def main():
         jdk_table.set_associated_project(sdk_worker, worker_py)
 
         realized_apps.append(app.name)
-    
+
     realized_apps_pages = []
     for apps_page in cfg.eligible_apps_pages:
         apps_page_py = venv_python_for(apps_page)
