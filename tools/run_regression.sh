@@ -22,6 +22,9 @@ fi
 
 RUN_APPS=${RUN_APPS:-1}
 
+# echo "install apps"
+# $(pwd)/src/agilab/install_app.sh
+
 # Core/Env regression
 uv run pytest "$@"
 
