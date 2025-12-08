@@ -9,7 +9,7 @@ from agi_env import AgiEnv
 def env():
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     apps_dir = agipath / 'apps'
-    return AgiEnv(apps_dir=apps_dir, app='flight_project', verbose=1)
+    return AgiEnv(apps_path=apps_dir, app='flight_project', verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     txt = 'foo foo_bar barfoo bar Foo foo.'
