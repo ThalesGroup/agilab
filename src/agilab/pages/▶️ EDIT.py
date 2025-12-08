@@ -1427,7 +1427,7 @@ def handle_project_creation():
             return
 
         new_name = normalize_project_name(raw)
-        if (env.apps_dir / new_name).exists():
+        if (env.apps_path / new_name).exists():
             st.warning(f"Project '{new_name}' already exists.")
             return
 
@@ -1436,7 +1436,7 @@ def handle_project_creation():
                           Path(new_name))
 
         # verify
-        if (env.apps_dir / new_name).exists():
+        if (env.apps_path / new_name).exists():
             st.success(f"Project '{new_name}' created.")
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
@@ -1494,8 +1494,8 @@ def handle_project_rename():
             st.error("Could not normalize project name.")
             return
 
-        src_path  = env.apps_dir / current
-        dest_path = env.apps_dir / new_name
+        src_path  = env.apps_path / current
+        dest_path = env.apps_path / new_name
 
         if dest_path.exists():
             st.warning(f"Project '{new_name}' already exists.")
@@ -1615,7 +1615,7 @@ def handle_project_import():
             help="This will remove all the .gitignore file from the project.",
         )
 
-        target_dir = env.apps_dir / import_target
+        target_dir = env.apps_path / import_target
         overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
 
         import_clicked = st.sidebar.button(
@@ -1646,7 +1646,7 @@ def handle_project_import():
                     overwrite_modal.close()
 
         if st.session_state.get("project_imported"):
-            project_path = env.apps_dir / import_target
+            project_path = env.apps_path / import_target
             if project_path.exists():
                 st.success(f"Project '{import_target}' successfully imported.")
                 on_project_change(import_target)
