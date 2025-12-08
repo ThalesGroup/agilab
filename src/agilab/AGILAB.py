@@ -262,9 +262,9 @@ def _refresh_share_dir(env, new_value: str) -> None:
 
     # Persist the raw value (without forcing absolutes) so workers can resolve
     # relative mounts appropriately; share_root_path() performs the expansion.
-    env.agi_share_dir = share_value
+    env.agi_share_path = share_value
     env._share_root_cache = share_dir
-    env.agi_share_dir_abs = share_dir
+    env.agi_share_path_abs = share_dir
     share_target = env.share_target_name
     env.app_data_rel = share_dir / share_target
     env.dataframe_path = env.app_data_rel / "dataframe"
@@ -281,7 +281,7 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
 
     agi_env_cls._ensure_defaults()
     current_value = (
-        st.session_state.get("agi_share_dir_override_input")
+        st.session_state.get("agi_share_path_override_input")
         or agi_env_cls.envars.get("AGI_SHARE_DIR")
         or os.environ.get("AGI_SHARE_DIR")
         or agi_env_cls.envars.get("AGI_LOCAL_SHARE")
@@ -300,11 +300,11 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
     )
     st.write(f"Current setting: `{current_value}` (expands to `{share_dir_path}`)")
 
-    key = "agi_share_dir_override_input"
+    key = "agi_share_path_override_input"
     if key not in st.session_state or not st.session_state[key]:
         st.session_state[key] = str(current_value)
 
-    with st.form("agi_share_dir_override_form"):
+    with st.form("agi_share_path_override_form"):
         st.text_input("New AGI_SHARE_DIR", key=key, help="Provide an absolute or home-relative path")
         submitted = st.form_submit_button("Save and retry", use_container_width=True)
 

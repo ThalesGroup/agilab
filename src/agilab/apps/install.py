@@ -160,7 +160,7 @@ def ensure_data_storage(env: AgiEnv) -> None:
         data_root = app_data_path.resolve(strict=False)
     else:
         data_root = (share_base / app_data_path).resolve(strict=False)
-    share_hint = env.agi_share_dir
+    share_hint = env.agi_share_path
     share_hint_str = str(Path(share_hint).expanduser()) if share_hint else str(share_base)
     try:
         data_root.mkdir(parents=True, exist_ok=True)

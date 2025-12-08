@@ -1012,21 +1012,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         candidate =  _abs_path(self.AGI_CLUSTER_SHARE)
         if is_mounted(candidate):
-            self.agi_share_dir = self.AGI_CLUSTER_SHARE
+            self.agi_share_path = self.AGI_CLUSTER_SHARE
             #AgiEnv.logger.info(
-            #    f"self.agi_share_dir = AGI_CLUSTER_SHARE = {candidate}"
+            #    f"self.agi_share_path = AGI_CLUSTER_SHARE = {candidate}"
             #)
         else:
-            self.agi_share_dir = self.AGI_LOCAL_SHARE
+            self.agi_share_path = self.AGI_LOCAL_SHARE
             AgiEnv.logger.warning(
-                f"AGI_CLUSTER_SHARE is not mounted at {candidate}\nself.agi_share_dir fallback to AGI_LOCAL_SHARE = {candidate}"
+                f"AGI_CLUSTER_SHARE is not mounted at {candidate}\nself.agi_share_path fallback to AGI_LOCAL_SHARE = {candidate}"
             )
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()
         share_target_name = self._share_target_name()
         self.share_target_name = share_target_name
-        self.agi_share_dir_abs = share_root_abs
+        self.agi_share_path_abs = share_root_abs
         self.app_data_rel = share_root_abs / share_target_name
         self.dataframe_path = self.app_data_rel / "dataframe"
 
@@ -1269,14 +1269,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     # Shared storage helpers
     # ------------------------------------------------------------------
     def share_root_path(self) -> Path:
-        """Return the absolute path corresponding to ``agi_share_dir``."""
+        """Return the absolute path corresponding to ``agi_share_path``."""
 
         if self._share_root_cache is not None:
             return self._share_root_cache
 
-        share = getattr(self, "agi_share_dir", None)
+        share = getattr(self, "agi_share_path", None)
         if not share:
-            raise RuntimeError("agi_share_dir is not configured; cannot resolve shared storage path.")
+            raise RuntimeError("agi_share_path is not configured; cannot resolve shared storage path.")
 
         share_path = Path(share).expanduser()
         if not share_path.is_absolute():
@@ -2714,7 +2714,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return None
             return parent
 
-        base_share = getattr(self, "agi_share_dir_abs", None) or self.share_root_path()
+        base_share = getattr(self, "agi_share_path_abs", None) or self.share_root_path()
         dest = _resolve_destination(Path(base_share), extract_rel)
         dest_parent = _prepare_parent(dest)
 

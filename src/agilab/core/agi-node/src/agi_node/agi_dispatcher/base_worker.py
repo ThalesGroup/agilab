@@ -161,17 +161,17 @@ class BaseWorker(abc.ABC):
         home = Path.home()
         managed_root = home / cls.managed_pc_home_suffix
 
-        agi_share_dir = env.agi_share_dir
-        if agi_share_dir is None:
+        agi_share_path = env.agi_share_path
+        if agi_share_path is None:
             return
 
         try:
-            env.agi_share_dir = Path(
-                str(Path(agi_share_dir)).replace(str(home), str(managed_root))
+            env.agi_share_path = Path(
+                str(Path(agi_share_path)).replace(str(home), str(managed_root))
             )
         except Exception:  # pragma: no cover - defensive guard
             logger.debug(
-                "Failed to remap agi_share_dir for managed PC", exc_info=True
+                "Failed to remap agi_share_path for managed PC", exc_info=True
             )
 
     @classmethod
@@ -195,8 +195,8 @@ class BaseWorker(abc.ABC):
             logger.debug("share_root_path() failed; falling back to legacy resolution", exc_info=True)
 
         candidates = (
-            env.agi_share_dir_abs,
-            env.agi_share_dir,
+            env.agi_share_path_abs,
+            env.agi_share_path,
         )
         for candidate in candidates:
             if candidate:
@@ -295,9 +295,9 @@ class BaseWorker(abc.ABC):
                     aliases.add(Path(env.AGILAB_SHARE_REL).name)
                 except Exception:
                     pass
-            if env.agi_share_dir:
+            if env.agi_share_path:
                 try:
-                    aliases.add(Path(env.agi_share_dir).name)
+                    aliases.add(Path(env.agi_share_path).name)
                 except Exception:
                     pass
         return {alias for alias in aliases if alias}
