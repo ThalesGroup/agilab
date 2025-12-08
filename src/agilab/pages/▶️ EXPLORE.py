@@ -324,7 +324,7 @@ async def main():
     else:
         env = st.session_state['env']
 
-    if getattr(env, "app", None):
+    if env.app:
         st.query_params["active_app"] = env.app
 
     page_title = "Explore"
@@ -335,7 +335,7 @@ async def main():
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
     select_project(projects, current_project)  # may be updated by select_project
-    if getattr(env, "app", None):
+    if env.app:
         st.query_params["active_app"] = env.app
     if env.app:
         _store_last_app(Path(env.apps_dir) / env.app)
@@ -444,19 +444,19 @@ async def render_view_page(view_path: Path):
     # Unique key for port hashing (works even if two Page share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
     active_app_path: Path | None = None
-    if getattr(env, "apps_dir", None):
+    if env.apps_dir:
         for name in (env.target, env.app):
             if name:
                 candidate = Path(env.apps_dir) / name
                 if candidate.exists():
                     active_app_path = candidate
                     break
-    if active_app_path is None and getattr(env, "active_app", None):
+    if active_app_path is None and env.active_app:
         candidate = Path(env.active_app)
         if candidate.exists():
             active_app_path = candidate
 
-    if active_app_path is None and getattr(env, "active_app", None):
+    if active_app_path is None and env.active_app:
         active_app_arg = str(env.active_app)
     else:
         active_app_arg = str(active_app_path) if active_app_path else ""

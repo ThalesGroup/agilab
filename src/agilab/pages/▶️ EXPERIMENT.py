@@ -186,7 +186,7 @@ def _stream_run_command(
         combined = "\n".join(lines).strip()
         lowered = combined.lower()
         if "module not found" in lowered:
-            apps_root = getattr(env, "apps_root", None)
+            apps_root = env.apps_root
             if apps_root and not (apps_root / ".venv").exists():
                 raise JumpToMain(combined)
         return combined
@@ -1847,7 +1847,7 @@ def save_step(
     # Prefer the current env's OPENAI_MODEL (or Azure deployment) when available
     try:
         env = st.session_state.get("env")
-        if env and getattr(env, "envars", None):
+        if env and env.envars:
             model_from_env = env.envars.get("OPENAI_MODEL") or env.envars.get("AZURE_OPENAI_DEPLOYMENT")
             if model_from_env:
                 entry["M"] = model_from_env
@@ -2756,7 +2756,7 @@ def display_lab_tab(
         normalize_runtime_path(path) for path in get_available_virtualenvs(env)
     ]
     available_venvs = [path for path in dict.fromkeys(available_venvs) if path]
-    env_active_app = normalize_runtime_path(getattr(env, "active_app", ""))
+    env_active_app = normalize_runtime_path(env.active_app)
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
 
