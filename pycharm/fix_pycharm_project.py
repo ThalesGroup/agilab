@@ -114,10 +114,10 @@ def main():
     ensure_misc_xml(root_sdk)
     ensure_root_module(ROOT.name)
 
-    apps_dir = ROOT / "src" / "agilab" / "apps"
-    if apps_dir.exists():
+    apps_path = ROOT / "src" / "agilab" / "apps"
+    if apps_path.exists():
         candidates = []
-        for pattern_dir in (apps_dir, apps_dir / "builtin"):
+        for pattern_dir in (apps_path, apps_path / "builtin"):
             if pattern_dir.is_dir():
                 candidates.extend(sorted(p for p in pattern_dir.glob("*_project") if p.is_dir()))
         for app_dir in candidates:

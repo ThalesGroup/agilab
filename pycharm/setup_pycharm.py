@@ -23,7 +23,7 @@ class Config:
         self.PROJECT_NAME = self.IDEA_DIR.parent.name
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
         self.PROJECT_SDK_TYPE = sdk_type
-        self.APPS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps"
+        self.APPS_PATH = self.ROOT / "src" / self.PROJECT_NAME / "apps"
         self.APPS_PAGES_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps-pages"
         self.CORE_DIR = self.ROOT / "src" / self.PROJECT_NAME / "core"
 
@@ -66,9 +66,9 @@ class Config:
 
     def __eligible_apps(self) -> List[Path]:
         out: List[Path] = []
-        if not self.APPS_DIR.exists():
+        if not self.APPS_PATH.exists():
             return out
-        for p in sorted(self.APPS_DIR.iterdir()):
+        for p in sorted(self.APPS_PATH.iterdir()):
             if not p.is_dir():
                 continue
             if not p.name.endswith("_project"):  # rule requested

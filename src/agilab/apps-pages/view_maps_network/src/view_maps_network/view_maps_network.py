@@ -97,7 +97,7 @@ if 'env' not in st.session_state:
     st.session_state['env'] = env
     st.session_state['IS_SOURCE_ENV'] = env.is_source_env
     st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-    st.session_state['apps_dir'] = str(active_app_path.parent)
+    st.session_state['apps_path'] = str(active_app_path.parent)
     st.session_state['app'] = app_name
 else:
     env = st.session_state['env']
