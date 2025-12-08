@@ -26,6 +26,7 @@
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | attrs | MIT LICENSE |
 | babel | BSD LICENSE |
+| backports-zstd | PSF-2.0 |
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |

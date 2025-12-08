@@ -21,10 +21,17 @@ Instanciation
 Share directory resolution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``AgiEnv`` exposes the resolved data root through :pyattr:`env.agi_share_dir`.
-The path is derived from ``AGI_CLUSTER_SHARE`` (or legacy ``AGI_SHARE_DIR``)
-with ``AGI_LOCAL_SHARE`` as a fallback. The behaviour differs slightly
-depending on where the environment runs:
+``AgiEnv`` exposes the resolved data root through :pyattr:`env.agi_share_path_abs`.
+The path is derived from environment settings using the following precedence:
+
+1. ``AGI_CLUSTER_SHARE`` from the current process environment (e.g. ssh session, service unit).
+2. ``AGI_CLUSTER_SHARE`` defined in the ``.env`` file.
+3. Legacy ``AGI_SHARE_DIR`` from the process environment, then ``.env``.
+4. ``AGI_LOCAL_SHARE`` (default ``~/localshare``).
+
+This ordering lets remote workers honour the share configured by their host
+without copying the manager settings. The behaviour differs slightly depending
+on where the environment runs:
 
 * **Manager / developer shells** – relative inputs are expanded against
   :pyattr:`env.home_abs` and the directory is created eagerly. Any missing or
@@ -37,7 +44,7 @@ depending on where the environment runs:
   stripped so the worker can re-root the remainder under its own home directory
   or mount point.
 
-Because the worker value stays relative, it will fail fast if ``agi_share_dir``
+Because the worker value stays relative, it will fail fast if ``agi_share_path``
 is not mounted. This makes data provenance explicit and avoids hidden copies of
 datasets on remote machines.
 

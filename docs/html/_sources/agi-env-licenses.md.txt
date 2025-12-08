@@ -6,6 +6,7 @@
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
 | attrs | MIT LICENSE |
+| backports-zstd | PSF-2.0 |
 | blinker | MIT LICENSE |
 | brotli | MIT |
 | cachetools | MIT LICENSE |

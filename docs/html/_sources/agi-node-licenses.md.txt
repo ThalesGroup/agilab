@@ -1,6 +1,7 @@
 # Agi-node Licenses
 | Package Name | License |
 |--------------|---------|
+| backports-zstd | PSF-2.0 |
 | brotli | MIT |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |

@@ -51,7 +51,7 @@ C - Exemple of Tests Sequence:
 
 - ** app install**
 
-  This will install the venv in your fwk/apps/<your app> and in your <home>/wenv/<your worker>.
+  This will install the venv in your apps/<your app> and in your <home>/wenv/<your worker>.
 
 - ** <your app>_egg gen **
 
@@ -190,6 +190,12 @@ Run this from the second Mac:
 
 Known Bugs
 ==========
+
+<install.sh> do not install your Run/Debug Configurations :
+--------------------
+If your worker failed to install its <home>/wenv/<app>_worker/.venv pycharm/setup_pycharm will not generate your script
+in that case you can run the pycharm configuration ``app install (local)`` that will prompt for your app path to debug
+your app installation and when it is fix run ``uv run python pycharm/setup_pycharm.py``
 
 <install.sh> freeze:
 --------------------

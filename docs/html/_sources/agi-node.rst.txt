@@ -11,12 +11,15 @@ accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
   by wrapping them in ``PureWindowsPath`` and returning the
   ``os.path.normpath`` representation so network drives keep their double
   backslashes.
-- Every other value is expanded relative to the current home directory. This
-  lets configuration files ship entries such as ``data/my-project`` while still
-  resolving to ``~/data/my-project`` on the worker host.
-- ``Path.resolve(strict=False)`` is applied to keep symlinks such as the
-  ``~/data`` link created by installers, while still accepting directories that
-  are created later during the run.
+- Every other value is first joined against ``env.agi_share_path_abs`` when the
+  environment exposes one; otherwise the helper falls back to the current home
+  directory. This lets configuration files ship entries such as
+  ``example_app/dataset`` while still resolving to the correct worker share
+  (``/Users/example/clustershare/example_app/dataset`` on macOS, the mounted
+  share on Linux remotes, and so on).
+- ``Path.resolve(strict=False)`` is applied to keep symlinks or bind mounts
+  created by installers while still accepting directories that are created
+  later during the run.
 - On non-managed Windows installs the helper also attempts to map the dataset
   under ``\\127.0.0.1\…`` via ``net use`` so local workers gain access to the
   same share paths used on Linux.
