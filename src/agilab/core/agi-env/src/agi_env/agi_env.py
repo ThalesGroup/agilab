@@ -709,7 +709,25 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception:
             is_builtin_app = False
 
-        if (not self.is_worker_env) and not self.skip_repo_links and not is_builtin_app:
+        can_link_repo = (
+            apps_path is not None
+            and not self.is_worker_env
+            and not self.skip_repo_links
+            and not is_builtin_app
+        )
+        if can_link_repo:
+            try:
+                apps_root_candidate = apps_path.resolve(strict=False)
+            except Exception:
+                apps_root_candidate = apps_path
+            try:
+                active_parent = self.active_app.parent.resolve(strict=False)
+            except Exception:
+                active_parent = self.active_app.parent
+            if apps_root_candidate != active_parent:
+                can_link_repo = False
+
+        if can_link_repo:
             os.makedirs(apps_path, exist_ok=True)
 
             link_source = self.apps_repository_root or self._get_apps_repository_root()
