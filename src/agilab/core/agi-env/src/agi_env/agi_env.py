@@ -725,31 +725,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 if not same_tree:
                     for src_app in link_source.glob("*_project"):
                         dest_app = apps_path / src_app.relative_to(link_source)
-                        # Avoid self-referential symlinks when the public destination
-                        # already resides inside the apps repository tree.
-                        if dest_app.resolve(strict=False) == src_app.resolve():
-                            continue
+                        # Avoid self-referential or pre-existing entries; only fill gaps.
                         try:
-                            if dest_app.is_symlink():
-                                same_target = False
-                                if dest_app.exists():
-                                    try:
-                                        same_target = dest_app.resolve() == src_app.resolve()
-                                    except OSError:
-                                        same_target = False
-                                if same_target:
-                                    continue
-                                dest_app.unlink()
-                            elif dest_app.exists():
-                                shutil.rmtree(dest_app)
-                        except FileNotFoundError:
-                            pass
+                            if dest_app.exists() or dest_app.resolve(strict=False) == src_app.resolve():
+                                continue
+                        except OSError:
+                            continue
 
                         if os.name == "nt":
                             AgiEnv.create_symlink_windows(Path(src_app), dest_app)
                         else:
                             os.symlink(src_app, dest_app, target_is_directory=True)
-                        AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
+                        AgiEnv.logger.info("Created symbolic link for app: %s -> %s", src_app, dest_app)
             elif apps_root.exists() and not self.is_source_env:
                 try:
                     if apps_root.resolve() != active_app.parent.resolve():
