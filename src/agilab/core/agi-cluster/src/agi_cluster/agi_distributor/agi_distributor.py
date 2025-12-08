@@ -892,7 +892,7 @@ class AGI:
             "-o",
             "UserKnownHostsFile=/dev/null",
         ]
-        ssh_key_path = getattr(env, "ssh_key_path", None)
+        ssh_key_path = env.ssh_key_path
         if ssh_key_path:
             scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
         scp_cmd.append(str(local_path))
@@ -2241,7 +2241,7 @@ class AGI:
         dask_env = AGI._dask_env_prefix()
         if env.is_local(AGI._scheduler_ip):
             await asyncio.sleep(1)  # non-blocking sleep
-            local_prefix = cmd_prefix or getattr(env, "export_local_bin", "") or ""
+            local_prefix = cmd_prefix or env.export_local_bin or ""
             cmd = (
                 f"{local_prefix}{dask_env}{env.uv} run --no-sync --project {env.wenv_abs} "
                 f"dask scheduler "
@@ -2493,7 +2493,7 @@ class AGI:
 
         app_path = env.active_app
         wenv_abs = env.wenv_abs
-        module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
+        module = env.setup_app_module
 
         # build egg and unzip it into wenv
         uv = env.uv
@@ -3077,7 +3077,7 @@ class AGI:
         agent_path = None
         try:
             client_keys = None
-            ssh_key_override = getattr(env, "ssh_key_path", None)
+            ssh_key_override = env.ssh_key_path
             if ssh_key_override:
                 client_keys = [str(Path(ssh_key_override).expanduser())]
             else:
