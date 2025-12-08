@@ -1716,7 +1716,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not AGILAB_EXPORT_ABS.exists():
             AGILAB_EXPORT_ABS.mkdir(parents=True)
         self.AGILAB_EXPORT_ABS = AGILAB_EXPORT_ABS
-        self.export_apps = AGILAB_EXPORT_ABS / "apps"
+        self.export_apps = AGILAB_EXPORT_ABS / "apps-zip"
         if not self.export_apps.exists():
             os.makedirs(str(self.export_apps), exist_ok=True)
         self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
