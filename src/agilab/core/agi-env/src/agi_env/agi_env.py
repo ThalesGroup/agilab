@@ -726,6 +726,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 active_parent = self.active_app.parent
             if apps_root_candidate != active_parent:
                 can_link_repo = False
+            else:
+                normalized_name = apps_root_candidate.name.lower()
+                if normalized_name.endswith("_project") or normalized_name.endswith("_worker"):
+                    can_link_repo = False
 
         if can_link_repo:
             os.makedirs(apps_path, exist_ok=True)
