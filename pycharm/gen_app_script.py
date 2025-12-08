@@ -68,12 +68,23 @@ if __name__ == "__main__":
         print("No name entered. Exiting.")
         sys.exit(1)
 
+    # For placeholder substitution: keep 'builtin/flight' (strip only '_project')
     if app.endswith('_project'):
-        app_name = app[:-8]  # Remove '_project' suffix if present
+        app_placeholder = app[:-8]  # 'builtin/flight'
     else:
-        app_name = app
+        app_placeholder = app  # fallback
 
-    print(f"Replacement name: {app}")
+    # For file names: use only the last segment without '_project' -> 'flight'
+    app_path = Path(app)
+    raw_name = app_path.name  # 'flight_project'
+    if raw_name.endswith('_project'):
+        app_name = raw_name[:-8]  # 'flight'
+    else:
+        app_name = raw_name
+
+    print(f"Replacement name (full): {app}")
+    print(f"App placeholder (for {{APP}}): {app_placeholder}")
+    print(f"App name (for filenames): {app_name}")
 
     script_root = Path(__file__).resolve().parent
     templates_root = script_root / "app-scripts"
@@ -102,7 +113,7 @@ if __name__ == "__main__":
             continue
 
         tree = ET.parse(tpl_path)
-        _replace_placeholders(tree, app_name)
+        _replace_placeholders(tree, app_placeholder)
 
         # Run configuration display names now use a space (AGI run, AGI install, AGI get distrib)
 
