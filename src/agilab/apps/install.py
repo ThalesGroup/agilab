@@ -24,6 +24,9 @@ import argparse
 import errno
 import getpass
 import shutil
+import logging
+
+logger = logging.getLogger(__name__)
 
 core_root = Path(__file__).parents[1]
 node_src = str(core_root / 'core/node/src')
@@ -58,6 +61,7 @@ def _seed_example_scripts(app_slug: str) -> None:
         return
 
     execute_dir = Path.home() / "log" / "execute" / app_slug
+    logger.info(f"mkdir {execute_dir}")
     execute_dir.mkdir(parents=True, exist_ok=True)
 
     for source in sorted(examples_dir.glob("AGI_*.py")):
@@ -85,6 +89,7 @@ def _seed_lab_steps(app_slug: str) -> None:
     export_root = Path(os.environ.get("AGI_EXPORT_DIR", Path.home() / "export")).expanduser()
     target_dir = export_root / app_slug
     try:
+        logger.info(f"mkdir {target_dir}")
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         print(f"[WARN] Unable to create export dir {target_dir}: {exc}")
@@ -115,6 +120,7 @@ def _seed_app_settings(app_slug: str) -> None:
     export_root = Path(os.environ.get("AGI_EXPORT_DIR", Path.home() / "export")).expanduser()
     target_dir = export_root / app_slug
     try:
+        logger.info(f"mkdir {target_dir}")
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         print(f"[WARN] Unable to create export dir {target_dir}: {exc}")
@@ -163,6 +169,7 @@ def ensure_data_storage(env: AgiEnv) -> None:
     share_hint = env.agi_share_path
     share_hint_str = str(Path(share_hint).expanduser()) if share_hint else str(share_base)
     try:
+        logger.info(f"mkdir {data_root}")
         data_root.mkdir(parents=True, exist_ok=True)
     except FileNotFoundError as exc:
         raise RuntimeError(

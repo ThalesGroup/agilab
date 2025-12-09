@@ -30,6 +30,9 @@ from datetime import datetime
 import time
 from streamlit.runtime.scriptrunner import RerunException
 from typing import Optional
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 
 def _ensure_repo_on_path() -> None:
@@ -763,6 +766,7 @@ def page():
     export_base = env.AGILAB_EXPORT_ABS
     share_base = env.share_root_path()
     if "datadir" not in st.session_state:
+        logger.info(f"mkdir {export_base}")
         export_base.mkdir(parents=True, exist_ok=True)
         st.session_state.datadir = export_base
     qps = st.query_params

@@ -55,7 +55,10 @@ from copy import deepcopy
 
 from agi_env import AgiEnv, normalize_path
 
-logger = logging.getLogger(__name__)
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
+
 warnings.filterwarnings("ignore")
 
 
@@ -270,6 +273,7 @@ class BaseWorker(abc.ABC):
             target_dir = target_dir.parent
         probe = target_dir / f".agi_perm_{uuid.uuid4().hex}"
         try:
+            logger.info(f"mkdir {target_dir}")
             target_dir.mkdir(parents=True, exist_ok=True)
             probe.touch(exist_ok=False)
         except (PermissionError, FileNotFoundError, OSError):
@@ -324,6 +328,7 @@ class BaseWorker(abc.ABC):
                 )
 
         try:
+            logger.info(f"mkdir {target}")
             target.mkdir(parents=True, exist_ok=True)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.warning(
@@ -727,6 +732,7 @@ class BaseWorker(abc.ABC):
         def _ensure_output_dir(path: str | Path) -> Path:
             path_obj = Path(path).expanduser()
             try:
+                logger.info(f"mkdir {path_obj}")
                 path_obj.mkdir(parents=True, exist_ok=True)
                 return path_obj
             except Exception as exc:
@@ -1084,6 +1090,7 @@ class BaseWorker(abc.ABC):
         else:
             path = normalize_path(BaseWorker._share_path)
         if not os.path.exists(path):
+            logger.info(f"mkdir {path}")
             os.makedirs(path, exist_ok=True)
 
         size = 10 * 1024 * 1024

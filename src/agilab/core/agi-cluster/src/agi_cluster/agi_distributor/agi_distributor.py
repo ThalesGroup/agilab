@@ -147,7 +147,6 @@ import json
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
-import logging
 import runpy
 import tomlkit
 from packaging.requirements import Requirement
@@ -162,10 +161,12 @@ if _node_src not in sys.path:
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
-logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 _workers_default = {socket.gethostbyname("localhost"): 1}
 
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 class AGI:
     """Coordinate installation, scheduling, and execution of AGILab workloads."""
@@ -867,6 +868,7 @@ class AGI:
             destination = remote_path
             if not destination.is_absolute():
                 destination = env.home_abs / destination
+            logger.info(f"mkdir {destination.parent}")
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(local_path, destination)
             return
@@ -1185,6 +1187,7 @@ class AGI:
         AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
         uv = cmd_prefix + env.uv
 
+        logger.info(f"mkdir {wenv_abs}")
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
         if os.name == "nt":
@@ -1685,6 +1688,7 @@ class AGI:
                 resources_src = env.env_pck / 'resources'
             manager_resources = app_path / 'agilab/core/agi-env/src/agi_env/resources'
             if resources_src.exists():
+                logger.info(f"mkdir {manager_resources.parent}")
                 manager_resources.parent.mkdir(parents=True, exist_ok=True)
                 if manager_resources.exists():
                     shutil.rmtree(manager_resources)
@@ -1778,6 +1782,7 @@ class AGI:
             if not worker_resources_src.exists():
                 worker_resources_src = env.env_pck / 'resources'
             resources_dest = wenv_abs / 'agilab/core/agi-env/src/agi_env/resources'
+            logger.info(f"mkdir {resources_dest.parent}")
             resources_dest.parent.mkdir(parents=True, exist_ok=True)
             if resources_dest.exists():
                 shutil.rmtree(resources_dest)
@@ -1850,7 +1855,10 @@ class AGI:
         if src.exists():
             try:
                 share_root = env.share_root_path()
-                install_dataset_dir = share_root / "dataset"
+                # why this line ???
+                # install_dataset_dir = share_root / "dataset"
+                install_dataset_dir = share_root
+                logger.info(f"mkdir {install_dataset_dir}")
                 os.makedirs(install_dataset_dir, exist_ok=True)
                 shutil.copy2(src, dest)
             except (FileNotFoundError, PermissionError, RuntimeError) as exc:
@@ -1919,6 +1927,7 @@ class AGI:
                 raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
             dist_remote = wenv_rel / "dist"
+            logger.info(f"mkdir {dist_remote}")
             await AGI.exec_ssh(ip, f"mkdir -p '{dist_remote}'")
             await AGI.send_files(env, ip, [egg_file], wenv_rel)
             await AGI.send_files(env, ip, [node_whl, env_whl], dist_remote)
