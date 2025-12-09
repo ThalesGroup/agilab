@@ -10,12 +10,12 @@
       <env name="IS_SOURCE_ENV" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (agilab)" />
     <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
-    <option name="IS_MODULE_SDK" value="false" />
+    <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+    <option name="RUN_TOOL" value="" />
     <option name="SCRIPT_NAME" value="streamlit" />
     <option name="PARAMETERS" value="run $ProjectFileDir$/src/agilab/AGILAB.py -- --openai-api-key &quot;your-key&quot; --apps-dir $ProjectFileDir$/src/agilab/apps" />
     <option name="SHOW_COMMAND_LINE" value="false" />

@@ -635,13 +635,48 @@ class Project:
         logging.info(f"Module entry for {core_iml.name} added to modules.xml")
         return core_iml
 
-    def generate_run_configs_for_apps(self, app_names: List[str]) -> None:
+    def generate_run_configs_for_apps(self, app_names: List[Path]) -> None:
+        """
+        Generate run configurations for the given apps.
+
+        app_names are paths relative to cfg.APPS_PATH, e.g.:
+          - Path("flight_project")
+          - Path("builtin/flight_project")
+        """
         if not self.cfg.GEN_SCRIPT.exists():
             logging.info(f"Missing {self.cfg.GEN_SCRIPT}; skipping run configuration generation.")
             return
-        for name in app_names:
-            logging.info(f"Generating run configs for '{name}' via {self.cfg.GEN_SCRIPT.name} …")
-            subprocess.run([sys.executable, str(self.cfg.GEN_SCRIPT), f'{name}'], check=True, cwd=str(self.cfg.ROOT))
+
+        for rel in app_names:
+            # Ensure we have a Path
+            rel_path = rel if isinstance(rel, Path) else Path(rel)
+
+            # Resolve to the actual app directory under src/<project>/apps
+            app_dir = (self.cfg.APPS_PATH / rel_path).resolve()
+
+            # Find the venv python for THIS app
+            app_python = venv_python_for(app_dir)
+            if not app_python:
+                logging.warning(
+                    "No virtual environment found for %s; falling back to project Python (%s).",
+                    app_dir,
+                    sys.executable,
+                )
+                app_python = Path(sys.executable)
+
+            logging.info(
+                "Generating run configs for '%s' via %s using interpreter %s …",
+                rel_path.as_posix(),
+                self.cfg.GEN_SCRIPT.name,
+                app_python,
+            )
+
+            subprocess.run(
+                [str(app_python), str(self.cfg.GEN_SCRIPT), rel_path.as_posix()],
+                check=True,
+                cwd=str(self.cfg.ROOT),
+            )
+
 
     def python_terminal_settings(self):
         term_cfg = self.cfg.IDEA_DIR / "python-terminal.xml"
