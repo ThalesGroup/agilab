@@ -1040,6 +1040,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.dataframe_path = self.app_data_rel / "dataframe"
 
         if self.is_worker_env:
+            self.user = "agi"
             return
 
         if self.worker_path.exists():
@@ -1060,9 +1061,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 )
 
         envars = self.envars
-        raw_credentials = envars.get("CLUSTER_CREDENTIALS", "")
+        raw_credentials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
         credentials_parts = raw_credentials.split(":")
-        self.user = credentials_parts[0] if credentials_parts[0] else getpass.getuser()
+        self.user = credentials_parts[0]
         self.password = credentials_parts[1] if len(credentials_parts) > 1 else None
         ssh_key_env = envars.get("AGI_SSH_KEY_PATH", "")
         ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
