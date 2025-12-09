@@ -8,6 +8,9 @@ import pytest
 
 from agi_node.agi_dispatcher import BaseWorker
 
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 class DummyWorker(BaseWorker):
     def __init__(self):

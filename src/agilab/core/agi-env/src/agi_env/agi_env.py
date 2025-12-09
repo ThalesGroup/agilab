@@ -1893,7 +1893,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         try:
             if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
                 import re as _re
-                cmd = _re.sub(r"(^|\s)uv(\s+)", r"\1uv --preview-features extra-build-dependencies \2", cmd, count=1)
+                cmd = _re.sub(
+                        r"(^|\s)uv(\s+)",
+                        r"\1uv --preview-features extra-build-dependencies \2",
+                        cmd,
+                        count=1,
+                    )
+
         except Exception:
             pass
 
