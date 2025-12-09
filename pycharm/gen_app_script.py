@@ -94,7 +94,7 @@ if __name__ == "__main__":
         app_dir = app_arg
 
     # app_name: leaf part only ("flight", "example_app")
-    app_name = Path(app_dir).name
+    app_name = Path(app_dir).name.replace("builtin/","")
 
     # For workspace/folders we want the full project name, e.g. "builtin/flight_project"
     folder_name = app_arg
@@ -155,11 +155,12 @@ if __name__ == "__main__":
         for opt in first_cfg.findall("option"):
             if opt.attrib.get("name") == "SCRIPT_NAME":
                 val = opt.attrib.get("value", "")
-                # Replace "/builtin/flight/" with "/flight/" (or in general "/{app_dir}/" -> "/{app_name}/")
-                dir_from = f"/{app_dir}/"
-                dir_to = f"/{app_name}/"
-                if dir_from in val:
-                    opt.attrib["value"] = val.replace(dir_from, dir_to, 1)
+                marker = "log/execute/"
+                idx = val.find(marker)
+                if idx != -1:
+                    prefix = val[: idx + len(marker)]  # "$USER_HOME$/log/execute/"
+                    # Force directory and filename to use the leaf app_name (e.g. "flight")
+                    opt.attrib["value"] = prefix + f"{app_name}/AGI_install_{app_name}.py"
 
         config_name = first_cfg.attrib.get("name", os.path.splitext(base)[0])
         config_type = first_cfg.attrib.get("type", "PythonConfigurationType")
