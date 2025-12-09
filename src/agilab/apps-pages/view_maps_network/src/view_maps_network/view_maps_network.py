@@ -81,6 +81,7 @@ def _load_last_subdir() -> str:
 
 def _store_last_subdir(value: str) -> None:
     try:
+        logger.info(f"mkdir {_LAST_SUBDIR_FILE.parent}")
         _LAST_SUBDIR_FILE.parent.mkdir(parents=True, exist_ok=True)
         _LAST_SUBDIR_FILE.write_text(value, encoding="utf-8")
     except Exception:

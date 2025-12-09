@@ -399,6 +399,7 @@ def page():
     if "datadir" not in st.session_state:
         datadir = env.AGILAB_EXPORT_ABS / env.target
         if not datadir.exists():
+            logger.info(f"mkdir {datadir}")
             os.mkdir(datadir, exist_ok=True)
         st.session_state["datadir"] = datadir
     if "project" not in st.session_state:
