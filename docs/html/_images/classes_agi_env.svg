@@ -102,7 +102,7 @@
 <text xml:space="preserve" text-anchor="start" x="133.62" y="-576.75" font-family="Helvetica,sans-Serif" font-size="10.00">target_class : str</text>
 <text xml:space="preserve" text-anchor="start" x="133.62" y="-565.5" font-family="Helvetica,sans-Serif" font-size="10.00">target_worker : str</text>
 <text xml:space="preserve" text-anchor="start" x="133.62" y="-554.25" font-family="Helvetica,sans-Serif" font-size="10.00">target_worker_class : str</text>
-<text xml:space="preserve" text-anchor="start" x="133.62" y="-543" font-family="Helvetica,sans-Serif" font-size="10.00">user</text>
+<text xml:space="preserve" text-anchor="start" x="133.62" y="-543" font-family="Helvetica,sans-Serif" font-size="10.00">user : str</text>
 <text xml:space="preserve" text-anchor="start" x="133.62" y="-531.75" font-family="Helvetica,sans-Serif" font-size="10.00">uv : NoneType</text>
 <text xml:space="preserve" text-anchor="start" x="133.62" y="-520.5" font-family="Helvetica,sans-Serif" font-size="10.00">uv_worker : str</text>
 <text xml:space="preserve" text-anchor="start" x="133.62" y="-509.25" font-family="Helvetica,sans-Serif" font-size="10.00">uvproject</text>

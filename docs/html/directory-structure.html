@@ -413,11 +413,13 @@ apps/
     __pycache__/ [excluded]
     builtin/
         flight_project/
+            .pytest_cache/ [excluded]
             .venv/ [excluded]
             Modules/ [excluded]
             src/
                 __pycache__/ [excluded]
                 flight/
+                    __pycache__/ [excluded]
                     __init__.py
                     flight.py
                     flight_args.py
@@ -767,6 +769,7 @@ core/
     test/
         __pycache__/ [excluded]
         __init__.py
+        test_agi_core_smoke.py
         test_agi_distributor.py
         test_base_worker.py
         test_dag_worker.py

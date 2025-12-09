@@ -183,7 +183,7 @@
 | lark | MIT LICENSE |
 | legacy-cgi | PSF-2.0 |
 | librt | MIT LICENSE |
-| llvmlite | BSD |
+| llvmlite | APACHE-2.0 WITH LLVM-EXCEPTION;; BSD-2-CLAUSE |
 | locket | BSD LICENSE |
 | lxml | BSD-3-CLAUSE |
 | mako | MIT LICENSE |

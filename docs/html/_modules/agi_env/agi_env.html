@@ -469,7 +469,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">importlib.resources</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">importlib_resources</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">threading</span><span class="w"> </span><span class="kn">import</span> <span class="n">RLock</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env.agi_logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiLogger</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env.defaults</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_default_openai_model</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_inspect</span>
 <span class="k">try</span><span class="p">:</span>
@@ -488,7 +487,9 @@
 
     <span class="n">sys</span><span class="o">.</span><span class="n">excepthook</span> <span class="o">=</span> <span class="n">FormattedTB</span><span class="p">(</span><span class="o">**</span><span class="n">_tb_kwargs</span><span class="p">)</span>
 
-<span class="c1"># logger = AgiLogger.get_logger(__name__)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env.agi_logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiLogger</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">AgiLogger</span><span class="o">.</span><span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <span class="nd">@lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
@@ -1158,6 +1159,7 @@
                     <span class="n">can_link_repo</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="k">if</span> <span class="n">can_link_repo</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">apps_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">apps_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
             <span class="n">link_source</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_repository_root</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_apps_repository_root</span><span class="p">()</span>
@@ -1213,6 +1215,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">dist_rel</span> <span class="o">=</span> <span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;dist&#39;</span>
         <span class="n">wenv_abs</span> <span class="o">=</span> <span class="n">home_abs</span> <span class="o">/</span> <span class="n">wenv_rel</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">=</span> <span class="n">wenv_abs</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">pre_install</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">node_pck</span> <span class="o">/</span> <span class="s2">&quot;agi_dispatcher/pre_install.py&quot;</span>
@@ -1466,6 +1469,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">dataframe_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_data_rel</span> <span class="o">/</span> <span class="s2">&quot;dataframe&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="s2">&quot;agi&quot;</span>
             <span class="k">return</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
@@ -1529,6 +1533,7 @@
                         <span class="n">exc</span><span class="p">,</span>
                     <span class="p">)</span>
 
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">app_src_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">app_src_str</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
@@ -1867,6 +1872,7 @@
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
             <span class="k">pass</span>
 
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dst_apps</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">dst_apps</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;copy_existing_projects src=</span><span class="si">{</span><span class="n">src_apps</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="si">}</span><span class="s2"> dst=</span><span class="si">{</span><span class="n">dst_apps</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1919,6 +1925,7 @@
         <span class="n">env_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
         <span class="c1"># Ensure parent directory exists for pre-init usage</span>
         <span class="k">try</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">env_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">env_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
             <span class="k">pass</span>
@@ -1931,6 +1938,7 @@
         <span class="n">src_env_path</span> <span class="o">=</span> <span class="n">resources_src</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
         <span class="n">dest_env_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_env_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dest_env_file</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dest_env_file</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">src_env_path</span><span class="p">,</span> <span class="n">dest_env_file</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">resources_src</span><span class="p">):</span>
@@ -1938,6 +1946,7 @@
                 <span class="n">src_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">root</span><span class="p">)</span> <span class="o">/</span> <span class="n">file</span>
                 <span class="n">relative_path</span> <span class="o">=</span> <span class="n">src_file</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">resources_src</span><span class="p">)</span>
                 <span class="n">dest_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="n">relative_path</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dest_file</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">dest_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                     <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">src_file</span><span class="p">,</span> <span class="n">dest_file</span><span class="p">)</span>
@@ -1954,6 +1963,7 @@
                 <span class="n">src_extra</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">st_resources</span> <span class="o">/</span> <span class="n">extra</span>
                 <span class="n">dest_extra</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="n">extra</span>
                 <span class="k">if</span> <span class="n">src_extra</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dest_extra</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dest_extra</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="n">dest_extra</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                     <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">src_extra</span><span class="p">,</span> <span class="n">dest_extra</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -2187,16 +2197,20 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">AGILAB_LOG_ABS</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
             <span class="n">AGILAB_LOG_ABS</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">AGILAB_LOG_ABS</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">AGILAB_LOG_ABS</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">AGILAB_LOG_ABS</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">AGILAB_LOG_ABS</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_LOG_ABS</span> <span class="o">=</span> <span class="n">AGILAB_LOG_ABS</span>
         <span class="n">runenv_base</span> <span class="o">=</span> <span class="n">AGILAB_LOG_ABS</span> <span class="o">/</span> <span class="s2">&quot;execute&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">runenv_base</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">runenv_base</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runenv</span> <span class="o">=</span> <span class="n">runenv_base</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">runenv</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runenv</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">AGILAB_EXPORT_ABS</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_EXPORT_DIR&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;export&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">AGILAB_EXPORT_ABS</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
             <span class="n">AGILAB_EXPORT_ABS</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">AGILAB_EXPORT_ABS</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">AGILAB_EXPORT_ABS</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">AGILAB_EXPORT_ABS</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">AGILAB_EXPORT_ABS</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_EXPORT_ABS</span> <span class="o">=</span> <span class="n">AGILAB_EXPORT_ABS</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">export_apps</span> <span class="o">=</span> <span class="n">AGILAB_EXPORT_ABS</span> <span class="o">/</span> <span class="s2">&quot;apps-zip&quot;</span>
@@ -2366,7 +2380,13 @@
 <span class="sd">        try:</span>
 <span class="sd">            if isinstance(cmd, str) and &quot;uv&quot; in cmd and &quot;--preview-features&quot; not in cmd:</span>
 <span class="sd">                import re as _re</span>
-<span class="sd">                cmd = _re.sub(r&quot;(^|\s)uv(\s+)&quot;, r&quot;\1uv --preview-features extra-build-dependencies \2&quot;, cmd, count=1)</span>
+<span class="sd">                cmd = _re.sub(</span>
+<span class="sd">                        r&quot;(^|\s)uv(\s+)&quot;,</span>
+<span class="sd">                        r&quot;\1uv --preview-features extra-build-dependencies \2&quot;,</span>
+<span class="sd">                        cmd,</span>
+<span class="sd">                        count=1,</span>
+<span class="sd">                    )</span>
+
 <span class="sd">        except Exception:</span>
 <span class="sd">            pass</span>
 
@@ -2782,6 +2802,7 @@
         <span class="n">is_install_snippet</span> <span class="o">=</span> <span class="s2">&quot;install&quot;</span> <span class="ow">in</span> <span class="n">snippet_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
 
         <span class="n">runenv_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">runenv</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">runenv_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">runenv_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="n">snippet_file</span> <span class="o">=</span> <span class="n">runenv_path</span> <span class="o">/</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="s2">_</span><span class="si">{}</span><span class="s2">.py&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
@@ -3250,6 +3271,7 @@
         <span class="n">spec</span> <span class="o">=</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">ignore_patterns</span><span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dest_root</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">dest_root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not create &#39;</span><span class="si">{</span><span class="n">dest_root</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -3302,6 +3324,7 @@
 
             <span class="n">new_rel</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
             <span class="n">dst</span> <span class="o">=</span> <span class="n">dest_dir</span> <span class="o">/</span> <span class="n">new_rel</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dst</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">dst</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
@@ -3449,6 +3472,7 @@
         <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_parent</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">parent</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">parent</span>
             <span class="k">try</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># pragma: no cover - defensive guard</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -3483,6 +3507,7 @@
             <span class="ow">and</span> <span class="n">desired_user</span> <span class="o">!=</span> <span class="n">current_owner</span>
             <span class="ow">and</span> <span class="ow">not</span> <span class="n">force_refresh</span>
         <span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">dest</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
@@ -3492,6 +3517,7 @@
             <span class="k">return</span>
 
         <span class="k">try</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">dest</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">FileExistsError</span><span class="p">:</span>
             <span class="k">pass</span>
@@ -3532,6 +3558,7 @@
                 <span class="k">return</span>
 
         <span class="k">try</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">dataset</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">dataset</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
