@@ -23,6 +23,9 @@ import plotly.express as px
 import geojson
 import random
 
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 def _ensure_repo_on_path() -> None:
     here = Path(__file__).resolve()

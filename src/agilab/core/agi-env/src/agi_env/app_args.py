@@ -11,6 +11,9 @@ from pydantic import BaseModel, ValidationError
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 def model_to_payload(model: BaseModel) -> dict[str, Any]:
     """Return a JSON/TOML friendly representation of the model."""
@@ -93,6 +96,7 @@ def dump_model_to_toml(
     except Exception as exc:  # pragma: no cover - defensive guard
         raise RuntimeError("Writing settings requires the 'tomli-w' package") from exc
 
+    logger.info(f"mkdir {settings_path.parent}")
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with settings_path.open("wb") as handle:
         dumper(doc, handle)

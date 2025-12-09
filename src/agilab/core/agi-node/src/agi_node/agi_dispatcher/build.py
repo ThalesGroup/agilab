@@ -8,7 +8,6 @@ import getpass
 import sys
 import os
 import shutil
-import logging
 import re
 from pathlib import Path
 from zipfile import ZipFile
@@ -17,7 +16,6 @@ import subprocess
 
 from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning
 from Cython.Build import cythonize
-
 
 def _inject_shared_site_packages() -> None:
     version = f"python{sys.version_info.major}.{sys.version_info.minor}"
@@ -38,8 +36,14 @@ from agi_env import AgiLogger
 import warnings
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
+
 try:
     from pathlib import Path as _Path
+
+    logger.info(f"mkdir {_Path('Modules/_hacl')}")
     _Path('Modules/_hacl').mkdir(parents=True, exist_ok=True)
 except Exception:
     # Non-fatal if directory can't be created (e.g., read-only env)
@@ -151,6 +155,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
 
     if not dest.parent.exists():
         AgiEnv.logger.info(f"Creating directory: {dest.parent}")
+        logger.info(f"mkdir {dest.parent}")
         dest.parent.mkdir(parents=True, exist_ok=True)
 
     if not dest.exists():
@@ -346,7 +351,7 @@ def main(argv: list[str] | None = None) -> None:
         define_macros = [("CYTHON_FALLTHROUGH", "")]
         if sys.platform.startswith("win") and env.pyvers_worker[-1] == "t":
             define_macros.append(("Py_GIL_DISABLED", "1"))
-
+        logger.info(f"mkdir {Path() /"Modules/_hacl"}")
         os.makedirs(Path() /"Modules/_hacl", exist_ok=True)
         mod = Extension(
             name=f"{worker_module}_cy",
@@ -401,6 +406,7 @@ def main(argv: list[str] | None = None) -> None:
     if cmd == 'bdist_egg' and (not env.is_worker_env):
         out_dir = env.home_abs / out_arg
         dest_src =  out_dir / "src"
+        logger.info(f"mkdir {dest_src}")
         dest_src.mkdir(exist_ok=True, parents=True)
         for egg in (out_dir / 'dist').glob("*.egg"):
             AgiEnv.logger.info(f"Unpacking {egg} -> {dest_src}")

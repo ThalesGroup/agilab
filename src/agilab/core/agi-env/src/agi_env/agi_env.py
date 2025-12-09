@@ -65,7 +65,6 @@ import importlib.util
 import importlib.resources as importlib_resources
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
-from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
 import inspect as _inspect
 try:
@@ -84,7 +83,9 @@ if FormattedTB is not None:
 
     sys.excepthook = FormattedTB(**_tb_kwargs)
 
-# logger = AgiLogger.get_logger(__name__)
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 
 @lru_cache(maxsize=None)
@@ -732,6 +733,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     can_link_repo = False
 
         if can_link_repo:
+            logger.info(f"mkdir {apps_path}")
             os.makedirs(apps_path, exist_ok=True)
 
             link_source = self.apps_repository_root or self._get_apps_repository_root()
@@ -787,6 +789,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.dist_rel = wenv_rel / 'dist'
         wenv_abs = home_abs / wenv_rel
         self.wenv_abs = wenv_abs
+        logger.info(f"mkdir {self.wenv_abs}")
         os.makedirs(self.wenv_abs, exist_ok=True)
 
         self.pre_install =  self.node_pck / "agi_dispatcher/pre_install.py"
@@ -1104,6 +1107,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         exc,
                     )
 
+        logger.info(f"mkdir {self.app_src}")
         self.app_src.mkdir(parents=True, exist_ok=True)
         app_src_str = str(self.app_src)
         if app_src_str not in sys.path:
@@ -1412,6 +1416,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception:
             pass
 
+        logger.info(f"mkdir {dst_apps}")
         dst_apps.mkdir(parents=True, exist_ok=True)
 
         AgiEnv.logger.info(f"copy_existing_projects src={src_apps.resolve()} dst={dst_apps.resolve()}")
@@ -1463,6 +1468,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         env_file = AgiEnv.resources_path / ".env"
         # Ensure parent directory exists for pre-init usage
         try:
+            logger.info(f"mkdir {env_file}")
             env_file.parent.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
@@ -1475,6 +1481,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         src_env_path = resources_src / ".env"
         dest_env_file = self.resources_path / ".env"
         if not dest_env_file.exists():
+            logger.info(f"mkdir {dest_env_file.parent}")
             os.makedirs(dest_env_file.parent, exist_ok=True)
             shutil.copy(src_env_path, dest_env_file)
         for root, dirs, files in os.walk(resources_src):
@@ -1482,6 +1489,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 src_file = Path(root) / file
                 relative_path = src_file.relative_to(resources_src)
                 dest_file = self.resources_path / relative_path
+                logger.info(f"mkdir {dest_file.parent}")
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 if not dest_file.exists():
                     shutil.copy(src_file, dest_file)
@@ -1498,6 +1506,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 src_extra = self.st_resources / extra
                 dest_extra = self.resources_path / extra
                 if src_extra.exists() and not dest_extra.exists():
+                    logger.info(f"mkdir {dest_extra.parent}")
                     dest_extra.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy(src_extra, dest_extra)
         else:
@@ -1705,16 +1714,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not AGILAB_LOG_ABS.is_absolute():
             AGILAB_LOG_ABS = (self.home_abs / AGILAB_LOG_ABS).resolve()
         if not AGILAB_LOG_ABS.exists():
+            logger.info(f"mkdir {AGILAB_LOG_ABS}")
             AGILAB_LOG_ABS.mkdir(parents=True)
         self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
         runenv_base = AGILAB_LOG_ABS / "execute"
+        logger.info(f"mkdir {runenv_base}")
         runenv_base.mkdir(parents=True, exist_ok=True)
         self.runenv = runenv_base / self.target
+        logger.info(f"mkdir {self.runenv}")
         self.runenv.mkdir(parents=True, exist_ok=True)
         AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export")).expanduser()
         if not AGILAB_EXPORT_ABS.is_absolute():
             AGILAB_EXPORT_ABS = (self.home_abs / AGILAB_EXPORT_ABS).resolve()
         if not AGILAB_EXPORT_ABS.exists():
+            logger.info(f"mkdir {AGILAB_EXPORT_ABS}")
             AGILAB_EXPORT_ABS.mkdir(parents=True)
         self.AGILAB_EXPORT_ABS = AGILAB_EXPORT_ABS
         self.export_apps = AGILAB_EXPORT_ABS / "apps-zip"
@@ -2291,6 +2304,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         is_install_snippet = "install" in snippet_name.lower()
 
         runenv_path = Path(self.runenv)
+        logger.info(f"mkdir {runenv_path}")
         runenv_path.mkdir(parents=True, exist_ok=True)
 
         snippet_file = runenv_path / "{}_{}.py".format(
@@ -2732,6 +2746,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         spec = PathSpec.from_lines(GitWildMatchPattern, ignore_patterns)
 
         try:
+            logger.info(f"mkdir {dest_root}")
             dest_root.mkdir(parents=True, exist_ok=False)
         except Exception as e:
             AgiEnv.logger.error(f"Could not create '{dest_root}': {e}")
@@ -2781,6 +2796,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
             new_rel = "/".join(parts)
             dst = dest_dir / new_rel
+            logger.info(f"mkdir {dst.parent}")
             dst.parent.mkdir(parents=True, exist_ok=True)
 
             if item.is_symlink():
@@ -2916,6 +2932,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         def _prepare_parent(path: Path) -> Path | None:
             parent = path.parent
             try:
+                logger.info(f"mkdir {parent}")
                 parent.mkdir(parents=True, exist_ok=True)
             except OSError as exc:  # pragma: no cover - defensive guard
                 AgiEnv.logger.warning(
@@ -2950,6 +2967,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             and desired_user != current_owner
             and not force_refresh
         ):
+            logger.info(f"mkdir {dest}")
             dest.mkdir(parents=True, exist_ok=True)
             if AgiEnv.verbose > 0:
                 AgiEnv.logger.info(
@@ -2959,6 +2977,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return
 
         try:
+            logger.info(f"mkdir {dest}")
             dest.mkdir(parents=True, exist_ok=True)
         except FileExistsError:
             pass
@@ -2999,6 +3018,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return
 
         try:
+            logger.info(f"mkdir {dataset}")
             dataset.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             AgiEnv.logger.warning(

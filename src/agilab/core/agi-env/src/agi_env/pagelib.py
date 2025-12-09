@@ -62,6 +62,7 @@ def store_last_active_app(path: Path) -> None:
     try:
         path = path.expanduser()
         target = _last_active_app_path()
+        logger.info(f"mkdir {target.parent}")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(str(path), encoding="utf-8")
     except Exception:
@@ -90,6 +91,7 @@ def store_last_active_app(path: Path) -> None:
     try:
         path = path.expanduser()
         target = _last_active_app_path()
+        logger.info(f"mkdir {target.parent}")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(str(path), encoding="utf-8")
     except Exception:
@@ -117,6 +119,7 @@ def store_last_active_app(path: Path) -> None:
     try:
         path = path.expanduser()
         target = _last_active_app_path()
+        logger.info(f"mkdir {target.parent}")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(str(path), encoding="utf-8")
     except Exception:
@@ -1136,6 +1139,7 @@ def run_agi(code, path="."):
     target_slug = re.sub(r"[^0-9A-Za-z_]+", "_", str(env.target)).strip("_") or "unknown_app_name"
 
     runenv_path = Path(env.runenv)
+    logger.info(f"mkdir {runenv_path}")
     runenv_path.mkdir(parents=True, exist_ok=True)
     snippet_file = runenv_path / f"{snippet_prefix}_{target_slug}.py"
     with open(snippet_file, "w") as file:
@@ -1337,6 +1341,7 @@ def save_csv(df, path: Path, sep=",") -> bool:
     if path.is_dir():
         st.error(f"{path} is a directory instead of a filename.")
         return False
+    logger.info(f"mkdir {path.parent}")
     path.parent.mkdir(parents=True, exist_ok=True)
     if df.shape[1] > 0:
         df.to_csv(path, sep=sep, index=False)
@@ -1808,6 +1813,7 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
         index_page + "select_df"
         ]
     if steps_file:
+        logger.info(f"mkdir {steps_file.parent}")
         steps_file.parent.mkdir(parents=True, exist_ok=True)
         load_last_step(module_dir, steps_file, index_page)
     st.session_state.pop(index_page, None)
@@ -1820,6 +1826,7 @@ def activate_mlflow(env=None):
         return
 
     st.session_state["rapids_default"] = True
+    logger.info(f"mkdir {env.MLFLOW_TRACKING_DIR}")
     os.makedirs(env.MLFLOW_TRACKING_DIR, exist_ok=True)
 
     port = get_random_port()
