@@ -18,6 +18,7 @@ import asyncio
 import inspect
 import getpass
 import io
+import logging
 import os
 import pickle
 import random
@@ -36,6 +37,9 @@ from tempfile import gettempdir
 
 from agi_cluster.agi_distributor import cli as distributor_cli
 
+from agi_env import normalize_path
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
@@ -362,7 +366,7 @@ class AGI:
         except Exception as err:
             message = _format_exception_chain(err)
             logger.error(f"Unhandled exception in AGI.run: {message}")
-            if logger.isEnabledFor(logging.DEBUG):
+            if logger.isEnabledFor(logger.DEBUG):
                 logger.debug("Traceback:\n%s", traceback.format_exc())
             raise
 
@@ -2619,7 +2623,7 @@ class AGI:
             wenv_abs = env.wenv_abs
             cython_lib_path = Path(wenv_abs)
 
-        logging.info(f"debug={env.debug}")
+        logger.info(f"debug={env.debug}")
 
         if env.debug:
             BaseWorker._new(env=env, mode=AGI._mode, verbose=env.verbose, args=AGI._args)
