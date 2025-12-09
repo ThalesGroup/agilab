@@ -1060,9 +1060,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 )
 
         envars = self.envars
-        raw_credentials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
+        raw_credentials = envars.get("CLUSTER_CREDENTIALS", "")
         credentials_parts = raw_credentials.split(":")
-        self.user = credentials_parts[0]
+        self.user = credentials_parts[0] if credentials_parts[0] else getpass.getuser()
         self.password = credentials_parts[1] if len(credentials_parts) > 1 else None
         ssh_key_env = envars.get("AGI_SSH_KEY_PATH", "")
         ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
