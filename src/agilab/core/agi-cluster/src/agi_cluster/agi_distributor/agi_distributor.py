@@ -366,7 +366,7 @@ class AGI:
         except Exception as err:
             message = _format_exception_chain(err)
             logger.error(f"Unhandled exception in AGI.run: {message}")
-            if logger.isEnabledFor(logger.DEBUG):
+            if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("Traceback:\n%s", traceback.format_exc())
             raise
 
