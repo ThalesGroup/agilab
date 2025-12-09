@@ -430,7 +430,7 @@ class BaseWorker(abc.ABC):
     def start(worker_inst):
         """Invoke the concrete worker's ``start`` hook once initialised."""
         try:
-            logging.info(
+            logger.info(
                 "worker #%s: %s - mode: %s",
                 BaseWorker._worker_id,
                 BaseWorker._worker,
@@ -441,14 +441,14 @@ class BaseWorker(abc.ABC):
             if method and method is not base_method:
                 method()
         except Exception:  # pragma: no cover - log and rethrow for visibility
-            logging.error("Worker start hook failed:\n%s", traceback.format_exc())
+            logger.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise
 
     def stop(self):
         """
         Returns:
         """
-        logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
+        logger.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
                         )
         with BaseWorker._service_lock:
             is_active = BaseWorker._service_active.get(self._worker_id)
@@ -456,7 +456,7 @@ class BaseWorker(abc.ABC):
             try:
                 BaseWorker.break_loop()
             except Exception:
-                logging.debug("break_loop raised", exc_info=True)
+                logger.debug("break_loop raised", exc_info=True)
 
     @staticmethod
     def loop(*, poll_interval: Optional[float] = None) -> Dict[str, Any]:
@@ -604,10 +604,10 @@ class BaseWorker(abc.ABC):
             try:
                 # your nfs account in order to mount it as net drive on windows
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
-                logging.info(cmd)
+                logger.info(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
-                logging.error(f"Mount failed: {e}")
+                logger.error(f"Mount failed: {e}")
         return BaseWorker._join(BaseWorker.expand(path1), path2)
 
     @staticmethod
@@ -813,8 +813,9 @@ class BaseWorker(abc.ABC):
 
         log_stream = io.StringIO()
         handler = logging.StreamHandler(log_stream)
-        logger = logging.getLogger()
+        root_logger = logging.getLogger()
 
+        # Set level according to verbosity
         if verbosity >= 2:
             level = logging.DEBUG
         elif verbosity == 1:
@@ -822,15 +823,16 @@ class BaseWorker(abc.ABC):
         else:
             level = logging.WARNING
 
-        logger.setLevel(level)
-        logger.addHandler(handler)
+        root_logger.setLevel(level)
+        root_logger.addHandler(handler)
 
         try:
             result = func(*args, **kwargs)
         finally:
-            logger.removeHandler(handler)
+            root_logger.removeHandler(handler)
 
         return log_stream.getvalue(), result
+
 
 
     @staticmethod
@@ -852,8 +854,8 @@ class BaseWorker(abc.ABC):
         )
         if result.returncode != 0:
             if result.stderr.startswith("WARNING"):
-                logging.error(f"warning: worker {worker} - {cmd}")
-                logging.error(result.stderr)
+                logger.error(f"warning: worker {worker} - {cmd}")
+                logger.error(result.stderr)
             else:
                 raise RuntimeError(
                     f"error on node {worker} - {cmd} {result.stderr}"
@@ -863,10 +865,10 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _log_import_error(module, target_class, target_module):
-        logging.error(f"file:  {__file__}")
-        logging.error(f"__import__('{module}', fromlist=['{target_class}'])")
-        logging.error(f"getattr('{target_module} {target_class}')")
-        logging.error(f"sys.path: {sys.path}")
+        logger.error(f"file:  {__file__}")
+        logger.error(f"__import__('{module}', fromlist=['{target_class}'])")
+        logger.error(f"getattr('{target_module} {target_class}')")
+        logger.error(f"sys.path: {sys.path}")
 
     @staticmethod
     def _load_module(module_name, module_class):
@@ -943,7 +945,7 @@ class BaseWorker(abc.ABC):
                 if lib_path not in sys.path:
                     sys.path.insert(0, lib_path)
             else:
-                logging.info(f"warning: no cython library found at {lib_path}")
+                logger.info(f"warning: no cython library found at {lib_path}")
                 raise RuntimeError("Cython mode requested but no compiled library found")
 
             # Workers such as example_app rely on sibling worker distributions
@@ -967,7 +969,7 @@ class BaseWorker(abc.ABC):
 
             workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(env, workers, args)
         except Exception as err:
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             if isinstance(err, RuntimeError):
                 raise
             raise RuntimeError("Failed to build distribution plan") from err
@@ -997,7 +999,7 @@ class BaseWorker(abc.ABC):
                 os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
                 func(path)
             except Exception as e:
-                logging.error(f"warning failed to grant write access to {path}: {e}")
+                logger.error(f"warning failed to grant write access to {path}: {e}")
         else:
             # not a permission problem—re-raise so you see real errors
             raise exc_value
@@ -1027,8 +1029,8 @@ class BaseWorker(abc.ABC):
         """
         try:
 
-            logging.info(f"venv: {sys.prefix}")
-            logging.info(f"worker #{worker_id}: {worker} from: {Path(__file__)}")
+            logger.info(f"venv: {sys.prefix}")
+            logger.info(f"worker #{worker_id}: {worker} from: {Path(__file__)}")
 
             if env:
                 BaseWorker.env = env
@@ -1055,11 +1057,11 @@ class BaseWorker(abc.ABC):
             BaseWorker._worker = Path(worker).name
             BaseWorker._worker_id = worker_id
             BaseWorker._t0 = time.time()
-            logging.info(f"worker #{worker_id}: {worker} starting...")
+            logger.info(f"worker #{worker_id}: {worker} starting...")
             BaseWorker.start(worker_inst)
 
         except Exception as e:
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             raise
 
     @staticmethod
@@ -1142,20 +1144,20 @@ class BaseWorker(abc.ABC):
         BaseWorker._dask_home = dask_home
         BaseWorker._worker = worker
 
-        logging.info(
+        logger.info(
             f"worker #{BaseWorker._worker_id}: {worker} from: {Path(__file__)}"
         )
 
         try:
-            logging.info("set verbose=3 to see something in this trace file ...")
+            logger.info("set verbose=3 to see something in this trace file ...")
 
             if verbose > 2:
-                logging.info(f"home_dir: {BaseWorker._home_dir}")
-                logging.info(
+                logger.info(f"home_dir: {BaseWorker._home_dir}")
+                logger.info(
                     f"target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
                 for x in Path(dask_home).glob("*"):
-                    logging.info(f"{x}")
+                    logger.info(f"{x}")
 
             # Exemple supposé : définir egg_src (non défini dans ton code)
             egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
@@ -1166,21 +1168,21 @@ class BaseWorker(abc.ABC):
             if not mode & 2:
                 egg_dest = extract_path / (os.path.basename(egg_src) + ".egg")
 
-                logging.info(f"copy: {egg_src} to {egg_dest}")
+                logger.info(f"copy: {egg_src} to {egg_dest}")
                 shutil.copyfile(egg_src, egg_dest)
 
                 if str(egg_dest) in sys.path:
                     sys.path.remove(str(egg_dest))
                 sys.path.insert(0, str(egg_dest))
 
-                logging.info("sys.path:")
+                logger.info("sys.path:")
                 for x in sys.path:
-                    logging.info(f"{x}")
+                    logger.info(f"{x}")
 
-                logging.info("done!")
+                logger.info("done!")
 
         except Exception as err:
-            logging.error(
+            logger.error(
                 f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {BaseWorker._logs} for details"
             )
             raise err
@@ -1228,14 +1230,19 @@ class BaseWorker(abc.ABC):
         Returns:
             logs: str, the log output from this worker
         """
-        log_stream = io.StringIO()
-        handler = logging.StreamHandler(log_stream)
-        logger = logging.getLogger()  # root logger; adjust if you use a named logger
+        import logging as py_logging
 
-        # Optionally, only add if not already present (avoid duplicate logs)
-        already_has_handler = any(isinstance(h, logging.StreamHandler) and h.stream == log_stream for h in logger.handlers)
+        log_stream = io.StringIO()
+        handler = py_logging.StreamHandler(log_stream)
+        root_logger = py_logging.getLogger()
+
+        # Avoid adding duplicate handlers
+        already_has_handler = any(
+            isinstance(h, py_logging.StreamHandler) and getattr(h, "stream", None) is log_stream
+            for h in root_logger.handlers
+        )
         if not already_has_handler:
-            logger.addHandler(handler)
+            root_logger.addHandler(handler)
 
         try:
             worker_id = BaseWorker._worker_id
@@ -1265,10 +1272,10 @@ class BaseWorker(abc.ABC):
                     else []
                 )
 
-                logging.info(
+                logger.info(
                     f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}"
                 )
-                logging.info(
+                logger.info(
                     "work #%s / %s - plan batches=%s metadata batches=%s",
                     worker_id + 1,
                     plan_total_workers
@@ -1280,24 +1287,24 @@ class BaseWorker(abc.ABC):
 
                 BaseWorker._insts[worker_id].works(expanded_plan, expanded_meta)
 
-                logging.info(
+                logger.info(
                     "worker #%s completed %s plan batches",
                     worker_id,
                     plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
                 )
             else:
-                logging.error("this worker is not initialized")
+                logger.error("this worker is not initialized")
                 raise Exception("failed to do_works")
 
         except Exception as e:
-            import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             raise
         finally:
-            logger.removeHandler(handler)
+            root_logger.removeHandler(handler)
 
         # Return the logs
         return log_stream.getvalue()
+
 
 
 # enable dotted access ``BaseWorker.break()`` even though ``break`` is a keyword
