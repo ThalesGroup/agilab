@@ -720,6 +720,7 @@ done
 
 popd >/dev/null
 
+
 # --- Run installer for each app (stable CWD so ../core/agi-cluster resolves) -----
 pushd -- "$AGILAB_REPO/apps" >/dev/null
 
@@ -752,6 +753,9 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
 
   echo -e "${BLUE}Installing $app_name...${NC}"
+  echo "cleanup wenv/$app_name"
+  rm -fr $HOME/wenv/$app_name
+
   echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
     "${AGILAB_REPO}/apps/$app_dir_rel"; then

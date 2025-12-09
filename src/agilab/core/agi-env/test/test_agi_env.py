@@ -4,6 +4,10 @@ from unittest import mock
 
 from agi_env import AgiEnv
 
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
+
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -11,6 +15,7 @@ def env(tmp_path, monkeypatch):
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
     share_dir = fake_home / ".local" / "share" / "agilab"
+    logger.info(f"mkdir {share_dir}")
     share_dir.mkdir(parents=True, exist_ok=True)
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
     monkeypatch.setenv("HOME", str(fake_home))
