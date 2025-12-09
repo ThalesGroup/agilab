@@ -7,6 +7,10 @@ from pathlib import Path
 
 
 def update_workspace_xml(config_name, config_type, folder_name: str) -> None:
+    """
+    Ensure that workspace.xml has a RunManager configuration entry
+    with the given name/type and folderName.
+    """
     workspace_path = os.path.join(os.getcwd(), ".idea", "workspace.xml")
     if not os.path.exists(workspace_path):
         root = ET.Element("project", version="4")
@@ -44,6 +48,10 @@ def update_workspace_xml(config_name, config_type, folder_name: str) -> None:
 
 
 def update_folders_xml(folder_name: str) -> None:
+    """
+    Ensure that .idea/runConfigurations/folders.xml has a folder entry
+    for the given folder_name.
+    """
     output_dir = os.path.join(os.getcwd(), ".idea", "runConfigurations")
     folders_xml_path = os.path.join(output_dir, "folders.xml")
 
@@ -64,45 +72,60 @@ def update_folders_xml(folder_name: str) -> None:
 
 
 def _replace_placeholders(tree: ET.ElementTree, app: str) -> None:
-    """Replace {APP} with the given app string everywhere in the template."""
-    for el in tree.getroot().iter():
+    """
+    Replace {APP} with the given app string everywhere in the template.
+    """
+    root = tree.getroot()
+    for el in root.iter():
         # attributes
         for k, v in list(el.attrib.items()):
             if "{APP}" in v:
                 el.attrib[k] = v.replace("{APP}", app)
-        # text nodes
+        # text
         if el.text and "{APP}" in el.text:
             el.text = el.text.replace("{APP}", app)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: gen_app_script.py <replacement_name>")
+        print("Usage: gen_app_script.py <app_name_or_path>")
         sys.exit(1)
 
-    app_arg = sys.argv[1]  # e.g. "builtin/flight_project" or "example_app_project"
+    # examples:
+    #   "example_app_project"
+    #   "builtin/flight_project"
+    app_arg = sys.argv[1]
+
     if not app_arg:
         print("No name entered. Exiting.")
         sys.exit(1)
 
-    # app_dir: used as {APP} in templates
-    #   "builtin/flight_project" -> "builtin/flight"
+    # app_dir is the directory-like value used for {APP}:
     #   "example_app_project"   -> "example_app"
+    #   "builtin/flight_project" -> "builtin/flight"
     if app_arg.endswith("_project"):
         app_dir = app_arg[:-8]
     else:
         app_dir = app_arg
 
-    # app_name: leaf part only ("flight", "example_app")
-    app_name = Path(app_dir).name.replace("builtin/","")
+    # leaf app name (no "builtin/"):
+    #   "example_app"
+    #   "flight"
+    app_name = Path(app_dir).name
 
-    # For workspace/folders we want the full project name, e.g. "builtin/flight_project"
+    # folder name in workspace/folders is the full project name
+    #   "example_app_project"
+    #   "builtin/flight_project"
     folder_name = app_arg
+
+    # setup_pycharm creates SDKs like: uv (flight_project), uv (mycode_project), ...
+    sdk_name_for_app = f"uv ({Path(app_arg).name})"
 
     print(f"CLI arg      : {app_arg}")
     print(f"App dir      : {app_dir}")
     print(f"App name     : {app_name}")
     print(f"Folder name  : {folder_name}")
+    print(f"SDK name     : {sdk_name_for_app}")
 
     script_root = Path(__file__).resolve().parent
     templates_root = script_root / "app-scripts"
@@ -132,10 +155,9 @@ if __name__ == "__main__":
 
         tree = ET.parse(tpl_path)
 
-        # First pass: {APP} -> app_dir ("builtin/flight", "example_app", etc.)
+        # First pass: replace {APP} with directory-like value (may include "builtin/")
         _replace_placeholders(tree, app_dir)
 
-        # File name uses leaf name only (so: _flight_*.xml, not _builtin/flight_*.xml)
         base = tpl_path.name.replace("_template_app", f"_{app_name}")
         out_path = os.path.join(output_dir, base)
 
@@ -145,26 +167,48 @@ if __name__ == "__main__":
             print(f"Skip {tpl_path}: no <configuration> element.")
             continue
 
-        # At this point, for builtin/flight_project templates we have:
-        #   name="builtin/flight install"
-        #   folderName="builtin/flight_project"
-        #   SCRIPT_NAME="$USER_HOME$/log/execute/builtin/flight/AGI_install_builtin/flight.py"
-        # We want to ONLY adjust the directory part of SCRIPT_NAME:
-        #   SCRIPT_NAME="$USER_HOME$/log/execute/flight/AGI_install_builtin/flight.py"
-
-        for opt in first_cfg.findall("option"):
-            if opt.attrib.get("name") == "SCRIPT_NAME":
-                val = opt.attrib.get("value", "")
-                marker = "log/execute/"
-                idx = val.find(marker)
-                if idx != -1:
-                    prefix = val[: idx + len(marker)]  # "$USER_HOME$/log/execute/"
-                    # Force directory and filename to use the leaf app_name (e.g. "flight")
-                    opt.attrib["value"] = prefix + f"{app_name}/AGI_install_{app_name}.py"
-
         config_name = first_cfg.attrib.get("name", os.path.splitext(base)[0])
         config_type = first_cfg.attrib.get("type", "PythonConfigurationType")
 
+        # ---- Adjust SCRIPT_NAME + SDK_NAME for this app ----
+        for opt in first_cfg.findall("option"):
+            name = opt.attrib.get("name")
+
+            if name == "SCRIPT_NAME":
+                val = opt.attrib.get("value", "")
+                marker = "log/execute/"
+                idx = val.find(marker)
+                if idx == -1:
+                    continue
+
+                base_prefix = val[: idx + len(marker)]
+
+                agi_idx = val.find("AGI_", idx)
+                if agi_idx == -1:
+                    continue
+                after_agi = val[agi_idx + len("AGI_") :]
+                underscore_idx = after_agi.find("_")
+                if underscore_idx == -1:
+                    continue
+
+                action = after_agi[:underscore_idx]  # install, run, get_distrib, ...
+
+                # e.g. $USER_HOME$/log/execute/flight/AGI_install_flight.py
+                opt.attrib["value"] = f"{base_prefix}{app_name}/AGI_{action}_{app_name}.py"
+
+            elif name == "IS_MODULE_SDK":
+                # Force using the module's SDK (which is uv (flight_project) for module flight_project)
+                opt.attrib["value"] = "true"
+
+            elif name == "SDK_NAME":
+                # When using module SDK, we don't need an explicit SDK_NAME here.
+                # You can either clear it:
+                opt.attrib["value"] = ""
+                # Or, if you prefer, delete the option entirely:
+                # first_cfg.remove(opt)
+
+
+        # ---- Write / update file on disk ----
         if os.path.exists(out_path):
             fd, tmp_path = tempfile.mkstemp(suffix=".xml")
             os.close(fd)
