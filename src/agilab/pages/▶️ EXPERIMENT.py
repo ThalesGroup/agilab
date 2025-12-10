@@ -2181,14 +2181,15 @@ def open_notebook_in_browser() -> None:
 def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
+    home_root = Path(env.home_abs)
     # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
     try:
         export_root = env.AGILAB_EXPORT_ABS
     except Exception:
-        export_root = Path(env.home_abs) / "export"
+        export_root = home_root / "export"
     Agi_export_abs = Path(export_root)
     if not Agi_export_abs.is_absolute():
-        Agi_export_abs = Path(env.home_abs) / Agi_export_abs
+        Agi_export_abs = home_root / Agi_export_abs
     modules = scan_dir(Agi_export_abs)
     # Drop a top-level "apps" directory when other labs exist; it isn't a valid lab.
     if len(modules) > 1 and "apps" in modules:
