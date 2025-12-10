@@ -37,7 +37,26 @@ try:
 except Exception:  # pragma: no cover
     _importlib_metadata = None  # type: ignore
 import tomllib
-import tomli_w
+
+try:  # pragma: no cover - optional dependency
+    import tomli_w as _tomli_writer  # type: ignore[import-not-found]
+
+    def _dump_toml_payload(data: dict, handle) -> None:
+        _tomli_writer.dump(data, handle)
+
+except ModuleNotFoundError:
+    try:
+        from tomlkit import dumps as _tomlkit_dumps
+
+        def _dump_toml_payload(data: dict, handle) -> None:
+            handle.write(_tomlkit_dumps(data).encode("utf-8"))
+
+    except Exception as _toml_exc:  # pragma: no cover - defensive
+
+        def _dump_toml_payload(data: dict, handle) -> None:
+            raise RuntimeError(
+                "Writing settings requires the 'tomli-w' or 'tomlkit' package."
+            ) from _toml_exc
 
 from sqlalchemy import false
 
@@ -69,7 +88,7 @@ def _persist_global_state(data: Dict[str, str]) -> None:
     try:
         _GLOBAL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         with _GLOBAL_STATE_FILE.open("wb") as fh:
-            tomli_w.dump(data, fh)
+            _dump_toml_payload(data, fh)
     except Exception:
         pass
 
@@ -658,13 +677,21 @@ def get_templates():
     candidates = []
     templates_root = env.apps_path / "templates"
     if templates_root.exists():
-        candidates.extend(p.name for p in templates_root.iterdir() if p.is_dir())
+        candidates.extend(
+            p.name
+            for p in templates_root.iterdir()
+            if p.is_dir() and not p.name.startswith(".")
+        )
 
     agilab_templates = env.agilab_pck
     if agilab_templates:
         agilab_templates = Path(agilab_templates) / "agilab/templates"
         if agilab_templates.exists():
-            candidates.extend(p.name for p in agilab_templates.iterdir() if p.is_dir())
+            candidates.extend(
+                p.name
+                for p in agilab_templates.iterdir()
+                if p.is_dir() and not p.name.startswith(".")
+            )
 
     if not candidates:
         candidates.extend(p.stem for p in env.apps_path.glob("*template"))
@@ -831,10 +858,17 @@ def find_files(directory, ext=".csv", recursive=True):
 
     # Normalize the extension to handle cases like 'csv' or '.csv'
     ext = f".{ext.lstrip('.')}"
+    def _visible_only(paths):
+        return [
+            p
+            for p in paths
+            if not any(part.startswith(".") for part in p.relative_to(directory).parts)
+        ]
+
     if recursive:
-        return list(directory.rglob(f"*{ext}"))
+        return _visible_only(directory.rglob(f"*{ext}"))
     else:
-        return list(directory.glob(f"*/*{ext}"))
+        return _visible_only(directory.glob(f"*/*{ext}"))
 
 
 
@@ -1240,10 +1274,13 @@ def load_df(path: Path, nrows=None, with_index=True, cache_buster=None):
             df = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
         elif csv_files:
             # Concatenate all CSV files.
-            df = pd.concat([
-                pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=None)
-                for f in csv_files
-            ], ignore_index=True)
+            frames = []
+            for f in csv_files:
+                try:
+                    frames.append(pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=None))
+                except UnicodeDecodeError:
+                    frames.append(pd.read_csv(f, nrows=nrows, encoding="latin-1", index_col=None))
+            df = pd.concat(frames, ignore_index=True)
         elif json_files:
             df = pd.concat([
                 pd.read_json(f, orient="records")
@@ -1251,7 +1288,10 @@ def load_df(path: Path, nrows=None, with_index=True, cache_buster=None):
             ], ignore_index=True)
     elif path.is_file():
         if path.suffix == ".csv":
-            df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=None)
+            try:
+                df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=None)
+            except UnicodeDecodeError:
+                df = pd.read_csv(path, nrows=nrows, encoding="latin-1", index_col=None)
         elif path.suffix == ".parquet":
             df = pd.read_parquet(path)
         elif path.suffix == ".json":
