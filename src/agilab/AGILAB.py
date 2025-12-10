@@ -673,18 +673,22 @@ def main():
             )
 
             args, _ = parser.parse_known_args()
+            # Support both old --apps-path and new --apps-dir flags.
+            apps_arg = getattr(args, "apps_dir", None)
+            if not apps_arg:
+                apps_arg = getattr(args, "apps_path", None)
 
-            if args.apps_path is None:
+            if apps_arg is None:
                 with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
                     agilab_path = f.read()
                     before, sep, after = agilab_path.rpartition(".venv")
-                    args.apps_path = Path(before) / "apps"
+                    apps_arg = Path(before) / "apps"
 
-            if args.apps_path is None:
+            if apps_arg is None:
                 st.error("Error: Missing mandatory parameter: --apps-dir")
                 sys.exit(1)
 
-            apps_path = Path(args.apps_path).expanduser() if args.apps_path else None
+            apps_path = Path(apps_arg).expanduser() if apps_arg else None
             if apps_path is None:
                 st.error("Error: Missing mandatory parameter: --apps-dir")
                 sys.exit(1)
