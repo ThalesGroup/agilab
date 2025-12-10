@@ -9,6 +9,8 @@ import streamlit as st
 from pydantic import BaseModel, ValidationError
 from annotated_types import Ge, Le, MultipleOf
 
+from agi_env.pagelib import diagnose_data_directory
+
 
 def load_args_state(
     env,
@@ -142,6 +144,56 @@ def render_form(model: BaseModel) -> dict[str, Any]:
         values[name] = st.text_input(label, value=str(current))
 
     return values
+
+
+def resolve_shared_path(env, path_value: str | Path) -> Path:
+    """Resolve ``path_value`` relative to ``env.share_root_path()`` when needed."""
+
+    candidate = Path(str(path_value)).expanduser()
+    if candidate.is_absolute():
+        return candidate
+
+    share_root = Path(env.share_root_path()).expanduser()
+    return (share_root / candidate).expanduser()
+
+
+def ensure_shared_directory(
+    env,
+    path_value: str | Path,
+    *,
+    description: str = "dataset path",
+    create_missing: bool = True,
+) -> tuple[Path, bool, str | None]:
+    """
+    Resolve ``path_value`` under the AGI share path and ensure it points to a directory.
+
+    Returns (resolved_path, created_flag, error_message). When ``create_missing`` is ``True``,
+    the helper attempts to ``mkdir -p`` the directory before reporting errors.
+    """
+
+    target = resolve_shared_path(env, path_value)
+    created = False
+
+    if target.is_dir():
+        return target, created, None
+
+    if create_missing:
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            diagnosis = diagnose_data_directory(target) or (
+                f"Unable to prepare {description} '{target}': {exc}"
+            )
+            return target, created, diagnosis
+        else:
+            created = True
+            return target, created, None
+
+    diagnosis = diagnose_data_directory(target)
+    if diagnosis is None:
+        diagnosis = f"The {description} '{target}' is not a directory."
+
+    return target, created, diagnosis
 
 
 def persist_args(
