@@ -30,6 +30,7 @@ import sys
 import logging
 import webbrowser
 import shlex
+logger = logging.getLogger(__name__)
 try:
     # Python 3.8+
     from importlib import metadata as _importlib_metadata  # type: ignore
