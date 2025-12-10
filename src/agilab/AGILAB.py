@@ -10,6 +10,9 @@ import importlib.resources as importlib_resources
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from agi_env.agi_logger import AgiLogger
+
+logger = AgiLogger.get_logger(__name__)
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
@@ -28,7 +31,7 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_env.pagelib import inject_theme
+from agi_env.pagelib import inject_theme, load_last_active_app, store_last_active_app
 
 def _render_env_editor(env, help_file: Path):
     feedback = st.session_state.pop("env_editor_feedback", None)
@@ -218,33 +221,12 @@ def _sync_active_app_from_query(env) -> None:
     # Persist the latest active app for reuse on next launch only if it changed via request
     try:
         if changed:
-            _store_last_active_app(Path(env.apps_path) / env.app)
-    except Exception:
-        pass
-
-# Persistent last-active-app hints (shared with other pages)
-LAST_ACTIVE_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
-
-def _load_last_active_app() -> Optional[Path]:
-    try:
-        if LAST_ACTIVE_APP_FILE.exists():
-            raw = LAST_ACTIVE_APP_FILE.read_text(encoding="utf-8").strip()
-            if raw:
-                candidate = Path(raw).expanduser()
-                if candidate.exists():
-                    return candidate
-    except Exception:
-        pass
-    return None
-
-def _store_last_active_app(path: Path) -> None:
-    try:
-        LAST_ACTIVE_APP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        LAST_ACTIVE_APP_FILE.write_text(str(path), encoding="utf-8")
+            store_last_active_app(Path(env.apps_path) / env.app)
     except Exception:
         pass
 
 def _ensure_env_file(path: Path) -> Path:
+    logger.info(f"mkdir {path.parent}")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch(exist_ok=True)
     return path
@@ -704,7 +686,7 @@ def main():
             # Determine requested app: CLI flag first, then last-remembered app.
             requested_app = args.active_app
             if not requested_app:
-                last_app = _load_last_active_app()
+                last_app = load_last_active_app()
                 if last_app:
                     requested_app = str(last_app)
             # Honor the requested app, falling back to env default when invalid.
@@ -719,7 +701,7 @@ def main():
                 st.session_state["server_started"] = True
 
             try:
-                _store_last_active_app(Path(env.apps_path) / env.app)
+                store_last_active_app(Path(env.apps_path) / env.app)
             except Exception:
                 pass
 
@@ -753,7 +735,7 @@ def main():
     _refresh_env_from_file(env)
     _sync_active_app_from_query(env)
     try:
-        _store_last_active_app(Path(env.apps_path) / env.app)
+        store_last_active_app(Path(env.apps_path) / env.app)
     except Exception:
         pass
     show_banner_and_intro(resources_path)

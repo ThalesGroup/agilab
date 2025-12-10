@@ -24,6 +24,26 @@ import plotly.graph_objects as go
 import streamlit as st
 import tomllib as _toml
 
+try:
+    import tomli_w as _toml_writer  # type: ignore[import-not-found]
+
+    def _dump_toml_payload(data: dict, handle) -> None:
+        _toml_writer.dump(data, handle)
+
+except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
+    try:
+        from tomlkit import dumps as _tomlkit_dumps
+
+        def _dump_toml_payload(data: dict, handle) -> None:
+            handle.write(_tomlkit_dumps(data).encode("utf-8"))
+
+    except Exception as _toml_exc:
+
+        def _dump_toml_payload(data: dict, handle) -> None:
+            raise RuntimeError(
+                "Writing settings requires the 'tomli-w' or 'tomlkit' package"
+            ) from _toml_exc
+
 
 def _ensure_repo_on_path() -> None:
     here = Path(__file__).resolve()
@@ -160,6 +180,33 @@ def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
     }
 
 
+def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
+    """Return the full TOML payload and the view_maps subsection."""
+    try:
+        with open(env.app_settings_file, "rb") as fh:
+            data = _toml.load(fh)
+    except FileNotFoundError:
+        data = {}
+    except Exception:
+        data = {}
+    view_section = data.get("view_maps")
+    if not isinstance(view_section, dict):
+        view_section = {}
+    return data, view_section
+
+
+def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings: dict) -> dict:
+    """Write the updated view_maps settings back to disk."""
+    payload = dict(base_settings) if isinstance(base_settings, dict) else {}
+    payload["view_maps"] = view_settings
+    try:
+        with open(env.app_settings_file, "wb") as fh:
+            _dump_toml_payload(payload, fh)
+    except Exception:
+        pass
+    return payload
+
+
 def page(env):
     """
     Page function for displaying and interacting with data in a Streamlit app.
@@ -188,6 +235,8 @@ def page(env):
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
 
+    full_settings, view_settings = _load_view_maps_settings(env)
+
     map_defaults_key = f"_view_maps_map_defaults_{env.app}"
 
     # Resolve the data directory for the currently selected app
@@ -201,7 +250,7 @@ def page(env):
         or current is None
         or str(current).strip() == ""
     ):
-        current = str(default_datadir)
+        current = str(view_settings.get("datadir") or default_datadir)
     st.session_state["datadir"] = str(current)
 
     st.session_state["datadir_str"] = st.session_state["datadir"]
@@ -214,6 +263,9 @@ def page(env):
     datadir = Path(st.session_state["datadir"])
     datadir_changed = st.session_state.get("_view_maps_last_datadir") != str(datadir)
     st.session_state["_view_maps_last_datadir"] = str(datadir)
+    if view_settings.get("datadir") != st.session_state["datadir"]:
+        view_settings["datadir"] = st.session_state["datadir"]
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
     # Data directory input
     st.sidebar.text_input(
         "Data Directory",
@@ -391,11 +443,15 @@ def page(env):
     else:
         st.sidebar.write("")
 
+    sat_default = bool(view_settings.get("show_sat_overlay", True))
     show_sat_overlay = st.sidebar.checkbox(
         "Show satellite overlay",
-        value=True,
+        value=sat_default,
         key=f"view_maps_sat_overlay_{env.app}",
     )
+    if view_settings.get("show_sat_overlay", True) != show_sat_overlay:
+        view_settings["show_sat_overlay"] = show_sat_overlay
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
     # Select numeric columns
     numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
@@ -407,21 +463,29 @@ def page(env):
     # Define a threshold: if a numeric column has fewer unique values than this threshold,
     # treat it as discrete. Adjust this value based on your needs.
     # Threshold to classify numeric columns as discrete vs continuous
+    unique_default = int(view_settings.get("unique_threshold", 10))
     unique_threshold = st.sidebar.number_input(
         "Discrete threshold (unique values <)",
         min_value=2,
         max_value=100,
-        value=10,
+        value=unique_default,
         step=1,
     )
+    if view_settings.get("unique_threshold", 10) != unique_threshold:
+        view_settings["unique_threshold"] = int(unique_threshold)
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
+    range_default = int(view_settings.get("range_threshold", 200))
     range_threshold = st.sidebar.number_input(
         "Integer discrete range (max-min <=)",
         min_value=1,
         max_value=10000,
-        value=200,
+        value=range_default,
         step=1,
     )
+    if view_settings.get("range_threshold", 200) != range_threshold:
+        view_settings["range_threshold"] = int(range_threshold)
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
     # Loop through numeric columns and classify them based on the unique value count.
     for col in numeric_cols:
