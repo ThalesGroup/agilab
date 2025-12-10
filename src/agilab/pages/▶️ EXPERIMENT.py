@@ -15,7 +15,6 @@ import pandas as pd
 import re
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
-import streamlit.components.v1 as components
 import tomllib        # For reading TOML files
 import tomli_w      # For writing TOML files
 
@@ -2416,11 +2415,38 @@ def mlflow_controls() -> None:
     if st.session_state.get("server_started"):
         mlflow_port = st.session_state.get("mlflow_port", 5000)
         mlflow_url = f"http://localhost:{mlflow_port}"
-        if st.sidebar.button(f"Open MLflow UI (port {mlflow_port})"):
-            components.html(
-                f"<script>window.open('{mlflow_url}', '_blank');</script>",
-                height=0,
+        if not st.session_state.get("mlflow_button_css"):
+            st.sidebar.markdown(
+                """
+                <style>
+                .mlflow-anchor-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                    padding: 0.45rem 0.75rem;
+                    border-radius: 0.5rem;
+                    border: 1px solid var(--primary-color);
+                    background: var(--primary-color);
+                    color: var(--secondary-background-color);
+                    font-weight: 600;
+                    text-decoration: none;
+                    transition: filter 0.15s ease-in-out;
+                }
+                .mlflow-anchor-btn:hover {
+                    filter: brightness(0.9);
+                    text-decoration: none;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
             )
+            st.session_state["mlflow_button_css"] = True
+
+        st.sidebar.markdown(
+            f'<a class="mlflow-anchor-btn" href="{mlflow_url}" target="_blank">Open MLflow UI (port {mlflow_port})</a>',
+            unsafe_allow_html=True,
+        )
     elif not st.session_state.get("server_started"):
         st.sidebar.error("MLflow UI server is not running. Please start it from Edit.")
 
