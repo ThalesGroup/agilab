@@ -1159,6 +1159,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not repo_root:
             return None
         repo_root = repo_root.strip()
+        if repo_root.startswith(("'", '"')) and repo_root.endswith(("'", '"')) and len(repo_root) >= 2:
+            repo_root = repo_root[1:-1].strip()
         if not repo_root:
             return None
 
