@@ -279,7 +279,7 @@ def main(argv: list[str] | None = None) -> None:
         AgiEnv.logger.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
         p = p.parent
     try:
-        out_arg = p.relative_to(env.home_abs).as_posix()
+        out_arg = p.relative_to(Path(env.home_abs)).as_posix()
     except Exception:
         out_arg = str(p)
 
@@ -301,7 +301,7 @@ def main(argv: list[str] | None = None) -> None:
         worker_py = Path(env.worker_path)
         if not worker_py.is_absolute():
             try:
-                worker_py = (env.home_abs / worker_py).resolve()
+                worker_py = (Path(env.home_abs) / worker_py).resolve()
             except Exception:
                 worker_py = (Path.cwd() / worker_py).resolve()
         worker_pyx = worker_py.with_suffix('.pyx')
@@ -318,7 +318,7 @@ def main(argv: list[str] | None = None) -> None:
             AgiEnv.logger.info("Ensuring Cython source via pre_install: %s", " ".join(pre_cmd))
             subprocess.run(pre_cmd, check=True)
 
-    sys.argv = [prog_name, cmd, flag, env.home_abs / out_arg / "dist"]
+    sys.argv = [prog_name, cmd, flag, Path(env.home_abs) / out_arg / "dist"]
     worker_module = target_module + "_worker"
     links_created: list[Path] = []
     ext_modules = []
@@ -404,7 +404,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # Post bdist_egg steps: unpack, decorator stripping, cleanup
     if cmd == 'bdist_egg' and (not env.is_worker_env):
-        out_dir = env.home_abs / out_arg
+        out_dir = Path(env.home_abs) / out_arg
         dest_src =  out_dir / "src"
         logger.info(f"mkdir {dest_src}")
         dest_src.mkdir(exist_ok=True, parents=True)

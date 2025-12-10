@@ -334,7 +334,7 @@ class AGI:
                 with open(path, "rb") as f:
                     AGI._capacity_predictor = pickle.load(f)
             else:
-                AGI._train_capacity(env.home_abs)
+                AGI._train_capacity(Path(env.home_abs))
 
         # import of derived Class of WorkDispatcher, name target_inst which is typically instance of Flight or MyCode
         AGI.agi_workers = {
@@ -523,7 +523,7 @@ class AGI:
             with open(path, "rb") as f:
                 AGI._capacity_predictor = pickle.load(f)
         else:
-            AGI._train_capacity(env.home_abs)
+            AGI._train_capacity(Path(env.home_abs))
 
         AGI.agi_workers = {
             "PolarsWorker": "polars-worker",
@@ -871,7 +871,7 @@ class AGI:
         if AgiEnv.is_local(ip):
             destination = remote_path
             if not destination.is_absolute():
-                destination = env.home_abs / destination
+                destination = Path(env.home_abs) / destination
             logger.info(f"mkdir {destination.parent}")
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(local_path, destination)
@@ -3055,7 +3055,7 @@ class AGI:
             else:
                 raise RuntimeError(f"{w} workers BaseWorker.do_works failed")
 
-        AGI._train_capacity(AGI.env.home_abs)
+        AGI._train_capacity(Path(AGI.env.home_abs))
 
     @staticmethod
     def _exec_bg(cmd: str, cwd: str) -> None:
