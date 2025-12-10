@@ -610,6 +610,39 @@ install_core() {
     popd  > /dev/null
 }
 
+run_core_tests() {
+    local repo_root="$AGI_INSTALL_PATH"
+    local -a failures=()
+    local -a uv_run=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
+
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}RUNNING CORE TEST SUITES${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    pushd "$repo_root" > /dev/null
+
+    if ! "${uv_run[@]}" -m pytest src/agilab/core/agi-env/test --cov=src/agilab/core/agi-env/src/agi_env --cov-report=term-missing --cov-report=xml:coverage-agi-env.xml; then
+        failures+=("agi-env tests")
+    fi
+    if ! "${uv_run[@]}" -m pytest src/agilab/core/test --cov=src/agilab/core --cov=src/agilab/core/agi-node/src/agi_node --cov=src/agilab/core/agi-cluster/src/agi_cluster --cov-report=term-missing --cov-report=xml:coverage-agi-core.xml; then
+        failures+=("core tests")
+    fi
+
+    echo ""
+    echo -e "${BLUE}Generating coverage reports...${NC}"
+    COVERAGE_FILE=".coverage-agi-core" "${uv_run[@]}" -m coverage xml -i --include="src/agilab/core/agi-node/src/agi_node/*" -o coverage-agi-node.xml || true
+    COVERAGE_FILE=".coverage-agi-core" "${uv_run[@]}" -m coverage xml -i --include="src/agilab/core/agi-cluster/src/agi_cluster/*" -o coverage-agi-cluster.xml || true
+
+    popd > /dev/null
+
+    if ((${#failures[@]})); then
+        echo -e "${RED}Core test suites reported failures: ${failures[*]}. Aborting install.${NC}"
+        exit 1
+    fi
+}
+
 run_repository_tests_with_coverage() {
     local repo_root="$AGI_INSTALL_PATH"
     local coverage_status=0
@@ -875,6 +908,7 @@ backup_existing_project
 copy_project_files
 update_environment
 install_core
+run_core_tests
 
 echo -e "${BLUE}Installing agilab (repo root)...${NC}"
 pushd "$AGI_INSTALL_PATH" > /dev/null
@@ -883,6 +917,16 @@ $UV pip install -e src/agilab/core/agi-env
 $UV pip install -e src/agilab/core/agi-node
 $UV pip install -e src/agilab/core/agi-cluster
 $UV pip install -e src/agilab/core/agi-core
+$UV pip install -e src/agilab/core/agi-core
+$UV pip install -e src/agilab
+popd > /dev/null
+
+# run root-level tests once agilab is installed
+pushd "$AGI_INSTALL_PATH" > /dev/null
+if ! $UV run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
+    echo -e "${RED}Agilab unit tests failed. Aborting install.${NC}"
+    exit 1
+fi
 popd > /dev/null
 
 write_env_values

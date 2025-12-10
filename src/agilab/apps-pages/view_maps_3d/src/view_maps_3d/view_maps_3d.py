@@ -47,7 +47,11 @@ def _default_app() -> Path | None:
     if not apps_path.exists():
         return None
     for candidate in sorted(apps_path.iterdir()):
-        if candidate.is_dir() and candidate.name.endswith("_project"):
+        if (
+            candidate.is_dir()
+            and candidate.name.endswith("_project")
+            and not candidate.name.startswith(".")
+        ):
             return candidate
     return None
 

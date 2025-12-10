@@ -137,7 +137,13 @@ def _read_query_param(key: str) -> Optional[str]:
 def _list_subdirectories(base: Path) -> list[str]:
     try:
         if base.exists():
-            return sorted([entry.name for entry in base.iterdir() if entry.is_dir()])
+            return sorted(
+                [
+                    entry.name
+                    for entry in base.iterdir()
+                    if entry.is_dir() and not entry.name.startswith(".")
+                ]
+            )
     except Exception as exc:
         st.sidebar.warning(f"Unable to list directories under {base}: {exc}")
     return []
@@ -235,6 +241,20 @@ def _color_to_rgb(color_str: str, idx: int = 0) -> list[int]:
         cmap = plt.get_cmap("tab10")
         rgba = cmap(idx % cmap.N)
         return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
+
+
+def _to_plotly_color(color) -> str:
+    """Normalize user-supplied colors to Plotly-friendly rgb strings."""
+    if isinstance(color, (list, tuple)):
+        if len(color) >= 3:
+            r, g, b = (int(color[0]), int(color[1]), int(color[2]))
+            return f"rgb({r},{g},{b})"
+    try:
+        rgba = mcolors.to_rgba(color)
+        return f"rgb({int(rgba[0]*255)},{int(rgba[1]*255)},{int(rgba[2]*255)})"
+    except Exception:
+        return "#888"
+
 
 def _detect_link_columns(df: pd.DataFrame) -> list[str]:
     skip = {"long", "lat", "alt", "longitude", "latitude", "altitude", "alt_m", "time_col", "id_col", "flight_id", "datetime"}
@@ -476,6 +496,19 @@ def _nearest_row(df: pd.DataFrame, t: float) -> pd.DataFrame:
     idx = (df["time_s"] - t).abs().idxmin()
     return df.loc[[idx]]
 
+
+def _find_latest_allocations(base: Path) -> Path | None:
+    """Locate the most recent allocations file under a given base."""
+    candidates: list[Path] = []
+    for pattern in ("allocations*.parquet", "allocations*.json", "allocations*.jsonl", "allocations_steps.parquet"):
+        candidates.extend(base.rglob(pattern))
+    if not candidates:
+        return None
+    candidates = [p for p in candidates if p.is_file()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
 # ----------------------------
 # Optional edges loader (from synthetic topology export)
 # ----------------------------
@@ -536,11 +569,17 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
 def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
     records = []
     for fname in glob.glob(str(Path(traj_glob).expanduser())):
+        df = None
         try:
             df = pd.read_parquet(fname)
         except Exception:
             try:
-                df = pd.read_csv(fname)
+                df = pd.read_csv(fname, encoding="utf-8")
+            except UnicodeDecodeError:
+                try:
+                    df = pd.read_csv(fname, encoding="latin-1")
+                except Exception:
+                    continue
             except Exception:
                 continue
         if not {"time_s", "latitude", "longitude"}.issubset(df.columns):
@@ -650,10 +689,11 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
                 edge_texts.extend([hover_text] * len(x_bezier))
                 edge_texts.append(None)
                 edge_width = normalized_value if normalized_value is not None else 5
+                edge_color = _to_plotly_color((link_color_map or link_colors_plotly).get(edge_type, "#888"))
                 edge_trace = go.Scatter(
                     x=edge_x,
                     y=edge_y,
-                    line=dict(width=edge_width, color=(link_color_map or link_colors_plotly).get(edge_type, "#888")),
+                    line=dict(width=edge_width, color=edge_color),
                     hoverinfo="text",
                     text=edge_texts,
                     mode="lines",
@@ -690,7 +730,7 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
         node_colors = {}
         for node in unique_nodes:
             color = color_map.get(node, color_map.get(str(node)))
-            node_colors[node] = color if color else "#888"
+            node_colors[node] = _to_plotly_color(color) if color else "#888"
     else:
         node_color_map = plt.get_cmap("tab20", len(unique_nodes))
         node_colors = {node: mcolors.rgb2hex(node_color_map(i % 20)) for i, node in enumerate(unique_nodes)}
@@ -801,6 +841,12 @@ def page():
     base_seed = vm_settings.get("base_dir_choice")
     input_seed = vm_settings.get("input_datadir")
     rel_seed = vm_settings.get("datadir_rel", "")
+    if base_seed and "base_dir_choice" not in st.session_state:
+        st.session_state["base_dir_choice"] = base_seed
+    if input_seed and "input_datadir" not in st.session_state:
+        st.session_state["input_datadir"] = input_seed
+    if rel_seed and "datadir_rel" not in st.session_state:
+        st.session_state["datadir_rel"] = rel_seed
     for key in (
         "file_ext_choice",
         # flight/time columns are detected per file, so don't restore stale values
@@ -811,18 +857,16 @@ def page():
     ):
         if key in vm_settings and key not in st.session_state:
             st.session_state[key] = vm_settings[key]
-
-    # Data directory + presets (base paths without app suffix)
-    export_base = env.AGILAB_EXPORT_ABS
-    share_base = env.share_root_path()
-    if "datadir" not in st.session_state:
-        export_base.mkdir(parents=True, exist_ok=True)
-        st.session_state.datadir = export_base
+    if "df_file" in vm_settings and "df_file" not in st.session_state:
+        st.session_state["df_file"] = vm_settings["df_file"]
 
     qp_base = _read_query_param("base_dir_choice")
     qp_input = _read_query_param("input_datadir")
     qp_rel = _read_query_param("datadir_rel")
 
+    # Data directory + presets (base paths without app suffix)
+    export_base = env.AGILAB_EXPORT_ABS
+    share_base = env.share_root_path()
     base_options = ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"]
     base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
     if base_default not in base_options:
@@ -901,7 +945,9 @@ def page():
     elif not final_path.exists():
         st.sidebar.info(f"{final_path} does not exist yet.")
     prev_datadir = Path(st.session_state.get("datadir", final_path)).expanduser()
-    if prev_datadir != final_path:
+    if "datadir" not in st.session_state:
+        st.session_state.datadir = final_path
+    elif prev_datadir != final_path:
         st.session_state.datadir = final_path
         st.session_state.pop("df_file", None)
         st.session_state.pop("csv_files", None)
@@ -932,6 +978,7 @@ def page():
         "show_map": st.session_state.get("show_map", True),
         "show_graph": st.session_state.get("show_graph", True),
         "show_metrics": st.session_state.get("show_metrics", False),
+        "df_file": st.session_state.get("df_file", ""),
     }
     vm_mutated = False
     for key, value in new_vm_settings.items():
@@ -942,10 +989,27 @@ def page():
         _persist_app_settings(env)
 
     datadir_path = Path(st.session_state.datadir).expanduser()
+    def _visible_only(paths):
+        visible = []
+        for path in paths:
+            try:
+                rel_parts = path.relative_to(datadir_path).parts
+            except ValueError:
+                rel_parts = path.parts
+            if any(part.startswith(".") for part in rel_parts):
+                continue
+            visible.append(path)
+        return visible
+
     if ext_choice == "all":
-        files = list(datadir_path.rglob("*.csv")) + list(datadir_path.rglob("*.parquet")) + list(datadir_path.rglob("*.json"))
+        files = (
+            list(datadir_path.rglob("*.csv"))
+            + list(datadir_path.rglob("*.parquet"))
+            + list(datadir_path.rglob("*.json"))
+        )
     else:
         files = list(datadir_path.rglob(f"*.{ext_choice}"))
+    files = _visible_only(files)
 
     if not files:
         st.session_state.pop("csv_files", None)
@@ -965,7 +1029,11 @@ def page():
     prev_df_file = st.session_state.get("_prev_df_file")
     prev_files_rel = st.session_state.get("_prev_csv_files_rel")
     if prev_files_rel != csv_files_rel:
-        st.session_state.pop("df_file", None)
+        if st.session_state.get("df_file") not in csv_files_rel:
+            st.session_state.pop("df_file", None)
+        # If the persisted df_file exists, keep it selected
+        elif st.session_state.get("df_file") in csv_files_rel:
+            st.session_state["df_file"] = st.session_state.get("df_file")
     st.sidebar.selectbox(
         label="DataFrame",
         options=csv_files_rel,
@@ -1021,6 +1089,7 @@ def page():
 
     st.sidebar.markdown("### Columns")
     all_cols = list(df.columns)
+    lower_map = {c.lower(): c for c in all_cols}
     # Ensure sensible defaults for ID and time columns (per-file detection)
     id_pref = [
         "flight_id",
@@ -1033,15 +1102,23 @@ def page():
         "track_id",
     ]
     time_pref = ["datetime", "timestamp", "time", "time_s", "time_ms", "time_us", "date"]
+
+    def _pick_col(preferred: list[str], fallback_exclude: list[str]) -> str:
+        for key in preferred:
+            if key in all_cols:
+                return key
+            if key.lower() in lower_map:
+                return lower_map[key.lower()]
+        # fallback to first column not excluded
+        for c in all_cols:
+            if c not in fallback_exclude and c.lower() not in {v.lower() for v in fallback_exclude}:
+                return c
+        return all_cols[0] if all_cols else ""
+
     if st.session_state.get("id_col") not in all_cols:
-        picked_id = next((c for c in id_pref if c in all_cols), None)
-        if not picked_id:
-            # fallback to first non-time column if possible
-            picked_id = next((c for c in all_cols if c not in time_pref), all_cols[0])
-        st.session_state["id_col"] = picked_id
+        st.session_state["id_col"] = _pick_col(id_pref, time_pref)
     if st.session_state.get("time_col") not in all_cols:
-        time_default = next((c for c in time_pref if c in all_cols), all_cols[0])
-        st.session_state["time_col"] = time_default
+        st.session_state["time_col"] = _pick_col(time_pref, id_pref)
 
     # With session state primed above, avoid passing index/defaults to prevent Streamlit warnings
     flight_col = st.sidebar.selectbox(
@@ -1217,10 +1294,15 @@ def page():
         st.stop()
     # Initialize selected time once; keep user choice on reruns
     if "selected_time" not in st.session_state or st.session_state.selected_time not in unique_timestamps:
-        st.session_state.selected_time = unique_timestamps[0]
+        # Default to the latest timestamp so all nodes (flights/satellites) are visible initially.
+        st.session_state.selected_time = unique_timestamps[-1]
     # Track index explicitly to avoid equality drift with numpy types
     if "selected_time_idx" not in st.session_state or st.session_state.selected_time not in unique_timestamps:
-        st.session_state.selected_time_idx = unique_timestamps.index(st.session_state.selected_time) if st.session_state.selected_time in unique_timestamps else 0
+        st.session_state.selected_time_idx = (
+            unique_timestamps.index(st.session_state.selected_time)
+            if st.session_state.selected_time in unique_timestamps
+            else len(unique_timestamps) - 1
+        )
 
     # Time controls
     with st.container():
@@ -1238,7 +1320,7 @@ def page():
             )
             st.session_state.selected_time = selected_val
             st.caption(f"Selected: {st.session_state.selected_time}")
-            idx_now = st.session_state.get("selected_time_idx", 0)
+            idx_now = st.session_state.get("selected_time_idx", len(unique_timestamps) - 1)
             prog = idx_now / (len(unique_timestamps) - 1) if len(unique_timestamps) > 1 else 1.0
             st.progress(prog)
             if st.session_state.selected_time in unique_timestamps:
@@ -1420,19 +1502,29 @@ def page():
 
     # Live allocations overlay (routing/ILP trainers)
     st.markdown("### 📡 Live allocations (routing/ILP)")
-    alloc_path_default = env.share_root_path() / "example_app/dataframe/trainer_routing/allocations_steps.parquet"
+    alloc_root = env.share_root_path()
+    alloc_path_default = alloc_root / "example_app/dataframe/trainer_routing/allocations_steps.parquet"
     alloc_path = st.text_input(
         "Allocations file (JSON or Parquet)",
         value=str(alloc_path_default),
         key="alloc_path_input",
-    )
+    ).strip()
+    alloc_path_obj = Path(alloc_path).expanduser()
+    if not alloc_path_obj.exists():
+        fallback_alloc = _find_latest_allocations(alloc_root / "example_app")
+        if fallback_alloc:
+            st.info(f"Allocations file not found, using latest detected: {fallback_alloc}")
+            alloc_path_obj = fallback_alloc
+            st.session_state["alloc_path_input"] = str(fallback_alloc)
+        else:
+            st.info("No allocations found at the specified path.")
     traj_glob_default = env.share_root_path() / "example_app/dataframe/flight_simulation/*.parquet"
     traj_glob = st.text_input(
         "Trajectory glob",
         value=str(traj_glob_default),
         key="traj_glob_input",
     )
-    alloc_df = load_allocations(Path(alloc_path))
+    alloc_df = load_allocations(alloc_path_obj)
     if alloc_df.empty:
         st.info("No allocations found at the specified path.")
     else:
