@@ -4,7 +4,7 @@ set -o pipefail
 
 LOG_DIR="$HOME/log/install_logs"
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"_
+LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 START_TIME=$(date +%s)
@@ -731,6 +731,43 @@ install_apps() {
   popd > /dev/null
 }
 
+install_enduser() {
+    local script_path="$AGI_INSTALL_PATH/tools/install_enduser.sh"
+    if [[ ! -f "$script_path" ]]; then
+        warn "tools/install_enduser.sh not found; skipping enduser packaging."
+        return 0
+    fi
+    if [[ "$SOURCE" != "local" ]]; then
+        warn "Source '$SOURCE' not supported by install_enduser.sh on this platform; skipping."
+        return 0
+    fi
+
+    local run_choice="y"
+    if (( NON_INTERACTIVE )); then
+        if [[ "${SKIP_INSTALL_ENDUSER:-0}" -eq 1 ]]; then
+            warn "Skipping enduser packaging (SKIP_INSTALL_ENDUSER=1 in non-interactive mode)."
+            return 0
+        fi
+    else
+        read -rp "Run enduser packaging step (may fetch Python dependencies)? (Y/n): " run_choice
+    fi
+
+    if [[ "$run_choice" =~ ^[Nn]$ ]]; then
+        warn "Skipping enduser packaging at user request."
+        return 0
+    fi
+
+    echo -e "${BLUE}Installing agilab (endusers)...${NC}"
+    if (
+        cd "$AGI_INSTALL_PATH/tools" >/dev/null 2>&1 \
+        && ./install_enduser.sh --source "$SOURCE"
+    ); then
+        echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
+    else
+        warn "install_enduser.sh failed; check tools/install_enduser.log for details."
+    fi
+}
+
 install_pycharm_script() {
     rm -f .idea/workspace.xml
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
@@ -848,6 +885,7 @@ if (( INSTALL_APPS_FLAG )); then
     warn "install_apps failed; continuing with PyCharm setup."
     install_pycharm_script # needed to investigate with pycharm why previous script has failed
     refresh_launch_matrix
+    install_enduser
     FINAL_STATUS="Install completed with app installation errors; review the log."
     FINAL_OK=0
   else
@@ -856,6 +894,7 @@ if (( INSTALL_APPS_FLAG )); then
     fi
     install_pycharm_script
     refresh_launch_matrix
+    install_enduser
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
@@ -865,6 +904,7 @@ else
     warn "App installation skipped (use --install-apps to enable)."
     install_pycharm_script
     refresh_launch_matrix
+    install_enduser
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
