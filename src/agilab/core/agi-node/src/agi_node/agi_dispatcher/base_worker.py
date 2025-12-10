@@ -86,14 +86,70 @@ def _apply_worker_compat_shims(worker_inst: Any) -> None:
             "cloud_attenuation": 1.0,
             "reset_target": False,
         }
-        for field, fallback in defaults.items():
+
+        def _get_attr(name: str):
             if isinstance(args_obj, dict):
-                args_obj.setdefault(field, fallback)
-            elif not hasattr(args_obj, field):
+                return args_obj.get(name)
+            return getattr(args_obj, name, None)
+
+        def _set_attr(name: str, value: Any) -> None:
+            if isinstance(args_obj, dict):
+                args_obj[name] = value
+            else:
                 try:
-                    setattr(args_obj, field, fallback)
+                    setattr(args_obj, name, value)
                 except Exception:
                     pass
+
+        for field, fallback in defaults.items():
+            if _get_attr(field) in (None, ""):
+                _set_attr(field, fallback)
+
+        data_in = _get_attr("data_in")
+        if data_in:
+            dataset_root = Path(data_in).expanduser()
+            env_obj = getattr(worker_inst, "env", None)
+            share_root = None
+            if env_obj is not None:
+                try:
+                    share_root = Path(env_obj.share_root_path()).expanduser()
+                except Exception:
+                    share_root = None
+            candidates = [
+                dataset_root.parent / "example_app" / "dataset",
+                dataset_root.parent / "example_app",
+            ]
+            if share_root:
+                candidates.extend(
+                    [
+                        share_root / "example_app" / "dataset",
+                        share_root / "example_app",
+                    ]
+                )
+
+            required_files = {
+                "plane_conf": _get_attr("plane_conf"),
+                "services_conf": _get_attr("services_conf"),
+                "cloud_heatmap_IVDL": _get_attr("cloud_heatmap_IVDL"),
+                "cloud_heatmap_sat": _get_attr("cloud_heatmap_sat"),
+            }
+
+            for attr, filename in required_files.items():
+                if not filename:
+                    continue
+                target = (dataset_root / filename).expanduser()
+                if target.exists():
+                    continue
+                for candidate in candidates:
+                    source = candidate / filename
+                    if source.exists():
+                        try:
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(source, target)
+                            _set_attr(attr, filename)
+                            break
+                        except Exception:
+                            continue
 
 
 class BaseWorker(abc.ABC):
