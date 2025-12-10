@@ -1827,8 +1827,11 @@ def activate_mlflow(env=None):
         return
 
     st.session_state["rapids_default"] = True
-    logger.info(f"mkdir {env.MLFLOW_TRACKING_DIR}")
-    os.makedirs(env.MLFLOW_TRACKING_DIR, exist_ok=True)
+    tracking_dir = Path(env.MLFLOW_TRACKING_DIR)
+    if not tracking_dir.exists():
+        logger.info(f"mkdir {tracking_dir}")
+    tracking_dir.mkdir(parents=True, exist_ok=True)
+    env.MLFLOW_TRACKING_DIR = str(tracking_dir)
 
     port = get_random_port()
     while is_port_in_use(port):
