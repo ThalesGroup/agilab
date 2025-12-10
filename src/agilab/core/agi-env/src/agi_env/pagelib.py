@@ -37,94 +37,65 @@ try:
 except Exception:  # pragma: no cover
     _importlib_metadata = None  # type: ignore
 import tomllib
+import tomli_w
 
 from sqlalchemy import false
 
-# Shared last-active-app helpers
-def _last_active_app_path() -> Path:
-    return Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
+# Shared last-active-app helpers (persisted in a single TOML state file)
+_GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
+_LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
 
 
-def load_last_active_app() -> Path | None:
-    path = _last_active_app_path()
+def _load_global_state() -> Dict[str, str]:
     try:
-        if path.exists():
-            raw = path.read_text(encoding="utf-8").strip()
-            if raw:
-                cand = Path(raw).expanduser()
-                if cand.exists():
-                    return cand
+        if _GLOBAL_STATE_FILE.exists():
+            with _GLOBAL_STATE_FILE.open("rb") as fh:
+                data = tomllib.load(fh)
+                return data if isinstance(data, dict) else {}
     except Exception:
-        return None
-    return None
-
-
-def store_last_active_app(path: Path) -> None:
+        pass
+    # Legacy plaintext fallback for older installs
     try:
-        path = path.expanduser()
-        target = _last_active_app_path()
-        logger.info(f"mkdir {target.parent}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(str(path), encoding="utf-8")
+        if _LEGACY_LAST_APP_FILE.exists():
+            raw = _LEGACY_LAST_APP_FILE.read_text(encoding="utf-8").strip()
+            if raw:
+                return {"last_active_app": raw}
+    except Exception:
+        pass
+    return {}
+
+
+def _persist_global_state(data: Dict[str, str]) -> None:
+    try:
+        _GLOBAL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with _GLOBAL_STATE_FILE.open("wb") as fh:
+            tomli_w.dump(data, fh)
     except Exception:
         pass
 
 
-def _last_active_app_path() -> Path:
-    return Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
-
-
 def load_last_active_app() -> Path | None:
-    path = _last_active_app_path()
+    state = _load_global_state()
+    raw = state.get("last_active_app")
+    if not raw:
+        return None
     try:
-        if path.exists():
-            raw = path.read_text(encoding="utf-8").strip()
-            if raw:
-                cand = Path(raw).expanduser()
-                if cand.exists():
-                    return cand
+        cand = Path(raw).expanduser()
     except Exception:
         return None
-    return None
+    return cand if cand.exists() else None
 
 
 def store_last_active_app(path: Path) -> None:
     try:
-        path = path.expanduser()
-        target = _last_active_app_path()
-        logger.info(f"mkdir {target.parent}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(str(path), encoding="utf-8")
+        normalized = str(path.expanduser())
     except Exception:
-        pass
-
-def _last_active_app_path() -> Path:
-    return Path.home() / ".local/share/agilab/.last-active-app"
-
-
-def load_last_active_app() -> Path | None:
-    path = _last_active_app_path()
-    try:
-        if path.exists():
-            raw = path.read_text(encoding="utf-8").strip()
-            if raw:
-                cand = Path(raw).expanduser()
-                if cand.exists():
-                    return cand
-    except Exception:
-        return None
-    return None
-
-
-def store_last_active_app(path: Path) -> None:
-    try:
-        path = path.expanduser()
-        target = _last_active_app_path()
-        logger.info(f"mkdir {target.parent}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(str(path), encoding="utf-8")
-    except Exception:
-        pass
+        return
+    state = _load_global_state()
+    if state.get("last_active_app") == normalized:
+        return
+    state["last_active_app"] = normalized
+    _persist_global_state(state)
 
 
 

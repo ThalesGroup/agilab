@@ -93,7 +93,7 @@ def _ensure_dir(path: str | Path) -> Path:
     target = Path(path)
     if not target.exists():
         logger.info(f"mkdir {target}")
-    target.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
     return target
 
 
@@ -1888,8 +1888,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
                 import re as _re
                 cmd = _re.sub(
-                    r"(^|\s)uv(\s+)",
-                    r"\1uv --preview-features extra-build-dependencies \2",
+                    "(^|\\s)uv(\\s+)",
+                    "\\1uv --preview-features extra-build-dependencies \\2",
                     cmd,
                     count=1,
                 )
@@ -2746,7 +2746,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         try:
             if not dest_root.exists():
                 logger.info(f"mkdir {dest_root}")
-            dest_root.mkdir(parents=True, exist_ok=False)
+                dest_root.mkdir(parents=True, exist_ok=False)
         except Exception as e:
             AgiEnv.logger.error(f"Could not create '{dest_root}': {e}")
             return
