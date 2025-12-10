@@ -15,6 +15,7 @@ import pandas as pd
 import re
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
+import streamlit.components.v1 as components
 import tomllib        # For reading TOML files
 import tomli_w      # For writing TOML files
 
@@ -2415,13 +2416,11 @@ def mlflow_controls() -> None:
     if st.session_state.get("server_started"):
         mlflow_port = st.session_state.get("mlflow_port", 5000)
         mlflow_url = f"http://localhost:{mlflow_port}"
-        st.sidebar.info(f"MLflow UI is running on port {mlflow_port}.")
-        if st.sidebar.button("Open MLflow UI"):
-            st.sidebar.markdown(
+        if st.sidebar.button(f"Open MLflow UI (port {mlflow_port})"):
+            components.html(
                 f"<script>window.open('{mlflow_url}', '_blank');</script>",
-                unsafe_allow_html=True,
+                height=0,
             )
-            st.sidebar.success("Opened MLflow UI in a new browser tab.")
     elif not st.session_state.get("server_started"):
         st.sidebar.error("MLflow UI server is not running. Please start it from Edit.")
 
