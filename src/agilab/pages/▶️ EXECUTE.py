@@ -1382,22 +1382,21 @@ if __name__ == "__main__":
             cluster_params = st.session_state.app_settings.setdefault("cluster", {})
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
             if cluster_enabled:
-                share_candidate: Optional[Path] = env.agi_share_path
-                if share_candidate is not None:
-                    if not share_candidate.is_absolute():
-                        share_candidate = env.home_abs / share_candidate
-                    share_candidate = share_candidate.expanduser()
-                    is_symlink = share_candidate.is_symlink()
-                    try:
-                        share_resolved = share_candidate.resolve()
-                    except Exception:
-                        share_resolved = share_candidate
-                    if not is_symlink and not _looks_like_shared_path(share_resolved):
-                        st.warning(
-                            f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
-                            "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs.",
-                            icon="⚠️",
-                        )
+                share_candidate = Path(env.agi_share_path)
+                if not share_candidate.is_absolute():
+                    share_candidate = Path(env.home_abs) / share_candidate
+                share_candidate = share_candidate.expanduser()
+                is_symlink = share_candidate.is_symlink()
+                try:
+                    share_resolved = share_candidate.resolve()
+                except Exception:
+                    share_resolved = share_candidate
+                if not is_symlink and not _looks_like_shared_path(share_resolved):
+                    st.warning(
+                        f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
+                        "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs.",
+                        icon="⚠️",
+                    )
 
             args_serialized = ", ".join(
                 [f'{key}="{value}"' if isinstance(value, str) else f"{key}={value}"
