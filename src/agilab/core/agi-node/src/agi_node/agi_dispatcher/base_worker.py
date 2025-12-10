@@ -208,8 +208,7 @@ class BaseWorker(abc.ABC):
                     home = Path(env.home_abs).expanduser()
                     base = (home / base).expanduser()
                 return base
-        home = env.home_abs
-        return Path(home).expanduser() if home else None
+        return Path(env.home_abs).expanduser()
 
     @classmethod
     def _resolve_data_dir(
@@ -753,7 +752,7 @@ class BaseWorker(abc.ABC):
             if env:
                 if env.AGI_LOCAL_SHARE:
                     fallback_base = Path(env.AGI_LOCAL_SHARE).expanduser()
-                elif env.home_abs:
+                else:
                     fallback_base = Path(env.home_abs)
             if fallback_base is None:
                 fallback_base = Path.home()
