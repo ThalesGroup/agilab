@@ -1158,6 +1158,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         repo_root = self.envars.get("APPS_REPOSITORY") or os.environ.get("APPS_REPOSITORY")
         if not repo_root:
             return None
+        repo_root = repo_root.strip()
+        if not repo_root:
+            return None
 
         # Normalise malformed Windows drive paths like 'C:Users...'
         repo_root = _fix_windows_drive(repo_root)
@@ -1883,11 +1886,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
                 import re as _re
                 cmd = _re.sub(
-                        r"(^|\s)uv(\s+)",
-                        r"\1uv --preview-features extra-build-dependencies \2",
-                        cmd,
-                        count=1,
-                    )
+                    r"(^|\s)uv(\s+)",
+                    r"\1uv --preview-features extra-build-dependencies \2",
+                    cmd,
+                    count=1,
+                )
 
         except Exception:
             pass
