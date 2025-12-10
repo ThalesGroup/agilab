@@ -1,7 +1,6 @@
 import logging
 import os
 import json
-import webbrowser
 from pathlib import Path
 import importlib
 import importlib.metadata as importlib_metadata
@@ -2413,25 +2412,16 @@ def sidebar_controls() -> None:
 
 def mlflow_controls() -> None:
     """Display MLflow UI controls in sidebar."""
-    if st.session_state.get("server_started") and st.sidebar.button("Open MLflow UI"):
+    if st.session_state.get("server_started"):
         mlflow_port = st.session_state.get("mlflow_port", 5000)
+        mlflow_url = f"http://localhost:{mlflow_port}"
         st.sidebar.info(f"MLflow UI is running on port {mlflow_port}.")
-        webbrowser.open_new_tab(f"http://localhost:{mlflow_port}")
-        st.sidebar.success("MLflow UI has been opened in a new browser tab.")
-        st.sidebar.markdown(
-            """
-            <style>
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100%;
-            </style>
-            <div class="centered">
-                <h1 style='font-size:50px;'>😄</h1>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        if st.sidebar.button("Open MLflow UI"):
+            st.sidebar.markdown(
+                f"<script>window.open('{mlflow_url}', '_blank');</script>",
+                unsafe_allow_html=True,
+            )
+            st.sidebar.success("Opened MLflow UI in a new browser tab.")
     elif not st.session_state.get("server_started"):
         st.sidebar.error("MLflow UI server is not running. Please start it from Edit.")
 
