@@ -158,6 +158,20 @@ def _stream_run_command(
     """Run a shell command and stream its output into the run log."""
     process_env = os.environ.copy()
     process_env["uv_IGNORE_ACTIVE_VENV"] = "1"
+    apps_root = getattr(env, "apps_path", None)
+    extra_python_paths: List[str] = []
+    if apps_root:
+        try:
+            apps_root = Path(apps_root).expanduser()
+            src_root = apps_root.parent.parent
+            if (src_root / "agilab").is_dir():
+                extra_python_paths.append(str(src_root))
+        except Exception:
+            pass
+    if extra_python_paths:
+        existing = process_env.get("PYTHONPATH")
+        joined = os.pathsep.join(extra_python_paths + ([existing] if existing else []))
+        process_env["PYTHONPATH"] = joined
     lines: List[str] = []
     with subprocess.Popen(
         cmd,
