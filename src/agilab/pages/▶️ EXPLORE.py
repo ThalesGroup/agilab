@@ -35,7 +35,14 @@ import tomllib       # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
-from agi_env.pagelib import get_about_content, render_logo, select_project, inject_theme
+from agi_env.pagelib import (
+    get_about_content,
+    render_logo,
+    select_project,
+    inject_theme,
+    load_last_active_app,
+    store_last_active_app,
+)
 from agi_env import AgiEnv, normalize_path
 
 logger = logging.getLogger(__name__)
@@ -101,30 +108,6 @@ def _default_app_path(apps_path: Path | None) -> Path | None:
         if candidate.is_dir() and candidate.name.endswith("_project"):
             return candidate
     return None
-
-
-LAST_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
-
-
-def _load_last_app() -> Path | None:
-    try:
-        if LAST_APP_FILE.exists():
-            data = LAST_APP_FILE.read_text(encoding="utf-8").strip()
-            if data:
-                candidate = Path(data).expanduser()
-                if candidate.exists():
-                    return candidate
-    except Exception:
-        pass
-    return None
-
-
-def _store_last_app(path: Path) -> None:
-    try:
-        LAST_APP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        LAST_APP_FILE.write_text(str(path), encoding="utf-8")
-    except Exception:
-        pass
 
 @staticmethod
 def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str) -> None:
@@ -288,7 +271,7 @@ async def main():
                         apps_path = candidate.parent
 
         if active_app_path is None:
-            last_app = _load_last_app()
+            last_app = load_last_active_app()
             if last_app is not None:
                 active_app_path = last_app
                 if not apps_path:
@@ -320,7 +303,7 @@ async def main():
             st.session_state['apps_path'] = str(apps_path)
         if app_name:
             st.session_state['app'] = app_name
-        _store_last_app(active_app_path)
+        store_last_active_app(active_app_path)
     else:
         env = st.session_state['env']
 
@@ -338,7 +321,7 @@ async def main():
     if env.app:
         st.query_params["active_app"] = env.app
     if env.app:
-        _store_last_app(Path(env.apps_path) / env.app)
+        store_last_active_app(Path(env.apps_path) / env.app)
 
     # Where to store selected pages per project
     project = env.app

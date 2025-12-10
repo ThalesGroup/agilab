@@ -875,6 +875,16 @@ backup_existing_project
 copy_project_files
 update_environment
 install_core
+
+echo -e "${BLUE}Installing agilab (repo root)...${NC}"
+pushd "$AGI_INSTALL_PATH" > /dev/null
+$UV sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
+$UV pip install -e src/agilab/core/agi-env
+$UV pip install -e src/agilab/core/agi-node
+$UV pip install -e src/agilab/core/agi-cluster
+$UV pip install -e src/agilab/core/agi-core
+popd > /dev/null
+
 write_env_values
 configure_streamlit
 

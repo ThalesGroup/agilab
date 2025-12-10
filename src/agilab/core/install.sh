@@ -120,13 +120,8 @@ ${UV_PREVIEW[@]} pip install -e ../agi-node
 ${UV_PREVIEW[@]} pip install -e ../agi-env
 popd > /dev/null
 
-echo -e "${BLUE}Installing agilab...${NC}"
+echo -e "${BLUE}Preparing repository root for test runs...${NC}"
 pushd ../../.. > /dev/null
-${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
-${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-env
-${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-node
-${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-cluster
-${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-core
 
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

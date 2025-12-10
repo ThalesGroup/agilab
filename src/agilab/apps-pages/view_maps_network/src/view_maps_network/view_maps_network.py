@@ -26,6 +26,27 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import glob
 import json
+import tomllib
+try:
+    import tomli_w as _toml_writer  # type: ignore[import-not-found]
+
+    def _dump_toml(data: dict, handle) -> None:
+        _toml_writer.dump(data, handle)
+
+except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
+    try:
+        from tomlkit import dumps as _tomlkit_dumps
+
+        def _dump_toml(data: dict, handle) -> None:
+            handle.write(_tomlkit_dumps(data).encode("utf-8"))
+
+    except Exception as _toml_exc:  # pragma: no cover - defensive guard
+        _tomlkit_dumps = None  # type: ignore
+
+        def _dump_toml(data: dict, handle) -> None:
+            raise RuntimeError(
+                "Writing settings requires the 'tomli-w' or 'tomlkit' package"
+            ) from _toml_exc
 from datetime import datetime
 import time
 from streamlit.runtime.scriptrunner import RerunException
@@ -70,25 +91,56 @@ def _resolve_active_app() -> Path:
     return active_app_path
 
 
-_LAST_SUBDIR_FILE = Path.home() / ".local" / "share" / "agilab" / "view_maps_network_last_subdir"
+def _ensure_app_settings_loaded(env: AgiEnv) -> None:
+    if "app_settings" in st.session_state:
+        return
+    path = Path(env.app_settings_file)
+    if path.exists():
+        try:
+            with open(path, "rb") as handle:
+                st.session_state["app_settings"] = tomllib.load(handle)
+                return
+        except Exception:
+            pass
+    st.session_state["app_settings"] = {}
 
 
-def _load_last_subdir() -> str:
+def _persist_app_settings(env: AgiEnv) -> None:
+    settings = st.session_state.get("app_settings")
+    if not isinstance(settings, dict):
+        return
+    path = Path(env.app_settings_file)
     try:
-        if _LAST_SUBDIR_FILE.exists():
-            return _LAST_SUBDIR_FILE.read_text(encoding="utf-8").strip()
-    except Exception:
-        pass
-    return ""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as handle:
+            _dump_toml(settings, handle)
+    except Exception as exc:
+        logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
 
-def _store_last_subdir(value: str) -> None:
+def _get_view_maps_settings() -> dict:
+    app_settings = st.session_state.setdefault("app_settings", {})
+    vm_settings = app_settings.get("view_maps_network")
+    if not isinstance(vm_settings, dict):
+        vm_settings = {}
+        app_settings["view_maps_network"] = vm_settings
+    return vm_settings
+
+
+def _read_query_param(key: str) -> Optional[str]:
+    value = st.query_params.get(key)
+    if isinstance(value, list):
+        return value[-1] if value else None
+    return value
+
+
+def _list_subdirectories(base: Path) -> list[str]:
     try:
-        logger.info(f"mkdir {_LAST_SUBDIR_FILE.parent}")
-        _LAST_SUBDIR_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _LAST_SUBDIR_FILE.write_text(value, encoding="utf-8")
-    except Exception:
-        pass
+        if base.exists():
+            return sorted([entry.name for entry in base.iterdir() if entry.is_dir()])
+    except Exception as exc:
+        st.sidebar.warning(f"Unable to list directories under {base}: {exc}")
+    return []
 
 
 st.title(":world_map: Maps Network Graph")
@@ -105,6 +157,8 @@ if 'env' not in st.session_state:
     st.session_state['app'] = app_name
 else:
     env = st.session_state['env']
+
+_ensure_app_settings_loaded(env)
 
 if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
@@ -743,123 +797,112 @@ def page():
         st.session_state.project = env.target
     if "projects" not in st.session_state:
         st.session_state.projects = env.projects
-    # Restore persisted sidebar settings if available
-    vm_settings = st.session_state.get("app_settings", {}).get("view_maps_network", {})
-    base_seed = None
-    input_seed = None
-    if vm_settings:
-        base_seed = vm_settings.get("base_dir_choice")
-        input_seed = vm_settings.get("input_datadir")
-        for key in (
-            "datadir_rel",
-            "file_ext_choice",
-            # flight/time columns are detected per file, so don't restore stale values
-            "link_multiselect",
-            "show_map",
-            "show_graph",
-            "show_metrics",
-        ):
-            if key in vm_settings and key not in st.session_state:
-                st.session_state[key] = vm_settings[key]
+    vm_settings = _get_view_maps_settings()
+    base_seed = vm_settings.get("base_dir_choice")
+    input_seed = vm_settings.get("input_datadir")
+    rel_seed = vm_settings.get("datadir_rel", "")
+    for key in (
+        "file_ext_choice",
+        # flight/time columns are detected per file, so don't restore stale values
+        "link_multiselect",
+        "show_map",
+        "show_graph",
+        "show_metrics",
+    ):
+        if key in vm_settings and key not in st.session_state:
+            st.session_state[key] = vm_settings[key]
 
     # Data directory + presets (base paths without app suffix)
     export_base = env.AGILAB_EXPORT_ABS
     share_base = env.share_root_path()
     if "datadir" not in st.session_state:
-        logger.info(f"mkdir {export_base}")
         export_base.mkdir(parents=True, exist_ok=True)
         st.session_state.datadir = export_base
-    qps = st.query_params
-    qp_base = qps.get("base_dir_choice")
-    if isinstance(qp_base, list):
-        qp_base = qp_base[-1] if qp_base else None
-    qp_input = qps.get("input_datadir")
-    if isinstance(qp_input, list):
-        qp_input = qp_input[-1] if qp_input else None
-    qp_rel = qps.get("datadir_rel")
-    if isinstance(qp_rel, list):
-        qp_rel = qp_rel[-1] if qp_rel else None
+
+    qp_base = _read_query_param("base_dir_choice")
+    qp_input = _read_query_param("input_datadir")
+    qp_rel = _read_query_param("datadir_rel")
 
     base_options = ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"]
     base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
-    try:
-        base_index = base_options.index(base_default)
-    except ValueError:
-        base_index = 1
+    if base_default not in base_options:
+        base_default = "AGILAB_EXPORT"
     base_choice = st.sidebar.radio(
         "Base directory",
         base_options,
-        index=base_index,
+        index=base_options.index(base_default),
         key="base_dir_choice",
     )
+
+    base_path: Path
+    custom_base_warning = None
     if base_choice == "AGI_SHARE_DIR":
         base_path = share_base
-        st.session_state["input_datadir"] = str(share_base)
     elif base_choice == "AGILAB_EXPORT":
         base_path = export_base
-        st.session_state["input_datadir"] = str(export_base)
+        base_path.mkdir(parents=True, exist_ok=True)
     else:
+        custom_default = qp_input or st.session_state.get("input_datadir") or input_seed or str(export_base)
         custom_val = st.sidebar.text_input(
             "Custom data directory",
-            value=qp_input or st.session_state.get("input_datadir") or input_seed or str(export_base),
+            value=custom_default,
             key="input_datadir",
         )
         try:
             base_path = Path(custom_val).expanduser()
         except Exception:
-            st.warning("Invalid custom path; falling back to export.")
             base_path = export_base
-            st.session_state["input_datadir"] = str(export_base)
-    # Optional relative subdir under the base (prefer explicit query param; otherwise session or last stored)
-    stored_rel = _load_last_subdir()
-    rel_default = qp_rel if qp_rel not in (None, "") else (st.session_state.get("datadir_rel_custom") or st.session_state.get("datadir_rel") or stored_rel)
-    # If a query param is provided, ensure the selectbox key picks it up
-    if qp_rel not in (None, "") and st.session_state.get("datadir_rel_select") != qp_rel:
-        st.session_state["datadir_rel_select"] = qp_rel
-    try:
-        subdir_options = [""] + sorted([p.name for p in base_path.iterdir() if p.is_dir()])
-    except FileNotFoundError:
-        base_path.mkdir(parents=True, exist_ok=True)
-        subdir_options = [""]
+            custom_base_warning = "Invalid custom path; using AGILAB_EXPORT."
+        if custom_base_warning:
+            st.sidebar.warning(custom_base_warning)
+        elif not base_path.exists():
+            st.sidebar.info(f"{base_path} does not exist. Adjust the path or create it before exploring data.")
+
+    rel_default = (
+        qp_rel
+        if qp_rel not in (None, "")
+        else st.session_state.get("datadir_rel") or rel_seed or ""
+    )
+    subdir_options = [""] + _list_subdirectories(base_path)
     if rel_default and rel_default not in subdir_options:
         subdir_options.append(rel_default)
-    # Keep the selectbox value valid
-    if "datadir_rel_select" in st.session_state and st.session_state["datadir_rel_select"] not in subdir_options:
-        st.session_state["datadir_rel_select"] = rel_default if rel_default in subdir_options else subdir_options[0]
+    rel_index = subdir_options.index(rel_default) if rel_default in subdir_options else 0
     rel_subdir = st.sidebar.selectbox(
         "Relative subdir",
         options=subdir_options,
-        index=subdir_options.index(st.session_state.get("datadir_rel_select", rel_default)) if st.session_state.get("datadir_rel_select", rel_default) in subdir_options else 0,
+        index=rel_index,
         key="datadir_rel_select",
         format_func=lambda v: v if v else "(root)",
     )
-    custom_rel = st.sidebar.text_input(
-        "Custom relative subdir (overrides selection)",
-        value=st.session_state.get("datadir_rel_custom", rel_subdir),
-        key="datadir_rel_custom",
-    ).strip()
-    if custom_rel:
-        rel_subdir = custom_rel
-    # Keep session in sync without touching the widget key
+    if base_choice == "Custom":
+        custom_rel_default = rel_subdir if rel_subdir else rel_default
+        rel_override = st.sidebar.text_input(
+            "Custom relative subdir",
+            value=custom_rel_default,
+            key="datadir_rel_custom",
+        ).strip()
+        if rel_override:
+            rel_subdir = rel_override
+    else:
+        st.session_state.pop("datadir_rel_custom", None)
     st.session_state["datadir_rel"] = rel_subdir
-    _store_last_subdir(rel_subdir)
-    # Persist base, custom path, and rel subdir into query params for reloads
+
+    # Persist selection for reloads / share links
     try:
         st.query_params["base_dir_choice"] = base_choice
-        st.query_params["input_datadir"] = st.session_state.get("input_datadir", "")
+        st.query_params["input_datadir"] = st.session_state.get("input_datadir", "") if base_choice == "Custom" else ""
         st.query_params["datadir_rel"] = rel_subdir
     except Exception:
         pass
-    # Avoid doubling the app name: if both base and rel are the same, drop rel
-    if base_path.name == rel_subdir:
-        final_path = base_path
-    else:
-        final_path = (base_path / rel_subdir) if rel_subdir else base_path
-    final_path.mkdir(parents=True, exist_ok=True)
+
+    final_path = (base_path / rel_subdir).expanduser() if rel_subdir else base_path.expanduser()
+    if base_choice == "AGILAB_EXPORT":
+        final_path.mkdir(parents=True, exist_ok=True)
+    elif not final_path.exists():
+        st.sidebar.info(f"{final_path} does not exist yet.")
     prev_datadir = Path(st.session_state.get("datadir", final_path)).expanduser()
     if prev_datadir != final_path:
         st.session_state.datadir = final_path
-        st.session_state["input_datadir"] = str(final_path)
         st.session_state.pop("df_file", None)
         st.session_state.pop("csv_files", None)
     st.sidebar.caption(f"Resolved path: {final_path}")
@@ -878,8 +921,7 @@ def page():
     )
 
     # Persist sidebar selections for reuse
-    app_settings = st.session_state.setdefault("app_settings", {})
-    app_settings["view_maps_network"] = {
+    new_vm_settings = {
         "base_dir_choice": st.session_state.get("base_dir_choice", "AGILAB_EXPORT"),
         "input_datadir": st.session_state.get("input_datadir", ""),
         "datadir_rel": st.session_state.get("datadir_rel", ""),
@@ -891,6 +933,13 @@ def page():
         "show_graph": st.session_state.get("show_graph", True),
         "show_metrics": st.session_state.get("show_metrics", False),
     }
+    vm_mutated = False
+    for key, value in new_vm_settings.items():
+        if vm_settings.get(key) != value:
+            vm_settings[key] = value
+            vm_mutated = True
+    if vm_mutated:
+        _persist_app_settings(env)
 
     datadir_path = Path(st.session_state.datadir).expanduser()
     if ext_choice == "all":

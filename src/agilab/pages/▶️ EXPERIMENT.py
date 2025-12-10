@@ -19,6 +19,7 @@ import tomllib        # For reading TOML files
 import tomli_w      # For writing TOML files
 
 from code_editor import code_editor
+import streamlit.components.v1 as components
 from agi_env.pagelib import (
     activate_mlflow,
     activate_gpt_oss,
@@ -36,6 +37,8 @@ from agi_env.pagelib import (
     on_df_change,
     render_logo,
     inject_theme,
+    load_last_active_app,
+    store_last_active_app,
 )
 from agi_env import AgiEnv, normalize_path
 from agi_env.defaults import get_default_openai_model
@@ -44,8 +47,6 @@ from agi_env.defaults import get_default_openai_model
 STEPS_FILE_NAME = "lab_steps.toml"
 DEFAULT_DF = "lab_out.csv"
 JUPYTER_URL = "http://localhost:8888"
-LAST_ACTIVE_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,22 +70,12 @@ def convert_paths_to_strings(obj: Any) -> Any:
         return obj
 
 
-def _store_last_active_app(path: Path) -> None:
-    try:
-        LAST_ACTIVE_APP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        LAST_ACTIVE_APP_FILE.write_text(str(path), encoding="utf-8")
-    except Exception:
-        pass
-
-
 def _load_last_active_app_name(modules: List[str]) -> Optional[str]:
     """Return the last active app name if it maps to a known module directory."""
-    try:
-        stored = LAST_ACTIVE_APP_FILE.read_text(encoding="utf-8").strip()
-    except Exception:
+    last_path = load_last_active_app()
+    if not last_path:
         return None
-    if not stored:
-        return None
+    candidates = [last_path.name, str(last_path)]
 
     def _normalize(candidate: str) -> Optional[str]:
         if candidate in modules:
@@ -93,18 +84,13 @@ def _load_last_active_app_name(modules: List[str]) -> Optional[str]:
             return candidate.removesuffix("_project")
         return None
 
-    # First try raw string
-    name = stored
-    normalized = _normalize(name)
-    if normalized:
-        return normalized
-
-    # Fallback: treat as path and use basename
-    try:
-        name = Path(stored).name
-    except Exception:
-        name = stored
-    return _normalize(name)
+    for name in candidates:
+        if not name:
+            continue
+        normalized = _normalize(name)
+        if normalized:
+            return normalized
+    return None
 
 
 def _append_run_log(index_page: str, message: str) -> None:
@@ -2175,7 +2161,7 @@ def on_lab_change(new_index_page: str) -> None:
             builtin_base / f"{new_index_page}_project",
         ):
             if cand.exists():
-                _store_last_active_app(cand)
+                store_last_active_app(cand)
                 break
     except Exception:
         pass
@@ -2443,10 +2429,11 @@ def mlflow_controls() -> None:
             )
             st.session_state["mlflow_button_css"] = True
 
-        st.sidebar.markdown(
-            f'<a class="mlflow-anchor-btn" href="{mlflow_url}" target="_blank">Open MLflow UI (port {mlflow_port})</a>',
-            unsafe_allow_html=True,
-        )
+        if st.sidebar.button(f"Open MLflow UI (port {mlflow_port})"):
+            components.html(
+                f"<script>window.open('{mlflow_url}', '_blank');</script>",
+                height=0,
+            )
     elif not st.session_state.get("server_started"):
         st.sidebar.error("MLflow UI server is not running. Please start it from Edit.")
 
