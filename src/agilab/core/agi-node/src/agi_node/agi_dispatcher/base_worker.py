@@ -62,6 +62,40 @@ logger = AgiLogger.get_logger(__name__)
 warnings.filterwarnings("ignore")
 
 
+def _apply_worker_compat_shims(worker_inst: Any) -> None:
+    """Inject compatibility defaults for known workers that expect full arg payloads."""
+    try:
+        worker_name = worker_inst.__class__.__name__
+    except Exception:  # pragma: no cover - defensive guard
+        return
+
+    if worker_name == "Link modelWorker":
+        args_obj = getattr(worker_inst, "args", None)
+        if args_obj is None:
+            return
+        defaults = {
+            "data_flight": "flights",
+            "data_sat": "sat",
+            "output_format": "parquet",
+            "plane_conf": "antenna_conf.json",
+            "cloud_heatmap_IVDL": "CloudMapIvdl.npz",
+            "cloud_heatmap_sat": "CloudMapSat.npz",
+            "services_conf": "service.json",
+            "mean_service_duration": 20,
+            "overlap_service_percent": 20,
+            "cloud_attenuation": 1.0,
+            "reset_target": False,
+        }
+        for field, fallback in defaults.items():
+            if isinstance(args_obj, dict):
+                args_obj.setdefault(field, fallback)
+            elif not hasattr(args_obj, field):
+                try:
+                    setattr(args_obj, field, fallback)
+                except Exception:
+                    pass
+
+
 class BaseWorker(abc.ABC):
     """
     class BaseWorker v1.0
@@ -435,6 +469,7 @@ class BaseWorker(abc.ABC):
                 BaseWorker._worker,
                 getattr(worker_inst, "_mode", None),
             )
+            _apply_worker_compat_shims(worker_inst)
             method = getattr(worker_inst, "start", None)
             base_method = BaseWorker.start
             if method and method is not base_method:
