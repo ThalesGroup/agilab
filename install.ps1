@@ -12,14 +12,22 @@ param(
     [ValidateSet("local", "pypi", "testpypi")]
     [string]$Source = "local",
     [switch]$InstallApps,
-    [switch]$TestApps
+    [switch]$TestApps,
+    [string]$AgiShareDir,
+    [string]$AgiLocalDir,
+    [string]$InstallAppsList,
+    [switch]$NonInteractive
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$NonInteractiveMode = $NonInteractive.IsPresent
 
 if ($TestApps) {
+    $InstallApps = $true
+}
+if ($InstallAppsList) {
     $InstallApps = $true
 }
 
@@ -70,6 +78,19 @@ function Normalize-RepoPath {
     try { return [System.IO.Path]::GetFullPath($p) } catch { return $p }
 }
 
+function Normalize-UserPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return "" }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    if ($expanded.StartsWith("~")) {
+        $expanded = $expanded -replace '^~', $env:USERPROFILE
+    }
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) {
+        $expanded = Join-Path $env:USERPROFILE $expanded
+    }
+    try { return [System.IO.Path]::GetFullPath($expanded) } catch { return $expanded }
+}
+
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
 # New canonical var
 $env:APPS_REPOSITORY = $AppsRepositoryPath
@@ -80,7 +101,7 @@ $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 Ensure-Directory $LocalDir
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
-$DefaultShareDir = $env:AGI_SHARE_DIR
+$DefaultShareDir = if ($AgiShareDir) { $AgiShareDir } elseif ($env:AGI_SHARE_DIR) { $env:AGI_SHARE_DIR } else { "" }
 # Fallback to user or repo .agilab/.env if AGI_SHARE_DIR not set
 function Get-EnvValueFromFile {
     param([string]$FilePath, [string]$Key)
@@ -96,7 +117,10 @@ if (-not $DefaultShareDir) {
 if (-not $DefaultShareDir) {
     $DefaultShareDir = Get-EnvValueFromFile (Join-Path $InstallPathFull ".agilab\.env") "AGI_SHARE_DIR"
 }
-$DefaultLocalShare = if ($env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR } elseif ($env:AGI_LOCAL_SHARE) { $env:AGI_LOCAL_SHARE } else { Join-Path $env:USERPROFILE "localshare" }
+$DefaultLocalShare = if ($AgiLocalDir) { $AgiLocalDir }
+    elseif ($env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR }
+    elseif ($env:AGI_LOCAL_SHARE) { $env:AGI_LOCAL_SHARE }
+    else { Join-Path $env:USERPROFILE "localshare" }
 
 function Test-ShareMounted {
     param([string]$Path)
@@ -121,29 +145,28 @@ function Test-ShareMounted {
 function Ensure-ShareDir {
     param(
         [string]$ShareDir,
-        [string]$FallbackDir
+        [string]$FallbackDir,
+        [switch]$NonInteractiveMode,
+        [string]$ClusterCredentials
     )
     if ([string]::IsNullOrWhiteSpace($ShareDir)) {
-        $ShareDir = Read-Host "Enter AGI_SHARE_DIR path (or press Enter to abort)"
-        if ([string]::IsNullOrWhiteSpace($ShareDir)) {
-            Write-Failure "AGI_SHARE_DIR not provided. Aborting."
-            exit 1
+        if ($NonInteractiveMode) {
+            if (-not [string]::IsNullOrWhiteSpace($ClusterCredentials)) {
+                Write-Failure "AGI_SHARE_DIR not provided and cluster credentials specified; cannot proceed in non-interactive mode."
+                exit 1
+            }
+            $ShareDir = $FallbackDir
+        } else {
+            $ShareDir = Read-Host "Enter AGI_SHARE_DIR path (or press Enter to abort)"
+            if ([string]::IsNullOrWhiteSpace($ShareDir)) {
+                Write-Failure "AGI_SHARE_DIR not provided. Aborting."
+                exit 1
+            }
         }
     }
 
-    # Normalize to absolute path for display/use
-    if ($ShareDir.StartsWith("~")) {
-        $ShareDir = $ShareDir -replace '^~', $env:USERPROFILE
-    }
-    if (-not [System.IO.Path]::IsPathRooted($ShareDir)) {
-        $ShareDir = Join-Path $env:USERPROFILE $ShareDir
-    }
-    if ($FallbackDir.StartsWith("~")) {
-        $FallbackDir = $FallbackDir -replace '^~', $env:USERPROFILE
-    }
-    if (-not [System.IO.Path]::IsPathRooted($FallbackDir)) {
-        $FallbackDir = Join-Path $env:USERPROFILE $FallbackDir
-    }
+    $ShareDir = Normalize-UserPath $ShareDir
+    $FallbackDir = Normalize-UserPath $FallbackDir
 
     if (-not [string]::IsNullOrWhiteSpace($ShareDir)) {
         Write-Info ("AGI_SHARE_DIR resolved to: {0}" -f $ShareDir)
@@ -152,6 +175,18 @@ function Ensure-ShareDir {
     if (Test-ShareMounted -Path $ShareDir) {
         $env:AGI_SHARE_DIR = $ShareDir
         if (-not $env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR = $FallbackDir }
+        return
+    }
+
+    if ($NonInteractiveMode) {
+        if (-not [string]::IsNullOrWhiteSpace($ClusterCredentials)) {
+            Write-Failure "$ShareDir is not mounted. Cluster installs require the shared path; aborting (non-interactive)."
+            exit 1
+        }
+        Write-Warn ("AGI_SHARE_DIR {0} unavailable; non-interactive mode: using fallback {1}." -f $ShareDir, $FallbackDir)
+        Ensure-Directory $FallbackDir
+        $env:AGI_LOCAL_DIR = $FallbackDir
+        $env:AGI_SHARE_DIR = $FallbackDir
         return
     }
 
@@ -226,8 +261,28 @@ function Install-Dependencies {
     Write-Warn "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
 }
 
-# Early share check: prompt for fallback when missing
-Ensure-ShareDir -ShareDir $DefaultShareDir -FallbackDir $DefaultLocalShare
+$ResolvedShareDir = Normalize-UserPath $DefaultShareDir
+$ResolvedLocalShare = Normalize-UserPath $DefaultLocalShare
+if (-not $ResolvedLocalShare) {
+    $ResolvedLocalShare = Join-Path $env:USERPROFILE "localshare"
+}
+
+if (-not $NonInteractiveMode) {
+    $shareDisplay = if ($ResolvedShareDir) { $ResolvedShareDir } else { "<unset>" }
+    $shareInput = Read-Host "AGI_SHARE_DIR is '$shareDisplay'. Press Enter to accept or type a new path"
+    if (-not [string]::IsNullOrWhiteSpace($shareInput)) {
+        $ResolvedShareDir = Normalize-UserPath $shareInput
+    }
+    $localDisplay = if ($ResolvedLocalShare) { $ResolvedLocalShare } else { "<unset>" }
+    $localInput = Read-Host "AGI_LOCAL_DIR fallback is '$localDisplay'. Press Enter to accept or type a new path"
+    if (-not [string]::IsNullOrWhiteSpace($localInput)) {
+        $ResolvedLocalShare = Normalize-UserPath $localInput
+    }
+} elseif (-not $ResolvedShareDir) {
+    $ResolvedShareDir = $ResolvedLocalShare
+}
+
+Ensure-ShareDir -ShareDir $ResolvedShareDir -FallbackDir $ResolvedLocalShare -NonInteractiveMode:$NonInteractiveMode -ClusterCredentials $ClusterSshCredentials
 
 function Ensure-Locale {
     Write-Info "Setting locale..."
@@ -534,8 +589,47 @@ function Invoke-AppPytest {
     return $status
 }
 
+function Get-BuiltinAppNames {
+    $builtinRoot = Join-Path $InstallPathFull "src\agilab\apps\builtin"
+    if (-not (Test-Path -LiteralPath $builtinRoot)) { return @() }
+    return Get-ChildItem -LiteralPath $builtinRoot -Directory -Filter '*_project' -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.Name }
+}
+
+function Get-RepositoryAppNames {
+    $appsRoot = Join-Path $InstallPathFull "src\agilab\apps"
+    if (-not (Test-Path -LiteralPath $appsRoot)) { return @() }
+    return Get-ChildItem -LiteralPath $appsRoot -Directory -Filter '*_project' -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notlike "*\apps\builtin\*" } |
+        ForEach-Object { $_.Name }
+}
+
+function Get-AllAppNames {
+    $all = @()
+    $all += Get-RepositoryAppNames
+    $all += Get-BuiltinAppNames
+    return $all | Sort-Object -Unique
+}
+
+function Resolve-AppSelection {
+    param([string]$Selector)
+    if ([string]::IsNullOrWhiteSpace($Selector)) { return @() }
+    $value = $Selector.Trim()
+    $lower = $value.ToLowerInvariant()
+    if ($lower -in @("all", "__agilab_all_apps__")) {
+        return Get-AllAppNames
+    }
+    if ($lower -in @("builtin", "built-in", "__agilab_builtin_apps__")) {
+        return Get-BuiltinAppNames
+    }
+    return ($value -split '[,\s;]+' | Where-Object { $_ -ne '' })
+}
+
 function Install-Apps {
-    param([switch]$RunPytest)
+    param(
+        [switch]$RunPytest,
+        [string[]]$AppFilter
+    )
     $dir = Join-Path $InstallPathFull "src\agilab"
     if (-not (Test-Path -LiteralPath $dir)) {
         Write-Warn "Apps directory not found at $dir; skipping app install."
@@ -547,6 +641,9 @@ function Install-Apps {
     $env:PAGES_DEST_BASE = Join-Path $agilabPublic "apps-pages"
     Push-Location $dir
     try {
+        if ($AppFilter -and $AppFilter.Count -gt 0) {
+            $env:BUILTIN_APPS_OVERRIDE = ($AppFilter -join ',')
+        }
         & ".\install_apps.ps1"
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "install_apps.ps1 exited with code $LASTEXITCODE"
@@ -559,6 +656,7 @@ function Install-Apps {
         Pop-Location
         Remove-Item Env:APPS_DEST_BASE -ErrorAction SilentlyContinue
         Remove-Item Env:PAGES_DEST_BASE -ErrorAction SilentlyContinue
+        Remove-Item Env:BUILTIN_APPS_OVERRIDE -ErrorAction SilentlyContinue
     }
     if ($RunPytest) {
         $appsRoot = Join-Path $agilabPublic "apps"
@@ -837,7 +935,14 @@ try {
     Install-Core
 
     if ($InstallApps) {
-        $appsInstalled = Install-Apps -RunPytest:$TestApps
+        $customAppSelection = @()
+        if ($InstallAppsList) {
+            $customAppSelection = Resolve-AppSelection -Selector $InstallAppsList
+            if ($customAppSelection.Count -eq 0) {
+                Write-Warn ("InstallAppsList '{0}' did not match any apps; falling back to interactive selection." -f $InstallAppsList)
+            }
+        }
+        $appsInstalled = Install-Apps -RunPytest:$TestApps -AppFilter $customAppSelection
         if (-not $appsInstalled) {
             Write-Warn "install_apps.ps1 failed; continuing with PyCharm setup."
             Install-PyCharmScript
