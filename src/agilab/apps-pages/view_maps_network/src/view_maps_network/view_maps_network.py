@@ -599,7 +599,7 @@ def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
         )
     return pd.DataFrame(records)
 
-def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame):
+def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, color=None):
     if alloc_df.empty or positions.empty:
         return []
     edges = []
@@ -631,13 +631,14 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame):
     else:
         width_norm = 2
     edge_df["width"] = width_norm
+    line_color = color if color is not None else [255, 140, 0]
     return [
         pdk.Layer(
             "LineLayer",
             data=edge_df,
             get_source_position="source",
             get_target_position="target",
-            get_color=[255, 140, 0],
+            get_color=line_color,
             get_width="width",
             opacity=0.8,
             pickable=True,
@@ -1503,7 +1504,11 @@ def page():
     # Live allocations overlay (routing/ILP trainers)
     st.markdown("### 📡 Live allocations (routing/ILP)")
     alloc_root = env.share_root_path()
-    alloc_path_default = alloc_root / "example_app/dataframe/trainer_routing/allocations_steps.parquet"
+    alloc_candidates = [
+        alloc_root / "example_app/pipeline/trainer_routing/allocations_steps.parquet",
+        alloc_root / "example_app/dataframe/trainer_routing/allocations_steps.parquet",
+    ]
+    alloc_path_default = next((p for p in alloc_candidates if p.exists()), alloc_candidates[0])
     alloc_path = st.text_input(
         "Allocations file (JSON or Parquet)",
         value=str(alloc_path_default),
@@ -1518,6 +1523,24 @@ def page():
             st.session_state["alloc_path_input"] = str(fallback_alloc)
         else:
             st.info("No allocations found at the specified path.")
+    baseline_candidates = [
+        alloc_root / "example_app/pipeline/trainer_ilp_stepper/allocations_steps.parquet",
+        alloc_root / "example_app/dataframe/trainer_ilp_stepper/allocations_steps.parquet",
+        alloc_root / "example_app/pipeline/trainer_ilp_stepper/allocations_steps.json",
+    ]
+    baseline_default = next((p for p in baseline_candidates if p.exists()), baseline_candidates[0])
+    baseline_path_input = st.text_input(
+        "Baseline (ILP) allocations file (optional)",
+        value=str(baseline_default),
+        key="baseline_alloc_path_input",
+    ).strip()
+    baseline_path_obj = Path(baseline_path_input).expanduser()
+    if baseline_path_obj and not baseline_path_obj.exists():
+        fallback_base = _find_latest_allocations(alloc_root / "example_app")
+        if fallback_base and "ilp" in fallback_base.name.lower():
+            st.info(f"Baseline file not found, using detected baseline: {fallback_base}")
+            baseline_path_obj = fallback_base
+            st.session_state["baseline_alloc_path_input"] = str(fallback_base)
     traj_glob_default = env.share_root_path() / "example_app/dataframe/flight_simulation/*.parquet"
     traj_glob = st.text_input(
         "Trajectory glob",
@@ -1525,14 +1548,32 @@ def page():
         key="traj_glob_input",
     )
     alloc_df = load_allocations(alloc_path_obj)
+    baseline_df = load_allocations(baseline_path_obj) if baseline_path_obj.exists() else pd.DataFrame()
     if alloc_df.empty:
         st.info("No allocations found at the specified path.")
     else:
         times = sorted(alloc_df["time_index"].unique())
         t_sel = st.slider("Time index", min_value=int(min(times)), max_value=int(max(times)), value=int(min(times)))
         alloc_step = alloc_df[alloc_df["time_index"] == t_sel]
+        baseline_step = baseline_df[baseline_df["time_index"] == t_sel] if not baseline_df.empty else pd.DataFrame()
         positions_live = load_positions_at_time(traj_glob, t_sel)
         st.dataframe(alloc_step)
+        if not baseline_step.empty:
+            st.caption("Baseline (ILP) allocations at the same timestep")
+            st.dataframe(baseline_step)
+            try:
+                merged = alloc_step.merge(
+                    baseline_step,
+                    on=["source", "destination", "time_index"],
+                    how="outer",
+                    suffixes=("_rl", "_ilp"),
+                )
+                if not merged.empty:
+                    merged["delivered_delta"] = merged.get("delivered_bandwidth_rl", np.nan) - merged.get("delivered_bandwidth_ilp", np.nan)
+                    st.caption("RL vs ILP (delta delivered_bandwidth)")
+                    st.dataframe(merged[["source", "destination", "time_index", "delivered_bandwidth_rl", "delivered_bandwidth_ilp", "delivered_delta"]])
+            except Exception:
+                st.info("Unable to compute RL vs ILP diff; showing raw tables instead.")
         layers_live = []
         if not positions_live.empty:
             nodes_layer_live = pdk.Layer(
@@ -1547,6 +1588,8 @@ def page():
             )
             layers_live.append(nodes_layer_live)
         layers_live.extend(build_allocation_layers(alloc_step, positions_live))
+        if not baseline_step.empty:
+            layers_live.extend(build_allocation_layers(baseline_step, positions_live, color=[0, 180, 255]))
         if layers_live:
             view_state_live = pdk.ViewState(
                 longitude=positions_live["long"].mean() if not positions_live.empty else 0,
