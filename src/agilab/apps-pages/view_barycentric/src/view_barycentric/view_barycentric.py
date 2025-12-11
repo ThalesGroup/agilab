@@ -54,7 +54,8 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 from agi_env.pagelib import sidebar_views, find_files, load_df, on_project_change, select_project, JumpToMain, update_datadir, \
-    initialize_csv_files, update_var
+    initialize_csv_files, update_var, _dump_toml_payload
+import tomllib as _toml
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -386,6 +387,22 @@ def page(env):
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
 
+    # Load persisted settings
+    settings_path = Path(env.app_settings_file)
+    persisted = {}
+    try:
+        with open(settings_path, "rb") as fh:
+            persisted = _toml.load(fh)
+    except Exception:
+        persisted = {}
+    view_settings = persisted.get("view_barycentric", {}) if isinstance(persisted, dict) else {}
+
+    # Seed session from persisted values
+    if "datadir" not in st.session_state and "datadir" in view_settings:
+        st.session_state["datadir"] = view_settings["datadir"]
+    if "df_file" not in st.session_state and "df_file" in view_settings:
+        st.session_state["df_file"] = view_settings["df_file"]
+
     datadir = Path(st.session_state.datadir)
     # Data directory input
     st.sidebar.text_input(
@@ -402,7 +419,17 @@ def page(env):
         return  # Stop further processing
 
     # Find CSV files in the data directory
-    st.session_state["csv_files"] = find_files(st.session_state["datadir"])
+    files = find_files(st.session_state["datadir"])
+    visible = []
+    for f in files:
+        try:
+            parts = f.relative_to(datadir).parts
+        except Exception:
+            parts = f.parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        visible.append(f)
+    st.session_state["csv_files"] = visible
     if not st.session_state["csv_files"]:
         st.warning("A dataset is required to proceed. Please added via memu execute/export.")
         st.stop()  # Stop further processing
@@ -414,18 +441,18 @@ def page(env):
             for file in st.session_state["csv_files"]
         ]
     )
+    settings_file = st.session_state.get("df_file")
+    if settings_file and settings_file in csv_files_rel:
+        default_idx = csv_files_rel.index(settings_file)
+    else:
+        default_idx = 0
 
     # DataFrame selection
     st.sidebar.selectbox(
         label="DataFrame",
         options=csv_files_rel,
         key="df_file",
-        index=(
-            csv_files_rel.index(st.session_state.df_file)
-            if "df_file" in st.session_state
-               and st.session_state.df_file in csv_files_rel
-            else 0
-        ),
+        index=default_idx,
         # on_change=update_var,
         args=("df_file"),
     )
@@ -437,8 +464,13 @@ def page(env):
 
     # Load the selected DataFrame
     df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+    cache_buster = None
     try:
-        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True)
+        cache_buster = df_file_abs.stat().st_mtime_ns
+    except Exception:
+        pass
+    try:
+        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
     except Exception as e:
         st.error(f"Error loading data: {e}")
         st.warning("The selected data file could not be loaded. Please select a valid file.")
@@ -453,10 +485,36 @@ def page(env):
         st.warning("The dataset is empty or could not be loaded. Please select a valid data file.")
         return  # Stop further processing
 
+    # Persist selections
+    save_fields = {
+        "datadir": str(st.session_state.get("datadir", "")),
+        "df_file": st.session_state.get("df_file", ""),
+    }
+    mutated = False
+    if not isinstance(view_settings, dict):
+        view_settings = {}
+    for k, v in save_fields.items():
+        if view_settings.get(k) != v and v not in (None, ""):
+            view_settings[k] = v
+            mutated = True
+    if mutated:
+        persisted["view_barycentric"] = view_settings
+        try:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(settings_path, "wb") as fh:
+                _dump_toml_payload(persisted, fh)
+        except Exception:
+            pass
+
 
     if "df_file" in st.session_state and st.session_state["df_file"]:
         df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
-        st.session_state["loaded_df"] = load_df(df_file_abs)
+        cache_buster = None
+        try:
+            cache_buster = df_file_abs.stat().st_mtime_ns
+        except Exception:
+            pass
+        st.session_state["loaded_df"] = load_df(df_file_abs, cache_buster=cache_buster)
 
     if "loaded_df" in st.session_state:
         if (

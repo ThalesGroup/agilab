@@ -57,7 +57,8 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_env.pagelib import find_files, load_df, render_logo, cached_load_df
+from agi_env.pagelib import find_files, load_df, render_logo, cached_load_df, _dump_toml_payload
+import tomllib as _toml
 
 
 # List of available color palettes
@@ -120,7 +121,18 @@ def initialize_csv_files():
     """
     """ """
     if "csv_files" not in st.session_state or not st.session_state["csv_files"]:
-        st.session_state["csv_files"] = find_files(st.session_state.datadir)
+        files = find_files(st.session_state.datadir)
+        # Hide any path with dot-prefixed components
+        visible = []
+        for f in files:
+            try:
+                parts = f.relative_to(st.session_state.datadir).parts
+            except Exception:
+                parts = f.parts
+            if any(part.startswith(".") for part in parts):
+                continue
+            visible.append(f)
+        st.session_state["csv_files"] = visible
     if "df_file" not in st.session_state or not st.session_state["df_file"]:
         csv_files_rel = [
             Path(file).relative_to(st.session_state.datadir).as_posix()
@@ -135,7 +147,17 @@ def initialize_beam_files():
             "beam_csv_files" not in st.session_state
             or not st.session_state["beam_csv_files"]
     ):
-        st.session_state["beam_csv_files"] = find_files(st.session_state.beamdir)
+        files = find_files(st.session_state.beamdir)
+        visible = []
+        for f in files:
+            try:
+                parts = f.relative_to(st.session_state.beamdir).parts
+            except Exception:
+                parts = f.parts
+            if any(part.startswith(".") for part in parts):
+                continue
+            visible.append(f)
+        st.session_state["beam_csv_files"] = visible
     if "beam_file" not in st.session_state:
         beam_csv_files_rel = [
             Path(file).relative_to(st.session_state.beamdir).as_posix()
@@ -402,24 +424,32 @@ def page():
     var = ["discrete", "continious", "lat", "long", "alt"]
     var_default = [0, None]
 
+    # Load persisted settings
+    settings_path = Path(env.app_settings_file)
+    persisted = {}
+    try:
+        with open(settings_path, "rb") as fh:
+            persisted = _toml.load(fh)
+    except Exception:
+        persisted = {}
+    view_settings = persisted.get("view_maps_3d", {}) if isinstance(persisted, dict) else {}
+
     # Lazy imports and efficient session state initialization
     if "datadir" not in st.session_state:
-        datadir = env.AGILAB_EXPORT_ABS / env.target
+        datadir = Path(view_settings.get("datadir") or (env.AGILAB_EXPORT_ABS / env.target))
         if not datadir.exists():
             logger.info(f"mkdir {datadir}")
-            os.mkdir(datadir, exist_ok=True)
+            os.makedirs(datadir, exist_ok=True)
         st.session_state["datadir"] = datadir
     if "project" not in st.session_state:
         st.session_state["project"] = env.target
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
-    if "datadir" not in st.session_state:
-        st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
     if "beamdir" not in st.session_state:
         base_share = env.share_root_path()
-        st.session_state["beamdir"] = base_share / env.target.replace("_project", "")
+        st.session_state["beamdir"] = Path(view_settings.get("beamdir") or (base_share / env.target.replace("_project", "")))
     if "coltype" not in st.session_state:
-        st.session_state["coltype"] = var[0]
+        st.session_state["coltype"] = view_settings.get("coltype", var[0])
 
     st.sidebar.text_input(
         "Data Directory",
@@ -454,16 +484,22 @@ def page():
                     for file in st.session_state.csv_files
                 ]
             )
-            st.sidebar.selectbox(
-                "DataFrame",
-                csv_files_rel,
-                key="df_file",
-                index=(
+            settings_file = view_settings.get("df_file")
+            default_idx = (
+                csv_files_rel.index(settings_file)
+                if settings_file and settings_file in csv_files_rel
+                else (
                     csv_files_rel.index(st.session_state.df_file)
                     if "df_file" in st.session_state
                        and st.session_state.df_file in csv_files_rel
                     else 0
-                ),
+                )
+            )
+            st.sidebar.selectbox(
+                "DataFrame",
+                csv_files_rel,
+                key="df_file",
+                index=default_idx,
             )
         else:
             st.sidebar.error("Directory not found")
@@ -484,7 +520,17 @@ def page():
     if st.session_state.beamdir:
         beamdir = Path(st.session_state.beamdir)
         if beamdir.exists() and beamdir.is_dir():
-            st.session_state["beam_csv_files"] = find_files(st.session_state["beamdir"], recursive=False)
+            files = find_files(st.session_state["beamdir"], recursive=False)
+            visible = []
+            for f in files:
+                try:
+                    parts = f.relative_to(beamdir).parts
+                except Exception:
+                    parts = f.parts
+                if any(part.startswith(".") for part in parts):
+                    continue
+                visible.append(f)
+            st.session_state["beam_csv_files"] = visible
             beam_csv_files_rel = sorted(
                 [
                     Path(file).relative_to(beamdir).as_posix()
@@ -506,13 +552,43 @@ def page():
         st.session_state["dfs_beams"] = {}
         for beam_file in st.session_state["beam_files"]:
             beam_file_abs = Path(st.session_state.beamdir) / beam_file
+            cache_buster = None
+            try:
+                cache_buster = beam_file_abs.stat().st_mtime_ns
+            except Exception:
+                pass
             st.session_state["dfs_beams"][beam_file] = load_df(
-                beam_file_abs, with_index=False
+                beam_file_abs, with_index=False, cache_buster=cache_buster
             )
     if "Load Data" not in st.session_state:
         st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target,with_index=True)
     if "loaded_df" in st.session_state and st.session_state["df_file"]:
         st.session_state["loaded_df"]
+
+    # Persist current selections for reloads
+    save_settings = {
+        "datadir": str(st.session_state.get("datadir", "")),
+        "beamdir": str(st.session_state.get("beamdir", "")),
+        "df_file": st.session_state.get("df_file", ""),
+        "beam_files": st.session_state.get("beam_files", []),
+        "coltype": st.session_state.get("coltype", ""),
+    }
+    mutated = False
+    view_settings = persisted.get("view_maps_3d", {}) if isinstance(persisted, dict) else {}
+    if not isinstance(view_settings, dict):
+        view_settings = {}
+    for k, v in save_settings.items():
+        if view_settings.get(k) != v and v not in (None, ""):
+            view_settings[k] = v
+            mutated = True
+    if mutated:
+        persisted["view_maps_3d"] = view_settings
+        try:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(settings_path, "wb") as fh:
+                _dump_toml_payload(persisted, fh)
+        except Exception:
+            pass
         loaded_df = st.session_state.get("loaded_df")
 
         #df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
