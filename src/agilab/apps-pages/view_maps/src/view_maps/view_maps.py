@@ -240,6 +240,9 @@ def page(env):
         st.session_state["projects"] = env.projects
 
     full_settings, view_settings = _load_view_maps_settings(env)
+    for k in ("df_files_selected", "discrete", "continuous", "lat", "long", "coltype"):
+        if k in view_settings and k not in st.session_state:
+            st.session_state[k] = view_settings[k]
 
     map_defaults_key = f"_view_maps_map_defaults_{env.app}"
 
@@ -299,6 +302,17 @@ def page(env):
             st.warning(str(exc))
             dataset_files = []
             break
+    # Filter out hidden paths (any component starting with ".")
+    visible_files: list[Path] = []
+    for f in dataset_files:
+        try:
+            parts = f.relative_to(datadir).parts
+        except Exception:
+            parts = f.parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        visible_files.append(f)
+    dataset_files = visible_files
 
     st.session_state[dataset_key] = dataset_files
     if not st.session_state[dataset_key]:
@@ -322,7 +336,11 @@ def page(env):
         for candidate in dataset_files_rel
         if Path(candidate).name.lower() in {"export.csv", "export.parquet", "export.json"}
     ]
-    default_selection = [priority_files[0]] if priority_files else (dataset_files_rel[:1] if dataset_files_rel else [])
+    settings_files = view_settings.get("df_files_selected") or []
+    if settings_files and all(item in dataset_files_rel for item in settings_files):
+        default_selection = settings_files
+    else:
+        default_selection = [priority_files[0]] if priority_files else (dataset_files_rel[:1] if dataset_files_rel else [])
 
     if (
         "df_files_selected" not in st.session_state
@@ -680,6 +698,18 @@ def page(env):
     else:
         st.warning("Latitude and Longitude columns are required for the map.")
 
+    # Persist user selections for next reload
+    persist_keys = ["df_files_selected", "discrete", "continuous", "lat", "long", "coltype"]
+    mutated = False
+    for key in persist_keys:
+        val = st.session_state.get(key)
+        if val is None:
+            continue
+        if view_settings.get(key) != val:
+            view_settings[key] = val
+            mutated = True
+    if mutated:
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
 # -------------------- Main Application Entry -------------------- #
 def main():
