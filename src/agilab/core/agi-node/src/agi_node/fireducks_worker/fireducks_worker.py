@@ -29,12 +29,13 @@ except ImportError:  # pragma: no cover - optional dependency
     fireducks = None  # type: ignore
     _HAS_FIREDUCKS = False
 
+from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
 
 logger = logging.getLogger(__name__)
 
 
-class FireducksWorker(PandasWorker):
+class FireducksWorker(BaseWorker):
     """Worker harness for FireDucks-backed dataframe workloads."""
 
     def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - thin wrapper
@@ -82,6 +83,16 @@ class FireducksWorker(PandasWorker):
         return df if df is not None else pd.DataFrame()
 
     def work_done(self, df: Any = None) -> None:
-        """Normalise the dataframe before delegating to :class:`PandasWorker`."""
-        df_pd = self._ensure_pandas(df)
-        super().work_done(df_pd if df_pd is not None else pd.DataFrame())
+        """Normalise the dataframe before delegating to pandas-style handling."""
+        df_pd = self._ensure_pandas(df) or pd.DataFrame()
+        PandasWorker.work_done(self, df_pd)
+
+    # Reuse PandasWorker orchestration so FireducksWorker mirrors BaseWorker direct subclasses.
+    def works(self, workers_plan: Any, workers_plan_metadata: Any) -> float:  # type: ignore[override]
+        return PandasWorker.works(self, workers_plan, workers_plan_metadata)
+
+    def _exec_multi_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
+        PandasWorker._exec_multi_process(self, workers_plan, workers_plan_metadata)
+
+    def _exec_mono_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
+        PandasWorker._exec_mono_process(self, workers_plan, workers_plan_metadata)
