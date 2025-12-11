@@ -39,7 +39,8 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_env.pagelib import render_logo, find_files, load_df, sidebar_views, on_df_change
+from agi_env.pagelib import render_logo, find_files, load_df, sidebar_views, on_df_change, initialize_csv_files, _dump_toml_payload
+import tomllib as _toml
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -425,6 +426,7 @@ def update_datadir(var_key, widget_key):
     if "csv_files" in st.session_state:
         del st.session_state["csv_files"]
     update_var(var_key, widget_key)
+    initialize_csv_files()
 
 
 def page(env):
@@ -444,12 +446,32 @@ def page(env):
     if not "projects" in st.session_state:
         st.session_state["projects"] = env.projects
 
+    # Load persisted settings
+    settings_path = Path(env.app_settings_file)
+    persisted = {}
+    try:
+        with open(settings_path, "rb") as fh:
+            persisted = _toml.load(fh)
+    except Exception:
+        persisted = {}
+    view_settings = persisted.get("view_autoencoder_latentspace", {}) if isinstance(persisted, dict) else {}
+
     sidebar_views()
+
+    # Seed session with persisted selections if available
+    for key in ("datadir", "df_file", "coltype"):
+        if key in view_settings and key not in st.session_state:
+            st.session_state[key] = view_settings[key]
 
     # Load the selected DataFrame
     df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+    cache_buster = None
     try:
-        st.session_state["data"] = load_df(df_file_abs)
+        cache_buster = df_file_abs.stat().st_mtime_ns
+    except Exception:
+        pass
+    try:
+        st.session_state["data"] = load_df(df_file_abs, cache_buster=cache_buster)
     except FileNotFoundError:
         st.warning("The selected data file was not found. Please select a valid file.")
         return  # Stop further processing
@@ -518,6 +540,28 @@ def page(env):
     else:
         st.warning("The dataset is invalid or empty. Please select a valid data file.")
         return  # Stop further processing
+
+    # Persist current selections for reloads
+    persist_keys = {
+        "datadir": str(st.session_state.get("datadir", "")),
+        "df_file": st.session_state.get("df_file", ""),
+        "coltype": st.session_state.get("coltype", ""),
+    }
+    mutated = False
+    if not isinstance(view_settings, dict):
+        view_settings = {}
+    for k, v in persist_keys.items():
+        if view_settings.get(k) != v and v not in (None, ""):
+            view_settings[k] = v
+            mutated = True
+    if mutated:
+        persisted["view_autoencoder_latentspace"] = view_settings
+        try:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(settings_path, "wb") as fh:
+                _dump_toml_payload(persisted, fh)
+        except Exception:
+            pass
 
 
 # -------------------- Main Application Entry -------------------- #
