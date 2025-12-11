@@ -1,1 +1,7 @@
+[![PyPI version](https://img.shields.io/badge/PyPI-2025.11.24-informational?logo=pypi)](https://pypi.org/project/agilab)
+[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
+[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
+[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) [![Coverage](https://codecov.io/gh/ThalesGroup/agilab/branch/main/graph/badge.svg?token=Cynz0It5VV)](https://codecov.io/gh/ThalesGroup/agilab) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
+
 This directory contains materials to present the way of working assisted by an AI coding agent like CODEX cli
