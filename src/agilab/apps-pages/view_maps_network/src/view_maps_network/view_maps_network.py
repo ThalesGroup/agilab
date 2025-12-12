@@ -1444,17 +1444,15 @@ def page():
             selected_val = st.select_slider(
                 "Time",
                 options=unique_timestamps,
-                value=st.session_state.selected_time,
                 format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if hasattr(x, "strftime") else str(x),
-                key="time_slider_control",
+                key="selected_time",
             )
-            st.session_state.selected_time = selected_val
-            st.caption(f"Selected: {st.session_state.selected_time}")
+            if selected_val in unique_timestamps:
+                st.session_state.selected_time_idx = unique_timestamps.index(selected_val)
+            st.caption(f"Selected: {selected_val}")
             idx_now = st.session_state.get("selected_time_idx", len(unique_timestamps) - 1)
             prog = idx_now / (len(unique_timestamps) - 1) if len(unique_timestamps) > 1 else 1.0
             st.progress(prog)
-            if st.session_state.selected_time in unique_timestamps:
-                st.session_state.selected_time_idx = unique_timestamps.index(st.session_state.selected_time)
         with colc:
             if st.button("▷", key="increment_button"):
                 increment_time(unique_timestamps)
