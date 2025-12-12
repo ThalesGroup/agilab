@@ -893,9 +893,10 @@ def page():
         base_path.mkdir(parents=True, exist_ok=True)
     else:
         custom_default = qp_input or st.session_state.get("input_datadir") or input_seed or str(export_base)
+        if not st.session_state.get("input_datadir"):
+            st.session_state["input_datadir"] = custom_default
         custom_val = st.sidebar.text_input(
             "Custom data directory",
-            value=custom_default,
             key="input_datadir",
         )
         try:
@@ -916,19 +917,20 @@ def page():
     subdir_options = [""] + _list_subdirectories(base_path)
     if rel_default and rel_default not in subdir_options:
         subdir_options.append(rel_default)
-    rel_index = subdir_options.index(rel_default) if rel_default in subdir_options else 0
+    if st.session_state.get("datadir_rel_select") not in subdir_options:
+        st.session_state["datadir_rel_select"] = rel_default if rel_default in subdir_options else ""
     rel_subdir = st.sidebar.selectbox(
         "Relative subdir",
         options=subdir_options,
-        index=rel_index,
         key="datadir_rel_select",
         format_func=lambda v: v if v else "(root)",
     )
     if base_choice == "Custom":
         custom_rel_default = rel_subdir if rel_subdir else rel_default
+        if "datadir_rel_custom" not in st.session_state:
+            st.session_state["datadir_rel_custom"] = custom_rel_default
         rel_override = st.sidebar.text_input(
             "Custom relative subdir",
-            value=custom_rel_default,
             key="datadir_rel_custom",
         ).strip()
         if rel_override:
@@ -1055,9 +1057,10 @@ def page():
 
     selected_files_rel: list[str] = []
     if df_mode == "Regex (multi)":
+        if "df_file_regex" not in st.session_state:
+            st.session_state["df_file_regex"] = ""
         regex_raw = st.sidebar.text_input(
             "DataFrame filename regex",
-            value=st.session_state.get("df_file_regex", ""),
             key="df_file_regex",
             help="Python regex applied to the relative file path. Leave empty to match all files.",
         ).strip()
@@ -1308,22 +1311,27 @@ def page():
     )
     example_edges_path = str(env.share_root_path() / "example_app/pipeline/routing_edges.jsonl")
     edges_placeholder = f"e.g. {example_edges_path}"
+    if default_edges_candidates:
+        detected_opt = ["(none)"] + [str(p) for p in default_edges_candidates]
+        if st.session_state.get("edges_detected_select") not in detected_opt:
+            st.session_state["edges_detected_select"] = detected_opt[0]
+        detected_choice = st.sidebar.selectbox(
+            "Detected edges files",
+            detected_opt,
+            key="edges_detected_select",
+        )
+        if detected_choice != "(none)" and st.session_state.get("edges_file_input") != detected_choice:
+            st.session_state["edges_file_input"] = detected_choice
+    if "edges_file_input" not in st.session_state:
+        st.session_state["edges_file_input"] = ""
     edges_file = st.sidebar.text_input(
         "Edges file (optional, JSON/Parquet with source/target/bearer)",
-        value=st.session_state.get("edges_file_input", ""),
         placeholder=edges_placeholder,
         key="edges_file_input",
     )
-    if default_edges_candidates:
-        detected_opt = ["(none)"] + [str(p) for p in default_edges_candidates]
-        detected_choice = st.sidebar.selectbox("Detected edges files", detected_opt, index=0, key="edges_detected_select")
-        if detected_choice != "(none)":
-            st.session_state["edges_file_input"] = detected_choice
-            edges_file = detected_choice
     edges_clean = edges_file.strip()
     if edges_clean == example_edges_path and not Path(edges_clean).expanduser().exists():
         edges_clean = ""
-        st.session_state["edges_file_input"] = ""
     edges_path = Path(edges_clean).expanduser() if edges_clean else None
     loaded_edges = {}
     if edges_path and edges_path.exists():
@@ -1351,21 +1359,34 @@ def page():
     if not link_default:
         present_defaults = [c for c in _DEFAULT_LINK_ORDER if c in link_options]
         link_default = present_defaults if present_defaults else link_options[:4]
+    current_links = st.session_state.get("link_multiselect")
+    if isinstance(current_links, list):
+        current_links = [c for c in current_links if c in link_options]
+    else:
+        current_links = []
+    if not current_links:
+        current_links = link_default
+    st.session_state["link_multiselect"] = current_links
     selected_links = st.sidebar.multiselect(
         "Link columns",
         options=link_options,
-        default=link_default,
         key="link_multiselect",
     )
-    show_map = st.sidebar.checkbox("Show map view", value=st.session_state.get("show_map", True), key="show_map")
-    show_graph = st.sidebar.checkbox("Show topology graph", value=st.session_state.get("show_graph", True), key="show_graph")
-    jitter_overlap = st.sidebar.checkbox("Separate overlapping nodes", value=False, key="jitter_overlap")
-    show_metrics = st.sidebar.checkbox("Show metrics table", value=st.session_state.get("show_metrics", False), key="show_metrics")
+    st.session_state.setdefault("show_map", True)
+    st.session_state.setdefault("show_graph", True)
+    st.session_state.setdefault("jitter_overlap", False)
+    st.session_state.setdefault("show_metrics", False)
+    show_map = st.sidebar.checkbox("Show map view", key="show_map")
+    show_graph = st.sidebar.checkbox("Show topology graph", key="show_graph")
+    jitter_overlap = st.sidebar.checkbox("Separate overlapping nodes", key="jitter_overlap")
+    show_metrics = st.sidebar.checkbox("Show metrics table", key="show_metrics")
 
+    layout_options = ["bipartite", "circular", "planar", "random", "rescale", "shell", "spring", "spiral"]
+    if st.session_state.get("layout_type_select") not in layout_options:
+        st.session_state["layout_type_select"] = "spring"
     layout_type = st.selectbox(
         "Select Layout Type",
-        options=["bipartite", "circular", "planar", "random", "rescale", "shell", "spring", "spiral"],
-        index=6,
+        options=layout_options,
         key="layout_type_select",
     )
 
@@ -1617,9 +1638,10 @@ def page():
         alloc_root / "example_app/dataframe/trainer_routing/allocations_steps.parquet",
     ]
     alloc_path_default = next((p for p in alloc_candidates if p.exists()), alloc_candidates[0])
+    if not st.session_state.get("alloc_path_input"):
+        st.session_state["alloc_path_input"] = str(alloc_path_default)
     alloc_path = st.text_input(
         "Allocations file (JSON or Parquet)",
-        value=str(alloc_path_default),
         key="alloc_path_input",
     ).strip()
     alloc_path_obj = Path(alloc_path).expanduser()
@@ -1628,7 +1650,6 @@ def page():
         if fallback_alloc:
             st.info(f"Allocations file not found, using latest detected: {fallback_alloc}")
             alloc_path_obj = fallback_alloc
-            st.session_state["alloc_path_input"] = str(fallback_alloc)
         else:
             st.info("No allocations found at the specified path.")
     baseline_candidates = [
@@ -1637,9 +1658,10 @@ def page():
         alloc_root / "example_app/pipeline/trainer_ilp_stepper/allocations_steps.json",
     ]
     baseline_default = next((p for p in baseline_candidates if p.exists()), baseline_candidates[0])
+    if not st.session_state.get("baseline_alloc_path_input"):
+        st.session_state["baseline_alloc_path_input"] = str(baseline_default)
     baseline_path_input = st.text_input(
         "Baseline (ILP) allocations file (optional)",
-        value=str(baseline_default),
         key="baseline_alloc_path_input",
     ).strip()
     baseline_path_obj = Path(baseline_path_input).expanduser()
@@ -1648,11 +1670,11 @@ def page():
         if fallback_base and "ilp" in fallback_base.name.lower():
             st.info(f"Baseline file not found, using detected baseline: {fallback_base}")
             baseline_path_obj = fallback_base
-            st.session_state["baseline_alloc_path_input"] = str(fallback_base)
     traj_glob_default = env.share_root_path() / "example_app/dataframe/flight_simulation/*.parquet"
+    if not st.session_state.get("traj_glob_input"):
+        st.session_state["traj_glob_input"] = str(traj_glob_default)
     traj_glob = st.text_input(
         "Trajectory glob",
-        value=str(traj_glob_default),
         key="traj_glob_input",
     )
     alloc_df = load_allocations(alloc_path_obj)
