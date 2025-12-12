@@ -7,7 +7,7 @@ Usage Example
 -------------
 
 Instanciation
-^^^^^^^^^^^^
+^^^^^^^^^^^^^
 
 .. literalinclude:: snippets/AgiEnv.instanciation.py
    :language: python
@@ -19,9 +19,9 @@ Instanciation
    environment, or :func:`AgiEnv.current` to access the active one.
 
 Share directory resolution
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``AgiEnv`` exposes the resolved data root through :pyattr:`env.agi_share_path_abs`.
+``AgiEnv`` exposes the resolved data root through :py:attr:`env.agi_share_path_abs`.
 The path is derived from environment settings using the following precedence:
 
 1. ``AGI_CLUSTER_SHARE`` from the current process environment (e.g. ssh session, service unit).
@@ -34,7 +34,7 @@ without copying the manager settings. The behaviour differs slightly depending
 on where the environment runs:
 
 * **Manager / developer shells** – relative inputs are expanded against
-  :pyattr:`env.home_abs` and the directory is created eagerly. Any missing or
+  :py:attr:`env.home_abs` and the directory is created eagerly. Any missing or
   read-only share will raise an error so operators can fix the mount point.
 * **Remote workers** – the configured value remains relative (for example,
   ``clustershare/example_app``) and is not created automatically. Workers
@@ -50,9 +50,6 @@ datasets on remote machines.
 
 Reference
 ----------
-
-agi_env
-~~~~~~~~
 
 .. image:: diagrams/packages_agi_env.svg
    :width: 400

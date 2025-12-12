@@ -1,5 +1,5 @@
 ▶️ APPS PAGES
-=============
+==============
 
 .. toctree::
    :hidden:

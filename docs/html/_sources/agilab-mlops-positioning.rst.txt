@@ -33,17 +33,25 @@ What AGILab does *not* aim to cover
 Positioning vs. other tools
 ---------------------------
 
-==================  ==============================  ================================================
-Phase               AGILab focus                      Examples of complementary tools
-==================  ==============================  ================================================
-Ideation / TRL‑2    Not covered (use notebooks,      Whiteboards, notebooks, lightweight sandboxes
-                    small prototypes)
-Experimentation /   **Primary target** – templated    AGILab + data catalogues + experiment trackers
-TRL‑3               projects, cluster automation
-Validation / TRL‑4  Hand off to deployment-stack as   MLflow, Weights & Biases, Seldon, Kubeflow
-                    soon as requirements stabilise
-Deployment / TRL‑6+ Out of scope                      CI/CD, serving frameworks, APM, feature stores
-==================  ==============================  ================================================
+.. list-table:: Positioning vs. other tools
+   :widths: 20 40 40
+   :header-rows: 1
+
+   * - Phase
+     - AGILab focus
+     - Examples of complementary tools
+   * - Ideation / TRL‑2
+     - Not covered (use notebooks, small prototypes)
+     - Whiteboards, notebooks, lightweight sandboxes
+   * - Experimentation / TRL‑3
+     - **Primary target** – templated projects, cluster automation
+     - AGILab + data catalogues + experiment trackers
+   * - Validation / TRL‑4
+     - Hand off to deployment-stack as soon as requirements stabilise
+     - MLflow, Weights & Biases, Seldon, Kubeflow
+   * - Deployment / TRL‑6+
+     - Out of scope
+     - CI/CD, serving frameworks, APM, feature stores
 
 Suggested workflow
 ------------------

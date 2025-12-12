@@ -1,0 +1,42 @@
+▶️ AGILAB (Home dashboard)
+==============================
+
+AGILAB.py is the main Streamlit entry point. It provides a single navigation
+surface for the built-in pages (EDIT / EXECUTE / EXPERIMENT / EXPLORE) and for
+optional app-specific dashboards ("apps-pages") that can be enabled per project.
+
+Navigation model
+----------------
+
+- **Built-in pages** are always available and drive reproducible workflows:
+
+  - **EDIT**: inspect and modify the project sources and settings.
+  - **EXECUTE**: install workers, generate distributions, and run pipelines.
+  - **EXPERIMENT**: iterate on analysis/code in `lab_steps.toml` and run snippets
+    against exported datasets.
+  - **EXPLORE**: browse and launch installed Streamlit bundles (apps-pages).
+
+- **Apps-pages** are standalone Streamlit bundles discovered under
+  ``${AGILAB_PAGES_ABS}``. They run in isolated virtual environments and are
+  enabled by listing their module names under ``[pages].view_module`` in
+  ``app_settings.toml``.
+
+Learning lifecycle (when applicable)
+------------------------------------
+
+When a project includes learning components (e.g. `example_app_project`):
+
+- **Training** updates model parameters using new experience.
+- **Inference** runs a fixed checkpoint to produce allocations/decisions.
+- **Continuous learning** and **federated learning** require explicit pipeline
+  steps (checkpointing, dataset joins, aggregation); AGILAB provides the run
+  orchestration and artifact conventions, but does not enable these modes
+  implicitly.
+
+See also
+--------
+
+- :doc:`architecture` for the end-to-end pipeline view.
+- :doc:`execute-help` and :doc:`experiment-help` for the default workflow.
+- :doc:`example-app-project` for training vs inference, continuous learning, and
+  federated learning patterns.

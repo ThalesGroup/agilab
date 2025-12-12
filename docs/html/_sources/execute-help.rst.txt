@@ -1,5 +1,5 @@
 ▶️ EXECUTE
-=========
+============
 
 .. toctree::
    :hidden:
@@ -50,4 +50,3 @@ Main Content Area
   powers the Experiment and Explore pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
-

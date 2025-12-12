@@ -18,7 +18,7 @@ These scripts are provided to debug your app with the PyCharm IDE, which best ma
    :code: text
 
 C - Exemple of Tests Sequence:
-----------------------
+----------------------------------------
 
 - ** zip-all gen**
 
@@ -71,7 +71,7 @@ C - Exemple of Tests Sequence:
   Remark: use script "app install" to test your app install as it has to be run under fwk/core/.venv virtual environnement.
 
 D - agilab_run_dev vs agilab_run_enduser vs lab_run:
---------------------------
+----------------------------------------------------
 
 - **1. agilab_run_dev and agilab_run_enduser**
 
@@ -192,7 +192,7 @@ Known Bugs
 ==========
 
 <install.sh> do not install your Run/Debug Configurations :
---------------------
+-----------------------------------------------------------
 If your worker failed to install its <home>/wenv/<app>_worker/.venv pycharm/setup_pycharm will not generate your script
 in that case you can run the pycharm configuration ``app install (local)`` that will prompt for your app path to debug
 your app installation and when it is fix run ``uv run python pycharm/setup_pycharm.py``
@@ -200,12 +200,15 @@ your app installation and when it is fix run ``uv run python pycharm/setup_pycha
 <install.sh> freeze:
 --------------------
 When you run install.sh it may looks like it is freezed at some point.
-"Installing agi-cluster...
-uv --preview-features extra-build-dependencies sync -p 3.xx.xx --dev
-Using CPython 3.xx.xx
-Creating virtual environment at: .venv
-Resolved xxx packages in xxms
-   Building agi-cluster @ file:///Users/example/agilab/src/agilab/core/agi-cluster"
+
+.. code-block:: none
+
+   Installing agi-cluster...
+   uv --preview-features extra-build-dependencies sync -p 3.xx.xx --dev
+   Using CPython 3.xx.xx
+   Creating virtual environment at: .venv
+   Resolved xxx packages in xxms
+   Building agi-cluster @ file:///Users/example/agilab/src/agilab/core/agi-cluster
 
 The sync keeps “freezing” because uv still has to build some heavy dependencies (most notably numba/llvmlite) from
   source. Those wheels are only pre-built for a few Python versions; with 3.13 they do not exist yet, and even on
@@ -253,7 +256,7 @@ To do this, go to Naviguate/Search Everywhere (`<Shift>+<Ctrl|command>+A`) to op
 .. image:: diagrams/pycharm_registry.png
    :width: 400
    :alt: PyCharm Registry
-   :align: center into Actions
+   :align: center
 
 .. raw:: html
 

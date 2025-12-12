@@ -37,7 +37,7 @@
 | debugpy | MIT LICENSE |
 | decorator | BSD LICENSE |
 | defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
-| distributed | BSD LICENSE |
+| distributed | BSD-3-CLAUSE |
 | executing | MIT LICENSE |
 | fastjsonschema | BSD LICENSE |
 | fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |

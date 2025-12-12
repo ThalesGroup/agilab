@@ -5,11 +5,11 @@ AGILab
    :alt: AGILab Overview
    :align: center
 
-.. toctree::
-   :maxdepth: 2
+The AGILab Streamlit UI exposes a set of built-in pages plus optional app-specific
+dashboards ("apps-pages").
 
-   edit_help
-   execute_help
-   experiment_help
-   explore_help
-   agilab_help
+See:
+
+- :doc:`agilab-help` for the home dashboard entry point.
+- :doc:`edit-help`, :doc:`execute-help`, :doc:`experiment-help`, :doc:`explore-help` for the built-in pages.
+- :doc:`apps-pages` and :doc:`apps-pages-help` for plugin dashboards.

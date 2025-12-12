@@ -10,8 +10,6 @@ You’ll find everything from quickstarts to API references, as well as example 
 
    quick-start
    introduction
-   introduction2
-   introduction3
    features
 
 .. toctree::
@@ -37,8 +35,6 @@ You’ll find everything from quickstarts to API references, as well as example 
    :maxdepth: 2
    :caption: Pages
 
-   agilab_help
-
    edit-help
 
    execute-help
@@ -47,7 +43,11 @@ You’ll find everything from quickstarts to API references, as well as example 
 
    explore-help
 
+   agilab-help
+
    apps-pages
+
+   apps-pages-help
 
 .. toctree::
    :maxdepth: 2
