@@ -2958,7 +2958,11 @@ def display_lab_tab(
         if not st.session_state.get(init_key):
             # First render of this step in the session: seed from disk/pending values.
             st.session_state[q_key] = apply_q if apply_q is not None else initial_q
-            st.session_state[code_val_key] = apply_c if apply_c is not None else initial_c
+            seeded_code = apply_c if apply_c is not None else initial_c
+            st.session_state[code_val_key] = seeded_code
+            # If the expander is open on first load, the editor component can emit an initial blank value
+            # that would overwrite seeded code. Mark the seed so we remount once and ignore a blank mount.
+            seeded_c = seeded_code or None
             st.session_state[init_key] = True
         else:
             # Always apply pending values, even after first render.

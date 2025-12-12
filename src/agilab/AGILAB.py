@@ -235,9 +235,11 @@ def _ensure_env_file(path: Path) -> Path:
 
     parent = path.parent
     try:
-        if not parent.exists():
+        try:
+            parent.mkdir(parents=True, exist_ok=False)
             logger.info(f"mkdir {parent}")
-            parent.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            pass
         if TEMPLATE_ENV_PATH is not None:
             try:
                 template_text = TEMPLATE_ENV_PATH.read_text(encoding="utf-8")
