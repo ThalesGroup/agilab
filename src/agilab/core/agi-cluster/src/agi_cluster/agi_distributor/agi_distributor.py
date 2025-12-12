@@ -268,13 +268,10 @@ class AGI:
             scheduler (str, optional): IP and port address of the Dask scheduler. Defaults to '127.0.0.1:8786'.
             workers (dict, optional): Dictionary of worker IPs and their counts. Defaults to `workers_default`.
             verbose (int, optional): Verbosity level. Defaults to 0.
-            mode (int or list, optional): Mode(s) for execution. Defaults to None.
-                - Bitmask `0b----` (4 bits) where each bit enables/disables specific features:
-                    - `1---`: Rapids
-                    - `-1--`: Dask
-                    - `--1-`: Cython
-                    - `---1`: Pool
-                - `mode` can also be a list of modes to chain for the run.
+            mode (int | list[int] | str | None, optional): Mode(s) for execution. Defaults to None.
+                When an int is provided, it is treated as a 4-bit mask controlling RAPIDS/Dask/Cython/Pool features.
+                When a string is provided, it must match r"^[dcrp]+$" (letters enable features).
+                When a list is provided, the modes are benchmarked sequentially.
             rapids_enabled (bool, optional): Flag to enable RAPIDS. Defaults to False.
             **args (Any): Additional keyword arguments.
 
