@@ -132,6 +132,59 @@ def _get_run_placeholder(index_page: str) -> Optional[Any]:
     return placeholder
 
 
+def _python_for_venv(venv_root: str | Path | None) -> Path:
+    """Return a python executable for a runtime selection.
+
+    ``venv_root`` stored in lab steps is typically the *project* directory, not the
+    venv itself. Prefer `<project>/.venv/bin/python` (or Windows Scripts) when present,
+    otherwise fall back to the current interpreter.
+    """
+    if not venv_root:
+        return Path(sys.executable)
+
+    root = Path(venv_root).expanduser()
+    venv_candidates = [root]
+    project_venv = root / ".venv"
+    if project_venv.exists():
+        venv_candidates.insert(0, project_venv)
+
+    for venv in venv_candidates:
+        candidates = [
+            venv / "bin" / "python",
+            venv / "bin" / "python3",
+            venv / "Scripts" / "python.exe",
+            venv / "Scripts" / "python",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+
+    return Path(sys.executable)
+
+
+def _is_valid_runtime_root(venv_root: str | Path | None) -> bool:
+    """Return True when the runtime root points at an existing project/venv."""
+    if not venv_root:
+        return False
+    try:
+        root = Path(venv_root).expanduser()
+    except Exception:
+        return False
+    if not root.exists():
+        return False
+    if (root / ".venv").exists():
+        return True
+    for candidate in (
+        root / "bin" / "python",
+        root / "bin" / "python3",
+        root / "Scripts" / "python.exe",
+        root / "Scripts" / "python",
+    ):
+        if candidate.exists():
+            return True
+    return False
+
+
 def _stream_run_command(
     env: AgiEnv,
     index_page: str,
@@ -236,7 +289,8 @@ def load_last_step(
             c = entry.get("C", "")
             detail = details_store.get(current_step, "")
             st.session_state[index_page][1:6] = [d, q, m, c, detail]
-            e = normalize_runtime_path(entry.get("E", ""))
+            raw_e = normalize_runtime_path(entry.get("E", ""))
+            e = raw_e if _is_valid_runtime_root(raw_e) else ""
             venv_map = st.session_state.setdefault(f"{index_page}__venv_map", {})
             if e:
                 venv_map[current_step] = e
@@ -288,12 +342,22 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
     except Exception:
         return str(raw)
 
-    if not candidate.is_absolute():
-        env = st.session_state.get("env")
-        try:
-            candidate = Path(env.apps_path) / candidate  # type: ignore[attr-defined]
-        except Exception:
-            pass
+    env = st.session_state.get("env")
+    apps_root: Optional[Path] = None
+    try:
+        apps_root = Path(env.apps_path).expanduser()  # type: ignore[attr-defined]
+    except Exception:
+        apps_root = None
+
+    if not candidate.is_absolute() and apps_root:
+        candidate = apps_root / candidate
+
+    # If the resolved path does not exist, but the basename matches an app under apps_root,
+    # prefer that. This keeps older lab_steps that store repo-relative paths working.
+    if apps_root and not candidate.exists():
+        fallback = apps_root / candidate.name
+        if fallback.exists():
+            candidate = fallback
 
     if candidate.name == ".venv":
         candidate = candidate.parent
@@ -1968,12 +2032,14 @@ def run_all_steps(
                 continue
             _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
 
-            venv_path = normalize_runtime_path(entry.get("E", ""))
+            raw_runtime = normalize_runtime_path(entry.get("E", ""))
+            venv_path = raw_runtime if _is_valid_runtime_root(raw_runtime) else ""
             if venv_path:
                 selected_map[idx] = venv_path
+                st.session_state["lab_selected_venv"] = venv_path
             else:
                 selected_map.pop(idx, None)
-            st.session_state["lab_selected_venv"] = venv_path
+            runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
 
             st.session_state[index_page_str][0] = idx
             st.session_state[index_page_str][1] = entry.get("D", "")
@@ -1982,12 +2048,25 @@ def run_all_steps(
             st.session_state[index_page_str][4] = code
             st.session_state[index_page_str][5] = details_store.get(idx, "")
 
-            venv_root = normalize_runtime_path(entry.get("E", ""))
-            engine = (
-                engine_map.get(idx)
-                or entry.get("R", "")
-                or ("agi.run" if venv_root else "runpy")
-            )
+            venv_root = runtime_root
+            entry_engine = str(entry.get("R", "") or "")
+            ui_engine = str(engine_map.get(idx) or "")
+            if ui_engine and ui_engine != entry_engine:
+                if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                    engine = entry_engine
+                else:
+                    engine = ui_engine
+            elif entry_engine:
+                engine = entry_engine
+            else:
+                engine = "agi.run" if venv_root else "runpy"
+            if venv_root and engine == "runpy":
+                engine = "agi.run"
+            if engine.startswith("agi.") and not venv_root:
+                fallback_runtime = normalize_runtime_path(getattr(env, "active_app", "") or "")
+                if _is_valid_runtime_root(fallback_runtime):
+                    venv_root = fallback_runtime
+                    st.session_state["lab_selected_venv"] = venv_root
             target_base = Path(steps_file).parent.resolve()
             # Collapse duplicated tail (e.g., export/example_app/export/example_app)
             if target_base.name == target_base.parent.name:
@@ -2002,7 +2081,7 @@ def run_all_steps(
             else:
                 script_path = (target_base / "AGI_run.py").resolve()
                 script_path.write_text(code)
-                python_cmd = Path(sys.executable)
+                python_cmd = _python_for_venv(venv_root)
                 output = _stream_run_command(
                     env,
                     index_page_str,
@@ -2872,11 +2951,34 @@ def display_lab_tab(
         initial_c = entry.get("C", "")
         apply_q = st.session_state.pop(apply_q_key, None)
         apply_c = st.session_state.pop(apply_c_key, None)
-        if q_key not in st.session_state:
+        init_key = f"{safe_prefix}_step_init_{step}"
+        resync_sig_key = f"{safe_prefix}_editor_resync_sig_{step}"
+        ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{step}"
+        seeded_c: Optional[str] = None
+        if not st.session_state.get(init_key):
+            # First render of this step in the session: seed from disk/pending values.
             st.session_state[q_key] = apply_q if apply_q is not None else initial_q
-        # Do not overwrite an existing widget value after instantiation
-        if code_val_key not in st.session_state:
             st.session_state[code_val_key] = apply_c if apply_c is not None else initial_c
+            st.session_state[init_key] = True
+        else:
+            # Always apply pending values, even after first render.
+            if apply_q is not None or q_key not in st.session_state:
+                st.session_state[q_key] = apply_q if apply_q is not None else initial_q
+            if apply_c is not None:
+                seeded_c = apply_c
+                st.session_state[code_val_key] = apply_c
+            else:
+                current_c = st.session_state.get(code_val_key, "")
+                if code_val_key not in st.session_state or (not current_c and initial_c):
+                    seeded_c = initial_c
+                    st.session_state[code_val_key] = initial_c
+        # If we had to reseed code after a reload (stale editor state), force a remount once.
+        if seeded_c is not None:
+            last_sig = st.session_state.get(resync_sig_key)
+            if last_sig != seeded_c:
+                st.session_state[resync_sig_key] = seeded_c
+                st.session_state[ignore_blank_key] = True
+                st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
         if rev_key not in st.session_state:
             st.session_state[rev_key] = 0
         if undo_key not in st.session_state or not st.session_state[undo_key]:
@@ -2884,9 +2986,11 @@ def display_lab_tab(
             st.session_state[undo_key] = [initial_snapshot]
 
         # Seed venv options
-        current_path = normalize_runtime_path(selected_map.get(step, ""))
+        current_path_raw = normalize_runtime_path(selected_map.get(step, ""))
+        current_path = current_path_raw if _is_valid_runtime_root(current_path_raw) else ""
         if not current_path:
-            entry_venv = normalize_runtime_path(entry.get("E", ""))
+            entry_venv_raw = normalize_runtime_path(entry.get("E", ""))
+            entry_venv = entry_venv_raw if _is_valid_runtime_root(entry_venv_raw) else ""
             if entry_venv:
                 selected_map[step] = entry_venv
                 current_path = entry_venv
@@ -2996,7 +3100,13 @@ def display_lab_tab(
 
             # Handle actions
             if snippet_dict and snippet_dict.get("text") is not None:
-                st.session_state[code_val_key] = _normalize_editor_text(snippet_dict.get("text"))
+                normalized_text = _normalize_editor_text(snippet_dict.get("text"))
+                if normalized_text == "" and st.session_state.get(ignore_blank_key) and st.session_state.get(code_val_key):
+                    # Skip a single empty mount update after a resync; keep seeded code.
+                    st.session_state.pop(ignore_blank_key, None)
+                else:
+                    st.session_state[code_val_key] = normalized_text
+                    st.session_state.pop(ignore_blank_key, None)
             code_current = st.session_state.get(code_val_key, "")
 
             if revert_pressed:
@@ -3143,25 +3253,37 @@ def display_lab_tab(
                 # Execute the current code using the selected engine/venv
                 code_to_run = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
                 venv_root = normalize_runtime_path(selected_map.get(step, ""))
-                entry_runtime = normalize_runtime_path(entry.get("E", ""))
+                entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
+                entry_runtime = entry_runtime_raw if _is_valid_runtime_root(entry_runtime_raw) else ""
                 if not venv_root and entry_runtime:
                     venv_root = entry_runtime
                     selected_map[step] = entry_runtime
                 if not venv_root:
                     fallback_venv = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-                    if fallback_venv:
+                    if fallback_venv and _is_valid_runtime_root(fallback_venv):
                         venv_root = fallback_venv
                         selected_map[step] = fallback_venv
                         if fallback_venv not in venv_labels:
                             venv_labels.append(fallback_venv)
                         st.session_state[select_key] = fallback_venv
-                engine = (
-                    engine_map.get(step)
-                    or entry.get("R", "")
-                    or ("agi.run" if venv_root else "runpy")
-                )
+                entry_engine = str(entry.get("R", "") or "")
+                ui_engine = str(engine_map.get(step) or "")
+                if ui_engine and ui_engine != entry_engine:
+                    if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                        engine = entry_engine
+                    else:
+                        engine = ui_engine
+                elif entry_engine:
+                    engine = entry_engine
+                else:
+                    engine = "agi.run" if venv_root else "runpy"
                 if venv_root and engine == "runpy":
                     engine = "agi.run"
+                if engine.startswith("agi.") and not venv_root:
+                    fallback_runtime = normalize_runtime_path(getattr(env, "active_app", "") or "")
+                    if _is_valid_runtime_root(fallback_runtime):
+                        venv_root = fallback_runtime
+                        st.session_state["lab_selected_venv"] = venv_root
                 engine_map[step] = engine
                 if venv_root:
                     st.session_state["lab_selected_venv"] = venv_root
@@ -3185,7 +3307,7 @@ def display_lab_tab(
                     else:
                         script_path = (target_base / "AGI_run.py").resolve()
                         script_path.write_text(code_to_run)
-                        python_cmd = Path(sys.executable)
+                        python_cmd = _python_for_venv(venv_root)
                         run_output = _stream_run_command(
                             env,
                             index_page_str,
