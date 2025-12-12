@@ -876,10 +876,11 @@ def page():
     base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
     if base_default not in base_options:
         base_default = "AGILAB_EXPORT"
+    if st.session_state.get("base_dir_choice") not in base_options:
+        st.session_state["base_dir_choice"] = base_default
     base_choice = st.sidebar.radio(
         "Base directory",
         base_options,
-        index=base_options.index(base_default),
         key="base_dir_choice",
     )
 
@@ -960,14 +961,13 @@ def page():
 
     ext_options = ["csv", "parquet", "json", "all"]
     ext_default = st.session_state.get("file_ext_choice", "all")
-    try:
-        ext_index = ext_options.index(ext_default)
-    except ValueError:
-        ext_index = 0
+    if ext_default not in ext_options:
+        ext_default = "all"
+    if st.session_state.get("file_ext_choice") not in ext_options:
+        st.session_state["file_ext_choice"] = ext_default
     ext_choice = st.sidebar.selectbox(
         "File type",
         ext_options,
-        index=ext_index,
         key="file_ext_choice",
     )
 
@@ -1045,12 +1045,11 @@ def page():
             ]
 
     df_mode_options = ["Single file", "Regex (multi)"]
+    if st.session_state.get("df_select_mode") not in df_mode_options:
+        st.session_state["df_select_mode"] = df_mode_options[0]
     df_mode = st.sidebar.radio(
         "DataFrame selection",
         options=df_mode_options,
-        index=df_mode_options.index(st.session_state.get("df_select_mode", df_mode_options[0]))
-        if st.session_state.get("df_select_mode") in df_mode_options
-        else 0,
         key="df_select_mode",
     )
 
@@ -1083,13 +1082,18 @@ def page():
         ):
             st.session_state["df_files"] = matching
 
-        if "df_files" not in st.session_state:
+        df_files_seed: list[str] = []
+        current_df_files = st.session_state.get("df_files")
+        if isinstance(current_df_files, list):
+            df_files_seed = [f for f in current_df_files if f in csv_files_rel]
+        if not df_files_seed:
             # Preserve the current single-file selection when switching modes.
             seed = st.session_state.get("df_file")
             if seed in csv_files_rel:
-                st.session_state["df_files"] = [seed]
-            else:
-                st.session_state["df_files"] = [csv_files_rel[0]] if csv_files_rel else []
+                df_files_seed = [seed]
+            elif csv_files_rel:
+                df_files_seed = [csv_files_rel[0]]
+        st.session_state["df_files"] = df_files_seed
 
         st.sidebar.multiselect(
             label="DataFrames",
@@ -1109,9 +1113,6 @@ def page():
             label="DataFrame",
             options=csv_files_rel,
             key="df_file",
-            index=csv_files_rel.index(st.session_state.df_file)
-            if "df_file" in st.session_state and st.session_state.df_file in csv_files_rel
-            else 0,
         )
         if st.session_state.get("df_file"):
             selected_files_rel = [st.session_state.get("df_file")]
