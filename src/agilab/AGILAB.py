@@ -226,9 +226,28 @@ def _sync_active_app_from_query(env) -> None:
         pass
 
 def _ensure_env_file(path: Path) -> Path:
-    logger.info(f"mkdir {path.parent}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.touch(exist_ok=True)
+    """Ensure the ~/.agilab/.env file exists without touching mtime on every rerun."""
+    try:
+        if path.exists():
+            return path
+    except Exception:
+        return path
+
+    parent = path.parent
+    try:
+        if not parent.exists():
+            logger.info(f"mkdir {parent}")
+            parent.mkdir(parents=True, exist_ok=True)
+        if TEMPLATE_ENV_PATH is not None:
+            try:
+                template_text = TEMPLATE_ENV_PATH.read_text(encoding="utf-8")
+                path.write_text(template_text, encoding="utf-8")
+                return path
+            except Exception:
+                pass
+        path.touch(exist_ok=True)
+    except Exception as exc:
+        logger.warning(f"Unable to create env file at {path}: {exc}")
     return path
 
 def _refresh_share_dir(env, new_value: str) -> None:
