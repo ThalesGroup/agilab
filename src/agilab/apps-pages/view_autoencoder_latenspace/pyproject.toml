@@ -1,6 +1,6 @@
 [project]
 name = "view-autoencoder-latenspace"
-version = "0.8.17"
+version = "2025.12.12"
 requires-python = "==3.12"
 dependencies = [
     "barviz>=1.2.2",
@@ -22,4 +22,3 @@ dev = [
 [tool.uv.sources.agi-env]
 path = "../../core/agi-env"
 editable = true
-

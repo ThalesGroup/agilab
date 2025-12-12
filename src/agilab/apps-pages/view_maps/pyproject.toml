@@ -1,6 +1,6 @@
 [project]
 name = "view-maps"
-version = "0.8.17"
+version = "2025.12.12"
 requires-python = ">=3.13"
 dependencies = [
     "ipython>=9.5.0",
@@ -14,4 +14,3 @@ dependencies = [
 [tool.uv.sources.agi-env]
 path = "../../core/agi-env"
 editable = true
-
