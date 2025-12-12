@@ -283,9 +283,18 @@ def _detect_link_columns(df: pd.DataFrame) -> list[str]:
         ordered = _DEFAULT_LINK_ORDER.copy()
     return ordered
 
-def hex_to_rgba(hex_color: str):
-    hex_color = hex_color.lstrip("#")
-    r, g, b = bytes.fromhex(hex_color)
+def hex_to_rgba(hex_color):
+    """Convert a hex color string (e.g. '#RRGGBB') into a deck.gl-compatible RGBA list."""
+    if not isinstance(hex_color, str):
+        return [136, 136, 136, 255]
+    cleaned = hex_color.strip()
+    if not cleaned:
+        return [136, 136, 136, 255]
+    cleaned = cleaned.lstrip("#")
+    try:
+        r, g, b = bytes.fromhex(cleaned[:6])
+    except Exception:
+        return [136, 136, 136, 255]
     return [r, g, b, 255]
 
 def create_edges_geomap(df, link_column, current_positions):
@@ -1508,7 +1517,10 @@ def page():
         st.session_state.color_map = {flight_id: mcolors.rgb2hex(color_map(i % 20)) for i, flight_id in enumerate(flight_ids)}
         st.session_state.color_map_key = flight_col
 
-    current_positions["color"] = current_positions["id_col"].map(st.session_state.color_map).apply(hex_to_rgba)
+    color_series = current_positions["id_col"].map(st.session_state.color_map)
+    if hasattr(color_series, "fillna"):
+        color_series = color_series.fillna("#888")
+    current_positions["color"] = color_series.apply(hex_to_rgba)
 
     # Quick dual-screen links
     st.markdown(
