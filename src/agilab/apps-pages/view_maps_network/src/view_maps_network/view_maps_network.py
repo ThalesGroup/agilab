@@ -236,15 +236,34 @@ def _label_for_link(column: str) -> str:
 def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
     seen = set()
     candidates: list[Path] = []
+    patterns = (
+        # Common example_app / routing exports
+        "routing_edges.jsonl",
+        "routing_edges.ndjson",
+        "routing_edges.json",
+        "routing_edges.parquet",
+        # Generic edge exports
+        "edges.parquet",
+        "edges.json",
+        "edges.jsonl",
+        "edges.ndjson",
+        "edges.*.parquet",
+        "edges.*.json",
+        "edges.*.jsonl",
+        "edges.*.ndjson",
+    )
     for base in bases:
         if not base or not base.exists():
             continue
-        for pattern in ("edges.parquet", "edges.json", "edges.*.parquet", "edges.*.json"):
+        for pattern in patterns:
             for p in base.glob(f"**/{pattern}"):
                 if p in seen:
                     continue
+                if any(part.startswith(".") for part in p.parts):
+                    continue
                 seen.add(p)
                 candidates.append(p)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
     return candidates
 
 def _color_to_rgb(color_str: str, idx: int = 0) -> list[int]:
@@ -392,9 +411,6 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
     marker_style_norm = (marker_style or "Dots").strip().lower()
     if marker_style_norm.startswith("plane"):
         nodes_df = current_positions.copy()
-        nodes_df["icon_data"] = [
-            {"url": _PLANE_ICON_URL, "width": 64, "height": 64, "anchorY": 32, "mask": True}
-        ] * len(nodes_df)
         angle_col = None
         for candidate in ("bearing_deg", "bearing", "heading_deg", "heading", "yaw_deg", "yaw"):
             if candidate in nodes_df.columns:
@@ -405,18 +421,23 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
             get_angle = "_angle"
         else:
             get_angle = 0
+        # Prefer TextLayer for reliability (no icon atlas/image loading).
+        # _PLANE_ICON_URL remains available if we want to switch back to IconLayer later.
+        nodes_df["_marker"] = "✈"
         nodes_layer = pdk.Layer(
-            "IconLayer",
+            "TextLayer",
             data=nodes_df,
-            get_icon="icon_data",
             get_position="[long,lat,alt]",
+            get_text="_marker",
+            get_size=24,
             get_color="color",
+            get_alignment_baseline="'center'",
+            get_text_anchor='"middle"',
+            billboard=True,
             get_angle=get_angle,
-            get_size=16,
-            size_units="pixels",
-            size_scale=1,
             auto_highlight=True,
             pickable=True,
+            parameters={"depthTest": False},
         )
     else:
         nodes_layer = pdk.Layer(
