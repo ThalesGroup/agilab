@@ -59,13 +59,13 @@ Streamlit session so the selector picks it up.
 Docs drift after touching core APIs
 -----------------------------------
 If you change ``BaseWorker`` or other primitives surfaced in the guides, rebuild the
-reference documentation with ``uv run python docs/gen-docs.py`` so the published docs
+reference documentation with ``uv run --group sphinx --dev docs/gen-docs.py`` so the published docs
 match the updated source.
 
 `AGI.install_*` fails looking for ``pyproject.toml``
 ---------------------------------------------------
 Each worker must carry its own ``pyproject.toml`` (for example
-``src/agilab/apps/example_app_project/src/example_worker/pyproject.toml``). If the installer raises
+``src/agilab/apps/builtin/flight_project/src/flight_worker/pyproject.toml``). If the installer raises
 ``FileNotFoundError`` for that path, add the file with the worker’s runtime
 dependencies—typically mirroring the manager’s requirements plus the appropriate
 ``dag-worker``/``polars-worker`` extra.

@@ -24,7 +24,7 @@ Navigation model
 Learning lifecycle (when applicable)
 ------------------------------------
 
-When a project includes learning components (e.g. `example_app_project`):
+When a project includes learning components:
 
 - **Training** updates model parameters using new experience.
 - **Inference** runs a fixed checkpoint to produce allocations/decisions.
@@ -38,5 +38,5 @@ See also
 
 - :doc:`architecture` for the end-to-end pipeline view.
 - :doc:`execute-help` and :doc:`experiment-help` for the default workflow.
-- :doc:`example-app-project` for training vs inference, continuous learning, and
+- :doc:`learning-workflows` for training vs inference, continuous learning, and
   federated learning patterns.

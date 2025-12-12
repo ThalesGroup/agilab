@@ -20,6 +20,7 @@ You’ll find everything from quickstarts to API references, as well as example 
    cluster-help
    agilab
    architecture
+   learning-workflows
    agi-core-architecture
    agilab-mlops-positioning
    framework-api
@@ -56,8 +57,6 @@ You’ll find everything from quickstarts to API references, as well as example 
    mycode-project
 
    flight-project
-
-   example-app-project
 
 .. toctree::
    :maxdepth: 2

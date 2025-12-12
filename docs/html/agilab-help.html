@@ -117,14 +117,25 @@
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#rl-ilp-app-pipeline">RL/ILP app pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#agilab-py-navigation">AGILAB.py navigation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#manager-vs-worker-responsibilities">Manager vs worker responsibilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#mid-2024-simplification-flowsynth-demands">Mid-2024 simplification (notebooks → demands)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#mid-2024-simplification-notebooks-demands">Mid-2024 simplification (notebooks → demands)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#coverage-and-roadmap-rl-ilp-demo">Coverage and roadmap (RL/ILP demo)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#layers-at-a-glance">Layers at a glance</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#runtime-flow">Runtime flow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#repository-map">Repository map</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#repo-split-open-source-vs-fcas-apps">Repo split (open-source vs FCAS apps)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#core-vs-optional-apps">Core vs optional apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#documentation-map">Documentation map</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="learning-workflows.html">Learning Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#training-vs-inference">Training vs inference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#reinforcement-learning-example">Reinforcement learning (example)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#optimization-ilp-baseline-example">Optimization / ILP baseline (example)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#continuous-learning-optional">Continuous learning (optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#graph-neural-networks-message-passing">Graph neural networks (message passing)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#federated-learning-optional">Federated learning (optional)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agi-core-architecture.html">AGI Core Architecture</a><ul>
@@ -445,7 +456,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
 </ul>
@@ -880,15 +890,6 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Example App Project (RL + ILP routing)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#what-it-does">What it does</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#training-vs-inference">Training vs inference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#continuous-learning-optional">Continuous learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#topology-agnostic-generalisation-gnn-message-passing">Topology-agnostic generalisation (GNN message passing)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#federated-learning-optional">Federated learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#dependencies">Dependencies</a></li>
-</ul>
-</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
 <ul>
@@ -945,7 +946,7 @@ enabled by listing their module names under <code class="docutils literal notran
 </section>
 <section id="learning-lifecycle-when-applicable">
 <h2>Learning lifecycle (when applicable)<a class="headerlink" href="#learning-lifecycle-when-applicable" title="Link to this heading"></a></h2>
-<p>When a project includes learning components (e.g. <cite>example_app_project</cite>):</p>
+<p>When a project includes learning components:</p>
 <ul class="simple">
 <li><p><strong>Training</strong> updates model parameters using new experience.</p></li>
 <li><p><strong>Inference</strong> runs a fixed checkpoint to produce allocations/decisions.</p></li>
@@ -960,7 +961,7 @@ implicitly.</p></li>
 <ul class="simple">
 <li><p><a class="reference internal" href="architecture.html"><span class="doc">AGILab Architecture</span></a> for the end-to-end pipeline view.</p></li>
 <li><p><a class="reference internal" href="execute-help.html"><span class="doc">▶️ EXECUTE</span></a> and <a class="reference internal" href="experiment-help.html"><span class="doc">▶️ EXPERIMENT</span></a> for the default workflow.</p></li>
-<li><p><a class="reference internal" href="example-app-project.html"><span class="doc">Example App Project (RL + ILP routing)</span></a> for training vs inference, continuous learning, and
+<li><p><a class="reference internal" href="learning-workflows.html"><span class="doc">Learning Workflows</span></a> for training vs inference, continuous learning, and
 federated learning patterns.</p></li>
 </ul>
 </section>

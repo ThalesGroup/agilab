@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agi_cluster package &mdash; AGILab 2025.12.12 documentation</title>
+  <title>Learning Workflows &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -14,18 +14,20 @@
       <link rel="stylesheet" type="text/css" href="_static/custom.css?v=d96b187f" />
 
   
-    <link rel="canonical" href="https://thalesgroup.github.io/agilab/module-agi-cluster.html" />
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/learning-workflows.html" />
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=b39c3bb1"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/design-tabs.js?v=f930bc37"></script>
+      <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="agilab package" href="module-agilab.html" />
-    <link rel="prev" title="agi_node package" href="module-agi-node.html" /> 
+    <link rel="next" title="AGI Core Architecture" href="agi-core-architecture.html" />
+    <link rel="prev" title="AGILab Architecture" href="architecture.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -127,15 +129,15 @@
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="learning-workflows.html">Learning Workflows</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#training-vs-inference">Training vs inference</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#reinforcement-learning-example">Reinforcement learning (example)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#optimization-ilp-baseline-example">Optimization / ILP baseline (example)</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Learning Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#training-vs-inference">Training vs inference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#reinforcement-learning-example">Reinforcement learning (example)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optimization-ilp-baseline-example">Optimization / ILP baseline (example)</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#continuous-learning-optional">Continuous learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#graph-neural-networks-message-passing">Graph neural networks (message passing)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#federated-learning-optional">Federated learning (optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#continuous-learning-optional">Continuous learning (optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#graph-neural-networks-message-passing">Graph neural networks (message passing)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#federated-learning-optional">Federated learning (optional)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agi-core-architecture.html">AGI Core Architecture</a><ul>
@@ -180,7 +182,7 @@
 <li class="toctree-l2"><a class="reference internal" href="framework-api.html#app-structure-conventions">App structure conventions</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">Module Reference</a><ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Module Reference</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-env.html">agi_env package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-env.html#notes-on-singleton-and-preinit-behavior">Notes on singleton and pre‑init behavior</a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a><ul>
@@ -382,29 +384,29 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">agi_cluster package</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.CYTHON_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.CYTHON_MODE</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.DASK_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.DASK_MODE</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.PYTHON_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.PYTHON_MODE</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.RAPIDS_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.RAPIDS_MODE</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.__init__"><code class="docutils literal notranslate"><span class="pre">AGI.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.debug"><code class="docutils literal notranslate"><span class="pre">AGI.debug</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.distribute"><code class="docutils literal notranslate"><span class="pre">AGI.distribute()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.env"><code class="docutils literal notranslate"><span class="pre">AGI.env</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh"><code class="docutils literal notranslate"><span class="pre">AGI.exec_ssh()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh_async"><code class="docutils literal notranslate"><span class="pre">AGI.exec_ssh_async()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.find_free_port"><code class="docutils literal notranslate"><span class="pre">AGI.find_free_port()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.get_default_local_ip"><code class="docutils literal notranslate"><span class="pre">AGI.get_default_local_ip()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.get_distrib"><code class="docutils literal notranslate"><span class="pre">AGI.get_distrib()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.get_ssh_connection"><code class="docutils literal notranslate"><span class="pre">AGI.get_ssh_connection()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.install"><code class="docutils literal notranslate"><span class="pre">AGI.install()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.run"><code class="docutils literal notranslate"><span class="pre">AGI.run()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.send_file"><code class="docutils literal notranslate"><span class="pre">AGI.send_file()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.send_files"><code class="docutils literal notranslate"><span class="pre">AGI.send_files()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.serve"><code class="docutils literal notranslate"><span class="pre">AGI.serve()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.update"><code class="docutils literal notranslate"><span class="pre">AGI.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi_cluster.agi_distributor.agi_distributor.AGI.verbose"><code class="docutils literal notranslate"><span class="pre">AGI.verbose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="module-agi-cluster.html">agi_cluster package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.CYTHON_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.CYTHON_MODE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.DASK_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.DASK_MODE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.PYTHON_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.PYTHON_MODE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.RAPIDS_MODE"><code class="docutils literal notranslate"><span class="pre">AGI.RAPIDS_MODE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.__init__"><code class="docutils literal notranslate"><span class="pre">AGI.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.debug"><code class="docutils literal notranslate"><span class="pre">AGI.debug</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.distribute"><code class="docutils literal notranslate"><span class="pre">AGI.distribute()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.env"><code class="docutils literal notranslate"><span class="pre">AGI.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh"><code class="docutils literal notranslate"><span class="pre">AGI.exec_ssh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh_async"><code class="docutils literal notranslate"><span class="pre">AGI.exec_ssh_async()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.find_free_port"><code class="docutils literal notranslate"><span class="pre">AGI.find_free_port()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.get_default_local_ip"><code class="docutils literal notranslate"><span class="pre">AGI.get_default_local_ip()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.get_distrib"><code class="docutils literal notranslate"><span class="pre">AGI.get_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.get_ssh_connection"><code class="docutils literal notranslate"><span class="pre">AGI.get_ssh_connection()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.install"><code class="docutils literal notranslate"><span class="pre">AGI.install()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.run"><code class="docutils literal notranslate"><span class="pre">AGI.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.send_file"><code class="docutils literal notranslate"><span class="pre">AGI.send_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.send_files"><code class="docutils literal notranslate"><span class="pre">AGI.send_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.serve"><code class="docutils literal notranslate"><span class="pre">AGI.serve()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.update"><code class="docutils literal notranslate"><span class="pre">AGI.update()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.verbose"><code class="docutils literal notranslate"><span class="pre">AGI.verbose</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -911,10 +913,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="modules.html">Module Reference</a></li>
-      <li class="breadcrumb-item active">agi_cluster package</li>
+      <li class="breadcrumb-item active">Learning Workflows</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/module-agi-cluster.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/learning-workflows.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -922,275 +923,98 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="module-agi_cluster.agi_distributor.agi_distributor">
-<span id="agi-cluster-package"></span><h1>agi_cluster package<a class="headerlink" href="#module-agi_cluster.agi_distributor.agi_distributor" title="Link to this heading"></a></h1>
-<p>Cluster workplan utilities for distributing AGILab workloads.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_cluster.agi_distributor.agi_distributor.</span></span><span class="sig-name descname"><span class="pre">AGI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Coordinate installation, scheduling, and execution of AGILab workloads.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.CYTHON_MODE">
-<span class="sig-name descname"><span class="pre">CYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.CYTHON_MODE" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.DASK_MODE">
-<span class="sig-name descname"><span class="pre">DASK_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.DASK_MODE" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.PYTHON_MODE">
-<span class="sig-name descname"><span class="pre">PYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.PYTHON_MODE" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.RAPIDS_MODE">
-<span class="sig-name descname"><span class="pre">RAPIDS_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.RAPIDS_MODE" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.__init__" title="Link to this definition"></a></dt>
-<dd><p>Initialize a Agi object with a target and verbosity level.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>target</strong> (<em>str</em>) – The target for the env object.</p></li>
-<li><p><strong>verbose</strong> (<em>int</em>) – Verbosity level (0-3).</p></li>
+  <section id="learning-workflows">
+<h1>Learning Workflows<a class="headerlink" href="#learning-workflows" title="Link to this heading"></a></h1>
+<p>Some AGILab apps include learning components (for example supervised models,
+reinforcement learning, or graph neural networks). This page describes how to
+separate <strong>training</strong> from <strong>inference</strong>, and how <strong>continuous learning</strong> and
+<strong>federated learning</strong> can be implemented with AGILab’s orchestration and
+artifact conventions.</p>
+<section id="training-vs-inference">
+<h2>Training vs inference<a class="headerlink" href="#training-vs-inference" title="Link to this heading"></a></h2>
+<p><strong>Training</strong> updates model parameters (and may produce new checkpoints).
+<strong>Inference</strong> consumes a fixed checkpoint to produce decisions, allocations, or
+predictions.</p>
+<section id="reinforcement-learning-example">
+<h3>Reinforcement learning (example)<a class="headerlink" href="#reinforcement-learning-example" title="Link to this heading"></a></h3>
+<p>In reinforcement learning, a policy <span class="math notranslate nohighlight">\(\\pi_\\theta(a \\mid s)\)</span> is trained to
+maximize expected discounted return:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}J(\\theta) = \\mathbb{E}\\left[\\sum_{t=0}^{T-1} \\gamma^t r_t\\right]\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\\gamma \\in (0,1]\)</span> is a discount factor and <span class="math notranslate nohighlight">\(r_t\)</span> is the
+reward at step <span class="math notranslate nohighlight">\(t\)</span>.</p>
+</section>
+<section id="optimization-ilp-baseline-example">
+<h3>Optimization / ILP baseline (example)<a class="headerlink" href="#optimization-ilp-baseline-example" title="Link to this heading"></a></h3>
+<p>A deterministic baseline can be expressed as an integer linear program (ILP):</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\\min_{x} \\; c^\\top x \\quad \\text{s.t.} \\quad Ax \\le b, \\; x \\in \\{0,1\\}^n\end{split}\]</div>
+<p>This kind of solver is useful as:</p>
+<ul class="simple">
+<li><p>a baseline for evaluation (compare against learned policies), and/or</p></li>
+<li><p>a <strong>teacher</strong> that produces high-quality labels to improve learning.</p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>None</p>
-</dd>
-<dt class="field-odd">Raises<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None</strong> – </p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.debug">
-<span class="sig-name descname"><span class="pre">debug</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.debug" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.distribute">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.distribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.distribute" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.env">
-<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><a class="reference internal" href="module-agi-env.html#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.env" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.exec_ssh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh_async">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.exec_ssh_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.exec_ssh_async" title="Link to this definition"></a></dt>
-<dd><p>Execute a remote command via SSH and return the last line of its stdout output.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.find_free_port">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">find_free_port</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.find_free_port"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.find_free_port" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.get_default_local_ip">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_local_ip</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.get_default_local_ip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.get_default_local_ip" title="Link to this definition"></a></dt>
-<dd><p>Get the default local IP address of the machine.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The default local IP address.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>str</p>
-</dd>
-<dt class="field-odd">Raises<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>Exception</strong> – If unable to determine the local IP address.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.get_distrib">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_distrib</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.get_distrib"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.get_distrib" title="Link to this definition"></a></dt>
-<dd><p>check the distribution with a dry run
-:param package:
-:type package: any Agi target apps or project created by AGILAB
-:param list_ip:
-:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
-:type verbose: <span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span>
-:param verbose:
-:type verbose: verbosity [0-3]
-:param Returns:
-:param the distribution tree:
-:param ——-:</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.get_ssh_connection">
-<span class="sig-name descname"><span class="pre">get_ssh_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout_sec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.get_ssh_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.get_ssh_connection" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.install">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.install" title="Link to this definition"></a></dt>
-<dd><p>Update the cluster’s virtual environment.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>project_path</strong> (<em>Path</em>) – The name of the module to install or the path to the module.</p></li>
-<li><p><strong>list_ip</strong> (<em>List</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – A list of IPv4 addresses with SSH access. Each IP should have Python,
-<cite>psutil</cite>, and <cite>pdm</cite> installed. Defaults to None.</p></li>
-<li><p><strong>modes_enabled</strong> (<em>int</em><em>, </em><em>optional</em>) – Bitmask indicating enabled modes. Defaults to <cite>0b0111</cite>.</p></li>
-<li><p><strong>verbose</strong> (<em>int</em><em>, </em><em>optional</em>) – Verbosity level (0-3). Higher numbers increase the verbosity of the output.
-Defaults to 1.</p></li>
-<li><p><strong>**args</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span>) – Additional keyword arguments.</p></li>
+</section>
+</section>
+<section id="continuous-learning-optional">
+<h2>Continuous learning (optional)<a class="headerlink" href="#continuous-learning-optional" title="Link to this heading"></a></h2>
+<p>Continuous learning means periodically updating a model after deployment, using
+new data or feedback. AGILab does not enable this implicitly, but it provides
+the building blocks to implement it explicitly:</p>
+<ul class="simple">
+<li><p>reproducible run orchestration (<cite>AGI.run</cite>, <cite>AGI.install</cite>, <cite>AGI.get_distrib</cite>)</p></li>
+<li><p>stable artifact paths (datasets, logs, checkpoints) via <cite>AgiEnv</cite> and share
+directory conventions</p></li>
+<li><p>per-step experiment capture via <cite>lab_steps.toml</cite></p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><cite>True</cite> if the installation was successful, <cite>False</cite> otherwise.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>bool</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>ValueError</strong> – If <cite>module_name_or_path</cite> is invalid.</p></li>
-<li><p><strong>ConnectionError</strong> – </p></li>
+<p>One common pattern is “solver-as-teacher”:</p>
+<ol class="arabic simple">
+<li><p>Run inference with a policy checkpoint to produce decisions.</p></li>
+<li><p>In parallel (or on sampled episodes), run an optimizer to compute a strong
+reference solution <span class="math notranslate nohighlight">\(a_t^*\)</span> or a target value <span class="math notranslate nohighlight">\(V^*(s_t)\)</span>.</p></li>
+<li><p>Update the policy using behavior cloning / advantage shaping / reward
+augmentation, depending on the algorithm.</p></li>
+</ol>
+</section>
+<section id="graph-neural-networks-message-passing">
+<h2>Graph neural networks (message passing)<a class="headerlink" href="#graph-neural-networks-message-passing" title="Link to this heading"></a></h2>
+<p>Many decision problems are naturally represented as graphs with node features
+<span class="math notranslate nohighlight">\(x_v\)</span>, edge features <span class="math notranslate nohighlight">\(e_{uv}\)</span>, and adjacency defined by the current
+topology. A message-passing GNN updates node embeddings as:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}m_v^{(k)} = \\sum_{u \\in \\mathcal{N}(v)} \\psi\\left(h_v^{(k)}, h_u^{(k)}, e_{uv}\\right),
+\\qquad
+h_v^{(k+1)} = \\phi\\left(h_v^{(k)}, m_v^{(k)}\\right)\end{split}\]</div>
+<p>Because aggregation is permutation-invariant, the same network can generalize
+across different graph sizes and topologies (topology-agnostic policies), while
+still learning node- and edge-level properties.</p>
+</section>
+<section id="federated-learning-optional">
+<h2>Federated learning (optional)<a class="headerlink" href="#federated-learning-optional" title="Link to this heading"></a></h2>
+<p>Federated learning trains models across multiple sites without centralizing
+raw data. A common aggregation is FedAvg:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\\theta_{t+1} = \\sum_{k=1}^{K} \\frac{n_k}{\\sum_j n_j} \\, \\theta_{t+1}^{(k)}\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\\theta_{t+1}^{(k)}\)</span> is the model trained on site <span class="math notranslate nohighlight">\(k\)</span> and
+<span class="math notranslate nohighlight">\(n_k\)</span> is the number of samples used there.</p>
+<p>In AGILab terms, this can be implemented by orchestrating:</p>
+<ul class="simple">
+<li><p>per-site training runs that export checkpoints to a shared location, and</p></li>
+<li><p>an aggregation step that combines checkpoints into a new global model, then
+redeploys it for inference.</p></li>
 </ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.run">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rapids_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.run" title="Link to this definition"></a></dt>
-<dd><p>Compiles the target module in Cython and runs it on the cluster.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>target</strong> (<em>str</em>) – The target Python module to run.</p></li>
-<li><p><strong>scheduler</strong> (<em>str</em><em>, </em><em>optional</em>) – IP and port address of the Dask scheduler. Defaults to ‘127.0.0.1:8786’.</p></li>
-<li><p><strong>workers</strong> (<em>dict</em><em>, </em><em>optional</em>) – Dictionary of worker IPs and their counts. Defaults to <cite>workers_default</cite>.</p></li>
-<li><p><strong>verbose</strong> (<em>int</em><em>, </em><em>optional</em>) – Verbosity level. Defaults to 0.</p></li>
-<li><p><strong>mode</strong> (<em>int</em><em> | </em><em>list</em><em>[</em><em>int</em><em>] </em><em>| </em><em>str</em><em> | </em><em>None</em><em>, </em><em>optional</em>) – Mode(s) for execution. Defaults to None.
-When an int is provided, it is treated as a 4-bit mask controlling RAPIDS/Dask/Cython/Pool features.
-When a string is provided, it must match r”^[dcrp]+$” (letters enable features).
-When a list is provided, the modes are benchmarked sequentially.</p></li>
-<li><p><strong>rapids_enabled</strong> (<em>bool</em><em>, </em><em>optional</em>) – Flag to enable RAPIDS. Defaults to False.</p></li>
-<li><p><strong>**args</strong> (<em>Any</em>) – Additional keyword arguments.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Result of the execution.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>ValueError</strong> – If <cite>mode</cite> is invalid.</p></li>
-<li><p><strong>RuntimeError</strong> – If the target module fails to load.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.send_file">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">send_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remote_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">user</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">password</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.send_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.send_file" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.send_files">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">send_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remote_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">user</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.send_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.send_files" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.serve">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">serve</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rapids_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">action</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'start'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poll_interval</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shutdown_on_stop</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.serve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.serve" title="Link to this definition"></a></dt>
-<dd><p>Manage persistent worker services without invoking the run workplan.</p>
-<p><code class="docutils literal notranslate"><span class="pre">action=&quot;start&quot;</span></code> provisions workers and submits <code class="docutils literal notranslate"><span class="pre">BaseWorker.loop</span></code> as a
-long-lived service task pinned to each Dask worker. <code class="docutils literal notranslate"><span class="pre">action=&quot;stop&quot;</span></code>
-signals the loop through <code class="docutils literal notranslate"><span class="pre">BaseWorker.break</span></code> and optionally tears down
-the Dask cluster when <code class="docutils literal notranslate"><span class="pre">shutdown_on_stop</span></code> is true.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code>]</span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.update">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_cluster/agi_distributor/agi_distributor.html#AGI.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.update" title="Link to this definition"></a></dt>
-<dd><p>install cluster virtual environment
-:param package:
-:type package: any Agi target apps or project created with AGILAB
-:param list_ip:
-:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
-:param mode_enabled:
-:type mode_enabled: this is typically a mode mask to know for example if cython or rapids are required
-:param force_update:
-:type force_update: make a Spud.update before the installation, default is True
-:type verbose: <span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>]</span>
-:param verbose:
-:type verbose: verbosity [0-3]</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_cluster.agi_distributor.agi_distributor.AGI.verbose">
-<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_cluster.agi_distributor.agi_distributor.AGI.verbose" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
+<p>AGILab’s environment resolution and worker distribution make it straightforward
+to run these steps locally or on SSH clusters, as long as sites agree on a
+checkpoint format and aggregation protocol.</p>
+</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="module-agi-node.html" class="btn btn-neutral float-left" title="agi_node package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="module-agilab.html" class="btn btn-neutral float-right" title="agilab package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="architecture.html" class="btn btn-neutral float-left" title="AGILab Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="agi-core-architecture.html" class="btn btn-neutral float-right" title="AGI Core Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

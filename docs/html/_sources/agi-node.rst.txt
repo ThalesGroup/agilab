@@ -14,9 +14,9 @@ accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
 - Every other value is first joined against ``env.agi_share_path_abs`` when the
   environment exposes one; otherwise the helper falls back to the current home
   directory. This lets configuration files ship entries such as
-  ``example_app/dataset`` while still resolving to the correct worker share
-  (``/Users/example/clustershare/example_app/dataset`` on macOS, the mounted
-  share on Linux remotes, and so on).
+  ``<app>/dataset`` while still resolving to the correct worker share
+  (``$HOME/clustershare/<app>/dataset`` on macOS, the mounted share on Linux
+  remotes, and so on).
 - ``Path.resolve(strict=False)`` is applied to keep symlinks or bind mounts
   created by installers while still accepting directories that are created
   later during the run.

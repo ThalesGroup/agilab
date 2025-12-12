@@ -117,14 +117,25 @@
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#rl-ilp-app-pipeline">RL/ILP app pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#agilab-py-navigation">AGILAB.py navigation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#manager-vs-worker-responsibilities">Manager vs worker responsibilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#mid-2024-simplification-flowsynth-demands">Mid-2024 simplification (notebooks → demands)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#mid-2024-simplification-notebooks-demands">Mid-2024 simplification (notebooks → demands)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#coverage-and-roadmap-rl-ilp-demo">Coverage and roadmap (RL/ILP demo)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#layers-at-a-glance">Layers at a glance</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#runtime-flow">Runtime flow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#repository-map">Repository map</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#repo-split-open-source-vs-fcas-apps">Repo split (open-source vs FCAS apps)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#core-vs-optional-apps">Core vs optional apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#documentation-map">Documentation map</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="learning-workflows.html">Learning Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#training-vs-inference">Training vs inference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#reinforcement-learning-example">Reinforcement learning (example)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#optimization-ilp-baseline-example">Optimization / ILP baseline (example)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#continuous-learning-optional">Continuous learning (optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#graph-neural-networks-message-passing">Graph neural networks (message passing)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#federated-learning-optional">Federated learning (optional)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agi-core-architecture.html">AGI Core Architecture</a><ul>
@@ -445,7 +456,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
 </ul>
@@ -880,15 +890,6 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Example App Project (RL + ILP routing)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#what-it-does">What it does</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#training-vs-inference">Training vs inference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#continuous-learning-optional">Continuous learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#topology-agnostic-generalisation-gnn-message-passing">Topology-agnostic generalisation (GNN message passing)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#federated-learning-optional">Federated learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#dependencies">Dependencies</a></li>
-</ul>
-</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
 <ul>
@@ -936,9 +937,9 @@ backslashes.</p></li>
 <li><p>Every other value is first joined against <code class="docutils literal notranslate"><span class="pre">env.agi_share_path_abs</span></code> when the
 environment exposes one; otherwise the helper falls back to the current home
 directory. This lets configuration files ship entries such as
-<code class="docutils literal notranslate"><span class="pre">example_app/dataset</span></code> while still resolving to the correct worker share
-(<code class="docutils literal notranslate"><span class="pre">/Users/example/clustershare/example_app/dataset</span></code> on macOS, the mounted
-share on Linux remotes, and so on).</p></li>
+<code class="docutils literal notranslate"><span class="pre">&lt;app&gt;/dataset</span></code> while still resolving to the correct worker share
+(<code class="docutils literal notranslate"><span class="pre">$HOME/clustershare/&lt;app&gt;/dataset</span></code> on macOS, the mounted share on Linux
+remotes, and so on).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Path.resolve(strict=False)</span></code> is applied to keep symlinks or bind mounts
 created by installers while still accepting directories that are created
 later during the run.</p></li>

@@ -117,14 +117,25 @@
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#rl-ilp-app-pipeline">RL/ILP app pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#agilab-py-navigation">AGILAB.py navigation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#manager-vs-worker-responsibilities">Manager vs worker responsibilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#mid-2024-simplification-flowsynth-demands">Mid-2024 simplification (notebooks → demands)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#mid-2024-simplification-notebooks-demands">Mid-2024 simplification (notebooks → demands)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#coverage-and-roadmap-rl-ilp-demo">Coverage and roadmap (RL/ILP demo)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#layers-at-a-glance">Layers at a glance</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#runtime-flow">Runtime flow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#repository-map">Repository map</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#repo-split-open-source-vs-fcas-apps">Repo split (open-source vs FCAS apps)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#core-vs-optional-apps">Core vs optional apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#documentation-map">Documentation map</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="learning-workflows.html">Learning Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#training-vs-inference">Training vs inference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#reinforcement-learning-example">Reinforcement learning (example)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="learning-workflows.html#optimization-ilp-baseline-example">Optimization / ILP baseline (example)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#continuous-learning-optional">Continuous learning (optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#graph-neural-networks-message-passing">Graph neural networks (message passing)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning-workflows.html#federated-learning-optional">Federated learning (optional)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agi-core-architecture.html">AGI Core Architecture</a><ul>
@@ -445,7 +456,6 @@
 <li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-core-licenses.html">Agi-core Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project-licenses.html">Example-app-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project-licenses.html">Mycode-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
 </ul>
@@ -880,15 +890,6 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Example App Project (RL + ILP routing)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#what-it-does">What it does</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#training-vs-inference">Training vs inference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#continuous-learning-optional">Continuous learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#topology-agnostic-generalisation-gnn-message-passing">Topology-agnostic generalisation (GNN message passing)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#federated-learning-optional">Federated learning (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#dependencies">Dependencies</a></li>
-</ul>
-</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
 <ul>
@@ -979,13 +980,13 @@ Streamlit session so the selector picks it up.</p>
 <section id="docs-drift-after-touching-core-apis">
 <h2>Docs drift after touching core APIs<a class="headerlink" href="#docs-drift-after-touching-core-apis" title="Link to this heading"></a></h2>
 <p>If you change <code class="docutils literal notranslate"><span class="pre">BaseWorker</span></code> or other primitives surfaced in the guides, rebuild the
-reference documentation with <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">run</span> <span class="pre">python</span> <span class="pre">docs/gen-docs.py</span></code> so the published docs
+reference documentation with <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">run</span> <span class="pre">--group</span> <span class="pre">sphinx</span> <span class="pre">--dev</span> <span class="pre">docs/gen-docs.py</span></code> so the published docs
 match the updated source.</p>
 </section>
 <section id="agi-install-fails-looking-for-pyproject-toml">
 <h2><cite>AGI.install_*</cite> fails looking for <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code><a class="headerlink" href="#agi-install-fails-looking-for-pyproject-toml" title="Link to this heading"></a></h2>
 <p>Each worker must carry its own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> (for example
-<code class="docutils literal notranslate"><span class="pre">src/agilab/apps/example_app_project/src/example_worker/pyproject.toml</span></code>). If the installer raises
+<code class="docutils literal notranslate"><span class="pre">src/agilab/apps/builtin/flight_project/src/flight_worker/pyproject.toml</span></code>). If the installer raises
 <code class="docutils literal notranslate"><span class="pre">FileNotFoundError</span></code> for that path, add the file with the worker’s runtime
 dependencies—typically mirroring the manager’s requirements plus the appropriate
 <code class="docutils literal notranslate"><span class="pre">dag-worker</span></code>/<code class="docutils literal notranslate"><span class="pre">polars-worker</span></code> extra.</p>
