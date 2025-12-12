@@ -2068,7 +2068,7 @@ def run_all_steps(
                     venv_root = fallback_runtime
                     st.session_state["lab_selected_venv"] = venv_root
             target_base = Path(steps_file).parent.resolve()
-            # Collapse duplicated tail (e.g., export/example_app/export/example_app)
+            # Collapse duplicated tail (e.g., export/<app>/export/<app>)
             if target_base.name == target_base.parent.name:
                 target_base = target_base.parent
             target_base.mkdir(parents=True, exist_ok=True)

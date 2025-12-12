@@ -391,18 +391,9 @@ if (-not [string]::IsNullOrWhiteSpace($appsOverride)) {
     }
 }
 
-$repositoryApps = @('example_app_project', 'example_app_project', 'example_app_project', 'example_app_project', 'example_app_project')
-if (-not $SkipRepositoryApps) {
-    $existingRepoApps = @()
-    foreach ($app in $repositoryApps) {
-        $candidate = Join-PathSafe $APPS_TARGET_BASE $app
-        if (Test-Path -LiteralPath $candidate) {
-            $existingRepoApps += $app
-        }
-    }
-    $repositoryApps = $existingRepoApps
-} else {
-    $repositoryApps = @()
+$repositoryApps = @()
+if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
+    $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' | ForEach-Object { $_.Name }
 }
 
 $includedPages = if ($SkipRepositoryPages) { $builtinPages } else { $builtinPages + $repositoryPages }
