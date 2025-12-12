@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import glob
 import json
+import re
 import tomllib
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -855,6 +856,9 @@ def page():
         "show_map",
         "show_graph",
         "show_metrics",
+        "df_select_mode",
+        "df_file_regex",
+        "df_files",
     ):
         if key in vm_settings and key not in st.session_state:
             st.session_state[key] = vm_settings[key]
@@ -980,6 +984,9 @@ def page():
         "show_graph": st.session_state.get("show_graph", True),
         "show_metrics": st.session_state.get("show_metrics", False),
         "df_file": st.session_state.get("df_file", ""),
+        "df_select_mode": st.session_state.get("df_select_mode", "Single file"),
+        "df_file_regex": st.session_state.get("df_file_regex", ""),
+        "df_files": st.session_state.get("df_files", []),
     }
     vm_mutated = False
     for key, value in new_vm_settings.items():
@@ -1027,40 +1034,140 @@ def page():
 
     csv_files_rel = sorted([Path(file).relative_to(datadir_path).as_posix() for file in st.session_state.csv_files])
 
-    prev_df_file = st.session_state.get("_prev_df_file")
     prev_files_rel = st.session_state.get("_prev_csv_files_rel")
     if prev_files_rel != csv_files_rel:
+        # Prune stale selections when the file list changes.
         if st.session_state.get("df_file") not in csv_files_rel:
             st.session_state.pop("df_file", None)
-        # If the persisted df_file exists, keep it selected
-        elif st.session_state.get("df_file") in csv_files_rel:
-            st.session_state["df_file"] = st.session_state.get("df_file")
-    st.sidebar.selectbox(
-        label="DataFrame",
-        options=csv_files_rel,
-        key="df_file",
-        index=csv_files_rel.index(st.session_state.df_file) if "df_file" in st.session_state and st.session_state.df_file in csv_files_rel else 0,
+        if isinstance(st.session_state.get("df_files"), list):
+            st.session_state["df_files"] = [
+                f for f in st.session_state["df_files"] if f in csv_files_rel
+            ]
+
+    df_mode_options = ["Single file", "Regex (multi)"]
+    df_mode = st.sidebar.radio(
+        "DataFrame selection",
+        options=df_mode_options,
+        index=df_mode_options.index(st.session_state.get("df_select_mode", df_mode_options[0]))
+        if st.session_state.get("df_select_mode") in df_mode_options
+        else 0,
+        key="df_select_mode",
     )
-    if st.session_state.get("df_file") != prev_df_file:
+
+    selected_files_rel: list[str] = []
+    if df_mode == "Regex (multi)":
+        regex_raw = st.sidebar.text_input(
+            "DataFrame filename regex",
+            value=st.session_state.get("df_file_regex", ""),
+            key="df_file_regex",
+            help="Python regex applied to the relative file path. Leave empty to match all files.",
+        ).strip()
+        regex_ok = True
+        pattern = None
+        if regex_raw:
+            try:
+                pattern = re.compile(regex_raw)
+            except re.error as exc:
+                regex_ok = False
+                st.sidebar.error(f"Invalid regex: {exc}")
+        matching = (
+            [f for f in csv_files_rel if pattern.search(f)]
+            if (regex_ok and pattern is not None)
+            else (csv_files_rel if not regex_raw else [])
+        )
+        st.sidebar.caption(f"{len(matching)} / {len(csv_files_rel)} files match")
+        if st.sidebar.button(
+            f"Select all matching ({len(matching)})",
+            disabled=not matching,
+            key="df_regex_select_all",
+        ):
+            st.session_state["df_files"] = matching
+
+        if "df_files" not in st.session_state:
+            # Preserve the current single-file selection when switching modes.
+            seed = st.session_state.get("df_file")
+            if seed in csv_files_rel:
+                st.session_state["df_files"] = [seed]
+            else:
+                st.session_state["df_files"] = [csv_files_rel[0]] if csv_files_rel else []
+
+        st.sidebar.multiselect(
+            label="DataFrames",
+            options=csv_files_rel,
+            key="df_files",
+        )
+        if isinstance(st.session_state.get("df_files"), list):
+            selected_files_rel = [f for f in st.session_state["df_files"] if f in csv_files_rel]
+            st.session_state["df_files"] = selected_files_rel
+        st.sidebar.caption(f"{len(selected_files_rel)} selected")
+        if selected_files_rel:
+            st.session_state["df_file"] = selected_files_rel[0]
+    else:
+        if csv_files_rel and st.session_state.get("df_file") not in csv_files_rel:
+            st.session_state["df_file"] = csv_files_rel[0]
+        st.sidebar.selectbox(
+            label="DataFrame",
+            options=csv_files_rel,
+            key="df_file",
+            index=csv_files_rel.index(st.session_state.df_file)
+            if "df_file" in st.session_state and st.session_state.df_file in csv_files_rel
+            else 0,
+        )
+        if st.session_state.get("df_file"):
+            selected_files_rel = [st.session_state.get("df_file")]
+
+    selection_sig = (df_mode, tuple(selected_files_rel))
+    if st.session_state.get("_prev_df_selection_sig") != selection_sig:
         st.session_state.pop("loaded_df", None)
         st.session_state.pop("id_col", None)
         st.session_state.pop("flight_id_col", None)
         st.session_state.pop("time_col", None)
-        st.session_state["_prev_df_file"] = st.session_state.get("df_file")
+        st.session_state["_prev_df_selection_sig"] = selection_sig
     st.session_state["_prev_csv_files_rel"] = csv_files_rel
 
-    if not st.session_state.get("df_file"):
-        st.warning("Please select a dataset to proceed.")
+    if not selected_files_rel:
+        st.warning("Please select at least one dataset to proceed.")
         return
 
-    df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+    df_paths_abs = [datadir_path / rel for rel in selected_files_rel]
     try:
-        cache_buster = None
-        try:
-            cache_buster = df_file_abs.stat().st_mtime
-        except Exception:
-            pass
-        st.session_state.loaded_df = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
+        frames: list[pd.DataFrame] = []
+        load_errors: list[str] = []
+        for rel, abs_path in zip(selected_files_rel, df_paths_abs):
+            cache_buster = None
+            try:
+                cache_buster = abs_path.stat().st_mtime
+            except Exception:
+                pass
+            try:
+                loaded = load_df(abs_path, with_index=True, cache_buster=cache_buster)
+            except Exception as exc:
+                load_errors.append(f"{rel}: {exc}")
+                continue
+            if loaded is None:
+                load_errors.append(f"{rel}: returned None")
+                continue
+            if not isinstance(loaded, pd.DataFrame):
+                load_errors.append(f"{rel}: unexpected type {type(loaded)}")
+                continue
+            loaded = loaded.copy()
+            if "source_file" not in loaded.columns:
+                loaded.insert(0, "source_file", rel)
+            frames.append(loaded)
+
+        if load_errors:
+            st.sidebar.warning("Some selected files failed to load; continuing with the rest.")
+            with st.sidebar.expander("Load errors", expanded=False):
+                for err in load_errors[:50]:
+                    st.write(err)
+                if len(load_errors) > 50:
+                    st.write(f"... ({len(load_errors) - 50} more)")
+
+        if not frames:
+            st.error("No selected dataframes could be loaded.")
+            return
+
+        st.session_state.loaded_df = frames[0] if len(frames) == 1 else pd.concat(frames, ignore_index=True)
     except Exception as e:
         st.error(f"Error loading data: {e}")
         st.warning("The selected data file could not be loaded. Please select a valid file.")
