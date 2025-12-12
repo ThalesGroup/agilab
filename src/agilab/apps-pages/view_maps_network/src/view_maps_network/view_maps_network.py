@@ -234,12 +234,13 @@ def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
     seen = set()
     candidates: list[Path] = []
     known_relative = (
-        Path("example_app/pipeline/flows/topology.json"),
-        Path("example_app/pipeline/ilp_topology.gml"),
-        Path("example_app/pipeline/routing_edges.jsonl"),
+        Path("pipeline/flows/topology.json"),
+        Path("pipeline/topology.gml"),
+        Path("pipeline/ilp_topology.gml"),
+        Path("pipeline/routing_edges.jsonl"),
     )
     patterns = (
-        # Common example_app / routing exports
+        # Common routing exports
         "routing_edges.jsonl",
         "routing_edges.ndjson",
         "routing_edges.json",
@@ -253,7 +254,7 @@ def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
         "edges.*.json",
         "edges.*.jsonl",
         "edges.*.ndjson",
-        # example_app topology exports (GML-format files often named .json)
+        # Common topology exports (GML-format files often named .json)
         "topology.json",
         "topology.gml",
         "ilp_topology.gml",
@@ -639,7 +640,7 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
             df = None
 
     if df is None:
-        # Fallback: example_app exports often write GML (graph [ ... ]) even when the extension is .json.
+        # Fallback: some exporters write GML (graph [ ... ]) even when the extension is .json.
         try:
             graph = nx.read_gml(path)
         except Exception:
@@ -1446,14 +1447,13 @@ def page():
             env.share_root_path(),
             env.AGILAB_EXPORT_ABS,
             Path(st.session_state.datadir),
-            env.share_root_path() / "example_app" / "dataframe",
-            env.share_root_path() / "example_app" / "dataframe",
         ]
     )
+    datadir_path = Path(st.session_state.datadir)
     example_edges_candidates = [
-        env.share_root_path() / "example_app" / "pipeline" / "flows" / "topology.json",
-        env.share_root_path() / "example_app" / "pipeline" / "ilp_topology.gml",
-        env.share_root_path() / "example_app" / "pipeline" / "routing_edges.jsonl",
+        datadir_path / "pipeline" / "edges.jsonl",
+        datadir_path / "pipeline" / "edges.parquet",
+        datadir_path / "pipeline" / "topology.json",
     ]
     example_edges_path = next(
         (p for p in example_edges_candidates if p.exists()),
@@ -1794,93 +1794,87 @@ def page():
             st.markdown("### Metrics snapshot")
             st.dataframe(df_positions[metric_cols].sort_values(flight_col), use_container_width=True)
 
-    # Live allocations overlay (routing/ILP trainers)
-    st.markdown("### 📡 Live allocations (routing/ILP)")
-    alloc_root = env.share_root_path()
-    alloc_base = alloc_root / "example_app"
-    alloc_candidates = [
-        alloc_base / "pipeline/trainer_routing/allocations_steps.parquet",
-        alloc_base / "pipeline/trainer_routing/allocations_steps.json",
-        alloc_base / "dataframe/trainer_routing/allocations_steps.parquet",
-        alloc_base / "dataframe/trainer_routing/allocations_steps.json",
-        alloc_base / "trainer_routing/allocations_steps.parquet",
-        alloc_base / "trainer_routing/allocations_steps.json",
+    # Live allocations overlay (optional)
+    st.markdown("### 📡 Live allocations")
+    alloc_search_bases = [
+        datadir_path,
+        datadir_path / "pipeline",
+        datadir_path / "dataframe",
     ]
-    baseline_candidates = [
-        alloc_base / "pipeline/trainer_ilp_stepper/allocations_steps.parquet",
-        alloc_base / "pipeline/trainer_ilp_stepper/allocations_steps.json",
-        alloc_base / "dataframe/trainer_ilp_stepper/allocations_steps.parquet",
-        alloc_base / "dataframe/trainer_ilp_stepper/allocations_steps.json",
-        alloc_base / "trainer_ilp_stepper/allocations_steps.parquet",
-        alloc_base / "trainer_ilp_stepper/allocations_steps.json",
-    ]
-    detected_routing = next((p for p in alloc_candidates if p.exists()), None)
-    if detected_routing is None:
-        detected_routing = _find_latest_allocations(alloc_base, include=("trainer_routing",))
-    detected_baseline = next((p for p in baseline_candidates if p.exists()), None)
-    if detected_baseline is None:
-        detected_baseline = _find_latest_allocations(alloc_base, include=("trainer_ilp_stepper",))
-    alloc_path_default = detected_routing or detected_baseline or alloc_candidates[0]
-    baseline_default = detected_baseline or baseline_candidates[0]
+    detected_alloc: Path | None = None
+    for base in alloc_search_bases:
+        if base.exists():
+            detected_alloc = _find_latest_allocations(base)
+            if detected_alloc is not None:
+                break
 
-    known_alloc_defaults = {str(p) for p in alloc_candidates}
+    alloc_placeholder = datadir_path / "pipeline" / "allocations_steps.parquet"
+    alloc_default_str = str(detected_alloc) if detected_alloc is not None else ""
     current_alloc_default = (st.session_state.get("alloc_path_input") or "").strip()
-    alloc_default_str = str(alloc_path_default)
-    if not current_alloc_default:
+    if not current_alloc_default and alloc_default_str:
         st.session_state["alloc_path_input"] = alloc_default_str
         st.session_state["_alloc_path_autoset"] = alloc_default_str
-    else:
+    elif current_alloc_default and alloc_default_str:
         try:
             current_alloc_path = Path(current_alloc_default).expanduser()
         except Exception:
             current_alloc_path = None
         if current_alloc_path is not None and not current_alloc_path.exists():
             autoset_prev = st.session_state.get("_alloc_path_autoset")
-            if autoset_prev == current_alloc_default or current_alloc_default in known_alloc_defaults:
+            if autoset_prev == current_alloc_default:
                 st.session_state["alloc_path_input"] = alloc_default_str
                 st.session_state["_alloc_path_autoset"] = alloc_default_str
     alloc_path = st.text_input(
-        "Routing allocations file (JSON or Parquet)",
+        "Allocations file (JSON or Parquet)",
         key="alloc_path_input",
+        placeholder=f"e.g. {alloc_placeholder}",
     ).strip()
     try:
         alloc_path_obj = Path(alloc_path).expanduser()
     except Exception:
         alloc_path_obj = None
     if alloc_path_obj is not None and alloc_path and not alloc_path_obj.exists():
-        st.info("Routing allocations file not found. Run the example_app routing step or update the path.")
+        st.info("Allocations file not found. Update the path or generate allocations.")
 
-    known_baseline_defaults = {str(p) for p in baseline_candidates}
+    detected_baseline: Path | None = None
+    for base in alloc_search_bases:
+        if base.exists():
+            detected_baseline = _find_latest_allocations(base, include=("baseline", "ilp"))
+            if detected_baseline is not None:
+                break
+
+    baseline_placeholder = datadir_path / "pipeline" / "baseline_allocations.parquet"
     current_baseline_default = (st.session_state.get("baseline_alloc_path_input") or "").strip()
-    baseline_default_str = str(baseline_default)
-    if not current_baseline_default:
+    baseline_default_str = str(detected_baseline) if detected_baseline is not None else ""
+    if not current_baseline_default and baseline_default_str:
         st.session_state["baseline_alloc_path_input"] = baseline_default_str
         st.session_state["_baseline_alloc_path_autoset"] = baseline_default_str
-    else:
+    elif current_baseline_default and baseline_default_str:
         try:
             current_baseline_path = Path(current_baseline_default).expanduser()
         except Exception:
             current_baseline_path = None
         if current_baseline_path is not None and not current_baseline_path.exists():
             autoset_prev = st.session_state.get("_baseline_alloc_path_autoset")
-            if autoset_prev == current_baseline_default or current_baseline_default in known_baseline_defaults:
+            if autoset_prev == current_baseline_default:
                 st.session_state["baseline_alloc_path_input"] = baseline_default_str
                 st.session_state["_baseline_alloc_path_autoset"] = baseline_default_str
     baseline_path_input = st.text_input(
-        "Baseline (ILP) allocations file (optional)",
+        "Baseline allocations file (optional)",
         key="baseline_alloc_path_input",
+        placeholder=f"e.g. {baseline_placeholder}",
     ).strip()
     try:
         baseline_path_obj = Path(baseline_path_input).expanduser()
     except Exception:
         baseline_path_obj = None
     if baseline_path_obj is not None and baseline_path_input and not baseline_path_obj.exists():
-        st.info("Baseline allocations file not found. Run the ILP stepper baseline or update the path.")
-    traj_glob_default = env.share_root_path() / "example_app/dataframe/flight_simulation/*.parquet"
+        st.info("Baseline allocations file not found. Update the path or generate a baseline.")
+    traj_glob_default = datadir_path / "dataframe" / "*.parquet"
     if not st.session_state.get("traj_glob_input"):
         st.session_state["traj_glob_input"] = str(traj_glob_default)
     traj_glob = st.text_input(
-        "Trajectory glob",
+        "Trajectory glob (optional)",
         key="traj_glob_input",
     )
     alloc_df = (

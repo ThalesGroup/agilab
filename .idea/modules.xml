@@ -3,15 +3,6 @@
     <component name="ProjectModuleManager">
         <modules>
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/agilab.iml" filepath="$PROJECT_DIR$/.idea/modules/agilab.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
-            <module fileurl="file://$PROJECT_DIR$/.idea/modules/example_app_project.iml" filepath="$PROJECT_DIR$/.idea/modules/example_app_project.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_project.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/mycode_project.iml" filepath="$PROJECT_DIR$/.idea/modules/mycode_project.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_autoencoder_latenspace.iml" filepath="$PROJECT_DIR$/.idea/modules/view_autoencoder_latenspace.iml" />

@@ -1,5 +1,7 @@
 coverage.xml
 .coverage
+.coverage-*
+coverage-*.xml
 # MacOS files
 .DS_Store
 
@@ -44,3 +46,16 @@ src/*_worker_*/
 .idea/runConfigurations/_*.xml
 src/agilab/apps/*_project
 
+# Codex CLI exported logs (generated)
+codex/codex_shell_history.tsv
+codex/codex_shell_command_stats.tsv
+codex/codex_shell_command_main_stats.tsv
+codex/codex_shell_summary.md
+codex/codex_shell_summary.tsv
+
+# Run-matrix dumps (generated)
+run_matrix_dump.txt
+run_matrix_parsed.tsv
+
+# Work-plan dumps (generated)
+distribution.json

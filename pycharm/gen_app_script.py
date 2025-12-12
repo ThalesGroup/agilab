@@ -107,7 +107,7 @@ if __name__ == "__main__":
         app_name = module_name
 
     # app_dir = what we substitute into {APP} in the templates:
-    #   for "example_app_project"         -> "example_app"
+    #   for "example_app_project"          -> "example_app"
     #   for "builtin/flight_project"       -> "builtin/flight"
     if app_path.parent == Path("."):
         app_dir = app_name
