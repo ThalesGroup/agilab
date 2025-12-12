@@ -1096,9 +1096,9 @@ def page():
             options=csv_files_rel,
             key="df_files",
         )
-        if isinstance(st.session_state.get("df_files"), list):
-            selected_files_rel = [f for f in st.session_state["df_files"] if f in csv_files_rel]
-            st.session_state["df_files"] = selected_files_rel
+        current_df_files = st.session_state.get("df_files")
+        if isinstance(current_df_files, list):
+            selected_files_rel = [f for f in current_df_files if f in csv_files_rel]
         st.sidebar.caption(f"{len(selected_files_rel)} selected")
         if selected_files_rel:
             st.session_state["df_file"] = selected_files_rel[0]
