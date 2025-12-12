@@ -233,6 +233,11 @@ def _label_for_link(column: str) -> str:
 def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
     seen = set()
     candidates: list[Path] = []
+    known_relative = (
+        Path("example_app/pipeline/flows/topology.json"),
+        Path("example_app/pipeline/ilp_topology.gml"),
+        Path("example_app/pipeline/routing_edges.jsonl"),
+    )
     patterns = (
         # Common example_app / routing exports
         "routing_edges.jsonl",
@@ -256,6 +261,13 @@ def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
     for base in bases:
         if not base or not base.exists():
             continue
+        # Fast path: check known default locations (avoids expensive globbing on large shares).
+        for rel in known_relative:
+            p = (base / rel).expanduser()
+            if p.exists() and p.is_file() and p not in seen:
+                if not any(part.startswith(".") for part in p.parts):
+                    seen.add(p)
+                    candidates.append(p)
         for pattern in patterns:
             for p in base.glob(f"**/{pattern}"):
                 if p in seen:
