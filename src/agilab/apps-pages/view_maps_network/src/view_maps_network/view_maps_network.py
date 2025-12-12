@@ -507,7 +507,7 @@ def _nearest_row(df: pd.DataFrame, t: float) -> pd.DataFrame:
     return df.loc[[idx]]
 
 
-def _find_latest_allocations(base: Path) -> Path | None:
+def _find_latest_allocations(base: Path, include: tuple[str, ...] = ()) -> Path | None:
     """Locate the most recent allocations file under a given base."""
     candidates: list[Path] = []
     for pattern in ("allocations*.parquet", "allocations*.json", "allocations*.jsonl", "allocations_steps.parquet"):
@@ -515,6 +515,10 @@ def _find_latest_allocations(base: Path) -> Path | None:
     if not candidates:
         return None
     candidates = [p for p in candidates if p.is_file()]
+    if include:
+        lowered = [token.lower() for token in include if token]
+        if lowered:
+            candidates = [p for p in candidates if all(token in str(p).lower() for token in lowered)]
     if not candidates:
         return None
     return max(candidates, key=lambda p: p.stat().st_mtime)
@@ -794,17 +798,27 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
     )
     return fig
 
-def increment_time(unique_timestamps):
-    current_index = unique_timestamps.index(st.session_state.selected_time)
-    if current_index < len(unique_timestamps) - 1:
-        st.session_state.selected_time_idx = current_index + 1
-        st.session_state.selected_time = unique_timestamps[st.session_state.selected_time_idx]
+def _shift_selected_time(delta: int) -> None:
+    """Adjust the current selected time by +/- 1 without mutating widget state mid-run."""
+    unique_timestamps = st.session_state.get("_time_options") or []
+    if not unique_timestamps:
+        return
+    current = st.session_state.get("selected_time")
+    try:
+        current_index = unique_timestamps.index(current)
+    except Exception:
+        current_index = len(unique_timestamps) - 1
+    new_index = max(0, min(current_index + int(delta), len(unique_timestamps) - 1))
+    st.session_state["selected_time_idx"] = new_index
+    st.session_state["selected_time"] = unique_timestamps[new_index]
 
-def decrement_time(unique_timestamps):
-    current_index = unique_timestamps.index(st.session_state.selected_time)
-    if current_index > 0:
-        st.session_state.selected_time_idx = current_index - 1
-        st.session_state.selected_time = unique_timestamps[st.session_state.selected_time_idx]
+
+def increment_time() -> None:
+    _shift_selected_time(+1)
+
+
+def decrement_time() -> None:
+    _shift_selected_time(-1)
 
 def safe_literal_eval(value):
     try:
@@ -1444,11 +1458,11 @@ def page():
         )
 
     # Time controls
+    st.session_state["_time_options"] = unique_timestamps
     with st.container():
         cola, colb, colc = st.columns([0.3, 7.5, 0.6])
         with cola:
-            if st.button("◁", key="decrement_button"):
-                decrement_time(unique_timestamps)
+            st.button("◁", key="decrement_button", on_click=decrement_time)
         with colb:
             selected_val = st.select_slider(
                 "Time",
@@ -1463,8 +1477,7 @@ def page():
             prog = idx_now / (len(unique_timestamps) - 1) if len(unique_timestamps) > 1 else 1.0
             st.progress(prog)
         with colc:
-            if st.button("▷", key="increment_button"):
-                increment_time(unique_timestamps)
+            st.button("▷", key="increment_button", on_click=increment_time)
 
     # Per-node latest position up to the selected time (avoid dropping sparse nodes); fall back to last known
     df_time_masked = df[df[time_col] <= st.session_state.selected_time]
@@ -1511,11 +1524,12 @@ def page():
         st.warning("No data available for the selected time.")
         st.stop()
 
-    if "color_map" not in st.session_state or st.session_state.get("color_map_key") != flight_col:
+    color_map_sig = (flight_col, st.session_state.get("_prev_df_selection_sig"))
+    if "color_map" not in st.session_state or st.session_state.get("color_map_key") != color_map_sig:
         flight_ids = df_std["id_col"].astype(str).unique()
         color_map = plt.get_cmap("tab20", len(flight_ids))
         st.session_state.color_map = {flight_id: mcolors.rgb2hex(color_map(i % 20)) for i, flight_id in enumerate(flight_ids)}
-        st.session_state.color_map_key = flight_col
+        st.session_state.color_map_key = color_map_sig
 
     color_series = current_positions["id_col"].map(st.session_state.color_map)
     if hasattr(color_series, "fillna"):
@@ -1643,43 +1657,85 @@ def page():
     # Live allocations overlay (routing/ILP trainers)
     st.markdown("### 📡 Live allocations (routing/ILP)")
     alloc_root = env.share_root_path()
+    alloc_base = alloc_root / "example_app"
     alloc_candidates = [
-        alloc_root / "example_app/pipeline/trainer_routing/allocations_steps.parquet",
-        alloc_root / "example_app/dataframe/trainer_routing/allocations_steps.parquet",
+        alloc_base / "pipeline/trainer_routing/allocations_steps.parquet",
+        alloc_base / "pipeline/trainer_routing/allocations_steps.json",
+        alloc_base / "dataframe/trainer_routing/allocations_steps.parquet",
+        alloc_base / "dataframe/trainer_routing/allocations_steps.json",
+        alloc_base / "trainer_routing/allocations_steps.parquet",
+        alloc_base / "trainer_routing/allocations_steps.json",
     ]
-    alloc_path_default = next((p for p in alloc_candidates if p.exists()), alloc_candidates[0])
-    if not st.session_state.get("alloc_path_input"):
-        st.session_state["alloc_path_input"] = str(alloc_path_default)
+    baseline_candidates = [
+        alloc_base / "pipeline/trainer_ilp_stepper/allocations_steps.parquet",
+        alloc_base / "pipeline/trainer_ilp_stepper/allocations_steps.json",
+        alloc_base / "dataframe/trainer_ilp_stepper/allocations_steps.parquet",
+        alloc_base / "dataframe/trainer_ilp_stepper/allocations_steps.json",
+        alloc_base / "trainer_ilp_stepper/allocations_steps.parquet",
+        alloc_base / "trainer_ilp_stepper/allocations_steps.json",
+    ]
+    detected_routing = next((p for p in alloc_candidates if p.exists()), None)
+    if detected_routing is None:
+        detected_routing = _find_latest_allocations(alloc_base, include=("trainer_routing",))
+    detected_baseline = next((p for p in baseline_candidates if p.exists()), None)
+    if detected_baseline is None:
+        detected_baseline = _find_latest_allocations(alloc_base, include=("trainer_ilp_stepper",))
+    alloc_path_default = detected_routing or detected_baseline or alloc_candidates[0]
+    baseline_default = detected_baseline or baseline_candidates[0]
+
+    known_alloc_defaults = {str(p) for p in alloc_candidates}
+    current_alloc_default = (st.session_state.get("alloc_path_input") or "").strip()
+    alloc_default_str = str(alloc_path_default)
+    if not current_alloc_default:
+        st.session_state["alloc_path_input"] = alloc_default_str
+        st.session_state["_alloc_path_autoset"] = alloc_default_str
+    else:
+        try:
+            current_alloc_path = Path(current_alloc_default).expanduser()
+        except Exception:
+            current_alloc_path = None
+        if current_alloc_path is not None and not current_alloc_path.exists():
+            autoset_prev = st.session_state.get("_alloc_path_autoset")
+            if autoset_prev == current_alloc_default or current_alloc_default in known_alloc_defaults:
+                st.session_state["alloc_path_input"] = alloc_default_str
+                st.session_state["_alloc_path_autoset"] = alloc_default_str
     alloc_path = st.text_input(
-        "Allocations file (JSON or Parquet)",
+        "Routing allocations file (JSON or Parquet)",
         key="alloc_path_input",
     ).strip()
-    alloc_path_obj = Path(alloc_path).expanduser()
-    if not alloc_path_obj.exists():
-        fallback_alloc = _find_latest_allocations(alloc_root / "example_app")
-        if fallback_alloc:
-            st.info(f"Allocations file not found, using latest detected: {fallback_alloc}")
-            alloc_path_obj = fallback_alloc
-        else:
-            st.info("No allocations found at the specified path.")
-    baseline_candidates = [
-        alloc_root / "example_app/pipeline/trainer_ilp_stepper/allocations_steps.parquet",
-        alloc_root / "example_app/dataframe/trainer_ilp_stepper/allocations_steps.parquet",
-        alloc_root / "example_app/pipeline/trainer_ilp_stepper/allocations_steps.json",
-    ]
-    baseline_default = next((p for p in baseline_candidates if p.exists()), baseline_candidates[0])
-    if not st.session_state.get("baseline_alloc_path_input"):
-        st.session_state["baseline_alloc_path_input"] = str(baseline_default)
+    try:
+        alloc_path_obj = Path(alloc_path).expanduser()
+    except Exception:
+        alloc_path_obj = None
+    if alloc_path_obj is not None and alloc_path and not alloc_path_obj.exists():
+        st.info("Routing allocations file not found. Run the example_app routing step or update the path.")
+
+    known_baseline_defaults = {str(p) for p in baseline_candidates}
+    current_baseline_default = (st.session_state.get("baseline_alloc_path_input") or "").strip()
+    baseline_default_str = str(baseline_default)
+    if not current_baseline_default:
+        st.session_state["baseline_alloc_path_input"] = baseline_default_str
+        st.session_state["_baseline_alloc_path_autoset"] = baseline_default_str
+    else:
+        try:
+            current_baseline_path = Path(current_baseline_default).expanduser()
+        except Exception:
+            current_baseline_path = None
+        if current_baseline_path is not None and not current_baseline_path.exists():
+            autoset_prev = st.session_state.get("_baseline_alloc_path_autoset")
+            if autoset_prev == current_baseline_default or current_baseline_default in known_baseline_defaults:
+                st.session_state["baseline_alloc_path_input"] = baseline_default_str
+                st.session_state["_baseline_alloc_path_autoset"] = baseline_default_str
     baseline_path_input = st.text_input(
         "Baseline (ILP) allocations file (optional)",
         key="baseline_alloc_path_input",
     ).strip()
-    baseline_path_obj = Path(baseline_path_input).expanduser()
-    if baseline_path_obj and not baseline_path_obj.exists():
-        fallback_base = _find_latest_allocations(alloc_root / "example_app")
-        if fallback_base and "ilp" in fallback_base.name.lower():
-            st.info(f"Baseline file not found, using detected baseline: {fallback_base}")
-            baseline_path_obj = fallback_base
+    try:
+        baseline_path_obj = Path(baseline_path_input).expanduser()
+    except Exception:
+        baseline_path_obj = None
+    if baseline_path_obj is not None and baseline_path_input and not baseline_path_obj.exists():
+        st.info("Baseline allocations file not found. Run the ILP stepper baseline or update the path.")
     traj_glob_default = env.share_root_path() / "example_app/dataframe/flight_simulation/*.parquet"
     if not st.session_state.get("traj_glob_input"):
         st.session_state["traj_glob_input"] = str(traj_glob_default)
@@ -1687,20 +1743,57 @@ def page():
         "Trajectory glob",
         key="traj_glob_input",
     )
-    alloc_df = load_allocations(alloc_path_obj)
-    baseline_df = load_allocations(baseline_path_obj) if baseline_path_obj.exists() else pd.DataFrame()
-    if alloc_df.empty:
-        st.info("No allocations found at the specified path.")
+    alloc_df = (
+        load_allocations(alloc_path_obj)
+        if alloc_path_obj is not None and alloc_path_obj.exists()
+        else pd.DataFrame()
+    )
+    baseline_df = (
+        load_allocations(baseline_path_obj)
+        if baseline_path_obj is not None and baseline_path_obj.exists()
+        else pd.DataFrame()
+    )
+
+    def _time_values(df_in: pd.DataFrame) -> list[int]:
+        if df_in.empty:
+            return []
+        if "time_index" not in df_in.columns:
+            return [0]
+        series = pd.to_numeric(df_in["time_index"], errors="coerce").dropna()
+        if series.empty:
+            return [0]
+        return sorted({int(x) for x in series.tolist()})
+
+    times = sorted(set(_time_values(alloc_df)) | set(_time_values(baseline_df)))
+    if not times:
+        st.info("No allocations found yet (routing or baseline).")
     else:
-        times = sorted(alloc_df["time_index"].unique())
-        t_sel = st.slider("Time index", min_value=int(min(times)), max_value=int(max(times)), value=int(min(times)))
-        alloc_step = alloc_df[alloc_df["time_index"] == t_sel]
-        baseline_step = baseline_df[baseline_df["time_index"] == t_sel] if not baseline_df.empty else pd.DataFrame()
+        if st.session_state.get("alloc_time_index") not in times:
+            st.session_state["alloc_time_index"] = times[0]
+        t_sel = st.select_slider("Time index", options=times, key="alloc_time_index")
+        alloc_step = (
+            alloc_df[alloc_df["time_index"] == t_sel]
+            if (not alloc_df.empty and "time_index" in alloc_df.columns)
+            else pd.DataFrame()
+        )
+        baseline_step = (
+            baseline_df[baseline_df["time_index"] == t_sel]
+            if (not baseline_df.empty and "time_index" in baseline_df.columns)
+            else pd.DataFrame()
+        )
         positions_live = load_positions_at_time(traj_glob, t_sel)
-        st.dataframe(alloc_step)
+
+        if not alloc_step.empty:
+            st.caption("Routing allocations at this timestep")
+            st.dataframe(alloc_step)
         if not baseline_step.empty:
-            st.caption("Baseline (ILP) allocations at the same timestep")
+            st.caption("Baseline (ILP) allocations at this timestep")
             st.dataframe(baseline_step)
+        if alloc_step.empty and baseline_step.empty:
+            st.info("No allocations rows found for the selected timestep.")
+            return
+
+        if not alloc_step.empty and not baseline_step.empty:
             try:
                 merged = alloc_step.merge(
                     baseline_step,
@@ -1714,7 +1807,8 @@ def page():
                     st.dataframe(merged[["source", "destination", "time_index", "delivered_bandwidth_rl", "delivered_bandwidth_ilp", "delivered_delta"]])
             except Exception:
                 st.info("Unable to compute RL vs ILP diff; showing raw tables instead.")
-        layers_live = []
+
+        layers_live: list[Any] = []
         if not positions_live.empty:
             nodes_layer_live = pdk.Layer(
                 "PointCloudLayer",
@@ -1727,7 +1821,8 @@ def page():
                 pickable=True,
             )
             layers_live.append(nodes_layer_live)
-        layers_live.extend(build_allocation_layers(alloc_step, positions_live))
+        if not alloc_step.empty:
+            layers_live.extend(build_allocation_layers(alloc_step, positions_live))
         if not baseline_step.empty:
             layers_live.extend(build_allocation_layers(baseline_step, positions_live, color=[0, 180, 255]))
         if layers_live:
