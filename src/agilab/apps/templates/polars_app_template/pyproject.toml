@@ -1,6 +1,6 @@
 [project]
 name = "your_polars_project"
-version = "0.8.17"
+version = "2025.12.12"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11"
@@ -58,4 +58,3 @@ filterwarnings = [
     "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
     "ignore:.*Theme names and color schemes are lowercase in IPython 9.0.*:DeprecationWarning:IPython\\.core\\.ultratb",
 ]
-
