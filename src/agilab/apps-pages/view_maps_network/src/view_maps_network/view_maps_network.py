@@ -202,13 +202,10 @@ st.markdown("<h1 style='text-align: center;'>🌐 Network Topology</h1>", unsafe
 def _svg_data_url(svg: str) -> str:
     return "data:image/svg+xml;charset=utf-8," + quote(svg.strip())
 
-
-_PLANE_ICON_URL = _svg_data_url(
-    """
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <path d="M32 0 L42 22 L64 28 L64 36 L42 32 L42 64 L22 64 L22 32 L0 36 L0 28 L22 22 Z" fill="#ffffff"/>
-</svg>
-"""
+# IconLayer expects raster images; keep a small embedded PNG for reliability.
+_PLANE_ICON_URL = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABE0lEQVR42u2YQQ6DMAwEMcqfmv+f6KvcQ0GqEJVIiGNDxkcOgZ2dQMQ0+c/iefN5YnzbV1X1tAADvNvfxssCDIjQvqcFGBClfS8LMCBS+x4WDG8AWyCa/r23AQZEbL+nBRgQtf1eFmBA5PZ7WIAB0du3tmC+2Z/e5uuKxYOp6stKKxF57y5lDwDdAlsDkZrQnoELgeQrAMK0bGmHPClwDRDZgj8x8Bkgsn6vhwvPSRAA30mWL5qWW8tq3dTwjbr/1Fgch/N678O1a8CkC2Gzo7n5z3MupVBSYavRJ5+B8gsm7YLfJWgzW9JDQ58GwzkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABglPkADvzdm7Xeo4UAAAAASUVORK5CYII="
 )
 
 link_colors_plotly = {
@@ -251,6 +248,10 @@ def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
         "edges.*.json",
         "edges.*.jsonl",
         "edges.*.ndjson",
+        # example_app topology exports (GML-format files often named .json)
+        "topology.json",
+        "topology.gml",
+        "ilp_topology.gml",
     )
     for base in bases:
         if not base or not base.exists():
@@ -421,20 +422,27 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
             get_angle = "_angle"
         else:
             get_angle = 0
-        # Prefer TextLayer for reliability (no icon atlas/image loading).
-        # _PLANE_ICON_URL remains available if we want to switch back to IconLayer later.
-        nodes_df["_marker"] = "✈"
+        nodes_df["icon_data"] = [
+            {
+                "url": _PLANE_ICON_URL,
+                "width": 64,
+                "height": 64,
+                "anchorX": 32,
+                "anchorY": 32,
+                "mask": True,
+            }
+        ] * len(nodes_df)
         nodes_layer = pdk.Layer(
-            "TextLayer",
+            "IconLayer",
             data=nodes_df,
+            get_icon="icon_data",
             get_position="[long,lat,alt]",
-            get_text="_marker",
-            get_size=24,
             get_color="color",
-            get_alignment_baseline="'center'",
-            get_text_anchor='"middle"',
-            billboard=True,
             get_angle=get_angle,
+            get_size=22,
+            size_units="pixels",
+            size_scale=1,
+            billboard=True,
             auto_highlight=True,
             pickable=True,
             parameters={"depthTest": False},
@@ -603,26 +611,59 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
                 read_kwargs["lines"] = True
             df = pd.read_json(path, **read_kwargs)
     except Exception:
-        return {}
+        df = None
     # Allow case-insensitive / synonym column names
-    col_map = {c.lower(): c for c in df.columns}
-    source_col = col_map.get("source") or col_map.get("src") or col_map.get("from")
-    target_col = col_map.get("target") or col_map.get("dst") or col_map.get("to")
-    bearer_col = (
-        col_map.get("bearer")
-        or col_map.get("link_type")
-        or col_map.get("type")
-        or col_map.get("link")
-    )
-    if not (source_col and target_col and bearer_col):
-        return {}
+    if df is not None:
+        col_map = {c.lower(): c for c in df.columns}
+        source_col = col_map.get("source") or col_map.get("src") or col_map.get("from")
+        target_col = col_map.get("target") or col_map.get("dst") or col_map.get("to")
+        bearer_col = (
+            col_map.get("bearer")
+            or col_map.get("link_type")
+            or col_map.get("type")
+            or col_map.get("link")
+        )
+        if not (source_col and target_col and bearer_col):
+            df = None
+
+    if df is None:
+        # Fallback: example_app exports often write GML (graph [ ... ]) even when the extension is .json.
+        try:
+            graph = nx.read_gml(path)
+        except Exception:
+            return {}
+
+        edges_by_type: dict[str, list[tuple[int, int]]] = {}
+        for u, v, attrs in graph.edges(data=True):
+            bearer_raw = (
+                attrs.get("bearer")
+                or attrs.get("bearer_type")
+                or attrs.get("link_type")
+                or attrs.get("type")
+                or attrs.get("link")
+            )
+            bearer = str(bearer_raw or "").strip().lower()
+            if not bearer:
+                bearer = "link"
+            if "sat" in bearer:
+                key = "satcom_link"
+            elif "opt" in bearer:
+                key = "optical_link"
+            elif "legacy" in bearer or bearer == "leg":
+                key = "legacy_link"
+            elif "iv" in bearer:
+                key = "ivbl_link"
+            else:
+                key = bearer.replace(" ", "_")
+            edges_by_type.setdefault(key, []).append((str(u), str(v)))
+        return {k: v for k, v in edges_by_type.items() if v}
 
     edges_by_type: dict[str, list[tuple[int, int]]] = {k: [] for k in _DEFAULT_LINK_ORDER}
     for _, row in df.iterrows():
         try:
-            u = str(row[source_col])
-            v = str(row[target_col])
-            bearer_raw = str(row[bearer_col]).strip()
+            u = str(row[source_col])  # type: ignore[index]
+            v = str(row[target_col])  # type: ignore[index]
+            bearer_raw = str(row[bearer_col]).strip()  # type: ignore[index]
         except Exception:
             continue
         if not u or not v or not bearer_raw:
@@ -641,8 +682,7 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
         key = key or "link"
         edges_by_type.setdefault(key, []).append((u, v))
     # Drop empty groups
-    edges_by_type = {k: v for k, v in edges_by_type.items() if v}
-    return edges_by_type
+    return {k: v for k, v in edges_by_type.items() if v}
 
 def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
     records = []
@@ -1398,7 +1438,15 @@ def page():
             env.share_root_path() / "example_app" / "dataframe",
         ]
     )
-    example_edges_path = str(env.share_root_path() / "example_app/pipeline/routing_edges.jsonl")
+    example_edges_candidates = [
+        env.share_root_path() / "example_app" / "pipeline" / "flows" / "topology.json",
+        env.share_root_path() / "example_app" / "pipeline" / "ilp_topology.gml",
+        env.share_root_path() / "example_app" / "pipeline" / "routing_edges.jsonl",
+    ]
+    example_edges_path = next(
+        (p for p in example_edges_candidates if p.exists()),
+        example_edges_candidates[0],
+    )
     edges_placeholder = f"e.g. {example_edges_path}"
     if default_edges_candidates:
         detected_opt = ["(none)"] + [str(p) for p in default_edges_candidates]
@@ -1419,7 +1467,7 @@ def page():
         key="edges_file_input",
     )
     edges_clean = edges_file.strip()
-    if edges_clean == example_edges_path and not Path(edges_clean).expanduser().exists():
+    if edges_clean == str(example_edges_path) and not Path(edges_clean).expanduser().exists():
         edges_clean = ""
     edges_path = Path(edges_clean).expanduser() if edges_clean else None
     loaded_edges = {}
