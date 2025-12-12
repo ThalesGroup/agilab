@@ -28,6 +28,7 @@ import glob
 import json
 import re
 import tomllib
+from urllib.parse import quote
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
 
@@ -198,6 +199,18 @@ terrain_layer = pdk.Layer(
 
 st.markdown("<h1 style='text-align: center;'>🌐 Network Topology</h1>", unsafe_allow_html=True)
 
+def _svg_data_url(svg: str) -> str:
+    return "data:image/svg+xml;charset=utf-8," + quote(svg.strip())
+
+
+_PLANE_ICON_URL = _svg_data_url(
+    """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path d="M32 0 L42 22 L64 28 L64 36 L42 32 L42 64 L22 64 L22 32 L0 36 L0 28 L22 22 Z" fill="#ffffff"/>
+</svg>
+"""
+)
+
 link_colors_plotly = {
     "satcom_link": "rgb(0, 200, 255)",
     "optical_link": "rgb(0, 128, 0)",
@@ -339,7 +352,7 @@ def create_edges_geomap(df, link_column, current_positions):
                     )
     return pd.DataFrame(edges_list)
 
-def create_layers_geomap(selected_links, df, current_positions, link_color_map):
+def create_layers_geomap(selected_links, df, current_positions, link_color_map, *, marker_style: str = "Dots"):
     required = ["flight_id", "long", "lat", "alt"]
     missing = [col for col in required if col not in df.columns]
     if missing:
@@ -376,17 +389,47 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map):
         )
         layers.extend([line_layer, text_layer])
 
-    nodes_layer = pdk.Layer(
-        "PointCloudLayer",
-        data=current_positions,
-        get_position="[long,lat,alt]",
-        get_color="color",
-        point_size=13,
-        elevation_scale=500,
-        auto_highlight=True,
-        opacity=3.0,
-        pickable=True,
-    )
+    marker_style_norm = (marker_style or "Dots").strip().lower()
+    if marker_style_norm.startswith("plane"):
+        nodes_df = current_positions.copy()
+        nodes_df["icon_data"] = [
+            {"url": _PLANE_ICON_URL, "width": 64, "height": 64, "anchorY": 32, "mask": True}
+        ] * len(nodes_df)
+        angle_col = None
+        for candidate in ("bearing_deg", "bearing", "heading_deg", "heading", "yaw_deg", "yaw"):
+            if candidate in nodes_df.columns:
+                angle_col = candidate
+                break
+        if angle_col:
+            nodes_df["_angle"] = pd.to_numeric(nodes_df[angle_col], errors="coerce").fillna(0.0)
+            get_angle = "_angle"
+        else:
+            get_angle = 0
+        nodes_layer = pdk.Layer(
+            "IconLayer",
+            data=nodes_df,
+            get_icon="icon_data",
+            get_position="[long,lat,alt]",
+            get_color="color",
+            get_angle=get_angle,
+            get_size=16,
+            size_units="pixels",
+            size_scale=1,
+            auto_highlight=True,
+            pickable=True,
+        )
+    else:
+        nodes_layer = pdk.Layer(
+            "PointCloudLayer",
+            data=current_positions,
+            get_position="[long,lat,alt]",
+            get_color="color",
+            point_size=13,
+            elevation_scale=500,
+            auto_highlight=True,
+            opacity=3.0,
+            pickable=True,
+        )
     layers.append(nodes_layer)
     return layers
 
@@ -879,6 +922,7 @@ def page():
         "show_map",
         "show_graph",
         "show_metrics",
+        "map_marker_style",
         "df_select_mode",
         "df_file_regex",
         "df_files",
@@ -1008,6 +1052,7 @@ def page():
         "show_map": st.session_state.get("show_map", True),
         "show_graph": st.session_state.get("show_graph", True),
         "show_metrics": st.session_state.get("show_metrics", False),
+        "map_marker_style": st.session_state.get("map_marker_style", "Plane icons"),
         "df_file": st.session_state.get("df_file", ""),
         "df_select_mode": st.session_state.get("df_select_mode", "Single file"),
         "df_file_regex": st.session_state.get("df_file_regex", ""),
@@ -1403,6 +1448,14 @@ def page():
     show_graph = st.sidebar.checkbox("Show topology graph", key="show_graph")
     jitter_overlap = st.sidebar.checkbox("Separate overlapping nodes", key="jitter_overlap")
     show_metrics = st.sidebar.checkbox("Show metrics table", key="show_metrics")
+    marker_options = ["Dots", "Plane icons"]
+    if st.session_state.get("map_marker_style") not in marker_options:
+        st.session_state["map_marker_style"] = "Plane icons"
+    map_marker_style = st.sidebar.selectbox(
+        "Map markers",
+        options=marker_options,
+        key="map_marker_style",
+    )
 
     layout_options = ["bipartite", "circular", "planar", "random", "rescale", "shell", "spring", "spiral"]
     if st.session_state.get("layout_type_select") not in layout_options:
@@ -1568,7 +1621,13 @@ def page():
 
     if show_map and map_container is not None:
         with map_container:
-            layers = create_layers_geomap(selected_links, df_positions_std, current_positions, link_color_map)
+            layers = create_layers_geomap(
+                selected_links,
+                df_positions_std,
+                current_positions,
+                link_color_map,
+                marker_style=map_marker_style,
+            )
             view_state = pdk.ViewState(
                 latitude=current_positions["lat"].mean(),
                 longitude=current_positions["long"].mean(),
