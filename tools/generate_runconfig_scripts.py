@@ -9,7 +9,7 @@ command (workdir, env vars, interpreter) that the IDE would execute.
 from __future__ import annotations
 
 import shutil
-import shlex
+import subprocess
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -28,12 +28,12 @@ def sanitize_name(name: str) -> str:
     return cleaned or "run-config"
 
 
-def expand_macros(text: str, project_root: Path, home: Path) -> str:
+def expand_macros(text: str) -> str:
     replacements = {
-        "$ProjectFileDir$": str(project_root),
-        "$PROJECT_DIR$": str(project_root),
-        "$USER_HOME$": str(home),
-        "$MODULE_DIR$": str(project_root / ".idea" / "modules"),
+        "$ProjectFileDir$": "$REPO_ROOT",
+        "$PROJECT_DIR$": "$REPO_ROOT",
+        "$USER_HOME$": "$HOME",
+        "$MODULE_DIR$": "$REPO_ROOT/.idea/modules",
     }
     for key, value in replacements.items():
         text = text.replace(key, value)
@@ -51,13 +51,34 @@ def classify_group(name: str, script: str, params: str, workdir: str) -> str:
     return "agilab"
 
 
+def tracked_runconfigs(repo_root: Path, runconfig_dir: Path) -> list[Path]:
+    """Return git-tracked run configuration XML files.
+
+    This prevents local, ignored `_*.xml` configs from leaking into generated scripts.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", "--", str(runconfig_dir.relative_to(repo_root) / "*.xml")],
+            cwd=repo_root,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
+    paths = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    if not paths:
+        return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
+    return [repo_root / p for p in sorted(paths)]
+
+
 def generate_scripts(runconfig_dir: Path, out_dir: Path, project_root: Path) -> None:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    home = Path.home()
 
-    for xml_path in sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name):
+    for xml_path in tracked_runconfigs(project_root, runconfig_dir):
         try:
             tree = ET.parse(xml_path)
         except ET.ParseError:
@@ -98,21 +119,28 @@ def generate_scripts(runconfig_dir: Path, out_dir: Path, project_root: Path) -> 
             if params:
                 cmd += f" {params}"
 
-        cmd = expand_macros(cmd, project_root, home)
-        workdir_expanded = expand_macros(workdir, project_root, home)
+        cmd = expand_macros(cmd)
+        workdir_expanded = expand_macros(workdir)
 
         group = classify_group(cfg_name, script, params, workdir)
         group_dir = out_dir / group
         group_dir.mkdir(parents=True, exist_ok=True)
 
-        script_lines = ["#!/usr/bin/env bash", "set -euo pipefail", ""]
+        script_lines = [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            "",
+            'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+            'REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"',
+            "",
+        ]
         script_lines.append(f"# Generated from PyCharm run configuration: {cfg_name}")
         if workdir_expanded:
-            script_lines.append(f"cd {shlex.quote(workdir_expanded)}")
+            script_lines.append(f'cd "{workdir_expanded}"')
         if envs:
             for key, value in envs:
-                value_expanded = expand_macros(value, project_root, home)
-                script_lines.append(f'export {key}={shlex.quote(value_expanded)}')
+                value_expanded = expand_macros(value)
+                script_lines.append(f'export {key}="{value_expanded}"')
         script_lines.append(cmd)
         script_lines.append("")
 

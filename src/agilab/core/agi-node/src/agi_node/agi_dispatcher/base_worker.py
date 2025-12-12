@@ -60,98 +60,6 @@ from agi_env.agi_logger import AgiLogger
 logger = AgiLogger.get_logger(__name__)
 
 warnings.filterwarnings("ignore")
-
-
-def _apply_worker_compat_shims(worker_inst: Any) -> None:
-    """Inject compatibility defaults for known workers that expect full arg payloads."""
-    try:
-        worker_name = worker_inst.__class__.__name__
-    except Exception:  # pragma: no cover - defensive guard
-        return
-
-    if worker_name == "Link modelWorker":
-        args_obj = getattr(worker_inst, "args", None)
-        if args_obj is None:
-            return
-        defaults = {
-            "data_flight": "flights",
-            "data_sat": "sat",
-            "output_format": "parquet",
-            "plane_conf": "antenna_conf.json",
-            "cloud_heatmap_IVDL": "CloudMapIvdl.npz",
-            "cloud_heatmap_sat": "CloudMapSat.npz",
-            "services_conf": "service.json",
-            "mean_service_duration": 20,
-            "overlap_service_percent": 20,
-            "cloud_attenuation": 1.0,
-            "reset_target": False,
-        }
-
-        def _get_attr(name: str):
-            if isinstance(args_obj, dict):
-                return args_obj.get(name)
-            return getattr(args_obj, name, None)
-
-        def _set_attr(name: str, value: Any) -> None:
-            if isinstance(args_obj, dict):
-                args_obj[name] = value
-            else:
-                try:
-                    setattr(args_obj, name, value)
-                except Exception:
-                    pass
-
-        for field, fallback in defaults.items():
-            if _get_attr(field) in (None, ""):
-                _set_attr(field, fallback)
-
-        data_in = _get_attr("data_in")
-        if data_in:
-            dataset_root = Path(data_in).expanduser()
-            env_obj = getattr(worker_inst, "env", None)
-            share_root = None
-            if env_obj is not None:
-                try:
-                    share_root = Path(env_obj.share_root_path()).expanduser()
-                except Exception:
-                    share_root = None
-            candidates = [
-                dataset_root.parent / "example_app" / "dataset",
-                dataset_root.parent / "example_app",
-            ]
-            if share_root:
-                candidates.extend(
-                    [
-                        share_root / "example_app" / "dataset",
-                        share_root / "example_app",
-                    ]
-                )
-
-            required_files = {
-                "plane_conf": _get_attr("plane_conf"),
-                "services_conf": _get_attr("services_conf"),
-                "cloud_heatmap_IVDL": _get_attr("cloud_heatmap_IVDL"),
-                "cloud_heatmap_sat": _get_attr("cloud_heatmap_sat"),
-            }
-
-            for attr, filename in required_files.items():
-                if not filename:
-                    continue
-                target = (dataset_root / filename).expanduser()
-                if target.exists():
-                    continue
-                for candidate in candidates:
-                    source = candidate / filename
-                    if source.exists():
-                        try:
-                            target.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(source, target)
-                            _set_attr(attr, filename)
-                            break
-                        except Exception:
-                            continue
-
-
 class BaseWorker(abc.ABC):
     """
     class BaseWorker v1.0
@@ -516,21 +424,20 @@ class BaseWorker(abc.ABC):
         return payload
 
     @staticmethod
-    def start(worker_inst):
-        """Invoke the concrete worker's ``start`` hook once initialised."""
-        try:
-            logger.info(
-                "worker #%s: %s - mode: %s",
-                BaseWorker._worker_id,
-                BaseWorker._worker,
-                getattr(worker_inst, "_mode", None),
-            )
-            _apply_worker_compat_shims(worker_inst)
-            method = getattr(worker_inst, "start", None)
-            base_method = BaseWorker.start
-            if method and method is not base_method:
-                method()
-        except Exception:  # pragma: no cover - log and rethrow for visibility
+	    def start(worker_inst):
+	        """Invoke the concrete worker's ``start`` hook once initialised."""
+	        try:
+	            logger.info(
+	                "worker #%s: %s - mode: %s",
+	                BaseWorker._worker_id,
+	                BaseWorker._worker,
+	                getattr(worker_inst, "_mode", None),
+	            )
+	            method = getattr(worker_inst, "start", None)
+	            base_method = BaseWorker.start
+	            if method and method is not base_method:
+	                method()
+	        except Exception:  # pragma: no cover - log and rethrow for visibility
             logger.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise
 
@@ -1038,11 +945,9 @@ class BaseWorker(abc.ABC):
                 logger.info(f"warning: no cython library found at {lib_path}")
                 raise RuntimeError("Cython mode requested but no compiled library found")
 
-            # Workers such as example_app rely on sibling worker distributions
-            # (for example example_worker/dist) when loading optional
-            # Cython helpers. Ensure those dist folders are importable so the
-            # `from example_worker import ...` branch succeeds even if
-            # the package is only present as a sibling wenv.
+	            # Some workers rely on sibling worker distributions when loading optional
+	            # Cython helpers. Ensure those dist folders are importable so helper imports
+	            # succeed even if the package is only present as a sibling wenv.
             sibling_root = wenv_abs.parent
             if sibling_root.is_dir():
                 for extra_dist in sibling_root.glob("*_worker/dist"):

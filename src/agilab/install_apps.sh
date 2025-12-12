@@ -13,15 +13,7 @@ declare -a BUILTIN_APPS=(
   mycode_project
   flight_project
 )
-declare -a REPOSITORY_APPS=(
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-)
+declare -a REPOSITORY_APPS=()
 
 declare -a INCLUDED_APPS=()
 declare -a INCLUDED_PAGES=()
@@ -418,12 +410,11 @@ fi
 if (( SKIP_REPOSITORY_APPS == 0 )); then
   declare -a repository_apps_found=()
 
-  for app in "${REPOSITORY_APPS[@]}"; do
-    dir="$APPS_TARGET_BASE/${app}"
-    if [[ -d "$dir" ]]; then
-      repository_apps_found+=("$app")
-    fi
-  done
+  if [[ -d "$APPS_TARGET_BASE" ]]; then
+    while IFS= read -r -d '' dir; do
+      repository_apps_found+=("$(basename -- "$dir")")
+    done < <(find "$APPS_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+  fi
 
   if (( ${#repository_apps_found[@]} )); then
     REPOSITORY_APPS=("${repository_apps_found[@]}")

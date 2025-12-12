@@ -1,39 +1,18 @@
 # Codex CLI Overview
-see: https://github.com/ThalesGroup/agilab/blob/main/codex/index.md
 
-The Codex CLI embeds GPT‑5 Codex workflows directly into AGILab, letting agents and humans share the same automation surface. Use this page as a launchpad for background reading, examples, and companion tooling.
+The Codex CLI can be used alongside AGILab to keep agent-driven work reproducible (same commands, same scripts, same review surface).
 
-## About Jean-Pierre Morard
+## Background reading
 
-- MLOps toolchain author: <https://github.com/ThalesGroup/agilab>
-- Intelligent Network project: <https://en.wikipedia.org/wiki/Future_Combat_Air_System>
-
-## Spec-driven Development with AI
-
-- Concept intro: <https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/>
-- Toolkit repo: <https://github.com/github/spec-kit>
-
-## What Is the Codex CLI?
-
-- Feature tour: <https://developers.openai.com/codex/cli/features>
+- Codex CLI features: <https://developers.openai.com/codex/cli/features>
 - Prompting guide: <https://cookbook.openai.com/examples/gpt-5-codex_prompting_guide>
+- Spec-driven development (Spec Kit): <https://github.com/github/spec-kit>
 
-## Basic Examples
+## Local usage stats (optional)
 
-- Repository entry point: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-extract.txt>
-- Full session transcript: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-example.txt>
-- Productivity comparison (Codex vs. ChatGPT) in the example transcript.
+`codex/export_codex_shell_stats.py` can export local Codex shell history + aggregated stats from `~/.codex/sessions/`.
+The generated TSV/Markdown outputs are intentionally gitignored (they may contain machine-specific paths).
 
-## A Workday with Codex
+## Related runbook
 
-- Shell summary and usage tips: <https://github.com/ThalesGroup/agilab/tree/main/codex/codex_shell_summary.md>
-- Runbook / AGILab agent matrix: <https://github.com/ThalesGroup/agilab/tree/main/AGENTS.md>
-
-## 100% Codex-generated App
-
-- Session extract: <https://github.com/ThalesGroup/agilab/tree/main/codex/examples/codex-session-extract.txt>
-- Resulting project (Flight Clone): to get the source code send your request to focus@thalesgroup.com
-
-## Standalone Agents
-
-- Open Interpreter: <https://github.com/openinterpreter/open-interpreter>
+See `AGENTS.md` for the repo’s launch/validation workflow (run configs, wrapper scripts, and common troubleshooting).

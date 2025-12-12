@@ -1071,9 +1071,7 @@ async def page():
         return
 
     env = st.session_state["env"]
-    current_app, changed_from_query = resolve_active_app(
-        env, preferred_base=Path("/Users/example/PycharmProjects/agilab/src/agilab/apps")
-    )
+    current_app, changed_from_query = resolve_active_app(env)
     if changed_from_query:
         st.session_state["project_changed"] = True
 

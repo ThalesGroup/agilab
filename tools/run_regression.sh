@@ -48,11 +48,6 @@ if [[ "$RUN_APPS" != "0" ]]; then
     echo "== Running app tests in $app_dir =="
     app_base="$(basename "$app_dir")"
     app_name="${app_base%_project}"
-    # example_app relies on a worker that may not exist locally; skip to avoid install failures
-    if [[ "$app_name" == "example_app" ]]; then
-      echo "Skipping $app_dir (example_app worker not provisioned)."
-      continue
-    fi
 
     install_script="$HOME/log/execute/${app_name}/AGI_install_${app_name}.py"
     agi_cluster_proj="$(pwd)/src/agilab/core/agi-cluster"

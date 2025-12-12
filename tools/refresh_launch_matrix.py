@@ -12,13 +12,37 @@ from __future__ import annotations
 
 import argparse
 import sys
+import subprocess
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 
+def tracked_runconfigs(repo_root: Path, rc_dir: Path) -> list[Path]:
+    """Return git-tracked run configuration XML files.
+
+    Avoids pulling in local/ignored `_*.xml` configs when regenerating AGENTS.md.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", "--", str(rc_dir.relative_to(repo_root) / "*.xml")],
+            cwd=repo_root,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return sorted(rc_dir.glob("*.xml"), key=lambda p: p.name.lower())
+    paths = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    if not paths:
+        return sorted(rc_dir.glob("*.xml"), key=lambda p: p.name.lower())
+    return [repo_root / p for p in sorted(paths)]
+
+
 def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, str, str]]:
     rows_map: dict[str, tuple[str, str, str, str, str, str, str, str]] = {}
-    files = sorted(rc_dir.glob("*.xml"), key=lambda p: (p.name.startswith("_"), p.name.lower()))
+    repo_root = Path(__file__).resolve().parents[1]
+    files = tracked_runconfigs(repo_root, rc_dir)
     for f in files:
         try:
             tree = ET.parse(f)

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
 # Generated from PyCharm run configuration: test polars_worker
-cd /Users/example/PycharmProjects/agilab/src/agilab/core/agi-cluster
+cd "$REPO_ROOT/src/agilab/core/agi-cluster"
 uv run python
