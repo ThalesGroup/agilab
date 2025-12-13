@@ -850,19 +850,32 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     packaged_app = self.agilab_pck / "apps" / self.app
                     if not self.is_worker_env and packaged_app.exists():
                         try:
-                            shutil.copytree(
-                                packaged_app,
-                                self.active_app,
-                                dirs_exist_ok=True,
-                            )
-                            copied_packaged_worker = True
-                            AgiEnv.logger.info(
-                                "Copied packaged app %s into %s", packaged_app, self.active_app
-                            )
-                        except Exception as exc:
-                            AgiEnv.logger.warning(
-                                f"Unable to copy packaged worker app from {packaged_app} to {self.app}: {exc}"
-                            )
+                            same_app = packaged_app.resolve(
+                                strict=False
+                            ) == self.active_app.resolve(strict=False)
+                        except Exception:  # pragma: no cover - defensive guard
+                            same_app = False
+
+                        if not same_app:
+                            try:
+                                shutil.copytree(
+                                    packaged_app,
+                                    self.active_app,
+                                    dirs_exist_ok=True,
+                                )
+                                copied_packaged_worker = True
+                                AgiEnv.logger.info(
+                                    "Copied packaged app %s into %s",
+                                    packaged_app,
+                                    self.active_app,
+                                )
+                            except Exception as exc:
+                                AgiEnv.logger.warning(
+                                    "Unable to copy packaged worker app from %s to %s: %s",
+                                    packaged_app,
+                                    self.active_app,
+                                    exc,
+                                )
                     elif not self.is_worker_env and apps_root.exists():
                         self.copy_existing_projects(apps_root, apps_path)
 
