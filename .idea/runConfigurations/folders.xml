@@ -3,4 +3,4 @@
   <folder name="apps-pages" />
   <folder name="builtin/flight_project" />
   <folder name="builtin/mycode_project" />
-</component>
+<folder name="flight_clone_project" /><folder name="flight_legacy_project" /><folder name="flight_trajectory_project" /><folder name="ilp_project" /><folder name="link_sim_project" /><folder name="network_sim_project" /><folder name="sat_trajectory_project" /><folder name="satcom_sim_project" /><folder name="sb3_trainer_project" /></component>
