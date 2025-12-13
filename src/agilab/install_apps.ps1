@@ -315,6 +315,7 @@ $PAGES_DEST_BASE = [string](Normalize-PathInput $PAGES_DEST_BASE)
 
 Ensure-Dir $APPS_DEST_BASE
 Ensure-Dir $PAGES_DEST_BASE
+Ensure-Dir (Join-PathSafe $APPS_DEST_BASE "builtin")
 
 $AppsDestReal = Resolve-PhysicalPath $APPS_DEST_BASE
 $PagesDestReal = Resolve-PhysicalPath $PAGES_DEST_BASE
@@ -375,16 +376,92 @@ if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) 
         ForEach-Object { $_.Name }
 }
 
+$DefaultAppsOrder = @(
+    'mycode_project',
+    'flight_project',
+    'flight_legacy_project',
+    'sb3_trainer_project',
+    'sat_trajectory_project',
+    'rssi_predictor_project',
+    'flowsynth_project',
+    'flight_trajectory_project',
+    'link_sim_project',
+    'flight_clone_project',
+    'network_sim_project',
+    'ilp_project',
+    'satcom_sim_project'
+)
+
+$DefaultSelectedApps = @(
+    'sb3_trainer_project',
+    'sat_trajectory_project',
+    'flight_trajectory_project',
+    'link_sim_project',
+    'network_sim_project',
+    'ilp_project'
+)
+
+$BuiltinSkipByDefault = @('mycode_project', 'flight_project')
+$AllAppsSentinel = if ($env:INSTALL_ALL_SENTINEL) { [string]$env:INSTALL_ALL_SENTINEL } else { '__AGILAB_ALL_APPS__' }
+$BuiltinOnlySentinel = if ($env:INSTALL_BUILTIN_SENTINEL) { [string]$env:INSTALL_BUILTIN_SENTINEL } else { '__AGILAB_BUILTIN_APPS__' }
+
+function Order-ByPreference {
+    param(
+        [string[]]$Items,
+        [string[]]$Preferred
+    )
+    $ordered = New-Object System.Collections.Generic.List[string]
+    foreach ($p in $Preferred) {
+        if ($Items -contains $p -and -not $ordered.Contains($p)) {
+            [void]$ordered.Add($p)
+        }
+    }
+    foreach ($i in $Items) {
+        if (-not $ordered.Contains($i)) {
+            [void]$ordered.Add($i)
+        }
+    }
+    return [string[]]$ordered.ToArray()
+}
+
 $builtinApps = @('mycode_project', 'flight_project')
 $appsOverride = $env:BUILTIN_APPS_OVERRIDE
+$promptForApps = $true
+$forceAllApps = $false
+$forceBuiltinOnly = $false
 if (-not [string]::IsNullOrWhiteSpace($appsOverride)) {
-    $builtinApps = ConvertTo-List $appsOverride
-    Write-Color BLUE ("(Apps) Override enabled via BUILTIN_APPS_OVERRIDE: {0}" -f ($builtinApps -join ' '))
+    if ($appsOverride -eq $AllAppsSentinel) {
+        $forceAllApps = $true
+        $promptForApps = $false
+        Write-Color BLUE "(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every available app."
+    } elseif ($appsOverride -eq $BuiltinOnlySentinel) {
+        $forceBuiltinOnly = $true
+        $promptForApps = $false
+        Write-Color BLUE "(Apps) Built-in install requested; repository apps will be skipped."
+    } else {
+        $builtinApps = ConvertTo-List $appsOverride
+        Write-Color BLUE ("(Apps) Override enabled via BUILTIN_APPS_OVERRIDE: {0}" -f ($builtinApps -join ' '))
+        $promptForApps = $false
+    }
 } elseif (-not [string]::IsNullOrWhiteSpace($env:BUILTIN_APPS)) {
-    $builtinApps = ConvertTo-List $env:BUILTIN_APPS
-    Write-Color BLUE ("(Apps) Override enabled via BUILTIN_APPS: {0}" -f ($builtinApps -join ' '))
+    $appsEnv = [string]$env:BUILTIN_APPS
+    if ($appsEnv -eq $AllAppsSentinel) {
+        $forceAllApps = $true
+        $promptForApps = $false
+        Write-Color BLUE "(Apps) Full install requested (--install-apps all); installing every available app."
+    } elseif ($appsEnv -eq $BuiltinOnlySentinel) {
+        $forceBuiltinOnly = $true
+        $promptForApps = $false
+        Write-Color BLUE "(Apps) Built-in install requested (--install-apps builtin); repository apps will be skipped."
+    } else {
+        $builtinApps = ConvertTo-List $appsEnv
+        Write-Color BLUE ("(Apps) Override enabled via BUILTIN_APPS: {0}" -f ($builtinApps -join ' '))
+        $promptForApps = $false
+    }
 } elseif (Test-Path -LiteralPath $APPS_DEST_BASE) {
-    Get-ChildItem -LiteralPath $APPS_DEST_BASE -Directory -Filter '*_project' | ForEach-Object {
+    $builtinRoot = Join-PathSafe $APPS_DEST_BASE "builtin"
+    if (-not (Test-Path -LiteralPath $builtinRoot)) { $builtinRoot = $APPS_DEST_BASE }
+    Get-ChildItem -LiteralPath $builtinRoot -Directory -Filter '*_project' | ForEach-Object {
         if (-not ($builtinApps -contains $_.Name)) {
             $builtinApps += $_.Name
         }
@@ -392,12 +469,38 @@ if (-not [string]::IsNullOrWhiteSpace($appsOverride)) {
 }
 
 $repositoryApps = @()
+if ($forceBuiltinOnly) {
+    $SkipRepositoryApps = $true
+}
 if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
     $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' | ForEach-Object { $_.Name }
 }
 
 $includedPages = if ($SkipRepositoryPages) { $builtinPages } else { $builtinPages + $repositoryPages }
-$includedApps = if ($SkipRepositoryApps) { $builtinApps } else { $builtinApps + $repositoryApps }
+$allApps = @()
+Add-Unique ([ref]$allApps) $builtinApps
+Add-Unique ([ref]$allApps) $repositoryApps
+$allApps = Order-ByPreference -Items $allApps -Preferred $DefaultAppsOrder
+
+if ($forceAllApps) {
+    $includedApps = $allApps
+    $promptForApps = $false
+} elseif (-not $promptForApps) {
+    $includedApps = $builtinApps | Select-Object -Unique
+} else {
+    $selectedBuiltinApps = @()
+    foreach ($a in $builtinApps) {
+        if (-not ($BuiltinSkipByDefault -contains $a)) { $selectedBuiltinApps += $a }
+    }
+    $selectedRepoApps = @()
+    foreach ($a in $repositoryApps) {
+        if ($DefaultSelectedApps -contains $a) { $selectedRepoApps += $a }
+    }
+    $includedApps = @()
+    Add-Unique ([ref]$includedApps) $selectedBuiltinApps
+    Add-Unique ([ref]$includedApps) $selectedRepoApps
+    $includedApps = Order-ByPreference -Items $includedApps -Preferred $DefaultAppsOrder
+}
 
 $includedPages = $includedPages | Select-Object -Unique
 $includedApps  = $includedApps  | Select-Object -Unique
@@ -406,14 +509,15 @@ $interactiveSession = $true
 if ([Console]::IsInputRedirected) { $interactiveSession = $false }
 if ($Host.Name -eq 'ServerRemoteHost') { $interactiveSession = $false }
 
-if ($includedApps.Count -gt 0) {
+if ($allApps.Count -gt 0 -and $promptForApps) {
     if ($interactiveSession) {
         Write-Color BLUE "Available apps:"
-        for ($idx = 0; $idx -lt $includedApps.Count; $idx++) {
-            $label = ("  {0,2}) {1}" -f ($idx + 1), $includedApps[$idx])
-            Write-Host $label
+        for ($idx = 0; $idx -lt $allApps.Count; $idx++) {
+            $app = $allApps[$idx]
+            $marker = if ($includedApps -contains $app) { "[x]" } else { "[ ]" }
+            Write-Host ("  {0,2}) {1} {2}" -f ($idx + 1), $marker, $app)
         }
-        $selection = Read-Host "Numbers/ranges (1 3-5, blank = all)"
+        $selection = Read-Host "Numbers/ranges (1 3-5, blank = defaults)"
         if (-not [string]::IsNullOrWhiteSpace($selection)) {
             $tokens = $selection -split '[,\s]+' | Where-Object { $_ -ne '' }
             $picked = New-Object System.Collections.Generic.List[string]
@@ -426,9 +530,9 @@ if ($includedApps.Count -gt 0) {
                         continue
                     }
                     for ($num = $start; $num -le $end; $num++) {
-                        $idx = $num - 1
-                        if ($idx -ge 0 -and $idx -lt $includedApps.Count) {
-                            $value = $includedApps[$idx]
+                        $i = $num - 1
+                        if ($i -ge 0 -and $i -lt $allApps.Count) {
+                            $value = $allApps[$i]
                             if (-not $picked.Contains($value)) {
                                 [void]$picked.Add($value)
                             }
@@ -437,9 +541,9 @@ if ($includedApps.Count -gt 0) {
                         }
                     }
                 } elseif ($token -match '^\d+$') {
-                    $idx = [int]$token - 1
-                    if ($idx -ge 0 -and $idx -lt $includedApps.Count) {
-                        $value = $includedApps[$idx]
+                    $i = [int]$token - 1
+                    if ($i -ge 0 -and $i -lt $allApps.Count) {
+                        $value = $allApps[$i]
                         if (-not $picked.Contains($value)) {
                             [void]$picked.Add($value)
                         }
@@ -452,6 +556,8 @@ if ($includedApps.Count -gt 0) {
             }
             if ($picked.Count -gt 0) {
                 $includedApps = [string[]]$picked.ToArray()
+            } else {
+                Write-Color YELLOW "No valid selections detected; keeping defaults."
             }
         }
     } else {
@@ -463,9 +569,7 @@ $allPages = @()
 Add-Unique ([ref]$allPages) $builtinPages
 Add-Unique ([ref]$allPages) $repositoryPages
 
-$allApps = @()
-Add-Unique ([ref]$allApps) $builtinApps
-Add-Unique ([ref]$allApps) $repositoryApps
+$allApps = Order-ByPreference -Items $allApps -Preferred $DefaultAppsOrder
 
 $filteredPages = @()
 foreach ($page in $allPages) {
