@@ -59,3 +59,6 @@ run_matrix_parsed.tsv
 
 # Work-plan dumps (generated)
 distribution.json
+
+# Sphinx build intermediates (docs/html is committed, but doctrees are not)
+docs/html/.doctrees/
