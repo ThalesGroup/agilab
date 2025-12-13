@@ -1864,21 +1864,46 @@ class AGI:
         cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.active_app}\""
         await AgiEnv.run(cmd, wenv_abs)
 
-        # dataset
+        # dataset archives
         dest = wenv_abs / "src" / env.target_worker
         os.makedirs(dest, exist_ok=True)
+
+        archives: list[Path] = []
         src = env.dataset_archive
-        if src.exists():
+        if isinstance(src, Path) and src.exists():
+            archives.append(src)
+
+        # Some apps ship additional optional archives (e.g. Trajectory.7z) under src/.
+        # Copy those alongside dataset.7z so post_install can extract them if needed.
+        try:
+            active_src = Path(env.active_app) / "src"
+            if active_src.exists():
+                for candidate in active_src.rglob("Trajectory.7z"):
+                    if candidate.is_file():
+                        archives.append(candidate)
+        except Exception:  # pragma: no cover - defensive guard
+            pass
+
+        if archives:
             try:
                 share_root = env.share_root_path()
-                # why this line ???
-                # install_dataset_dir = share_root / "dataset"
                 install_dataset_dir = share_root
                 logger.info(f"mkdir {install_dataset_dir}")
                 os.makedirs(install_dataset_dir, exist_ok=True)
-                shutil.copy2(src, dest)
+
+                seen_archives: set[str] = set()
+                for archive_path in archives:
+                    key = str(archive_path)
+                    if key in seen_archives:
+                        continue
+                    seen_archives.add(key)
+                    shutil.copy2(archive_path, dest / archive_path.name)
             except (FileNotFoundError, PermissionError, RuntimeError) as exc:
-                logger.warning("Skipping dataset copy to %s: %s", install_dataset_dir if 'install_dataset_dir' in locals() else "<share root>", exc)
+                logger.warning(
+                    "Skipping dataset archive copy to %s: %s",
+                    install_dataset_dir if "install_dataset_dir" in locals() else "<share root>",
+                    exc,
+                )
 
         post_install_cmd = (
             f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "

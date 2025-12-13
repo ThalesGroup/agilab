@@ -823,9 +823,13 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
     continue
   fi
 
-  echo -e "${BLUE}Installing $app_name...${NC}"
-  echo "cleanup wenv/$app_name"
-  rm -fr $HOME/wenv/$app_name
+	  echo -e "${BLUE}Installing $app_name...${NC}"
+	  worker_env_name="$app_name"
+	  if [[ "$worker_env_name" == *_project ]]; then
+	    worker_env_name="${worker_env_name%_project}_worker"
+	  fi
+	  echo "cleanup wenv/$worker_env_name"
+	  rm -fr "$HOME/wenv/$worker_env_name"
 
   echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
