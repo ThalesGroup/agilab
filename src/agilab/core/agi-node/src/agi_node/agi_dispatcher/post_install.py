@@ -146,6 +146,36 @@ def _dataset_archive_candidates(env: AgiEnv) -> list[Path]:
     return unique
 
 
+def _dir_is_duplicate_of(source_dir: Path, reference_dir: Path) -> bool:
+    """Heuristic to decide if `source_dir` only contains copies of `reference_dir` data files."""
+
+    if not source_dir.is_dir() or not reference_dir.is_dir():
+        return False
+
+    source_files = {p.name: p.stat().st_size for p in _iter_data_files(source_dir)}
+    if len(source_files) < 2:
+        return False
+
+    reference_files = {p.name: p.stat().st_size for p in _iter_data_files(reference_dir)}
+    if len(reference_files) < 2:
+        return False
+
+    if not set(source_files).issubset(reference_files):
+        return False
+
+    for name, size in source_files.items():
+        if reference_files.get(name) != size:
+            return False
+
+    extras = [
+        p
+        for p in source_dir.iterdir()
+        if not p.name.startswith(("._", "."))
+        and p.name not in source_files
+    ]
+    return len(extras) == 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
@@ -183,8 +213,6 @@ def main(argv: list[str] | None = None) -> int:
     try:
         dataset_root = Path(dest_arg) / "dataset"
         sat_folder = dataset_root / "sat"
-        if _has_samples(sat_folder):
-            return 0
 
         # Prefer reusing trajectories produced by sat_trajectory to avoid duplicating data.
         share_root = env.share_root_path()
@@ -193,11 +221,34 @@ def main(argv: list[str] | None = None) -> int:
             sat_trajectory_root / "dataframe" / "Trajectory",
             sat_trajectory_root / "dataset" / "Trajectory",
         ]
-        for candidate in sat_trajectory_candidates:
-            if _has_samples(candidate):
-                if _try_link_dir(sat_folder, candidate):
-                    print(f"[post_install] linked {sat_folder} -> {candidate}")
-                    return 0
+        preferred_candidate = next(
+            (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
+            None,
+        )
+
+        if preferred_candidate is not None:
+            if sat_folder.is_symlink():
+                try:
+                    if sat_folder.resolve(strict=False) == preferred_candidate.resolve(strict=False):
+                        return 0
+                except Exception:
+                    pass
+
+            if _has_samples(sat_folder):
+                if _dir_is_duplicate_of(sat_folder, preferred_candidate):
+                    try:
+                        shutil.rmtree(sat_folder, ignore_errors=False)
+                    except Exception:
+                        return 0
+                    if _try_link_dir(sat_folder, preferred_candidate):
+                        print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
+                return 0
+
+            if _try_link_dir(sat_folder, preferred_candidate):
+                print(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
+                return 0
+        elif _has_samples(sat_folder):
+            return 0
 
         trajectory_archive = dataset_archive.parent / "Trajectory.7z"
         trajectory_folder = dataset_root / "Trajectory"
