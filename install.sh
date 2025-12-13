@@ -917,8 +917,7 @@ $UV pip install -e src/agilab/core/agi-env
 $UV pip install -e src/agilab/core/agi-node
 $UV pip install -e src/agilab/core/agi-cluster
 $UV pip install -e src/agilab/core/agi-core
-$UV pip install -e src/agilab/core/agi-core
-$UV pip install -e src/agilab
+$UV pip install -e .
 popd > /dev/null
 
 # run root-level tests once agilab is installed

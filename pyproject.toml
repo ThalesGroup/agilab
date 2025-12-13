@@ -107,13 +107,19 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-include-package-data = true
+include-package-data = false
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["agilab*"]
+where = ["src"]
+include = [
+    "agilab",
+    "agilab.resources*",
+]
 exclude = [
     "agilab.core*",
+    "agilab.test*",
+    "agilab.apps.*",
     ".idea*",
     "test*",
     "build*",
@@ -124,8 +130,32 @@ exclude = [
 agilab = [
     "resources/*.*",
     "resources/help/*",
+    "pages/*.py",
+    "apps-pages/README.md",
+    "apps-pages/*/pyproject.toml",
+    "apps-pages/*/*.py",
+    "apps-pages/*/src/*/*.py",
     "*.toml",
     "*.ipynb",
+]
+
+[tool.setuptools.exclude-package-data]
+agilab = [
+    # Keep internal tests out of the distribution.
+    "test/*",
+]
+"agilab.apps" = [
+    # Never ship repository apps (often local symlinks to private checkouts).
+    "*_project/*",
+    # Drop generated artifacts if they exist locally.
+    "*/build/*",
+    "*/__pycache__/*",
+    "*/.pytest_cache/*",
+    "*/.venv/*",
+    "*/.coverage*",
+    # Local-only configs created during installs/runs.
+    "builtin/*/src/app_args_form.py",
+    "builtin/*/src/app_settings.toml",
 ]
 
 [tool.mypy]
