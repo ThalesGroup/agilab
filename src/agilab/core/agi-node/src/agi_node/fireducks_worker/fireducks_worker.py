@@ -84,7 +84,9 @@ class FireducksWorker(BaseWorker):
 
     def work_done(self, df: Any = None) -> None:
         """Normalise the dataframe before delegating to pandas-style handling."""
-        df_pd = self._ensure_pandas(df) or pd.DataFrame()
+        df_pd = self._ensure_pandas(df)
+        if df_pd is None:
+            df_pd = pd.DataFrame()
         PandasWorker.work_done(self, df_pd)
 
     # Reuse PandasWorker orchestration so FireducksWorker mirrors BaseWorker direct subclasses.
