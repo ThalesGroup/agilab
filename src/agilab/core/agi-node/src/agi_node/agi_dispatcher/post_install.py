@@ -40,6 +40,71 @@ def _iter_data_files(folder: Path) -> list[Path]:
         files.extend(sorted(folder.glob(pattern)))
     return [path for path in files if not path.name.startswith("._")]
 
+def _has_samples(folder: Path) -> bool:
+    return folder.exists() and len(_iter_data_files(folder)) >= 2
+
+
+def _try_link_dir(link_path: Path, target_path: Path) -> bool:
+    """Best-effort directory linking (symlink on POSIX, junction/symlink fallback on Windows)."""
+
+    link_path = Path(link_path)
+    target_path = Path(target_path)
+
+    try:
+        link_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return False
+
+    # If link_path already points to the right place, keep it.
+    if link_path.is_symlink():
+        try:
+            if link_path.resolve(strict=False) == target_path.resolve(strict=False):
+                return True
+        except Exception:
+            pass
+        try:
+            link_path.unlink()
+        except Exception:
+            return False
+
+    if link_path.exists():
+        # Only replace an existing directory when it has no usable data.
+        try:
+            if link_path.is_dir() and not _has_samples(link_path):
+                # Remove empty-ish directory (ignore hidden metadata files).
+                entries = [
+                    p
+                    for p in link_path.iterdir()
+                    if not p.name.startswith(("._", "."))
+                ]
+                if len(entries) == 0:
+                    shutil.rmtree(link_path, ignore_errors=True)
+            else:
+                return False
+        except Exception:
+            return False
+
+    try:
+        os.symlink(str(target_path), str(link_path), target_is_directory=True)
+        return True
+    except Exception:
+        pass
+
+    if os.name == "nt":
+        try:
+            import subprocess
+
+            subprocess.check_call(
+                ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True
+        except Exception:
+            return False
+
+    return False
+
 
 def _extract_archive(archive: Path, dest: Path) -> None:
     if not archive.exists():
@@ -118,34 +183,47 @@ def main(argv: list[str] | None = None) -> int:
     try:
         dataset_root = Path(dest_arg) / "dataset"
         sat_folder = dataset_root / "sat"
-        sat_files = _iter_data_files(sat_folder)
-        if len(sat_files) >= 2:
+        if _has_samples(sat_folder):
             return 0
+
+        # Prefer reusing trajectories produced by sat_trajectory to avoid duplicating data.
+        share_root = env.share_root_path()
+        sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
+        sat_trajectory_candidates = [
+            sat_trajectory_root / "dataframe" / "Trajectory",
+            sat_trajectory_root / "dataset" / "Trajectory",
+        ]
+        for candidate in sat_trajectory_candidates:
+            if _has_samples(candidate):
+                if _try_link_dir(sat_folder, candidate):
+                    print(f"[post_install] linked {sat_folder} -> {candidate}")
+                    return 0
 
         trajectory_archive = dataset_archive.parent / "Trajectory.7z"
         trajectory_folder = dataset_root / "Trajectory"
 
-        if trajectory_archive.exists() and len(_iter_data_files(trajectory_folder)) < 2:
+        if not _has_samples(trajectory_folder) and trajectory_archive.exists():
             print(f"[post_install] extracting optional trajectories: {trajectory_archive}")
             _extract_archive(trajectory_archive, dataset_root)
 
-        trajectory_files = _iter_data_files(trajectory_folder)
-        if len(trajectory_files) < 2:
+        if not _has_samples(trajectory_folder):
             return 0
 
+        if _try_link_dir(sat_folder, trajectory_folder):
+            print(f"[post_install] linked {sat_folder} -> {trajectory_folder}")
+            return 0
+
+        # Last resort: copy (may duplicate data, but keeps the app runnable).
         sat_folder.mkdir(parents=True, exist_ok=True)
         copied = 0
-        for src in trajectory_files:
+        for src in _iter_data_files(trajectory_folder):
             dest = sat_folder / src.name
             if dest.exists():
                 continue
             shutil.copy2(src, dest)
             copied += 1
         if copied:
-            print(
-                f"[post_install] seeded {copied} trajectory file(s) into {sat_folder} "
-                f"from {trajectory_folder}"
-            )
+            print(f"[post_install] copied {copied} trajectory file(s) into {sat_folder}")
     except Exception as exc:
         print(f"[post_install] optional dataset seeding skipped: {exc}")
     return 0
