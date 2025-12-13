@@ -176,6 +176,34 @@ def _dir_is_duplicate_of(source_dir: Path, reference_dir: Path) -> bool:
     return len(extras) == 0
 
 
+def _looks_like_generated_trajectory(path: Path) -> bool:
+    name = path.name.lower()
+    return (
+        "_trajectory" in name
+        or name.startswith("starlink-")
+        or name.endswith("_traj.csv")
+        or name.endswith("_traj.parquet")
+    )
+
+
+def _folder_looks_large(folder: Path) -> bool:
+    """Detect large/generated trajectory folders that can stall downstream apps/tests."""
+
+    files = _iter_data_files(folder)
+    if len(files) < 2:
+        return False
+    if any(_looks_like_generated_trajectory(path) for path in files):
+        return True
+    if len(files) > 20:
+        return True
+    try:
+        if max(path.stat().st_size for path in files) >= 1_000_000:
+            return True
+    except OSError:
+        return False
+    return False
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
@@ -228,6 +256,12 @@ def main(argv: list[str] | None = None) -> int:
             (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
             None,
         )
+        preserve_existing = os.environ.get("AGILAB_PRESERVE_LINK_SIM_SAT", "0") not in {
+            "",
+            "0",
+            "false",
+            "False",
+        }
 
         if preferred_candidate is not None:
             if sat_folder.is_symlink():
@@ -247,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
                     pass
 
             if _has_samples(sat_folder):
+                if preserve_existing:
+                    return 0
                 if _dir_is_duplicate_of(sat_folder, preferred_candidate):
                     try:
                         shutil.rmtree(sat_folder, ignore_errors=False)
@@ -255,6 +291,14 @@ def main(argv: list[str] | None = None) -> int:
                     if _try_link_dir(sat_folder, preferred_candidate):
                         print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
                 return 0
+                if _folder_looks_large(sat_folder):
+                    try:
+                        shutil.rmtree(sat_folder, ignore_errors=False)
+                    except Exception:
+                        return 0
+                    if _try_link_dir(sat_folder, preferred_candidate):
+                        print(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
+                    return 0
 
             if _try_link_dir(sat_folder, preferred_candidate):
                 print(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
