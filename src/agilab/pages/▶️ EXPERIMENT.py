@@ -1,6 +1,8 @@
 import logging
 import os
 import json
+import ast
+import traceback
 from pathlib import Path
 import importlib
 import importlib.metadata as importlib_metadata
@@ -8,6 +10,8 @@ import sys
 import sysconfig
 import textwrap
 import subprocess
+import urllib.error
+import urllib.request
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -880,7 +884,186 @@ def extract_code(gpt_message: str) -> Tuple[str, str]:
         detail = "\n\n".join(detail_parts).strip()
         return code.strip(), detail
 
-    return "", text
+    # Fallback: accept raw Python if it parses cleanly.
+    try:
+        ast.parse(text)
+    except SyntaxError:
+        return "", text
+    return text, ""
+
+
+def _normalize_ollama_endpoint(raw_endpoint: Optional[str]) -> str:
+    endpoint = (raw_endpoint or "").strip()
+    if not endpoint:
+        endpoint = os.getenv("OLLAMA_HOST", "").strip() or "http://127.0.0.1:11434"
+    endpoint = endpoint.rstrip("/")
+    if endpoint.endswith("/api/generate"):
+        endpoint = endpoint[: -len("/api/generate")]
+    return endpoint
+
+
+def _ollama_generate(
+    *,
+    endpoint: str,
+    model: str,
+    prompt: str,
+    temperature: float = 0.1,
+    top_p: float = 0.9,
+    num_ctx: Optional[int] = None,
+    num_predict: Optional[int] = None,
+    seed: Optional[int] = None,
+    timeout_s: float = 120.0,
+) -> str:
+    """Call Ollama's /api/generate endpoint and return the response text."""
+    base = _normalize_ollama_endpoint(endpoint)
+    url = f"{base}/api/generate"
+
+    options: Dict[str, Any] = {
+        "temperature": float(temperature),
+        "top_p": float(top_p),
+    }
+    if num_ctx is not None:
+        options["num_ctx"] = int(num_ctx)
+    if num_predict is not None:
+        options["num_predict"] = int(num_predict)
+    if seed is not None:
+        options["seed"] = int(seed)
+
+    payload = {
+        "model": str(model).strip(),
+        "prompt": str(prompt),
+        "stream": False,
+        "options": options,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=float(timeout_s)) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        raise RuntimeError(f"Ollama error {exc.code}: {detail or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            f"Unable to reach Ollama at {url}. Start Ollama or update {UOAIC_OLLAMA_ENDPOINT_ENV}."
+        ) from exc
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Ollama returned invalid JSON: {raw[:2000]}") from exc
+
+    if not isinstance(parsed, dict):
+        raise RuntimeError(f"Ollama returned unexpected payload: {type(parsed).__name__}")
+    return str(parsed.get("response") or "").strip()
+
+
+def _prompt_to_plaintext(prompt: List[Dict[str, str]], question: str) -> str:
+    """Flatten the conversation history into plaintext for local providers."""
+    lines: List[str] = []
+    for item in prompt or []:
+        content = item.get("content", "")
+        if isinstance(content, list):
+            content = "\n".join(str(part) for part in content)
+        text = str(content).strip()
+        if not text:
+            continue
+        role = str(item.get("role", "")).lower()
+        if role == "user":
+            prefix = "User"
+        elif role == "assistant":
+            prefix = "Assistant"
+        elif role == "system":
+            prefix = "System"
+        else:
+            prefix = role.title() if role else "Assistant"
+        lines.append(f"{prefix}: {text}")
+    lines.append(f"User: {question}")
+    return "\n".join(lines).strip()
+
+
+def chat_ollama_local(
+    input_request: str,
+    prompt: List[Dict[str, str]],
+    envars: Dict[str, str],
+) -> Tuple[str, str]:
+    """Call a local Ollama model for code generation."""
+    endpoint = _normalize_ollama_endpoint(
+        envars.get(UOAIC_OLLAMA_ENDPOINT_ENV)
+        or os.getenv(UOAIC_OLLAMA_ENDPOINT_ENV)
+        or os.getenv("OLLAMA_HOST")
+    )
+    model = (envars.get(UOAIC_MODEL_ENV) or os.getenv(UOAIC_MODEL_ENV) or "mistral:instruct").strip()
+    if not model:
+        st.error("Set an Ollama model name to use the local assistant (e.g. `mistral:instruct`).")
+        raise JumpToMain(ValueError("Missing Ollama model"))
+
+    def _float_env(name: str, default: float) -> float:
+        raw = envars.get(name) or os.getenv(name)
+        try:
+            return float(raw) if raw is not None and str(raw).strip() else float(default)
+        except Exception:
+            return float(default)
+
+    def _int_env(name: str) -> Optional[int]:
+        raw = envars.get(name) or os.getenv(name)
+        if raw is None or not str(raw).strip():
+            return None
+        try:
+            return int(float(raw))
+        except Exception:
+            return None
+
+    temperature = _float_env(UOAIC_TEMPERATURE_ENV, 0.1)
+    top_p = _float_env(UOAIC_TOP_P_ENV, 0.9)
+    num_ctx = _int_env(UOAIC_NUM_CTX_ENV)
+    num_predict = _int_env(UOAIC_NUM_PREDICT_ENV)
+    seed = _int_env(UOAIC_SEED_ENV)
+
+    history = _prompt_to_plaintext(prompt, input_request)
+    full_prompt = f"{CODE_STRICT_INSTRUCTIONS}\n\n{history}"
+
+    try:
+        text = _ollama_generate(
+            endpoint=endpoint,
+            model=model,
+            prompt=full_prompt,
+            temperature=temperature,
+            top_p=top_p,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            seed=seed,
+        )
+    except Exception as exc:
+        st.error(str(exc))
+        raise JumpToMain(exc)
+
+    return text, model
+
+
+def _exec_code_on_df(code: str, df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], str]:
+    """Execute code against a copy of df. Returns (new_df, error)."""
+    df_local = df.copy()
+    local_vars: Dict[str, Any] = {"df": df_local, "pd": pd}
+    try:
+        compiled = compile(code, "<lab_step>", "exec")
+        exec(compiled, {}, local_vars)
+    except Exception:
+        return None, traceback.format_exc()
+    updated = local_vars.get("df")
+    if isinstance(updated, pd.DataFrame):
+        return updated, ""
+    return None, "Code did not produce a DataFrame named `df`."
 
 
 def _normalize_identifier(raw: str, fallback: str = "value") -> str:
@@ -1026,6 +1209,21 @@ UOAIC_RUNTIME_KEY = "uoaic_runtime"
 UOAIC_DATA_STATE_KEY = "uoaic_data_path"
 UOAIC_DB_STATE_KEY = "uoaic_db_path"
 UOAIC_REBUILD_FLAG_KEY = "uoaic_rebuild_requested"
+UOAIC_MODE_ENV = "UOAIC_MODE"
+UOAIC_MODE_STATE_KEY = "uoaic_mode"
+UOAIC_MODE_OLLAMA = "ollama"
+UOAIC_MODE_RAG = "rag"
+UOAIC_OLLAMA_ENDPOINT_ENV = "UOAIC_OLLAMA_ENDPOINT"
+UOAIC_MODEL_ENV = "UOAIC_MODEL"
+UOAIC_TEMPERATURE_ENV = "UOAIC_TEMPERATURE"
+UOAIC_TOP_P_ENV = "UOAIC_TOP_P"
+UOAIC_NUM_CTX_ENV = "UOAIC_NUM_CTX"
+UOAIC_NUM_PREDICT_ENV = "UOAIC_NUM_PREDICT"
+UOAIC_SEED_ENV = "UOAIC_SEED"
+UOAIC_AUTOFIX_ENV = "UOAIC_AUTOFIX"
+UOAIC_AUTOFIX_MAX_ENV = "UOAIC_AUTOFIX_MAX_ATTEMPTS"
+UOAIC_AUTOFIX_STATE_KEY = "uoaic_autofix_enabled"
+UOAIC_AUTOFIX_MAX_STATE_KEY = "uoaic_autofix_max_attempts"
 DEFAULT_UOAIC_BASE = Path.home() / ".agilab" / "mistral_offline"
 _HF_TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN")
 _API_KEY_PATTERNS = [
@@ -1034,6 +1232,14 @@ _API_KEY_PATTERNS = [
 ]
 
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
+
+
+CODE_STRICT_INSTRUCTIONS = (
+    "Return ONLY Python code wrapped in ```python ...``` with no explanations.\n"
+    "Assume there is a pandas DataFrame df and pandas is imported as pd.\n"
+    "Do not use Streamlit. Do not read/write files or call the network.\n"
+    "Keep the result in a DataFrame named df."
+)
 
 
 def _load_env_file_map(path: Path) -> Dict[str, str]:
@@ -1242,7 +1448,8 @@ def _format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
             prefix = role.title() if role else "Assistant"
         lines.append(f"{prefix}: {text}")
     lines.append(f"User: {question}")
-    return "\n".join(lines).strip()
+    body = "\n".join(lines).strip()
+    return f"{CODE_STRICT_INSTRUCTIONS}\n\n{body}" if body else CODE_STRICT_INSTRUCTIONS
 
 
 def _normalize_user_path(raw_path: str) -> str:
@@ -1650,7 +1857,16 @@ def ask_gpt(
     if provider == "gpt-oss":
         result, model_label = chat_offline(question, prompt, envars)
     elif provider == UOAIC_PROVIDER:
-        result, model_label = chat_universal_offline(question, prompt, envars)
+        mode = (
+            st.session_state.get(UOAIC_MODE_STATE_KEY)
+            or envars.get(UOAIC_MODE_ENV)
+            or os.getenv(UOAIC_MODE_ENV)
+            or UOAIC_MODE_OLLAMA
+        )
+        if mode == UOAIC_MODE_RAG:
+            result, model_label = chat_universal_offline(question, prompt, envars)
+        else:
+            result, model_label = chat_ollama_local(question, prompt, envars)
     else:
         result, model_label = chat_online(question, prompt, envars)
 
@@ -1667,6 +1883,111 @@ def ask_gpt(
         code.strip() if code else "",
         detail,
     ]
+
+
+def _build_autofix_prompt(
+    *,
+    original_request: str,
+    failing_code: str,
+    traceback_text: str,
+    attempt: int,
+) -> str:
+    clipped_trace = (traceback_text or "").strip()
+    if len(clipped_trace) > 4000:
+        clipped_trace = clipped_trace[-4000:]
+    clipped_code = (failing_code or "").strip()
+    if len(clipped_code) > 6000:
+        clipped_code = clipped_code[:6000]
+    return (
+        f"{CODE_STRICT_INSTRUCTIONS}\n\n"
+        f"You generated Python code for the following request:\n{original_request.strip()}\n\n"
+        f"The code failed when executed (attempt {attempt}). Fix it.\n\n"
+        f"Traceback:\n{clipped_trace}\n\n"
+        f"Failing code:\n```python\n{clipped_code}\n```"
+    )
+
+
+def _maybe_autofix_generated_code(
+    *,
+    original_request: str,
+    df_path: Path,
+    index_page: str,
+    env: AgiEnv,
+    merged_code: str,
+    model_label: str,
+    detail: str,
+) -> Tuple[str, str, str]:
+    """Optionally run + repair generated code using the active assistant."""
+    provider = st.session_state.get("lab_llm_provider") or env.envars.get("LAB_LLM_PROVIDER", "openai")
+    if provider != UOAIC_PROVIDER:
+        return merged_code, model_label, detail
+
+    enabled = bool(st.session_state.get(UOAIC_AUTOFIX_STATE_KEY, False))
+    if not enabled:
+        enabled_env = (env.envars.get(UOAIC_AUTOFIX_ENV) or os.getenv(UOAIC_AUTOFIX_ENV) or "").strip().lower()
+        enabled = enabled_env in {"1", "true", "yes", "on"}
+    if not enabled:
+        return merged_code, model_label, detail
+
+    try:
+        max_attempts = int(st.session_state.get(UOAIC_AUTOFIX_MAX_STATE_KEY, 2))
+    except Exception:
+        max_attempts = 2
+    if max_attempts <= 0:
+        return merged_code, model_label, detail
+
+    df: Any = st.session_state.get("loaded_df")
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        df_file = st.session_state.get("df_file")
+        if df_file:
+            df = load_df_cached(Path(df_file))
+
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        _push_run_log(index_page, "Auto-fix skipped: no dataframe is loaded.", _get_run_placeholder(index_page))
+        return merged_code, model_label, detail
+
+    placeholder = _get_run_placeholder(index_page)
+    _, err = _exec_code_on_df(merged_code, df)
+    if not err:
+        _push_run_log(index_page, "Auto-fix: generated code validated successfully.", placeholder)
+        return merged_code, model_label, detail
+
+    _push_run_log(index_page, f"Auto-fix: initial execution failed.\n{err}", placeholder)
+    current_code = merged_code
+    current_model = model_label
+    current_detail = detail
+    current_err = err
+
+    for attempt in range(1, max_attempts + 1):
+        fix_question = _build_autofix_prompt(
+            original_request=original_request,
+            failing_code=current_code,
+            traceback_text=current_err,
+            attempt=attempt,
+        )
+        fix_answer = ask_gpt(fix_question, df_path, index_page, env.envars)
+        fix_code = fix_answer[3] if len(fix_answer) > 3 else ""
+        fix_detail = (fix_answer[4] or "").strip() if len(fix_answer) > 4 else ""
+        fix_model = str(fix_answer[2] or "") if len(fix_answer) > 2 else current_model
+        if not fix_code.strip():
+            _push_run_log(index_page, f"Auto-fix attempt {attempt}: model returned no code.", placeholder)
+            break
+
+        candidate = f"# {fix_detail}\n{fix_code}".strip() if fix_detail else fix_code.strip()
+        _, candidate_err = _exec_code_on_df(candidate, df)
+        if not candidate_err:
+            _push_run_log(index_page, f"Auto-fix: success on attempt {attempt}.", placeholder)
+            return candidate, fix_model, fix_detail
+
+        summary = candidate_err.strip().splitlines()[-1] if candidate_err.strip() else "Unknown error"
+        _push_run_log(index_page, f"Auto-fix attempt {attempt} failed: {summary}", placeholder)
+        current_code = candidate
+        current_model = fix_model
+        current_detail = fix_detail
+        current_err = candidate_err
+
+    _push_run_log(index_page, "Auto-fix failed; keeping the last generated code.", placeholder)
+    return current_code, current_model, current_detail
 
 
 def is_query_valid(query: Any) -> bool:
@@ -2625,6 +2946,174 @@ def universal_offline_controls(env: AgiEnv) -> None:
     if st.session_state.get("lab_llm_provider") != UOAIC_PROVIDER:
         return
 
+    mode_default = (
+        st.session_state.get(UOAIC_MODE_STATE_KEY)
+        or env.envars.get(UOAIC_MODE_ENV)
+        or os.getenv(UOAIC_MODE_ENV)
+        or UOAIC_MODE_OLLAMA
+    )
+    mode_options = {
+        "Code (Ollama)": UOAIC_MODE_OLLAMA,
+        "RAG (offline docs)": UOAIC_MODE_RAG,
+    }
+    mode_labels = list(mode_options.keys())
+    current_mode_label = next(
+        (label for label, val in mode_options.items() if val == mode_default),
+        mode_labels[0],
+    )
+    selected_mode_label = st.sidebar.selectbox(
+        "Local assistant mode",
+        mode_labels,
+        index=mode_labels.index(current_mode_label),
+        help="Use direct Ollama generation for code correctness, or the Universal Offline RAG chain for doc Q&A.",
+    )
+    selected_mode = mode_options[selected_mode_label]
+    previous_mode = st.session_state.get(UOAIC_MODE_STATE_KEY)
+    st.session_state[UOAIC_MODE_STATE_KEY] = selected_mode
+    env.envars[UOAIC_MODE_ENV] = selected_mode
+    if previous_mode and previous_mode != selected_mode:
+        st.session_state.pop(UOAIC_RUNTIME_KEY, None)
+
+    with st.sidebar.expander("Ollama settings", expanded=True):
+        endpoint_default = (
+            st.session_state.get("uoaic_ollama_endpoint")
+            or env.envars.get(UOAIC_OLLAMA_ENDPOINT_ENV)
+            or os.getenv(UOAIC_OLLAMA_ENDPOINT_ENV)
+            or os.getenv("OLLAMA_HOST", "")
+            or "http://127.0.0.1:11434"
+        )
+        endpoint_input = st.text_input(
+            "Ollama endpoint",
+            value=str(endpoint_default),
+            help="Base URL of the Ollama server (default: http://127.0.0.1:11434).",
+        ).strip()
+        normalized_endpoint = _normalize_ollama_endpoint(endpoint_input)
+        st.session_state["uoaic_ollama_endpoint"] = normalized_endpoint
+        env.envars[UOAIC_OLLAMA_ENDPOINT_ENV] = normalized_endpoint
+
+        model_default = (
+            st.session_state.get("uoaic_model")
+            or env.envars.get(UOAIC_MODEL_ENV)
+            or os.getenv(UOAIC_MODEL_ENV, "")
+            or "mistral:instruct"
+        )
+        model_input = st.text_input(
+            "Ollama model",
+            value=str(model_default),
+            help="Model name (as shown by `ollama list`). For best code correctness, use a code-tuned model when available.",
+        ).strip()
+        st.session_state["uoaic_model"] = model_input
+        if model_input:
+            env.envars[UOAIC_MODEL_ENV] = model_input
+        else:
+            env.envars.pop(UOAIC_MODEL_ENV, None)
+
+        def _float_default(name: str, fallback: float) -> float:
+            raw = st.session_state.get(name) or env.envars.get(name) or os.getenv(name)
+            try:
+                return float(raw)
+            except Exception:
+                return float(fallback)
+
+        temperature_default = max(0.0, min(1.0, _float_default(UOAIC_TEMPERATURE_ENV, 0.1)))
+        temperature = st.slider(
+            "temperature",
+            min_value=0.0,
+            max_value=1.0,
+            value=float(temperature_default),
+            step=0.05,
+            help="Lower values improve determinism for code generation.",
+        )
+        env.envars[UOAIC_TEMPERATURE_ENV] = str(float(temperature))
+
+        top_p_default = max(0.0, min(1.0, _float_default(UOAIC_TOP_P_ENV, 0.9)))
+        top_p = st.slider(
+            "top_p",
+            min_value=0.0,
+            max_value=1.0,
+            value=float(top_p_default),
+            step=0.05,
+            help="Nucleus sampling. Lower values can reduce hallucinations for code.",
+        )
+        env.envars[UOAIC_TOP_P_ENV] = str(float(top_p))
+
+        def _int_default(name: str, fallback: int) -> int:
+            raw = st.session_state.get(name) or env.envars.get(name) or os.getenv(name)
+            try:
+                return int(float(raw))
+            except Exception:
+                return int(fallback)
+
+        num_ctx = st.number_input(
+            "num_ctx (0 = default)",
+            min_value=0,
+            max_value=262144,
+            value=_int_default(UOAIC_NUM_CTX_ENV, 0),
+            step=256,
+            help="Context window. Increase if prompts are truncated (requires RAM).",
+        )
+        if int(num_ctx) > 0:
+            env.envars[UOAIC_NUM_CTX_ENV] = str(int(num_ctx))
+        else:
+            env.envars.pop(UOAIC_NUM_CTX_ENV, None)
+
+        num_predict = st.number_input(
+            "num_predict (0 = default)",
+            min_value=0,
+            max_value=65536,
+            value=_int_default(UOAIC_NUM_PREDICT_ENV, 0),
+            step=128,
+            help="Max tokens to generate. Set 0 to use Ollama defaults.",
+        )
+        if int(num_predict) > 0:
+            env.envars[UOAIC_NUM_PREDICT_ENV] = str(int(num_predict))
+        else:
+            env.envars.pop(UOAIC_NUM_PREDICT_ENV, None)
+
+        seed = st.number_input(
+            "seed (0 = unset)",
+            min_value=0,
+            max_value=2**31 - 1,
+            value=_int_default(UOAIC_SEED_ENV, 0),
+            step=1,
+            help="Optional deterministic seed for the local model.",
+        )
+        if int(seed) > 0:
+            env.envars[UOAIC_SEED_ENV] = str(int(seed))
+        else:
+            env.envars.pop(UOAIC_SEED_ENV, None)
+
+    with st.sidebar.expander("Code correctness", expanded=True):
+        autofix_default = env.envars.get(UOAIC_AUTOFIX_ENV) or os.getenv(UOAIC_AUTOFIX_ENV) or "0"
+        autofix_enabled = bool(st.session_state.get(UOAIC_AUTOFIX_STATE_KEY, autofix_default in {"1", "true", "True"}))
+        autofix_enabled = st.checkbox(
+            "Auto-run + auto-fix generated code",
+            value=autofix_enabled,
+            help="After generating code, run it against the loaded dataframe and ask the model to repair tracebacks.",
+        )
+        st.session_state[UOAIC_AUTOFIX_STATE_KEY] = autofix_enabled
+        env.envars[UOAIC_AUTOFIX_ENV] = "1" if autofix_enabled else "0"
+
+        max_default = env.envars.get(UOAIC_AUTOFIX_MAX_ENV) or os.getenv(UOAIC_AUTOFIX_MAX_ENV) or "2"
+        try:
+            max_default_int = max(0, int(max_default))
+        except Exception:
+            max_default_int = 2
+        max_attempts = st.number_input(
+            "Max fix attempts",
+            min_value=0,
+            max_value=10,
+            value=int(st.session_state.get(UOAIC_AUTOFIX_MAX_STATE_KEY, max_default_int)),
+            step=1,
+            help="0 disables iterative repairs; the first generated code is kept.",
+        )
+        st.session_state[UOAIC_AUTOFIX_MAX_STATE_KEY] = int(max_attempts)
+        env.envars[UOAIC_AUTOFIX_MAX_ENV] = str(int(max_attempts))
+
+    if selected_mode != UOAIC_MODE_RAG:
+        st.sidebar.caption("RAG knowledge-base settings are hidden (switch mode to enable).")
+        return
+
     default_data_path = DEFAULT_UOAIC_BASE / "data"
     data_default = (
         st.session_state.get(UOAIC_DATA_STATE_KEY)
@@ -3350,10 +3839,20 @@ def display_lab_tab(
 
             if run_pressed:
                 undo_stack = st.session_state.get(undo_key, [])
-                undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
+                undo_stack.append(
+                    (
+                        st.session_state.get(q_key, ""),
+                        st.session_state.get(code_val_key, ""),
+                    )
+                )
                 st.session_state[undo_key] = undo_stack
                 prompt_text = st.session_state.get(q_key, "")
-                answer = ask_gpt(prompt_text, Path(st.session_state.df_file) if st.session_state.get("df_file") else Path(), index_page_str, env.envars)
+                df_path = (
+                    Path(st.session_state.df_file)
+                    if st.session_state.get("df_file")
+                    else Path()
+                )
+                answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
                 # Merge the model detail (answer[4]) into the generated code (answer[3]) as a leading comment
                 merged_code = None
                 code_txt = answer[3] if len(answer) > 3 else ""
@@ -3368,6 +3867,25 @@ def display_lab_tab(
                     merged_code = st.session_state.get(code_val_key, "")
                     if len(answer) > 3:
                         answer[3] = merged_code
+
+                if merged_code:
+                    fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
+                        original_request=prompt_text,
+                        df_path=df_path,
+                        index_page=index_page_str,
+                        env=env,
+                        merged_code=str(merged_code),
+                        model_label=str(answer[2] if len(answer) > 2 else ""),
+                        detail=str(answer[4] if len(answer) > 4 else ""),
+                    )
+                    merged_code = fixed_code
+                    if len(answer) > 3:
+                        answer[3] = fixed_code
+                    if len(answer) > 2:
+                        answer[2] = fixed_model
+                    if len(answer) > 4:
+                        answer[4] = fixed_detail
+
                 save_step(
                     module_path,
                     answer,
@@ -3380,15 +3898,30 @@ def display_lab_tab(
                 # Force the UI to show exactly what we saved
                 if len(answer) > 1:
                     st.session_state[pending_q_key] = answer[1]
-                st.session_state[pending_c_key] = merged_code if merged_code is not None else st.session_state.get(code_val_key, "")
+                st.session_state[pending_c_key] = (
+                    merged_code
+                    if merged_code is not None
+                    else st.session_state.get(code_val_key, "")
+                )
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
 
-                detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                detail_store = st.session_state.setdefault(
+                    f"{index_page_str}__details", {}
+                )
                 detail = answer[4] if len(answer) > 4 else ""
                 if detail:
                     detail_store[step] = detail
-                env_label = Path(selected_map.get(step, "")).name if selected_map.get(step) else "default env"
-                summary = _step_summary({"Q": answer[1] if len(answer) > 1 else "", "C": answer[4] if len(answer) > 4 else ""})
+                env_label = (
+                    Path(selected_map.get(step, "")).name
+                    if selected_map.get(step)
+                    else "default env"
+                )
+                summary = _step_summary(
+                    {
+                        "Q": answer[1] if len(answer) > 1 else "",
+                        "C": answer[4] if len(answer) > 4 else "",
+                    }
+                )
                 _push_run_log(
                     index_page_str,
                     f"Step {step + 1}: engine={engine_map.get(step,'')}, env={env_label}, summary=\"{summary}\"",
@@ -3430,6 +3963,32 @@ def display_lab_tab(
             if prompt_text:
                 df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
                 answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                merged_code = None
+                code_txt = answer[3] if len(answer) > 3 else ""
+                detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
+                if code_txt:
+                    summary_line = f"# {detail_txt}\n" if detail_txt else ""
+                    merged_code = f"{summary_line}{code_txt}"
+                    if len(answer) > 3:
+                        answer[3] = merged_code
+
+                if merged_code:
+                    fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
+                        original_request=prompt_text,
+                        df_path=df_path,
+                        index_page=index_page_str,
+                        env=env,
+                        merged_code=str(merged_code),
+                        model_label=str(answer[2] if len(answer) > 2 else ""),
+                        detail=str(answer[4] if len(answer) > 4 else ""),
+                    )
+                    merged_code = fixed_code
+                    if len(answer) > 3:
+                        answer[3] = fixed_code
+                    if len(answer) > 2:
+                        answer[2] = fixed_model
+                    if len(answer) > 4:
+                        answer[4] = fixed_detail
                 new_idx = len(persisted_steps)
                 venv_map = selected_map.copy()
                 engine_map_local = engine_map.copy()
@@ -3447,6 +4006,10 @@ def display_lab_tab(
                     venv_map=venv_map,
                     engine_map=engine_map_local,
                 )
+                detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                detail = answer[4] if len(answer) > 4 else ""
+                if detail:
+                    detail_store[new_idx] = detail
                 _bump_history_revision()
                 st.rerun()
             else:
