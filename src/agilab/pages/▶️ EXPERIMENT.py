@@ -902,6 +902,65 @@ def _normalize_ollama_endpoint(raw_endpoint: Optional[str]) -> str:
     return endpoint
 
 
+@st.cache_data(show_spinner=False)
+def _ollama_available_models(endpoint: str) -> List[str]:
+    """Return the list of models available on the Ollama server."""
+
+    base = _normalize_ollama_endpoint(endpoint)
+    url = f"{base}/api/tags"
+    req = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return []
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return []
+
+    models: List[str] = []
+    if isinstance(parsed, dict):
+        for entry in parsed.get("models") or []:
+            if isinstance(entry, dict):
+                name = entry.get("name")
+                if name:
+                    models.append(str(name))
+    # Preserve order but drop duplicates/empties
+    deduped: List[str] = []
+    seen: set[str] = set()
+    for name in models:
+        if not name:
+            continue
+        if name in seen:
+            continue
+        seen.add(name)
+        deduped.append(name)
+    return deduped
+
+
+_OLLAMA_CODE_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:code|coder|codestral|deepseek)(?:$|/|:|_)", re.IGNORECASE)
+
+
+def _default_ollama_model(
+    endpoint: str,
+    *,
+    preferred: str = "mistral:instruct",
+    prefer_code: bool = False,
+) -> str:
+    models = _ollama_available_models(endpoint)
+    if models and prefer_code:
+        for name in models:
+            if _OLLAMA_CODE_MODEL_RE.search(name):
+                return name
+    if preferred and preferred in models:
+        return preferred
+    if models:
+        return models[0]
+    return preferred
+
+
 def _ollama_generate(
     *,
     endpoint: str,
@@ -1003,9 +1062,10 @@ def chat_ollama_local(
         or os.getenv(UOAIC_OLLAMA_ENDPOINT_ENV)
         or os.getenv("OLLAMA_HOST")
     )
-    model = (envars.get(UOAIC_MODEL_ENV) or os.getenv(UOAIC_MODEL_ENV) or "mistral:instruct").strip()
+    fallback_model = _default_ollama_model(endpoint, prefer_code=True)
+    model = (envars.get(UOAIC_MODEL_ENV) or os.getenv(UOAIC_MODEL_ENV) or fallback_model).strip()
     if not model:
-        st.error("Set an Ollama model name to use the local assistant (e.g. `mistral:instruct`).")
+        st.error("Set an Ollama model name to use the local assistant (see `ollama list`).")
         raise JumpToMain(ValueError("Missing Ollama model"))
 
     def _float_env(name: str, default: float) -> float:
@@ -1495,7 +1555,7 @@ def _load_uoaic_modules():
     except importlib_metadata.PackageNotFoundError as exc:
         st.error(
             "Install `universal-offline-ai-chatbot` (e.g. `uv pip install \"agilab[offline]\"`) "
-            "to enable the mistral:instruct assistant."
+            "to enable the local (Ollama) assistant."
         )
         raise JumpToMain(exc)
 
@@ -2608,7 +2668,7 @@ def sidebar_controls() -> None:
     provider_options = {
         "OpenAI (online)": "openai",
         "GPT-OSS (local)": "gpt-oss",
-        "mistral:instruct (local)": UOAIC_PROVIDER,
+        "Ollama (local)": UOAIC_PROVIDER,
     }
     stored_provider = st.session_state.get("lab_llm_provider")
     current_provider = stored_provider or env.envars.get("LAB_LLM_PROVIDER", "openai")
@@ -2995,7 +3055,10 @@ def universal_offline_controls(env: AgiEnv) -> None:
             st.session_state.get("uoaic_model")
             or env.envars.get(UOAIC_MODEL_ENV)
             or os.getenv(UOAIC_MODEL_ENV, "")
-            or "mistral:instruct"
+            or _default_ollama_model(
+                normalized_endpoint,
+                prefer_code=selected_mode == UOAIC_MODE_OLLAMA,
+            )
         )
         model_input = st.text_input(
             "Ollama model",
