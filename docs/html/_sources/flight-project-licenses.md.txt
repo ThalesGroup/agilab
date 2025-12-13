@@ -2,57 +2,22 @@
 | Package Name | License |
 |--------------|---------|
 | annotated-types | MIT LICENSE |
-| asttokens | APACHE 2.0 |
 | backports-zstd | PSF-2.0 |
 | brotli | MIT |
-| build | MIT |
-| cramjam | MIT |
-| decorator | BSD LICENSE |
-| executing | MIT LICENSE |
-| fastparquet | APACHE SOFTWARE LICENSE |
-| fsspec | BSD-3-CLAUSE |
 | geographiclib | MIT |
 | geopy | MIT LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| ipython | BSD-3-CLAUSE |
-| ipython-pygments-lexers | BSD LICENSE |
-| jedi | MIT LICENSE |
-| matplotlib-inline |  |
-| msgpack | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| noise | MIT LICENSE |
-| numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| pandas | BSD LICENSE |
-| parso | MIT LICENSE |
-| pexpect | ISC LICENSE _ISCL_ |
-| pip | MIT |
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
-| prompt-toolkit | BSD LICENSE |
 | psutil | BSD-3-CLAUSE |
-| ptyprocess | ISC LICENSE _ISCL_ |
-| pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT |
 | pydantic-core | MIT |
-| pygments | BSD LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
-| pyproject-hooks | MIT LICENSE |
-| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| pytz | MIT LICENSE |
 | pyzstd | BSD LICENSE |
-| setuptools | MIT |
-| sgp4 | MIT LICENSE |
-| six | MIT LICENSE |
-| stack-data | MIT LICENSE |
 | texttable | MIT LICENSE |
-| traitlets | BSD LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT |
-| tzdata | APACHE SOFTWARE LICENSE |
-| watchdog | APACHE SOFTWARE LICENSE |
-| wcwidth | MIT LICENSE |
-| wheel | MIT LICENSE |

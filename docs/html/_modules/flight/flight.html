@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agilab.lab_run &mdash; AGILab 2025.12.12 documentation</title>
+  <title>flight.flight &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
@@ -13,7 +13,7 @@
       <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=d96b187f" />
 
   
-    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/agilab/lab_run.html" />
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/flight/flight.html" />
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../../_static/documentation_options.js?v=b39c3bb1"></script>
@@ -909,7 +909,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">agilab.lab_run</li>
+      <li class="breadcrumb-item active">flight.flight</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -918,7 +918,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for agilab.lab_run</h1><div class="highlight"><pre>
+  <h1>Source code for flight.flight</h1><div class="highlight"><pre>
 <span></span><span class="c1"># BSD 3-Clause License</span>
 <span class="c1">#</span>
 <span class="c1"># Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS</span>
@@ -932,116 +932,292 @@
 <span class="c1">#</span>
 <span class="c1"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">streamlit.web.cli</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stcli</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">py7zr</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_node.agi_dispatcher</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseWorker</span><span class="p">,</span> <span class="n">WorkDispatcher</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.flight_args</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">FlightArgs</span><span class="p">,</span>
+    <span class="n">FlightArgsTD</span><span class="p">,</span>
+    <span class="n">dump_args_to_toml</span><span class="p">,</span>
+    <span class="n">load_args_from_toml</span><span class="p">,</span>
+    <span class="n">merge_args</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env.agi_logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiLogger</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">AgiLogger</span><span class="o">.</span><span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_detect_repo_root</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="o">*</span><span class="n">start</span><span class="o">.</span><span class="n">parents</span><span class="p">):</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">candidate</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span><span class="n">candidate</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="s2">&quot;agilab&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
-            <span class="k">return</span> <span class="n">candidate</span>
-    <span class="k">return</span> <span class="kc">None</span>
+<div class="viewcode-block" id="Flight">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Flight</span><span class="p">(</span><span class="n">BaseWorker</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flight class provides methods to orchestrate the run.&quot;&quot;&quot;</span>
+
+    <span class="n">ivq_logs</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Flight.__init__">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">args</span><span class="p">:</span> <span class="n">FlightArgs</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">FlightArgsTD</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_managed_pc_share_dir</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+        <span class="c1"># Allow caller-provided verbosity flag even though the Pydantic model forbids extras.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;verbose&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">verbose</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">args</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="n">FlightArgs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid Flight arguments: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_in</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">resolve_share_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_in</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">resolve_share_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_out</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_out</span>
+
+        <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;json&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s2">&quot;reset_target&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span>
+                        <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">onerror</span><span class="o">=</span><span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">_onerror</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># pragma: no cover - defensive guard</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Issue while trying to reset dataframe directory </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span>
+                    <span class="n">exc</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_running_from_uvx</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Detect uvx or other uv tool environments that should not touch the source tree.&quot;&quot;&quot;</span>
-    <span class="c1"># `uv run` sets this; honour it so developers keep their standard workflow.</span>
-    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;UV_RUN_RECURSION_DEPTH&quot;</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">False</span>
+<div class="viewcode-block" id="Flight.from_toml">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.from_toml">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_toml</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">,</span>
+        <span class="n">settings_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">=</span> <span class="s2">&quot;app_settings.toml&quot;</span><span class="p">,</span>
+        <span class="n">section</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;args&quot;</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">overrides</span><span class="p">:</span> <span class="n">FlightArgsTD</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Flight&quot;</span><span class="p">:</span>
+        <span class="n">base_args</span> <span class="o">=</span> <span class="n">load_args_from_toml</span><span class="p">(</span><span class="n">settings_path</span><span class="p">,</span> <span class="n">section</span><span class="p">)</span>
+        <span class="n">merged</span> <span class="o">=</span> <span class="n">merge_args</span><span class="p">(</span><span class="n">base_args</span><span class="p">,</span> <span class="n">overrides</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">merged</span><span class="p">)</span></div>
 
-    <span class="n">prefix</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-    <span class="n">uv_roots</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.cache&quot;</span> <span class="o">/</span> <span class="s2">&quot;uv&quot;</span><span class="p">,</span>
-        <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.local&quot;</span> <span class="o">/</span> <span class="s2">&quot;share&quot;</span> <span class="o">/</span> <span class="s2">&quot;uv&quot;</span><span class="p">,</span>
-    <span class="p">]</span>
-    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">root</span> <span class="o">==</span> <span class="n">prefix</span> <span class="ow">or</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">prefix</span><span class="o">.</span><span class="n">parents</span> <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">uv_roots</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Flight.to_toml">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.to_toml">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_toml</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">settings_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">=</span> <span class="s2">&quot;app_settings.toml&quot;</span><span class="p">,</span>
+        <span class="n">section</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;args&quot;</span><span class="p">,</span>
+        <span class="n">create_missing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dump_args_to_toml</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span>
+            <span class="n">settings_path</span><span class="o">=</span><span class="n">settings_path</span><span class="p">,</span>
+            <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+            <span class="n">create_missing</span><span class="o">=</span><span class="n">create_missing</span><span class="p">,</span>
+        <span class="p">)</span></div>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_guard_against_uvx_in_source_tree</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">repo_root</span> <span class="o">=</span> <span class="n">_detect_repo_root</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">())</span>
-    <span class="k">if</span> <span class="n">repo_root</span> <span class="ow">and</span> <span class="n">_running_from_uvx</span><span class="p">():</span>
-        <span class="n">message</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="s2">&quot;agilab: running inside the source checkout via `uvx` is not supported.</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;Current checkout: </span><span class="si">{</span><span class="n">repo_root</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="s2">&quot;Use `uv run agilab` or the generated run-config wrappers instead.&quot;</span>
+<div class="viewcode-block" id="Flight.as_dict">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.as_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">as_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;json&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return current arguments as a serialisable dictionary.&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Flight.build_distribution">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.build_distribution">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">build_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;build_distrib: to provide the list of files per planes (level1) and per workers (level2)</span>
+<span class="sd">        the level 1 has been think to prevent that à job that requires all the output-data of a plane have to wait for another</span>
+<span class="sd">        flight_worker which would have collapse the overall performance</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">workers_chunks</span><span class="p">:</span> <span class="nb">list</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">workers_planes_dist</span><span class="p">:</span> <span class="nb">list</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># create list of works weighted</span>
+            <span class="n">planes_partition</span><span class="p">,</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_partition_by_planes</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">get_data_from_files</span><span class="p">()</span>
+            <span class="p">)</span>
+
+            <span class="c1"># get the second level of the distribution tree by by dispatching these works per workers</span>
+            <span class="c1"># make chunk of planes by worker with a load balancing that takes into consideration workers capacities</span>
+            <span class="n">workers_chunks</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">planes_partition</span><span class="p">),</span>
+                <span class="n">planes_partition_size</span><span class="p">,</span>
+                <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span>
+                <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span>
+                <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">workers_chunks</span><span class="p">:</span>
+                <span class="c1"># build tree: workers = dask workers -&gt; works = planes -&gt; files &lt;=&gt; list of list of list</span>
+                <span class="c1"># files by plane are capped  to max number of files requested per workers</span>
+
+                <span class="n">workers_planes_dist</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Int64</span><span class="p">)])</span>
+
+                <span class="k">for</span> <span class="n">planes</span> <span class="ow">in</span> <span class="n">workers_chunks</span><span class="p">:</span>
+                    <span class="n">workers_planes_dist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="p">[</span>
+                            <span class="n">df</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="n">plane_id</span><span class="p">)[</span><span class="s2">&quot;files&quot;</span><span class="p">]</span>
+                            <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">nfile</span><span class="p">)</span>
+                            <span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+                            <span class="k">for</span> <span class="n">plane_id</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">planes</span>
+                        <span class="p">]</span>
+                    <span class="p">)</span>
+
+                <span class="n">workers_chunks</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="p">[(</span><span class="n">plane</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">size</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="k">for</span> <span class="n">plane</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">chunk</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">workers_chunks</span>
+                <span class="p">]</span>
+
+            <span class="c1"># tree: workers -&gt; planes -&gt; files</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning issue while trying to build distribution: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">workers_planes_dist</span> <span class="ow">or</span> <span class="p">[],</span> <span class="n">workers_chunks</span> <span class="ow">or</span> <span class="p">[],</span> <span class="s2">&quot;plane&quot;</span><span class="p">,</span> <span class="s2">&quot;files&quot;</span><span class="p">,</span> <span class="s2">&quot;ko&quot;</span></div>
+
+
+<div class="viewcode-block" id="Flight.get_data_from_hawk">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data_from_hawk</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;get output-data from ELK/HAWK&quot;&quot;&quot;</span>
+        <span class="c1"># implement your hawk logic</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Flight.extract_plane_from_file_name">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.extract_plane_from_file_name">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extract_plane_from_file_name</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;provide airplane id from log file name</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          file_path:</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">)[</span><span class="mi">2</span><span class="p">][</span><span class="mi">2</span><span class="p">:</span><span class="mi">4</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Flight.get_data_from_files">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.get_data_from_files">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data_from_files</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;get output-data slices from files or from ELK/HAWK&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_source</span> <span class="o">==</span> <span class="s2">&quot;file&quot;</span><span class="p">:</span>
+            <span class="n">data_in</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_in</span><span class="p">)</span>
+            <span class="n">home_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">logs_ivq</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">home_dir</span><span class="p">)):</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">//</span> <span class="mi">1000</span>
+                <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">data_in</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">files</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;._&quot;</span><span class="p">)</span>
+            <span class="p">}</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs_ivq</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
+                    <span class="s2">&quot;Error in make_chunk: no files found with&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; Path(&#39;</span><span class="si">{</span><span class="n">data_in</span><span class="si">}</span><span class="s2">&#39;).rglob(&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">files</span><span class="si">}</span><span class="s2">&#39;)&quot;</span>
+                <span class="p">)</span>
+
+            <span class="n">df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logs_ivq</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">schema</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">,</span> <span class="s2">&quot;size&quot;</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">data_source</span> <span class="o">==</span> <span class="s2">&quot;hawk&quot;</span><span class="p">:</span>
+            <span class="c1"># implement your HAWK logic</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="Flight.get_partition_by_planes">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_partition_by_planes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;build the first level of the distribution tree with planes as atomics partition</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          s: df: dataframe containing the output-data to partition</span>
+<span class="sd">          df:</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+            <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;files&quot;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span>
+                <span class="sa">r</span><span class="s2">&quot;(?:.*/)?(\d</span><span class="si">{2}</span><span class="s2">)_&quot;</span>
+            <span class="p">)</span>  <span class="c1"># Optionally match directories, then capture two digits followed by an underscore</span>
+            <span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Int32</span><span class="p">)</span>  <span class="c1"># Cast the captured string to Int32</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span>  <span class="c1"># Rename the column</span>
         <span class="p">)</span>
-        <span class="k">raise</span> <span class="ne">SystemExit</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+        <span class="c1"># Get the first &#39;nfile&#39; rows per &#39;id_plane&#39; group</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">nfile</span><span class="p">)</span>
+
+        <span class="c1"># Sort the DataFrame by &#39;id_plane&#39;</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Compute the sum of &#39;size&#39; per &#39;id_plane&#39; and sort in descending order</span>
+        <span class="n">planes_partition</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;size&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;size&quot;</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;size&quot;</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Extract &#39;id_plane&#39; and &#39;size&#39; into lists and create tuples</span>
+        <span class="n">planes_partition_size</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+            <span class="nb">zip</span><span class="p">(</span>
+                <span class="n">planes_partition</span><span class="p">[</span><span class="s2">&quot;id_plane&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span>
+                <span class="n">planes_partition</span><span class="p">[</span><span class="s2">&quot;size&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">planes_partition</span><span class="p">,</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="n">df</span></div>
+</div>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_apps_path</span><span class="p">(</span><span class="n">cli_value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the CLI provided apps dir, or the repo apps dir when running from source.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cli_value</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">cli_value</span>
 
-    <span class="n">repo_root</span> <span class="o">=</span> <span class="n">_detect_repo_root</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">repo_root</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="n">candidate</span> <span class="o">=</span> <span class="n">repo_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="s2">&quot;agilab&quot;</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span>
-    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span> <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span>
+<div class="viewcode-block" id="FlightApp">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight.FlightApp">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FlightApp</span><span class="p">(</span><span class="n">Flight</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Alias keeping legacy imports alive.&quot;&quot;&quot;</span></div>
 
 
-<div class="viewcode-block" id="main">
-<a class="viewcode-back" href="../../module-agilab.html#agilab.lab_run.main">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">_guard_against_uvx_in_source_tree</span><span class="p">()</span>
 
-    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Run AGILAB application with custom options.&quot;</span>
-    <span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--cluster-ssh-credentials&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Cluster account user:password&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span>
-    <span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--openai-api-key&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;OpenAI API key&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span>
-    <span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--apps-dir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Where you store your apps (default is ./)&quot;</span><span class="p">,</span>
-                        <span class="n">default</span><span class="o">=</span><span class="kc">None</span>
-    <span class="p">)</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Flight&quot;</span><span class="p">,</span> <span class="s2">&quot;FlightApp&quot;</span><span class="p">]</span>
 
-    <span class="c1"># Parse known arguments; extra arguments are captured in `unknown`</span>
-    <span class="n">args</span><span class="p">,</span> <span class="n">unknown</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
-
-    <span class="c1"># Determine the target script (adjust path if necessary)</span>
-    <span class="n">target_script</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span><span class="s2">&quot;AGILAB.py&quot;</span><span class="p">)</span>
-
-    <span class="c1"># Build the base argument list for Streamlit.</span>
-    <span class="n">new_argv</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;streamlit&quot;</span><span class="p">,</span> <span class="s2">&quot;run&quot;</span><span class="p">,</span> <span class="n">target_script</span><span class="p">]</span>
-
-    <span class="c1"># Collect custom arguments (only pass what is provided).</span>
-    <span class="n">custom_args</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="n">resolved_apps_path</span> <span class="o">=</span> <span class="n">_resolve_apps_path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">apps_path</span><span class="p">)</span>
-
-    <span class="c1"># SSH credentials are optional at wrapper level; pass through if provided.</span>
-    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">cluster_ssh_credentials</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--cluster-ssh-credentials&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">cluster_ssh_credentials</span><span class="p">])</span>
-
-    <span class="c1"># OpenAI API key is optional at wrapper level; pass through if provided.</span>
-    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">openai_api_key</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--openai-api-key&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">openai_api_key</span><span class="p">])</span>
-
-    <span class="k">if</span> <span class="n">resolved_apps_path</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--apps-dir&quot;</span><span class="p">,</span> <span class="n">resolved_apps_path</span><span class="p">])</span>
-
-    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span>
-
-    <span class="c1"># Only add the double dash and custom arguments if there are any.</span>
-    <span class="k">if</span> <span class="n">custom_args</span><span class="p">:</span>
-        <span class="n">new_argv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--&quot;</span><span class="p">)</span>
-        <span class="n">new_argv</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">custom_args</span><span class="p">)</span>
-
-    <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="n">new_argv</span>
-    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">stcli</span><span class="o">.</span><span class="n">main</span><span class="p">())</span></div>
-
-
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">main</span><span class="p">()</span>
 </pre></div>
 
            </div>

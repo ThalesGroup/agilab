@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agilab.lab_run &mdash; AGILab 2025.12.12 documentation</title>
+  <title>flight.flight_args &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
@@ -13,7 +13,7 @@
       <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=d96b187f" />
 
   
-    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/agilab/lab_run.html" />
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/flight/flight_args.html" />
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../../_static/documentation_options.js?v=b39c3bb1"></script>
@@ -909,7 +909,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">agilab.lab_run</li>
+      <li class="breadcrumb-item active">flight.flight_args</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -918,130 +918,301 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for agilab.lab_run</h1><div class="highlight"><pre>
-<span></span><span class="c1"># BSD 3-Clause License</span>
-<span class="c1">#</span>
-<span class="c1"># Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS</span>
-<span class="c1"># All rights reserved.</span>
-<span class="c1">#</span>
-<span class="c1"># Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:</span>
-<span class="c1">#</span>
-<span class="c1"># 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.</span>
-<span class="c1"># 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.</span>
-<span class="c1"># 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.</span>
-<span class="c1">#</span>
-<span class="c1"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</span>
+  <h1>Source code for flight.flight_args</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Shared validation and persistence helpers for Flight project arguments.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">socket</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">streamlit.web.cli</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stcli</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">TypedDict</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">tomllib</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">field_validator</span><span class="p">,</span> <span class="n">model_validator</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env.app_args</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">dump_model_to_toml</span><span class="p">,</span>
+    <span class="n">load_model_from_toml</span><span class="p">,</span>
+    <span class="n">merge_model_data</span><span class="p">,</span>
+    <span class="n">model_to_payload</span><span class="p">,</span>
+<span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_detect_repo_root</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="o">*</span><span class="n">start</span><span class="o">.</span><span class="n">parents</span><span class="p">):</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">candidate</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span><span class="n">candidate</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="s2">&quot;agilab&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
-            <span class="k">return</span> <span class="n">candidate</span>
-    <span class="k">return</span> <span class="kc">None</span>
+<span class="n">ARGS_SECTION</span> <span class="o">=</span> <span class="s2">&quot;args&quot;</span>
+<span class="n">_DATEMIN_LOWER_BOUND</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">_DATEMAX_UPPER_BOUND</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_running_from_uvx</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Detect uvx or other uv tool environments that should not touch the source tree.&quot;&quot;&quot;</span>
-    <span class="c1"># `uv run` sets this; honour it so developers keep their standard workflow.</span>
-    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;UV_RUN_RECURSION_DEPTH&quot;</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">False</span>
+<div class="viewcode-block" id="FlightArgs">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.FlightArgs">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FlightArgs</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validated configuration for the Flight worker.&quot;&quot;&quot;</span>
 
-    <span class="n">prefix</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-    <span class="n">uv_roots</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.cache&quot;</span> <span class="o">/</span> <span class="s2">&quot;uv&quot;</span><span class="p">,</span>
-        <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.local&quot;</span> <span class="o">/</span> <span class="s2">&quot;share&quot;</span> <span class="o">/</span> <span class="s2">&quot;uv&quot;</span><span class="p">,</span>
-    <span class="p">]</span>
-    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">root</span> <span class="o">==</span> <span class="n">prefix</span> <span class="ow">or</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">prefix</span><span class="o">.</span><span class="n">parents</span> <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">uv_roots</span><span class="p">)</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">&quot;forbid&quot;</span><span class="p">,</span> <span class="n">validate_assignment</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;before&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_migrate_legacy_keys</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;data_uri&quot;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="s2">&quot;data_in&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;data_in&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;data_uri&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="n">data_source</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="s2">&quot;hawk&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;file&quot;</span>
+    <span class="n">data_in</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;flight/dataset&quot;</span><span class="p">))</span>
+    <span class="n">data_out</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">files</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;*&quot;</span>
+    <span class="n">nfile</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">nskip</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">nread</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">sampling_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">datemin</span><span class="p">:</span> <span class="n">date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">_DATEMIN_LOWER_BOUND</span><span class="p">)</span>
+    <span class="n">datemax</span><span class="p">:</span> <span class="n">date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">output_format</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;parquet&quot;</span><span class="p">,</span> <span class="s2">&quot;csv&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;parquet&quot;</span>
+    <span class="n">reset_target</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;data_in&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;before&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_coerce_data_in</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;data_in must be a string or Path value&quot;</span><span class="p">)</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;data_in&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;before&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_coerce_data_in</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;data_in must be a string or Path value&quot;</span><span class="p">)</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;data_out&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;before&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_coerce_data_out</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;data_out must be a string, Path, or None&quot;</span><span class="p">)</span>
+
+    <span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;after&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_default_data_out</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;FlightArgs&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_in</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;dataframe&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;nfile&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_expand_nfile</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">999_999_999_999</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;datemin&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_datemin</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">date</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">date</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="n">_DATEMIN_LOWER_BOUND</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;datemin must be on or after </span><span class="si">{</span><span class="n">_DATEMIN_LOWER_BOUND</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;datemax&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_datemax</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">date</span><span class="p">,</span> <span class="n">info</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">date</span><span class="p">:</span>
+        <span class="n">datemin</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;datemin&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">datemin</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="n">datemin</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;datemax must be on or after datemin&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="n">_DATEMAX_UPPER_BOUND</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;datemax must be on or before </span><span class="si">{</span><span class="n">_DATEMAX_UPPER_BOUND</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">&quot;files&quot;</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_regex</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">):</span>
+            <span class="n">candidate</span> <span class="o">=</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="n">candidate</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">re</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The provided string &#39;</span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&#39; is not a valid regex.&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+<div class="viewcode-block" id="FlightArgs.to_toml_payload">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.FlightArgs.to_toml_payload">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_toml_payload</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a TOML-friendly representation (Path/date → str).&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">model_to_payload</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+</div>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_guard_against_uvx_in_source_tree</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">repo_root</span> <span class="o">=</span> <span class="n">_detect_repo_root</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">())</span>
-    <span class="k">if</span> <span class="n">repo_root</span> <span class="ow">and</span> <span class="n">_running_from_uvx</span><span class="p">():</span>
-        <span class="n">message</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="s2">&quot;agilab: running inside the source checkout via `uvx` is not supported.</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;Current checkout: </span><span class="si">{</span><span class="n">repo_root</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="s2">&quot;Use `uv run agilab` or the generated run-config wrappers instead.&quot;</span>
-        <span class="p">)</span>
-        <span class="k">raise</span> <span class="ne">SystemExit</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FlightArgsTD">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.FlightArgsTD">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FlightArgsTD</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">data_source</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">data_in</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">data_out</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">files</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">nfile</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">nskip</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">nread</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">sampling_rate</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">datemin</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">datemax</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">output_format</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">reset_target</span><span class="p">:</span> <span class="nb">bool</span></div>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_apps_path</span><span class="p">(</span><span class="n">cli_value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the CLI provided apps dir, or the repo apps dir when running from source.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cli_value</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">cli_value</span>
 
-    <span class="n">repo_root</span> <span class="o">=</span> <span class="n">_detect_repo_root</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">repo_root</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
+<div class="viewcode-block" id="load_args_from_toml">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.load_args_from_toml">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_args_from_toml</span><span class="p">(</span>
+    <span class="n">settings_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">section</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ARGS_SECTION</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FlightArgs</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load arguments from a TOML file, applying model defaults when missing.&quot;&quot;&quot;</span>
 
-    <span class="n">candidate</span> <span class="o">=</span> <span class="n">repo_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="s2">&quot;agilab&quot;</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span>
-    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span> <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span>
-
-
-<div class="viewcode-block" id="main">
-<a class="viewcode-back" href="../../module-agilab.html#agilab.lab_run.main">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">_guard_against_uvx_in_source_tree</span><span class="p">()</span>
-
-    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Run AGILAB application with custom options.&quot;</span>
-    <span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--cluster-ssh-credentials&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Cluster account user:password&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span>
-    <span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--openai-api-key&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;OpenAI API key&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span>
-    <span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--apps-dir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Where you store your apps (default is ./)&quot;</span><span class="p">,</span>
-                        <span class="n">default</span><span class="o">=</span><span class="kc">None</span>
-    <span class="p">)</span>
-
-    <span class="c1"># Parse known arguments; extra arguments are captured in `unknown`</span>
-    <span class="n">args</span><span class="p">,</span> <span class="n">unknown</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
-
-    <span class="c1"># Determine the target script (adjust path if necessary)</span>
-    <span class="n">target_script</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span><span class="s2">&quot;AGILAB.py&quot;</span><span class="p">)</span>
-
-    <span class="c1"># Build the base argument list for Streamlit.</span>
-    <span class="n">new_argv</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;streamlit&quot;</span><span class="p">,</span> <span class="s2">&quot;run&quot;</span><span class="p">,</span> <span class="n">target_script</span><span class="p">]</span>
-
-    <span class="c1"># Collect custom arguments (only pass what is provided).</span>
-    <span class="n">custom_args</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="n">resolved_apps_path</span> <span class="o">=</span> <span class="n">_resolve_apps_path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">apps_path</span><span class="p">)</span>
-
-    <span class="c1"># SSH credentials are optional at wrapper level; pass through if provided.</span>
-    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">cluster_ssh_credentials</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--cluster-ssh-credentials&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">cluster_ssh_credentials</span><span class="p">])</span>
-
-    <span class="c1"># OpenAI API key is optional at wrapper level; pass through if provided.</span>
-    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">openai_api_key</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--openai-api-key&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">openai_api_key</span><span class="p">])</span>
-
-    <span class="k">if</span> <span class="n">resolved_apps_path</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--apps-dir&quot;</span><span class="p">,</span> <span class="n">resolved_apps_path</span><span class="p">])</span>
-
-    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
-        <span class="n">custom_args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span>
-
-    <span class="c1"># Only add the double dash and custom arguments if there are any.</span>
-    <span class="k">if</span> <span class="n">custom_args</span><span class="p">:</span>
-        <span class="n">new_argv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--&quot;</span><span class="p">)</span>
-        <span class="n">new_argv</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">custom_args</span><span class="p">)</span>
-
-    <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="n">new_argv</span>
-    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">stcli</span><span class="o">.</span><span class="n">main</span><span class="p">())</span></div>
+    <span class="k">return</span> <span class="n">load_model_from_toml</span><span class="p">(</span><span class="n">FlightArgs</span><span class="p">,</span> <span class="n">settings_path</span><span class="p">,</span> <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">)</span></div>
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">main</span><span class="p">()</span>
+
+<div class="viewcode-block" id="merge_args">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.merge_args">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_args</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="n">FlightArgs</span><span class="p">,</span> <span class="n">overrides</span><span class="p">:</span> <span class="n">FlightArgsTD</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FlightArgs</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a new instance with overrides applied on top of ``base``.&quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">merge_model_data</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">overrides</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="apply_source_defaults">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.apply_source_defaults">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_source_defaults</span><span class="p">(</span>
+    <span class="n">args</span><span class="p">:</span> <span class="n">FlightArgs</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">host_ip</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FlightArgs</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure source-specific defaults for missing values.&quot;&quot;&quot;</span>
+
+    <span class="n">overrides</span><span class="p">:</span> <span class="n">FlightArgsTD</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">data_source</span> <span class="o">==</span> <span class="s2">&quot;file&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">data_in</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">&quot;data_in&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;flight/dataset&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">files</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;*&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">host_ip</span><span class="p">:</span>
+            <span class="n">host</span> <span class="o">=</span> <span class="n">host_ip</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">host</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyname</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="n">host</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span>
+        <span class="n">default_uri</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;https://admin:admin@</span><span class="si">{</span><span class="n">host</span><span class="si">}</span><span class="s2">:9200/&quot;</span>
+        <span class="n">current_uri</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">data_in</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">current_uri</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="n">current_uri</span> <span class="o">==</span> <span class="s2">&quot;flight/dataset&quot;</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">&quot;data_in&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_uri</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">files</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">files</span> <span class="o">==</span> <span class="s2">&quot;*&quot;</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;hawk.user-admin.1&quot;</span>
+
+    <span class="k">return</span> <span class="n">merge_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">overrides</span><span class="p">)</span> <span class="k">if</span> <span class="n">overrides</span> <span class="k">else</span> <span class="n">args</span></div>
+
+
+
+<div class="viewcode-block" id="dump_args_to_toml">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.dump_args_to_toml">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dump_args_to_toml</span><span class="p">(</span>
+    <span class="n">args</span><span class="p">:</span> <span class="n">FlightArgs</span><span class="p">,</span>
+    <span class="n">settings_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">section</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ARGS_SECTION</span><span class="p">,</span>
+    <span class="n">create_missing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Persist arguments back to the TOML file (overwriting only the section).&quot;&quot;&quot;</span>
+
+    <span class="n">settings_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">settings_path</span><span class="p">)</span>
+    <span class="n">doc</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">settings_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">settings_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="n">doc</span> <span class="o">=</span> <span class="n">tomllib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">create_missing</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Settings file not found: </span><span class="si">{</span><span class="n">settings_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">dump_model_to_toml</span><span class="p">(</span>
+        <span class="n">args</span><span class="p">,</span>
+        <span class="n">settings_path</span><span class="o">=</span><span class="n">settings_path</span><span class="p">,</span>
+        <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+        <span class="n">create_missing</span><span class="o">=</span><span class="n">create_missing</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="n">ArgsModel</span> <span class="o">=</span> <span class="n">FlightArgs</span>
+<span class="n">ArgsOverrides</span> <span class="o">=</span> <span class="n">FlightArgsTD</span>
+
+
+<div class="viewcode-block" id="load_args">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.load_args">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_args</span><span class="p">(</span>
+    <span class="n">settings_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">section</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ARGS_SECTION</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FlightArgs</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">load_args_from_toml</span><span class="p">(</span><span class="n">settings_path</span><span class="p">,</span> <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="dump_args">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.dump_args">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dump_args</span><span class="p">(</span>
+    <span class="n">args</span><span class="p">:</span> <span class="n">FlightArgs</span><span class="p">,</span>
+    <span class="n">settings_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">section</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ARGS_SECTION</span><span class="p">,</span>
+    <span class="n">create_missing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">dump_args_to_toml</span><span class="p">(</span>
+        <span class="n">args</span><span class="p">,</span>
+        <span class="n">settings_path</span><span class="p">,</span>
+        <span class="n">section</span><span class="o">=</span><span class="n">section</span><span class="p">,</span>
+        <span class="n">create_missing</span><span class="o">=</span><span class="n">create_missing</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ensure_defaults">
+<a class="viewcode-back" href="../../flight-project.html#flight.flight_args.ensure_defaults">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ensure_defaults</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">FlightArgs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FlightArgs</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">apply_source_defaults</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;ArgsModel&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ArgsOverrides&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;FlightArgs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;FlightArgsTD&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;apply_source_defaults&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;dump_args&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;dump_args_to_toml&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ensure_defaults&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;load_args&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;load_args_from_toml&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;merge_args&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
 </pre></div>
 
            </div>
