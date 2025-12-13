@@ -15,6 +15,31 @@ declare -a BUILTIN_APPS=(
 )
 declare -a REPOSITORY_APPS=()
 
+declare -a DEFAULT_APPS_ORDER=(
+  mycode_project
+  flight_project
+  flight_legacy_project
+  sb3_trainer_project
+  sat_trajectory_project
+  rssi_predictor_project
+  flowsynth_project
+  flight_trajectory_project
+  link_sim_project
+  flight_clone_project
+  network_sim_project
+  ilp_project
+  satcom_sim_project
+)
+
+declare -a DEFAULT_SELECTED_APPS=(
+  sb3_trainer_project
+  sat_trajectory_project
+  flight_trajectory_project
+  link_sim_project
+  network_sim_project
+  ilp_project
+)
+
 declare -a INCLUDED_APPS=()
 declare -a INCLUDED_PAGES=()
 declare -a SKIPPED_APP_TESTS=()
@@ -22,6 +47,7 @@ DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
 PROMPT_FOR_APPS=1
 FORCE_APP_SELECTION=0
+FORCE_ALL_APPS=0
 ALL_APPS_SENTINEL="${INSTALL_ALL_SENTINEL:-__AGILAB_ALL_APPS__}"
 BUILTIN_ONLY_SENTINEL="${INSTALL_BUILTIN_SENTINEL:-__AGILAB_BUILTIN_APPS__}"
 NEED_APP_DISCOVERY=1
@@ -209,6 +235,16 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# Return 0 if the needle exists in the haystack list.
+in_list() {
+  local needle="$1"; shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 if [[ -n "$APPS_REPOSITORY" ]]; then
   if PAGES_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps-pages"); then
     SKIP_REPOSITORY_PAGES=0
@@ -361,6 +397,7 @@ if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]
   if [[ "${BUILTIN_APPS_OVERRIDE}" == "$ALL_APPS_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
+    FORCE_ALL_APPS=1
     echo -e "${BLUE}(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every available app.${NC}"
   elif [[ "${BUILTIN_APPS_OVERRIDE}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
@@ -380,6 +417,7 @@ elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]
   if [[ "${BUILTIN_APPS_FROM_ENV}" == "$ALL_APPS_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
+    FORCE_ALL_APPS=1
     echo -e "${BLUE}(Apps) Full install requested (--install-apps all); installing every available app.${NC}"
   elif [[ "${BUILTIN_APPS_FROM_ENV}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
@@ -427,6 +465,19 @@ if (( FORCE_BUILTIN_ONLY )); then
   REPOSITORY_APPS=()
 fi
 
+declare -a SELECTED_REPOSITORY_APPS=()
+if (( SKIP_REPOSITORY_APPS == 0 )); then
+  if (( FORCE_ALL_APPS )); then
+    SELECTED_REPOSITORY_APPS=(${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
+  else
+    for app in ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"}; do
+      if in_list "$app" "${DEFAULT_SELECTED_APPS[@]}"; then
+        SELECTED_REPOSITORY_APPS+=("$app")
+      fi
+    done
+  fi
+fi
+
 declare -a SELECTED_BUILTIN_APPS=()
 declare -a BUILTIN_SKIPPED_BY_DEFAULT=()
 if (( FILTER_BUILTINS_BY_DEFAULT )); then
@@ -456,7 +507,7 @@ fi
 if (( FORCE_APP_SELECTION )); then
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
 elif (( SKIP_REPOSITORY_APPS == 0 )); then
-  INCLUDED_APPS=(${SELECTED_BUILTIN_APPS+"${SELECTED_BUILTIN_APPS[@]}"} ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
+  INCLUDED_APPS=(${SELECTED_BUILTIN_APPS+"${SELECTED_BUILTIN_APPS[@]}"} ${SELECTED_REPOSITORY_APPS+"${SELECTED_REPOSITORY_APPS[@]}"})
 else
   INCLUDED_APPS=(${SELECTED_BUILTIN_APPS+"${SELECTED_BUILTIN_APPS[@]}"})
 fi
@@ -483,6 +534,35 @@ for item in "${INCLUDED_APPS[@]}"; do
     INCLUDED_APPS_UNIQ+=("$item")
   fi
 done
+
+# Apply stable ordering for display (and for "defaults" selection markers).
+if (( ${#DEFAULT_APPS_ORDER[@]} )); then
+  declare -a ordered_all_apps=()
+  for preferred in "${DEFAULT_APPS_ORDER[@]}"; do
+    for item in "${ALL_APPS[@]}"; do
+      [[ "$item" == "$preferred" ]] && ordered_all_apps+=("$item") && break
+    done
+  done
+  for item in "${ALL_APPS[@]}"; do
+    if ! in_list "$item" "${ordered_all_apps[@]}"; then
+      ordered_all_apps+=("$item")
+    fi
+  done
+  ALL_APPS=("${ordered_all_apps[@]}")
+
+  declare -a ordered_included_apps=()
+  for preferred in "${DEFAULT_APPS_ORDER[@]}"; do
+    for item in "${INCLUDED_APPS_UNIQ[@]}"; do
+      [[ "$item" == "$preferred" ]] && ordered_included_apps+=("$item") && break
+    done
+  done
+  for item in "${INCLUDED_APPS_UNIQ[@]}"; do
+    if ! in_list "$item" "${ordered_included_apps[@]}"; then
+      ordered_included_apps+=("$item")
+    fi
+  done
+  INCLUDED_APPS_UNIQ=("${ordered_included_apps[@]}")
+fi
 
 # Offer an interactive picker when we still need confirmation.
 if (( PROMPT_FOR_APPS )); then
