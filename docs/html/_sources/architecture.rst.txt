@@ -24,11 +24,11 @@ Component view
    Pyreverse snapshot of how the Streamlit entry points, ``agi_core`` façade,
    ``agi_env`` and ``agi_cluster`` exchange data before the workers are started.
 
-RL/ILP app pipeline
--------------------
+Pipeline example
+----------------
 
 .. figure:: diagrams/agilab_app_flow.png
-   :alt: RL/ILP pipeline from trajectories and cloud/weather heatmaps to visualisation
+   :alt: Pipeline example from trajectories and environment maps to visualisation
    :width: 100%
 
    Data flows from trajectory generators and environment maps into simulation
@@ -54,24 +54,6 @@ Manager vs worker responsibilities
 
    An app manager prepares arguments and submits plans via ``AGI.run``; workers
    (BaseWorker subclasses) execute the distributed tasks.
-
-Mid-2024 simplification (notebooks → demands)
----------------------------------------------
-
-.. figure:: diagrams/activities_2024.png
-   :alt: FlowSynth notebooks to centralised demand model feeding RL/ILP and visual comparison
-   :width: 90%
-
-   Earlier notebook-driven prototypes informed a centralised, demand-level POC
-   (no packet routing), feeding decision engines and visual comparison.
-
-Coverage and roadmap (RL/ILP demo)
-----------------------------------
-
-- Coverage: per-step LOS capacities (LinkSim/FSPL fallback) with contention scaling; predictive smoothing; priorities/latency carried end-to-end; per-step logging, visualisation, and verifier; demand time windows (exponential arrivals/durations).
-- Limitations: per-demand action space only (no edge-level routing yet; message-passing/GNN encoders are experimental); arrivals/durations limited; smoothing is simple exponential; ILP stepping exists but the single-shot baseline remains primary; stubbed stages allow degraded runs when optional components are not installed.
-- Pending delivery: edge-level action space plus a productionised GNN-based policy/observation encoder to lift the per-demand limitation and support per-link routing decisions.
-- Optional workflows: inference-only runs, continuous learning (solver-as-teacher), and federated learning can be orchestrated explicitly (see :doc:`learning-workflows`).
 
 Layers at a glance
 ------------------
@@ -116,8 +98,9 @@ Layers at a glance
     - :doc:`framework-api` exposes ``AGI.run`` / ``AGI.get_distrib`` /
       ``AGI.install`` orchestration.
     - Apps under ``src/agilab/apps`` stay isolated but consume the same base
-      worker / dispatcher APIs. Public apps live in ``mycode_project`` and
-      ``flight_project``; the rest use the same contract but ship privately.
+      worker / dispatcher APIs. The repository includes example app templates
+      such as ``mycode_project`` and ``flight_project``; additional templates can
+      follow the same contract.
 
 **Execution back-plane**
     - :doc:`agi-distributor` contains the Dask-based scheduler, worker templates and

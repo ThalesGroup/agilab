@@ -114,11 +114,9 @@
 <li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">AGILab Architecture</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#component-view">Component view</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#rl-ilp-app-pipeline">RL/ILP app pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pipeline-example">Pipeline example</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#agilab-py-navigation">AGILAB.py navigation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#manager-vs-worker-responsibilities">Manager vs worker responsibilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#mid-2024-simplification-notebooks-demands">Mid-2024 simplification (notebooks → demands)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#coverage-and-roadmap-rl-ilp-demo">Coverage and roadmap (RL/ILP demo)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#layers-at-a-glance">Layers at a glance</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#runtime-flow">Runtime flow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#repository-map">Repository map</a></li>
@@ -589,10 +587,10 @@ return here when you need the big picture of how the layers fit together.</p>
 </figcaption>
 </figure>
 </section>
-<section id="rl-ilp-app-pipeline">
-<h2>RL/ILP app pipeline<a class="headerlink" href="#rl-ilp-app-pipeline" title="Link to this heading"></a></h2>
+<section id="pipeline-example">
+<h2>Pipeline example<a class="headerlink" href="#pipeline-example" title="Link to this heading"></a></h2>
 <figure class="align-default" id="id3">
-<a class="reference internal image-reference" href="_images/agilab_app_flow.png"><img alt="RL/ILP pipeline from trajectories and cloud/weather heatmaps to visualisation" src="_images/agilab_app_flow.png" style="width: 100%;" />
+<a class="reference internal image-reference" href="_images/agilab_app_flow.png"><img alt="Pipeline example from trajectories and environment maps to visualisation" src="_images/agilab_app_flow.png" style="width: 100%;" />
 </a>
 <figcaption>
 <p><span class="caption-text">Data flows from trajectory generators and environment maps into simulation
@@ -623,30 +621,10 @@ app, all routed into <code class="docutils literal notranslate"><span class="pre
 </figcaption>
 </figure>
 </section>
-<section id="mid-2024-simplification-notebooks-demands">
-<h2>Mid-2024 simplification (notebooks → demands)<a class="headerlink" href="#mid-2024-simplification-notebooks-demands" title="Link to this heading"></a></h2>
-<figure class="align-default" id="id6">
-<a class="reference internal image-reference" href="_images/activities_2024.png"><img alt="FlowSynth notebooks to centralised demand model feeding RL/ILP and visual comparison" src="_images/activities_2024.png" style="width: 90%;" />
-</a>
-<figcaption>
-<p><span class="caption-text">Earlier notebook-driven prototypes informed a centralised, demand-level POC
-(no packet routing), feeding decision engines and visual comparison.</span><a class="headerlink" href="#id6" title="Link to this image"></a></p>
-</figcaption>
-</figure>
-</section>
-<section id="coverage-and-roadmap-rl-ilp-demo">
-<h2>Coverage and roadmap (RL/ILP demo)<a class="headerlink" href="#coverage-and-roadmap-rl-ilp-demo" title="Link to this heading"></a></h2>
-<ul class="simple">
-<li><p>Coverage: per-step LOS capacities (LinkSim/FSPL fallback) with contention scaling; predictive smoothing; priorities/latency carried end-to-end; per-step logging, visualisation, and verifier; demand time windows (exponential arrivals/durations).</p></li>
-<li><p>Limitations: per-demand action space only (no edge-level routing yet; message-passing/GNN encoders are experimental); arrivals/durations limited; smoothing is simple exponential; ILP stepping exists but the single-shot baseline remains primary; stubbed stages allow degraded runs when optional components are not installed.</p></li>
-<li><p>Pending delivery: edge-level action space plus a productionised GNN-based policy/observation encoder to lift the per-demand limitation and support per-link routing decisions.</p></li>
-<li><p>Optional workflows: inference-only runs, continuous learning (solver-as-teacher), and federated learning can be orchestrated explicitly (see <a class="reference internal" href="learning-workflows.html"><span class="doc">Learning Workflows</span></a>).</p></li>
-</ul>
-</section>
 <section id="layers-at-a-glance">
 <h2>Layers at a glance<a class="headerlink" href="#layers-at-a-glance" title="Link to this heading"></a></h2>
-<table class="docutils align-default" id="id7">
-<caption><span class="caption-text">Layer responsibilities</span><a class="headerlink" href="#id7" title="Link to this table"></a></caption>
+<table class="docutils align-default" id="id6">
+<caption><span class="caption-text">Layer responsibilities</span><a class="headerlink" href="#id6" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 20.0%" />
 <col style="width: 80.0%" />
@@ -700,8 +678,9 @@ between all apps (dataset helpers, worker bootstrap, git/LFS utilities…).</p><
 <li><p><a class="reference internal" href="framework-api.html"><span class="doc">Framework API</span></a> exposes <code class="docutils literal notranslate"><span class="pre">AGI.run</span></code> / <code class="docutils literal notranslate"><span class="pre">AGI.get_distrib</span></code> /
 <code class="docutils literal notranslate"><span class="pre">AGI.install</span></code> orchestration.</p></li>
 <li><p>Apps under <code class="docutils literal notranslate"><span class="pre">src/agilab/apps</span></code> stay isolated but consume the same base
-worker / dispatcher APIs. Public apps live in <code class="docutils literal notranslate"><span class="pre">mycode_project</span></code> and
-<code class="docutils literal notranslate"><span class="pre">flight_project</span></code>; the rest use the same contract but ship privately.</p></li>
+worker / dispatcher APIs. The repository includes example app templates
+such as <code class="docutils literal notranslate"><span class="pre">mycode_project</span></code> and <code class="docutils literal notranslate"><span class="pre">flight_project</span></code>; additional templates can
+follow the same contract.</p></li>
 </ul>
 </dd>
 <dt><strong>Execution back-plane</strong></dt><dd><ul class="simple">
@@ -744,8 +723,8 @@ configurations so CLI wrappers stay synced.</p></li>
 </section>
 <section id="repository-map">
 <h2>Repository map<a class="headerlink" href="#repository-map" title="Link to this heading"></a></h2>
-<div class="literal-block-wrapper docutils container" id="id8">
-<div class="code-block-caption"><span class="caption-text">Generated by <code class="docutils literal notranslate"><span class="pre">docs/gen-docs.py</span></code> (gitignore-aware)</span><a class="headerlink" href="#id8" title="Link to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text">Generated by <code class="docutils literal notranslate"><span class="pre">docs/gen-docs.py</span></code> (gitignore-aware)</span><a class="headerlink" href="#id7" title="Link to this code"></a></div>
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span>agilab/
 __pycache__/ [excluded]
 apps/
@@ -1105,12 +1084,12 @@ uv_config.toml
 </section>
 <section id="core-vs-optional-apps">
 <h2>Core vs optional apps<a class="headerlink" href="#core-vs-optional-apps" title="Link to this heading"></a></h2>
-<figure class="align-default" id="id9">
+<figure class="align-default" id="id8">
 <a class="reference internal image-reference" href="_images/repo_split.png"><img alt="Repository split between AGILAB core and optional apps" src="_images/repo_split.png" style="width: 90%;" />
 </a>
 <figcaption>
 <p><span class="caption-text">AGILAB (open-source framework) underpins optional apps that can be installed
-separately. Public docs only cover the open-source layers and built-in apps.</span><a class="headerlink" href="#id9" title="Link to this image"></a></p>
+separately. Public docs only cover the open-source layers and built-in apps.</span><a class="headerlink" href="#id8" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 </section>
