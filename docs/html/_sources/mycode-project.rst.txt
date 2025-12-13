@@ -13,13 +13,13 @@ Overview
 Scientific placeholders
 -----------------------
 The template is intentionally lightweight, but many AGILab workflows ultimately
-fit the pattern of learning or calibrating a function :math:`f_\\theta`:
+fit the pattern of learning or calibrating a function :math:`f_\theta`:
 
 .. math::
 
-   \\theta^* = \\arg\\min_{\\theta} \\; \\frac{1}{N} \\sum_{i=1}^{N} \\ell\\left(f_{\\theta}(x_i), y_i\\right)
+   \theta^* = \arg\min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} \ell\left(f_{\theta}(x_i), y_i\right)
 
-where :math:`\\ell` is a task-dependent loss (regression, classification,
+where :math:`\ell` is a task-dependent loss (regression, classification,
 imitation learning, etc.). You can use the MyCode skeleton to prototype the
 data loading, feature extraction, and artifact export around this core loop.
 

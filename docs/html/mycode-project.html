@@ -939,10 +939,10 @@ in UI customisation and Experiment prompts.</p></li>
 <section id="scientific-placeholders">
 <h2>Scientific placeholders<a class="headerlink" href="#scientific-placeholders" title="Link to this heading"></a></h2>
 <p>The template is intentionally lightweight, but many AGILab workflows ultimately
-fit the pattern of learning or calibrating a function <span class="math notranslate nohighlight">\(f_\\theta\)</span>:</p>
+fit the pattern of learning or calibrating a function <span class="math notranslate nohighlight">\(f_\theta\)</span>:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\\theta^* = \\arg\\min_{\\theta} \\; \\frac{1}{N} \\sum_{i=1}^{N} \\ell\\left(f_{\\theta}(x_i), y_i\\right)\end{split}\]</div>
-<p>where <span class="math notranslate nohighlight">\(\\ell\)</span> is a task-dependent loss (regression, classification,
+\[\theta^* = \arg\min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} \ell\left(f_{\theta}(x_i), y_i\right)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\ell\)</span> is a task-dependent loss (regression, classification,
 imitation learning, etc.). You can use the MyCode skeleton to prototype the
 data loading, feature extraction, and artifact export around this core loop.</p>
 </section>

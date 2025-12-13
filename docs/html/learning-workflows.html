@@ -937,18 +937,18 @@ artifact conventions.</p>
 predictions.</p>
 <section id="reinforcement-learning-example">
 <h3>Reinforcement learning (example)<a class="headerlink" href="#reinforcement-learning-example" title="Link to this heading"></a></h3>
-<p>In reinforcement learning, a policy <span class="math notranslate nohighlight">\(\\pi_\\theta(a \\mid s)\)</span> is trained to
+<p>In reinforcement learning, a policy <span class="math notranslate nohighlight">\(\pi_\theta(a \mid s)\)</span> is trained to
 maximize expected discounted return:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}J(\\theta) = \\mathbb{E}\\left[\\sum_{t=0}^{T-1} \\gamma^t r_t\\right]\end{split}\]</div>
-<p>where <span class="math notranslate nohighlight">\(\\gamma \\in (0,1]\)</span> is a discount factor and <span class="math notranslate nohighlight">\(r_t\)</span> is the
+\[J(\theta) = \mathbb{E}\left[\sum_{t=0}^{T-1} \gamma^t r_t\right]\]</div>
+<p>where <span class="math notranslate nohighlight">\(\gamma \in (0,1]\)</span> is a discount factor and <span class="math notranslate nohighlight">\(r_t\)</span> is the
 reward at step <span class="math notranslate nohighlight">\(t\)</span>.</p>
 </section>
 <section id="optimization-ilp-baseline-example">
 <h3>Optimization / ILP baseline (example)<a class="headerlink" href="#optimization-ilp-baseline-example" title="Link to this heading"></a></h3>
 <p>A deterministic baseline can be expressed as an integer linear program (ILP):</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\\min_{x} \\; c^\\top x \\quad \\text{s.t.} \\quad Ax \\le b, \\; x \\in \\{0,1\\}^n\end{split}\]</div>
+\[\min_{x} \; c^\top x \quad \text{s.t.} \quad Ax \le b, \; x \in \{0,1\}^n\]</div>
 <p>This kind of solver is useful as:</p>
 <ul class="simple">
 <li><p>a baseline for evaluation (compare against learned policies), and/or</p></li>
@@ -982,9 +982,9 @@ augmentation, depending on the algorithm.</p></li>
 <span class="math notranslate nohighlight">\(x_v\)</span>, edge features <span class="math notranslate nohighlight">\(e_{uv}\)</span>, and adjacency defined by the current
 topology. A message-passing GNN updates node embeddings as:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}m_v^{(k)} = \\sum_{u \\in \\mathcal{N}(v)} \\psi\\left(h_v^{(k)}, h_u^{(k)}, e_{uv}\\right),
-\\qquad
-h_v^{(k+1)} = \\phi\\left(h_v^{(k)}, m_v^{(k)}\\right)\end{split}\]</div>
+\[m_v^{(k)} = \sum_{u \in \mathcal{N}(v)} \psi\left(h_v^{(k)}, h_u^{(k)}, e_{uv}\right),
+\qquad
+h_v^{(k+1)} = \phi\left(h_v^{(k)}, m_v^{(k)}\right)\]</div>
 <p>Because aggregation is permutation-invariant, the same network can generalize
 across different graph sizes and topologies (topology-agnostic policies), while
 still learning node- and edge-level properties.</p>
@@ -994,8 +994,8 @@ still learning node- and edge-level properties.</p>
 <p>Federated learning trains models across multiple sites without centralizing
 raw data. A common aggregation is FedAvg:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\\theta_{t+1} = \\sum_{k=1}^{K} \\frac{n_k}{\\sum_j n_j} \\, \\theta_{t+1}^{(k)}\end{split}\]</div>
-<p>where <span class="math notranslate nohighlight">\(\\theta_{t+1}^{(k)}\)</span> is the model trained on site <span class="math notranslate nohighlight">\(k\)</span> and
+\[\theta_{t+1} = \sum_{k=1}^{K} \frac{n_k}{\sum_j n_j} \, \theta_{t+1}^{(k)}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\theta_{t+1}^{(k)}\)</span> is the model trained on site <span class="math notranslate nohighlight">\(k\)</span> and
 <span class="math notranslate nohighlight">\(n_k\)</span> is the number of samples used there.</p>
 <p>In AGILab terms, this can be implemented by orchestrating:</p>
 <ul class="simple">

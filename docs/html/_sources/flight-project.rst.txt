@@ -15,18 +15,18 @@ Overview
 Scientific highlights
 ---------------------
 The worker derives distances and speeds from time-stamped telemetry. For two
-samples with latitude/longitude :math:`(\\phi_1, \\lambda_1)` and
-:math:`(\\phi_2, \\lambda_2)`, a common great-circle approximation is the
+samples with latitude/longitude :math:`(\phi_1, \lambda_1)` and
+:math:`(\phi_2, \lambda_2)`, a common great-circle approximation is the
 haversine formula:
 
 .. math::
 
-   d = 2R \\arcsin\\left(\\sqrt{\\sin^2\\frac{\\Delta\\phi}{2} + \\cos\\phi_1\\cos\\phi_2\\sin^2\\frac{\\Delta\\lambda}{2}}\\right)
+   d = 2R \arcsin\left(\sqrt{\sin^2\frac{\Delta\phi}{2} + \cos\phi_1\cos\phi_2\sin^2\frac{\Delta\lambda}{2}}\right)
 
 with Earth radius :math:`R` and angular differences
-:math:`\\Delta\\phi = \\phi_2 - \\phi_1`, :math:`\\Delta\\lambda = \\lambda_2 - \\lambda_1`.
+:math:`\Delta\phi = \phi_2 - \phi_1`, :math:`\Delta\lambda = \lambda_2 - \lambda_1`.
 Given timestamps :math:`t_1, t_2`, an instantaneous speed estimate is
-:math:`v \\approx d / (t_2 - t_1)`.
+:math:`v \approx d / (t_2 - t_1)`.
 
 Manager (`flight.flight`)
 -------------------------

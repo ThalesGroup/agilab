@@ -941,15 +941,15 @@ you reproduce the workflow showcased in AGILab live demos.</p></li>
 <section id="scientific-highlights">
 <h2>Scientific highlights<a class="headerlink" href="#scientific-highlights" title="Link to this heading"></a></h2>
 <p>The worker derives distances and speeds from time-stamped telemetry. For two
-samples with latitude/longitude <span class="math notranslate nohighlight">\((\\phi_1, \\lambda_1)\)</span> and
-<span class="math notranslate nohighlight">\((\\phi_2, \\lambda_2)\)</span>, a common great-circle approximation is the
+samples with latitude/longitude <span class="math notranslate nohighlight">\((\phi_1, \lambda_1)\)</span> and
+<span class="math notranslate nohighlight">\((\phi_2, \lambda_2)\)</span>, a common great-circle approximation is the
 haversine formula:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}d = 2R \\arcsin\\left(\\sqrt{\\sin^2\\frac{\\Delta\\phi}{2} + \\cos\\phi_1\\cos\\phi_2\\sin^2\\frac{\\Delta\\lambda}{2}}\\right)\end{split}\]</div>
+\[d = 2R \arcsin\left(\sqrt{\sin^2\frac{\Delta\phi}{2} + \cos\phi_1\cos\phi_2\sin^2\frac{\Delta\lambda}{2}}\right)\]</div>
 <p>with Earth radius <span class="math notranslate nohighlight">\(R\)</span> and angular differences
-<span class="math notranslate nohighlight">\(\\Delta\\phi = \\phi_2 - \\phi_1\)</span>, <span class="math notranslate nohighlight">\(\\Delta\\lambda = \\lambda_2 - \\lambda_1\)</span>.
+<span class="math notranslate nohighlight">\(\Delta\phi = \phi_2 - \phi_1\)</span>, <span class="math notranslate nohighlight">\(\Delta\lambda = \lambda_2 - \lambda_1\)</span>.
 Given timestamps <span class="math notranslate nohighlight">\(t_1, t_2\)</span>, an instantaneous speed estimate is
-<span class="math notranslate nohighlight">\(v \\approx d / (t_2 - t_1)\)</span>.</p>
+<span class="math notranslate nohighlight">\(v \approx d / (t_2 - t_1)\)</span>.</p>
 </section>
 <section id="manager-flight-flight">
 <h2>Manager (<cite>flight.flight</cite>)<a class="headerlink" href="#manager-flight-flight" title="Link to this heading"></a></h2>

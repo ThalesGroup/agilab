@@ -17,14 +17,14 @@ predictions.
 Reinforcement learning (example)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In reinforcement learning, a policy :math:`\\pi_\\theta(a \\mid s)` is trained to
+In reinforcement learning, a policy :math:`\pi_\theta(a \mid s)` is trained to
 maximize expected discounted return:
 
 .. math::
 
-   J(\\theta) = \\mathbb{E}\\left[\\sum_{t=0}^{T-1} \\gamma^t r_t\\right]
+   J(\theta) = \mathbb{E}\left[\sum_{t=0}^{T-1} \gamma^t r_t\right]
 
-where :math:`\\gamma \\in (0,1]` is a discount factor and :math:`r_t` is the
+where :math:`\gamma \in (0,1]` is a discount factor and :math:`r_t` is the
 reward at step :math:`t`.
 
 Optimization / ILP baseline (example)
@@ -34,7 +34,7 @@ A deterministic baseline can be expressed as an integer linear program (ILP):
 
 .. math::
 
-   \\min_{x} \\; c^\\top x \\quad \\text{s.t.} \\quad Ax \\le b, \\; x \\in \\{0,1\\}^n
+   \min_{x} \; c^\top x \quad \text{s.t.} \quad Ax \le b, \; x \in \{0,1\}^n
 
 This kind of solver is useful as:
 
@@ -70,9 +70,9 @@ topology. A message-passing GNN updates node embeddings as:
 
 .. math::
 
-   m_v^{(k)} = \\sum_{u \\in \\mathcal{N}(v)} \\psi\\left(h_v^{(k)}, h_u^{(k)}, e_{uv}\\right),
-   \\qquad
-   h_v^{(k+1)} = \\phi\\left(h_v^{(k)}, m_v^{(k)}\\right)
+   m_v^{(k)} = \sum_{u \in \mathcal{N}(v)} \psi\left(h_v^{(k)}, h_u^{(k)}, e_{uv}\right),
+   \qquad
+   h_v^{(k+1)} = \phi\left(h_v^{(k)}, m_v^{(k)}\right)
 
 Because aggregation is permutation-invariant, the same network can generalize
 across different graph sizes and topologies (topology-agnostic policies), while
@@ -86,9 +86,9 @@ raw data. A common aggregation is FedAvg:
 
 .. math::
 
-   \\theta_{t+1} = \\sum_{k=1}^{K} \\frac{n_k}{\\sum_j n_j} \\, \\theta_{t+1}^{(k)}
+   \theta_{t+1} = \sum_{k=1}^{K} \frac{n_k}{\sum_j n_j} \, \theta_{t+1}^{(k)}
 
-where :math:`\\theta_{t+1}^{(k)}` is the model trained on site :math:`k` and
+where :math:`\theta_{t+1}^{(k)}` is the model trained on site :math:`k` and
 :math:`n_k` is the number of samples used there.
 
 In AGILab terms, this can be implemented by orchestrating:
@@ -100,4 +100,3 @@ In AGILab terms, this can be implemented by orchestrating:
 AGILab’s environment resolution and worker distribution make it straightforward
 to run these steps locally or on SSH clusters, as long as sites agree on a
 checkpoint format and aggregation protocol.
-
