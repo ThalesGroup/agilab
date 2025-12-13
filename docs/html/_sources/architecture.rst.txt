@@ -59,7 +59,7 @@ Mid-2024 simplification (notebooks → demands)
 ---------------------------------------------
 
 .. figure:: diagrams/activities_2024.png
-   :alt: legacy notebooks to centralised demand model feeding RL/ILP and visual comparison
+   :alt: FlowSynth notebooks to centralised demand model feeding RL/ILP and visual comparison
    :width: 90%
 
    Earlier notebook-driven prototypes informed a centralised, demand-level POC
@@ -68,7 +68,7 @@ Mid-2024 simplification (notebooks → demands)
 Coverage and roadmap (RL/ILP demo)
 ----------------------------------
 
-- Coverage: per-step LOS capacities (FSPL fallback) with contention scaling; predictive smoothing; priorities/latency carried end-to-end; per-step logging, visualisation, and verifier; demand time windows (exponential arrivals/durations).
+- Coverage: per-step LOS capacities (LinkSim/FSPL fallback) with contention scaling; predictive smoothing; priorities/latency carried end-to-end; per-step logging, visualisation, and verifier; demand time windows (exponential arrivals/durations).
 - Limitations: per-demand action space only (no edge-level routing yet; message-passing/GNN encoders are experimental); arrivals/durations limited; smoothing is simple exponential; ILP stepping exists but the single-shot baseline remains primary; stubbed stages allow degraded runs when optional components are not installed.
 - Pending delivery: edge-level action space plus a productionised GNN-based policy/observation encoder to lift the per-demand limitation and support per-link routing decisions.
 - Optional workflows: inference-only runs, continuous learning (solver-as-teacher), and federated learning can be orchestrated explicitly (see :doc:`learning-workflows`).

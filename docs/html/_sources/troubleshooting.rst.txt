@@ -87,7 +87,7 @@ E - macOS NFS server checklist:
 -------------------------------
 
 Use this quick list when you need a shared dataset folder between Macs (for example, a cluster
-controller exporting ``/Users/example/data`` to another workstation). Replace ``192.168.3.86`` with
+controller exporting ``/Users/agi/data`` to another workstation). Replace ``192.168.3.86`` with
 your server IP and adjust mount paths as needed. The default ``AGI_SHARE_DIR`` is
 ``clustershare`` under ``$HOME``; when unavailable AgiEnv falls back to ``AGI_LOCAL_SHARE``
 or ``$HOME/localshare``. Ensure the chosen path exists and is writable.
@@ -100,12 +100,12 @@ mapping—keep that in mind if you point exports somewhere else.
 
    cat /etc/exports
    # Expect to see the export, e.g.:
-   # /Users/example/data  -alldirs -mapall=-2:-2  127.0.0.1 192.168.3.0/24
+   # /Users/agi/data  -alldirs -mapall=-2:-2  127.0.0.1 192.168.3.0/24
 
    sudo nfsd restart
 
    showmount -e 192.168.3.86
-   # Expect: /Users/example/data ... 192.168.3.0/24 (or your client IP)
+   # Expect: /Users/agi/data ... 192.168.3.0/24 (or your client IP)
 
    rpcinfo -p 192.168.3.86
    # Expect to see nfs on 2049/tcp and mountd on tcp (typically port ~850)
@@ -114,11 +114,11 @@ mapping—keep that in mind if you point exports somewhere else.
 
 .. code-block:: bash
 
-   ls -ldn /Users/example/data
+   ls -ldn /Users/agi/data
    # If you rely on -mapall=-2:-2, make the directory writable by nobody:nobody:
-   sudo chown -R nobody:nobody /Users/example/data
+   sudo chown -R nobody:nobody /Users/agi/data
    # or grant an ACL if you cannot change ownership:
-   sudo chmod +a 'everyone allow read,write,delete,add_file,add_subdirectory,file_inherit,directory_inherit' /Users/example/data
+   sudo chmod +a 'everyone allow read,write,delete,add_file,add_subdirectory,file_inherit,directory_inherit' /Users/agi/data
 
 **3. Can the client see the export?**
 
@@ -133,24 +133,24 @@ Run this from the second Mac:
 
 .. code-block:: bash
 
-   sudo mkdir -p /Users/example/clustershare
-   sudo mount -t nfs -o vers=3,tcp,resvport 192.168.3.86:/Users/example/data /Users/example/clustershare
+   sudo mkdir -p /Users/agi/clustershare
+   sudo mount -t nfs -o vers=3,tcp,resvport 192.168.3.86:/Users/agi/data /Users/agi/clustershare
 
    mount | grep clustershare
    # Expect one line, e.g.:
-   # 192.168.3.86:/Users/example/data on /Users/example/clustershare (nfs, ...)
+   # 192.168.3.86:/Users/agi/data on /Users/agi/clustershare (nfs, ...)
 
-   ls -la /Users/example/clustershare
+   ls -la /Users/agi/clustershare
    # Should show the server directory contents
 
 **5. Read/write + UID mapping check (client)**
 
 .. code-block:: bash
 
-   echo "hello" | sudo tee /Users/example/clustershare/.nfs_test >/dev/null
-   ls -ln /Users/example/clustershare/.nfs_test
+   echo "hello" | sudo tee /Users/agi/clustershare/.nfs_test >/dev/null
+   ls -ln /Users/agi/clustershare/.nfs_test
    # With -mapall=-2:-2 you should see owner/group 4294967294:4294967294
-   sudo rm /Users/example/clustershare/.nfs_test
+   sudo rm /Users/agi/clustershare/.nfs_test
 
 **6. Optional: autofs on the client**
 
@@ -159,10 +159,10 @@ Run this from the second Mac:
    grep -n 'auto_nfs' /etc/auto_master
    cat /etc/auto_nfs
    # Expect a line such as:
-   # /Users/example/clustershare  -fstype=nfs,vers=3,tcp,resvport  192.168.3.86:/Users/example/data
+   # /Users/agi/clustershare  -fstype=nfs,vers=3,tcp,resvport  192.168.3.86:/Users/agi/data
 
    sudo automount -vc
-   ls -la /Users/example/clustershare      # triggers the automount
+   ls -la /Users/agi/clustershare      # triggers the automount
    mount | grep clustershare           # confirm a single NFS mount
 
 **Quick troubleshoot**
@@ -185,8 +185,8 @@ Run this from the second Mac:
 
   .. code-block:: bash
 
-     sudo umount /Users/example/clustershare || true
-     sudo umount /Users/example/clustershare || true
+     sudo umount /Users/agi/clustershare || true
+     sudo umount /Users/agi/clustershare || true
 
 Known Bugs
 ==========
@@ -208,7 +208,7 @@ When you run install.sh it may looks like it is freezed at some point.
    Using CPython 3.xx.xx
    Creating virtual environment at: .venv
    Resolved xxx packages in xxms
-   Building agi-cluster @ file:///Users/example/agilab/src/agilab/core/agi-cluster
+   Building agi-cluster @ file:///Users/jpm/agilab/src/agilab/core/agi-cluster
 
 The sync keeps “freezing” because uv still has to build some heavy dependencies (most notably numba/llvmlite) from
   source. Those wheels are only pre-built for a few Python versions; with 3.13 they do not exist yet, and even on
@@ -220,7 +220,7 @@ Unfortunatly when NumPy/Numba falls back to compiling from source you won’t se
 ------------------------
 
 while running uv into a project from another one:
-warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/example/agilab/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/jpm/agilab/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
 This is not a problem this because we dynamically change the venv. Just ignore it.
 
 <UV> Sync Failed

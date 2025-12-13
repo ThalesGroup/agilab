@@ -424,20 +424,20 @@ class BaseWorker(abc.ABC):
         return payload
 
     @staticmethod
-	    def start(worker_inst):
-	        """Invoke the concrete worker's ``start`` hook once initialised."""
-	        try:
-	            logger.info(
-	                "worker #%s: %s - mode: %s",
-	                BaseWorker._worker_id,
-	                BaseWorker._worker,
-	                getattr(worker_inst, "_mode", None),
-	            )
-	            method = getattr(worker_inst, "start", None)
-	            base_method = BaseWorker.start
-	            if method and method is not base_method:
-	                method()
-	        except Exception:  # pragma: no cover - log and rethrow for visibility
+    def start(worker_inst):
+        """Invoke the concrete worker's ``start`` hook once initialised."""
+        try:
+            logger.info(
+                "worker #%s: %s - mode: %s",
+                BaseWorker._worker_id,
+                BaseWorker._worker,
+                getattr(worker_inst, "_mode", None),
+            )
+            method = getattr(worker_inst, "start", None)
+            base_method = BaseWorker.start
+            if method and method is not base_method:
+                method()
+        except Exception:  # pragma: no cover - log and rethrow for visibility
             logger.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise
 
@@ -945,9 +945,9 @@ class BaseWorker(abc.ABC):
                 logger.info(f"warning: no cython library found at {lib_path}")
                 raise RuntimeError("Cython mode requested but no compiled library found")
 
-	            # Some workers rely on sibling worker distributions when loading optional
-	            # Cython helpers. Ensure those dist folders are importable so helper imports
-	            # succeed even if the package is only present as a sibling wenv.
+            # Some workers rely on sibling worker distributions when loading optional
+            # Cython helpers. Ensure those dist folders are importable so helper imports
+            # succeed even if the package is only present as a sibling wenv.
             sibling_root = wenv_abs.parent
             if sibling_root.is_dir():
                 for extra_dist in sibling_root.glob("*_worker/dist"):
