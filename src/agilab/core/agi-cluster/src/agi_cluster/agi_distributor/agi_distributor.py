@@ -341,7 +341,22 @@ class AGI:
             "FireducksWorker": "fireducks-worker",
             "DagWorker": "dag-worker",
         }
-        AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
+        base_worker_cls = getattr(env, "base_worker_cls", None)
+        if not base_worker_cls:
+            target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
+            worker_path = getattr(env, "worker_path", None) or "<worker path>"
+            supported = ", ".join(sorted(AGI.agi_workers.keys()))
+            raise ValueError(
+                f"Missing {target_worker_class} definition; expected {worker_path}. "
+                f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
+            )
+        try:
+            AGI.install_worker_group = [AGI.agi_workers[base_worker_cls]]
+        except KeyError as exc:
+            supported = ", ".join(sorted(AGI.agi_workers.keys()))
+            raise ValueError(
+                f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
+            ) from exc
 
         try:
             return await AGI._main(scheduler)
