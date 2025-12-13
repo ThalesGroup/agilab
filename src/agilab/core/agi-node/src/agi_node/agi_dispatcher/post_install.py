@@ -290,7 +290,6 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     if _try_link_dir(sat_folder, preferred_candidate):
                         print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
-                return 0
                 if _folder_looks_large(sat_folder):
                     try:
                         shutil.rmtree(sat_folder, ignore_errors=False)
@@ -299,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
                     if _try_link_dir(sat_folder, preferred_candidate):
                         print(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
                     return 0
+                return 0
 
             if _try_link_dir(sat_folder, preferred_candidate):
                 print(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
