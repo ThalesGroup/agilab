@@ -217,9 +217,12 @@ def main(argv: list[str] | None = None) -> int:
         # Prefer reusing trajectories produced by sat_trajectory to avoid duplicating data.
         share_root = env.share_root_path()
         sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
+        # Prefer the packaged sat_trajectory dataset for deterministic installs/tests.
+        # The generated `dataframe/Trajectory` output can be very large (e.g. long
+        # propagation horizons) and may significantly slow down downstream consumers.
         sat_trajectory_candidates = [
-            sat_trajectory_root / "dataframe" / "Trajectory",
             sat_trajectory_root / "dataset" / "Trajectory",
+            sat_trajectory_root / "dataframe" / "Trajectory",
         ]
         preferred_candidate = next(
             (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
@@ -229,7 +232,16 @@ def main(argv: list[str] | None = None) -> int:
         if preferred_candidate is not None:
             if sat_folder.is_symlink():
                 try:
-                    if sat_folder.resolve(strict=False) == preferred_candidate.resolve(strict=False):
+                    current_target = sat_folder.resolve(strict=False)
+                    preferred_target = preferred_candidate.resolve(strict=False)
+                    if current_target == preferred_target:
+                        return 0
+                    # If the existing link points to sat_trajectory output, relink it to the
+                    # preferred deterministic dataset (avoids accidentally binding to large
+                    # generated trajectories).
+                    if sat_trajectory_root in current_target.parents and sat_trajectory_root in preferred_target.parents:
+                        if _try_link_dir(sat_folder, preferred_candidate):
+                            print(f"[post_install] relinked {sat_folder} -> {preferred_candidate}")
                         return 0
                 except Exception:
                     pass
