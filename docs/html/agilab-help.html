@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>▶️ PAGES (AGILAB.py) &mdash; AGILab 2025.12.12 documentation</title>
+  <title>▶️ HOME (AGILAB.py) &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -460,13 +460,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Streamlit UI</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ PAGES (AGILAB.py)</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ HOME (AGILAB.py)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#how-pages-are-presented">How pages are presented</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#core-pages">Core pages</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#page-bundles">Page bundles</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#enable-bundles-per-project">Enable bundles (per project)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#included-page-bundles">Included page bundles</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#page-bundles-apps-pages">Page bundles (apps-pages)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See also</a></li>
 </ul>
 </li>
@@ -496,6 +493,19 @@
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#tips-notes">Tips &amp; Notes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="apps-pages.html">▶️ PAGE BUNDLES</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#what-is-a-page-bundle">What is a page bundle?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#enabling-bundles-per-project">Enabling bundles (per project)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#included-page-bundles">Included page bundles</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="apps-pages.html#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
+<li class="toctree-l3"><a class="reference internal" href="apps-pages.html#view-barycentric">view_barycentric</a></li>
+<li class="toctree-l3"><a class="reference internal" href="apps-pages.html#view-maps">view_maps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="apps-pages.html#view-maps-3d">view_maps_3d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="apps-pages.html#view-maps-network">view_maps_network</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -899,7 +909,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">▶️ PAGES (AGILAB.py)</li>
+      <li class="breadcrumb-item active">▶️ HOME (AGILAB.py)</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/agilab-help.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -909,19 +919,24 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="pages-agilab-py">
-<h1>▶️ PAGES (AGILAB.py)<a class="headerlink" href="#pages-agilab-py" title="Link to this heading"></a></h1>
-<p>AGILAB.py is the Streamlit entry point. In the UI, everything you navigate to is
-presented as a <em>page</em>:</p>
+  <section id="home-agilab-py">
+<h1>▶️ HOME (AGILAB.py)<a class="headerlink" href="#home-agilab-py" title="Link to this heading"></a></h1>
+<p>AGILAB.py is the main Streamlit entry point. It provides a single navigation
+surface for:</p>
 <ul class="simple">
-<li><p><strong>Core pages</strong> run inside the main Streamlit process (Home, Edit, Execute,
-Experiment, Explore).</p></li>
-<li><p><strong>Page bundles</strong> are optional dashboards launched in a sidecar Streamlit
-process and embedded back into the UI.</p></li>
+<li><p><strong>Core pages</strong> (Home, Edit, Execute, Experiment, Explore), and</p></li>
+<li><p><strong>Page bundles</strong> (optional dashboards launched from Explore).</p></li>
 </ul>
-<figure class="align-center">
-<img alt="Core pages and page bundles" src="_images/agilab_pages.png" />
-</figure>
+<section id="how-pages-are-presented">
+<h2>How pages are presented<a class="headerlink" href="#how-pages-are-presented" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Core pages and page bundles both appear as “pages” in the UI, with a consistent
+layout and navigation.</p></li>
+<li><p>The key difference is runtime: core pages run inside the main Streamlit app,
+while page bundles run in a sidecar Streamlit process and are embedded back
+into the UI.</p></li>
+</ul>
+</section>
 <section id="core-pages">
 <h2>Core pages<a class="headerlink" href="#core-pages" title="Link to this heading"></a></h2>
 <ul class="simple">
@@ -931,43 +946,17 @@ process and embedded back into the UI.</p></li>
 <li><p><a class="reference internal" href="explore-help.html"><span class="doc">▶️ EXPLORE</span></a> — discover, configure, and launch page bundles.</p></li>
 </ul>
 </section>
-<section id="page-bundles">
-<h2>Page bundles<a class="headerlink" href="#page-bundles" title="Link to this heading"></a></h2>
-<p>A page bundle is a small Streamlit project stored on disk and launched on
-demand:</p>
-<ul class="simple">
-<li><p>It lives under <code class="docutils literal notranslate"><span class="pre">${AGILAB_PAGES_ABS}</span></code> (default: <code class="docutils literal notranslate"><span class="pre">src/agilab/apps-pages</span></code>).</p></li>
-<li><p>It is discovered when the directory contains a <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> whose entry
-point is <code class="docutils literal notranslate"><span class="pre">src/&lt;module&gt;/&lt;module&gt;.py</span></code>.</p></li>
-<li><p>It can ship its own <code class="docutils literal notranslate"><span class="pre">.venv</span></code> (or <code class="docutils literal notranslate"><span class="pre">venv</span></code>); otherwise Explore falls back to the
-shared locations referenced by <code class="docutils literal notranslate"><span class="pre">AGILAB_VENVS_ABS</span></code> and
-<code class="docutils literal notranslate"><span class="pre">AGILAB_PAGES_VENVS_ABS</span></code>.</p></li>
-</ul>
-<section id="enable-bundles-per-project">
-<h3>Enable bundles (per project)<a class="headerlink" href="#enable-bundles-per-project" title="Link to this heading"></a></h3>
-<p>Enable bundles by listing their module names in <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>:</p>
-<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[pages]</span>
-<span class="n">view_module</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;view_maps_network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;view_barycentric&quot;</span><span class="p">]</span>
-</pre></div>
-</div>
-<p>You can edit this manually (Edit → APP-SETTINGS) or use Explore → Configure,
-which writes the same list for you.</p>
-</section>
-<section id="included-page-bundles">
-<h3>Included page bundles<a class="headerlink" href="#included-page-bundles" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">view_autoencoder_latenspace</span></code> — autoencoder-powered dimensionality reduction.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">view_barycentric</span></code> — barycentric simplex visualisation for KPI proportions.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">view_maps</span></code> — 2D map viewer for geolocated datasets.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">view_maps_3d</span></code> — 3D cartography view (Deck.gl) with optional overlays.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">view_maps_network</span></code> — topology viewer synchronised with geographic views.</p></li>
-</ul>
-</section>
+<section id="page-bundles-apps-pages">
+<h2>Page bundles (apps-pages)<a class="headerlink" href="#page-bundles-apps-pages" title="Link to this heading"></a></h2>
+<p>Page bundles are optional Streamlit dashboards stored under <code class="docutils literal notranslate"><span class="pre">${AGILAB_PAGES_ABS}</span></code>
+(default: <code class="docutils literal notranslate"><span class="pre">src/agilab/apps-pages</span></code>). They are enabled per project via
+<code class="docutils literal notranslate"><span class="pre">[pages].view_module</span></code> in <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>.</p>
 </section>
 <section id="see-also">
 <h2>See also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="architecture.html"><span class="doc">AGILab Architecture</span></a> for the end-to-end pipeline view.</p></li>
+<li><p><a class="reference internal" href="apps-pages.html"><span class="doc">▶️ PAGE BUNDLES</span></a> for how page bundles work (and the built-in bundle catalog).</p></li>
 <li><p><a class="reference internal" href="learning-workflows.html"><span class="doc">Learning Workflows</span></a> for training vs inference (and optional continuous/federated patterns).</p></li>
 </ul>
 </section>

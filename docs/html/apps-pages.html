@@ -23,7 +23,9 @@
       <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="MyCode Project" href="mycode-project.html" />
+    <link rel="prev" title="▶️ EXPLORE" href="explore-help.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -457,14 +459,11 @@
 </li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Streamlit UI</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="agilab-help.html">▶️ PAGES (AGILAB.py)</a><ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="agilab-help.html">▶️ HOME (AGILAB.py)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agilab-help.html#how-pages-are-presented">How pages are presented</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#core-pages">Core pages</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agilab-help.html#page-bundles">Page bundles</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="agilab-help.html#enable-bundles-per-project">Enable bundles (per project)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="agilab-help.html#included-page-bundles">Included page bundles</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-help.html#page-bundles-apps-pages">Page bundles (apps-pages)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
@@ -494,6 +493,19 @@
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#tips-notes">Tips &amp; Notes</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ PAGE BUNDLES</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-is-a-page-bundle">What is a page bundle?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#enabling-bundles-per-project">Enabling bundles (per project)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#included-page-bundles">Included page bundles</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#view-barycentric">view_barycentric</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#view-maps">view_maps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#view-maps-3d">view_maps_3d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#view-maps-network">view_maps_network</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -909,14 +921,88 @@
              
   <section id="page-bundles">
 <h1>▶️ PAGE BUNDLES<a class="headerlink" href="#page-bundles" title="Link to this heading"></a></h1>
-<p>The page bundle catalog is included in <a class="reference internal" href="agilab-help.html"><span class="doc">▶️ PAGES (AGILAB.py)</span></a> under “Included page
-bundles”.</p>
+<p>AGILab can optionally launch <strong>page bundles</strong> (sometimes called “apps-pages”):
+standalone Streamlit dashboards that complement the built-in workflow pages.</p>
+<p>In the UI, page bundles are presented the same way as core pages, but they run
+in their own sidecar Streamlit process and are embedded back into the main app.</p>
+<section id="what-is-a-page-bundle">
+<h2>What is a page bundle?<a class="headerlink" href="#what-is-a-page-bundle" title="Link to this heading"></a></h2>
+<p>A page bundle is a small Streamlit project stored on disk and launched on demand
+in its own Python interpreter:</p>
+<ul class="simple">
+<li><p>It lives under <code class="docutils literal notranslate"><span class="pre">${AGILAB_PAGES_ABS}</span></code> (default: <code class="docutils literal notranslate"><span class="pre">src/agilab/apps-pages</span></code>).</p></li>
+<li><p>It is discovered when the directory contains a <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> whose entry
+point is <code class="docutils literal notranslate"><span class="pre">src/&lt;module&gt;/&lt;module&gt;.py</span></code>.</p></li>
+<li><p>It can ship its own <code class="docutils literal notranslate"><span class="pre">.venv</span></code> (or <code class="docutils literal notranslate"><span class="pre">venv</span></code>); otherwise Explore will fall back
+to the shared locations referenced by <code class="docutils literal notranslate"><span class="pre">AGILAB_VENVS_ABS</span></code> and
+<code class="docutils literal notranslate"><span class="pre">AGILAB_PAGES_VENVS_ABS</span></code>.</p></li>
+</ul>
+</section>
+<section id="enabling-bundles-per-project">
+<h2>Enabling bundles (per project)<a class="headerlink" href="#enabling-bundles-per-project" title="Link to this heading"></a></h2>
+<p>Bundles are enabled per project by writing their module names into
+<code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[pages]</span>
+<span class="n">view_module</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;view_maps_network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;view_barycentric&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>You can edit this manually (Edit → APP-SETTINGS) or use Explore → Configure,
+which writes the same list for you.</p>
+</section>
+<section id="included-page-bundles">
+<h2>Included page bundles<a class="headerlink" href="#included-page-bundles" title="Link to this heading"></a></h2>
+<p>This page lists the page bundles shipped with the repository. You can discover
+and launch them from <a class="reference internal" href="explore-help.html"><span class="doc">▶️ EXPLORE</span></a>.</p>
+<section id="view-autoencoder-latenspace">
+<h3>view_autoencoder_latenspace<a class="headerlink" href="#view-autoencoder-latenspace" title="Link to this heading"></a></h3>
+<p>Autoencoder-powered dimensionality reduction.</p>
+<ul class="simple">
+<li><p>Input: exported dataframe (typically created in Execute).</p></li>
+<li><p>Output: latent-space plots, with colouring and train/test controls.</p></li>
+</ul>
+</section>
+<section id="view-barycentric">
+<h3>view_barycentric<a class="headerlink" href="#view-barycentric" title="Link to this heading"></a></h3>
+<p>Barycentric simplex visualisation for KPI-style features that sum to 1.</p>
+<ul class="simple">
+<li><p>Input: dataframe with aggregated proportion columns.</p></li>
+<li><p>Output: interactive simplex plot for relative contributions.</p></li>
+</ul>
+</section>
+<section id="view-maps">
+<h3>view_maps<a class="headerlink" href="#view-maps" title="Link to this heading"></a></h3>
+<p>2D map viewer for geolocated datasets.</p>
+<ul class="simple">
+<li><p>Input: CSV/parquet with latitude/longitude columns.</p></li>
+<li><p>Output: interactive map with sampling, palette, and basemap controls.</p></li>
+</ul>
+</section>
+<section id="view-maps-3d">
+<h3>view_maps_3d<a class="headerlink" href="#view-maps-3d" title="Link to this heading"></a></h3>
+<p>3D cartography view (Deck.gl) with optional overlays.</p>
+<ul class="simple">
+<li><p>Input: one or more geolocated datasets.</p></li>
+<li><p>Output: 3D map with extrusion/colour controls and layer toggles.</p></li>
+</ul>
+</section>
+<section id="view-maps-network">
+<h3>view_maps_network<a class="headerlink" href="#view-maps-network" title="Link to this heading"></a></h3>
+<p>Network topology viewer synchronised with geographic views.</p>
+<ul class="simple">
+<li><p>Input: node positions + link definitions in the dataset.</p></li>
+<li><p>Output: map + graph views to inspect connectivity, link types, and snapshots.</p></li>
+</ul>
+</section>
+</section>
 </section>
 
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="explore-help.html" class="btn btn-neutral float-left" title="▶️ EXPLORE" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mycode-project.html" class="btn btn-neutral float-right" title="MyCode Project" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

@@ -10,5 +10,6 @@ dashboards ("page bundles", sometimes called ``apps-pages``).
 
 See:
 
-- :doc:`agilab-help` for the pages overview (core pages + page bundles).
+- :doc:`agilab-help` for the home dashboard entry point.
 - :doc:`edit-help`, :doc:`execute-help`, :doc:`experiment-help`, :doc:`explore-help` for the built-in pages.
+- :doc:`apps-pages` for page bundles (sidecar dashboards).

@@ -1,17 +1,20 @@
-▶️ PAGES (AGILAB.py)
+▶️ HOME (AGILAB.py)
 ===================
 
-AGILAB.py is the Streamlit entry point. In the UI, everything you navigate to is
-presented as a *page*:
+AGILAB.py is the main Streamlit entry point. It provides a single navigation
+surface for:
 
-- **Core pages** run inside the main Streamlit process (Home, Edit, Execute,
-  Experiment, Explore).
-- **Page bundles** are optional dashboards launched in a sidecar Streamlit
-  process and embedded back into the UI.
+- **Core pages** (Home, Edit, Execute, Experiment, Explore), and
+- **Page bundles** (optional dashboards launched from Explore).
 
-.. figure:: diagrams/agilab_pages.png
-   :alt: Core pages and page bundles
-   :align: center
+How pages are presented
+-----------------------
+
+- Core pages and page bundles both appear as “pages” in the UI, with a consistent
+  layout and navigation.
+- The key difference is runtime: core pages run inside the main Streamlit app,
+  while page bundles run in a sidecar Streamlit process and are embedded back
+  into the UI.
 
 Core pages
 ----------
@@ -21,43 +24,16 @@ Core pages
 - :doc:`experiment-help` — iterate in ``lab_steps.toml`` and run snippets against exported data.
 - :doc:`explore-help` — discover, configure, and launch page bundles.
 
-Page bundles
-------------
+Page bundles (apps-pages)
+-------------------------
 
-A page bundle is a small Streamlit project stored on disk and launched on
-demand:
-
-- It lives under ``${AGILAB_PAGES_ABS}`` (default: ``src/agilab/apps-pages``).
-- It is discovered when the directory contains a ``pyproject.toml`` whose entry
-  point is ``src/<module>/<module>.py``.
-- It can ship its own ``.venv`` (or ``venv``); otherwise Explore falls back to the
-  shared locations referenced by ``AGILAB_VENVS_ABS`` and
-  ``AGILAB_PAGES_VENVS_ABS``.
-
-Enable bundles (per project)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Enable bundles by listing their module names in ``app_settings.toml``:
-
-.. code-block:: toml
-
-   [pages]
-   view_module = ["view_maps_network", "view_barycentric"]
-
-You can edit this manually (Edit → APP-SETTINGS) or use Explore → Configure,
-which writes the same list for you.
-
-Included page bundles
-^^^^^^^^^^^^^^^^^^^^^
-
-- ``view_autoencoder_latenspace`` — autoencoder-powered dimensionality reduction.
-- ``view_barycentric`` — barycentric simplex visualisation for KPI proportions.
-- ``view_maps`` — 2D map viewer for geolocated datasets.
-- ``view_maps_3d`` — 3D cartography view (Deck.gl) with optional overlays.
-- ``view_maps_network`` — topology viewer synchronised with geographic views.
+Page bundles are optional Streamlit dashboards stored under ``${AGILAB_PAGES_ABS}``
+(default: ``src/agilab/apps-pages``). They are enabled per project via
+``[pages].view_module`` in ``app_settings.toml``.
 
 See also
 --------
 
 - :doc:`architecture` for the end-to-end pipeline view.
+- :doc:`apps-pages` for how page bundles work (and the built-in bundle catalog).
 - :doc:`learning-workflows` for training vs inference (and optional continuous/federated patterns).
