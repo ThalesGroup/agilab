@@ -1120,10 +1120,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         dataset_archive = getattr(self, "dataset_archive", None)
         if not self.is_worker_env and dataset_archive and Path(dataset_archive).exists():
             dataset_root = (Path(self.app_data_rel) / "dataset").expanduser()
-            existing_files = list(dataset_root.rglob("*")) if dataset_root.exists() else []
             archive_mtime = Path(dataset_archive).stat().st_mtime
-            latest_file_mtime = max((p.stat().st_mtime for p in existing_files if p.is_file()), default=0)
-            needs_extract = (not existing_files) or (latest_file_mtime < archive_mtime)
+            stamp_path = dataset_root / ".agilab_dataset_stamp"
+
+            existing_files = (
+                [p for p in dataset_root.rglob("*") if p.is_file() and p != stamp_path]
+                if dataset_root.exists()
+                else []
+            )
+
+            if not existing_files:
+                needs_extract = True
+            elif stamp_path.exists():
+                try:
+                    needs_extract = stamp_path.stat().st_mtime < archive_mtime
+                except OSError:
+                    needs_extract = False
+            else:
+                # No stamp file means the dataset was created by an older AGILAB version
+                # or manually by the user. Avoid clobbering existing content; use
+                # AGILAB_FORCE_DATA_REFRESH=1 if a rebuild is required.
+                needs_extract = False
             if needs_extract:
                 try:
                     self.unzip_data(Path(dataset_archive), self.app_data_rel, force_extract=True)
@@ -3016,6 +3033,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     f"Dataset already present at '{dataset}'. "
                     "Skipping extraction (set AGILAB_FORCE_DATA_REFRESH=1 to rebuild)."
                 )
+            stamp_path = dataset / ".agilab_dataset_stamp"
+            if not stamp_path.exists():
+                try:
+                    stamp_path.write_text(str(archive_path), encoding="utf-8")
+                    archive_mtime = archive_path.stat().st_mtime
+                    os.utime(stamp_path, (archive_mtime, archive_mtime))
+                except Exception:  # pragma: no cover - best effort
+                    pass
             return
 
         if dataset.exists() and force_refresh:
@@ -3064,6 +3089,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 archive.extractall(path=dest)
             if AgiEnv.verbose > 1:
                 AgiEnv.logger.info(f"Extracted '{archive_path}' to '{dest}'.")
+
+            # Stamp the extracted dataset so future runs can decide whether the archive
+            # has changed without relying on extracted file mtimes (which may be older
+            # than the archive itself).
+            stamp_path = dataset / ".agilab_dataset_stamp"
+            try:
+                stamp_path.write_text(str(archive_path), encoding="utf-8")
+                archive_mtime = archive_path.stat().st_mtime
+                os.utime(stamp_path, (archive_mtime, archive_mtime))
+            except Exception:  # pragma: no cover - best effort
+                pass
         except Exception as e:
             AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
             traceback.print_exc()
