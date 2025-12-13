@@ -1,0 +1,16 @@
+[project]
+name = "flight_project"
+version = "0.1.0"
+description = "Built-in AGILab example app (flight telemetry preprocessing)"
+requires-python = ">=3.11"
+dependencies = [
+  "polars",
+  "pydantic",
+  "py7zr",
+  "geopy",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+

@@ -1,0 +1,13 @@
+[project]
+name = "mycode_project"
+version = "0.1.0"
+description = "Built-in AGILab example app template (minimal manager + worker)"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
