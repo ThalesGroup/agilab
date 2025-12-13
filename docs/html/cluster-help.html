@@ -23,9 +23,7 @@
       <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Key Generation" href="key-generation.html" />
-    <link rel="prev" title="Cluster" href="cluster.html" /> 
+    <link rel="search" title="Search" href="search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -77,38 +75,21 @@
 </li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Core Topics</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="cluster.html">Cluster</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Cluster Help</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#principle">Principle</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#bidirectional-trust-between-worker-macs">Bidirectional trust between worker Macs</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="cluster.html">Cluster</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cluster.html#principle">Principle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cluster.html#ssh-key-setup">SSH key setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Cluster Help</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#principle">Principle</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a></li>
@@ -909,7 +890,6 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="cluster.html">Cluster</a></li>
       <li class="breadcrumb-item active">Cluster Help</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/cluster-help.rst.txt" rel="nofollow"> View page source</a>
@@ -922,28 +902,13 @@
              
   <section id="cluster-help">
 <h1>Cluster Help<a class="headerlink" href="#cluster-help" title="Link to this heading"></a></h1>
-<section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
-<p>A cluster of computer is not mandatory to use agilab but it will enable to run your project at scale which is the
-foundation idea of agi-core.</p>
-</section>
-<section id="principle">
-<h2>Principle<a class="headerlink" href="#principle" title="Link to this heading"></a></h2>
-<p>a cluster is composed of computers identified by their IP v4 address that are generally name nodes. One of this node
-will play the role of scheduler and the others are workers matching the Dask[distributed] concept. Agilab will ask
-agi-core to install your project on each nodes. In order to proceed it requires each node to run a ssh server.
-The node on which agilab run will use ssh client to connect to each node. So that is why you need to generate keys
-from your Agillab node and then copy it to each nodes of your cluster.</p>
-</section>
+<p>This page has been merged into <a class="reference internal" href="cluster.html"><span class="doc">Cluster</span></a>.</p>
 </section>
 
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="cluster.html" class="btn btn-neutral float-left" title="Cluster" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="key-generation.html" class="btn btn-neutral float-right" title="Key Generation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 
