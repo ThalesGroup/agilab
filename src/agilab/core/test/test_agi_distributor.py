@@ -56,3 +56,17 @@ def test_is_local():
     assert AgiEnv.is_local("127.0.0.1"), "127.0.0.1 should be local."
     # Use a public IP that is likely not local.
     assert not AgiEnv.is_local("8.8.8.8"), "8.8.8.8 should not be considered local."
+
+
+@pytest.mark.asyncio
+async def test_agi_run_requires_base_worker_cls():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = None
+    with pytest.raises(ValueError, match=r"Missing .* definition; expected"):
+        await AGI.run(
+            env,
+            scheduler="127.0.0.1",
+            workers={"127.0.0.1": 1},
+            verbose=0,
+            mode=AGI.DASK_MODE,
+        )
