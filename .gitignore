@@ -45,6 +45,8 @@ src/*_worker_*/
 .idea/dynamic.xml
 .idea/runConfigurations/_*.xml
 src/agilab/apps/*_project
+src/agilab/apps/builtin/*_project/src/app_args_form.py
+src/agilab/apps/builtin/*_project/src/app_settings.toml
 
 # Codex CLI exported logs (generated)
 codex/codex_shell_history.tsv
