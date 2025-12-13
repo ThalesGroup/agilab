@@ -191,6 +191,38 @@ def ensure_data_storage(env: AgiEnv) -> None:
         raise
 
 
+def validate_app_definition(env: AgiEnv) -> None:
+    """Validate that the app has the expected manager/worker sources available."""
+
+    if env.is_worker_env:
+        return
+
+    missing: list[str] = []
+    manager_path = getattr(env, "manager_path", None)
+    worker_path = getattr(env, "worker_path", None)
+
+    if isinstance(manager_path, Path) and not manager_path.exists():
+        missing.append(f"manager={manager_path}")
+    if isinstance(worker_path, Path) and not worker_path.exists():
+        missing.append(f"worker={worker_path}")
+
+    if missing:
+        target = getattr(env, "app", "<app>")
+        target_worker_class = getattr(env, "target_worker_class", "<worker class>")
+        raise RuntimeError(
+            f"App '{target}' is missing required sources ({', '.join(missing)}). "
+            f"Define {target_worker_class} and the manager module under the app's src/ directory."
+        )
+
+    base_worker_cls = getattr(env, "base_worker_cls", None)
+    if not base_worker_cls:
+        target_worker_class = getattr(env, "target_worker_class", "<worker class>")
+        raise RuntimeError(
+            f"Unable to determine base worker class for {target_worker_class}. "
+            "Ensure the worker inherits from a supported AGI base worker."
+        )
+
+
 async def main():
     """
     Main asynchronous function to resolve paths in pyproject.toml and install a module using AGI.
@@ -240,6 +272,11 @@ async def main():
 
     try:
         ensure_data_storage(app_env)
+    except RuntimeError as err:
+        print(f"[ERROR] {err}", file=sys.stderr)
+        return 1
+    try:
+        validate_app_definition(app_env)
     except RuntimeError as err:
         print(f"[ERROR] {err}", file=sys.stderr)
         return 1
