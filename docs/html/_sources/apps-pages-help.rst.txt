@@ -1,4 +1,4 @@
-▶️ PAGE BUNDLES
+▶️ PAGE BUNDLES (apps-pages)
 ===============
 
 AGILab can optionally launch **page bundles** (sometimes called “apps-pages”):

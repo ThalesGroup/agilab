@@ -495,7 +495,7 @@
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#tips-notes">Tips &amp; Notes</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="apps-pages-help.html">▶️ PAGE BUNDLES</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="apps-pages-help.html">▶️ PAGE BUNDLES (apps-pages)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#what-is-a-page-bundle">What is a page bundle?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#core-pages-vs-page-bundles">Core pages vs page bundles</a></li>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#enabling-bundles-per-project">Enabling bundles (per project)</a></li>
@@ -923,8 +923,16 @@
              
   <section id="licenses">
 <h1>Licenses<a class="headerlink" href="#licenses" title="Link to this heading"></a></h1>
+<p>There are two distinct license scopes to keep in mind when reading this documentation:</p>
+<ul class="simple">
+<li><p><strong>AGILab source code license</strong>: defined by the repository root <code class="docutils literal notranslate"><span class="pre">LICENSE</span></code> (and any attributions in <code class="docutils literal notranslate"><span class="pre">NOTICE</span></code>).</p></li>
+<li><p><strong>Vendored third-party assets</strong>: if a file or submodule is copied into the repository, its license text may be shipped under <code class="docutils literal notranslate"><span class="pre">LICENSES/</span></code>.</p></li>
+</ul>
+<p>The pages below are <strong>generated dependency inventories</strong>. They list Python packages resolved from each component’s
+<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> at documentation build time (via <code class="docutils literal notranslate"><span class="pre">licensecheck</span></code>). This inventory can be broader than <code class="docutils literal notranslate"><span class="pre">LICENSES/</span></code>
+because it includes runtime dependencies, not only vendored source files.</p>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Licenses per components</span></p>
+<p class="caption" role="heading"><span class="caption-text">Third-party dependency inventories</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
 <li class="toctree-l1"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
