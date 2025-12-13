@@ -1315,6 +1315,7 @@
     <span class="n">is_source_env</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_local_worker</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">_ip_local_cache</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">({</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="s2">&quot;::1&quot;</span><span class="p">})</span>
+    <span class="n">_share_mount_warning_keys</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="n">INDEX_URL</span><span class="o">=</span><span class="s2">&quot;https://test.pypi.org/simple&quot;</span>
     <span class="n">EXTRA_INDEX_URL</span><span class="o">=</span><span class="s2">&quot;https://pypi.org/simple&quot;</span>
     <span class="n">snippet_tail</span> <span class="o">=</span> <span class="s2">&quot;asyncio.get_event_loop().run_until_complete(main())&quot;</span>
@@ -1953,7 +1954,7 @@
             <span class="c1"># No bind rule found; directory is usable, so accept it.</span>
             <span class="k">return</span> <span class="kc">True</span>
 
-        <span class="n">candidate</span> <span class="o">=</span>  <span class="n">_abs_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">AGI_CLUSTER_SHARE</span><span class="p">)</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_abs_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">AGI_CLUSTER_SHARE</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">is_mounted</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGI_CLUSTER_SHARE</span>
             <span class="c1">#AgiEnv.logger.info(</span>
@@ -1961,9 +1962,15 @@
             <span class="c1">#)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">agi_share_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGI_LOCAL_SHARE</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;AGI_CLUSTER_SHARE is not mounted at </span><span class="si">{</span><span class="n">candidate</span><span class="si">}</span><span class="se">\n</span><span class="s2">self.agi_share_path fallback to AGI_LOCAL_SHARE = </span><span class="si">{</span><span class="n">candidate</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
+            <span class="n">fallback</span> <span class="o">=</span> <span class="n">_abs_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">AGI_LOCAL_SHARE</span><span class="p">)</span>
+            <span class="n">warning_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">fallback</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">warning_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_share_mount_warning_keys</span><span class="p">:</span>
+                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_share_mount_warning_keys</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">warning_key</span><span class="p">)</span>
+                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;AGI_CLUSTER_SHARE is not mounted at </span><span class="si">%s</span><span class="s2">; using AGI_LOCAL_SHARE=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">candidate</span><span class="p">,</span>
+                    <span class="n">fallback</span><span class="p">,</span>
+                <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_share_root_cache</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="n">share_root_abs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">share_root_path</span><span class="p">()</span>

@@ -47,7 +47,8 @@ AGILab is intended for professionals and domain experts, offering a tool that si
 - `Streamlit <https://streamlit.io/>`_: Rapidly develop and deploy interactive applications.
 - `Pycharm <https://www.jetbrains.com/pycharm>`_: Assist you for advanced code development with AGI.
 - `OpenAI <https://chatgpt.com/#pricing>`_: Assist you for algorithm discovery and code generation.
-- `Mistral (Universal Offline AI Chatbot) <https://github.com/ThalesGroup/universal-offline-ai-chatbot>`_: Provides local Mistral-instruct models for offline experimentation.
+- `Ollama (local) <https://ollama.com/>`_: Runs a local Ollama model (configurable; not limited to Mistral) for offline experimentation and code generation.
+- `Universal Offline AI Chatbot (RAG) <https://github.com/ThalesGroup/universal-offline-ai-chatbot>`_: Optional offline document Q&A pipeline (PDF indexing + vector store) backed by a local Ollama model.
 - `GPT-OSS Offline <https://gpt-oss.com>`_: Runs open-weight GPT-OSS responses locally so experimentation keeps working without external connectivity.
   Configure the assistant via the Streamlit sidebar or the `GPT_OSS_ENDPOINT` and `GPT_OSS_MODEL`
   environment variables (defaults to ``http://127.0.0.1:8000/v1/responses`` and ``gpt-oss-120b``).
