@@ -1893,6 +1893,38 @@ class AGI:
 
                 seen_archives: set[str] = set()
                 for archive_path in archives:
+                    # Avoid copying satellite trajectory bundles when they can be reused from
+                    # an already-installed sat_trajectory dataset on the share.
+                    if archive_path.name == "Trajectory.7z":
+                        try:
+                            sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(
+                                strict=False
+                            )
+                            candidates = (
+                                sat_trajectory_root / "dataframe" / "Trajectory",
+                                sat_trajectory_root / "dataset" / "Trajectory",
+                            )
+                            has_samples = False
+                            for candidate in candidates:
+                                if candidate.is_dir():
+                                    samples = []
+                                    for pattern in ("*.csv", "*.parquet", "*.pq", "*.parq"):
+                                        samples.extend(candidate.glob(pattern))
+                                        if len(samples) >= 2:
+                                            has_samples = True
+                                            break
+                                if has_samples:
+                                    break
+                            if has_samples:
+                                logger.info(
+                                    "Skipping %s copy; sat_trajectory trajectories already available at %s.",
+                                    archive_path.name,
+                                    sat_trajectory_root,
+                                )
+                                continue
+                        except Exception:  # pragma: no cover - best-effort optimisation
+                            pass
+
                     key = str(archive_path)
                     if key in seen_archives:
                         continue
