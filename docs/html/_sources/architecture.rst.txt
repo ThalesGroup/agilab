@@ -27,7 +27,7 @@ Component view
 Pipeline example
 ----------------
 
-.. figure:: diagrams/agilab_app_flow.png
+.. figure:: diagrams/pipeline_example.svg
    :alt: Pipeline example from trajectories and environment maps to visualisation
    :width: 100%
 
@@ -39,11 +39,11 @@ AGILAB.py navigation
 --------------------
 
 .. figure:: diagrams/agilab_pages.png
-   :alt: AGILAB.py Streamlit entry showing PAGES vs APPS-PAGES flows
+   :alt: AGILAB.py Streamlit entry showing core pages vs page bundles
    :width: 90%
 
-   AGILAB.py exposes core PAGES (Execute/Explore/Edit) and APPS-PAGES for each
-   app, all routed into ``agi_core`` for orchestration.
+   AGILAB.py exposes core pages (Execute/Explore/Edit/…) and optional page bundles
+   (sidecar dashboards), all routed into ``agi_core`` for orchestration.
 
 Manager vs worker responsibilities
 ----------------------------------
@@ -85,7 +85,7 @@ Layers at a glance
 
 **User surfaces**
     - Streamlit pages shipped in ``src/agilab/pages`` (EXECUTE/EXPLORE/EDIT/…).
-    - CLI mirrors under ``docs/source/apps-pages`` and ``tools/run_configs``.
+    - CLI mirrors under ``src/agilab/examples`` and ``tools/run_configs``.
     - Example scripts in ``src/agilab/examples`` (kept in sync via
       ``pycharm/setup_pycharm.py``).
 

@@ -1,70 +1,49 @@
-apps bounded pages
-===================
+▶️ PAGE BUNDLE CATALOG
+======================
 
-AGILab ships a handful of prebuilt Streamlit bundles that you can expose from
-the Explore catalogue or the home dashboard. Each bundle is a standalone
-Streamlit project with its own ``pyproject.toml``/``.venv`` so the launcher spins
-it up in an isolated interpreter. Add the module name to the
-``[pages].view_module`` list in ``app_settings.toml`` (or use Explore → Configure)
-and the page becomes available to every user of the project.
+This page lists the page bundles shipped with the repository. A page bundle is a
+standalone Streamlit dashboard that you can discover and launch from Explore.
+
+To enable a bundle for a given project, add its module name under
+``[pages].view_module`` in ``app_settings.toml`` (or use Explore → Configure).
+See :doc:`apps-pages-help` for the full “how it works” overview.
 
 view_autoencoder_latenspace
 ---------------------------
 
-Interactive dimensionality reduction playground powered by an autoencoder.
+Autoencoder-powered dimensionality reduction.
 
-- Loads the dataframe exported from Execute and lets you pick the features to
-  embed into latent space.
-- Trains a configurable autoencoder (Keras) on the fly and visualises the
-  latent space with barycentric projections using ``barviz``.
-- Supports both categorical and continuous colouring, including automatic data
-  normalisation and training/test splits.
+- Input: exported dataframe (typically created in Execute).
+- Output: latent-space plots, with colouring and train/test controls.
 
 view_barycentric
------------------
+----------------
 
-Barycentric simplex visualisation for high-dimensional metrics.
+Barycentric simplex visualisation for KPI-style features that sum to 1.
 
-- Uses the same ``barviz`` primitives as the autoencoder view but expects a set
-  of aggregated KPI columns that should sum to one.
-- Provides interactive controls to choose the variables plotted on the simplex
-  and to re-centre the projection around a particular point.
-- Handy for comparing relative contributions (for example cluster weights or
-  class probabilities) across the exported dataset.
+- Input: dataframe with aggregated proportion columns.
+- Output: interactive simplex plot for relative contributions.
 
 view_maps
-----------
+---------
 
-2D cartography dashboard focused on geolocated telemetry.
+2D map viewer for geolocated datasets.
 
-- Discovers datasets under ``${AGILAB_EXPORT_ABS}`` and lets you point at the
-  CSV/parquet file to render.
-- Requires latitude/longitude columns; optional value column drives the colour
-  scale and can be toggled between discrete and continuous modes.
-- Offers deterministic down-sampling, colour palette selection and mapbox
-  basemap overlays to keep the view responsive with large datasets.
+- Input: CSV/parquet with latitude/longitude columns.
+- Output: interactive map with sampling, palette, and basemap controls.
 
 view_maps_3d
--------------
+------------
 
-Deck.gl powered 3D cartography with optional beam overlays.
+3D cartography view (Deck.gl) with optional overlays.
 
-- Plots the selected dataset on a terrain surface (elevation tiles + satellite
-  imagery) and supports multiple CSV sources (e.g. telemetry and beam
-  footprints).
-- Lets you colour by discrete categories, adjust extrusion heights and switch
-  between plotly based scatter maps and 3D mesh layers.
-- Generates random palettes when needed so each category stands out against the
-  terrain background.
+- Input: one or more geolocated datasets.
+- Output: 3D map with extrusion/colour controls and layer toggles.
 
 view_maps_network
-------------------
+-----------------
 
-Network topology explorer that synchronises geographic and graph views.
+Network topology viewer synchronised with geographic views.
 
-- Reads link definitions (``satcom_link``, ``optical_link``, ``legacy_link``, …)
-  directly from the dataset and builds the associated edge list.
-- Colours each link type consistently across the map, the 3D deck.gl layer and
-  the accompanying plotly/networkx charts.
-- Helpful to debug dynamic routing: filter by active links, inspect node
-  trajectories and replay snapshots side by side.
+- Input: node positions + link definitions in the dataset.
+- Output: map + graph views to inspect connectivity, link types, and snapshots.

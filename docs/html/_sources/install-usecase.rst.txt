@@ -1,9 +1,0 @@
-Installation Overview
-======================
-
-This diagram summarises how AGILab automates application installation and
-keeps service-mode environments reproducible.
-
-.. image:: install-usecase.svg
-   :alt: Installation Overview
-   :align: center

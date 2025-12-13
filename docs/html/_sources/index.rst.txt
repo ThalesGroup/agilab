@@ -20,35 +20,28 @@ You’ll find everything from quickstarts to API references, as well as example 
    cluster-help
    agilab
    architecture
-   learning-workflows
    agi-core-architecture
    agilab-mlops-positioning
+   learning-workflows
    framework-api
    modules
    environment
    faq
    directory-structure
-   install-usecase
    troubleshooting
    license
 
 .. toctree::
    :maxdepth: 2
-   :caption: Pages
-
-   edit-help
-
-   execute-help
-
-   experiment-help
-
-   explore-help
+   :caption: Streamlit UI
 
    agilab-help
-
-   apps-pages
-
+   edit-help
+   execute-help
+   experiment-help
+   explore-help
    apps-pages-help
+   apps-pages
 
 .. toctree::
    :maxdepth: 2

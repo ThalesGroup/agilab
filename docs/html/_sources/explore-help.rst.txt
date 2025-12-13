@@ -51,7 +51,7 @@ Tips & Notes
 - Views are ordinary Streamlit projects. Bundles that expose a ``pyproject.toml``
   and a ``src/<module>/<module>.py`` entry point are automatically picked up.
 - Built-in IDE pages (Edit, Execute, Experiment, Explore) always remain
-  available; plugin pages from ``apps-pages`` simply add extra entries to the
+  available; page bundles from ``apps-pages`` simply add extra entries to the
   Explore catalogue when the project opts into them.
 - AGILab caches the list per project, so the Explore grid reflects the exact
   configuration stored in ``app_settings.toml``.

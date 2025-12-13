@@ -1,42 +1,40 @@
-▶️ AGILAB (Home dashboard)
-==============================
+▶️ HOME (AGILAB.py)
+===================
 
 AGILAB.py is the main Streamlit entry point. It provides a single navigation
-surface for the built-in pages (EDIT / EXECUTE / EXPERIMENT / EXPLORE) and for
-optional app-specific dashboards ("apps-pages") that can be enabled per project.
+surface for:
 
-Navigation model
-----------------
+- **Core pages** (Home, Edit, Execute, Experiment, Explore), and
+- **Page bundles** (optional dashboards launched from Explore).
 
-- **Built-in pages** are always available and drive reproducible workflows:
+How pages are presented
+-----------------------
 
-  - **EDIT**: inspect and modify the project sources and settings.
-  - **EXECUTE**: install workers, generate distributions, and run pipelines.
-  - **EXPERIMENT**: iterate on analysis/code in `lab_steps.toml` and run snippets
-    against exported datasets.
-  - **EXPLORE**: browse and launch installed Streamlit bundles (apps-pages).
+- Core pages and page bundles both appear as “pages” in the UI, with a consistent
+  layout and navigation.
+- The key difference is runtime: core pages run inside the main Streamlit app,
+  while page bundles run in a sidecar Streamlit process and are embedded back
+  into the UI.
 
-- **Apps-pages** are standalone Streamlit bundles discovered under
-  ``${AGILAB_PAGES_ABS}``. They run in isolated virtual environments and are
-  enabled by listing their module names under ``[pages].view_module`` in
-  ``app_settings.toml``.
+Core pages
+----------
 
-Learning lifecycle (when applicable)
-------------------------------------
+- :doc:`edit-help` — inspect and modify project sources and settings.
+- :doc:`execute-help` — install workers, generate distributions, and run pipelines.
+- :doc:`experiment-help` — iterate in ``lab_steps.toml`` and run snippets against exported data.
+- :doc:`explore-help` — discover, configure, and launch page bundles.
 
-When a project includes learning components:
+Page bundles (apps-pages)
+-------------------------
 
-- **Training** updates model parameters using new experience.
-- **Inference** runs a fixed checkpoint to produce allocations/decisions.
-- **Continuous learning** and **federated learning** require explicit pipeline
-  steps (checkpointing, dataset joins, aggregation); AGILAB provides the run
-  orchestration and artifact conventions, but does not enable these modes
-  implicitly.
+Page bundles are optional Streamlit dashboards stored under ``${AGILAB_PAGES_ABS}``
+(default: ``src/agilab/apps-pages``). They are enabled per project via
+``[pages].view_module`` in ``app_settings.toml``.
 
 See also
 --------
 
 - :doc:`architecture` for the end-to-end pipeline view.
-- :doc:`execute-help` and :doc:`experiment-help` for the default workflow.
-- :doc:`learning-workflows` for training vs inference, continuous learning, and
-  federated learning patterns.
+- :doc:`apps-pages-help` for how page bundles work.
+- :doc:`apps-pages` for the catalogue of available bundles.
+- :doc:`learning-workflows` for training vs inference (and optional continuous/federated patterns).

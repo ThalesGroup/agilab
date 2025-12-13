@@ -91,7 +91,7 @@ agilab
   - Create full AGILab *apps* from templates; each ships with its own
     ``pyproject.toml`` / ``uv_config.toml`` so ``uv`` provisions a dedicated
     virtual environment during Install.
-  - Build additional *app-pages* (Streamlit bundles) that live under
-    ``src/agilab/apps-pages``. Every bundle carries its own ``pyproject.toml`` or
-    embedded ``.venv`` so the Explore launcher spins it up inside an isolated
-    interpreter.
+  - Build additional **page bundles** (standalone Streamlit dashboards) that
+    live under ``src/agilab/apps-pages``. Every bundle carries its own
+    ``pyproject.toml`` or embedded ``.venv`` so the Explore launcher spins it up
+    inside an isolated interpreter.
