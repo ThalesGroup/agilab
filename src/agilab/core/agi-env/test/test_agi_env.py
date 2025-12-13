@@ -78,3 +78,33 @@ def test_create_rename_map_basic(env, tmp_path: Path):
 
 def test_locate_helper_exists():
     assert hasattr(AgiEnv, 'locate_agilab_installation')
+
+
+def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
+    """Only log the cluster-share fallback warning once per process."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True, exist_ok=True)
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    AgiEnv.reset()
+    AgiEnv._share_mount_warning_keys.clear()
+
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger):
+        apps_path = agipath / "apps"
+        AgiEnv(apps_path=apps_path, app="mycode_project", verbose=1)
+        AgiEnv(apps_path=apps_path, app="mycode_project", verbose=1)
+
+    warning_calls = [
+        call
+        for call in mock_logger.warning.call_args_list
+        if call.args
+        and isinstance(call.args[0], str)
+        and "AGI_CLUSTER_SHARE is not mounted" in call.args[0]
+    ]
+    assert len(warning_calls) == 1
