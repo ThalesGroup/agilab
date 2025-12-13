@@ -40,8 +40,6 @@ You’ll find everything from quickstarts to API references, as well as example 
    execute-help
    experiment-help
    explore-help
-   apps-pages-help
-   apps-pages
 
 .. toctree::
    :maxdepth: 2

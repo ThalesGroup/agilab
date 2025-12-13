@@ -1,49 +1,7 @@
-▶️ PAGE BUNDLE CATALOG
-======================
+:orphan:
 
-This page lists the page bundles shipped with the repository. A page bundle is a
-standalone Streamlit dashboard that you can discover and launch from Explore.
+▶️ PAGE BUNDLES
+===============
 
-To enable a bundle for a given project, add its module name under
-``[pages].view_module`` in ``app_settings.toml`` (or use Explore → Configure).
-See :doc:`apps-pages-help` for the full “how it works” overview.
-
-view_autoencoder_latenspace
----------------------------
-
-Autoencoder-powered dimensionality reduction.
-
-- Input: exported dataframe (typically created in Execute).
-- Output: latent-space plots, with colouring and train/test controls.
-
-view_barycentric
-----------------
-
-Barycentric simplex visualisation for KPI-style features that sum to 1.
-
-- Input: dataframe with aggregated proportion columns.
-- Output: interactive simplex plot for relative contributions.
-
-view_maps
----------
-
-2D map viewer for geolocated datasets.
-
-- Input: CSV/parquet with latitude/longitude columns.
-- Output: interactive map with sampling, palette, and basemap controls.
-
-view_maps_3d
-------------
-
-3D cartography view (Deck.gl) with optional overlays.
-
-- Input: one or more geolocated datasets.
-- Output: 3D map with extrusion/colour controls and layer toggles.
-
-view_maps_network
------------------
-
-Network topology viewer synchronised with geographic views.
-
-- Input: node positions + link definitions in the dataset.
-- Output: map + graph views to inspect connectivity, link types, and snapshots.
+The page bundle catalog is included in :doc:`agilab-help` under “Included page
+bundles”.

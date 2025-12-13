@@ -1,48 +1,7 @@
-▶️ PAGE BUNDLES (apps-pages)
+:orphan:
+
+▶️ PAGE BUNDLES
 ===============
 
-AGILab can optionally launch **page bundles** (sometimes called “apps-pages”):
-standalone Streamlit dashboards that complement the built-in workflow pages.
-
-What is a page bundle?
-----------------------
-
-A page bundle is a small Streamlit project stored on disk and launched on demand
-in its own Python interpreter:
-
-- It lives under ``${AGILAB_PAGES_ABS}`` (default: ``src/agilab/apps-pages``).
-- It is discovered when the directory contains a ``pyproject.toml`` whose entry
-  point is ``src/<module>/<module>.py``.
-- It can ship its own ``.venv`` (or ``venv``); otherwise Explore will fall back
-  to the shared locations referenced by ``AGILAB_VENVS_ABS`` and
-  ``AGILAB_PAGES_VENVS_ABS``.
-
-Core pages vs page bundles
---------------------------
-
-AGILab’s navigation treats both as “pages”, but they differ in runtime:
-
-- **Core pages** (Home, Edit, Execute, Experiment, Explore) run inside the main
-  ``AGILAB.py`` Streamlit process.
-- **Page bundles** run in a sidecar Streamlit process and are embedded back into
-  the UI (so they feel like first-class pages).
-
-Enabling bundles (per project)
-------------------------------
-
-Bundles are enabled per project by writing their module names into
-``app_settings.toml``:
-
-.. code-block:: toml
-
-   [pages]
-   view_module = ["view_maps_network", "view_barycentric"]
-
-You can edit this manually (Edit → APP-SETTINGS) or use Explore → Configure,
-which writes the same list for you.
-
-See also
---------
-
-- :doc:`explore-help` for discovery/configure/launch UX.
-- :doc:`apps-pages` for a catalogue of the bundled dashboards.
+Page bundles are documented under :doc:`agilab-help` as part of the main *Pages*
+overview (including enabling bundles and the built-in bundle catalog).

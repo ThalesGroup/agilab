@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>▶️ PAGE BUNDLE CATALOG &mdash; AGILab 2025.12.12 documentation</title>
+  <title>▶️ PAGE BUNDLES &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -23,9 +23,7 @@
       <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="MyCode Project" href="mycode-project.html" />
-    <link rel="prev" title="▶️ PAGE BUNDLES (apps-pages)" href="apps-pages-help.html" /> 
+    <link rel="search" title="Search" href="search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -459,11 +457,14 @@
 </li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Streamlit UI</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="agilab-help.html">▶️ HOME (AGILAB.py)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agilab-help.html#how-pages-are-presented">How pages are presented</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agilab-help.html">▶️ PAGES (AGILAB.py)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#core-pages">Core pages</a></li>
-<li class="toctree-l2"><a class="reference internal" href="agilab-help.html#page-bundles-apps-pages">Page bundles (apps-pages)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agilab-help.html#page-bundles">Page bundles</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agilab-help.html#enable-bundles-per-project">Enable bundles (per project)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="agilab-help.html#included-page-bundles">Included page bundles</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
@@ -493,21 +494,6 @@
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#tips-notes">Tips &amp; Notes</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="apps-pages-help.html">▶️ PAGE BUNDLES (apps-pages)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#what-is-a-page-bundle">What is a page bundle?</a></li>
-<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#core-pages-vs-page-bundles">Core pages vs page bundles</a></li>
-<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#enabling-bundles-per-project">Enabling bundles (per project)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#see-also">See also</a></li>
-</ul>
-</li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ PAGE BUNDLE CATALOG</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#view-barycentric">view_barycentric</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#view-maps">view_maps</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#view-maps-3d">view_maps_3d</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#view-maps-network">view_maps_network</a></li>
 </ul>
 </li>
 </ul>
@@ -911,7 +897,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">▶️ PAGE BUNDLE CATALOG</li>
+      <li class="breadcrumb-item active">▶️ PAGE BUNDLES</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/apps-pages.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -921,62 +907,16 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="page-bundle-catalog">
-<h1>▶️ PAGE BUNDLE CATALOG<a class="headerlink" href="#page-bundle-catalog" title="Link to this heading"></a></h1>
-<p>This page lists the page bundles shipped with the repository. A page bundle is a
-standalone Streamlit dashboard that you can discover and launch from Explore.</p>
-<p>To enable a bundle for a given project, add its module name under
-<code class="docutils literal notranslate"><span class="pre">[pages].view_module</span></code> in <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code> (or use Explore → Configure).
-See <a class="reference internal" href="apps-pages-help.html"><span class="doc">▶️ PAGE BUNDLES (apps-pages)</span></a> for the full “how it works” overview.</p>
-<section id="view-autoencoder-latenspace">
-<h2>view_autoencoder_latenspace<a class="headerlink" href="#view-autoencoder-latenspace" title="Link to this heading"></a></h2>
-<p>Autoencoder-powered dimensionality reduction.</p>
-<ul class="simple">
-<li><p>Input: exported dataframe (typically created in Execute).</p></li>
-<li><p>Output: latent-space plots, with colouring and train/test controls.</p></li>
-</ul>
-</section>
-<section id="view-barycentric">
-<h2>view_barycentric<a class="headerlink" href="#view-barycentric" title="Link to this heading"></a></h2>
-<p>Barycentric simplex visualisation for KPI-style features that sum to 1.</p>
-<ul class="simple">
-<li><p>Input: dataframe with aggregated proportion columns.</p></li>
-<li><p>Output: interactive simplex plot for relative contributions.</p></li>
-</ul>
-</section>
-<section id="view-maps">
-<h2>view_maps<a class="headerlink" href="#view-maps" title="Link to this heading"></a></h2>
-<p>2D map viewer for geolocated datasets.</p>
-<ul class="simple">
-<li><p>Input: CSV/parquet with latitude/longitude columns.</p></li>
-<li><p>Output: interactive map with sampling, palette, and basemap controls.</p></li>
-</ul>
-</section>
-<section id="view-maps-3d">
-<h2>view_maps_3d<a class="headerlink" href="#view-maps-3d" title="Link to this heading"></a></h2>
-<p>3D cartography view (Deck.gl) with optional overlays.</p>
-<ul class="simple">
-<li><p>Input: one or more geolocated datasets.</p></li>
-<li><p>Output: 3D map with extrusion/colour controls and layer toggles.</p></li>
-</ul>
-</section>
-<section id="view-maps-network">
-<h2>view_maps_network<a class="headerlink" href="#view-maps-network" title="Link to this heading"></a></h2>
-<p>Network topology viewer synchronised with geographic views.</p>
-<ul class="simple">
-<li><p>Input: node positions + link definitions in the dataset.</p></li>
-<li><p>Output: map + graph views to inspect connectivity, link types, and snapshots.</p></li>
-</ul>
-</section>
+  <section id="page-bundles">
+<h1>▶️ PAGE BUNDLES<a class="headerlink" href="#page-bundles" title="Link to this heading"></a></h1>
+<p>The page bundle catalog is included in <a class="reference internal" href="agilab-help.html"><span class="doc">▶️ PAGES (AGILAB.py)</span></a> under “Included page
+bundles”.</p>
 </section>
 
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="apps-pages-help.html" class="btn btn-neutral float-left" title="▶️ PAGE BUNDLES (apps-pages)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="mycode-project.html" class="btn btn-neutral float-right" title="MyCode Project" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 
