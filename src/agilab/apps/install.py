@@ -198,9 +198,12 @@ def validate_app_definition(env: AgiEnv) -> None:
         return
 
     missing: list[str] = []
+    manager_pyproject = getattr(env, "manager_pyproject", None)
     manager_path = getattr(env, "manager_path", None)
     worker_path = getattr(env, "worker_path", None)
 
+    if isinstance(manager_pyproject, Path) and not manager_pyproject.exists():
+        missing.append(f"pyproject={manager_pyproject}")
     if isinstance(manager_path, Path) and not manager_path.exists():
         missing.append(f"manager={manager_path}")
     if isinstance(worker_path, Path) and not worker_path.exists():
