@@ -393,6 +393,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     is_source_env: bool = False
     is_local_worker: bool = False
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
+    _share_mount_warning_keys: set[tuple[str, str]] = set()
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
     snippet_tail = "asyncio.get_event_loop().run_until_complete(main())"
@@ -1029,7 +1030,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             # No bind rule found; directory is usable, so accept it.
             return True
 
-        candidate =  _abs_path(self.AGI_CLUSTER_SHARE)
+        candidate = _abs_path(self.AGI_CLUSTER_SHARE)
         if is_mounted(candidate):
             self.agi_share_path = self.AGI_CLUSTER_SHARE
             #AgiEnv.logger.info(
@@ -1037,9 +1038,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             #)
         else:
             self.agi_share_path = self.AGI_LOCAL_SHARE
-            AgiEnv.logger.warning(
-                f"AGI_CLUSTER_SHARE is not mounted at {candidate}\nself.agi_share_path fallback to AGI_LOCAL_SHARE = {candidate}"
-            )
+            fallback = _abs_path(self.AGI_LOCAL_SHARE)
+            warning_key = (candidate, fallback)
+            if warning_key not in AgiEnv._share_mount_warning_keys:
+                AgiEnv._share_mount_warning_keys.add(warning_key)
+                AgiEnv.logger.warning(
+                    "AGI_CLUSTER_SHARE is not mounted at %s; using AGI_LOCAL_SHARE=%s",
+                    candidate,
+                    fallback,
+                )
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()
