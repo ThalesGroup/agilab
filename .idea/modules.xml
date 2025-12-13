@@ -13,6 +13,15 @@
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-cluster.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-cluster.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-env.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-env.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/agi-node.iml" filepath="$PROJECT_DIR$/.idea/modules/agi-node.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_clone_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_clone_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_legacy_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_legacy_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/flight_trajectory_project.iml" filepath="$PROJECT_DIR$/.idea/modules/flight_trajectory_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/ilp_project.iml" filepath="$PROJECT_DIR$/.idea/modules/ilp_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/link_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/link_sim_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/network_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/network_sim_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/sat_trajectory_project.iml" filepath="$PROJECT_DIR$/.idea/modules/sat_trajectory_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/satcom_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/satcom_sim_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/sb3_trainer_project.iml" filepath="$PROJECT_DIR$/.idea/modules/sb3_trainer_project.iml" />
         </modules>
     </component>
 </project>
