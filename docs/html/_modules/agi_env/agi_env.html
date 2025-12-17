@@ -1774,19 +1774,32 @@
                     <span class="n">packaged_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_pck</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">packaged_app</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                         <span class="k">try</span><span class="p">:</span>
-                            <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span>
-                                <span class="n">packaged_app</span><span class="p">,</span>
-                                <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">,</span>
-                                <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                            <span class="p">)</span>
-                            <span class="n">copied_packaged_worker</span> <span class="o">=</span> <span class="kc">True</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                                <span class="s2">&quot;Copied packaged app </span><span class="si">%s</span><span class="s2"> into </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">packaged_app</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span>
-                            <span class="p">)</span>
-                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                                <span class="sa">f</span><span class="s2">&quot;Unable to copy packaged worker app from </span><span class="si">{</span><span class="n">packaged_app</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span>
-                            <span class="p">)</span>
+                            <span class="n">same_app</span> <span class="o">=</span> <span class="n">packaged_app</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span>
+                                <span class="n">strict</span><span class="o">=</span><span class="kc">False</span>
+                            <span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - defensive guard</span>
+                            <span class="n">same_app</span> <span class="o">=</span> <span class="kc">False</span>
+
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">same_app</span><span class="p">:</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span>
+                                    <span class="n">packaged_app</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">,</span>
+                                    <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                <span class="p">)</span>
+                                <span class="n">copied_packaged_worker</span> <span class="o">=</span> <span class="kc">True</span>
+                                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                                    <span class="s2">&quot;Copied packaged app </span><span class="si">%s</span><span class="s2"> into </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                                    <span class="n">packaged_app</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">,</span>
+                                <span class="p">)</span>
+                            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                                    <span class="s2">&quot;Unable to copy packaged worker app from </span><span class="si">%s</span><span class="s2"> to </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                                    <span class="n">packaged_app</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">,</span>
+                                    <span class="n">exc</span><span class="p">,</span>
+                                <span class="p">)</span>
                     <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">apps_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">copy_existing_projects</span><span class="p">(</span><span class="n">apps_root</span><span class="p">,</span> <span class="n">apps_path</span><span class="p">)</span>
 
@@ -2031,10 +2044,27 @@
         <span class="n">dataset_archive</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;dataset_archive&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="ow">and</span> <span class="n">dataset_archive</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="n">dataset_archive</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">dataset_root</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_data_rel</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-            <span class="n">existing_files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">dataset_root</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">))</span> <span class="k">if</span> <span class="n">dataset_root</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="k">else</span> <span class="p">[]</span>
             <span class="n">archive_mtime</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">dataset_archive</span><span class="p">)</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_mtime</span>
-            <span class="n">latest_file_mtime</span> <span class="o">=</span> <span class="nb">max</span><span class="p">((</span><span class="n">p</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_mtime</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">existing_files</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_file</span><span class="p">()),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-            <span class="n">needs_extract</span> <span class="o">=</span> <span class="p">(</span><span class="ow">not</span> <span class="n">existing_files</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">latest_file_mtime</span> <span class="o">&lt;</span> <span class="n">archive_mtime</span><span class="p">)</span>
+            <span class="n">stamp_path</span> <span class="o">=</span> <span class="n">dataset_root</span> <span class="o">/</span> <span class="s2">&quot;.agilab_dataset_stamp&quot;</span>
+
+            <span class="n">existing_files</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">dataset_root</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="n">p</span> <span class="o">!=</span> <span class="n">stamp_path</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">dataset_root</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+                <span class="k">else</span> <span class="p">[]</span>
+            <span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">existing_files</span><span class="p">:</span>
+                <span class="n">needs_extract</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">elif</span> <span class="n">stamp_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">needs_extract</span> <span class="o">=</span> <span class="n">stamp_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_mtime</span> <span class="o">&lt;</span> <span class="n">archive_mtime</span>
+                <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                    <span class="n">needs_extract</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># No stamp file means the dataset was created by an older AGILAB version</span>
+                <span class="c1"># or manually by the user. Avoid clobbering existing content; use</span>
+                <span class="c1"># AGILAB_FORCE_DATA_REFRESH=1 if a rebuild is required.</span>
+                <span class="n">needs_extract</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="k">if</span> <span class="n">needs_extract</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">unzip_data</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">dataset_archive</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_data_rel</span><span class="p">,</span> <span class="n">force_extract</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -4035,6 +4065,14 @@
                     <span class="sa">f</span><span class="s2">&quot;Dataset already present at &#39;</span><span class="si">{</span><span class="n">dataset</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
                     <span class="s2">&quot;Skipping extraction (set AGILAB_FORCE_DATA_REFRESH=1 to rebuild).&quot;</span>
                 <span class="p">)</span>
+            <span class="n">stamp_path</span> <span class="o">=</span> <span class="n">dataset</span> <span class="o">/</span> <span class="s2">&quot;.agilab_dataset_stamp&quot;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">stamp_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">stamp_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">archive_path</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                    <span class="n">archive_mtime</span> <span class="o">=</span> <span class="n">archive_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_mtime</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">utime</span><span class="p">(</span><span class="n">stamp_path</span><span class="p">,</span> <span class="p">(</span><span class="n">archive_mtime</span><span class="p">,</span> <span class="n">archive_mtime</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - best effort</span>
+                    <span class="k">pass</span>
             <span class="k">return</span>
 
         <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">force_refresh</span><span class="p">:</span>
@@ -4083,6 +4121,17 @@
                 <span class="n">archive</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">dest</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Extracted &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39; to &#39;</span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Stamp the extracted dataset so future runs can decide whether the archive</span>
+            <span class="c1"># has changed without relying on extracted file mtimes (which may be older</span>
+            <span class="c1"># than the archive itself).</span>
+            <span class="n">stamp_path</span> <span class="o">=</span> <span class="n">dataset</span> <span class="o">/</span> <span class="s2">&quot;.agilab_dataset_stamp&quot;</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">stamp_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">archive_path</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                <span class="n">archive_mtime</span> <span class="o">=</span> <span class="n">archive_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_mtime</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">utime</span><span class="p">(</span><span class="n">stamp_path</span><span class="p">,</span> <span class="p">(</span><span class="n">archive_mtime</span><span class="p">,</span> <span class="n">archive_mtime</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - best effort</span>
+                <span class="k">pass</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to extract &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>

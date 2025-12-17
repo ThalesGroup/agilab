@@ -1250,7 +1250,22 @@
             <span class="s2">&quot;FireducksWorker&quot;</span><span class="p">:</span> <span class="s2">&quot;fireducks-worker&quot;</span><span class="p">,</span>
             <span class="s2">&quot;DagWorker&quot;</span><span class="p">:</span> <span class="s2">&quot;dag-worker&quot;</span><span class="p">,</span>
         <span class="p">}</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span><span class="p">]]</span>
+        <span class="n">base_worker_cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;base_worker_cls&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">base_worker_cls</span><span class="p">:</span>
+            <span class="n">target_worker_class</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;target_worker_class&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&lt;worker class&gt;&quot;</span>
+            <span class="n">worker_path</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;worker_path&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&lt;worker path&gt;&quot;</span>
+            <span class="n">supported</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Missing </span><span class="si">{</span><span class="n">target_worker_class</span><span class="si">}</span><span class="s2"> definition; expected </span><span class="si">{</span><span class="n">worker_path</span><span class="si">}</span><span class="s2">. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Ensure the app worker exists and inherits from a supported base worker (</span><span class="si">{</span><span class="n">supported</span><span class="si">}</span><span class="s2">).&quot;</span>
+            <span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">base_worker_cls</span><span class="p">]]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">supported</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unsupported base worker class &#39;</span><span class="si">{</span><span class="n">base_worker_cls</span><span class="si">}</span><span class="s2">&#39;. Supported values: </span><span class="si">{</span><span class="n">supported</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="k">return</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_main</span><span class="p">(</span><span class="n">scheduler</span><span class="p">)</span>
@@ -2774,21 +2789,78 @@
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv_worker</span><span class="si">}</span><span class="s2"> pip install --project </span><span class="se">\&quot;</span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2"> -e </span><span class="se">\&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">active_app</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
 
-        <span class="c1"># dataset</span>
+        <span class="c1"># dataset archives</span>
         <span class="n">dest</span> <span class="o">=</span> <span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="n">env</span><span class="o">.</span><span class="n">target_worker</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dest</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">archives</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">src</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">dataset_archive</span>
-        <span class="k">if</span> <span class="n">src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">archives</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
+
+        <span class="c1"># Some apps ship additional optional archives (e.g. Trajectory.7z) under src/.</span>
+        <span class="c1"># Copy those alongside dataset.7z so post_install can extract them if needed.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">active_src</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">active_app</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+            <span class="k">if</span> <span class="n">active_src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">active_src</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;Trajectory.7z&quot;</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+                        <span class="n">archives</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - defensive guard</span>
+            <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="n">archives</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">share_root</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">share_root_path</span><span class="p">()</span>
-                <span class="c1"># why this line ???</span>
-                <span class="c1"># install_dataset_dir = share_root / &quot;dataset&quot;</span>
                 <span class="n">install_dataset_dir</span> <span class="o">=</span> <span class="n">share_root</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">install_dataset_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">install_dataset_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span>
+
+                <span class="n">seen_archives</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">archive_path</span> <span class="ow">in</span> <span class="n">archives</span><span class="p">:</span>
+                    <span class="c1"># Avoid copying satellite trajectory bundles when they can be reused from</span>
+                    <span class="c1"># an already-installed sat_trajectory dataset on the share.</span>
+                    <span class="k">if</span> <span class="n">archive_path</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;Trajectory.7z&quot;</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">sat_trajectory_root</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">share_root</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;sat_trajectory&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span>
+                                <span class="n">strict</span><span class="o">=</span><span class="kc">False</span>
+                            <span class="p">)</span>
+                            <span class="n">candidates</span> <span class="o">=</span> <span class="p">(</span>
+                                <span class="n">sat_trajectory_root</span> <span class="o">/</span> <span class="s2">&quot;dataframe&quot;</span> <span class="o">/</span> <span class="s2">&quot;Trajectory&quot;</span><span class="p">,</span>
+                                <span class="n">sat_trajectory_root</span> <span class="o">/</span> <span class="s2">&quot;dataset&quot;</span> <span class="o">/</span> <span class="s2">&quot;Trajectory&quot;</span><span class="p">,</span>
+                            <span class="p">)</span>
+                            <span class="n">has_samples</span> <span class="o">=</span> <span class="kc">False</span>
+                            <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+                                <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                                    <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+                                    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;*.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;*.parquet&quot;</span><span class="p">,</span> <span class="s2">&quot;*.pq&quot;</span><span class="p">,</span> <span class="s2">&quot;*.parq&quot;</span><span class="p">):</span>
+                                        <span class="n">samples</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">))</span>
+                                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                                            <span class="n">has_samples</span> <span class="o">=</span> <span class="kc">True</span>
+                                            <span class="k">break</span>
+                                <span class="k">if</span> <span class="n">has_samples</span><span class="p">:</span>
+                                    <span class="k">break</span>
+                            <span class="k">if</span> <span class="n">has_samples</span><span class="p">:</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                                    <span class="s2">&quot;Skipping </span><span class="si">%s</span><span class="s2"> copy; sat_trajectory trajectories already available at </span><span class="si">%s</span><span class="s2">.&quot;</span><span class="p">,</span>
+                                    <span class="n">archive_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                    <span class="n">sat_trajectory_root</span><span class="p">,</span>
+                                <span class="p">)</span>
+                                <span class="k">continue</span>
+                        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - best-effort optimisation</span>
+                            <span class="k">pass</span>
+
+                    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">archive_path</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">seen_archives</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">seen_archives</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">archive_path</span><span class="p">,</span> <span class="n">dest</span> <span class="o">/</span> <span class="n">archive_path</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">FileNotFoundError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Skipping dataset copy to </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">install_dataset_dir</span> <span class="k">if</span> <span class="s1">&#39;install_dataset_dir&#39;</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;&lt;share root&gt;&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Skipping dataset archive copy to </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">install_dataset_dir</span> <span class="k">if</span> <span class="s2">&quot;install_dataset_dir&quot;</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;&lt;share root&gt;&quot;</span><span class="p">,</span>
+                    <span class="n">exc</span><span class="p">,</span>
+                <span class="p">)</span>
 
         <span class="n">post_install_cmd</span> <span class="o">=</span> <span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv_worker</span><span class="si">}</span><span class="s2"> run --no-sync --project </span><span class="se">\&quot;</span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2"> &quot;</span>

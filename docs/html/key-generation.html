@@ -1015,28 +1015,28 @@ function copyCode(button) {
 </section>
 <section id="bidirectional-trust-between-worker-macs">
 <h3>Bidirectional trust between worker Macs<a class="headerlink" href="#bidirectional-trust-between-worker-macs" title="Link to this heading"></a></h3>
-<p>When two macOS workers must talk to each other (for example <code class="docutils literal notranslate"><span class="pre">192.168.3.84</span></code> and <code class="docutils literal notranslate"><span class="pre">192.168.3.86</span></code>),
+<p>When two macOS workers must talk to each other (for example <code class="docutils literal notranslate"><span class="pre">&lt;worker_a_ip&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;worker_b_ip&gt;</span></code>),
 install the same SSH key pair on both hosts so either side can <code class="docutils literal notranslate"><span class="pre">ssh</span></code> without a password prompt.
-Assuming the login user is <code class="docutils literal notranslate"><span class="pre">agi</span></code> (adjust if yours differs):</p>
+Assuming the login user is <code class="docutils literal notranslate"><span class="pre">&lt;remote</span> <span class="pre">account&gt;</span></code> (adjust if yours differs):</p>
 <ol class="arabic">
 <li><p>Enable Remote Login on each Mac if it is not already on:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">systemsetup</span> <span class="o">-</span><span class="n">setremotelogin</span> <span class="n">on</span>
 </pre></div>
 </div>
 </li>
-<li><p>From <code class="docutils literal notranslate"><span class="pre">192.168.3.84</span></code> push the public key to <code class="docutils literal notranslate"><span class="pre">192.168.3.86</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span><span class="o">-</span><span class="n">copy</span><span class="o">-</span><span class="nb">id</span> <span class="o">-</span><span class="n">i</span> <span class="o">~/.</span><span class="n">ssh</span><span class="o">/</span><span class="n">id_ed25519</span> <span class="n">agi</span><span class="o">@</span><span class="mf">192.168.3.86</span>
+<li><p>From <code class="docutils literal notranslate"><span class="pre">&lt;worker_a_ip&gt;</span></code> push the public key to <code class="docutils literal notranslate"><span class="pre">&lt;worker_b_ip&gt;</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span><span class="o">-</span><span class="n">copy</span><span class="o">-</span><span class="nb">id</span> <span class="o">-</span><span class="n">i</span> <span class="o">~/.</span><span class="n">ssh</span><span class="o">/</span><span class="n">id_ed25519</span> <span class="o">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="o">&gt;@&lt;</span><span class="n">worker_b_ip</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 </li>
-<li><p>From <code class="docutils literal notranslate"><span class="pre">192.168.3.86</span></code> push the same key back to <code class="docutils literal notranslate"><span class="pre">192.168.3.84</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span><span class="o">-</span><span class="n">copy</span><span class="o">-</span><span class="nb">id</span> <span class="o">-</span><span class="n">i</span> <span class="o">~/.</span><span class="n">ssh</span><span class="o">/</span><span class="n">id_ed25519</span> <span class="n">agi</span><span class="o">@</span><span class="mf">192.168.3.84</span>
+<li><p>From <code class="docutils literal notranslate"><span class="pre">&lt;worker_b_ip&gt;</span></code> push the same key back to <code class="docutils literal notranslate"><span class="pre">&lt;worker_a_ip&gt;</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span><span class="o">-</span><span class="n">copy</span><span class="o">-</span><span class="nb">id</span> <span class="o">-</span><span class="n">i</span> <span class="o">~/.</span><span class="n">ssh</span><span class="o">/</span><span class="n">id_ed25519</span> <span class="o">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="o">&gt;@&lt;</span><span class="n">worker_a_ip</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 </li>
 <li><p>Verify both directions once so the host keys land in <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="n">agi</span><span class="o">@</span><span class="mf">192.168.3.86</span> <span class="n">hostname</span>
-<span class="n">ssh</span> <span class="n">agi</span><span class="o">@</span><span class="mf">192.168.3.84</span> <span class="n">hostname</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="o">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="o">&gt;@&lt;</span><span class="n">worker_b_ip</span><span class="o">&gt;</span> <span class="n">hostname</span>
+<span class="n">ssh</span> <span class="o">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="o">&gt;@&lt;</span><span class="n">worker_a_ip</span><span class="o">&gt;</span> <span class="n">hostname</span>
 </pre></div>
 </div>
 </li>
