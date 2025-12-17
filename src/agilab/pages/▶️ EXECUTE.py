@@ -4,6 +4,7 @@ import asyncio
 # Standard Imports (lightweight)
 # ===========================
 import os
+import sys
 import socket
 import runpy
 import ast
@@ -11,6 +12,8 @@ import re
 import json
 import numbers
 import logging
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 import importlib
 from typing import Optional
@@ -231,18 +234,100 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
     return False
 
 
+_SHARED_FILESYSTEM_TYPES: set[str] = {
+    # Networked filesystems
+    "nfs",
+    "nfs4",
+    "cifs",
+    "smbfs",
+    "sshfs",
+    "afpfs",
+    "webdav",
+    # Common shared/cluster filesystems
+    "lustre",
+    "gpfs",
+    "panfs",
+    "beegfs",
+    "ceph",
+    "glusterfs",
+    "gfs2",
+    # Automounter (often backing NFS/SMB shares)
+    "autofs",
+}
+
+
+@lru_cache(maxsize=1)
+def _mount_table() -> list[tuple[str, str]]:
+    entries: list[tuple[str, str]] = []
+    try:
+        if sys.platform.startswith("linux"):
+            mounts = Path("/proc/mounts")
+            if mounts.exists():
+                for line in mounts.read_text(encoding="utf-8", errors="replace").splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        mountpoint = parts[1].replace("\\040", " ")
+                        fstype = parts[2]
+                        entries.append((mountpoint, fstype))
+        elif sys.platform == "darwin":
+            proc = subprocess.run(["mount"], capture_output=True, text=True, check=False)
+            for line in (proc.stdout or "").splitlines():
+                match = re.match(r".+ on (?P<mountpoint>.+?) \\((?P<fstype>[^,\\)]+)", line)
+                if match:
+                    entries.append((match.group("mountpoint").strip(), match.group("fstype").strip()))
+    except Exception:
+        entries = []
+
+    entries.sort(key=lambda item: len(item[0]), reverse=True)
+    return entries
+
+
+def _fstype_for_path(path: Path) -> Optional[str]:
+    path_str = str(path)
+    for mountpoint, fstype in _mount_table():
+        mp = mountpoint.rstrip("/") or "/"
+        if path_str == mp or path_str.startswith(mp + "/"):
+            return fstype.lower()
+    return None
+
+
 def _looks_like_shared_path(path: Path) -> bool:
-    """Heuristic: treat paths outside the local home/project tree as shared."""
+    """
+    Best-effort heuristic: try to detect whether ``path`` is on a filesystem that
+    remote workers can also see (e.g., NFS/SMB/Lustre).
+
+    This is intentionally conservative and only used to emit a UI warning; it
+    cannot guarantee that *remote* nodes mount the same path.
+    """
     try:
         resolved = path.expanduser().resolve()
     except Exception:
         return False
 
+    fstype = _fstype_for_path(resolved)
+    if fstype and fstype in _SHARED_FILESYSTEM_TYPES:
+        return True
+
     home = Path.home().resolve()
     try:
         resolved.relative_to(home)
-        if os.path.ismount(resolved):
-            return True
+        # If the path is inside the home directory, default to "local" unless it
+        # lives on a known shared filesystem (handled above) or is a mountpoint
+        # under home. (Mount detection is platform-dependent and not always
+        # reliable, but helps as a fallback.)
+        current = resolved
+        while True:
+            try:
+                if os.path.ismount(current):
+                    return True
+            except Exception:
+                break
+            if current == home:
+                break
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
         return False
     except ValueError:
         pass

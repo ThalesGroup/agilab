@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<module type="PYTHON_MODULE" version="4">
+    <component name="NewModuleRootManager">
+        <content url="file://$MODULE_DIR$/../../src/agilab/apps/link_sim_project">
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/link_sim_project/dist" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/link_sim_project/build" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/link_sim_project/.venv" />
+        </content>
+        <orderEntry type="sourceFolder" forTests="false" />
+        <orderEntry type="jdk" jdkName="uv (link_sim_project)" jdkType="Python SDK" />
+    </component>
+</module>
