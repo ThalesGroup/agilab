@@ -52,7 +52,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
 from datetime import datetime
 import time
 from streamlit.runtime.scriptrunner import RerunException
-from typing import Optional
+from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
@@ -719,9 +719,22 @@ def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
         if closest.empty:
             continue
         row = closest.iloc[0]
+        flight_id = None
+        for id_col in ("plane_id", "satellite_id", "sat_id", "uav_id", "trajectory_id", "node_id", "id"):
+            if id_col in df.columns:
+                raw_id = row.get(id_col)
+                if pd.isna(raw_id):
+                    continue
+                try:
+                    flight_id = str(int(raw_id))
+                except Exception:
+                    flight_id = str(raw_id)
+                break
+        if not flight_id:
+            flight_id = Path(fname).stem
         records.append(
             {
-                "flight_id": Path(fname).stem,
+                "flight_id": flight_id,
                 "time_s": row.get("time_s", t),
                 "lat": row.get("latitude"),
                 "long": row.get("longitude"),
@@ -733,45 +746,119 @@ def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
 def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, color=None):
     if alloc_df.empty or positions.empty:
         return []
+    positions_idx = positions.copy()
+    positions_idx["flight_id"] = positions_idx["flight_id"].astype(str)
+
+    def _lookup_position(node_id: Any) -> pd.Series | None:
+        node_str = str(node_id)
+        for cand in (f"plane_{node_str}", node_str, f"sat_{node_str}"):
+            match = positions_idx.loc[positions_idx["flight_id"] == cand]
+            if not match.empty:
+                return match.iloc[0]
+        return None
+
+    def _as_list(value: Any) -> list[Any]:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        if isinstance(value, str):
+            parsed = safe_literal_eval(value)
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, tuple):
+                return list(parsed)
+        return []
+
+    def _blend(rgb: list[int], tint: list[int] | None, *, alpha: float = 0.45) -> list[int]:
+        if tint is None:
+            return rgb
+        return [int(round((1 - alpha) * rgb[i] + alpha * tint[i])) for i in range(3)]
+
+    def _bearer_rgb(bearer: Any) -> list[int]:
+        b = str(bearer or "").strip().lower()
+        if "sat" in b:
+            return _blend([0, 120, 255], color)
+        if "iv" in b:
+            return _blend([255, 140, 0], color)
+        if "opt" in b:
+            return _blend([0, 180, 90], color)
+        if "legacy" in b:
+            return _blend([160, 160, 160], color)
+        if color is not None:
+            return color
+        return [200, 200, 200]
+
     edges = []
     for _, row in alloc_df.iterrows():
-        src = str(row.get("source"))
-        dst = str(row.get("destination"))
-        src_pos = positions.loc[positions["flight_id"] == f"plane_{src}"]
-        if src_pos.empty:
-            src_pos = positions.loc[positions["flight_id"] == src]
-        dst_pos = positions.loc[positions["flight_id"] == f"plane_{dst}"]
-        if dst_pos.empty:
-            dst_pos = positions.loc[positions["flight_id"] == dst]
-        if src_pos.empty or dst_pos.empty:
-            continue
-        edges.append(
-            {
-                "source": src_pos[["long", "lat", "alt"]].values[0].tolist(),
-                "target": dst_pos[["long", "lat", "alt"]].values[0].tolist(),
-                "bandwidth": row.get("bandwidth", 0),
-                "delivered": row.get("delivered_bandwidth", row.get("capacity_mbps", 0)),
-            }
-        )
+        src = row.get("source")
+        dst = row.get("destination")
+        delivered = row.get("delivered_bandwidth", row.get("capacity_mbps", 0))
+        bandwidth = row.get("bandwidth", 0)
+        path_edges = _as_list(row.get("path"))
+        path_bearers = _as_list(row.get("bearers")) or _as_list(row.get("bearer"))
+
+        if path_edges:
+            for i, hop in enumerate(path_edges):
+                hop_list = _as_list(hop)
+                if len(hop_list) < 2:
+                    continue
+                u = hop_list[0]
+                v = hop_list[1]
+                u_pos = _lookup_position(u)
+                v_pos = _lookup_position(v)
+                if u_pos is None or v_pos is None:
+                    continue
+                bearer = path_bearers[i] if i < len(path_bearers) else row.get("bearer")
+                edges.append(
+                    {
+                        "source": [u_pos["long"], u_pos["lat"], u_pos.get("alt", 0.0)],
+                        "target": [v_pos["long"], v_pos["lat"], v_pos.get("alt", 0.0)],
+                        "bandwidth": bandwidth,
+                        "delivered": delivered,
+                        "bearer": bearer,
+                        "color": _bearer_rgb(bearer),
+                        "demand": f"{src}→{dst}",
+                    }
+                )
+        else:
+            src_pos = _lookup_position(src)
+            dst_pos = _lookup_position(dst)
+            if src_pos is None or dst_pos is None:
+                continue
+            edges.append(
+                {
+                    "source": [src_pos["long"], src_pos["lat"], src_pos.get("alt", 0.0)],
+                    "target": [dst_pos["long"], dst_pos["lat"], dst_pos.get("alt", 0.0)],
+                    "bandwidth": bandwidth,
+                    "delivered": delivered,
+                    "bearer": row.get("bearer"),
+                    "color": _bearer_rgb(row.get("bearer")),
+                    "demand": f"{src}→{dst}",
+                }
+            )
+
     if not edges:
         return []
+
     edge_df = pd.DataFrame(edges)
-    width_norm = edge_df["delivered"].fillna(0)
+    width_norm = pd.to_numeric(edge_df["delivered"], errors="coerce").fillna(0)
     if not width_norm.empty and width_norm.max() > 0:
-        width_norm = 2 + 8 * (width_norm / width_norm.max())
+        edge_df["width"] = 2 + 8 * (width_norm / width_norm.max())
     else:
-        width_norm = 2
-    edge_df["width"] = width_norm
-    line_color = color if color is not None else [255, 140, 0]
+        edge_df["width"] = 2
+
     return [
         pdk.Layer(
             "LineLayer",
             data=edge_df,
             get_source_position="source",
             get_target_position="target",
-            get_color=line_color,
+            get_color="color",
             get_width="width",
-            opacity=0.8,
+            opacity=0.85,
             pickable=True,
         )
     ]
@@ -1888,6 +1975,39 @@ def page():
         else pd.DataFrame()
     )
 
+    def _demand_pairs(df_in: pd.DataFrame) -> list[tuple[int, int]]:
+        if df_in.empty or not {"source", "destination"}.issubset(df_in.columns):
+            return []
+        src_series = pd.to_numeric(df_in["source"], errors="coerce")
+        dst_series = pd.to_numeric(df_in["destination"], errors="coerce")
+        pairs: set[tuple[int, int]] = set()
+        for src, dst in zip(src_series.tolist(), dst_series.tolist()):
+            if pd.isna(src) or pd.isna(dst):
+                continue
+            pairs.add((int(src), int(dst)))
+        return sorted(pairs)
+
+    def _filter_by_pair(df_in: pd.DataFrame, pair: tuple[int, int] | None) -> pd.DataFrame:
+        if df_in.empty or pair is None or not {"source", "destination"}.issubset(df_in.columns):
+            return df_in
+        src, dst = pair
+        src_series = pd.to_numeric(df_in["source"], errors="coerce")
+        dst_series = pd.to_numeric(df_in["destination"], errors="coerce")
+        return df_in[(src_series == src) & (dst_series == dst)]
+
+    all_pairs = sorted(set(_demand_pairs(alloc_df)) | set(_demand_pairs(baseline_df)))
+    selected_pair: tuple[int, int] | None = None
+    if all_pairs:
+        selected_pair = st.selectbox(
+            "Focus demand (optional)",
+            options=[None] + all_pairs,
+            format_func=lambda p: "All demands" if p is None else f"{p[0]} → {p[1]}",
+            key="alloc_demand_pair_focus",
+        )
+
+    alloc_df_view = _filter_by_pair(alloc_df, selected_pair)
+    baseline_df_view = _filter_by_pair(baseline_df, selected_pair)
+
     def _time_values(df_in: pd.DataFrame) -> list[int]:
         if df_in.empty:
             return []
@@ -1898,7 +2018,7 @@ def page():
             return [0]
         return sorted({int(x) for x in series.tolist()})
 
-    times = sorted(set(_time_values(alloc_df)) | set(_time_values(baseline_df)))
+    times = sorted(set(_time_values(alloc_df_view)) | set(_time_values(baseline_df_view)))
     if not times:
         st.info("No allocations found yet (routing or baseline).")
     else:
@@ -1906,13 +2026,13 @@ def page():
             st.session_state["alloc_time_index"] = times[0]
         t_sel = st.select_slider("Time index", options=times, key="alloc_time_index")
         alloc_step = (
-            alloc_df[alloc_df["time_index"] == t_sel]
-            if (not alloc_df.empty and "time_index" in alloc_df.columns)
+            alloc_df_view[alloc_df_view["time_index"] == t_sel]
+            if (not alloc_df_view.empty and "time_index" in alloc_df_view.columns)
             else pd.DataFrame()
         )
         baseline_step = (
-            baseline_df[baseline_df["time_index"] == t_sel]
-            if (not baseline_df.empty and "time_index" in baseline_df.columns)
+            baseline_df_view[baseline_df_view["time_index"] == t_sel]
+            if (not baseline_df_view.empty and "time_index" in baseline_df_view.columns)
             else pd.DataFrame()
         )
         positions_live = load_positions_at_time(traj_glob, t_sel)
@@ -1926,6 +2046,52 @@ def page():
         if alloc_step.empty and baseline_step.empty:
             st.info("No allocations rows found for the selected timestep.")
             return
+
+        if selected_pair is not None:
+            def _bearer_path(cell: Any) -> str:
+                if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+                    return ""
+                if isinstance(cell, list):
+                    return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
+                if isinstance(cell, tuple):
+                    return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
+                if isinstance(cell, str):
+                    parsed = safe_literal_eval(cell)
+                    if isinstance(parsed, (list, tuple)):
+                        return " → ".join(str(x) for x in parsed if x is not None and str(x).strip())
+                    return cell.strip()
+                return str(cell).strip()
+
+            with st.expander("Demand timeline (selected demand)", expanded=True):
+                if not alloc_df_view.empty and "time_index" in alloc_df_view.columns:
+                    timeline = alloc_df_view.sort_values("time_index").copy()
+                    if "bearers" in timeline.columns:
+                        timeline["bearer_path"] = timeline["bearers"].apply(_bearer_path)
+                    elif "bearer" in timeline.columns:
+                        timeline["bearer_path"] = timeline["bearer"].apply(_bearer_path)
+                    else:
+                        timeline["bearer_path"] = ""
+                    cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in timeline.columns]
+                    st.caption("Allocations timeline")
+                    st.dataframe(timeline[cols], use_container_width=True)
+                    sig = timeline["bearer_path"].fillna("")
+                    sig_prev = sig.shift(1).fillna("")
+                    changed = (sig != sig_prev) & sig.ne("") & sig_prev.ne("")
+                    if changed.any():
+                        switch_times = timeline.loc[changed, "time_index"].tolist()
+                        st.info(f"Bearer switch detected at time indices: {', '.join(map(str, switch_times))}")
+
+                if not baseline_df_view.empty and "time_index" in baseline_df_view.columns:
+                    base_tl = baseline_df_view.sort_values("time_index").copy()
+                    if "bearers" in base_tl.columns:
+                        base_tl["bearer_path"] = base_tl["bearers"].apply(_bearer_path)
+                    elif "bearer" in base_tl.columns:
+                        base_tl["bearer_path"] = base_tl["bearer"].apply(_bearer_path)
+                    else:
+                        base_tl["bearer_path"] = ""
+                    cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in base_tl.columns]
+                    st.caption("Baseline timeline")
+                    st.dataframe(base_tl[cols], use_container_width=True)
 
         if not alloc_step.empty and not baseline_step.empty:
             try:
