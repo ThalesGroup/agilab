@@ -31,17 +31,17 @@ It does **not** change the AGILab source license; refer to the repository root `
 | comm | BSD LICENSE |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cython | APACHE SOFTWARE LICENSE |
-| dask | BSD LICENSE |
+| dask | BSD-3-CLAUSE |
 | debugpy | MIT LICENSE |
 | decorator | BSD LICENSE |
 | defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
-| distributed | BSD LICENSE |
+| distributed | BSD-3-CLAUSE |
 | executing | MIT LICENSE |
 | fastjsonschema | BSD LICENSE |
 | fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | fsspec | BSD-3-CLAUSE |
 | h11 | MIT LICENSE |
-| httpcore | BSD LICENSE |
+| httpcore | BSD-3-CLAUSE |
 | httpx | BSD LICENSE |
 | humanize | MIT License |
 | idna | BSD-3-CLAUSE |

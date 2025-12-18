@@ -11,8 +11,8 @@ It does **not** change the AGILab source license; refer to the repository root `
 | cloudpickle | BSD LICENSE |
 | cmake | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | cython | APACHE SOFTWARE LICENSE |
-| dask | BSD LICENSE |
-| distributed | BSD LICENSE |
+| dask | BSD-3-CLAUSE |
+| distributed | BSD-3-CLAUSE |
 | fsspec | BSD-3-CLAUSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | jinja2 | BSD LICENSE |

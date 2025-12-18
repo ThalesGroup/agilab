@@ -906,54 +906,36 @@
 <h1>Project Files Structure<a class="headerlink" href="#project-files-structure" title="Link to this heading"></a></h1>
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>agilab/
-__pycache__/ [excluded]
 apps/
-    __pycache__/ [excluded]
     builtin/
         flight_project/
-            .pytest_cache/ [excluded]
-            .venv/ [excluded]
-            Modules/ [excluded]
             src/
-                __pycache__/ [excluded]
                 flight/
-                    __pycache__/ [excluded]
                     __init__.py
                     flight.py
                     flight_args.py
                 flight_worker/
-                    __pycache__/ [excluded]
                     __init__.py
                     flight_worker.c
                     flight_worker.py
-                    flight_worker.pyx
                 app_args_form.py
                 app_settings.toml
             test/
-                __pycache__/ [excluded]
             .coverage
             pyproject.toml
         mycode_project/
-            .pytest_cache/ [excluded]
-            .venv/ [excluded]
-            Modules/ [excluded]
             src/
-                __pycache__/ [excluded]
                 mycode/
-                    __pycache__/ [excluded]
                     __init__.py
                     app_args.py
                     mycode.py
                     mycode_args.py
                 mycode_worker/
-                    __pycache__/ [excluded]
                     __init__.py
                     mycode_worker.py
-                    mycode_worker.pyx
                 app_args_form.py
                 app_settings.toml
             test/
-                __pycache__/ [excluded]
             .coverage
             pyproject.toml
     templates/
@@ -1038,50 +1020,38 @@ apps/
     install.py
     README.md
 apps-pages/
-    __pycache__/ [excluded]
     view_autoencoder_latenspace/
-        .venv/ [excluded]
         src/
             view_autoencoder_latentspace/
-                __pycache__/ [excluded]
                 __init__.py
                 autoencoder_latentspace.py
                 view_autoencoder_latentspace.py
         pyproject.toml
     view_barycentric/
-        .venv/ [excluded]
-        __pycache__/ [excluded]
         src/
             view_barycentric/
-                __pycache__/ [excluded]
                 __init__.py
                 barycentric_graph.py
                 view_barycentric.py
         __init__.py
         pyproject.toml
     view_maps/
-        .venv/ [excluded]
         src/
             view_maps/
-                __pycache__/ [excluded]
                 __init__.py
                 maps.py
                 view_maps.py
         pyproject.toml
     view_maps_3d/
-        .venv/ [excluded]
         src/
             view_maps_3d/
-                __pycache__/ [excluded]
                 __init__.py
                 maps_3d.py
                 view_maps_3d.py
         pyproject.toml
     view_maps_network/
-        .venv/ [excluded]
         src/
             view_maps_network/
-                __pycache__/ [excluded]
                 maps_network_graph.py
                 view_maps_network.py
         pyproject.toml
@@ -1089,12 +1059,8 @@ apps-pages/
     __init__.py
     README.md
 core/
-    __pycache__/ [excluded]
     agi-cluster/
-        .venv/ [excluded]
-        __pycache__/ [excluded]
         src/
-            __pycache__/ [excluded]
             agi_cluster/
                 agi_distributor/
                     __pycache__/ [excluded]
@@ -1113,15 +1079,11 @@ core/
     agi-core/
         src/
             agi_core/
-                __pycache__/ [excluded]
                 __init__.py
         LICENSE
         pyproject.toml
         README.md
     agi-env/
-        .pytest_cache/ [excluded]
-        .venv/ [excluded]
-        __pycache__/ [excluded]
         src/
             __pycache__/ [excluded]
             agi_env/
@@ -1146,7 +1108,6 @@ core/
             __init__.py
             pyproject.toml
         test/
-            __pycache__/ [excluded]
             __init__.py
             clean_csv.py
             dummy_cmd.py
@@ -1162,14 +1123,9 @@ core/
         README.md
         uv_config.toml
     agi-node/
-        .venv/ [excluded]
-        __pycache__/ [excluded]
         src/
-            __pycache__/ [excluded]
             agi_node/
-                __pycache__/ [excluded]
                 agi_dispatcher/
-                    __pycache__/ [excluded]
                     __init__.py
                     agi_dispatcher.py
                     base_worker.py
@@ -1177,19 +1133,15 @@ core/
                     post_install.py
                     pre_install.py
                 dag_worker/
-                    __pycache__/ [excluded]
                     __init__.py
                     dag_worker.py
                 fireducks_worker/
-                    __pycache__/ [excluded]
                     __init__.py
                     fireducks_worker.py
                 pandas_worker/
-                    __pycache__/ [excluded]
                     __init__.py
                     pandas_worker.py
                 polars_worker/
-                    __pycache__/ [excluded]
                     __init__.py
                     polars_worker.py
                 __init__.py
@@ -1203,7 +1155,6 @@ core/
         SECURITY.md
         uv_config.toml
     test/
-        __pycache__/ [excluded]
         __init__.py
         test_agi_core_smoke.py
         test_agi_distributor.py
@@ -1214,7 +1165,6 @@ core/
         test_polars_worker.py
         test_work_dispatcher.py
     tools/
-        __pycache__/ [excluded]
         __init__.py
         test_kill.py
     .gitignore
@@ -1225,22 +1175,18 @@ core/
     install.sh
 examples/
     flight/
-        __pycache__/ [excluded]
         AGI_command_flight.py
         AGI_install_flight.py
         AGI_run_flight.py
     mycode/
-        __pycache__/ [excluded]
         AGI_install_mycode.py
         AGI_run_mycode.py
 pages/
-    __pycache__/ [excluded]
     ▶️ EDIT.py
     ▶️ EXECUTE.py
     ▶️ EXPERIMENT.py
     ▶️ EXPLORE.py
 resources/
-    __pycache__/ [excluded]
     help/
         __pycache__/ [excluded]
         __init__.py
@@ -1260,7 +1206,6 @@ resources/
     info_bar.json
     theme.css
 test/
-    __pycache__/ [excluded]
     __init__.py
     test_model_returns_code.py
     test_python_versions.py
