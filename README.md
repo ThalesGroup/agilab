@@ -46,7 +46,7 @@ to clone this repository and use the provided scripts.
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps --test-apps
-streamlit run src/agilab/AGILAB.py
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/AGILAB.py
 ```
 
 The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, set up
@@ -69,7 +69,7 @@ user deployment instructions.
 - 📦 **PyPI:** https://pypi.org/project/agilab
 - 🧪 **Test matrix:** refer to `.github/workflows/ci.yml`
 - ✅ **Coverage snapshot:** see badge above (auto-updated after CI)
-- 🧾 **Runbook:** [RUNBOOK.md](RUNBOOK.md)
+- 🧾 **Runbook:** [AGENTS.md](AGENTS.md)
 - 🛠️ **Developer tools:** scripts in `tools/` and application templates in `src/agilab/apps`
 
 ## Contributing
