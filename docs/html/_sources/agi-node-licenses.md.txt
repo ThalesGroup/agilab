@@ -16,8 +16,8 @@ It does **not** change the AGILab source license; refer to the repository root `
 | fsspec | BSD-3-CLAUSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | jinja2 | BSD LICENSE |
-| joblib | BSD LICENSE |
-| llvmlite | BSD |
+| joblib | BSD-3-CLAUSE |
+| llvmlite | APACHE-2.0 WITH LLVM-EXCEPTION;; BSD-2-CLAUSE |
 | locket | BSD LICENSE |
 | markupsafe | BSD-3-CLAUSE |
 | msgpack | APACHE-2.0 |
@@ -53,7 +53,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | tornado | APACHE SOFTWARE LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT |
-| tzdata | APACHE SOFTWARE LICENSE |
+| tzdata | APACHE-2.0 |
 | urllib3 | MIT |
 | wheel | MIT LICENSE |
 | zict | BSD LICENSE |

@@ -13,7 +13,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | backports-zstd | PSF-2.0 |
 | blinker | MIT LICENSE |
 | brotli | MIT |
-| cachetools | MIT LICENSE |
+| cachetools | MIT |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | MIT |
 | click | BSD-3-CLAUSE |
@@ -31,7 +31,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | jinja2 | BSD LICENSE |
 | jsonschema | MIT |
 | jsonschema-specifications | MIT |
-| llvmlite | BSD |
+| llvmlite | APACHE-2.0 WITH LLVM-EXCEPTION;; BSD-2-CLAUSE |
 | markupsafe | BSD-3-CLAUSE |
 | matplotlib-inline | BSD-3-Clause |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -78,6 +78,6 @@ It does **not** change the AGILab source license; refer to the repository root `
 | traitlets | BSD LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT |
-| tzdata | APACHE SOFTWARE LICENSE |
+| tzdata | APACHE-2.0 |
 | urllib3 | MIT |
 | wcwidth | MIT LICENSE |
