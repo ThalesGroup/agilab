@@ -623,6 +623,11 @@ run_core_tests() {
 
     pushd "$repo_root" > /dev/null
 
+    # Ensure the repo root virtual environment is populated before running pytest/coverage.
+    # `uv run --no-sync` assumes dependencies are already installed.
+    echo -e "${BLUE}Syncing repository environment for core tests...${NC}"
+    $UV sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
+
     if ! "${uv_run[@]}" -m pytest src/agilab/core/agi-env/test --cov=src/agilab/core/agi-env/src/agi_env --cov-report=term-missing --cov-report=xml:coverage-agi-env.xml; then
         failures+=("agi-env tests")
     fi
