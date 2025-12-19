@@ -42,6 +42,99 @@ from agi_env import normalize_path
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# uv path-source rewriting helpers
+# ---------------------------------------------------------------------------
+
+def _rewrite_uv_sources_paths_for_copied_pyproject(
+    *,
+    src_pyproject: Path,
+    dest_pyproject: Path,
+    log_rewrites: bool = False,
+) -> None:
+    """Rewrite ``[tool.uv.sources.*].path`` entries after copying a worker ``pyproject.toml``.
+
+    Some worker projects use relative ``path = "../.."`` sources to depend on sibling
+    worker packages (e.g. ``ilp_worker``). When the worker pyproject is copied into
+    ``~/wenv/<app>_worker``, those relative paths no longer resolve, causing ``uv add``
+    to fail with "Distribution not found at: file://...".
+
+    This helper keeps the original source intent by resolving the path entries relative
+    to the *source* pyproject location, then rewriting the copied pyproject to use
+    paths relative to the destination directory.
+    """
+
+    try:
+        src_data = tomlkit.parse(src_pyproject.read_text())
+        dest_data = tomlkit.parse(dest_pyproject.read_text())
+    except FileNotFoundError:
+        return
+
+    src_sources = (
+        src_data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(src_data, dict)
+        else None
+    )
+    dest_sources = (
+        dest_data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(dest_data, dict)
+        else None
+    )
+    if not isinstance(src_sources, dict) or not isinstance(dest_sources, dict):
+        return
+
+    dest_dir = dest_pyproject.parent
+    rewrites: list[tuple[str, str, str]] = []
+
+    for name, src_meta in src_sources.items():
+        if not isinstance(src_meta, dict):
+            continue
+        src_path_value = src_meta.get("path")
+        if not isinstance(src_path_value, str) or not src_path_value.strip():
+            continue
+
+        src_path = Path(src_path_value).expanduser()
+        if not src_path.is_absolute():
+            src_path = (src_pyproject.parent / src_path).resolve(strict=False)
+        else:
+            src_path = src_path.resolve(strict=False)
+        if not src_path.exists():
+            continue
+
+        dest_meta = dest_sources.get(name)
+        if not isinstance(dest_meta, dict):
+            continue
+        dest_path_value = dest_meta.get("path")
+
+        dest_path = None
+        if isinstance(dest_path_value, str) and dest_path_value.strip():
+            dest_path = Path(dest_path_value).expanduser()
+            if not dest_path.is_absolute():
+                dest_path = (dest_dir / dest_path).resolve(strict=False)
+            else:
+                dest_path = dest_path.resolve(strict=False)
+
+        # Keep valid existing paths (e.g. already rewritten by a previous run).
+        if dest_path is not None and dest_path.exists():
+            continue
+
+        try:
+            new_path_value = os.path.relpath(src_path, start=dest_dir)
+        except Exception:
+            new_path_value = str(src_path)
+
+        if dest_path_value != new_path_value:
+            dest_meta["path"] = new_path_value
+            rewrites.append((name, str(dest_path_value or ""), new_path_value))
+
+    if not rewrites:
+        return
+
+    dest_pyproject.write_text(tomlkit.dumps(dest_data))
+    if log_rewrites:
+        for name, old, new in rewrites:
+            logger.info("Rewrote uv source '%s' path: %s -> %s", name, old or "<unset>", new)
+
+# ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
 # ---------------------------------------------------------------------------
 def _ensure_asyncio_run_signature() -> None:
@@ -2586,8 +2679,14 @@ class AGI:
         app_path_arg = f"\"{app_path}\"" # shlex.quote(str(app_path))
         wenv_arg = f"\"{wenv_abs}\"" # shlex.quote(str(wenv_abs))
 
-        shutil.copy(env.worker_pyproject, env.wenv_abs)
+        worker_pyproject_dest = env.wenv_abs / env.worker_pyproject.name
+        shutil.copy(env.worker_pyproject, worker_pyproject_dest)
         shutil.copy(env.uvproject, env.wenv_abs)
+        _rewrite_uv_sources_paths_for_copied_pyproject(
+            src_pyproject=env.worker_pyproject,
+            dest_pyproject=worker_pyproject_dest,
+            log_rewrites=bool(env.verbose),
+        )
 
         # install agi-env and agi-node
         cmd = f"{env.uv} --project {app_path_arg} pip install agi-env "
