@@ -4,6 +4,7 @@ coverage.xml
 coverage-*.xml
 # MacOS files
 .DS_Store
+.DS_store
 
 # Python virtual environments and build artifacts
 .venv/
