@@ -117,6 +117,10 @@ Documentation = "https://thalesgroup.github.io/agilab"
 
 
 
+
+
+
+
 [tool.uv.sources.agi-env]
     path = "../agi-env"
     editable = true
