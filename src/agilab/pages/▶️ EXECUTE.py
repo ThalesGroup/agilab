@@ -272,7 +272,7 @@ def _mount_table() -> list[tuple[str, str]]:
         elif sys.platform == "darwin":
             proc = subprocess.run(["mount"], capture_output=True, text=True, check=False)
             for line in (proc.stdout or "").splitlines():
-                match = re.match(r".+ on (?P<mountpoint>.+?) \\((?P<fstype>[^,\\)]+)", line)
+                match = re.match(r".+ on (?P<mountpoint>.+?) \((?P<fstype>[^,\)]+)", line)
                 if match:
                     entries.append((match.group("mountpoint").strip(), match.group("fstype").strip()))
     except Exception:
@@ -286,6 +286,8 @@ def _fstype_for_path(path: Path) -> Optional[str]:
     path_str = str(path)
     for mountpoint, fstype in _mount_table():
         mp = mountpoint.rstrip("/") or "/"
+        if mp == "/":
+            return fstype.lower()
         if path_str == mp or path_str.startswith(mp + "/"):
             return fstype.lower()
     return None
@@ -299,15 +301,18 @@ def _looks_like_shared_path(path: Path) -> bool:
     This is intentionally conservative and only used to emit a UI warning; it
     cannot guarantee that *remote* nodes mount the same path.
     """
+    raw = path.expanduser()
     try:
-        resolved = path.expanduser().resolve()
+        resolved = raw.resolve()
     except Exception:
-        return False
+        resolved = raw
 
-    fstype = _fstype_for_path(resolved)
-    if fstype and fstype in _SHARED_FILESYSTEM_TYPES:
-        return True
+    for candidate in (raw, resolved):
+        fstype = _fstype_for_path(candidate)
+        if fstype and fstype in _SHARED_FILESYSTEM_TYPES:
+            return True
 
+    home_raw = Path.home().expanduser()
     home = Path.home().resolve()
     try:
         resolved.relative_to(home)
@@ -315,19 +320,20 @@ def _looks_like_shared_path(path: Path) -> bool:
         # lives on a known shared filesystem (handled above) or is a mountpoint
         # under home. (Mount detection is platform-dependent and not always
         # reliable, but helps as a fallback.)
-        current = resolved
-        while True:
-            try:
-                if os.path.ismount(current):
-                    return True
-            except Exception:
-                break
-            if current == home:
-                break
-            parent = current.parent
-            if parent == current:
-                break
-            current = parent
+        for current, stop in ((raw, home_raw), (resolved, home)):
+            node = current
+            while True:
+                try:
+                    if os.path.ismount(node):
+                        return True
+                except Exception:
+                    break
+                if node == stop:
+                    break
+                parent = node.parent
+                if parent == node:
+                    break
+                node = parent
         return False
     except ValueError:
         pass
@@ -340,6 +346,64 @@ def _looks_like_shared_path(path: Path) -> bool:
         pass
 
     return resolved.is_absolute()
+
+
+def _macos_autofs_hint(share_candidate: Path) -> Optional[str]:
+    """Return a short, actionable hint when a macOS autofs map seems misconfigured."""
+    if sys.platform != "darwin":
+        return None
+
+    auto_master = Path("/etc/auto_master")
+    auto_nfs = Path("/etc/auto_nfs")
+    if not auto_master.exists() or not auto_nfs.exists():
+        return None
+
+    try:
+        candidate_str = str(share_candidate.expanduser())
+    except Exception:
+        candidate_str = str(share_candidate)
+
+    try:
+        auto_nfs_lines = auto_nfs.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:
+        return None
+
+    has_mapping = False
+    for raw in auto_nfs_lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if parts and parts[0] == candidate_str:
+            has_mapping = True
+            break
+
+    if not has_mapping:
+        return None
+
+    try:
+        master_text = auto_master.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
+
+    has_direct_ref = re.search(r"^\s*/-\s+auto_nfs(\s|$)", master_text, flags=re.MULTILINE) is not None
+    if not has_direct_ref:
+        has_static = re.search(r"^\s*/-\s+-static(\s|$)", master_text, flags=re.MULTILINE) is not None
+        if has_static:
+            return (
+                "macOS autofs: `/etc/auto_nfs` contains a mapping for this path, but `/etc/auto_master` is using the built-in `/- -static` map. "
+                "macOS only honors the first `/-` entry (duplicates are ignored), so replace `/- -static` with `/- auto_nfs` "
+                "(or add the mount to `/etc/fstab`), then run `sudo automount -vc`."
+            )
+        return (
+            "macOS autofs: `/etc/auto_nfs` contains a mapping for this path, but `/etc/auto_master` does not reference it. "
+            "Set the `/-` entry to `auto_nfs` (e.g. replace `/- -static` with `/- auto_nfs`) and run `sudo automount -vc`."
+        )
+
+    return (
+        "macOS autofs: this path is present in `/etc/auto_nfs`. If the mount is on-demand, it may only appear after first access; "
+        "try `ls <share_dir>` or `sudo automount -vc`."
+    )
 
 
 LOG_DISPLAY_MAX_LINES = 250
@@ -1465,6 +1529,11 @@ if __name__ == "__main__":
             cluster_params = st.session_state.app_settings.setdefault("cluster", {})
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
             if cluster_enabled:
+                # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).
+                try:
+                    _mount_table.cache_clear()
+                except Exception:
+                    pass
                 share_candidate = Path(env.agi_share_path)
                 if not share_candidate.is_absolute():
                     share_candidate = Path(env.home_abs) / share_candidate
@@ -1474,10 +1543,16 @@ if __name__ == "__main__":
                     share_resolved = share_candidate.resolve()
                 except Exception:
                     share_resolved = share_candidate
-                if not is_symlink and not _looks_like_shared_path(share_resolved):
+                looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
+                if not is_symlink and not looks_shared:
+                    fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
+                    hint = _macos_autofs_hint(share_candidate)
+                    extra = f"\n\n{hint}" if hint else ""
                     st.warning(
                         f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
-                        "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs.",
+                        f"(detected fstype: `{fstype}`) "
+                        "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
+                        f"{extra}",
                         icon="⚠️",
                     )
 

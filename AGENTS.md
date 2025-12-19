@@ -251,6 +251,10 @@ Use this runbook whenever you:
 - Apps-pages: launch Streamlit pages bound to an active app
 - `uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py -- --active-app src/agilab/apps/builtin/flight_project`
 - `uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py -- --active-app src/agilab/apps/builtin/flight_project`
+- `uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --active-app src/agilab/apps/builtin/flight_project`
+- `view_maps_network` tip: use the sidebar **Edges file picker** to select a topology export (for example `AGI_SHARE_DIR/network_sim/pipeline/ilp_topology.gml`) instead of manually typing a path.
+- `view_maps_network` tip: for **📡 Live allocations**, use the **Trajectory data picker** (or custom glob like `AGI_SHARE_DIR/flight_trajectory/pipeline/*.csv`) so the overlay can place nodes/edges on the map.
+- `view_maps_network` tip: most sidebar picks persist via app settings + URL query params (`edges_file`, `traj_glob`, `allocations_file`, `baseline_allocations_file`); copy the URL to share a reproducible snapshot configuration.
 - `▶️ EXECUTE` page tips:
   - Use the sidebar `Verbosity level` select to choose AgiEnv verbosity (0–3). The value propagates to the generated install/distribute/run snippets and appears in the install log header.
   - Install output now streams inside the dedicated **Install logs** expander. Keep it open to watch live progress even if the snippet expander is collapsed.
@@ -262,6 +266,10 @@ For each tier, capture: command, expected output, and pitfalls (CWD, env vars, i
 
 - **Interpreter/SDK**: prefer the project environment (`uv`). Otherwise point to the full interpreter path or call through `uv --preview-features extra-build-dependencies run`.
 - **Environment variables**: inspect `<envs/>` in the XML and mirror them in a `.env.example` (use placeholders, never secrets).
+- **Cluster shared outputs (`AGI_SHARE_DIR`)**: when `cluster_enabled=true`, every worker must be able to read/write the same `AGI_SHARE_DIR` content.
+  - Prefer `AGI_SHARE_DIR=~/clustershare` (tilde) so each node expands to its own home directory, but mounts the same NFS/SMB export there.
+  - If `▶️ EXECUTE` warns that the directory “appears local”, confirm with `df -h ~/clustershare` and `mount | grep clustershare` (it should show `nfs`/`smbfs`, not `apfs`/local disks).
+  - macOS automount tip: `/etc/auto_master` already contains `/- -static` and macOS ignores later duplicate `/-` entries. To use `/etc/auto_nfs`, replace `/- -static` with `/- auto_nfs` and run `sudo automount -vc` (or add the NFS mount to `/etc/fstab`, which `-static` reads).
 - **Common errors**:
   - `ModuleNotFoundError`: ensure the working directory matches `WORKING_DIRECTORY` and that `PYTHONPATH` carries the project roots.
   - Streamlit logs missing: set `PYTHONUNBUFFERED=1`.
