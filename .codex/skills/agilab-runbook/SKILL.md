@@ -1,8 +1,9 @@
 ---
 name: agilab-runbook
 description: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).
-version: 2026-01-08
-scope: repo
+metadata:
+  short-description: AGILab repo runbook
+  updated: 2026-01-08
 ---
 
 # AGILab runbook (Agent Skill)
@@ -37,4 +38,3 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 - Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
 - Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
-
