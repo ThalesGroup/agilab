@@ -1,6 +1,7 @@
 ---
 name: agilab-runbook
 description: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).
+license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
   updated: 2026-01-08
