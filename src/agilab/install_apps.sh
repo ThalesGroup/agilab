@@ -16,28 +16,28 @@ declare -a BUILTIN_APPS=(
 declare -a REPOSITORY_APPS=()
 
 declare -a DEFAULT_APPS_ORDER=(
-  mycode_project
   flight_project
-  flight_legacy_project
-  sb3_trainer_project
-  sat_trajectory_project
-  rssi_predictor_project
-  flowsynth_project
-  flight_trajectory_project
-  link_sim_project
   flight_clone_project
-  network_sim_project
+  flight_legacy_project
+  flight_trajectory_project
+  flowsynth_project
   ilp_project
+  link_sim_project
+  mycode_project
+  network_sim_project
+  rssi_predictor_project
   satcom_sim_project
+  sat_trajectory_project
+  sb3_trainer_project
 )
 
 declare -a DEFAULT_SELECTED_APPS=(
-  sb3_trainer_project
-  sat_trajectory_project
   flight_trajectory_project
+  ilp_project
   link_sim_project
   network_sim_project
-  ilp_project
+  sat_trajectory_project
+  sb3_trainer_project
 )
 
 declare -a INCLUDED_APPS=()

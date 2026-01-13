@@ -557,6 +557,8 @@ update_environment() {
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
         echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
         echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
+        echo "AGI_CLUSTER_SHARE=\"$AGI_SHARE_DIR\""
+        echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_DIR\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
@@ -897,14 +899,14 @@ set -e
 if [[ -z "$AGI_CORE_WHL" ]]; then
     AGI_CORE_WHL="$AGI_CORE_DIST/agi_core-<version>.whl"
 fi
-if [[ -n "$SSH_USER" && "$SSH_USER" != "$LOCAL_UNAME" ]]; then
-    echo -e "${RED}Refusing to continue:${NC} current user '$LOCAL_UNAME' differs from SSH user '$SSH_USER'."
-    echo -e "Please login as '$SSH_USER' and rerun the install"
-    exit 1
-fi
+#if [[ -n "$SSH_USER" && "$SSH_USER" != "$LOCAL_UNAME" ]]; then
+#    echo -e "${RED}Refusing to continue:${NC} current user '$LOCAL_UNAME' differs from SSH user '$SSH_USER'."
+#    echo -e "Please login as '$SSH_USER' and rerun the install"
+#    exit 1
+#fi
 
 check_internet
-ensure_share_dir "$DEFAULT_SHARE_DIR" "$DEFAULT_LOCAL_SHARE"
+ensure_share_dir "$AGI_SHARE_DIR" "$AGI_LOCAL_DIR"
 set_locale
 verify_share_dir
 install_dependencies
