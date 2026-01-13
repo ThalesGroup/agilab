@@ -301,6 +301,7 @@ class AGI:
     verbose: Optional[int] = None
     _worker_init_error: bool = False
     _workers: Optional[Dict[str, int]] = None
+    _workers_data_path: Optional[str] = None
     _capacity: Optional[Dict[str, float]] = None
     _capacity_data_file: Optional[Path] = None
     _capacity_model_file: Optional[Path] = None
@@ -348,6 +349,7 @@ class AGI:
             env: AgiEnv,  # some_default_value must be defined
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
+            workers_data_path: Optional[str] = None,
             verbose: int = 0,
             mode: Optional[Union[int, List[int], str]] = None,
             rapids_enabled: bool = False,
@@ -414,6 +416,7 @@ class AGI:
             AGI._args = args
             AGI.verbose = verbose
             AGI._workers = workers
+            AGI._workers_data_path = workers_data_path
             AGI._run_time = {}
 
             AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
@@ -2071,6 +2074,11 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv_worker
 
+        # 1) set AGI_CLUSTER_SHARE on workers
+        if AGI._workers_data_path:
+            await AGI.exec_ssh(ip, "mkdir -p .agilab")
+            await AGI.exec_ssh(ip, f"echo 'AGI_CLUSTER_SHARE=\"{Path(AGI._workers_data_path).expanduser()}\"' > .agilab/.env")
+
         if env.is_source_env:
             # Then send the files to the remote directory
             egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
@@ -2228,6 +2236,7 @@ class AGI:
             env: AgiEnv,
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
+            workers_data_path: Optional[str] = None,
             modes_enabled: int = _RUN_MASK,
             verbose: Optional[int] = None,
             **args: Any,
@@ -2264,6 +2273,7 @@ class AGI:
             env=env,
             scheduler=scheduler,
             workers=workers,
+            workers_data_path=workers_data_path,
             mode=mode,
             rapids_enabled=AGI._INSTALL_MODE & modes_enabled,
             verbose=verbose, **args
