@@ -2035,9 +2035,10 @@ class AGI:
             f"--python {pyvers_worker} python -m {env.post_install_rel} "
             f"{wenv_rel.stem}"
         )
+
         if env.user and env.user != getpass.getuser():
             try:
-                await AGI.exec_ssh("127.0.0.1", post_install_cmd)
+                await AGI.exec_ssh("127.0.0.1", post_install_cmd) #workaround for certain usecase (dont know which one)
             except ConnectionError as exc:
                 logger.warning("SSH execution failed on localhost (%s), falling back to local run.", exc)
                 await AgiEnv.run(post_install_cmd, wenv_abs)
