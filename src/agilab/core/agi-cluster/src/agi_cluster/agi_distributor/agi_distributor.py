@@ -1302,41 +1302,44 @@ class AGI:
         logger.info(f"mkdir {wenv_abs}")
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
-        if os.name == "nt":
-            standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
-            if standalone_uv.exists():
-                uv_parts = shlex.split(env.uv)
-                if uv_parts:
-                    uv_parts[0] = str(standalone_uv)
-                    windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+        if env.envars.get(f"AGI_INTERNET_ON"):
+            if os.name == "nt":
+                standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
+                if standalone_uv.exists():
+                    uv_parts = shlex.split(env.uv)
+                    if uv_parts:
+                        uv_parts[0] = str(standalone_uv)
+                        windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+                    else:
+                        windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
+                    try:
+                        await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
+                    except RuntimeError as exc:
+                        logger.warning(
+                            "Failed to update standalone uv at %s (skipping self update): %s",
+                            standalone_uv,
+                            exc,
+                        )
                 else:
-                    windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
-                try:
-                    await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
-                except RuntimeError as exc:
                     logger.warning(
-                        "Failed to update standalone uv at %s (skipping self update): %s",
+                        "Standalone uv not found at %s; skipping 'uv self update' on Windows",
                         standalone_uv,
-                        exc,
                     )
             else:
-                logger.warning(
-                    "Standalone uv not found at %s; skipping 'uv self update' on Windows",
-                    standalone_uv,
-                )
-        else:
-            await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+                await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
 
-        try:
-            await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
-        except RuntimeError as exc:
-            if "No download found for request" in str(exc):
-                logger.warning(
-                    "uv could not download interpreter '%s'; assuming a system interpreter is available",
-                    pyvers,
-                )
-            else:
-                raise
+            try:
+                await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+            except RuntimeError as exc:
+                if "No download found for request" in str(exc):
+                    logger.warning(
+                        "uv could not download interpreter '%s'; assuming a system interpreter is available",
+                        pyvers,
+                    )
+                else:
+                    raise
+        else:
+            logger.warning("No internet connection detected; skipping uv update and assuming a system interpreter is available")
 
         res = distributor_cli.python_version() or ""
         pyvers = res.strip()
@@ -1390,13 +1393,21 @@ class AGI:
             uv_is_installed = True
 
             # 2) Check uv
+            agi_internet_on =  env.envars.get("AGI_INTERNET_ON", True)
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
-                await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+                if agi_internet_on:
+                    await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+                else:
+                    logger.warning("You appears to be on a local network. Please be sure to have uv latest release.")
             except ConnectionError:
                 raise
             except Exception:
                 uv_is_installed = False
+                if not agi_internet_on:
+                    logger.error("Uv binary is not installed, please install it manually on the workers.")
+                    raise EnvironmentError("Uv binary is not installed, please install it manually on the workers.")
+
                 # Try Windows installer
                 try:
                     await AGI.exec_ssh(ip,
@@ -1424,7 +1435,6 @@ class AGI:
             cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
-            await AGI.exec_ssh(ip, f"{uv} self update")
             try:
                 await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
             except ProcessError as exc:
