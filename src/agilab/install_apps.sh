@@ -835,30 +835,32 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
     "${AGILAB_REPO}/apps/$app_dir_rel"; then
       echo -e "${GREEN}✓ '$app_name' successfully installed.${NC}"
-      echo -e "${GREEN}Checking installation...${NC}"
-      if pushd -- "$app_dir_rel" >/dev/null; then
-      ran_app_test=0
-      if [[ -f app_test.py ]]; then
-        echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
-        "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
-        ran_app_test=1
-      else
-          if [[ -d test ]]; then
-            if (( DO_TEST_APPS )); then
-              echo -e "${BLUE}No app_test.py in $app_name; pytest suite under test/ will run via --test-apps pass.${NC}"
+      if (( DO_TEST_APPS )); then
+        echo -e "${GREEN}Checking installation...${NC}"
+        if pushd -- "$app_dir_rel" >/dev/null; then
+        ran_app_test=0
+        if [[ -f app_test.py ]]; then
+          echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
+          "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+          ran_app_test=1
+        else
+            if [[ -d test ]]; then
+              if (( DO_TEST_APPS )); then
+                echo -e "${BLUE}No app_test.py in $app_name; pytest suite under test/ will run via --test-apps pass.${NC}"
+              else
+                echo -e "${BLUE}No app_test.py in $app_name; pytest suite detected under test/ (run with --test-apps to execute).${NC}"
+              fi
             else
-              echo -e "${BLUE}No app_test.py in $app_name; pytest suite detected under test/ (run with --test-apps to execute).${NC}"
+              echo -e "${BLUE}No app_test.py in $app_name, skipping tests.${NC}"
             fi
-          else
-            echo -e "${BLUE}No app_test.py in $app_name, skipping tests.${NC}"
-          fi
-      fi
-      popd >/dev/null
-      if (( ran_app_test )); then
-        echo -e "${GREEN}All ${app_name} tests finished.${NC}"
-      fi
-      else
-      echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
+        fi
+        popd >/dev/null
+        if (( ran_app_test )); then
+          echo -e "${GREEN}All ${app_name} tests finished.${NC}"
+        fi
+        else
+        echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
+        fi
       fi
   else
       echo -e "${RED}✗ '$app_name' installation failed.${NC}"
@@ -877,7 +879,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   if [[ "$app_name" != *_project && "$app_name" != *_worker ]]; then
     candidate="${app_name}_project"
     if [[ -d "$candidate" || -d "builtin/$candidate" ]]; then
-      app_name="$candidate"
+      app_name="$candidate"apps/sb3_trainer_project/src/app_settings.toml
     fi
   fi
   if [[ -d "builtin/$app_name" ]]; then
