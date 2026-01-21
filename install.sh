@@ -64,7 +64,7 @@ is_exported_nfs() {
 
     while read -r line; do
         [[ -z "$line" || "$line" =~ ^\# ]] && continue
-        local export_dir=$(echo "$line" | awk '{print $1')
+        local export_dir=$(echo "$line" | awk '{print $1}')
 
         local canon_export_dir=$(cd "$export_dir" 2>/dev/null && pwd -P)
         [[ "$canonical" == "$canon_export_dir" ]] && return 0
@@ -347,10 +347,10 @@ check_internet() {
     echo -e "${BLUE}Checking internet connectivity...${NC}"
     if curl -Is --connect-timeout 3 https://www.google.com &>/dev/null; then
         echo -e "${GREEN}Internet connection is OK.${NC}"
-        export AGI_INTERNET_ON=1
+        AGI_INTERNET_ON=1
     else
         echo -e "${RED}No internet connection detected. Going into network restricted mode.${NC}"
-        export AGI_INTERNET_ON=0
+        AGI_INTERNET_ON=0
     fi
 }
 
@@ -390,7 +390,7 @@ verify_share_dir() {
     fi
 
     # Otherwise require a mounted share.
-    if is_export_nfs "$share_dir" || share_is_mounted "$share_dir"; then
+    if is_exported_nfs "$share_dir" || share_is_mounted "$share_dir"; then
         return 0
     fi
 
@@ -577,6 +577,7 @@ update_environment() {
         echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
         echo "AGI_CLUSTER_SHARE=\"$AGI_SHARE_DIR\""
         echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_DIR\""
+        echo "AGI_INTERNET_ON=\"$AGI_INTERNET_ON\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
