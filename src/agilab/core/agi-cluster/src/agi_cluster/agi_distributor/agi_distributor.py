@@ -1302,7 +1302,7 @@ class AGI:
         logger.info(f"mkdir {wenv_abs}")
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
-        if env.envars.get(f"AGI_INTERNET_ON"):
+        if int(env.envars.get(f"AGI_INTERNET_ON")) == 1:
             if os.name == "nt":
                 standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
                 if standalone_uv.exists():
@@ -1393,10 +1393,10 @@ class AGI:
             uv_is_installed = True
 
             # 2) Check uv
-            agi_internet_on =  env.envars.get("AGI_INTERNET_ON", True)
+            agi_internet_on =  int(env.envars.get("AGI_INTERNET_ON"))
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
-                if agi_internet_on:
+                if agi_internet_on == 1:
                     await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
                 else:
                     logger.warning("You appears to be on a local network. Please be sure to have uv latest release.")
@@ -1404,7 +1404,7 @@ class AGI:
                 raise
             except Exception:
                 uv_is_installed = False
-                if not agi_internet_on:
+                if agi_internet_on == 0:
                     logger.error("Uv binary is not installed, please install it manually on the workers.")
                     raise EnvironmentError("Uv binary is not installed, please install it manually on the workers.")
 
@@ -1424,7 +1424,7 @@ class AGI:
                     # await AGI.exec_ssh(ip, 'source ~/.local/bin/env')
                     uv_is_installed = True
 
-            if not uv_is_installed or not AgiEnv.check_internet():
+            if not uv_is_installed:
                 logger.error("Failed to install uv")
                 raise EnvironmentError("Failed to install uv")
 

@@ -879,7 +879,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   if [[ "$app_name" != *_project && "$app_name" != *_worker ]]; then
     candidate="${app_name}_project"
     if [[ -d "$candidate" || -d "builtin/$candidate" ]]; then
-      app_name="$candidate"apps/sb3_trainer_project/src/app_settings.toml
+      app_name="$candidate"
     fi
   fi
   if [[ -d "builtin/$app_name" ]]; then
