@@ -20,6 +20,8 @@ if (-not $env:PYTHONIOENCODING) { $env:PYTHONIOENCODING = 'utf-8' }
 
 $DoTestApps = $TestApps.IsPresent
 
+$StartTime = Get-Date
+
 $ColorMap = @{
     RED    = 'Red'
     GREEN  = 'Green'
@@ -144,7 +146,8 @@ function Normalize-PathInput {
 }
 
 function Join-PathSafe {
-    [CmdletBinding()] param(
+    [CmdletBinding()]
+    param(
         [Parameter(Mandatory=$true, Position=0)] [object]$Path,
         [Parameter(Mandatory=$true, Position=1)] [object]$ChildPath,
         [Parameter(ValueFromRemainingArguments=$true, Position=2)] [object[]]$AdditionalChildPath
@@ -204,7 +207,7 @@ function Remove-Link {
 function ConvertTo-List {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
-    return ($Value -split '[,\s;]+' | Where-Object { $_ -ne '' })
+    return ($Value -split '[,\\s;]+' | Where-Object { $_ -ne '' })
 }
 
 function Invoke-UvPreview {
@@ -230,12 +233,13 @@ function Add-Unique {
 
 # ----- Load environment ------------------------------------------------------
 $LocalAppData = $env:LOCALAPPDATA
+if (-not $LocalAppData) { $LocalAppData = Join-Path $HOME ".local/share" }
 $envPath = Join-PathSafe $LocalAppData "agilab/.env"
 Import-DotEnv -Path $envPath
 
 $AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION
 if ($AGI_PYTHON_VERSION) {
-    $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*$', '$1'
+    $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\\.[0-9]+\\.[0-9]+(\\+freethreaded)?).*$', '$1'
 }
 
 $agilabPathFile = Join-PathSafe $LocalAppData "agilab/.agilab-path"
@@ -377,28 +381,28 @@ if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) 
 }
 
 $DefaultAppsOrder = @(
-    'mycode_project',
     'flight_project',
-    'flight_legacy_project',
-    'sb3_trainer_project',
-    'sat_trajectory_project',
-    'rssi_predictor_project',
-    'flowsynth_project',
-    'flight_trajectory_project',
-    'link_sim_project',
     'flight_clone_project',
-    'network_sim_project',
+    'flight_legacy_project',
+    'flight_trajectory_project',
+    'flowsynth_project',
     'ilp_project',
+    'link_sim_project',
+    'mycode_project',
+    'network_sim_project',
+    'rssi_predictor_project',
+    'sat_trajectory_project',
     'satcom_sim_project'
+    'sb3_trainer_project',
 )
 
 $DefaultSelectedApps = @(
-    'sb3_trainer_project',
-    'sat_trajectory_project',
     'flight_trajectory_project',
+    'ilp_project'
     'link_sim_project',
     'network_sim_project',
-    'ilp_project'
+    'sat_trajectory_project',
+    'sb3_trainer_project',
 )
 
 $BuiltinSkipByDefault = @('mycode_project', 'flight_project')
@@ -471,7 +475,7 @@ if (-not [string]::IsNullOrWhiteSpace($appsOverride)) {
 $repositoryApps = @()
 if ($forceBuiltinOnly) {
     $SkipRepositoryApps = $true
-}
+} 
 if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
     $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' | ForEach-Object { $_.Name }
 }
@@ -519,10 +523,10 @@ if ($allApps.Count -gt 0 -and $promptForApps) {
         }
         $selection = Read-Host "Numbers/ranges (1 3-5, blank = defaults)"
         if (-not [string]::IsNullOrWhiteSpace($selection)) {
-            $tokens = $selection -split '[,\s]+' | Where-Object { $_ -ne '' }
+            $tokens = $selection -split '[,\\s]+' | Where-Object { $_ -ne '' }
             $picked = New-Object System.Collections.Generic.List[string]
             foreach ($token in $tokens) {
-                if ($token -match '^(?<start>\d+)-(?<end>\d+)$') {
+                if ($token -match '^(?<start>\\d+)-(?<end>\\d+)$') {
                     $start = [int]$Matches['start']
                     $end = [int]$Matches['end']
                     if ($end -lt $start) {
@@ -540,7 +544,7 @@ if ($allApps.Count -gt 0 -and $promptForApps) {
                             Write-Color YELLOW ("Ignoring out-of-range selection: {0}" -f $num)
                         }
                     }
-                } elseif ($token -match '^\d+$') {
+                } elseif ($token -match '^\\d+$') {
                     $i = [int]$token - 1
                     if ($i -ge 0 -and $i -lt $allApps.Count) {
                         $value = $allApps[$i]
@@ -617,10 +621,7 @@ if (-not $SkipRepositoryApps) {
             }
             $coreTarget = $coreTargets | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
             if (-not $coreTarget) {
-                $firstChoice = if ($coreTargets.Count -ge 1 -and $coreTargets[0]) { [string]$coreTargets[0] } else { [string](Join-PathSafe $AGILAB_REPOSITORY "core") }
-                $secondChoice = if ($coreTargets.Count -ge 2 -and $coreTargets[1]) { [string]$coreTargets[1] } else { [string](Join-PathSafe $AGILAB_REPOSITORY "src/agilab/core") }
-                $publicLabel = if ([string]::IsNullOrEmpty($AGILAB_REPOSITORY)) { "<unknown>" } else { [string]$AGILAB_REPOSITORY }
-                Write-Color YELLOW ("Warning: can't find 'core' under {0}.`nTried: {1} and {2}. Skipping repository core link." -f $publicLabel, $firstChoice, $secondChoice)
+                Write-Color YELLOW "Warning: can't find 'core' to link."
             } else {
                 if (Test-Path -LiteralPath "core") {
                     Remove-Item -LiteralPath "core" -Force -Recurse -Confirm:$false -ErrorAction SilentlyContinue
@@ -645,8 +646,6 @@ if (-not $SkipRepositoryApps) {
                     New-DirLink -LinkPath $repoTemplates -TargetPath $publicTemplates
                     Write-Color BLUE ("Linked repository templates to {0}" -f $publicTemplates)
                 }
-            } elseif ($publicTemplates) {
-                Write-Color YELLOW ("Warning: expected templates at {0} not found; skipping link." -f $publicTemplates)
             }
         } finally {
             Pop-Location
@@ -804,9 +803,6 @@ if ($DoTestApps) {
             Pop-Location
         }
         Pop-Location
-    } else {
-        $publicLabel = if ([string]::IsNullOrEmpty($AGILAB_REPOSITORY)) { "<unknown>" } else { $AGILAB_REPOSITORY }
-        Write-Color YELLOW ("Skipping pytest runs: apps directory not found under {0}." -f $publicLabel)
     }
 }
 
