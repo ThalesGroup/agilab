@@ -17,6 +17,7 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONUTF8 = '1'
 if (-not $env:PYTHONIOENCODING) { $env:PYTHONIOENCODING = 'utf-8' }
+$env:PYTHONUNBUFFERED = '1'
 
 $DoTestApps = $TestApps.IsPresent
 
@@ -44,7 +45,8 @@ function Import-DotEnv {
         $kv = $line -split '=', 2
         if ($kv.Count -eq 2) {
             $k = $kv[0].Trim()
-            $v = $kv[1].Trim().Trim('"')
+            $v = $kv[1].Trim().Trim('"').Trim("'")
+            if ($k.StartsWith("PYTHON")) { return }
             [Environment]::SetEnvironmentVariable($k, $v, 'Process')
         }
     }
@@ -196,7 +198,7 @@ function Remove-Link {
     param([Parameter(Mandatory=$true)][string]$Path)
     if (-not (Is-Link $Path)) { return }
     try {
-        & cmd.exe /c rmdir /q -- "$Path" | Out-Null
+        & cmd.exe /c rmdir "$Path" | Out-Null
     } catch {
         try {
             Remove-Item -LiteralPath $Path -Force -Confirm:$false
@@ -212,7 +214,13 @@ function ConvertTo-List {
 
 function Invoke-UvPreview {
     param([string[]]$UvArgs)
-    & uv --preview-features extra-build-dependencies @UvArgs
+    uv @UvArgs
+    return $LASTEXITCODE
+}
+
+function Invoke-Uv {
+    param([string[]]$UvArgs)
+    uv @UvArgs
     return $LASTEXITCODE
 }
 
@@ -234,8 +242,11 @@ function Add-Unique {
 # ----- Load environment ------------------------------------------------------
 $LocalAppData = $env:LOCALAPPDATA
 if (-not $LocalAppData) { $LocalAppData = Join-Path $HOME ".local/share" }
-$envPath = Join-PathSafe $LocalAppData "agilab/.env"
+$envPath = Join-PathSafe $env:USERPROFILE ".agilab/.env"
 Import-DotEnv -Path $envPath
+
+Write-Color YELLOW "DEBUG: AGI_PYTHON_VERSION=$env:AGI_PYTHON_VERSION"
+Write-Color YELLOW "DEBUG: APPS_REPOSITORY=$env:APPS_REPOSITORY"
 
 $AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION
 if ($AGI_PYTHON_VERSION) {
@@ -392,17 +403,17 @@ $DefaultAppsOrder = @(
     'network_sim_project',
     'rssi_predictor_project',
     'sat_trajectory_project',
-    'satcom_sim_project'
-    'sb3_trainer_project',
+    'satcom_sim_project',
+    'sb3_trainer_project'
 )
 
 $DefaultSelectedApps = @(
     'flight_trajectory_project',
-    'ilp_project'
+    'ilp_project',
     'link_sim_project',
     'network_sim_project',
     'sat_trajectory_project',
-    'sb3_trainer_project',
+    'sb3_trainer_project'
 )
 
 $BuiltinSkipByDefault = @('mycode_project', 'flight_project')
@@ -612,11 +623,12 @@ if (-not $SkipRepositoryApps) {
     if ($repoAgilabDir -and (Test-Path -LiteralPath $repoAgilabDir)) {
         Push-Location $repoAgilabDir
         try {
+            Write-Host -ForegroundColor Red $AGILAB_REPOSITORY
             $coreTargets = @()
             if (-not [string]::IsNullOrEmpty($AGILAB_REPOSITORY)) {
                 $coreTargets = @(
-                    Join-PathSafe $AGILAB_REPOSITORY "core",
-                    Join-PathSafe $AGILAB_REPOSITORY "src/agilab/core"
+                    (Join-PathSafe $AGILAB_REPOSITORY "core"),
+                    (Join-PathSafe $AGILAB_REPOSITORY "src/agilab/core")
                 )
             }
             $coreTarget = $coreTargets | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -627,7 +639,9 @@ if (-not $SkipRepositoryApps) {
                     Remove-Item -LiteralPath "core" -Force -Recurse -Confirm:$false -ErrorAction SilentlyContinue
                 }
                 New-DirLink -LinkPath "core" -TargetPath ([string](Normalize-PathInput $coreTarget))
-                Invoke-UvPreview @("run", "python", "-c", "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')") | Out-Null
+                Write-Host "log b1"
+                Invoke-UvPreview @("run", "python", "-c", "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')")
+                Write-Host "log b1"
             }
 
             $publicTemplates = if ($AGILAB_REPOSITORY) { Join-PathSafe $AGILAB_REPOSITORY "apps/templates" } else { "" }
@@ -738,12 +752,28 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
             $status = 1
             continue
         }
-        $displayName = if ($appDirName -ne $app) { "{0} (selected: {1})" -f $appDirName, $app } else { $appDirName }
-        Write-Color BLUE ("Installing {0}..." -f $displayName)
-        $installArgs = @("-q", "run")
+
+        Write-Color BLUE ("Installing $appDirName...")
+
+        $fullAppPath = Join-PathSafe $appsRoot $appDirName
+        $fullAppPath = (Resolve-Path -LiteralPath $fullAppPath).Path
+
+        $installArgs = @("run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
-        $installArgs += @("--project", "../core/agi-cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps" $appDirName))
-        $installExit = Invoke-UvPreview @($installArgs)
+
+        # Passage explicite des arguments
+        $installArgs += @(
+            "--project",
+            "../core/agi-cluster",
+            "python",
+            "install.py",
+            $fullAppPath
+        )
+
+        Write-Color BLUE ("DEBUG: Running command: uv " + ($installArgs -join " "))
+#         $installExit = Invoke-UvPreview $installArgs
+        uv --preview-features extra-build-dependencies run --project ../core/agi-cluster python ./install.py $fullAppPath
+        $installExit = $LASTEXITCODE
         if ($installExit -eq 0) {
             Write-Color GREEN ("{0} successfully installed." -f $appDirName)
             Write-Color GREEN "Checking installation..."
@@ -765,7 +795,7 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
                 Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
             }
         } else {
-            Write-Color RED ("{0} installation failed." -f $appDirName)
+            Write-Color RED ("{0} installation failed with exit code {1}." -f $appDirName, $installExit)
             $status = 1
         }
     }
