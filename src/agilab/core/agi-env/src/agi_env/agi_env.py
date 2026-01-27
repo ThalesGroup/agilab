@@ -501,7 +501,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         env_path = self.resources_path / ".env"
         self.benchmark = self.resources_path / "benchmark.json"
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
-        logger.warning(f"env path: {env_path}")
+        logger.debug(f"env path: {env_path}")
         envars = self.envars
         repo_agilab_dir = Path(__file__).resolve().parents[4]
 
@@ -950,7 +950,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             use_freethread = False
 
         self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE", 'localshare')
-        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE", 'clustershare')
+        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE")
+        logger.info("share: %s", self.AGI_CLUSTER_SHARE)
 
         def _abs_path(path_str: str) -> str:
             """Absolute path; relative paths are relative to $HOME."""
@@ -1043,8 +1044,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
             # No bind rule found; directory is usable, so accept it.
             return True
-
         candidate = _abs_path(self.AGI_CLUSTER_SHARE)
+        AgiEnv.logger.info("Testing candidate: %s", candidate)
+
         if is_mounted(candidate):
             self.agi_share_path = self.AGI_CLUSTER_SHARE
             #AgiEnv.logger.info(
