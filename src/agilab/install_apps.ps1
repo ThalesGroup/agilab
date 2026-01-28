@@ -534,10 +534,10 @@ if ($allApps.Count -gt 0 -and $promptForApps) {
         }
         $selection = Read-Host "Numbers/ranges (1 3-5, blank = defaults)"
         if (-not [string]::IsNullOrWhiteSpace($selection)) {
-            $tokens = $selection -split '[,\\s]+' | Where-Object { $_ -ne '' }
+            $tokens = $selection -split '[,\s]+' | Where-Object { $_ -ne '' }
             $picked = New-Object System.Collections.Generic.List[string]
             foreach ($token in $tokens) {
-                if ($token -match '^(?<start>\\d+)-(?<end>\\d+)$') {
+                if ($token -match '^(?<start>\d+)-(?<end>\d+)$') {
                     $start = [int]$Matches['start']
                     $end = [int]$Matches['end']
                     if ($end -lt $start) {
@@ -555,7 +555,7 @@ if ($allApps.Count -gt 0 -and $promptForApps) {
                             Write-Color YELLOW ("Ignoring out-of-range selection: {0}" -f $num)
                         }
                     }
-                } elseif ($token -match '^\\d+$') {
+                } elseif ($token -match '^\d+$') {
                     $i = [int]$token - 1
                     if ($i -ge 0 -and $i -lt $allApps.Count) {
                         $value = $allApps[$i]
@@ -639,9 +639,7 @@ if (-not $SkipRepositoryApps) {
                     Remove-Item -LiteralPath "core" -Force -Recurse -Confirm:$false -ErrorAction SilentlyContinue
                 }
                 New-DirLink -LinkPath "core" -TargetPath ([string](Normalize-PathInput $coreTarget))
-                Write-Host "log b1"
-                Invoke-UvPreview @("run", "python", "-c", "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')")
-                Write-Host "log b1"
+                uv --preview-features extra-build-dependencies run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')"
             }
 
             $publicTemplates = if ($AGILAB_REPOSITORY) { Join-PathSafe $AGILAB_REPOSITORY "apps/templates" } else { "" }
@@ -776,23 +774,23 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
         $installExit = $LASTEXITCODE
         if ($installExit -eq 0) {
             Write-Color GREEN ("{0} successfully installed." -f $appDirName)
-            Write-Color GREEN "Checking installation..."
-            if (Test-Path -LiteralPath $appDirName) {
-                Push-Location $appDirName
-                if (Test-Path -LiteralPath "app_test.py") {
-                    $testArgs = @("run", "--no-sync")
-                    if ($AGI_PYTHON_VERSION) { $testArgs += @("-p", $AGI_PYTHON_VERSION) }
-                    $testArgs += @("python", "app_test.py")
-                    $testExit = Invoke-UvPreview @($testArgs)
-                    if ($testExit -ne 0) {
-                        $status = 1
+            if ($DoTestApps) {
+                Write-Color GREEN "Checking installation..."
+                if (Test-Path -LiteralPath $appDirName) {
+                    Push-Location $appDirName
+                    if (Test-Path -LiteralPath "app_test.py") {
+                        uv --preview-features extra-build-dependencies run --no-sync python app_test.py
+                        $testExit = $LASTEXITCODE
+                        if ($testExit -ne 0) {
+                            $status = 1
+                        }
+                    } else {
+                        Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $appDirName)
                     }
+                    Pop-Location
                 } else {
-                    Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $appDirName)
+                    Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
                 }
-                Pop-Location
-            } else {
-                Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
             }
         } else {
             Write-Color RED ("{0} installation failed with exit code {1}." -f $appDirName, $installExit)
