@@ -95,7 +95,12 @@ function Normalize-UserPath {
     if (-not [System.IO.Path]::IsPathRooted($expanded)) {
         $expanded = Join-Path $env:USERPROFILE $expanded
     }
-    try { return [System.IO.Path]::GetFullPath($expanded) } catch { return $expanded }
+    try {
+        $fullPath = [System.IO.Path]::GetFullPath($expanded)
+        return $fullPath.Replace('\', '/')
+    } catch {
+        return $expanded.Replace('\', '/')
+    }
 }
 
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
@@ -496,7 +501,7 @@ function Update-Environment {
         ('CLUSTER_CREDENTIALS="{0}"' -f $clusterValue),
         ('AGI_PYTHON_VERSION="{0}"' -f $pythonValue),
         ('AGI_PYTHON_FREE_THREADED="{0}"' -f $freethreadedValue),
-        ('APPS_REPOSITORY="{0}"' -f $appsRepoValue),
+        ('APPS_REPOSITORY="{0}"' -f $appsRepoValue.Replace('\', '/')),
         ('AGI_INTERNET_ON="{0}"' -f $AGI_INTERNET_ON),
         ('AGI_CLUSTER_SHARE="{0}"' -f $ResolvedShareDir),
         ('AGI_LOCAL_SHARE="{0}"' -f $ResolvedLocalShare)
