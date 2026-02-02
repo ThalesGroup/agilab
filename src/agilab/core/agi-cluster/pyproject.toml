@@ -41,7 +41,7 @@ dependencies = [
     "jupyter",
     "msgpack",
     "mypy",
-    "numba",
+    "numba>=0.61.0",
     "parso",
     "pathspec",
     "psutil",

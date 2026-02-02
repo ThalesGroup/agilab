@@ -682,7 +682,12 @@ def main():
                 apps_arg = getattr(args, "apps_path", None)
 
             if apps_arg is None:
-                with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
+                if os.name == "nt":
+                    agi_path_file = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.agilab-path"
+                else:
+                    agi_path_file = Path.home() / ".local/share/agilab/.agilab-path"
+
+                with open(agi_path_file, "r") as f:
                     agilab_path = f.read()
                     before, sep, after = agilab_path.rpartition(".venv")
                     apps_arg = Path(before) / "apps"

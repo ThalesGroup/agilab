@@ -17,8 +17,11 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONUTF8 = '1'
 if (-not $env:PYTHONIOENCODING) { $env:PYTHONIOENCODING = 'utf-8' }
+$env:PYTHONUNBUFFERED = '1'
 
 $DoTestApps = $TestApps.IsPresent
+
+$StartTime = Get-Date
 
 $ColorMap = @{
     RED    = 'Red'
@@ -42,7 +45,8 @@ function Import-DotEnv {
         $kv = $line -split '=', 2
         if ($kv.Count -eq 2) {
             $k = $kv[0].Trim()
-            $v = $kv[1].Trim().Trim('"')
+            $v = $kv[1].Trim().Trim('"').Trim("'")
+            if ($k.StartsWith("PYTHON")) { return }
             [Environment]::SetEnvironmentVariable($k, $v, 'Process')
         }
     }
@@ -144,7 +148,8 @@ function Normalize-PathInput {
 }
 
 function Join-PathSafe {
-    [CmdletBinding()] param(
+    [CmdletBinding()]
+    param(
         [Parameter(Mandatory=$true, Position=0)] [object]$Path,
         [Parameter(Mandatory=$true, Position=1)] [object]$ChildPath,
         [Parameter(ValueFromRemainingArguments=$true, Position=2)] [object[]]$AdditionalChildPath
@@ -193,7 +198,7 @@ function Remove-Link {
     param([Parameter(Mandatory=$true)][string]$Path)
     if (-not (Is-Link $Path)) { return }
     try {
-        & cmd.exe /c rmdir /q -- "$Path" | Out-Null
+        & cmd.exe /c rmdir "$Path" | Out-Null
     } catch {
         try {
             Remove-Item -LiteralPath $Path -Force -Confirm:$false
@@ -204,12 +209,18 @@ function Remove-Link {
 function ConvertTo-List {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
-    return ($Value -split '[,\s;]+' | Where-Object { $_ -ne '' })
+    return ($Value -split '[,\\s;]+' | Where-Object { $_ -ne '' })
 }
 
 function Invoke-UvPreview {
     param([string[]]$UvArgs)
-    & uv --preview-features extra-build-dependencies @UvArgs
+    uv @UvArgs
+    return $LASTEXITCODE
+}
+
+function Invoke-Uv {
+    param([string[]]$UvArgs)
+    uv @UvArgs
     return $LASTEXITCODE
 }
 
@@ -230,12 +241,16 @@ function Add-Unique {
 
 # ----- Load environment ------------------------------------------------------
 $LocalAppData = $env:LOCALAPPDATA
-$envPath = Join-PathSafe $LocalAppData "agilab/.env"
+if (-not $LocalAppData) { $LocalAppData = Join-Path $HOME ".local/share" }
+$envPath = Join-PathSafe $env:USERPROFILE ".agilab/.env"
 Import-DotEnv -Path $envPath
+
+Write-Color YELLOW "DEBUG: AGI_PYTHON_VERSION=$env:AGI_PYTHON_VERSION"
+Write-Color YELLOW "DEBUG: APPS_REPOSITORY=$env:APPS_REPOSITORY"
 
 $AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION
 if ($AGI_PYTHON_VERSION) {
-    $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*$', '$1'
+    $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\\.[0-9]+\\.[0-9]+(\\+freethreaded)?).*$', '$1'
 }
 
 $agilabPathFile = Join-PathSafe $LocalAppData "agilab/.agilab-path"
@@ -377,28 +392,28 @@ if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) 
 }
 
 $DefaultAppsOrder = @(
-    'mycode_project',
     'flight_project',
-    'flight_legacy_project',
-    'sb3_trainer_project',
-    'sat_trajectory_project',
-    'rssi_predictor_project',
-    'flowsynth_project',
-    'flight_trajectory_project',
-    'link_sim_project',
     'flight_clone_project',
-    'network_sim_project',
+    'flight_legacy_project',
+    'flight_trajectory_project',
+    'flowsynth_project',
     'ilp_project',
-    'satcom_sim_project'
+    'link_sim_project',
+    'mycode_project',
+    'network_sim_project',
+    'rssi_predictor_project',
+    'sat_trajectory_project',
+    'satcom_sim_project',
+    'sb3_trainer_project'
 )
 
 $DefaultSelectedApps = @(
-    'sb3_trainer_project',
-    'sat_trajectory_project',
     'flight_trajectory_project',
+    'ilp_project',
     'link_sim_project',
     'network_sim_project',
-    'ilp_project'
+    'sat_trajectory_project',
+    'sb3_trainer_project'
 )
 
 $BuiltinSkipByDefault = @('mycode_project', 'flight_project')
@@ -471,7 +486,7 @@ if (-not [string]::IsNullOrWhiteSpace($appsOverride)) {
 $repositoryApps = @()
 if ($forceBuiltinOnly) {
     $SkipRepositoryApps = $true
-}
+} 
 if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
     $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' | ForEach-Object { $_.Name }
 }
@@ -608,25 +623,23 @@ if (-not $SkipRepositoryApps) {
     if ($repoAgilabDir -and (Test-Path -LiteralPath $repoAgilabDir)) {
         Push-Location $repoAgilabDir
         try {
+            Write-Host -ForegroundColor Red $AGILAB_REPOSITORY
             $coreTargets = @()
             if (-not [string]::IsNullOrEmpty($AGILAB_REPOSITORY)) {
                 $coreTargets = @(
-                    Join-PathSafe $AGILAB_REPOSITORY "core",
-                    Join-PathSafe $AGILAB_REPOSITORY "src/agilab/core"
+                    (Join-PathSafe $AGILAB_REPOSITORY "core"),
+                    (Join-PathSafe $AGILAB_REPOSITORY "src/agilab/core")
                 )
             }
             $coreTarget = $coreTargets | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
             if (-not $coreTarget) {
-                $firstChoice = if ($coreTargets.Count -ge 1 -and $coreTargets[0]) { [string]$coreTargets[0] } else { [string](Join-PathSafe $AGILAB_REPOSITORY "core") }
-                $secondChoice = if ($coreTargets.Count -ge 2 -and $coreTargets[1]) { [string]$coreTargets[1] } else { [string](Join-PathSafe $AGILAB_REPOSITORY "src/agilab/core") }
-                $publicLabel = if ([string]::IsNullOrEmpty($AGILAB_REPOSITORY)) { "<unknown>" } else { [string]$AGILAB_REPOSITORY }
-                Write-Color YELLOW ("Warning: can't find 'core' under {0}.`nTried: {1} and {2}. Skipping repository core link." -f $publicLabel, $firstChoice, $secondChoice)
+                Write-Color YELLOW "Warning: can't find 'core' to link."
             } else {
                 if (Test-Path -LiteralPath "core") {
                     Remove-Item -LiteralPath "core" -Force -Recurse -Confirm:$false -ErrorAction SilentlyContinue
                 }
                 New-DirLink -LinkPath "core" -TargetPath ([string](Normalize-PathInput $coreTarget))
-                Invoke-UvPreview @("run", "python", "-c", "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')") | Out-Null
+                uv --preview-features extra-build-dependencies run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')"
             }
 
             $publicTemplates = if ($AGILAB_REPOSITORY) { Join-PathSafe $AGILAB_REPOSITORY "apps/templates" } else { "" }
@@ -645,8 +658,6 @@ if (-not $SkipRepositoryApps) {
                     New-DirLink -LinkPath $repoTemplates -TargetPath $publicTemplates
                     Write-Color BLUE ("Linked repository templates to {0}" -f $publicTemplates)
                 }
-            } elseif ($publicTemplates) {
-                Write-Color YELLOW ("Warning: expected templates at {0} not found; skipping link." -f $publicTemplates)
             }
         } finally {
             Pop-Location
@@ -739,34 +750,50 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
             $status = 1
             continue
         }
-        $displayName = if ($appDirName -ne $app) { "{0} (selected: {1})" -f $appDirName, $app } else { $appDirName }
-        Write-Color BLUE ("Installing {0}..." -f $displayName)
-        $installArgs = @("-q", "run")
+
+        Write-Color BLUE ("Installing $appDirName...")
+
+        $fullAppPath = Join-PathSafe $appsRoot $appDirName
+        $fullAppPath = (Resolve-Path -LiteralPath $fullAppPath).Path
+
+        $installArgs = @("run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
-        $installArgs += @("--project", "../core/agi-cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps" $appDirName))
-        $installExit = Invoke-UvPreview @($installArgs)
+
+        # Passage explicite des arguments
+        $installArgs += @(
+            "--project",
+            "../core/agi-cluster",
+            "python",
+            "install.py",
+            $fullAppPath
+        )
+
+        Write-Color BLUE ("DEBUG: Running command: uv " + ($installArgs -join " "))
+#         $installExit = Invoke-UvPreview $installArgs
+        uv --preview-features extra-build-dependencies run --project ../core/agi-cluster python ./install.py $fullAppPath
+        $installExit = $LASTEXITCODE
         if ($installExit -eq 0) {
             Write-Color GREEN ("{0} successfully installed." -f $appDirName)
-            Write-Color GREEN "Checking installation..."
-            if (Test-Path -LiteralPath $appDirName) {
-                Push-Location $appDirName
-                if (Test-Path -LiteralPath "app_test.py") {
-                    $testArgs = @("run", "--no-sync")
-                    if ($AGI_PYTHON_VERSION) { $testArgs += @("-p", $AGI_PYTHON_VERSION) }
-                    $testArgs += @("python", "app_test.py")
-                    $testExit = Invoke-UvPreview @($testArgs)
-                    if ($testExit -ne 0) {
-                        $status = 1
+            if ($DoTestApps) {
+                Write-Color GREEN "Checking installation..."
+                if (Test-Path -LiteralPath $appDirName) {
+                    Push-Location $appDirName
+                    if (Test-Path -LiteralPath "app_test.py") {
+                        uv --preview-features extra-build-dependencies run --no-sync python app_test.py
+                        $testExit = $LASTEXITCODE
+                        if ($testExit -ne 0) {
+                            $status = 1
+                        }
+                    } else {
+                        Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $appDirName)
                     }
+                    Pop-Location
                 } else {
-                    Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $appDirName)
+                    Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
                 }
-                Pop-Location
-            } else {
-                Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
             }
         } else {
-            Write-Color RED ("{0} installation failed." -f $appDirName)
+            Write-Color RED ("{0} installation failed with exit code {1}." -f $appDirName, $installExit)
             $status = 1
         }
     }
@@ -804,9 +831,6 @@ if ($DoTestApps) {
             Pop-Location
         }
         Pop-Location
-    } else {
-        $publicLabel = if ([string]::IsNullOrEmpty($AGILAB_REPOSITORY)) { "<unknown>" } else { $AGILAB_REPOSITORY }
-        Write-Color YELLOW ("Skipping pytest runs: apps directory not found under {0}." -f $publicLabel)
     }
 }
 

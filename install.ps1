@@ -1,8 +1,3 @@
-<#
-  install.ps1
-  Purpose: Root AGI Framework Installer (PowerShell) aligned with install.sh workflow.
-#>
-
 [CmdletBinding()]
 param(
     [string]$ClusterSshCredentials,
@@ -35,6 +30,18 @@ function Write-Info { param([string]$Message) Write-Host $Message -ForegroundCol
 function Write-Success { param([string]$Message) Write-Host $Message -ForegroundColor Green }
 function Write-Warn { param([string]$Message) Write-Host "Warning: $Message" -ForegroundColor Yellow }
 function Write-Failure { param([string]$Message) Write-Host $Message -ForegroundColor Red }
+
+function Check-Internet {
+    Write-Info "Checking internet connectivity..."
+    try {
+        $null = Invoke-WebRequest -Uri "https://www.google.com" -TimeoutSec 3 -UseBasicParsing
+        Write-Success "Internet connection is OK."
+        $global:AGI_INTERNET_ON = 1
+    } catch {
+        Write-Warn "No internet connection detected."
+        $global:AGI_INTERNET_ON = 0
+    }
+}
 
 function Prompt-YesNo {
     param(
@@ -88,13 +95,16 @@ function Normalize-UserPath {
     if (-not [System.IO.Path]::IsPathRooted($expanded)) {
         $expanded = Join-Path $env:USERPROFILE $expanded
     }
-    try { return [System.IO.Path]::GetFullPath($expanded) } catch { return $expanded }
+    try {
+        $fullPath = [System.IO.Path]::GetFullPath($expanded)
+        return $fullPath.Replace('\', '/')
+    } catch {
+        return $expanded.Replace('\', '/')
+    }
 }
 
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
-# New canonical var
 $env:APPS_REPOSITORY = $AppsRepositoryPath
-# Backward-compat for older tools that still read AGILAB_APPS_REPOSITORY
 $env:AGILAB_APPS_REPOSITORY = $AppsRepositoryPath
 
 $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
@@ -102,7 +112,6 @@ Ensure-Directory $LocalDir
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
 $DefaultShareDir = if ($AgiShareDir) { $AgiShareDir } elseif ($env:AGI_SHARE_DIR) { $env:AGI_SHARE_DIR } else { "" }
-# Fallback to user or repo .agilab/.env if AGI_SHARE_DIR not set
 function Get-EnvValueFromFile {
     param([string]$FilePath, [string]$Key)
     if (-not (Test-Path -LiteralPath $FilePath)) { return "" }
@@ -492,7 +501,10 @@ function Update-Environment {
         ('CLUSTER_CREDENTIALS="{0}"' -f $clusterValue),
         ('AGI_PYTHON_VERSION="{0}"' -f $pythonValue),
         ('AGI_PYTHON_FREE_THREADED="{0}"' -f $freethreadedValue),
-        ('APPS_REPOSITORY="{0}"' -f $appsRepoValue)
+        ('APPS_REPOSITORY="{0}"' -f $appsRepoValue.Replace('\', '/')),
+        ('AGI_INTERNET_ON="{0}"' -f $AGI_INTERNET_ON),
+        ('AGI_CLUSTER_SHARE="{0}"' -f $ResolvedShareDir),
+        ('AGI_LOCAL_SHARE="{0}"' -f $ResolvedLocalShare)
     )
     $lines | Set-Content -Encoding UTF8 -Path $envFile
     Write-Success "Environment updated in $envFile"
@@ -917,7 +929,7 @@ try {
     $TranscriptStarted = $true
 
 #    Remove-UnwantedPaths
-
+    Check-Internet
     Test-VisualStudio
     Install-Dependencies
     Ensure-Uv
