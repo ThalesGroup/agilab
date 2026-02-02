@@ -33,7 +33,7 @@ dependencies = [
     "cython",
     "setuptools",
     "msgpack",
-    "numba",
+    "numba>=0.61.0",
     "py7zr",
     "python-dotenv",
     "tomli",

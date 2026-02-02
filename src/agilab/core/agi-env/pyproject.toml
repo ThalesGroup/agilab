@@ -39,7 +39,7 @@ dependencies = [
     "ipython",
     "py7zr",
     "cmake>=3.29",
-    "numba",
+    "numba>=0.61.0",
     "streamlit"
 ]
 [project.urls]

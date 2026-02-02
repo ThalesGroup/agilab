@@ -286,7 +286,10 @@ async def main():
 
     await AGI.install(
         env=app_env,
-        scheduler="127.0.0.1",
+        scheduler="127.0.0.1"
+        # scheduler="192.168.20.122",
+        # workers={"192.168.20.130":1},
+        # workers_data_path="/home/agi/data",
         verbose=args.verbose,
         modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
     )

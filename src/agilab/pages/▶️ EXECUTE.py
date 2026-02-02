@@ -889,6 +889,19 @@ def render_cluster_settings_ui():
             if scheduler:
                 cluster_params["scheduler"] = scheduler
 
+        workers_data_path_widget_key = f"cluster_workers_data_path__{env.app}"
+        if workers_data_path_widget_key not in st.session_state:
+            st.session_state[workers_data_path_widget_key] = cluster_params.get("workers_data_path", "")
+
+        workers_data_path_input = st.text_input(
+            "Workers Data Path",
+            key=workers_data_path_widget_key,
+            placeholder="/path/to/data",
+            help="Path to data directory on workers.",
+        )
+        if workers_data_path_input:
+            cluster_params["workers_data_path"] = workers_data_path_input
+
         workers_widget_key = f"cluster_workers__{env.app}"
         workers_dict = cluster_params.get("workers", {})
         if workers_widget_key not in st.session_state:
@@ -906,6 +919,7 @@ def render_cluster_settings_ui():
     else:
         cluster_params.pop("scheduler", None)
         cluster_params.pop("workers", None)
+        cluster_params.pop("workers_data_path", None)
 
     st.session_state.dask = cluster_enabled
     benchmark_enabled = st.session_state.get("benchmark", False)
@@ -1395,6 +1409,8 @@ async def page():
             scheduler = f'"{str(raw_scheduler)}"' if enabled and raw_scheduler else "None"
             raw_workers = cluster_params.get("workers", "")
             workers = str(raw_workers) if enabled and raw_workers else "None"
+            raw_workers_data_path = cluster_params.get("workers_data_path", "")
+            workers_data_path = f'"{str(raw_workers_data_path)}"' if enabled and raw_workers_data_path else "None"
             cmd = f"""
 import asyncio
 from pathlib import Path
@@ -1409,7 +1425,8 @@ async def main():
     res = await AGI.install(app_env, 
                             modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
-                            workers={workers})
+                            workers={workers},
+                            workers_data_path={workers_data_path})
     print(res)
     return res
 

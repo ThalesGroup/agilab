@@ -57,6 +57,22 @@ ENV_SHARE_REPO="$(read_env_var "$REPO_ENV_FILE" AGI_SHARE_DIR)"
 DEFAULT_SHARE_DIR="${AGI_SHARE_DIR:-${ENV_SHARE_USER:-$ENV_SHARE_REPO}}"
 DEFAULT_LOCAL_SHARE="${AGI_LOCAL_DIR:-${AGI_LOCAL_SHARE:-$HOME/localshare}}"
 
+is_exported_nfs() {
+    local path="$1"
+    local canonical
+    canonical=$(cd "$path" 2>/dev/null && pwd -P) || return 1
+
+    while read -r line; do
+        [[ -z "$line" || "$line" =~ ^\# ]] && continue
+        local export_dir=$(echo "$line" | awk '{print $1}')
+
+        local canon_export_dir=$(cd "$export_dir" 2>/dev/null && pwd -P)
+        [[ "$canonical" == "$canon_export_dir" ]] && return 0
+    done < /etc/exports
+
+    return 1
+}
+
 share_is_mounted() {
     local path="$1"
     [[ -d "$path" ]] || return 1
@@ -117,7 +133,7 @@ ensure_share_dir() {
     fi
 
     # If the share is already mounted, accept it and return.
-    if share_is_mounted "$share_dir"; then
+    if is_exported_nfs "$share_dir" || share_is_mounted "$share_dir"; then
         export AGI_SHARE_DIR="$share_dir"
         export AGI_LOCAL_DIR="${AGI_LOCAL_DIR:-$fallback_dir}"
         return 0
@@ -329,11 +345,13 @@ refresh_launch_matrix() {
 
 check_internet() {
     echo -e "${BLUE}Checking internet connectivity...${NC}"
-    curl -s --head --fail https://www.google.com >/dev/null || {
-        echo -e "${RED}No internet connection detected. Aborting.${NC}"
-        exit 1
-    }
-    echo -e "${GREEN}Internet connection is OK.${NC}"
+    if curl -Is --connect-timeout 3 https://www.google.com &>/dev/null; then
+        echo -e "${GREEN}Internet connection is OK.${NC}"
+        AGI_INTERNET_ON=1
+    else
+        echo -e "${RED}No internet connection detected. Going into network restricted mode.${NC}"
+        AGI_INTERNET_ON=0
+    fi
 }
 
 set_locale() {
@@ -372,7 +390,7 @@ verify_share_dir() {
     fi
 
     # Otherwise require a mounted share.
-    if share_is_mounted "$share_dir"; then
+    if is_exported_nfs "$share_dir" || share_is_mounted "$share_dir"; then
         return 0
     fi
 
@@ -557,6 +575,9 @@ update_environment() {
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
         echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
         echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
+        echo "AGI_CLUSTER_SHARE=\"$AGI_SHARE_DIR\""
+        echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_DIR\""
+        echo "AGI_INTERNET_ON=\"$AGI_INTERNET_ON\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
@@ -862,6 +883,7 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
+        --help|-h) usage && exit;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
@@ -897,14 +919,14 @@ set -e
 if [[ -z "$AGI_CORE_WHL" ]]; then
     AGI_CORE_WHL="$AGI_CORE_DIST/agi_core-<version>.whl"
 fi
-if [[ -n "$SSH_USER" && "$SSH_USER" != "$LOCAL_UNAME" ]]; then
-    echo -e "${RED}Refusing to continue:${NC} current user '$LOCAL_UNAME' differs from SSH user '$SSH_USER'."
-    echo -e "Please login as '$SSH_USER' and rerun the install"
-    exit 1
-fi
+#if [[ -n "$SSH_USER" && "$SSH_USER" != "$LOCAL_UNAME" ]]; then
+#    echo -e "${RED}Refusing to continue:${NC} current user '$LOCAL_UNAME' differs from SSH user '$SSH_USER'."
+#    echo -e "Please login as '$SSH_USER' and rerun the install"
+#    exit 1
+#fi
 
 check_internet
-ensure_share_dir "$DEFAULT_SHARE_DIR" "$DEFAULT_LOCAL_SHARE"
+ensure_share_dir "$AGI_SHARE_DIR" "$AGI_LOCAL_DIR"
 set_locale
 verify_share_dir
 install_dependencies
@@ -938,36 +960,32 @@ configure_streamlit
 
 FINAL_STATUS=""
 FINAL_OK=1
+FINAL_OK=1
+run_extras=true
+
 if (( INSTALL_APPS_FLAG )); then
   if ! install_apps; then
     warn "install_apps failed; continuing with PyCharm setup."
-    install_pycharm_script # needed to investigate with pycharm why previous script has failed
-    refresh_launch_matrix
-    install_enduser
     FINAL_STATUS="Install completed with app installation errors; review the log."
     FINAL_OK=0
+    run_extras=false
   else
-    if ! run_repository_tests_with_coverage; then
-      warn "Repository coverage run encountered issues; review the log output."
-    fi
-    install_pycharm_script
-    refresh_launch_matrix
-    install_enduser
-    install_offline_extra
-    seed_mistral_pdfs
-    setup_mistral_offline
+    run_repository_tests_with_coverage || warn "Repository coverage run encountered issues; review the log output."
     FINAL_STATUS="Installation complete."
   fi
 else
-    warn "App installation skipped (use --install-apps to enable)."
-    install_pycharm_script
-    refresh_launch_matrix
-    install_enduser
-    install_offline_extra
-    seed_mistral_pdfs
-    setup_mistral_offline
-    FINAL_STATUS="Installation complete (apps skipped)."
-    FINAL_OK=1
+  warn "App installation skipped (use --install-apps to enable)."
+  FINAL_STATUS="Installation complete (apps skipped)."
+fi
+
+install_pycharm_script
+refresh_launch_matrix
+install_enduser
+
+if $run_extras; then
+  install_offline_extra
+  seed_mistral_pdfs
+  setup_mistral_offline
 fi
 
 END_TIME=$(date +%s)
