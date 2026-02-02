@@ -883,7 +883,7 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
-        --help|-h) usage(); exit;
+        --help|-h) usage && exit;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
