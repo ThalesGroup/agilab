@@ -65,3 +65,5 @@ distribution.json
 
 # Sphinx build intermediates (docs/html is committed, but doctrees are not)
 docs/html/.doctrees/
+
+apps/

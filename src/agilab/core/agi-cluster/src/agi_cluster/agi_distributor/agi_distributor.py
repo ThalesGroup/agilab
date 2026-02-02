@@ -32,7 +32,7 @@ import warnings
 from copy import deepcopy
 from datetime import timedelta
 from ipaddress import ip_address as is_ip
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from tempfile import gettempdir
 
 from agi_cluster.agi_distributor import cli as distributor_cli
@@ -301,6 +301,7 @@ class AGI:
     verbose: Optional[int] = None
     _worker_init_error: bool = False
     _workers: Optional[Dict[str, int]] = None
+    _workers_data_path: Optional[str] = None
     _capacity: Optional[Dict[str, float]] = None
     _capacity_data_file: Optional[Path] = None
     _capacity_model_file: Optional[Path] = None
@@ -348,6 +349,7 @@ class AGI:
             env: AgiEnv,  # some_default_value must be defined
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
+            workers_data_path: Optional[str] = None,
             verbose: int = 0,
             mode: Optional[Union[int, List[int], str]] = None,
             rapids_enabled: bool = False,
@@ -414,6 +416,7 @@ class AGI:
             AGI._args = args
             AGI.verbose = verbose
             AGI._workers = workers
+            AGI._workers_data_path = workers_data_path
             AGI._run_time = {}
 
             AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
@@ -1116,7 +1119,6 @@ class AGI:
         cli_abs = env.wenv_abs.parent / cli_rel.name
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         kill_prefix = f'{cmd_prefix}{uv} run --no-sync python'
-
         if env.is_local(ip):
             if not (cli_abs).exists():
                 shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli_abs)
@@ -1126,7 +1128,7 @@ class AGI:
                 cmds.append(cmd)
         else:
             if force:
-                cmd = f"{kill_prefix} '{cli_rel}' kill"
+                cmd = f"{kill_prefix} '{cli_rel.as_posix()}' kill"
                 cmds.append(cmd)
 
         last_res = None
@@ -1140,7 +1142,6 @@ class AGI:
                 else:
                     await AgiEnv.run(cmd, cwd)
             else:
-                cli = env.wenv_rel.parent / "cli.py"
                 last_res = await AGI.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
@@ -1226,7 +1227,7 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         wenv = env.wenv_rel
         cli = wenv.parent / 'cli.py'
-        cmd = (f"{cmd_prefix}{uv} run --no-sync -p {env.python_version} python {cli} clean {wenv}")
+        cmd = (f"{cmd_prefix}{uv} run --no-sync -p {env.python_version} python {cli.as_posix()} clean {wenv}")
         await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1299,41 +1300,44 @@ class AGI:
         logger.info(f"mkdir {wenv_abs}")
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
-        if os.name == "nt":
-            standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
-            if standalone_uv.exists():
-                uv_parts = shlex.split(env.uv)
-                if uv_parts:
-                    uv_parts[0] = str(standalone_uv)
-                    windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+        if int(env.envars.get(f"AGI_INTERNET_ON")) == 1:
+            if os.name == "nt":
+                standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
+                if standalone_uv.exists():
+                    uv_parts = shlex.split(env.uv)
+                    if uv_parts:
+                        uv_parts[0] = str(standalone_uv)
+                        windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+                    else:
+                        windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
+                    try:
+                        await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
+                    except RuntimeError as exc:
+                        logger.warning(
+                            "Failed to update standalone uv at %s (skipping self update): %s",
+                            standalone_uv,
+                            exc,
+                        )
                 else:
-                    windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
-                try:
-                    await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
-                except RuntimeError as exc:
                     logger.warning(
-                        "Failed to update standalone uv at %s (skipping self update): %s",
+                        "Standalone uv not found at %s; skipping 'uv self update' on Windows",
                         standalone_uv,
-                        exc,
                     )
             else:
-                logger.warning(
-                    "Standalone uv not found at %s; skipping 'uv self update' on Windows",
-                    standalone_uv,
-                )
-        else:
-            await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+                await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
 
-        try:
-            await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
-        except RuntimeError as exc:
-            if "No download found for request" in str(exc):
-                logger.warning(
-                    "uv could not download interpreter '%s'; assuming a system interpreter is available",
-                    pyvers,
-                )
-            else:
-                raise
+            try:
+                await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+            except RuntimeError as exc:
+                if "No download found for request" in str(exc):
+                    logger.warning(
+                        "uv could not download interpreter '%s'; assuming a system interpreter is available",
+                        pyvers,
+                    )
+                else:
+                    raise
+        else:
+            logger.warning("No internet connection detected; skipping uv update and assuming a system interpreter is available")
 
         res = distributor_cli.python_version() or ""
         pyvers = res.strip()
@@ -1387,13 +1391,21 @@ class AGI:
             uv_is_installed = True
 
             # 2) Check uv
+            agi_internet_on =  int(env.envars.get("AGI_INTERNET_ON"))
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
-                await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+                if agi_internet_on == 1:
+                    await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+                else:
+                    logger.warning("You appears to be on a local network. Please be sure to have uv latest release.")
             except ConnectionError:
                 raise
             except Exception:
                 uv_is_installed = False
+                if agi_internet_on == 0:
+                    logger.error("Uv binary is not installed, please install it manually on the workers.")
+                    raise EnvironmentError("Uv binary is not installed, please install it manually on the workers.")
+
                 # Try Windows installer
                 try:
                     await AGI.exec_ssh(ip,
@@ -1410,7 +1422,7 @@ class AGI:
                     # await AGI.exec_ssh(ip, 'source ~/.local/bin/env')
                     uv_is_installed = True
 
-            if not uv_is_installed or not AgiEnv.check_internet():
+            if not uv_is_installed:
                 logger.error("Failed to install uv")
                 raise EnvironmentError("Failed to install uv")
 
@@ -1421,7 +1433,6 @@ class AGI:
             cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
-            await AGI.exec_ssh(ip, f"{uv} self update")
             try:
                 await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
             except ProcessError as exc:
@@ -1527,6 +1538,27 @@ class AGI:
         dependency_info: dict[str, dict[str, Any]] = {}
         dep_versions: dict[str, str] = {}
         worker_pyprojects: set[str] = set()
+
+        def _force_remove(path: Path) -> None:
+            """Suppression robuste : tente shutil, puis bascule sur rmdir /s /q en cas d'échec."""
+            if not path.exists():
+                return
+
+            def _on_err(func, p, exc):
+                os.chmod(p, stat.S_IWRITE)
+                try:
+                    func(p)
+                except Exception:
+                    pass
+
+            try:
+                shutil.rmtree(path, onerror=_on_err)
+            except Exception:
+                pass
+
+            if path.exists():
+                AGI.env.logger.warn("Path {} still exists, using subprocess cmd to delete it.".format(path))
+                subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], shell=True, check=False)
 
         def _cleanup_editable(site_packages: Path) -> None:
             patterns = (
@@ -1762,8 +1794,9 @@ class AGI:
         else:
             cmd_manager = f"{extra_indexes}{uv} {run_type} --project '{app_path}'"
 
-        # Reset manager virtualenv to avoid stale or partially-created interpreters.
-        shutil.rmtree(app_path / ".venv", ignore_errors=True)
+        # USE ROBUST REMOVE
+        _force_remove(app_path / ".venv")
+
         try:
             (app_path / "uv.lock").unlink()
         except FileNotFoundError:
@@ -1800,7 +1833,7 @@ class AGI:
                 logger.info(f"mkdir {manager_resources.parent}")
                 manager_resources.parent.mkdir(parents=True, exist_ok=True)
                 if manager_resources.exists():
-                    shutil.rmtree(manager_resources)
+                    _force_remove(manager_resources)
                 shutil.copytree(resources_src, manager_resources, dirs_exist_ok=True)
 
             site_packages_manager = env.env_pck.parent
@@ -1848,7 +1881,7 @@ class AGI:
                 filter_to_worker=True,
             )
 
-        shutil.rmtree(wenv_abs / ".venv", ignore_errors=True)
+        _force_remove(wenv_abs / ".venv")
 
         if env.is_source_env:
             # add missing agi-anv and agi-node as there are not in pyproject.toml as wished
@@ -1894,7 +1927,7 @@ class AGI:
             logger.info(f"mkdir {resources_dest.parent}")
             resources_dest.parent.mkdir(parents=True, exist_ok=True)
             if resources_dest.exists():
-                shutil.rmtree(resources_dest)
+                _force_remove(resources_dest)
             if worker_resources_src.exists():
                 shutil.copytree(worker_resources_src, resources_dest, dirs_exist_ok=True)
 
@@ -2035,9 +2068,10 @@ class AGI:
             f"--python {pyvers_worker} python -m {env.post_install_rel} "
             f"{wenv_rel.stem}"
         )
+
         if env.user and env.user != getpass.getuser():
             try:
-                await AGI.exec_ssh("127.0.0.1", post_install_cmd)
+                await AGI.exec_ssh("127.0.0.1", post_install_cmd) #workaround for certain usecase (dont know which one)
             except ConnectionError as exc:
                 logger.warning("SSH execution failed on localhost (%s), falling back to local run.", exc)
                 await AgiEnv.run(post_install_cmd, wenv_abs)
@@ -2069,6 +2103,11 @@ class AGI:
         pyvers = env.pyvers_worker
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv_worker
+
+        # 1) set AGI_CLUSTER_SHARE on workers
+        if AGI._workers_data_path:
+            await AGI.exec_ssh(ip, "mkdir -p .agilab")
+            await AGI.exec_ssh(ip, f"echo 'AGI_CLUSTER_SHARE=\"{Path(AGI._workers_data_path).expanduser().as_posix()}\"' > .agilab/.env")
 
         if env.is_source_env:
             # Then send the files to the remote directory
@@ -2127,14 +2166,14 @@ class AGI:
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run -p {pyvers} python  {cli} unzip {wenv_rel}"
+        cmd = f"{uv} run -p {pyvers} python  {cli.as_posix()} unzip {wenv_rel.as_posix()}"
         await AGI.exec_ssh(ip, cmd)
 
         #############
         # install env
         #############
 
-        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m ensurepip"
+        cmd = f"{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -m ensurepip"
         await AGI.exec_ssh(ip, cmd)
 
         if env.is_source_env:
@@ -2145,21 +2184,21 @@ class AGI:
             node_pck = "agi-node"
 
         # install env
-        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {env_pck}"
+        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {env_pck.as_posix()}"
         await AGI.exec_ssh(ip, cmd)
 
         # install node
-        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {node_pck}"
+        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {node_pck.as_posix()}"
         await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} --project {wenv_rel}  run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel.as_posix()}  run --no-sync -p {pyvers} python {cli.as_posix()} unzip {wenv_rel.as_posix()}"
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
         cmd = (
-            f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m "
+            f"{uv} --project {wenv_rel.as_posix()} run --no-sync -p {pyvers} python -m "
             f"{env.post_install_rel} {wenv_rel.stem}"
         )
         await AGI.exec_ssh(ip, cmd)
@@ -2167,13 +2206,13 @@ class AGI:
         # build target_worker lib from src/
         if env.verbose > 1:
             cmd = (
-                f"{uv} --project '{wenv_rel}' run --no-sync -p {pyvers} python -m "
-                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel}' build_ext -b '{wenv_rel}'"
+                f"{uv} --project '{wenv_rel.as_posix()}' run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel.as_posix()}' build_ext -b '{wenv_rel.as_posix()}'"
             )
         else:
             cmd = (
-                f"{uv} --project '{wenv_rel}' run --no-sync -p {pyvers} python -m "
-                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel}' -q build_ext -b '{wenv_rel}'"
+                f"{uv} --project '{wenv_rel.as_posix()}' run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel.as_posix()}' -q build_ext -b '{wenv_rel.as_posix()}'"
             )
         await AGI.exec_ssh(ip, cmd)
 
@@ -2227,6 +2266,7 @@ class AGI:
             env: AgiEnv,
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
+            workers_data_path: Optional[str] = None,
             modes_enabled: int = _RUN_MASK,
             verbose: Optional[int] = None,
             **args: Any,
@@ -2263,6 +2303,7 @@ class AGI:
             env=env,
             scheduler=scheduler,
             workers=workers,
+            workers_data_path=workers_data_path,
             mode=mode,
             rapids_enabled=AGI._INSTALL_MODE & modes_enabled,
             verbose=verbose, **args

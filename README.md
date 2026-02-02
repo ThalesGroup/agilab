@@ -49,6 +49,7 @@ cd agilab
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/AGILAB.py
 ```
 
+
 The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, set up
 required credentials, run tests with coverage, and link bundled applications into the local workspace.
 

@@ -501,6 +501,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         env_path = self.resources_path / ".env"
         self.benchmark = self.resources_path / "benchmark.json"
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
+        logger.debug(f"env path: {env_path}")
         envars = self.envars
         repo_agilab_dir = Path(__file__).resolve().parents[4]
 
@@ -1042,8 +1043,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
             # No bind rule found; directory is usable, so accept it.
             return True
-
         candidate = _abs_path(self.AGI_CLUSTER_SHARE)
+
         if is_mounted(candidate):
             self.agi_share_path = self.AGI_CLUSTER_SHARE
             #AgiEnv.logger.info(
@@ -1056,9 +1057,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if warning_key not in AgiEnv._share_mount_warning_keys:
                 AgiEnv._share_mount_warning_keys.add(warning_key)
                 AgiEnv.logger.warning(
-                    "AGI_CLUSTER_SHARE is not mounted at %s; using AGI_LOCAL_SHARE=%s",
+                    "AGI_CLUSTER_SHARE is not mounted at %s; using AGI_LOCAL_SHARE=%s; using env=%s",
                     candidate,
                     fallback,
+                    env_path
                 )
         self._share_root_cache = None
 
