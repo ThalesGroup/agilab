@@ -32,11 +32,13 @@ declare -a DEFAULT_APPS_ORDER=(
 )
 
 declare -a DEFAULT_SELECTED_APPS=(
+  flight_project
+  mycode_project
+  sat_trajectory_project
   flight_trajectory_project
-  ilp_project
   link_sim_project
   network_sim_project
-  sat_trajectory_project
+  ilp_project
   sb3_trainer_project
 )
 
