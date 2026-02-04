@@ -62,13 +62,15 @@ is_exported_nfs() {
     local canonical
     canonical=$(cd "$path" 2>/dev/null && pwd -P) || return 1
 
-    while read -r line; do
-        [[ -z "$line" || "$line" =~ ^\# ]] && continue
-        local export_dir=$(echo "$line" | awk '{print $1}')
+    if [ -f "/etc/exports" ]; then
+        while read -r line; do
+            [[ -z "$line" || "$line" =~ ^\# ]] && continue
+            local export_dir=$(echo "$line" | awk '{print $1}')
 
-        local canon_export_dir=$(cd "$export_dir" 2>/dev/null && pwd -P)
-        [[ "$canonical" == "$canon_export_dir" ]] && return 0
-    done < /etc/exports
+            local canon_export_dir=$(cd "$export_dir" 2>/dev/null && pwd -P)
+            [[ "$canonical" == "$canon_export_dir" ]] && return 0
+        done < /etc/exports
+    fi
 
     return 1
 }
