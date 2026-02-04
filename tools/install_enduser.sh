@@ -145,6 +145,7 @@ if [[ "$SOURCE" == "local" ]]; then
 fi
 
 persist_env_var "APPS_PATH" "${APPS_ROOT}" "${ENV_FILE}"
+persist_env_var "IS_SOURCE_ENV" "0" "${ENV_FILE}"
 
 verify_testpypi_versions() {
   local show_script="${SCRIPT_DIR}/show_dependencies.py"
