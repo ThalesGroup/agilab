@@ -633,7 +633,8 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
         st.warning(f"Missing required columns for map view: {missing}.")
         return []
 
-    layers = [terrain_layer]
+    include_terrain = bool(st.session_state.get("show_terrain", True))
+    layers = [terrain_layer] if include_terrain else []
     for idx, link_col in enumerate(selected_links):
         edges_df = create_edges_geomap(df, link_col, current_positions)
         if edges_df.empty:
@@ -710,7 +711,7 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
             point_size=13,
             elevation_scale=500,
             auto_highlight=True,
-            opacity=3.0,
+            opacity=1.0,
             pickable=True,
         )
     layers.append(nodes_layer)
@@ -1185,12 +1186,12 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
                 G.add_edge(uu, vv, type=edge_type, label=f"{uu}->{vv}")
 
     edge_traces = []
-    normalized_metrics = {}
-    if metric_type in ["bandwidth", "throughput"]:
-        metrics = extract_metrics(df, metric_type)
-        normalized_metrics = {et: normalize_values(metrics.get(et, [])) for et in edge_types}
-    else:
-        normalized_metrics = {et: [] for et in edge_types}
+    metric_col = (metric_type or "").strip()
+    normalized_metrics: dict[str, list[float]] = {}
+    if metric_col and metric_col in df.columns:
+        metrics = extract_metrics(df, metric_col)
+        if metrics:
+            normalized_metrics = normalize_values(metrics)
 
     for edge_type in edge_types:
         link_index = 0
@@ -1205,14 +1206,16 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
             x_bezier, y_bezier = bezier_curve(x0, y0, x1, y1)
             edge_x = list(x_bezier) + [None]
             edge_y = list(y_bezier) + [None]
-            normalized_value = (
-                normalized_metrics.get(edge_type, [5])[link_index]
-                if link_index < len(normalized_metrics.get(edge_type, []))
-                else 5
-            )
+            values = normalized_metrics.get(edge_type, [])
+            normalized_value = values[link_index] if link_index < len(values) else 5
             link_index += 1
-            edge_width = normalized_value if normalized_value is not None else 5
-            hover_text = f"Link {u}->{v}<br>Type: {label}<br>Normalized Capacity: {normalized_value}"
+            try:
+                edge_width = float(normalized_value)
+            except Exception:
+                edge_width = 5.0
+            edge_width = max(1.0, min(12.0, edge_width))
+            metric_label = metric_col if metric_col else "capacity"
+            hover_text = f"Link {u}->{v}<br>Type: {label}<br>Normalized {metric_label}: {normalized_value}"
             edge_texts = [hover_text] * len(x_bezier) + [None]
             edge_traces.append(
                 go.Scatter(
@@ -1247,13 +1250,12 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
     node_y = [pos[node][1] for node in G.nodes()]
     node_texts = [f"ID: {node}" for node in G.nodes()]
     unique_nodes = list(G.nodes())
-    node_symbols = {}
-    symbol_cycle = ["circle", "square", "diamond", "triangle-up", "triangle-down", "cross", "x"]
-    for i, node in enumerate(sorted(unique_nodes, key=lambda x: str(x))):
+    node_symbols: dict[Any, str] = {}
+    for node in unique_nodes:
         base_symbol = None
         if symbol_map:
             base_symbol = symbol_map.get(node) or symbol_map.get(str(node))
-        node_symbols[node] = base_symbol if base_symbol else symbol_cycle[i % len(symbol_cycle)]
+        node_symbols[node] = base_symbol if base_symbol else "circle"
 
     if color_map:
         node_colors = {}
@@ -1360,13 +1362,46 @@ def safe_literal_eval(value):
     except (ValueError, SyntaxError):
         return value
 
-def extract_metrics(df, metric_column):
-    metrics = {}
-    for _, row in df.iterrows():
-        metric_dict = row[metric_column]
-        if isinstance(metric_dict, dict):
-            for link_type, values in metric_dict.items():
-                metrics.setdefault(link_type, []).extend(values)
+def extract_metrics(df: pd.DataFrame, metric_column: str) -> dict[str, list[float]]:
+    metrics: dict[str, list[float]] = {}
+    if metric_column not in df.columns:
+        return metrics
+
+    for cell in df[metric_column].tolist():
+        if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+            continue
+        metric_dict: Any = cell
+        if isinstance(metric_dict, str):
+            parsed = safe_literal_eval(metric_dict)
+            if isinstance(parsed, dict):
+                metric_dict = parsed
+            else:
+                continue
+        if not isinstance(metric_dict, dict):
+            continue
+
+        for link_type, values in metric_dict.items():
+            if values is None or (isinstance(values, float) and np.isnan(values)):
+                continue
+            if isinstance(values, (list, tuple, set)):
+                cleaned: list[float] = []
+                for val in values:
+                    try:
+                        fval = float(val)
+                    except Exception:
+                        continue
+                    if np.isfinite(fval):
+                        cleaned.append(fval)
+                if cleaned:
+                    metrics.setdefault(str(link_type), []).extend(cleaned)
+            else:
+                try:
+                    fval = float(values)
+                except Exception:
+                    continue
+                if np.isfinite(fval):
+                    metrics.setdefault(str(link_type), []).append(fval)
+
     return metrics
 
 def normalize_values(metrics, scale=10):
@@ -1412,6 +1447,7 @@ def page():
         "link_multiselect",
         "show_map",
         "show_graph",
+        "show_terrain",
         "jitter_overlap",
         "show_metrics",
         "map_marker_style",
@@ -1571,6 +1607,7 @@ def page():
         "link_multiselect": st.session_state.get("link_multiselect", []),
         "show_map": st.session_state.get("show_map", True),
         "show_graph": st.session_state.get("show_graph", True),
+        "show_terrain": st.session_state.get("show_terrain", True),
         "jitter_overlap": st.session_state.get("jitter_overlap", False),
         "show_metrics": st.session_state.get("show_metrics", False),
         "map_marker_style": st.session_state.get("map_marker_style", "Plane icons"),
@@ -1785,6 +1822,7 @@ def page():
     for coord in ("long", "lat", "alt"):
         if coord not in df.columns:
             df[coord] = 0.0
+        df[coord] = pd.to_numeric(df[coord], errors="coerce").fillna(0.0)
 
     # Migrate legacy state key
     if "flight_id_col" in st.session_state and "id_col" not in st.session_state:
@@ -1793,7 +1831,7 @@ def page():
     st.sidebar.markdown("### Columns")
     all_cols = list(df.columns)
     # Internal metadata columns inserted by this page should not be used as ID/time defaults.
-    meta_cols = {"source_file"}
+    meta_cols = {"source_file", "__source__"}
     col_options = [c for c in all_cols if c not in meta_cols] or all_cols
     lower_map = {c.lower(): c for c in col_options}
     # Ensure sensible defaults for ID and time columns (per-file detection)
@@ -1919,6 +1957,7 @@ def page():
     for coord in ("long", "lat", "alt"):
         if coord not in df_std.columns:
             df_std[coord] = 0.0
+        df_std[coord] = pd.to_numeric(df_std[coord], errors="coerce").fillna(0.0)
     if df.empty:
         st.warning("The dataset is empty. Please select a valid data file.")
         return
@@ -2065,6 +2104,12 @@ def page():
         options=marker_options,
         key="map_marker_style",
     )
+    st.session_state.setdefault("show_terrain", True)
+    st.sidebar.checkbox(
+        "Show terrain overlay",
+        key="show_terrain",
+        help="Toggle satellite/terrain background tiles (Mapbox-based). Disable for a lighter view or if you see rendering errors.",
+    )
 
     layout_options = ["bipartite", "circular", "planar", "random", "rescale", "shell", "spring", "spiral"]
     if st.session_state.get("layout_type_select") not in layout_options:
@@ -2076,15 +2121,49 @@ def page():
     )
 
     st.session_state.df_cols = df.columns.tolist()
-    available_metrics = [st.session_state.df_cols[-2], st.session_state.df_cols[-1]]
     metric_key = "metric_type_select"
-    if not available_metrics:
-        st.warning("No metrics columns detected.")
+    metric_candidates: list[str] = []
+    for preferred in ("throughput", "bandwidth"):
+        if preferred in df.columns:
+            metric_candidates.append(preferred)
+            continue
+        lowered = preferred.lower()
+        for col in df.columns:
+            if col.lower() == lowered:
+                metric_candidates.append(col)
+                break
+
+    # Also include dict-like metric payloads produced by some workers.
+    for col in df.columns:
+        if col in metric_candidates:
+            continue
+        sample = df[col].dropna().head(15)
+        if sample.empty:
+            continue
+        first = sample.iloc[0]
+        if isinstance(first, dict):
+            metric_candidates.append(col)
+            continue
+        if isinstance(first, str):
+            parsed = safe_literal_eval(first)
+            if isinstance(parsed, dict):
+                metric_candidates.append(col)
+
+    metric_options = ["(none)"] + metric_candidates
+    if len(metric_options) <= 1:
         selected_metric = ""
+        st.info("No edge-weight metrics detected.")
     else:
-        if st.session_state.get(metric_key) not in available_metrics:
-            st.session_state[metric_key] = available_metrics[0]
-        selected_metric = st.selectbox("Select Metric for Link Weight", available_metrics, key=metric_key)
+        if st.session_state.get(metric_key) not in metric_options:
+            st.session_state[metric_key] = "(none)"
+        selected_metric = st.selectbox(
+            "Edge width metric (optional)",
+            options=metric_options,
+            key=metric_key,
+            help="If present, uses per-link metrics (dict payload keyed by link type) to scale edge widths.",
+        )
+        if selected_metric == "(none)":
+            selected_metric = ""
 
     # Ensure link columns exist to avoid KeyError
     for col in link_options:
@@ -2103,12 +2182,7 @@ def page():
     for col in ["bandwidth", "throughput"]:
         if col in df:
             df[col] = df[col].apply(safe_literal_eval)
-    metrics = {}
-    for col in ["bandwidth", "throughput"]:
-        if col in df:
-            metrics[col] = normalize_values(extract_metrics(df, col))
-        else:
-            metrics[col] = []
+    # Normalization is done inside `create_network_graph` only when needed.
 
     unique_timestamps = sorted(df[time_col].dropna().unique())
     if not unique_timestamps:
@@ -2188,6 +2262,7 @@ def page():
     for coord in ("long", "lat", "alt"):
         if coord not in df_positions_std.columns:
             df_positions_std[coord] = 0.0
+        df_positions_std[coord] = pd.to_numeric(df_positions_std[coord], errors="coerce").fillna(0.0)
     if df_positions_std.empty:
         st.warning("No rows found at the selected time.")
         st.stop()
@@ -2260,34 +2335,42 @@ def page():
                 link_color_map,
                 marker_style=map_marker_style,
             )
-            view_state = pdk.ViewState(
-                latitude=current_positions["lat"].mean(),
-                longitude=current_positions["long"].mean(),
-                zoom=3,
-                pitch=-5,
-                bearing=5,
-                min_pitch=0,
-                max_pitch=85,
-            )
-            r = pdk.Deck(
-                layers=layers,
-                initial_view_state=view_state,
-                map_style=None,
-                tooltip={
-                    "html": "<b>ID:</b> {id_col}<br>"
-                            "<b>Longitude:</b> {long}<br>"
-                            "<b>Latitude:</b> {lat}<br>"
-                            "<b>Altitude:</b> {alt}",
-                    "style": {
-                        "backgroundColor": "white",
-                        "color": "black",
-                        "fontSize": "12px",
-                        "borderRadius": "2px",
-                        "padding": "5px",
+            if not layers:
+                st.warning("Map view is unavailable: missing required columns/layers.")
+            else:
+                lat_center = float(pd.to_numeric(current_positions["lat"], errors="coerce").fillna(0.0).mean())
+                lon_center = float(pd.to_numeric(current_positions["long"], errors="coerce").fillna(0.0).mean())
+                view_state = pdk.ViewState(
+                    latitude=lat_center,
+                    longitude=lon_center,
+                    zoom=3,
+                    pitch=0,
+                    bearing=5,
+                    min_pitch=0,
+                    max_pitch=85,
+                )
+                r = pdk.Deck(
+                    layers=layers,
+                    initial_view_state=view_state,
+                    map_style=None,
+                    tooltip={
+                        "html": "<b>ID:</b> {id_col}<br>"
+                                "<b>Longitude:</b> {long}<br>"
+                                "<b>Latitude:</b> {lat}<br>"
+                                "<b>Altitude:</b> {alt}",
+                        "style": {
+                            "backgroundColor": "white",
+                            "color": "black",
+                            "fontSize": "12px",
+                            "borderRadius": "2px",
+                            "padding": "5px",
+                        },
                     },
-                },
-            )
-            st.pydeck_chart(r)
+                )
+                try:
+                    st.pydeck_chart(r)
+                except Exception as exc:
+                    st.error(f"Unable to render map view: {exc}")
 
     if show_graph and graph_container is not None:
         with graph_container:
@@ -2307,7 +2390,11 @@ def page():
                         "No edges parsed from the selected link columns. "
                         "Confirm the **Edges file picker** is set (or your dataframe includes edge columns)."
                     )
-            pos = get_fixed_layout(df_std, layout=layout_type)
+            try:
+                pos = get_fixed_layout(df_std, layout=layout_type)
+            except Exception as exc:
+                st.warning(f"Layout '{layout_type}' failed; falling back to 'spring'. ({exc})")
+                pos = get_fixed_layout(df_std, layout="spring")
             symbol_map: dict[Any, str] = {}
             type_to_symbol = {
                 "sat": "triangle-up",
@@ -2339,21 +2426,23 @@ def page():
                         symbol = "triangle-up"
                 symbol_map[row["id_col"]] = symbol or "circle"
             if not symbol_map:
-                symbol_cycle = ["circle", "square", "diamond", "triangle-up", "triangle-down", "cross", "x"]
-                for i, node in enumerate(sorted(pos.keys(), key=lambda x: str(x))):
-                    symbol_map[node] = symbol_cycle[i % len(symbol_cycle)]
-            fig = create_network_graph(
-                df_positions_std,
-                pos,
-                show_nodes=True,
-                show_edges=True,
-                edge_types=selected_links,
-                metric_type=selected_metric,
-                color_map=st.session_state.get("color_map"),
-                symbol_map=symbol_map,
-                link_color_map=link_color_map,
-            )
-            st.plotly_chart(fig, use_container_width=True)
+                for node in pos.keys():
+                    symbol_map[node] = "circle"
+            try:
+                fig = create_network_graph(
+                    df_positions_std,
+                    pos,
+                    show_nodes=True,
+                    show_edges=True,
+                    edge_types=selected_links,
+                    metric_type=selected_metric,
+                    color_map=st.session_state.get("color_map"),
+                    symbol_map=symbol_map,
+                    link_color_map=link_color_map,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as exc:
+                st.error(f"Unable to render topology graph: {exc}")
 
     if show_metrics:
         metric_cols = [c for c in [flight_col, time_col, "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
