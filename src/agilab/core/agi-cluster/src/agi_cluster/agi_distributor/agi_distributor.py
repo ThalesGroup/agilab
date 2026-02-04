@@ -45,6 +45,61 @@ logger = logging.getLogger(__name__)
 # uv path-source rewriting helpers
 # ---------------------------------------------------------------------------
 
+def _envar_truthy(envars: dict, key: str) -> bool:
+    """Return True when an env var value is truthy.
+
+    Accepts common boolean-ish representations and defaults to False when unset
+    or unparsable.
+    """
+    try:
+        raw = envars.get(key)
+    except Exception:
+        return False
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        try:
+            return int(raw) == 1
+        except (TypeError, ValueError):
+            return False
+    value = str(raw).strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
+    """Ensure ``[project.optional-dependencies]`` contains the requested extras.
+
+    Some worker environments are bootstrapped from a manager ``pyproject.toml`` that
+    doesn't declare worker-only extras (e.g. ``polars-worker``). ``uv sync --extra``
+    fails hard when the extra doesn't exist, even if it would be empty.
+    """
+    if not extras:
+        return
+
+    try:
+        doc = tomlkit.parse(pyproject_file.read_text())
+    except FileNotFoundError:
+        doc = tomlkit.document()
+
+    project_tbl = doc.get("project")
+    if project_tbl is None:
+        project_tbl = tomlkit.table()
+
+    optional_tbl = project_tbl.get("optional-dependencies")
+    if optional_tbl is None or not isinstance(optional_tbl, tomlkit.items.Table):
+        optional_tbl = tomlkit.table()
+
+    for extra in sorted({e for e in extras if isinstance(e, str) and e.strip()}):
+        if extra not in optional_tbl:
+            optional_tbl[extra] = tomlkit.array()
+
+    project_tbl["optional-dependencies"] = optional_tbl
+    doc["project"] = project_tbl
+    pyproject_file.write_text(tomlkit.dumps(doc))
+
+
 def _rewrite_uv_sources_paths_for_copied_pyproject(
     *,
     src_pyproject: Path,
@@ -1300,7 +1355,7 @@ class AGI:
         logger.info(f"mkdir {wenv_abs}")
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
-        if int(env.envars.get(f"AGI_INTERNET_ON")) == 1:
+        if _envar_truthy(env.envars, "AGI_INTERNET_ON"):
             if os.name == "nt":
                 standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
                 if standalone_uv.exists():
@@ -1391,7 +1446,7 @@ class AGI:
             uv_is_installed = True
 
             # 2) Check uv
-            agi_internet_on =  int(env.envars.get("AGI_INTERNET_ON"))
+            agi_internet_on = 1 if _envar_truthy(env.envars, "AGI_INTERNET_ON") else 0
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
                 if agi_internet_on == 1:
@@ -1454,8 +1509,25 @@ class AGI:
             cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
-            await AGI.send_files(env, ip, [env.worker_pyproject, env.uvproject],
-                                 wenv_rel)
+            files_to_send: list[Path] = []
+            pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
+            if pyproject_src.exists():
+                # Ensure the receiving worker can install with `uv sync --extra ...` even when
+                # the source pyproject doesn't declare worker extras (common for built-in apps).
+                extras_to_seed = set(getattr(AGI, "agi_workers", {}).values())
+                try:
+                    tmp_dir = Path(gettempdir()) / f"agilab_{env.target_worker}_pyproject"
+                    tmp_dir.mkdir(parents=True, exist_ok=True)
+                    tmp_pyproject = tmp_dir / "pyproject.toml"
+                    shutil.copy(pyproject_src, tmp_pyproject)
+                    _ensure_optional_extras(tmp_pyproject, extras_to_seed)
+                    files_to_send.append(tmp_pyproject)
+                except Exception:
+                    # Fall back to the original file if anything goes wrong.
+                    files_to_send.append(pyproject_src)
+            if env.uvproject.exists():
+                files_to_send.append(env.uvproject)
+            await AGI.send_files(env, ip, files_to_send, wenv_rel)
 
     @staticmethod
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
@@ -2721,10 +2793,15 @@ class AGI:
         wenv_arg = f"\"{wenv_abs}\"" # shlex.quote(str(wenv_abs))
 
         worker_pyproject_dest = env.wenv_abs / env.worker_pyproject.name
-        shutil.copy(env.worker_pyproject, worker_pyproject_dest)
-        shutil.copy(env.uvproject, env.wenv_abs)
+        worker_pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
+        if not worker_pyproject_src.exists():
+            raise FileNotFoundError(f"Missing pyproject.toml for worker environment: {worker_pyproject_src}")
+        shutil.copy(worker_pyproject_src, worker_pyproject_dest)
+        _ensure_optional_extras(worker_pyproject_dest, set(getattr(AGI, "agi_workers", {}).values()))
+        if env.uvproject.exists():
+            shutil.copy(env.uvproject, env.wenv_abs)
         _rewrite_uv_sources_paths_for_copied_pyproject(
-            src_pyproject=env.worker_pyproject,
+            src_pyproject=worker_pyproject_src,
             dest_pyproject=worker_pyproject_dest,
             log_rewrites=bool(env.verbose),
         )
