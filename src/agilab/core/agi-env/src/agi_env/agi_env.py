@@ -952,6 +952,61 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE", 'localshare')
         self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE", 'clustershare')
 
+        def _cluster_enabled_from_settings() -> bool:
+            """Best-effort read of the Streamlit 'Enable Cluster' toggle.
+
+            The toggle is persisted under `[cluster].cluster_enabled` in each app's
+            `app_settings.toml`. When the per-app setting is missing, fall back to
+            the global `.env` value `AGI_CLUSTER_ENABLED` if present.
+            """
+
+            if self.is_worker_env:
+                return True
+
+            def _parse_bool(value: object) -> bool | None:
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, (int, float)):
+                    return bool(value)
+                if isinstance(value, str):
+                    normalized = value.strip().lower()
+                    if normalized in {"1", "true", "yes", "y", "on"}:
+                        return True
+                    if normalized in {"0", "false", "no", "n", "off", ""}:
+                        return False
+                return None
+
+            parsed: bool | None = None
+
+            try:
+                settings_path = self.app_src / "app_settings.toml"
+            except Exception:
+                settings_path = None
+
+            try:
+                if (
+                    settings_path is not None
+                    and settings_path.exists()
+                    and settings_path.stat().st_size > 0
+                ):
+                    import tomllib
+
+                    with settings_path.open("rb") as handle:
+                        doc = tomllib.load(handle)
+                    cluster_section = doc.get("cluster")
+                    if isinstance(cluster_section, dict) and "cluster_enabled" in cluster_section:
+                        parsed = _parse_bool(cluster_section.get("cluster_enabled"))
+            except Exception:
+                parsed = None
+
+            if parsed is not None:
+                return parsed
+
+            parsed = _parse_bool(envars.get("AGI_CLUSTER_ENABLED"))
+            return bool(parsed) if parsed is not None else False
+
+        cluster_enabled = _cluster_enabled_from_settings()
+
         def _abs_path(path_str: str) -> str:
             """Absolute path; relative paths are relative to $HOME."""
             p = Path(path_str).expanduser()
@@ -1045,23 +1100,26 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return True
         candidate = _abs_path(self.AGI_CLUSTER_SHARE)
 
-        if is_mounted(candidate):
+        wants_cluster_share = bool(cluster_enabled)
+        mounted = is_mounted(candidate)
+        if mounted and wants_cluster_share:
             self.agi_share_path = self.AGI_CLUSTER_SHARE
             #AgiEnv.logger.info(
             #    f"self.agi_share_path = AGI_CLUSTER_SHARE = {candidate}"
             #)
         else:
             self.agi_share_path = self.AGI_LOCAL_SHARE
-            fallback = _abs_path(self.AGI_LOCAL_SHARE)
-            warning_key = (candidate, fallback)
-            if warning_key not in AgiEnv._share_mount_warning_keys:
-                AgiEnv._share_mount_warning_keys.add(warning_key)
-                AgiEnv.logger.warning(
-                    "AGI_CLUSTER_SHARE is not mounted at %s; using AGI_LOCAL_SHARE=%s; using env=%s",
-                    candidate,
-                    fallback,
-                    env_path
-                )
+            if wants_cluster_share and not mounted:
+                fallback = _abs_path(self.AGI_LOCAL_SHARE)
+                warning_key = (candidate, fallback)
+                if warning_key not in AgiEnv._share_mount_warning_keys:
+                    AgiEnv._share_mount_warning_keys.add(warning_key)
+                    AgiEnv.logger.warning(
+                        "Cluster is enabled but AGI_CLUSTER_SHARE is not mounted at %s; using AGI_LOCAL_SHARE=%s; using env=%s",
+                        candidate,
+                        fallback,
+                        env_path
+                    )
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()

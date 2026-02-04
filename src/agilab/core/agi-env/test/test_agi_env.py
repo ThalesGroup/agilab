@@ -86,6 +86,8 @@ def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
+    (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
+    (fake_home / ".agilab" / ".env").write_text("AGI_CLUSTER_ENABLED=1\n")
     share_dir = fake_home / ".local" / "share" / "agilab"
     share_dir.mkdir(parents=True, exist_ok=True)
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
