@@ -245,9 +245,12 @@ async def main():
             "--verbose", type=int, default=1, help="Verbosity level (1-3 default: 1)"
         )
 
-        args, unknown = parser.parse_known_args()
 
+        argv = [a.replace("$", "") for a in sys.argv[1:]]
+        args, unknown = parser.parse_known_args(argv)
         app_path = Path(args.active_app).expanduser()
+
+
         try:
             app_env = AgiEnv(
                 apps_path=app_path.parent,
@@ -286,7 +289,7 @@ async def main():
 
     await AGI.install(
         env=app_env,
-        scheduler="127.0.0.1"
+        scheduler="127.0.0.1",
         # scheduler="192.168.20.122",
         # workers={"192.168.20.130":1},
         # workers_data_path="/home/agi/data",

@@ -2,9 +2,9 @@ coverage.xml
 .coverage
 .coverage-*
 coverage-*.xml
-# macOS files (match anywhere, including nested dirs)
-**/.DS_Store
-**/.DS_store
+# macOS files (match anywhere)
+.DS_Store
+.DS_store
 
 # Python virtual environments and build artifacts
 .venv/
