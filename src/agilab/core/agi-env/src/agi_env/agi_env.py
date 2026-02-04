@@ -1321,6 +1321,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             formatted_errors.append(user_message)
         return formatted_errors
 
+    def check_args(self, model_cls, payload):
+        """
+        Backwards-compatible args validation helper.
+
+        Several legacy ``app_args_form.py`` implementations call ``env.check_args(Model, payload)``
+        and expect a truthy list of human-readable messages on validation failure.
+        """
+
+        try:
+            from pydantic import ValidationError
+        except Exception:  # pragma: no cover - ultra-defensive
+            ValidationError = Exception  # type: ignore[assignment]
+
+        try:
+            model_cls(**dict(payload or {}))
+        except ValidationError as exc:
+            return self.humanize_validation_errors(exc)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            return [f"❌ **args**: {exc}"]
+        return []
+
     @staticmethod
     def set_env_var(key: str, value: str):
         """Persist ``key``/``value`` in :attr:`envars`, ``os.environ`` and the ``.env`` file."""
