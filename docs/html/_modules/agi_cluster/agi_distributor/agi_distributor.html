@@ -934,7 +934,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ipaddress</span><span class="w"> </span><span class="kn">import</span> <span class="n">ip_address</span> <span class="k">as</span> <span class="n">is_ip</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span><span class="p">,</span> <span class="n">PurePosixPath</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">gettempdir</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_cluster.agi_distributor</span><span class="w"> </span><span class="kn">import</span> <span class="n">cli</span> <span class="k">as</span> <span class="n">distributor_cli</span>
@@ -946,6 +946,61 @@
 <span class="c1"># ---------------------------------------------------------------------------</span>
 <span class="c1"># uv path-source rewriting helpers</span>
 <span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_envar_truthy</span><span class="p">(</span><span class="n">envars</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return True when an env var value is truthy.</span>
+
+<span class="sd">    Accepts common boolean-ish representations and defaults to False when unset</span>
+<span class="sd">    or unparsable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">raw</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="s2">&quot;true&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;on&quot;</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_ensure_optional_extras</span><span class="p">(</span><span class="n">pyproject_file</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">extras</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure ``[project.optional-dependencies]`` contains the requested extras.</span>
+
+<span class="sd">    Some worker environments are bootstrapped from a manager ``pyproject.toml`` that</span>
+<span class="sd">    doesn&#39;t declare worker-only extras (e.g. ``polars-worker``). ``uv sync --extra``</span>
+<span class="sd">    fails hard when the extra doesn&#39;t exist, even if it would be empty.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">extras</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">pyproject_file</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+
+    <span class="n">project_tbl</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;project&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">project_tbl</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">project_tbl</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">table</span><span class="p">()</span>
+
+    <span class="n">optional_tbl</span> <span class="o">=</span> <span class="n">project_tbl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;optional-dependencies&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">optional_tbl</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optional_tbl</span><span class="p">,</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+        <span class="n">optional_tbl</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">table</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">extra</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">extras</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">strip</span><span class="p">()}):</span>
+        <span class="k">if</span> <span class="n">extra</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">optional_tbl</span><span class="p">:</span>
+            <span class="n">optional_tbl</span><span class="p">[</span><span class="n">extra</span><span class="p">]</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">array</span><span class="p">()</span>
+
+    <span class="n">project_tbl</span><span class="p">[</span><span class="s2">&quot;optional-dependencies&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">optional_tbl</span>
+    <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">project_tbl</span>
+    <span class="n">pyproject_file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">doc</span><span class="p">))</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_rewrite_uv_sources_paths_for_copied_pyproject</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
@@ -1205,6 +1260,7 @@
     <span class="n">verbose</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">_worker_init_error</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_workers_data_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">_capacity_data_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">_capacity_model_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1257,6 +1313,7 @@
             <span class="n">env</span><span class="p">:</span> <span class="n">AgiEnv</span><span class="p">,</span>  <span class="c1"># some_default_value must be defined</span>
             <span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">workers_data_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
             <span class="n">mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">rapids_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -1323,6 +1380,7 @@
             <span class="n">AGI</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="n">args</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_workers</span> <span class="o">=</span> <span class="n">workers</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">_workers_data_path</span> <span class="o">=</span> <span class="n">workers_data_path</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="p">{}</span>
 
             <span class="n">AGI</span><span class="o">.</span><span class="n">_capacity_data_file</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;balancer_df.csv&quot;</span>
@@ -2041,7 +2099,6 @@
         <span class="n">cli_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">name</span>
         <span class="n">cmd_prefix</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">_CMD_PREFIX&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
         <span class="n">kill_prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s1"> run --no-sync python&#39;</span>
-
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">cli_abs</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                 <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_pck</span> <span class="o">/</span> <span class="s2">&quot;agi_distributor/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
@@ -2051,7 +2108,7 @@
                 <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
-                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> &#39;</span><span class="si">{</span><span class="n">cli_rel</span><span class="si">}</span><span class="s2">&#39; kill&quot;</span>
+                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> &#39;</span><span class="si">{</span><span class="n">cli_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; kill&quot;</span>
                 <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
 
         <span class="n">last_res</span> <span class="o">=</span> <span class="kc">None</span>
@@ -2065,7 +2122,6 @@
                 <span class="k">else</span><span class="p">:</span>
                     <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">cli</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
                 <span class="n">last_res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
             <span class="c1"># handle tuple or dict result</span>
@@ -2151,7 +2207,7 @@
         <span class="n">cmd_prefix</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">_CMD_PREFIX&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
         <span class="n">wenv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
         <span class="n">cli</span> <span class="o">=</span> <span class="n">wenv</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s1">&#39;cli.py&#39;</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run --no-sync -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">cli</span><span class="si">}</span><span class="s2"> clean </span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run --no-sync -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">cli</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> clean </span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
@@ -2224,41 +2280,44 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">wenv_abs</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-            <span class="n">standalone_uv</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.local&quot;</span> <span class="o">/</span> <span class="s2">&quot;bin&quot;</span> <span class="o">/</span> <span class="s2">&quot;uv.exe&quot;</span>
-            <span class="k">if</span> <span class="n">standalone_uv</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                <span class="n">uv_parts</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">uv_parts</span><span class="p">:</span>
-                    <span class="n">uv_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">standalone_uv</span><span class="p">)</span>
-                    <span class="n">windows_uv</span> <span class="o">=</span> <span class="n">cmd_prefix</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">part</span><span class="p">)</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">uv_parts</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">_envar_truthy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="p">,</span> <span class="s2">&quot;AGI_INTERNET_ON&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
+                <span class="n">standalone_uv</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;.local&quot;</span> <span class="o">/</span> <span class="s2">&quot;bin&quot;</span> <span class="o">/</span> <span class="s2">&quot;uv.exe&quot;</span>
+                <span class="k">if</span> <span class="n">standalone_uv</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                    <span class="n">uv_parts</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">uv_parts</span><span class="p">:</span>
+                        <span class="n">uv_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">standalone_uv</span><span class="p">)</span>
+                        <span class="n">windows_uv</span> <span class="o">=</span> <span class="n">cmd_prefix</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">part</span><span class="p">)</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">uv_parts</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">windows_uv</span> <span class="o">=</span> <span class="n">cmd_prefix</span> <span class="o">+</span> <span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">standalone_uv</span><span class="p">))</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">windows_uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                            <span class="s2">&quot;Failed to update standalone uv at </span><span class="si">%s</span><span class="s2"> (skipping self update): </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                            <span class="n">standalone_uv</span><span class="p">,</span>
+                            <span class="n">exc</span><span class="p">,</span>
+                        <span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">windows_uv</span> <span class="o">=</span> <span class="n">cmd_prefix</span> <span class="o">+</span> <span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">standalone_uv</span><span class="p">))</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">windows_uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="s2">&quot;Failed to update standalone uv at </span><span class="si">%s</span><span class="s2"> (skipping self update): </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;Standalone uv not found at </span><span class="si">%s</span><span class="s2">; skipping &#39;uv self update&#39; on Windows&quot;</span><span class="p">,</span>
                         <span class="n">standalone_uv</span><span class="p">,</span>
-                        <span class="n">exc</span><span class="p">,</span>
                     <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="s2">&quot;Standalone uv not found at </span><span class="si">%s</span><span class="s2">; skipping &#39;uv self update&#39; on Windows&quot;</span><span class="p">,</span>
-                    <span class="n">standalone_uv</span><span class="p">,</span>
-                <span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+                <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
 
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-            <span class="k">if</span> <span class="s2">&quot;No download found for request&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="s2">&quot;uv could not download interpreter &#39;</span><span class="si">%s</span><span class="s2">&#39;; assuming a system interpreter is available&quot;</span><span class="p">,</span>
-                    <span class="n">pyvers</span><span class="p">,</span>
-                <span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;No download found for request&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">&quot;uv could not download interpreter &#39;</span><span class="si">%s</span><span class="s2">&#39;; assuming a system interpreter is available&quot;</span><span class="p">,</span>
+                        <span class="n">pyvers</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No internet connection detected; skipping uv update and assuming a system interpreter is available&quot;</span><span class="p">)</span>
 
         <span class="n">res</span> <span class="o">=</span> <span class="n">distributor_cli</span><span class="o">.</span><span class="n">python_version</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span>
         <span class="n">pyvers</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
@@ -2312,13 +2371,21 @@
             <span class="n">uv_is_installed</span> <span class="o">=</span> <span class="kc">True</span>
 
             <span class="c1"># 2) Check uv</span>
+            <span class="n">agi_internet_on</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">_envar_truthy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="p">,</span> <span class="s2">&quot;AGI_INTERNET_ON&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --version&quot;</span><span class="p">)</span>
-                <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">agi_internet_on</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;You appears to be on a local network. Please be sure to have uv latest release.&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">ConnectionError</span><span class="p">:</span>
                 <span class="k">raise</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                 <span class="n">uv_is_installed</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">if</span> <span class="n">agi_internet_on</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Uv binary is not installed, please install it manually on the workers.&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span><span class="s2">&quot;Uv binary is not installed, please install it manually on the workers.&quot;</span><span class="p">)</span>
+
                 <span class="c1"># Try Windows installer</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span>
@@ -2335,7 +2402,7 @@
                     <span class="c1"># await AGI.exec_ssh(ip, &#39;source ~/.local/bin/env&#39;)</span>
                     <span class="n">uv_is_installed</span> <span class="o">=</span> <span class="kc">True</span>
 
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">uv_is_installed</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">check_internet</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">uv_is_installed</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to install uv&quot;</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span><span class="s2">&quot;Failed to install uv&quot;</span><span class="p">)</span>
 
@@ -2346,7 +2413,6 @@
             <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run python -c </span><span class="se">\&quot;</span><span class="s2">import os; os.makedirs(&#39;</span><span class="si">{</span><span class="n">dist_rel</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39;, exist_ok=True)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
-            <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> self update&quot;</span><span class="p">)</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers_worker</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="n">ProcessError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
@@ -2368,8 +2434,25 @@
             <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run python -c </span><span class="se">\&quot;</span><span class="s2">import os; os.makedirs(&#39;</span><span class="si">{</span><span class="n">dist_rel</span><span class="si">}</span><span class="s2">&#39;, exist_ok=True)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
-            <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">send_files</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">],</span>
-                                 <span class="n">wenv_rel</span><span class="p">)</span>
+            <span class="n">files_to_send</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">pyproject_src</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="k">else</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_pyproject</span>
+            <span class="k">if</span> <span class="n">pyproject_src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="c1"># Ensure the receiving worker can install with `uv sync --extra ...` even when</span>
+                <span class="c1"># the source pyproject doesn&#39;t declare worker extras (common for built-in apps).</span>
+                <span class="n">extras_to_seed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">AGI</span><span class="p">,</span> <span class="s2">&quot;agi_workers&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">tmp_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">gettempdir</span><span class="p">())</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;agilab_</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">_pyproject&quot;</span>
+                    <span class="n">tmp_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">tmp_pyproject</span> <span class="o">=</span> <span class="n">tmp_dir</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">pyproject_src</span><span class="p">,</span> <span class="n">tmp_pyproject</span><span class="p">)</span>
+                    <span class="n">_ensure_optional_extras</span><span class="p">(</span><span class="n">tmp_pyproject</span><span class="p">,</span> <span class="n">extras_to_seed</span><span class="p">)</span>
+                    <span class="n">files_to_send</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tmp_pyproject</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="c1"># Fall back to the original file if anything goes wrong.</span>
+                    <span class="n">files_to_send</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pyproject_src</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="n">files_to_send</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">send_files</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">files_to_send</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_deploy_application</span><span class="p">(</span><span class="n">scheduler_addr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -2452,6 +2535,27 @@
         <span class="n">dependency_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">dep_versions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">worker_pyprojects</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_force_remove</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Suppression robuste : tente shutil, puis bascule sur rmdir /s /q en cas d&#39;échec.&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">return</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">_on_err</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">exc</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IWRITE</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">func</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">_on_err</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+            <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="n">AGI</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Path </span><span class="si">{}</span><span class="s2"> still exists, using subprocess cmd to delete it.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s2">&quot;cmd&quot;</span><span class="p">,</span> <span class="s2">&quot;/c&quot;</span><span class="p">,</span> <span class="s2">&quot;rmdir&quot;</span><span class="p">,</span> <span class="s2">&quot;/s&quot;</span><span class="p">,</span> <span class="s2">&quot;/q&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)],</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">_cleanup_editable</span><span class="p">(</span><span class="n">site_packages</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">patterns</span> <span class="o">=</span> <span class="p">(</span>
@@ -2687,8 +2791,9 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">extra_indexes</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> --project &#39;</span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
 
-        <span class="c1"># Reset manager virtualenv to avoid stale or partially-created interpreters.</span>
-        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;.venv&quot;</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># USE ROBUST REMOVE</span>
+        <span class="n">_force_remove</span><span class="p">(</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;.venv&quot;</span><span class="p">)</span>
+
         <span class="k">try</span><span class="p">:</span>
             <span class="p">(</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;uv.lock&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
         <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
@@ -2725,7 +2830,7 @@
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">manager_resources</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">manager_resources</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">manager_resources</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                    <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">manager_resources</span><span class="p">)</span>
+                    <span class="n">_force_remove</span><span class="p">(</span><span class="n">manager_resources</span><span class="p">)</span>
                 <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">resources_src</span><span class="p">,</span> <span class="n">manager_resources</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
             <span class="n">site_packages_manager</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">env_pck</span><span class="o">.</span><span class="n">parent</span>
@@ -2773,7 +2878,7 @@
                 <span class="n">filter_to_worker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
             <span class="p">)</span>
 
-        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;.venv&quot;</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">_force_remove</span><span class="p">(</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;.venv&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_source_env</span><span class="p">:</span>
             <span class="c1"># add missing agi-anv and agi-node as there are not in pyproject.toml as wished</span>
@@ -2819,7 +2924,7 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mkdir </span><span class="si">{</span><span class="n">resources_dest</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">resources_dest</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">resources_dest</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">resources_dest</span><span class="p">)</span>
+                <span class="n">_force_remove</span><span class="p">(</span><span class="n">resources_dest</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">worker_resources_src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                 <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">worker_resources_src</span><span class="p">,</span> <span class="n">resources_dest</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
@@ -2960,9 +3065,10 @@
             <span class="sa">f</span><span class="s2">&quot;--python </span><span class="si">{</span><span class="n">pyvers_worker</span><span class="si">}</span><span class="s2"> python -m </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">post_install_rel</span><span class="si">}</span><span class="s2"> &quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="p">)</span>
+
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">user</span> <span class="ow">and</span> <span class="n">env</span><span class="o">.</span><span class="n">user</span> <span class="o">!=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">():</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">post_install_cmd</span><span class="p">)</span>
+                <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">post_install_cmd</span><span class="p">)</span> <span class="c1">#workaround for certain usecase (dont know which one)</span>
             <span class="k">except</span> <span class="ne">ConnectionError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;SSH execution failed on localhost (</span><span class="si">%s</span><span class="s2">), falling back to local run.&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
                 <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">post_install_cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
@@ -2994,6 +3100,11 @@
         <span class="n">pyvers</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">pyvers_worker</span>
         <span class="n">cmd_prefix</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">_CMD_PREFIX&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
         <span class="n">uv</span> <span class="o">=</span> <span class="n">cmd_prefix</span> <span class="o">+</span> <span class="n">env</span><span class="o">.</span><span class="n">uv_worker</span>
+
+        <span class="c1"># 1) set AGI_CLUSTER_SHARE on workers</span>
+        <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_workers_data_path</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;mkdir -p .agilab&quot;</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;echo &#39;AGI_CLUSTER_SHARE=</span><span class="se">\&quot;</span><span class="si">{</span><span class="n">Path</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_workers_data_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2">&#39; &gt; .agilab/.env&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_source_env</span><span class="p">:</span>
             <span class="c1"># Then send the files to the remote directory</span>
@@ -3052,14 +3163,14 @@
 
         <span class="c1"># unzip egg to get src/</span>
         <span class="n">cli</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python  </span><span class="si">{</span><span class="n">cli</span><span class="si">}</span><span class="s2"> unzip </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python  </span><span class="si">{</span><span class="n">cli</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> unzip </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1">#############</span>
         <span class="c1"># install env</span>
         <span class="c1">#############</span>
 
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m ensurepip&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m ensurepip&quot;</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_source_env</span><span class="p">:</span>
@@ -3070,21 +3181,21 @@
             <span class="n">node_pck</span> <span class="o">=</span> <span class="s2">&quot;agi-node&quot;</span>
 
         <span class="c1"># install env</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> add -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> --upgrade </span><span class="si">{</span><span class="n">env_pck</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> add -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> --upgrade </span><span class="si">{</span><span class="n">env_pck</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># install node</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> add -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> --upgrade </span><span class="si">{</span><span class="n">node_pck</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> add -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> --upgrade </span><span class="si">{</span><span class="n">node_pck</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># unzip egg to get src/</span>
         <span class="n">cli</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">  run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">cli</span><span class="si">}</span><span class="s2"> unzip </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">  run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">cli</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> unzip </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># Post-install script</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2"> run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m &quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">post_install_rel</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="p">)</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
@@ -3092,13 +3203,13 @@
         <span class="c1"># build target_worker lib from src/</span>
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39; run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;agi_node.agi_dispatcher.build  --app-path  &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39; build_ext -b &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;agi_node.agi_dispatcher.build  --app-path  &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; build_ext -b &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39; run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;agi_node.agi_dispatcher.build --app-path &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39; -q build_ext -b &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; run --no-sync -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;agi_node.agi_dispatcher.build --app-path &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; -q build_ext -b &#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
             <span class="p">)</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
@@ -3154,6 +3265,7 @@
             <span class="n">env</span><span class="p">:</span> <span class="n">AgiEnv</span><span class="p">,</span>
             <span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">workers_data_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">modes_enabled</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_RUN_MASK</span><span class="p">,</span>
             <span class="n">verbose</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="o">**</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
@@ -3190,6 +3302,7 @@
             <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
             <span class="n">scheduler</span><span class="o">=</span><span class="n">scheduler</span><span class="p">,</span>
             <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span>
+            <span class="n">workers_data_path</span><span class="o">=</span><span class="n">workers_data_path</span><span class="p">,</span>
             <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
             <span class="n">rapids_enabled</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_INSTALL_MODE</span> <span class="o">&amp;</span> <span class="n">modes_enabled</span><span class="p">,</span>
             <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span>
@@ -3617,10 +3730,15 @@
         <span class="n">wenv_arg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\&quot;</span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2">&quot;</span> <span class="c1"># shlex.quote(str(wenv_abs))</span>
 
         <span class="n">worker_pyproject_dest</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="n">worker_pyproject_dest</span><span class="p">)</span>
-        <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
+        <span class="n">worker_pyproject_src</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="k">else</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_pyproject</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">worker_pyproject_src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing pyproject.toml for worker environment: </span><span class="si">{</span><span class="n">worker_pyproject_src</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">worker_pyproject_src</span><span class="p">,</span> <span class="n">worker_pyproject_dest</span><span class="p">)</span>
+        <span class="n">_ensure_optional_extras</span><span class="p">(</span><span class="n">worker_pyproject_dest</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">AGI</span><span class="p">,</span> <span class="s2">&quot;agi_workers&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
         <span class="n">_rewrite_uv_sources_paths_for_copied_pyproject</span><span class="p">(</span>
-            <span class="n">src_pyproject</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span>
+            <span class="n">src_pyproject</span><span class="o">=</span><span class="n">worker_pyproject_src</span><span class="p">,</span>
             <span class="n">dest_pyproject</span><span class="o">=</span><span class="n">worker_pyproject_dest</span><span class="p">,</span>
             <span class="n">log_rewrites</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">verbose</span><span class="p">),</span>
         <span class="p">)</span>

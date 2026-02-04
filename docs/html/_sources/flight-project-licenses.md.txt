@@ -15,13 +15,12 @@ It does **not** change the AGILab source license; refer to the repository root `
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
 | psutil | BSD-3-CLAUSE |
-| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| py7zr | LGPL-2.1-OR-LATER |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT |
 | pydantic-core | MIT |
 | pyppmd | LGPL-2.1-OR-LATER |
-| pyzstd | BSD LICENSE |
 | texttable | MIT LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT |

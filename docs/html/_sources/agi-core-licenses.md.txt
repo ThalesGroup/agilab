@@ -134,7 +134,6 @@ It does **not** change the AGILab source license; refer to the repository root `
 | pytz | MIT LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzmq | BSD LICENSE |
-| pyzstd | BSD LICENSE |
 | referencing | MIT License |
 | requests | APACHE SOFTWARE LICENSE |
 | rfc3339-validator | MIT LICENSE |

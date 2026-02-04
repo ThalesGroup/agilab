@@ -61,7 +61,6 @@ It does **not** change the AGILab source license; refer to the repository root `
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD-3-CLAUSE |
 | pytz | MIT LICENSE |
-| pyzstd | BSD LICENSE |
 | referencing | MIT License |
 | requests | APACHE SOFTWARE LICENSE |
 | rpds-py | MIT |
