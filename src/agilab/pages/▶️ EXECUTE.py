@@ -804,13 +804,12 @@ def render_cluster_settings_ui():
                 placeholder="e.g., ubuntu",
                 help="Remote account used for cluster SSH connections.",
             )
+        # Note: do not write back to `st.session_state[user_widget_key]` here.
+        # Streamlit forbids mutating a widget-backed key after instantiation
+        # (raises StreamlitAPIException). We only sanitize for persistence/use.
         sanitized_user = (user_input or "").strip()
         if not sanitized_user and stored_user:
-            sanitized_user = stored_user
-            if user_input != sanitized_user:
-                st.session_state[user_widget_key] = sanitized_user
-        elif user_input != sanitized_user:
-            st.session_state[user_widget_key] = sanitized_user
+            sanitized_user = str(stored_user).strip()
 
         env.user = sanitized_user
         cluster_params["user"] = sanitized_user
@@ -841,13 +840,10 @@ def render_cluster_settings_ui():
                     placeholder="e.g., ~/.ssh/id_rsa",
                     help="Private key used for SSH authentication.",
                 )
+            # Same rule as above: do not mutate widget-backed session keys post-instantiation.
             sanitized_key = (ssh_key_input or "").strip()
             if not sanitized_key and stored_key:
-                sanitized_key = stored_key
-                if ssh_key_input != sanitized_key:
-                    st.session_state[ssh_key_widget_key] = sanitized_key
-            elif ssh_key_input != sanitized_key:
-                st.session_state[ssh_key_widget_key] = sanitized_key
+                sanitized_key = str(stored_key).strip()
         else:
             password_widget_key = f"cluster_password__{env.app}"
             stored_password = cluster_params.get("password")
@@ -917,9 +913,9 @@ def render_cluster_settings_ui():
             if workers:
                 cluster_params["workers"] = workers
     else:
-        cluster_params.pop("scheduler", None)
-        cluster_params.pop("workers", None)
-        cluster_params.pop("workers_data_path", None)
+        # Keep scheduler/workers settings persisted even when Cluster is disabled,
+        # so users don't lose their configuration on toggles/page reloads.
+        pass
 
     st.session_state.dask = cluster_enabled
     benchmark_enabled = st.session_state.get("benchmark", False)
