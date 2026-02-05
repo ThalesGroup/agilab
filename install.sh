@@ -580,6 +580,7 @@ update_environment() {
         echo "AGI_CLUSTER_SHARE=\"$AGI_SHARE_DIR\""
         echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_DIR\""
         echo "AGI_INTERNET_ON=\"$AGI_INTERNET_ON\""
+        echo "IS_SOURCE_ENV=\"1\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }

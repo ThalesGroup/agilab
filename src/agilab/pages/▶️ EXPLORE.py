@@ -139,6 +139,31 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str):
 
     view_arg = shlex.quote(str(view_page))
     active_app_quoted = shlex.quote(active_app) if active_app else ""
+
+    cmd = (
+        f"{uv} --preview-features extra-build-dependencies --project {page_home} sync"
+    )
+
+    if env.is_source_env:
+        cmd = (
+            f"{uv} --preview-features extra-build-dependencies --project {page_home} run python -m ensurepip"
+        )
+        env.logger.info(cmd)
+        process = exec_bg(env, cmd, cwd=page_home)
+        exit_code = process.wait()
+
+        cmd = (
+            f"{uv} --preview-features extra-build-dependencies --project {page_home} run python -m pip install -e {env.env_pck.parent.parent}"
+        )
+        env.logger.info(cmd)
+        process = exec_bg(env, cmd, cwd=page_home)
+        exit_code = process.wait()
+
+
+    env.logger.info(cmd)
+    process = exec_bg(env, cmd, cwd=page_home)
+    exit_code = process.wait()
+
     cmd = (
         f"{uv} run --project {page_home} python -m streamlit run {view_arg} "
         f"--server.port {port} --server.address 127.0.0.1 "
@@ -147,6 +172,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str):
     )
     if active_app_quoted:
         cmd += f" -- --active-app {active_app_quoted}"
+    env.logger.info(cmd)
     result = exec_bg(env, cmd, cwd=page_home)
 
     env = os.environ.copy()
@@ -455,7 +481,9 @@ async def render_view_page(view_path: Path):
         extras[k] = v
     extras["embed"] = "true"
     query = urlencode(extras, doseq=True)
-    components.iframe(f"http://127.0.0.1:{port}/?{query}", height=900)
+    url = f"http://127.0.0.1:{port}/?{query}"
+    env.logger.info("page url: %s", url)
+    components.iframe(url, height=900)
 
     # --- end sidecar embed ---
 
