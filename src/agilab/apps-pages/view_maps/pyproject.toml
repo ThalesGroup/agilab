@@ -10,7 +10,3 @@ dependencies = [
     "plotly>=6.3.0",
     "sqlalchemy>=2.0.43",
 ]
-
-[tool.uv.sources.agi-env]
-path = "../../core/agi-env"
-editable = true
