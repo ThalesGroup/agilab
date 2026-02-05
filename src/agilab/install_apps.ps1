@@ -416,7 +416,7 @@ $DefaultSelectedApps = @(
     'sb3_trainer_project'
 )
 
-$BuiltinSkipByDefault = @('mycode_project', 'flight_project')
+$BuiltinSkipByDefault = @()
 $AllAppsSentinel = if ($env:INSTALL_ALL_SENTINEL) { [string]$env:INSTALL_ALL_SENTINEL } else { '__AGILAB_ALL_APPS__' }
 $BuiltinOnlySentinel = if ($env:INSTALL_BUILTIN_SENTINEL) { [string]$env:INSTALL_BUILTIN_SENTINEL } else { '__AGILAB_BUILTIN_APPS__' }
 
