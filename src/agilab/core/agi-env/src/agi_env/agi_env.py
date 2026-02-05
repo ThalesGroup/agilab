@@ -949,8 +949,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.uv_worker = self.uv
             use_freethread = False
 
-        self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE", 'localshare')
-        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE", 'clustershare')
+        self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE", "localshare")
+        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE", "clustershare")
+
+        # `AGI_SHARE_DIR` is the user-facing knob (installer + Streamlit UI). Treat it
+        # as an override for the cluster share root so updating it is immediately
+        # reflected without having to also edit `AGI_CLUSTER_SHARE` manually.
+        share_dir_override = envars.get("AGI_SHARE_DIR")
+        if share_dir_override is not None:
+            share_dir_value = str(share_dir_override).strip()
+            if share_dir_value:
+                self.AGI_CLUSTER_SHARE = share_dir_value
+                try:
+                    envars["AGI_CLUSTER_SHARE"] = share_dir_value
+                except Exception:
+                    pass
 
         def _cluster_enabled_from_settings() -> bool:
             """Best-effort read of the Streamlit 'Enable Cluster' toggle.
