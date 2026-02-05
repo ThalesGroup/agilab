@@ -13,12 +13,3 @@ dependencies = [
     "tensorflow==2.19.1",
     "scikit-learn>=1.7.2",
 ]
-
-[optional-dependencies]
-dev = [
-    "agi-env"
-]
-
-[tool.uv.sources.agi-env]
-path = "../../core/agi-env"
-editable = true

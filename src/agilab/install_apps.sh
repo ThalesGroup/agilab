@@ -778,22 +778,22 @@ INCLUDED_PAGES=("${INCLUDED_PAGES_UNIQ[@]}")
 INCLUDED_APPS=("${INCLUDED_APPS_UNIQ[@]}")
 
 # --- Run installer for each page (stable CWD so ../core/agi-cluster resolves) -----
-pushd -- "$AGILAB_REPO/apps-pages" >/dev/null
-
-for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
-    echo -e "${BLUE}Installing $page...${NC}"
-    pushd "$page" >/dev/null
-    ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
-    status=$?
-    if (( status != 0 )); then
-        echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
-    fi
-    popd >/dev/null
-done
-
-popd >/dev/null
-
-
+#pushd -- "$AGILAB_REPO/apps-pages" >/dev/null
+#
+#for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
+#    echo -e "${BLUE}Installing $page...${NC}"
+#    pushd "$page" >/dev/null
+#    ${UV_PREVIEW[@]} sync --config-file ../uv_config.toml --project . --preview-features python-upgrade
+#    status=$?
+#    if (( status != 0 )); then
+#        echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
+#    fi
+#    popd >/dev/null
+#done
+#
+#popd >/dev/null
+#
+#
 # --- Run installer for each app (stable CWD so ../core/agi-cluster resolves) -----
 pushd -- "$AGILAB_REPO/apps" >/dev/null
 

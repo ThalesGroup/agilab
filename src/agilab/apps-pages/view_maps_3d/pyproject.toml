@@ -11,7 +11,3 @@ dependencies = [
     "sqlalchemy>=2.0.43",
     "geojson>=3.2.0",
 ]
-
-[tool.uv.sources.agi-env]
-path = "../../core/agi-env"
-editable = true
