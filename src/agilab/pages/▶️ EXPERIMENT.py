@@ -129,6 +129,31 @@ def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = No
             placeholder.caption("No runs recorded yet.")
 
 
+def _prepare_run_log_file(
+    index_page: str,
+    env: AgiEnv,
+    prefix: str,
+) -> Tuple[Optional[Path], Optional[str]]:
+    """Create and register a log file for the current run context."""
+    log_file_key = f"{index_page}__run_log_file"
+    app_name = str(getattr(env, "app", "") or "agilab")
+    raw_prefix = (prefix or "run").strip()
+    safe_prefix = re.sub(r"[^A-Za-z0-9_-]+", "_", raw_prefix).strip("_") or "run"
+    log_dir_candidate = env.runenv or (Path.home() / "log" / "execute" / app_name)
+    try:
+        log_dir_path = Path(log_dir_candidate).expanduser()
+        log_dir_path.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        log_file_path = log_dir_path / f"{safe_prefix}_{timestamp}.log"
+        log_file_path.write_text("", encoding="utf-8")
+        st.session_state[log_file_key] = str(log_file_path)
+        st.session_state[f"{index_page}__last_run_log_file"] = str(log_file_path)
+        return log_file_path, None
+    except Exception as exc:
+        st.session_state.pop(log_file_key, None)
+        return None, str(exc)
+
+
 def _get_run_placeholder(index_page: str) -> Optional[Any]:
     """Return the cached run-log placeholder (if the UI has rendered it)."""
     key = f"{index_page}__run_placeholder"
@@ -3851,54 +3876,74 @@ def display_lab_tab(
                 if not snippet_file:
                     st.error("Snippet file is not configured. Reload the page and try again.")
                 else:
-                    target_base = Path(steps_file).parent.resolve()
-                    target_base.mkdir(parents=True, exist_ok=True)
-                    run_output = ""
-                    if engine == "runpy":
-                        run_output = run_lab(
-                            [entry.get("D", ""), st.session_state.get(q_key, ""), code_to_run],
-                            snippet_file,
-                            env.copilot_file,
-                        )
-                    else:
-                        script_path = (target_base / "AGI_run.py").resolve()
-                        script_path.write_text(code_to_run)
-                        python_cmd = _python_for_venv(venv_root)
-                        run_output = _stream_run_command(
-                            env,
-                            index_page_str,
-                            f"{python_cmd} {script_path}",
-                            cwd=target_base,
-                            placeholder=stored_placeholder,
-                        )
-                    env_label = Path(venv_root).name if venv_root else "default env"
-                    summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
-                    _push_run_log(
+                    log_file_path, log_error = _prepare_run_log_file(
                         index_page_str,
-                        f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                        stored_placeholder,
+                        env,
+                        prefix=f"step_{step + 1}",
                     )
-                    if run_output:
-                        preview = run_output.strip()
-                        if preview:
-                            _push_run_log(
-                                index_page_str,
-                                f"Output (step {step + 1}):\n{preview}",
-                                stored_placeholder,
-                            )
-                            if "No such file or directory" in preview:
-                                _push_run_log(
-                                    index_page_str,
-                                    "Hint: the code tried to call a file that is not present in the export environment. "
-                                    "Adjust the step to use a path that exists under the export/lab directory.",
-                                    stored_placeholder,
-                                )
-                    elif engine == "runpy":
+                    if log_file_path:
                         _push_run_log(
                             index_page_str,
-                            f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                            f"Run step {step + 1} started… logs will be saved to {log_file_path}",
                             stored_placeholder,
                         )
+                    else:
+                        _push_run_log(
+                            index_page_str,
+                            f"Run step {step + 1} started… (unable to prepare log file: {log_error})",
+                            stored_placeholder,
+                        )
+                    try:
+                        target_base = Path(steps_file).parent.resolve()
+                        target_base.mkdir(parents=True, exist_ok=True)
+                        run_output = ""
+                        if engine == "runpy":
+                            run_output = run_lab(
+                                [entry.get("D", ""), st.session_state.get(q_key, ""), code_to_run],
+                                snippet_file,
+                                env.copilot_file,
+                            )
+                        else:
+                            script_path = (target_base / "AGI_run.py").resolve()
+                            script_path.write_text(code_to_run)
+                            python_cmd = _python_for_venv(venv_root)
+                            run_output = _stream_run_command(
+                                env,
+                                index_page_str,
+                                f"{python_cmd} {script_path}",
+                                cwd=target_base,
+                                placeholder=stored_placeholder,
+                            )
+                        env_label = Path(venv_root).name if venv_root else "default env"
+                        summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
+                        _push_run_log(
+                            index_page_str,
+                            f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                            stored_placeholder,
+                        )
+                        if run_output:
+                            preview = run_output.strip()
+                            if preview:
+                                _push_run_log(
+                                    index_page_str,
+                                    f"Output (step {step + 1}):\n{preview}",
+                                    stored_placeholder,
+                                )
+                                if "No such file or directory" in preview:
+                                    _push_run_log(
+                                        index_page_str,
+                                        "Hint: the code tried to call a file that is not present in the export environment. "
+                                        "Adjust the step to use a path that exists under the export/lab directory.",
+                                        stored_placeholder,
+                                    )
+                        elif engine == "runpy":
+                            _push_run_log(
+                                index_page_str,
+                                f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                                stored_placeholder,
+                            )
+                    finally:
+                        st.session_state.pop(f"{index_page_str}__run_log_file", None)
 
             if run_pressed:
                 undo_stack = st.session_state.get(undo_key, [])
@@ -4136,29 +4181,19 @@ def display_lab_tab(
 
     if run_all_clicked:
         run_placeholder = _get_run_placeholder(index_page_str)
-        log_dir_candidate = env.runenv or (Path.home() / "log" / "execute" / env.app)
-        log_dir_path = Path(log_dir_candidate).expanduser()
-        log_file_path: Optional[Path] = None
-        try:
-            log_dir_path.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file_path = log_dir_path / f"pipeline_{timestamp}.log"
-            log_file_path.write_text("", encoding="utf-8")
-            log_file_key = f"{index_page_str}__run_log_file"
-            st.session_state[log_file_key] = str(log_file_path)
-            st.session_state[f"{index_page_str}__last_run_log_file"] = str(log_file_path)
+        log_file_path, log_error = _prepare_run_log_file(index_page_str, env, prefix="pipeline")
+        if log_file_path:
             _push_run_log(
                 index_page_str,
                 f"Run pipeline started… logs will be saved to {log_file_path}",
                 run_placeholder,
             )
-        except Exception as exc:
+        else:
             _push_run_log(
                 index_page_str,
-                f"Run pipeline started… (unable to prepare log file: {exc})",
+                f"Run pipeline started… (unable to prepare log file: {log_error})",
                 run_placeholder,
             )
-            log_file_path = None
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
@@ -4219,7 +4254,7 @@ def display_lab_tab(
             log_placeholder.caption("No runs recorded yet.")
         last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
         if last_log_file:
-            st.caption(f"Most recent pipeline log: {last_log_file}")
+            st.caption(f"Most recent run log: {last_log_file}")
 
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
