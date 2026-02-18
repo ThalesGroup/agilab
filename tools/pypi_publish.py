@@ -203,6 +203,27 @@ BADGE_PATTERN = re.compile(
 )
 
 
+def builtin_app_pyprojects() -> List[pathlib.Path]:
+    base = REPO_ROOT / "src/agilab" / "apps" / "builtin"
+    if not base.exists():
+        return []
+    return sorted(
+        path
+        for path in base.glob("*_project/pyproject.toml")
+        if path.is_file()
+    )
+
+
+def sync_builtin_app_versions(new_version: str) -> List[pathlib.Path]:
+    updated: List[pathlib.Path] = []
+    for pyproject_path in builtin_app_pyprojects():
+        set_version_in_pyproject(pyproject_path, new_version)
+        rel = pyproject_path.relative_to(REPO_ROOT)
+        print(f"[version] builtin app {rel}: {new_version}")
+        updated.append(pyproject_path)
+    return updated
+
+
 
 # ---------- Utils ----------
 def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None, timeout: int | None = None):
@@ -800,6 +821,8 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
             paths.append(str(readme.relative_to(REPO_ROOT)))
     if UMBRELLA[1].exists():
         paths.append(str(UMBRELLA[1].relative_to(REPO_ROOT)))
+    for pyproject_path in builtin_app_pyprojects():
+        paths.append(str(pyproject_path.relative_to(REPO_ROOT)))
     umbrella_readme = UMBRELLA[2] / "README.md"
     if umbrella_readme.exists():
         paths.append(str(umbrella_readme.relative_to(REPO_ROOT)))
@@ -860,6 +883,7 @@ def main():
 
     selected_core_entries = [entry for entry in CORE if entry[0] in selected_packages]
     build_umbrella = UMBRELLA[0] in selected_packages
+    sync_builtin_versions = bool(build_umbrella)
     if not selected_core_entries and not build_umbrella:
         raise SystemExit("ERROR: --packages must include at least one buildable package")
 
@@ -962,6 +986,9 @@ def main():
                 print(f"[build] umbrella: {', '.join(root_files)}")
             all_files.extend(root_files)
 
+        if sync_builtin_versions:
+            sync_builtin_app_versions(chosen)
+
         # keep README badges aligned even when running with --dry-run
         update_selected_badges(selected_core_entries, build_umbrella)
 
@@ -994,6 +1021,8 @@ def main():
                 pin_internal_deps(umbrella_toml, pins2)
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
+            if sync_builtin_versions:
+                sync_builtin_app_versions(chosen2)
             twine_check(all_files2)
             globals()['UPLOAD_COLLISION_DETECTED'] = False
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
