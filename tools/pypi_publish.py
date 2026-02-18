@@ -845,7 +845,13 @@ def git_commit_version(chosen_version: str, include_docs: bool = False):
     if not files:
         print("[git] nothing to commit")
         return
-    run(["git", "add", *files], cwd=REPO_ROOT)
+    app_prefixed = [f for f in files if f.startswith("src/agilab/apps/")]
+    regular_files = [f for f in files if not f.startswith("src/agilab/apps/")]
+    if regular_files:
+        run(["git", "add", *regular_files], cwd=REPO_ROOT)
+    if app_prefixed:
+        # app paths can live under ignored parent globs; stage tracked updates only.
+        run(["git", "add", "-u", *app_prefixed], cwd=REPO_ROOT)
     run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
     print(f"[git] committed version bump to {chosen_version}")
 
