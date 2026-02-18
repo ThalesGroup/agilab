@@ -928,6 +928,8 @@ fi
 #    exit 1
 #fi
 
+find . \( -name ".venv" -o -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+
 check_internet
 ensure_share_dir "$AGI_SHARE_DIR" "$AGI_LOCAL_DIR"
 set_locale
