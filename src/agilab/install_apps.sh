@@ -895,6 +895,10 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
   echo -e "${BLUE}[pytest] $app_name${NC}"
   if pushd -- "$app_dir_rel" >/dev/null; then
+    if [[ ! -d "test" && ! -d "tests" ]]; then
+      echo -e "${YELLOW} no tests found, skipping. ${NC}"
+      continue
+    fi
     if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
