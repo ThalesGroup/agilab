@@ -18,8 +18,6 @@ from typing import Any, Dict
 
 
 DOCS_ROOT_DEFAULT = Path(".codex/skills")
-JSON_DEFAULT = DOCS_ROOT_DEFAULT / ".generated" / "skills_index.json"
-MD_DEFAULT = DOCS_ROOT_DEFAULT / ".generated" / "skills_index.md"
 
 
 @dataclass
@@ -179,11 +177,18 @@ def collect_skills(skills_root: Path) -> tuple[list[SkillData], list[str]]:
         if not isinstance(updated, str):
             updated = None
 
+        raw_name = fm.get("name", skill_dir.name)
+        raw_description = fm.get("description", "")
+        raw_license = fm.get("license", "")
+        name = raw_name if isinstance(raw_name, str) else str(raw_name)
+        description = raw_description if isinstance(raw_description, str) else str(raw_description)
+        license_text = raw_license if isinstance(raw_license, str) else str(raw_license)
+
         skills.append(
             SkillData(
-                name=fm.get("name", skill_dir.name),
-                description=fm.get("description", ""),
-                license=fm.get("license", ""),
+                name=name,
+                description=description,
+                license=license_text,
                 path=skill_file,
                 body_preview=body_preview,
                 updated=updated,
@@ -194,23 +199,27 @@ def collect_skills(skills_root: Path) -> tuple[list[SkillData], list[str]]:
 
 
 def generate_outputs(skills: list[SkillData], json_out: Path, md_out: Path) -> list[Path]:
-    generated_at = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sorted_skills = sorted(skills, key=lambda s: s.name.lower())
-    payload = {
-        "generated_at_utc": generated_at,
+    skills_payload = [
+        {
+            "name": s.name,
+            "description": s.description,
+            "license": s.license,
+            "updated": s.updated,
+            "path": str(s.path.as_posix()),
+            "body_preview": s.body_preview,
+        }
+        for s in sorted_skills
+    ]
+    base_payload = {
         "tool": "tools/codex_skills.py",
         "count": len(skills),
-        "skills": [
-            {
-                "name": s.name,
-                "description": s.description,
-                "license": s.license,
-                "updated": s.updated,
-                "path": str(s.path.as_posix()),
-                "body_preview": s.body_preview,
-            }
-            for s in sorted_skills
-        ],
+        "skills": skills_payload,
+    }
+    generated_at = _resolve_generated_at(base_payload=base_payload, json_out=json_out)
+    payload = {
+        "generated_at_utc": generated_at,
+        **base_payload,
     }
     json_text = json.dumps(payload, indent=2) + "\n"
 
@@ -255,6 +264,32 @@ def _write_if_changed(path: Path, content: str) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return True
+
+
+def _resolve_generated_at(base_payload: Dict[str, Any], json_out: Path) -> str:
+    """Keep generated timestamp stable when payload did not change."""
+    existing_payload = _read_existing_payload(json_out)
+    if existing_payload is not None:
+        same_payload = {
+            "tool": existing_payload.get("tool"),
+            "count": existing_payload.get("count"),
+            "skills": existing_payload.get("skills"),
+        } == base_payload
+        if same_payload:
+            existing_generated_at = existing_payload.get("generated_at_utc")
+            if isinstance(existing_generated_at, str) and existing_generated_at:
+                return existing_generated_at
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _read_existing_payload(path: Path) -> Dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return raw if isinstance(raw, dict) else None
 
 
 def _quote_yaml_scalar(value: str) -> str:
@@ -321,13 +356,13 @@ def main(argv: list[str] | None = None) -> int:
     generate_cmd = sub.add_parser("generate", help="Generate deterministic skill index")
     generate_cmd.add_argument(
         "--json-output",
-        default=str(JSON_DEFAULT),
-        help="Path to generated JSON index",
+        default=None,
+        help="Path to generated JSON index (default: <root>/.generated/skills_index.json)",
     )
     generate_cmd.add_argument(
         "--md-output",
-        default=str(MD_DEFAULT),
-        help="Path to generated Markdown index",
+        default=None,
+        help="Path to generated Markdown index (default: <root>/.generated/skills_index.md)",
     )
 
     create_cmd = sub.add_parser("create", help="Create a new skill folder with SKILL.md")
@@ -366,10 +401,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if issues else 0
 
     if args.command == "generate":
+        default_generated_dir = root / ".generated"
+        json_out = Path(args.json_output) if args.json_output else default_generated_dir / "skills_index.json"
+        md_out = Path(args.md_output) if args.md_output else default_generated_dir / "skills_index.md"
         changed = generate_outputs(
             skills=skills,
-            json_out=Path(args.json_output),
-            md_out=Path(args.md_output),
+            json_out=json_out,
+            md_out=md_out,
         )
         if changed:
             print("Generated:")
