@@ -1,0 +1,63 @@
+{
+  "generated_at_utc": "2026-02-19T08:10:53Z",
+  "tool": "tools/codex_skills.py",
+  "count": 7,
+  "skills": [
+    {
+      "name": "agilab-docs",
+      "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-01-09",
+      "path": ".codex/skills/agilab-docs/SKILL.md",
+      "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing `docs/source` or any docs build tooling.\n## Source Of Truth\n- `docs/html` is generated: do not hand-edit it."
+    },
+    {
+      "name": "agilab-installer",
+      "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-01-09",
+      "path": ".codex/skills/agilab-installer/SKILL.md",
+      "body_preview": "# AGILAB Installer Skill\nUse this skill when working on:\n- `install.sh` / `install.ps1` (root installer)\n- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)"
+    },
+    {
+      "name": "agilab-local-llm",
+      "description": "Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-01-09",
+      "path": ".codex/skills/agilab-local-llm/SKILL.md",
+      "body_preview": "# Local LLM Skill (AGILAB)\nUse this skill when working on local/offline engines or prompts.\n## Correctness-First Defaults\n- Prefer deterministic settings for code edits (lower temperature, explicit constraints)."
+    },
+    {
+      "name": "agilab-runbook",
+      "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-01-08",
+      "path": ".codex/skills/agilab-runbook/SKILL.md",
+      "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## Background: Agent Skills (status update 2026-01-08)\n- Codex now supports **Agent Skills** using the open **Agent Skills** standard (`SKILL.md` + folder layout)."
+    },
+    {
+      "name": "agilab-streamlit-pages",
+      "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-01-09",
+      "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
+      "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/AGILAB.py`\n- `src/agilab/pages/*.py`"
+    },
+    {
+      "name": "agilab-testing",
+      "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-01-09",
+      "path": ".codex/skills/agilab-testing/SKILL.md",
+      "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- Start small and local: run only the tests that cover the files you changed."
+    },
+    {
+      "name": "template",
+      "description": "Minimal skeleton for a new skill (copy this folder and edit).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/template/SKILL.md",
+      "body_preview": "# Template Skill\nReplace this section with instructions."
+    }
+  ]
+}
