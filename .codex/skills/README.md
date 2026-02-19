@@ -27,3 +27,14 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
    - `name`, `description`, `license`, optional `metadata`.
 3. Keep the skill self-contained; include scripts/examples only when they materially help.
 
+## Managing the Skill Index
+
+Use `tools/codex_skills.py` to validate and regenerate generated indexes:
+
+- `python3 tools/codex_skills.py --root .codex/skills validate --strict`
+- `python3 tools/codex_skills.py --root .codex/skills generate`
+
+Generated files are written to:
+
+- `.codex/skills/.generated/skills_index.json`
+- `.codex/skills/.generated/skills_index.md`
