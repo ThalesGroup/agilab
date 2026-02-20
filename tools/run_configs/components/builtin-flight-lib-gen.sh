@@ -8,4 +8,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$HOME/wenv/builtin/flight_worker"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
-uv run python agi_node.agi_dispatcher.build --app-path $HOME/wenv/builtin/flight_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $HOME/wenv/builtin/flight_worker
+uv run python -m agi_node.agi_dispatcher.build --app-path $HOME/wenv/builtin/flight_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $HOME/wenv/builtin/flight_worker
