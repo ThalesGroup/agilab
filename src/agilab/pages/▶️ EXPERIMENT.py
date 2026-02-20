@@ -539,14 +539,25 @@ def _persist_sequence_preferences(
         logger.error("Failed to persist execution sequence to %s: %s", steps_file, exc)
 
 
-def _is_valid_step(entry: Dict[str, Any]) -> bool:
-    """Return True if a step contains meaningful content."""
+def _is_displayable_step(entry: Dict[str, Any]) -> bool:
+    """Return True if a step should be shown in the UI."""
     if not entry:
         return False
+    question = entry.get("Q", "")
+    if isinstance(question, str) and question.strip():
+        return True
     code = entry.get("C", "")
     if isinstance(code, str) and code.strip():
         return True
     return False
+
+
+def _is_runnable_step(entry: Dict[str, Any]) -> bool:
+    """Return True if a step has executable code content."""
+    if not entry:
+        return False
+    code = entry.get("C", "")
+    return isinstance(code, str) and bool(code.strip())
 
 
 def _looks_like_step(value: Any) -> bool:
@@ -562,7 +573,7 @@ def _prune_invalid_entries(entries: List[Dict[str, Any]], keep_index: Optional[i
     """Remove invalid steps, optionally preserving the entry at keep_index."""
     pruned: List[Dict[str, Any]] = []
     for idx, entry in enumerate(entries):
-        if _is_valid_step(entry) or (keep_index is not None and idx == keep_index):
+        if _is_displayable_step(entry) or (keep_index is not None and idx == keep_index):
             pruned.append(entry)
     return pruned
 
@@ -2434,7 +2445,7 @@ def run_all_steps(
         for idx in sequence:
             entry = steps[idx]
             code = entry.get("C", "")
-            if not _is_valid_step(entry) or not code:
+            if not _is_runnable_step(entry):
                 continue
             _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
 
@@ -3388,7 +3399,7 @@ def display_lab_tab(
             module_key = _module_keys(module_path)[0]
             fallback_steps = raw.get(module_key, [])
             if isinstance(fallback_steps, list):
-                persisted_steps = [s for s in fallback_steps if _is_valid_step(s)]
+                persisted_steps = [s for s in fallback_steps if _is_displayable_step(s)]
         except Exception:
             pass
     total_steps = len(persisted_steps)
@@ -4266,7 +4277,7 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
         cleaned: Dict[str, List[Dict[str, Any]]] = {}
         for mod, entries in raw_data.items():
             if isinstance(entries, list):
-                filtered = [entry for entry in entries if _is_valid_step(entry)]
+                filtered = [entry for entry in entries if _is_displayable_step(entry)]
                 if filtered:
                     cleaned[mod] = filtered
         code = json.dumps(cleaned, indent=2)
@@ -4289,7 +4300,7 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
             cleaned: Dict[str, List[Dict[str, Any]]] = {}
             for mod, entries in data.items():
                 if isinstance(entries, list):
-                    filtered = [entry for entry in entries if _is_valid_step(entry)]
+                    filtered = [entry for entry in entries if _is_displayable_step(entry)]
                     if filtered:
                         cleaned[mod] = filtered
             with open(steps_file, "wb") as f:
