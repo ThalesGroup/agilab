@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-01-08
+  updated: 2026-02-20
 ---
 
 # AGILab runbook (Agent Skill)
@@ -26,6 +26,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
+- **Docs source of truth**: edit docs in the sibling repo
+  `../thales_agilab/docs/source` (machine path:
+  `/Users/agi/PycharmProjects/thales_agilab/docs/source`).
+- **Generated docs in this repo**: treat `docs/html` (including `docs/html/_sources`)
+  as build output only. Do not hand-edit files in `docs/html`; always edit source
+  first and regenerate from `../thales_agilab/docs/source`.
+  - Canonical rebuild command:
+    `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
 - **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
 

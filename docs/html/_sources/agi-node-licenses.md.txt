@@ -24,14 +24,14 @@ It does **not** change the AGILab source license; refer to the repository root `
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| packaging | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | BSD LICENSE |
 | parso | MIT LICENSE |
 | partd | BSD |
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
 | psutil | BSD-3-CLAUSE |
-| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| py7zr | LGPL-2.1-OR-LATER |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pyppmd | LGPL-2.1-OR-LATER |
@@ -52,5 +52,5 @@ It does **not** change the AGILab source license; refer to the repository root `
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT |
 | urllib3 | MIT |
-| wheel | MIT LICENSE |
+| wheel | MIT |
 | zict | BSD LICENSE |

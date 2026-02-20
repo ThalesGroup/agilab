@@ -40,6 +40,19 @@ def expand_macros(text: str) -> str:
     return text
 
 
+def option_is_truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def looks_like_module_name(value: str) -> bool:
+    value = value.strip()
+    if not value:
+        return False
+    if any(sep in value for sep in ("/", "\\", " ")):
+        return False
+    return "." in value
+
+
 def classify_group(name: str, script: str, params: str, workdir: str) -> str:
     combined = " ".join(filter(None, [name.lower(), script.lower(), params.lower(), workdir.lower()]))
     if "apps/" in combined or "examples/" in combined or "apps-pages" in combined or "_project" in combined:
@@ -95,15 +108,18 @@ def generate_scripts(runconfig_dir: Path, out_dir: Path, project_root: Path) -> 
             for env in cfg.findall("./envs/env")
         ]
 
-        module_mode = options.get("MODULE_MODE", "false") == "true"
+        module_mode = option_is_truthy(options.get("MODULE_MODE", "false"))
         module_name = options.get("MODULE_NAME", "")
         script = options.get("SCRIPT_NAME", "")
         params = options.get("PARAMETERS", "")
         workdir = options.get("WORKING_DIRECTORY", "")
 
         if module_mode:
-            if module_name:
-                cmd = f"uv run {module_name}"
+            module_target = module_name
+            if not module_target and looks_like_module_name(script):
+                module_target = script
+            if module_target:
+                cmd = f"uv run python -m {module_target}"
                 if params:
                     cmd += f" {params}"
             else:

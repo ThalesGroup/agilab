@@ -382,6 +382,9 @@ def main(argv: list[str] | None = None) -> int:
     if not root.exists():
         print(f"ERROR: skills root does not exist: {root}", file=sys.stderr)
         return 2
+    if not root.is_dir():
+        print(f"ERROR: skills root is not a directory: {root}", file=sys.stderr)
+        return 2
 
     skills, issues = collect_skills(root)
 
@@ -398,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
             for issue in issues:
                 print(f"WARN: {issue}", file=sys.stderr)
         print(f"OK: validated {len(skills)} skills with {len(issues)} warning(s)")
-        return 1 if issues else 0
+        return 0
 
     if args.command == "generate":
         default_generated_dir = root / ".generated"

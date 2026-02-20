@@ -86,6 +86,8 @@ Layers at a glance
 **User surfaces**
     - Streamlit pages shipped in ``src/agilab/pages`` (EXECUTE/EXPLORE/EDIT/…).
     - CLI mirrors under ``src/agilab/examples`` and ``tools/run_configs``.
+    - ``tools/run_configs/*.sh`` can be executed directly from a terminal (no
+      PyCharm required).
     - Example scripts in ``src/agilab/examples`` (kept in sync via
       ``pycharm/setup_pycharm.py``).
 

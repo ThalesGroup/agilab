@@ -48,6 +48,23 @@ Install Agilab
    full AGI run so you can inspect the generated logs under
    ``~/log/execute/mycode``.
 
+Run without PyCharm (CLI wrappers)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you work from a repository checkout and do not use PyCharm, run the
+pre-generated wrappers under ``tools/run_configs`` directly from a shell.
+They mirror the bundled run configurations for built-in/public apps.
+
+List available wrappers::
+
+    find tools/run_configs -type f -name "*.sh" | sort
+
+Examples::
+
+    bash tools/run_configs/agilab/agilab-run-dev.sh
+    bash tools/run_configs/apps/builtin-flight-run.sh
+    bash tools/run_configs/apps/builtin-flight-test-worker.sh
+
 Cluster installs
 ^^^^^^^^^^^^^^^^
 

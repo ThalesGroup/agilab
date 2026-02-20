@@ -90,7 +90,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| packaging | APACHE-2.0;; BSD-2-CLAUSE |
 | pandocfilters | BSD LICENSE |
 | paramiko | LGPL-2.1 |
 | parso | MIT LICENSE |
@@ -103,9 +103,9 @@ It does **not** change the AGILab source license; refer to the repository root `
 | psutil | BSD-3-CLAUSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
-| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| py7zr | LGPL-2.1-OR-LATER |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| pycparser | BSD LICENSE |
+| pycparser | BSD-3-CLAUSE |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT |
 | pydantic-core | MIT |
@@ -126,7 +126,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | scikit-learn | BSD-3-CLAUSE |
 | scipy | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
-| send2trash | BSD LICENSE |
+| send2trash | BSD-3-CLAUSE |
 | setuptools | MIT |
 | six | MIT LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
@@ -147,10 +147,10 @@ It does **not** change the AGILab source license; refer to the repository root `
 | tzdata | APACHE-2.0 |
 | uri-template | MIT LICENSE |
 | urllib3 | MIT |
-| wcwidth | MIT LICENSE |
+| wcwidth | MIT |
 | webcolors | BSD LICENSE |
 | webencodings | BSD LICENSE |
 | websocket-client | APACHE SOFTWARE LICENSE |
-| wheel | MIT LICENSE |
+| wheel | MIT |
 | widgetsnbextension | BSD LICENSE |
 | zict | BSD LICENSE |

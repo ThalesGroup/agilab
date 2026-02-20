@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Troubleshooting &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css?v=d96b187f" />
@@ -18,8 +18,8 @@
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=b39c3bb1"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -54,6 +54,7 @@
 <li class="toctree-l2"><a class="reference internal" href="quick-start.html#prerequisites">Prerequisites</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#run-without-pycharm-cli-wrappers">Run without PyCharm (CLI wrappers)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#cluster-installs">Cluster installs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#next-steps">Next steps</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#support">Support</a></li>
@@ -403,6 +404,7 @@
 <li class="toctree-l2"><a class="reference internal" href="faq.html#do-we-already-have-dag-task-orchestration">Do we already have DAG/task orchestration?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#who-manages-multithreading-when-dask-is-disabled">Who manages multithreading when Dask is disabled?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#regenerating-ide-run-configurations">Regenerating IDE run configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#using-run-configurations-without-pycharm">Using run configurations without PyCharm</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#virtual-env-does-not-match-the-project-environment-warning">“VIRTUAL_ENV … does not match the project environment” warning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#why-does-a-run-create-distribution-json">Why does a run create <code class="docutils literal notranslate"><span class="pre">distribution.json</span></code>?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#switching-the-active-app-in-streamlit">Switching the active app in Streamlit</a></li>
@@ -414,7 +416,7 @@
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#b-run-debug-configurations-pycharm-and-shell">B - Run/Debug configurations (PyCharm and shell):</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run">D - agilab_run_dev vs agilab_run_enduser vs lab_run:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#e-macos-nfs-server-checklist">E - macOS NFS server checklist:</a></li>
@@ -424,6 +426,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#install-sh-do-not-install-your-run-debug-configurations">&lt;install.sh&gt; do not install your Run/Debug Configurations :</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#install-sh-freeze">&lt;install.sh&gt; freeze:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#uv-virtual-env-warning">&lt;UV&gt; VIRTUAL_ENV Warning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#python-python">&lt;Python&gt; Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
@@ -910,9 +913,11 @@
 Each Agilab API call should be set with verbose mode &gt;= 3. In particular, when debugging with a Dask worker,
 it will create a file (~/xxx-project_trace.txt) that shows what happened in during the worker build execution.</p>
 </section>
-<section id="b-pycharm-run-debug-configurations">
-<h2>B - Pycharm Run/Debug configurations:<a class="headerlink" href="#b-pycharm-run-debug-configurations" title="Link to this heading"></a></h2>
-<p>These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.</p>
+<section id="b-run-debug-configurations-pycharm-and-shell">
+<h2>B - Run/Debug configurations (PyCharm and shell):<a class="headerlink" href="#b-run-debug-configurations-pycharm-and-shell" title="Link to this heading"></a></h2>
+<p>You can run the same flows either from PyCharm or from the CLI wrappers in
+<code class="docutils literal notranslate"><span class="pre">tools/run_configs</span></code>. Non-PyCharm users should launch the <code class="docutils literal notranslate"><span class="pre">.sh</span></code> wrappers
+directly from a shell.</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">runConfigurations</span><span class="o">/</span>
 <span class="n">install_agilab_enduser</span><span class="o">.</span><span class="n">xml</span>
 </pre></div>
@@ -1098,6 +1103,16 @@ Building agi-cluster @ file:///Users/&lt;user&gt;/agilab/src/agilab/core/agi-clu
 warning: <cite>VIRTUAL_ENV=.venv</cite> does not match the project environment path <cite>/Users/&lt;user&gt;/agilab/src/agilab/apps/mycode_project/.venv</cite> and will be ignored; use <cite>–active</cite> to target the active environment instead
 This is not a problem this because we dynamically change the venv. Just ignore it.</p>
 </section>
+<section id="python-python">
+<h2>&lt;Python&gt; Python<a class="headerlink" href="#python-python" title="Link to this heading"></a></h2>
+<p>While installing an app, you might encounter the following error:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>uv --quiet run --project &#39;your project path&#39; python -m ensurepip --upgrade
+
+ERROR: pip&#39;s dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+</pre></div>
+</div>
+<p>In fact this is not an Error but just a warning without any consequences, you can ignore it.</p>
+</section>
 <section id="uv-sync-failed">
 <h2>&lt;UV&gt; Sync Failed<a class="headerlink" href="#uv-sync-failed" title="Link to this heading"></a></h2>
 <p>While running a script you see a “missing module” message but your module is correctly installed in your venv. And when
@@ -1118,7 +1133,7 @@ package version resolution. This may arrived because your <cite>UV cache has bee
 <p><strong>Workaround:</strong></p>
 <p>Disable <cite>python.debug.asyncio.repl</cite> in the PyCharm registry.
 To do this, go to Naviguate/Search Everywhere (<cite>&lt;Shift&gt;+&lt;Ctrl|command&gt;+A</cite>) to open the <cite>&lt;Action&gt;</cite> tab then search for <em>registry</em>.</p>
-<a class="reference internal image-reference" href="_images/pycharm_registry.png"><img alt="PyCharm Registry" class="align-center" src="_images/pycharm_registry.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/pycharm_registry.png"><img alt="PyCharm Registry" class="align-center" src="_images/pycharm_registry.png" width="400" />
 </a>
 <br><br></section>
 <section id="pycharm-run-debug-configuration-is-broken">
@@ -1128,7 +1143,7 @@ The following message appears when you try to [debug] <cite>&lt;gen-docstings&gt
 <blockquote>
 <div><p>Argument for &#64;NotNull parameter ‘module’ of com/intellij/openapi/roots/ModuleRootManager.getInstance must not be null</p>
 </div></blockquote>
-<a class="reference internal image-reference" href="_images/pycharm_bug.png"><img alt="PyCharm Bug" class="align-center" src="_images/pycharm_bug.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/pycharm_bug.png"><img alt="PyCharm Bug" class="align-center" src="_images/pycharm_bug.png" width="400" />
 </a>
 <br><br><p><strong>Solution:</strong></p>
 <p>This is because your Pycharm script is pointing an a venv but the project containing this venv is not attach to your current project.

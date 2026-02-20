@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>▶️ EDIT &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css?v=d96b187f" />
@@ -18,8 +18,8 @@
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=b39c3bb1"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -54,6 +54,7 @@
 <li class="toctree-l2"><a class="reference internal" href="quick-start.html#prerequisites">Prerequisites</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#run-without-pycharm-cli-wrappers">Run without PyCharm (CLI wrappers)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#cluster-installs">Cluster installs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#next-steps">Next steps</a></li>
 <li class="toctree-l3"><a class="reference internal" href="quick-start.html#support">Support</a></li>
@@ -403,6 +404,7 @@
 <li class="toctree-l2"><a class="reference internal" href="faq.html#do-we-already-have-dag-task-orchestration">Do we already have DAG/task orchestration?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#who-manages-multithreading-when-dask-is-disabled">Who manages multithreading when Dask is disabled?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#regenerating-ide-run-configurations">Regenerating IDE run configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#using-run-configurations-without-pycharm">Using run configurations without PyCharm</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#virtual-env-does-not-match-the-project-environment-warning">“VIRTUAL_ENV … does not match the project environment” warning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#why-does-a-run-create-distribution-json">Why does a run create <code class="docutils literal notranslate"><span class="pre">distribution.json</span></code>?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#switching-the-active-app-in-streamlit">Switching the active app in Streamlit</a></li>
@@ -414,7 +416,7 @@
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-run-debug-configurations-pycharm-and-shell">B - Run/Debug configurations (PyCharm and shell):</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run">D - agilab_run_dev vs agilab_run_enduser vs lab_run:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#e-macos-nfs-server-checklist">E - macOS NFS server checklist:</a></li>
@@ -424,6 +426,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#install-sh-do-not-install-your-run-debug-configurations">&lt;install.sh&gt; do not install your Run/Debug Configurations :</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#install-sh-freeze">&lt;install.sh&gt; freeze:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-virtual-env-warning">&lt;UV&gt; VIRTUAL_ENV Warning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#python-python">&lt;Python&gt; Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>

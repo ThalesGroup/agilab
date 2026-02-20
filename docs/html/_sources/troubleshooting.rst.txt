@@ -9,10 +9,12 @@ Run agilab.sh to install and then try to run your xxx-project.
 Each Agilab API call should be set with verbose mode >= 3. In particular, when debugging with a Dask worker,
 it will create a file (~/xxx-project_trace.txt) that shows what happened in during the worker build execution.
 
-B - Pycharm Run/Debug configurations:
--------------------------------------
+B - Run/Debug configurations (PyCharm and shell):
+-------------------------------------------------
 
-These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.
+You can run the same flows either from PyCharm or from the CLI wrappers in
+``tools/run_configs``. Non-PyCharm users should launch the ``.sh`` wrappers
+directly from a shell.
 
 .. include:: troubleshooting.txt
    :code: text
@@ -222,6 +224,19 @@ Unfortunatly when NumPy/Numba falls back to compiling from source you won’t se
 while running uv into a project from another one:
 warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/<user>/agilab/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
 This is not a problem this because we dynamically change the venv. Just ignore it.
+
+<Python> Python
+-------------------
+While installing an app, you might encounter the following error:
+
+.. code-block:: none
+
+   uv --quiet run --project 'your project path' python -m ensurepip --upgrade
+
+   ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+
+In fact this is not an Error but just a warning without any consequences, you can ignore it.
+
 
 <UV> Sync Failed
 ----------------

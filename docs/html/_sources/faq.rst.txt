@@ -34,6 +34,17 @@ Regenerating IDE run configurations
 Wrap it (and ``setup_pycharm.py``) in a single helper command—e.g. ``just run-configs`` or ``make
 run-configs``—so developers and CI regenerate configs consistently from the same entry point.
 
+Using run configurations without PyCharm
+----------------------------------------
+For shell-only workflows, use the checked-in wrappers under
+``tools/run_configs``. These wrappers mirror the bundled run configurations and
+can be launched directly from a terminal without opening PyCharm.
+
+Typical usage::
+
+    bash tools/run_configs/agilab/agilab-run-dev.sh
+    bash tools/run_configs/apps/builtin-mycode-run.sh
+
 "VIRTUAL_ENV ... does not match the project environment" warning
 ----------------------------------------------------------------
 ``uv`` emits this when you launch a command from an activated shell whose
