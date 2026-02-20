@@ -463,6 +463,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#snippet-handoff-to-experiment">Snippet Handoff to Experiment</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
@@ -960,6 +961,18 @@ powers the Experiment and Explore pages. Use the column selector with
 <code class="docutils literal notranslate"><span class="pre">Select</span> <span class="pre">all</span></code> support to decide which fields are persisted to
 <code class="docutils literal notranslate"><span class="pre">${AGILAB_EXPORT_ABS}/&lt;module&gt;/export.csv</span></code>.</p></li>
 </ul>
+</section>
+<section id="snippet-handoff-to-experiment">
+<h2>Snippet Handoff to Experiment<a class="headerlink" href="#snippet-handoff-to-experiment" title="Link to this heading"></a></h2>
+<p>For newcomers, keep Execute and Experiment in sync with this workflow:</p>
+<ol class="arabic simple">
+<li><p>Generate the snippet in <strong>Execute</strong> (typically <code class="docutils literal notranslate"><span class="pre">AGI.run</span></code>).</p></li>
+<li><p>Copy/paste that snippet into the current <strong>Experiment</strong> step before running it.</p></li>
+<li><p>Each time you change values in <code class="docutils literal notranslate"><span class="pre">&lt;module&gt;</span> <span class="pre">args</span></code> (<code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code> /
+<code class="docutils literal notranslate"><span class="pre">[args]</span></code>), regenerate the snippet in Execute and replace the snippet stored
+in the Experiment step.</p></li>
+</ol>
+<p>This avoids running stale code that still references old app argument values.</p>
 </section>
 </section>
 

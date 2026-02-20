@@ -50,3 +50,15 @@ Main Content Area
   powers the Experiment and Explore pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
+
+Snippet Handoff to Experiment
+-----------------------------
+For newcomers, keep Execute and Experiment in sync with this workflow:
+
+1. Generate the snippet in **Execute** (typically ``AGI.run``).
+2. Copy/paste that snippet into the current **Experiment** step before running it.
+3. Each time you change values in ``<module> args`` (``app_settings.toml`` /
+   ``[args]``), regenerate the snippet in Execute and replace the snippet stored
+   in the Experiment step.
+
+This avoids running stale code that still references old app argument values.

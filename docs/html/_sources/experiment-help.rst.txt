@@ -47,6 +47,11 @@ The assistant automatically reloads the most recent dataframe and shows it below
 the editor. If nothing has been saved yet, you will see a reminder to run a
 snippet first.
 
+When your lab step is based on app execution, copy the snippet from the Execute
+page and paste it into the Experiment step. If you edit app argument values in
+Execute, regenerate the snippet and update the Experiment step again before you
+run it.
+
 HISTORY
 ~~~~~~~
 Inspect or tweak the raw ``lab_steps.toml`` via the code editor. Saving the
