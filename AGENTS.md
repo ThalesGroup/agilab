@@ -90,8 +90,13 @@ Use this runbook whenever you:
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
-- **Docs edits**: `docs/html` in this repo is generated output. Regenerate docs with your documentation
-  tooling and commit the updated `docs/html/`.
+- **Docs source of truth**: Editable docs sources live in the sibling repository
+  `../thales_agilab/docs/source` (for this machine:
+  `/Users/agi/PycharmProjects/thales_agilab/docs/source`).
+- **Docs edits**: `docs/html` in this repo is generated output only. Do not treat
+  `docs/html/_sources/*.txt` as editable source files. Regenerate from
+  `../thales_agilab/docs/source` with the documentation tooling, then commit the
+  updated `docs/html/`.
 - **VIRTUAL_ENV warning**: `uv` may emit `VIRTUAL_ENV=... does not match the project environment path ...; use --active...`.
   This is expected because AGILAB manages multiple venvs per app/local/shared install. Ignore unless you intend to run against the currently activated venv.
 
@@ -198,8 +203,11 @@ Use this runbook whenever you:
 
 **Docs Publishing**
 - The published site is committed under `docs/html` (tracked in git).
+- Canonical editable docs live in `../thales_agilab/docs/source`; this repo stores
+  the generated site artifact.
 - GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
-- To update docs, regenerate `docs/html/` with your documentation tooling and commit the result.
+- To update docs, edit `../thales_agilab/docs/source`, regenerate `docs/html/`, and
+  commit the result in this repo.
 
 **CI & Badges**
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
