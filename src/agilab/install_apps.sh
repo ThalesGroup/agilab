@@ -696,6 +696,7 @@ import pathlib
 p = pathlib.Path("core").resolve()
 print(f"Repository core -> {p}")
 PY
+
     repo_templates_dir="apps/templates"
     public_templates_dir="$AGILAB_REPO/apps/templates"
     if [[ -d "$public_templates_dir" ]]; then
