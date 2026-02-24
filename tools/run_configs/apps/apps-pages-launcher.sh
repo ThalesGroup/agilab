@@ -8,4 +8,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$REPO_ROOT"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
-uv run python $REPO_ROOT/tools/apps_pages_launcher.py --active-app $REPO_ROOT/src/agilab/apps/flight_project
+uv run python $REPO_ROOT/tools/apps_pages_launcher.py --active-app $REPO_ROOT/src/agilab/apps/builtin/flight_project
