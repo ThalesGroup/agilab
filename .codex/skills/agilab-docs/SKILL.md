@@ -26,6 +26,14 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.
 
+## Commit Guardrail
+
+- Do not stage or commit `docs/html/**` changes unless:
+  1. a corresponding source edit exists under `../thales_agilab/docs/source/**`, and
+  2. `docs/html/**` was regenerated from that source.
+- If `docs/html/**` was modified by bulk replace/refactor unrelated to docs regeneration,
+  revert those generated-file edits before committing.
+
 ## Public Docs Constraint
 
 - Public documentation must not mention non-public apps/repositories.
