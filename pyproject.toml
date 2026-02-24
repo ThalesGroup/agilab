@@ -5,7 +5,9 @@ description = "AGILAB is a PyCharm‑integrated AI experimentation lab for engin
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+    { name = "Guillaume Demets" },
+    { name = "Julien Bestard" }
 ]
 
 classifiers = [
