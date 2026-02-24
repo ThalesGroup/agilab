@@ -18,3 +18,23 @@ cython = false
 pool = false
 rapids = false
 cluster_enabled = false
+[args]
+data_source = "file"
+data_in = "flight/dataset"
+data_out = "flight/dataframe"
+files = "*"
+nfile = 1
+nskip = 0
+nread = 0
+sampling_rate = 1.0
+datemin = "2020-01-01"
+datemax = "2021-01-01"
+output_format = "parquet"
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
