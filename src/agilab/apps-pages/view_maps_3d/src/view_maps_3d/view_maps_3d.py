@@ -15,6 +15,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
+import re
 
 import streamlit as st
 import pandas as pd
@@ -57,7 +58,7 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_env.pagelib import find_files, load_df, render_logo, cached_load_df, _dump_toml_payload
+from agi_env.pagelib import find_files, load_df, render_logo, _dump_toml_payload
 import tomllib as _toml
 
 
@@ -79,6 +80,23 @@ ELEVATION_DECODER = {
 # Define possible names for latitude and longitude columns
 possible_latitude_names = ["latitude", "lat", "beam_lat"]
 possible_longitude_names = ["longitude", "long", "lng", "beam_long"]
+DATASET_EXTENSIONS = (".csv", ".parquet", ".json")
+FILE_TYPE_OPTIONS = ("csv", "parquet", "json", "all")
+DF_SELECTION_MODES = ("Single file", "Multi-select", "Regex (multi)")
+PAGE_KEY_PREFIX = "view_maps_3d"
+
+
+def _vm3d_key(name: str) -> str:
+    return f"{PAGE_KEY_PREFIX}:{name}"
+
+
+def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
+    files: list[Path] = []
+    extensions = DATASET_EXTENSIONS if ext_choice == "all" else (f".{ext_choice}",)
+    for ext in extensions:
+        files.extend(find_files(base_dir, ext=ext))
+    # De-duplicate while keeping deterministic ordering for widget defaults.
+    return sorted(set(files))
 
 st.title(":world_map: Cartography-3D Visualisation")
 
@@ -108,10 +126,12 @@ def generate_random_colors(num_colors):
 
 def initialize_csv_files():
     """
-    Initialize the CSV files for the session state.
+    Initialize dataset files for the session state.
 
-    If 'csv_files' does not exist in the session state or is empty, it will find files in the data directory.
-    If 'df_file' does not exist in the session state or is empty, it will set the first CSV file found as the default.
+    If files do not exist in the session state, discover CSV/Parquet/JSON
+    files in the data directory.
+    If 'df_file' does not exist in the session state or is empty, set the
+    first discovered dataset as the default.
 
     Args:
         None
@@ -120,25 +140,29 @@ def initialize_csv_files():
         None
     """
     """ """
-    if "csv_files" not in st.session_state or not st.session_state["csv_files"]:
-        files = find_files(st.session_state.datadir)
+    datadir = Path(st.session_state.datadir)
+    dataset_key = "dataset_files"
+    if dataset_key not in st.session_state or not st.session_state[dataset_key]:
+        files = _list_dataset_files(datadir)
         # Hide any path with dot-prefixed components
         visible = []
         for f in files:
             try:
-                parts = f.relative_to(st.session_state.datadir).parts
+                parts = f.relative_to(datadir).parts
             except Exception:
                 parts = f.parts
             if any(part.startswith(".") for part in parts):
                 continue
             visible.append(f)
+        st.session_state[dataset_key] = visible
+        # Backward-compatible alias used by older helper code.
         st.session_state["csv_files"] = visible
     if "df_file" not in st.session_state or not st.session_state["df_file"]:
-        csv_files_rel = [
-            Path(file).relative_to(st.session_state.datadir).as_posix()
-            for file in st.session_state.csv_files
+        dataset_files_rel = [
+            Path(file).relative_to(datadir).as_posix()
+            for file in st.session_state.get(dataset_key, [])
         ]
-        st.session_state["df_file"] = csv_files_rel[0] if csv_files_rel else None
+        st.session_state["df_file"] = dataset_files_rel[0] if dataset_files_rel else None
 
 
 def initialize_beam_files():
@@ -219,10 +243,9 @@ def update_datadir(var_key, widget_key):
     Returns:
 
     """
-    if "df_file" in st.session_state:
-        del st.session_state["df_file"]
-    if "csv_files" in st.session_state:
-        del st.session_state["csv_files"]
+    for key in ("df_file", "df_files_selected", "csv_files", "dataset_files", "loaded_df"):
+        if key in st.session_state:
+            del st.session_state[key]
     update_var(var_key, widget_key)
     initialize_csv_files()
 
@@ -451,65 +474,192 @@ def page():
     if "coltype" not in st.session_state:
         st.session_state["coltype"] = view_settings.get("coltype", var[0])
 
+    datadir_widget_key = _vm3d_key("input_datadir")
+    datadir_str = str(st.session_state.datadir)
+    if st.session_state.get(datadir_widget_key) != datadir_str:
+        st.session_state[datadir_widget_key] = datadir_str
     st.sidebar.text_input(
         "Data Directory",
-        value=st.session_state.datadir,
-        key="input_datadir",
+        key=datadir_widget_key,
         on_change=update_datadir,
-        args=("datadir", "input_datadir"),
+        args=("datadir", datadir_widget_key),
     )
 
     if "loaded_df" not in st.session_state:
         st.session_state["loaded_df"] = None
 
     datadir = Path(st.session_state.datadir)
+    datadir_last_key = _vm3d_key("last_datadir")
+    datadir_changed = st.session_state.get(datadir_last_key) != str(datadir)
+    st.session_state[datadir_last_key] = str(datadir)
 
     if not datadir.exists() or not datadir.is_dir():
         st.sidebar.error("Directory not found.")
         st.warning("A valid data directory is required to proceed.")
         return  # Stop further processing
 
-    if st.session_state.datadir:
-        datadir = Path(st.session_state.datadir)
-        if datadir.exists() and datadir.is_dir():
-            st.session_state["csv_files"] = find_files(st.session_state["datadir"])
-            if not st.session_state["csv_files"]:
-                st.warning(
-                    "A dataset is required to proceed. Please added via memu execute/export."
-                )
-                st.stop()
-            csv_files_rel = sorted(
-                [
-                    Path(file).relative_to(datadir).as_posix()
-                    for file in st.session_state.csv_files
-                ]
-            )
-            settings_file = view_settings.get("df_file")
-            default_idx = (
-                csv_files_rel.index(settings_file)
-                if settings_file and settings_file in csv_files_rel
-                else (
-                    csv_files_rel.index(st.session_state.df_file)
-                    if "df_file" in st.session_state
-                       and st.session_state.df_file in csv_files_rel
-                    else 0
-                )
-            )
-            st.sidebar.selectbox(
-                "DataFrame",
-                csv_files_rel,
-                key="df_file",
-                index=default_idx,
-            )
-        else:
-            st.sidebar.error("Directory not found")
+    file_ext_key = _vm3d_key("file_ext_choice")
+    ext_default = str(view_settings.get("file_ext_choice", "all")).lower()
+    if ext_default not in FILE_TYPE_OPTIONS:
+        ext_default = "all"
+    if st.session_state.get(file_ext_key) not in FILE_TYPE_OPTIONS:
+        st.session_state[file_ext_key] = ext_default
+    ext_choice = st.sidebar.selectbox(
+        "File type",
+        FILE_TYPE_OPTIONS,
+        key=file_ext_key,
+    )
+    st.session_state["file_ext_choice"] = ext_choice
 
+    dataset_key = "dataset_files"
+    legacy_key = "csv_files"
+    dataset_files = _list_dataset_files(datadir, ext_choice=ext_choice)
+    st.session_state[dataset_key] = dataset_files
+    st.session_state[legacy_key] = dataset_files
+    if not dataset_files:
+        st.warning(
+            f"No dataset found in {datadir} (filter: {ext_choice}). "
+            "Please add CSV/Parquet/JSON outputs via Execute/Export."
+        )
+        st.stop()
+    dataset_files_rel_set: set[str] = set()
+    for file in dataset_files:
+        try:
+            rel_path = Path(file).relative_to(datadir)
+        except Exception:
+            continue
+        if any(part.startswith(".") for part in rel_path.parts):
+            continue
+        dataset_files_rel_set.add(rel_path.as_posix())
+    dataset_files_rel = sorted(dataset_files_rel_set)
+
+    settings_files = view_settings.get("df_files_selected") or []
+    if not settings_files:
+        legacy_setting = view_settings.get("df_file")
+        settings_files = [legacy_setting] if legacy_setting else []
+    default_selection = (
+        [item for item in settings_files if item in dataset_files_rel]
+        or dataset_files_rel[:1]
+    )
+
+    mode_key = _vm3d_key("df_select_mode")
+    mode_default = str(view_settings.get("df_select_mode", "Multi-select"))
+    if mode_default not in DF_SELECTION_MODES:
+        mode_default = "Multi-select"
+    if st.session_state.get(mode_key) not in DF_SELECTION_MODES:
+        st.session_state[mode_key] = mode_default
+    df_mode = st.sidebar.radio(
+        "Dataset selection",
+        options=DF_SELECTION_MODES,
+        key=mode_key,
+    )
+    st.session_state["df_select_mode"] = df_mode
+
+    selection_key = _vm3d_key("df_files_selected")
+    if selection_key not in st.session_state:
+        legacy_selected = st.session_state.get("df_files_selected")
+        if isinstance(legacy_selected, list):
+            st.session_state[selection_key] = [item for item in legacy_selected if item in dataset_files_rel]
+        else:
+            st.session_state[selection_key] = []
+    current_selection = st.session_state.get(selection_key)
+    if not isinstance(current_selection, list):
+        current_selection = []
+    current_selection = [item for item in current_selection if item in dataset_files_rel]
+    if datadir_changed or (not current_selection and default_selection):
+        current_selection = default_selection
+    st.session_state[selection_key] = current_selection
+
+    single_file_key = _vm3d_key("df_file")
+    single_default = (
+        current_selection[0]
+        if current_selection
+        else (default_selection[0] if default_selection else "")
+    )
+    if st.session_state.get(single_file_key) not in dataset_files_rel:
+        st.session_state[single_file_key] = single_default
+
+    regex_key = _vm3d_key("df_file_regex")
+    if regex_key not in st.session_state:
+        st.session_state[regex_key] = str(view_settings.get("df_file_regex", ""))
+
+    selected_files: list[str] = []
+    if df_mode == "Single file":
+        st.sidebar.selectbox(
+            "DataFrame",
+            options=dataset_files_rel,
+            key=single_file_key,
+        )
+        selected_single = st.session_state.get(single_file_key)
+        if selected_single:
+            selected_files = [selected_single]
+    elif df_mode == "Regex (multi)":
+        regex_raw = st.sidebar.text_input(
+            "DataFrame filename regex",
+            key=regex_key,
+            help="Python regex applied to the relative file path. Leave empty to match all files.",
+        ).strip()
+        regex_ok = True
+        pattern = None
+        if regex_raw:
+            try:
+                pattern = re.compile(regex_raw)
+            except re.error as exc:
+                regex_ok = False
+                st.sidebar.error(f"Invalid regex: {exc}")
+        matching = (
+            [item for item in dataset_files_rel if pattern.search(item)]
+            if (regex_ok and pattern is not None)
+            else (dataset_files_rel if not regex_raw else [])
+        )
+        st.sidebar.caption(f"{len(matching)} / {len(dataset_files_rel)} files match")
+        if st.sidebar.button(
+            f"Select all matching ({len(matching)})",
+            disabled=not matching,
+            key=_vm3d_key("df_regex_select_all"),
+        ):
+            st.session_state[selection_key] = matching
+        seeded = st.session_state.get(selection_key)
+        if not isinstance(seeded, list):
+            seeded = []
+        seeded = [item for item in seeded if item in dataset_files_rel]
+        if not seeded:
+            seeded = default_selection
+        st.session_state[selection_key] = seeded
+        st.sidebar.multiselect(
+            "DataFrames",
+            options=dataset_files_rel,
+            key=selection_key,
+            help="Select one or more CSV/Parquet/JSON files (including split part files).",
+        )
+        selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+    else:
+        st.sidebar.multiselect(
+            "DataFrames",
+            options=dataset_files_rel,
+            key=selection_key,
+            help="Select one or more CSV/Parquet/JSON files (including split part files).",
+        )
+        selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+    st.sidebar.caption(f"{len(selected_files)} selected")
+    if selected_files:
+        st.session_state[single_file_key] = selected_files[0]
+    st.session_state["df_files_selected"] = selected_files
+    st.session_state["df_file"] = selected_files[0] if selected_files else ""
+    st.session_state["df_file_regex"] = st.session_state.get(regex_key, "")
+    if not selected_files:
+        st.warning("Please select at least one dataset to proceed.")
+        return
+
+    beamdir_widget_key = _vm3d_key("input_beamdir")
+    beamdir_str = str(st.session_state.beamdir)
+    if st.session_state.get(beamdir_widget_key) != beamdir_str:
+        st.session_state[beamdir_widget_key] = beamdir_str
     st.sidebar.text_input(
         "Polygon Directory",
-        value=str(st.session_state.beamdir),
-        key="input_beamdir",
+        key=beamdir_widget_key,
         on_change=update_beamdir,
-        args=("beamdir", "input_beamdir"),
+        args=("beamdir", beamdir_widget_key),
     )
 
     # Initialize session state for beam_files if it doesn't exist
@@ -537,14 +687,32 @@ def page():
                     for file in st.session_state.beam_csv_files
                 ]
             )
+            beam_files_key = _vm3d_key("beam_files")
+            if beam_files_key not in st.session_state:
+                legacy_beams = st.session_state.get("beam_files")
+                if isinstance(legacy_beams, list):
+                    st.session_state[beam_files_key] = [
+                        item for item in legacy_beams if item in beam_csv_files_rel
+                    ]
+                else:
+                    st.session_state[beam_files_key] = []
+            beam_seed = st.session_state.get(beam_files_key)
+            if not isinstance(beam_seed, list):
+                beam_seed = []
+            beam_seed = [item for item in beam_seed if item in beam_csv_files_rel]
+            if not beam_seed and default_beam_files:
+                beam_seed = [item for item in default_beam_files if item in beam_csv_files_rel]
+            st.session_state[beam_files_key] = beam_seed
             st.sidebar.multiselect(
                 "Polygon Files",
                 beam_csv_files_rel,
-                key="beam_files",
-                # default=st.session_state["beam_files"],
-                on_change=update_var,
-                args=("beam_files", "beam_files"),
+                key=beam_files_key,
             )
+            selected_beams = st.session_state.get(beam_files_key, [])
+            if isinstance(selected_beams, list):
+                st.session_state["beam_files"] = [item for item in selected_beams if item in beam_csv_files_rel]
+            else:
+                st.session_state["beam_files"] = []
         else:
             st.warning("Beam directory not found")
 
@@ -560,16 +728,53 @@ def page():
             st.session_state["dfs_beams"][beam_file] = load_df(
                 beam_file_abs, with_index=False, cache_buster=cache_buster
             )
-    if "Load Data" not in st.session_state:
-        st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target,with_index=True)
-    if "loaded_df" in st.session_state and st.session_state["df_file"]:
-        st.session_state["loaded_df"]
+    selected_files = st.session_state.get("df_files_selected", [])
+    dataframes: list[pd.DataFrame] = []
+    load_errors: list[str] = []
+    for rel_path in selected_files:
+        df_file_abs = datadir / rel_path
+        cache_buster = None
+        try:
+            cache_buster = df_file_abs.stat().st_mtime_ns
+        except Exception:
+            pass
+        try:
+            df_loaded = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
+        except Exception as exc:
+            load_errors.append(f"{rel_path}: {exc}")
+            continue
+        if not isinstance(df_loaded, pd.DataFrame):
+            load_errors.append(f"{rel_path}: unexpected type {type(df_loaded)}")
+            continue
+        if df_loaded.empty:
+            load_errors.append(f"{rel_path}: empty dataframe")
+            continue
+        df_loaded = df_loaded.copy()
+        df_loaded["__dataset__"] = rel_path
+        dataframes.append(df_loaded)
+    if load_errors:
+        st.sidebar.warning("Some selected files failed to load; continuing with the rest.")
+        with st.sidebar.expander("Load errors", expanded=False):
+            for err in load_errors[:50]:
+                st.write(err)
+            if len(load_errors) > 50:
+                st.write(f"... ({len(load_errors) - 50} more)")
+    if dataframes:
+        st.session_state["loaded_df"] = pd.concat(dataframes, ignore_index=True)
+    else:
+        st.session_state["loaded_df"] = pd.DataFrame()
+        st.error("No selected dataframes could be loaded.")
+        return
 
     # Persist current selections for reloads
     save_settings = {
         "datadir": str(st.session_state.get("datadir", "")),
         "beamdir": str(st.session_state.get("beamdir", "")),
+        "file_ext_choice": st.session_state.get("file_ext_choice", "all"),
+        "df_select_mode": st.session_state.get("df_select_mode", "Multi-select"),
+        "df_file_regex": st.session_state.get("df_file_regex", ""),
         "df_file": st.session_state.get("df_file", ""),
+        "df_files_selected": st.session_state.get("df_files_selected", []),
         "beam_files": st.session_state.get("beam_files", []),
         "coltype": st.session_state.get("coltype", ""),
     }
@@ -589,11 +794,6 @@ def page():
                 _dump_toml_payload(persisted, fh)
         except Exception:
             pass
-        loaded_df = st.session_state.get("loaded_df")
-
-        #df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
-        #df_file_abs = "~/export/flight_sim/export.csv"
-        #st.session_state["loaded_df"] = load_df(df_file_abs, with_index=False)
 
     # Create a button styled link to open geojson.io with Streamlit-like customization
     st.sidebar.markdown(
@@ -662,24 +862,42 @@ def page():
         ):
             # Initialize an empty DataFrame to store distribution metrics
             c = st.columns(5)
+            sampling_key = _vm3d_key("sampling_ratio")
+            if sampling_key not in st.session_state:
+                st.session_state[sampling_key] = max(1, int(st.session_state.GUI_SAMPLING))
             sampling_ratio = c[4].number_input(
                 "Sampling ratio",
                 min_value=1,
-                value=st.session_state.GUI_SAMPLING,
                 step=1,
+                key=sampling_key,
             )
-            st.session_state.GUI_SAMPLING = sampling_ratio
+            st.session_state.GUI_SAMPLING = int(sampling_ratio)
             st.session_state.loaded_df=downsample_df_deterministic(st.session_state.loaded_df, sampling_ratio)
             loaded_df = st.session_state.loaded_df
             nrows = st.session_state.loaded_df.shape[0]
+            min_lines = 1 if nrows < 10 else 10
+            line_limit_key = _vm3d_key("table_max_rows")
+            try:
+                table_max_rows = int(st.session_state.TABLE_MAX_ROWS)
+            except Exception:
+                table_max_rows = nrows
+            default_line_limit = min(max(min_lines, table_max_rows), nrows)
+            if st.session_state.get(line_limit_key) is None:
+                st.session_state[line_limit_key] = default_line_limit
+            else:
+                try:
+                    current_limit = int(st.session_state[line_limit_key])
+                except Exception:
+                    current_limit = default_line_limit
+                st.session_state[line_limit_key] = min(max(min_lines, current_limit), nrows)
             lines = st.slider(
                 "Select the desired number of points:",
-                min_value=10,
+                min_value=min_lines,
                 max_value=nrows,
-                value=st.session_state.TABLE_MAX_ROWS,
-                step=10,
+                step=1,
+                key=line_limit_key,
             )
-            st.session_state.TABLE_MAX_ROWS = lines
+            st.session_state.TABLE_MAX_ROWS = int(lines)
             if lines >= 0:
                 st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
 
@@ -715,7 +933,8 @@ def page():
                     pass
 
             # set a default opacity in case the slider never gets created
-            opacity_value = st.session_state.get("opacity_slider", 0.8)
+            opacity_key = _vm3d_key("opacity_slider")
+            opacity_value = st.session_state.get(opacity_key, 0.8)
 
             for i, cols in enumerate([discrete_cols, continious_cols]):
                 if cols:
@@ -752,7 +971,7 @@ def page():
                                 max_value=1.0,
                                 value=0.8,
                                 step=0.01,
-                                key="opacity_slider",
+                                key=opacity_key,
                             )
                 else:
                     with c[i]:
@@ -774,7 +993,7 @@ def page():
                 "Select Layers",
                 ["Terrain", "Flight Path", "Beams"],  # Include Beams layer
                 default=["Terrain", "Flight Path", "Beams"],  # Set default layers
-                key="layer_selection",  # Unique key
+                key=_vm3d_key("layer_selection"),  # Unique key
             )
 
             # Determine visibility based on selection
@@ -940,10 +1159,11 @@ def page():
             # Add the legend to the PyDeck deck
             st.pydeck_chart(r)
             st.markdown(legend_html, unsafe_allow_html=True)
+    loaded_df = st.session_state.get("loaded_df")
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         st.dataframe(loaded_df)
     else:
-        st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
+        st.info("No data loaded yet. Select one or more datasets from the sidebar.")
 
 # -------------------- Main Application Entry -------------------- #
 def main():

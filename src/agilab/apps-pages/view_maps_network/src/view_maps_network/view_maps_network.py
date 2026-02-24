@@ -13,6 +13,7 @@
 
 import sys
 import argparse
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -174,9 +175,19 @@ if "GUI_SAMPLING" not in st.session_state:
     st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 render_logo("Cartography Visualisation")
 
-MAPBOX_API_KEY = "pk.eyJ1Ijoic2FsbWEtZWxnOSIsImEiOiJjbHkyc3BnbjcwMHE0MmpzM2dyd3RyaDI2In0.9Q5rjICLWC1yThpxSVWX6w"
+# Map imagery token must come from runtime env/secrets, never from source code.
+_mapbox_secret = ""
+try:
+    _mapbox_secret = st.secrets.get("MAPBOX_API_KEY", "")
+except Exception:
+    _mapbox_secret = ""
+MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY", "").strip() or str(_mapbox_secret).strip()
 TERRAIN_IMAGE = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
-SURFACE_IMAGE = f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@4x.png?access_token={MAPBOX_API_KEY}"
+SURFACE_IMAGE = (
+    f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@4x.png?access_token={MAPBOX_API_KEY}"
+    if MAPBOX_API_KEY
+    else "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+)
 
 ELEVATION_DECODER = {
     "rScaler": 256,
@@ -221,6 +232,64 @@ _LINK_LABELS = {
     "legacy_link": "LEG",
     "ivbl_link": "IVDL",
 }
+PAGE_KEY_PREFIX = "view_maps_network"
+
+
+def _vmn_key(name: str) -> str:
+    return f"{PAGE_KEY_PREFIX}:{name}"
+
+
+TIME_OPTIONS_KEY = _vmn_key("time_options")
+TIME_VALUE_KEY = _vmn_key("selected_time")
+TIME_INDEX_KEY = _vmn_key("selected_time_idx")
+TIME_PREV_BUTTON_KEY = _vmn_key("decrement_button")
+TIME_NEXT_BUTTON_KEY = _vmn_key("increment_button")
+DECISION_STEP_KEY = _vmn_key("alloc_time_index")
+
+
+def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool = False) -> Any:
+    if not options:
+        return None
+    if current in options:
+        return current
+    default_value = options[-1] if prefer_last else options[0]
+    if current is None:
+        return default_value
+    # Preserve nearest numeric value when options change (e.g. filtered timelines).
+    try:
+        current_num = float(current)
+        numeric_options: list[tuple[float, Any]] = []
+        for value in options:
+            try:
+                numeric_options.append((float(value), value))
+            except Exception:
+                numeric_options = []
+                break
+        if numeric_options:
+            _, nearest = min(numeric_options, key=lambda pair: abs(pair[0] - current_num))
+            return nearest
+    except Exception:
+        pass
+    # Fallback for datetime-like values.
+    try:
+        current_dt = pd.to_datetime(current, errors="coerce")
+        if pd.notna(current_dt):
+            dated_options: list[tuple[pd.Timestamp, Any]] = []
+            for value in options:
+                value_dt = pd.to_datetime(value, errors="coerce")
+                if pd.isna(value_dt):
+                    dated_options = []
+                    break
+                dated_options.append((value_dt, value))
+            if dated_options:
+                _, nearest = min(
+                    dated_options,
+                    key=lambda pair: abs((pair[0] - current_dt).total_seconds()),
+                )
+                return nearest
+    except Exception:
+        pass
+    return default_value
 
 def _label_for_link(column: str) -> str:
     if column in _LINK_LABELS:
@@ -427,25 +496,32 @@ def _candidate_allocation_paths(bases: list[Path]) -> list[Path]:
         Path("pipeline/allocations_steps.parquet"),
         Path("pipeline/allocations_steps.json"),
         Path("pipeline/allocations_steps.jsonl"),
+        Path("pipeline/allocations_steps.csv"),
         Path("dataframe/allocations_steps.parquet"),
         Path("dataframe/allocations_steps.json"),
         Path("dataframe/allocations_steps.jsonl"),
+        Path("dataframe/allocations_steps.csv"),
         Path("trainer_routing/allocations_steps.parquet"),
         Path("trainer_routing/allocations_steps.json"),
+        Path("trainer_routing/allocations_steps.csv"),
         Path("trainer_gnn/allocations_steps.parquet"),
         Path("trainer_gnn/allocations_steps.json"),
+        Path("trainer_gnn/allocations_steps.csv"),
         Path("trainer_ilp_stepper/allocations_steps.parquet"),
         Path("trainer_ilp_stepper/allocations_steps.json"),
+        Path("trainer_ilp_stepper/allocations_steps.csv"),
     )
     patterns = (
         "allocations_steps.parquet",
         "allocations_steps.json",
         "allocations_steps.jsonl",
         "allocations_steps.ndjson",
+        "allocations_steps.csv",
         "allocations*.parquet",
         "allocations*.json",
         "allocations*.jsonl",
         "allocations*.ndjson",
+        "allocations*.csv",
     )
     for base in bases:
         if not base or not base.exists():
@@ -801,33 +877,131 @@ def filter_edges(df, edge_columns):
 # ----------------------------
 # Live allocations helpers
 # ----------------------------
+_ALLOC_STEP_CANDIDATES = ("time_index", "decision", "step", "time_idx")
+_ALLOC_TIME_CANDIDATES = ("t_now_s", "time_s", "time", "t")
+
+
+def _pick_ci_column(df: pd.DataFrame, candidates: tuple[str, ...]) -> Optional[str]:
+    if df.empty:
+        return None
+    lower_map = {str(c).lower(): str(c) for c in df.columns}
+    for key in candidates:
+        col = lower_map.get(key.lower())
+        if col is not None:
+            return col
+    return None
+
+
+def _parse_allocations_cell(value: Any) -> list[dict[str, Any]]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    parsed: Any = value
+    if isinstance(parsed, str):
+        parsed = safe_literal_eval(parsed)
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, tuple):
+        parsed = list(parsed)
+    if not isinstance(parsed, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in parsed:
+        obj = safe_literal_eval(item) if isinstance(item, str) else item
+        if isinstance(obj, dict):
+            rows.append(obj)
+    return rows
+
+
+def _coerce_alloc_time_index(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    normalized = df.copy()
+    step_col = _pick_ci_column(normalized, _ALLOC_STEP_CANDIDATES)
+    if "time_index" not in normalized.columns and step_col is not None:
+        normalized["time_index"] = normalized[step_col]
+    if "time_index" not in normalized.columns:
+        normalized["time_index"] = 0
+
+    step_num = pd.to_numeric(normalized["time_index"], errors="coerce")
+    if step_num.notna().any():
+        if step_num.isna().any():
+            fallback = pd.Series(np.arange(len(normalized), dtype=float), index=normalized.index)
+            step_num = step_num.combine_first(fallback)
+        normalized["time_index"] = step_num.round().astype("Int64")
+    else:
+        normalized["time_index"] = pd.Series(np.arange(len(normalized)), index=normalized.index, dtype="Int64")
+    return normalized
+
+
+def _normalize_allocations_frame(df_in: pd.DataFrame) -> pd.DataFrame:
+    if df_in.empty:
+        return df_in
+    df = df_in.copy()
+
+    src_col = _pick_ci_column(df, ("source", "src", "from"))
+    dst_col = _pick_ci_column(df, ("destination", "dst", "dest", "to", "target"))
+    if src_col is not None and src_col != "source":
+        df["source"] = df[src_col]
+    if dst_col is not None and dst_col != "destination":
+        df["destination"] = df[dst_col]
+
+    alloc_col = _pick_ci_column(df, ("allocations",))
+    if alloc_col is not None and ("source" not in df.columns or "destination" not in df.columns):
+        step_col = _pick_ci_column(df, _ALLOC_STEP_CANDIDATES)
+        t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
+        rows: list[dict[str, Any]] = []
+        for idx, row in df.iterrows():
+            step_value = row.get(step_col) if step_col is not None else idx
+            t_value = row.get(t_col) if t_col is not None else None
+            for alloc in _parse_allocations_cell(row.get(alloc_col)):
+                merged = dict(alloc)
+                merged.setdefault("time_index", step_value)
+                if t_value is not None and "t_now_s" not in merged:
+                    merged["t_now_s"] = t_value
+                rows.append(merged)
+        if rows:
+            df = pd.DataFrame(rows)
+
+    df = _coerce_alloc_time_index(df)
+
+    if "t_now_s" not in df.columns:
+        t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
+        if t_col is not None:
+            t_num = pd.to_numeric(df[t_col], errors="coerce")
+            if t_num.notna().any():
+                df["t_now_s"] = t_num
+    return df
+
+
 def load_allocations(path: Path) -> pd.DataFrame:
     path = path.expanduser()
     if not path.exists():
         return pd.DataFrame()
-    if path.suffix.lower() == ".parquet":
+    if path.suffix.lower() == ".csv":
         try:
-            return pd.read_parquet(path)
+            return _normalize_allocations_frame(pd.read_csv(path))
         except Exception:
-            pass
+            return pd.DataFrame()
+    if path.suffix.lower() in {".parquet", ".pq", ".parq"}:
+        try:
+            return _normalize_allocations_frame(pd.read_parquet(path))
+        except Exception:
+            return pd.DataFrame()
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        rows = []
+        if path.suffix.lower() in {".jsonl", ".ndjson"}:
+            records: list[Any] = []
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                records.append(json.loads(line))
+            data: Any = records
+        else:
+            data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, list):
-            for step in data:
-                t_idx = step.get("time_index", 0)
-                t_now_s = step.get("t_now_s")
-                if t_now_s is None:
-                    t_now_s = step.get("time_s", step.get("t"))
-                for alloc in step.get("allocations", []):
-                    row = dict(alloc)
-                    row["time_index"] = t_idx
-                    if t_now_s is not None:
-                        row["t_now_s"] = t_now_s
-                    rows.append(row)
-            return pd.DataFrame(rows)
+            return _normalize_allocations_frame(pd.DataFrame(data))
         elif isinstance(data, dict):
-            return pd.DataFrame([data])
+            return _normalize_allocations_frame(pd.DataFrame([data]))
     except Exception:
         return pd.DataFrame()
     return pd.DataFrame()
@@ -846,7 +1020,15 @@ def _nearest_row(df: pd.DataFrame, t: float, time_col: str = "time_s") -> pd.Dat
 def _find_latest_allocations(base: Path, include: tuple[str, ...] = ()) -> Path | None:
     """Locate the most recent allocations file under a given base."""
     candidates: list[Path] = []
-    for pattern in ("allocations*.parquet", "allocations*.json", "allocations*.jsonl", "allocations_steps.parquet"):
+    for pattern in (
+        "allocations*.parquet",
+        "allocations*.json",
+        "allocations*.jsonl",
+        "allocations*.ndjson",
+        "allocations*.csv",
+        "allocations_steps.parquet",
+        "allocations_steps.csv",
+    ):
         candidates.extend(base.rglob(pattern))
     if not candidates:
         return None
@@ -1336,17 +1518,17 @@ def create_network_graph(df, pos, show_nodes, show_edges, edge_types, metric_typ
 
 def _shift_selected_time(delta: int) -> None:
     """Adjust the current selected time by +/- 1 without mutating widget state mid-run."""
-    unique_timestamps = st.session_state.get("_time_options") or []
+    unique_timestamps = st.session_state.get(TIME_OPTIONS_KEY) or []
     if not unique_timestamps:
         return
-    current = st.session_state.get("selected_time")
+    current = st.session_state.get(TIME_VALUE_KEY)
     try:
         current_index = unique_timestamps.index(current)
     except Exception:
         current_index = len(unique_timestamps) - 1
     new_index = max(0, min(current_index + int(delta), len(unique_timestamps) - 1))
-    st.session_state["selected_time_idx"] = new_index
-    st.session_state["selected_time"] = unique_timestamps[new_index]
+    st.session_state[TIME_INDEX_KEY] = new_index
+    st.session_state[TIME_VALUE_KEY] = unique_timestamps[new_index]
 
 
 def increment_time() -> None:
@@ -1910,7 +2092,12 @@ def page():
                 # leave numeric durations as-is (seconds), avoid epoch conversion to 1970
                 df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
             else:
-                df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
+                # Some exports store step/time as strings ("0", "1", ...); prefer numeric when possible.
+                as_num = pd.to_numeric(df[time_col], errors="coerce")
+                if as_num.notna().any():
+                    df[time_col] = as_num
+                else:
+                    df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
         except Exception:
             st.error(f"Failed to convert '{time_col}' to datetime.")
             st.stop()
@@ -2188,49 +2375,59 @@ def page():
     if not unique_timestamps:
         st.error(f"No timestamps found in '{time_col}'.")
         st.stop()
-    # Initialize selected time once; keep user choice on reruns
-    if "selected_time" not in st.session_state or st.session_state.selected_time not in unique_timestamps:
-        # Default to the latest timestamp so all nodes (flights/satellites) are visible initially.
-        st.session_state.selected_time = unique_timestamps[-1]
-    # Track index explicitly to avoid equality drift with numpy types
-    if "selected_time_idx" not in st.session_state or st.session_state.selected_time not in unique_timestamps:
-        st.session_state.selected_time_idx = (
-            unique_timestamps.index(st.session_state.selected_time)
-            if st.session_state.selected_time in unique_timestamps
-            else len(unique_timestamps) - 1
-        )
+    # Migrate legacy keys once, then keep namespaced keys as source of truth.
+    if TIME_VALUE_KEY not in st.session_state and "selected_time" in st.session_state:
+        st.session_state[TIME_VALUE_KEY] = st.session_state.get("selected_time")
+    if TIME_INDEX_KEY not in st.session_state and "selected_time_idx" in st.session_state:
+        st.session_state[TIME_INDEX_KEY] = st.session_state.get("selected_time_idx")
+
+    selected_time = _coerce_slider_value(
+        unique_timestamps,
+        st.session_state.get(TIME_VALUE_KEY),
+        prefer_last=True,
+    )
+    st.session_state[TIME_VALUE_KEY] = selected_time
+    st.session_state[TIME_INDEX_KEY] = unique_timestamps.index(selected_time)
+    # Keep legacy aliases for compatibility with older helper code.
+    st.session_state["selected_time"] = selected_time
+    st.session_state["selected_time_idx"] = st.session_state[TIME_INDEX_KEY]
 
     # Time controls
-    st.session_state["_time_options"] = unique_timestamps
+    st.session_state[TIME_OPTIONS_KEY] = unique_timestamps
     single_time = len(unique_timestamps) <= 1
     with st.container():
         cola, colb, colc = st.columns([0.3, 7.5, 0.6])
         with cola:
-            st.button("◁", key="decrement_button", on_click=decrement_time, disabled=single_time)
+            st.button("◁", key=TIME_PREV_BUTTON_KEY, on_click=decrement_time, disabled=single_time)
         with colb:
             if single_time:
                 selected_val = unique_timestamps[0]
-                st.session_state.selected_time = selected_val
-                st.session_state.selected_time_idx = 0
+                st.session_state[TIME_VALUE_KEY] = selected_val
+                st.session_state[TIME_INDEX_KEY] = 0
+                st.session_state["selected_time"] = selected_val
+                st.session_state["selected_time_idx"] = 0
                 st.caption(f"Selected: {selected_val}")
             else:
                 selected_val = st.select_slider(
                     "Time",
                     options=unique_timestamps,
                     format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if hasattr(x, "strftime") else str(x),
-                    key="selected_time",
+                    key=TIME_VALUE_KEY,
                 )
                 if selected_val in unique_timestamps:
-                    st.session_state.selected_time_idx = unique_timestamps.index(selected_val)
+                    st.session_state[TIME_INDEX_KEY] = unique_timestamps.index(selected_val)
+                    st.session_state["selected_time_idx"] = st.session_state[TIME_INDEX_KEY]
+                    st.session_state["selected_time"] = selected_val
                 st.caption(f"Selected: {selected_val}")
-            idx_now = st.session_state.get("selected_time_idx", len(unique_timestamps) - 1)
+            idx_now = st.session_state.get(TIME_INDEX_KEY, len(unique_timestamps) - 1)
             prog = idx_now / (len(unique_timestamps) - 1) if len(unique_timestamps) > 1 else 1.0
             st.progress(prog)
         with colc:
-            st.button("▷", key="increment_button", on_click=increment_time, disabled=single_time)
+            st.button("▷", key=TIME_NEXT_BUTTON_KEY, on_click=increment_time, disabled=single_time)
 
     # Per-node latest position up to the selected time (avoid dropping sparse nodes); fall back to last known
-    df_time_masked = df[df[time_col] <= st.session_state.selected_time]
+    selected_time = st.session_state.get(TIME_VALUE_KEY, unique_timestamps[-1])
+    df_time_masked = df[df[time_col] <= selected_time]
     idx_list = []
     if not df_time_masked.empty:
         idx_list.append(df_time_masked.groupby(flight_col)[time_col].idxmax())
@@ -2470,7 +2667,7 @@ def page():
     if not alloc_candidates:
         st.info(
             f"No allocation exports detected under {target_root} yet. "
-            "Run a routing/baseline step or point the pickers to an existing allocations_steps.{json,parquet} file."
+            "Run a routing/baseline step or point the pickers to an existing allocations_steps.{json,jsonl,ndjson,csv,parquet} file."
         )
     elif baseline_candidates and not routing_candidates:
         st.info(
@@ -2715,21 +2912,32 @@ def page():
         st.info("No allocations found yet (routing or baseline).")
     else:
         alloc_time_qp = (st.session_state.pop("_alloc_time_index_qp", "") or "").strip()
-        if alloc_time_qp:
+        if DECISION_STEP_KEY not in st.session_state and "alloc_time_index" in st.session_state:
+            st.session_state[DECISION_STEP_KEY] = st.session_state.get("alloc_time_index")
+        # Only seed from query params before the widget key exists; afterward,
+        # user interaction in session_state is the source of truth.
+        if alloc_time_qp and DECISION_STEP_KEY not in st.session_state:
             try:
                 qp_time = int(float(alloc_time_qp))
             except Exception:
                 qp_time = None
-            if qp_time is not None and qp_time in times:
-                st.session_state["alloc_time_index"] = qp_time
-        if st.session_state.get("alloc_time_index") not in times:
-            st.session_state["alloc_time_index"] = times[0]
+            if qp_time is not None:
+                st.session_state[DECISION_STEP_KEY] = qp_time
+        st.session_state[DECISION_STEP_KEY] = _coerce_slider_value(
+            times,
+            st.session_state.get(DECISION_STEP_KEY),
+            prefer_last=False,
+        )
+        # Keep legacy alias for compatibility with saved states.
+        st.session_state["alloc_time_index"] = st.session_state[DECISION_STEP_KEY]
         if len(times) <= 1:
             t_sel = times[0]
+            st.session_state[DECISION_STEP_KEY] = t_sel
             st.session_state["alloc_time_index"] = t_sel
-            st.caption(f"Time index: {t_sel}")
+            st.caption(f"Decision step: {t_sel}")
         else:
-            t_sel = st.select_slider("Time index", options=times, key="alloc_time_index")
+            t_sel = st.select_slider("Decision step", options=times, key=DECISION_STEP_KEY)
+            st.session_state["alloc_time_index"] = t_sel
         try:
             st.query_params["alloc_time_index"] = str(t_sel)
         except Exception:
