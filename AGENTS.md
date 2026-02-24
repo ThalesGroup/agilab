@@ -97,6 +97,10 @@ Use this runbook whenever you:
   `docs/html/_sources/*.txt` as editable source files. Regenerate from
   `../thales_agilab/docs/source` with the documentation tooling, then commit the
   updated `docs/html/`.
+- **Docs guardrail**: Never stage or commit `docs/html/**` changes unless the matching
+  source change exists under `../thales_agilab/docs/source/**` and `docs/html` was
+  regenerated from that source. If `docs/html/**` changed from broad refactors/search
+  replace, discard those generated-file edits instead of committing them.
 - **VIRTUAL_ENV warning**: `uv` may emit `VIRTUAL_ENV=... does not match the project environment path ...; use --active...`.
   This is expected because AGILAB manages multiple venvs per app/local/shared install. Ignore unless you intend to run against the currently activated venv.
 
