@@ -691,12 +691,13 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
       exit 1
     fi
     ln -s "$target" core
+    sleep 3
     "${UV_PREVIEW[@]}" run python - <<'PY'
 import pathlib
 p = pathlib.Path("core").resolve()
 print(f"Repository core -> {p}")
 PY
-
+    sleep 3
     repo_templates_dir="apps/templates"
     public_templates_dir="$AGILAB_REPO/apps/templates"
     if [[ -d "$public_templates_dir" ]]; then
