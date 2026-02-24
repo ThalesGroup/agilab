@@ -7,9 +7,10 @@ dependencies = [
     "streamlit>=1.49.1",
     "watchdog>=6.0.0",
     "agi-env",
+    "agi-node",
     "networkx",
     "plotly",
     "matplotlib",
     "sqlalchemy>=2.0.43",
-    "scipy>=1.16.3",
+    "scipy==1.15.2",
 ]
