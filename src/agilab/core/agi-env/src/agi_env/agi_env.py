@@ -614,11 +614,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     pass
                 active_app = base_dir / app
 
-                # Prefer builtin copy only when the app is absent from apps_path.
+                # Prefer builtin app directories over legacy duplicated roots.
                 if self.builtin_apps_path:
                     candidate_builtin = self.builtin_apps_path / app
                     try:
-                        if not active_app.exists() and candidate_builtin.exists():
+                        if candidate_builtin.exists():
                             active_app = candidate_builtin
                     except Exception:
                         pass
