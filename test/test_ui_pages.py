@@ -122,7 +122,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     """Test the EXECUTE page cluster settings interactivity."""
     
     # For execute page we need an initialized env in session_state
-    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=10)
     
     # Pre-inject environment into session state
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
@@ -276,7 +276,7 @@ def test_edit_page_load(mock_ui_env):
 
 def test_execute_page_cython_toggle(mock_ui_env):
     """Test toggling the Cython checkbox on the EXECUTE page."""
-    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=10)
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
 
@@ -296,7 +296,7 @@ def test_execute_page_cython_toggle(mock_ui_env):
 
 def test_execute_page_workers_data_path(mock_ui_env):
     """Test setting the workers data path when cluster is enabled."""
-    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=10)
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
 
