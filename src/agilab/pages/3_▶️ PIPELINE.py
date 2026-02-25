@@ -2802,9 +2802,6 @@ def sidebar_controls() -> None:
     steps_file = (lab_dir / steps_file_name).resolve()
     st.session_state["steps_file"] = steps_file
 
-    # Page title reflecting current lab/project
-    st.markdown(f"### Pipeline for project: `{st.session_state['lab_dir_selectbox']}`")
-
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
     lab_root = Path(st.session_state["lab_dir_selectbox"]).name
@@ -3443,7 +3440,6 @@ def display_lab_tab(
             return ""
         text = str(raw)
         return text if text.strip() else ""
-    """Display the pipeline tab with steps and query input."""
     # Reset active step and count to reflect persisted steps
     persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
     if not persisted_steps and steps_file.exists():
