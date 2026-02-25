@@ -118,6 +118,46 @@ def strip_ansi(text: str) -> str:
     return ansi_escape.sub('', text)
 
 
+def _sanitize_for_toml(obj):
+    """Recursively convert values into TOML-safe structures.
+
+    TOML has no null value, so ``None`` entries are dropped.
+    """
+    if isinstance(obj, dict):
+        sanitized = {}
+        for key, value in obj.items():
+            if value is None:
+                continue
+            sanitized_value = _sanitize_for_toml(value)
+            if sanitized_value is None:
+                continue
+            sanitized[key] = sanitized_value
+        return sanitized
+    if isinstance(obj, list):
+        sanitized_items = []
+        for item in obj:
+            if item is None:
+                continue
+            sanitized_item = _sanitize_for_toml(item)
+            if sanitized_item is None:
+                continue
+            sanitized_items.append(sanitized_item)
+        return sanitized_items
+    if isinstance(obj, tuple):
+        return _sanitize_for_toml(list(obj))
+    if isinstance(obj, Path):
+        return str(obj)
+    return obj
+
+
+def _write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
+    """Persist ``payload`` after converting it to a TOML-serializable object."""
+    sanitized = _sanitize_for_toml(payload)
+    with open(settings_path, "wb") as file:
+        tomli_w.dump(sanitized, file)
+    return sanitized
+
+
 def _is_dask_shutdown_noise(line: str) -> bool:
     """
     Return True when the line is one of the noisy Dask shutdown messages
@@ -680,9 +720,10 @@ def render_generic_ui():
             existing_app_settings.setdefault("args", {})
             existing_app_settings.setdefault("cluster", {})
             existing_app_settings["args"] = args_input
-            st.session_state.app_settings = existing_app_settings
-            with open(app_settings_file, "wb") as file:
-                tomli_w.dump(existing_app_settings, file)
+            st.session_state.app_settings = _write_app_settings_toml(
+                app_settings_file,
+                existing_app_settings,
+            )
 
     if st.session_state.get("args_remove_arg"):
         st.session_state["args_remove_arg"] = False
@@ -943,8 +984,10 @@ def render_cluster_settings_ui():
     st.session_state.app_settings["cluster"] = cluster_params
 
     # Persist to TOML
-    with open(env.app_settings_file, "wb") as file:
-        tomli_w.dump(st.session_state.app_settings, file)
+    st.session_state.app_settings = _write_app_settings_toml(
+        env.app_settings_file,
+        st.session_state.app_settings,
+    )
     try:
         load_toml_file.clear()
     except Exception:
