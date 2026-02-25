@@ -21,7 +21,7 @@
     <rect class="box" width="200" height="80" fill="#bae6fd" />
     <text class="caption" x="100" y="26" text-anchor="middle">Streamlit UI</text>
     <text class="body" x="100" y="46" text-anchor="middle">AGILAB.py · pages</text>
-    <text class="body" x="100" y="62" text-anchor="middle">HOME · EDIT · EXECUTE · EXPERIMENT · EXPLORE</text>
+    <text class="body" x="100" y="62" text-anchor="middle">HOME · SETUP · ORCHESTRATE · PIPELINE · ANALYSIS</text>
   </g>
 
   <g transform="translate(40,180)">

@@ -262,6 +262,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -455,19 +461,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -476,7 +483,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -941,7 +948,7 @@ Given timestamps <span class="math notranslate nohighlight">\(t_1, t_2\)</span>,
 <li><p>Wraps the runnable application. Converts user-supplied arguments into a
 validated <cite>FlightArgs</cite> model, normalises data URIs, and initialises cluster
 dispatch by seeding <code class="docutils literal notranslate"><span class="pre">WorkDispatcher</span></code>.</p></li>
-<li><p>Provides <code class="docutils literal notranslate"><span class="pre">from_toml</span></code> / <code class="docutils literal notranslate"><span class="pre">to_toml</span></code> helpers so snippets on the Execute page can
+<li><p>Provides <code class="docutils literal notranslate"><span class="pre">from_toml</span></code> / <code class="docutils literal notranslate"><span class="pre">to_toml</span></code> helpers so snippets on the Orchestrate page can
 reload configuration and persist overrides.</p></li>
 <li><p>Handles managed-PC specifics (path remapping, data directory resets) and keeps
 the dataframe export folder clean between runs.</p></li>
@@ -954,7 +961,7 @@ the dataframe export folder clean between runs.</p></li>
 configuration, including dataset location, slicing parameters and cluster
 toggles.</p></li>
 <li><p>Ships conversion utilities for reading/writing <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code> and merging
-overrides that are injected by the Execute page.</p></li>
+overrides that are injected by the Orchestrate page.</p></li>
 </ul>
 </section>
 <section id="worker-flight-worker-flight-worker">
@@ -975,7 +982,7 @@ environments.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">test/_test_*</span></code> modules focus on unit-level behaviour for manager, worker and
 orchestration glue.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Modules</span></code> and <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code> contain the Streamlit lab material used by
-the Experiment page.</p></li>
+the Pipeline page.</p></li>
 </ul>
 </section>
 <section id="api-reference">

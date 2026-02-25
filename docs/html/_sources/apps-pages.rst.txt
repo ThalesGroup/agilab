@@ -16,7 +16,7 @@ in its own Python interpreter:
 - It lives under ``${AGILAB_PAGES_ABS}`` (default: ``src/agilab/apps-pages``).
 - It is discovered when the directory contains a ``pyproject.toml`` whose entry
   point is ``src/<module>/<module>.py``.
-- It can ship its own ``.venv`` (or ``venv``); otherwise Explore will fall back
+- It can ship its own ``.venv`` (or ``venv``); otherwise Analysis will fall back
   to the shared locations referenced by ``AGILAB_VENVS_ABS`` and
   ``AGILAB_PAGES_VENVS_ABS``.
 
@@ -31,7 +31,7 @@ Bundles are enabled per project by writing their module names into
    [pages]
    view_module = ["view_maps_network", "view_barycentric"]
 
-You can edit this manually (Edit → APP-SETTINGS) or use Explore → Configure,
+You can edit this manually (Setup → APP-SETTINGS) or use Analysis → Configure,
 which writes the same list for you.
 
 Included page bundles
@@ -45,7 +45,7 @@ view_autoencoder_latenspace
 
 Autoencoder-powered dimensionality reduction.
 
-- Input: exported dataframe (typically created in Execute).
+- Input: exported dataframe (typically created in Orchestrate).
 - Output: latent-space plots, with colouring and train/test controls.
 
 view_barycentric

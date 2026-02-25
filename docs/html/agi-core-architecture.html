@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,19 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -474,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -937,7 +944,7 @@ every <code class="docutils literal notranslate"><span class="pre">&lt;app&gt;_p
 opt-in to common validation, start here.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">agi_core.streamlit</span></code></dt><dd><p>Shared Streamlit widgets (status panels, history view, deploy dialogs) used
-by EXECUTE/EXPLORE/EDIT. Keeping them here avoids circular imports from the
+by ORCHESTRATE/ANALYSIS/SETUP. Keeping them here avoids circular imports from the
 page packages.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">agi_core.telemetry</span></code></dt><dd><p>Structured logging, run-history helpers, and wrappers used by <code class="docutils literal notranslate"><span class="pre">AGI.run</span></code> to
@@ -966,9 +973,9 @@ to be reused by both the GUI and the app installers.</p>
 <code class="docutils literal notranslate"><span class="pre">agi_env</span></code> helpers and dispatcher facades.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
 </figcaption>
 </figure>
-<p>Typical call stack when a user clicks <strong>RUN</strong> on the EXECUTE page:</p>
+<p>Typical call stack when a user clicks <strong>RUN</strong> on the ORCHESTRATE page:</p>
 <ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">src/agilab/pages/▶️</span> <span class="pre">EXECUTE.py</span></code> collects form values and calls
+<li><p><code class="docutils literal notranslate"><span class="pre">src/agilab/pages/2_▶️</span> <span class="pre">ORCHESTRATE.py</span></code> collects form values and calls
 <code class="docutils literal notranslate"><span class="pre">agi_core.apps.loader.build_work_plan</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">agi_core.apps</span></code> builds an <code class="docutils literal notranslate"><span class="pre">AppManifest</span></code> and passes it to
 <code class="docutils literal notranslate"><span class="pre">framework_api.AGILabSession</span></code>.</p></li>
@@ -1004,7 +1011,7 @@ dataset movers) before the UI renders the finished run.</p></li>
 <td><p>Metadata helpers shared by <code class="docutils literal notranslate"><span class="pre">src/agilab/apps</span></code> managers.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">streamlit</span></code></p></td>
-<td><p>Widgets, layout templates, and modal logic for EXECUTE/EXPLORE.</p></td>
+<td><p>Widgets, layout templates, and modal logic for ORCHESTRATE/ANALYSIS.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">telemetry</span></code></p></td>
 <td><p>Structured logging, status persistence, and run history APIs.</p></td>

@@ -5,10 +5,10 @@ Overview
 --------
 - Minimal starter template you can copy to bootstrap a new AGILab application.
 - Demonstrates the project layout expected by the platform (manager package,
-  worker package, ``app_args`` definitions, Explore configuration) with minimal
+  worker package, ``app_args`` definitions, Analysis configuration) with minimal
   business logic so you can focus on custom code.
 - Ships with blank Streamlit forms and prompt files to illustrate where to plug
-  in UI customisation and Experiment prompts.
+  in UI customisation and Pipeline prompts.
 
 Scientific placeholders
 -----------------------
@@ -28,13 +28,13 @@ Manager (`mycode.mycode`)
 - Lightweight subclass of ``BaseWorker`` that shows how to wire argument
   handling, logging and dataframe export without heavy dependencies.
 - Provides the same ``from_toml`` / ``to_toml`` helpers as production projects so
-  you can reuse the Execute page snippets verbatim.
+  you can reuse the Orchestrate page snippets verbatim.
 
 Args (`mycode.app_args`)
 ------------------------
 - Simple Pydantic model that mirrors the keys present in ``app_settings.toml``.
 - Ideal starting point for capturing new configuration options; extend the model
-  and the Streamlit form generated on the Execute page will pick them up.
+  and the Streamlit form generated on the Orchestrate page will pick them up.
 
 Worker (`mycode_worker.mycode_worker`)
 --------------------------------------

@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,19 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -474,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -948,7 +955,7 @@ visualisation and KPI reporting.</span><a class="headerlink" href="#id3" title="
 <a class="reference internal image-reference" href="_images/agilab_pages.png"><img alt="AGILAB.py Streamlit entry showing core pages vs page bundles" src="_images/agilab_pages.png" style="width: 90%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">AGILAB.py exposes core pages (Execute/Explore/Edit/…) and optional page bundles
+<p><span class="caption-text">AGILAB.py exposes core pages (Setup/Orchestrate/Pipeline/Analysis) and optional page bundles
 (sidecar dashboards), all routed into <code class="docutils literal notranslate"><span class="pre">agi_core</span></code> for orchestration.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
 </figcaption>
 </figure>
@@ -1006,7 +1013,7 @@ worker arguments but rely on the shared layers above.</p></td>
 </table>
 <dl class="simple">
 <dt><strong>User surfaces</strong></dt><dd><ul class="simple">
-<li><p>Streamlit pages shipped in <code class="docutils literal notranslate"><span class="pre">src/agilab/pages</span></code> (EXECUTE/EXPLORE/EDIT/…).</p></li>
+<li><p>Streamlit pages shipped in <code class="docutils literal notranslate"><span class="pre">src/agilab/pages</span></code> (SETUP/ORCHESTRATE/PIPELINE/ANALYSIS).</p></li>
 <li><p>CLI mirrors under <code class="docutils literal notranslate"><span class="pre">src/agilab/examples</span></code> and <code class="docutils literal notranslate"><span class="pre">tools/run_configs</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tools/run_configs/*.sh</span></code> can be executed directly from a terminal (no
 PyCharm required).</p></li>
@@ -1386,10 +1393,10 @@ examples/
         AGI_run_mycode.py
 pages/
     __pycache__/ [excluded]
-    ▶️ EDIT.py
-    ▶️ EXECUTE.py
-    ▶️ EXPERIMENT.py
-    ▶️ EXPLORE.py
+    1_▶️ SETUP.py
+    2_▶️ ORCHESTRATE.py
+    3_▶️ PIPELINE.py
+    4_▶️ ANALYSIS.py
 resources/
     help/
         __pycache__/ [excluded]

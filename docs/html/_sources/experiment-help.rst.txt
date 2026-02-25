@@ -1,5 +1,5 @@
-▶️ EXPERIMENT
-==============
+▶️ PIPELINE
+===========
 
 .. toctree::
    :hidden:
@@ -34,7 +34,7 @@ reacts to the toolbar actions:
 * ``Remove`` deletes the step from ``lab_steps.toml``.
 * ``Run`` writes the snippet to ``lab_snippet.py``, executes it and stores any
   produced dataframe under ``lab_out.csv`` so the preview and the
-  Execute/Explore pages can consume the result.
+  Orchestrate/Analysis pages can consume the result.
 
 The runtime is chosen from the *Execution environment* box below the editor.
 If you pick a concrete virtual environment path the snippet runs via
@@ -47,9 +47,9 @@ The assistant automatically reloads the most recent dataframe and shows it below
 the editor. If nothing has been saved yet, you will see a reminder to run a
 snippet first.
 
-When your lab step is based on app execution, copy the snippet from the Execute
-page and paste it into the Experiment step. If you edit app argument values in
-Execute, regenerate the snippet and update the Experiment step again before you
+When your lab step is based on app execution, copy the snippet from the Orchestrate
+page and paste it into the Pipeline step. If you edit app argument values in
+Orchestrate, regenerate the snippet and update the Pipeline step again before you
 run it.
 
 HISTORY

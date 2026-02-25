@@ -42,7 +42,7 @@ AGILAB.py navigation
    :alt: AGILAB.py Streamlit entry showing core pages vs page bundles
    :width: 90%
 
-   AGILAB.py exposes core pages (Execute/Explore/Edit/…) and optional page bundles
+   AGILAB.py exposes core pages (Setup/Orchestrate/Pipeline/Analysis) and optional page bundles
    (sidecar dashboards), all routed into ``agi_core`` for orchestration.
 
 Manager vs worker responsibilities
@@ -84,7 +84,7 @@ Layers at a glance
      - Cythonised/packaged code deployed on cluster nodes.
 
 **User surfaces**
-    - Streamlit pages shipped in ``src/agilab/pages`` (EXECUTE/EXPLORE/EDIT/…).
+    - Streamlit pages shipped in ``src/agilab/pages`` (SETUP/ORCHESTRATE/PIPELINE/ANALYSIS).
     - CLI mirrors under ``src/agilab/examples`` and ``tools/run_configs``.
     - ``tools/run_configs/*.sh`` can be executed directly from a terminal (no
       PyCharm required).

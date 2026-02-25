@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="MyCode Project" href="mycode-project.html" />
-    <link rel="prev" title="▶️ EXPLORE" href="explore-help.html" /> 
+    <link rel="prev" title="▶️ ANALYSIS" href="explore-help.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,19 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -474,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -919,7 +926,7 @@ in its own Python interpreter:</p>
 <li><p>It lives under <code class="docutils literal notranslate"><span class="pre">${AGILAB_PAGES_ABS}</span></code> (default: <code class="docutils literal notranslate"><span class="pre">src/agilab/apps-pages</span></code>).</p></li>
 <li><p>It is discovered when the directory contains a <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> whose entry
 point is <code class="docutils literal notranslate"><span class="pre">src/&lt;module&gt;/&lt;module&gt;.py</span></code>.</p></li>
-<li><p>It can ship its own <code class="docutils literal notranslate"><span class="pre">.venv</span></code> (or <code class="docutils literal notranslate"><span class="pre">venv</span></code>); otherwise Explore will fall back
+<li><p>It can ship its own <code class="docutils literal notranslate"><span class="pre">.venv</span></code> (or <code class="docutils literal notranslate"><span class="pre">venv</span></code>); otherwise Analysis will fall back
 to the shared locations referenced by <code class="docutils literal notranslate"><span class="pre">AGILAB_VENVS_ABS</span></code> and
 <code class="docutils literal notranslate"><span class="pre">AGILAB_PAGES_VENVS_ABS</span></code>.</p></li>
 </ul>
@@ -932,18 +939,18 @@ to the shared locations referenced by <code class="docutils literal notranslate"
 <span class="n">view_module</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;view_maps_network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;view_barycentric&quot;</span><span class="p">]</span>
 </pre></div>
 </div>
-<p>You can edit this manually (Edit → APP-SETTINGS) or use Explore → Configure,
+<p>You can edit this manually (Setup → APP-SETTINGS) or use Analysis → Configure,
 which writes the same list for you.</p>
 </section>
 <section id="included-page-bundles">
 <h2>Included page bundles<a class="headerlink" href="#included-page-bundles" title="Link to this heading"></a></h2>
 <p>This page lists the page bundles shipped with the repository. You can discover
-and launch them from <a class="reference internal" href="explore-help.html"><span class="doc">▶️ EXPLORE</span></a>.</p>
+and launch them from <a class="reference internal" href="explore-help.html"><span class="doc">▶️ ANALYSIS</span></a>.</p>
 <section id="view-autoencoder-latenspace">
 <h3>view_autoencoder_latenspace<a class="headerlink" href="#view-autoencoder-latenspace" title="Link to this heading"></a></h3>
 <p>Autoencoder-powered dimensionality reduction.</p>
 <ul class="simple">
-<li><p>Input: exported dataframe (typically created in Execute).</p></li>
+<li><p>Input: exported dataframe (typically created in Orchestrate).</p></li>
 <li><p>Output: latent-space plots, with colouring and train/test controls.</p></li>
 </ul>
 </section>
@@ -986,7 +993,7 @@ and launch them from <a class="reference internal" href="explore-help.html"><spa
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="explore-help.html" class="btn btn-neutral float-left" title="▶️ EXPLORE" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="explore-help.html" class="btn btn-neutral float-left" title="▶️ ANALYSIS" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="mycode-project.html" class="btn btn-neutral float-right" title="MyCode Project" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

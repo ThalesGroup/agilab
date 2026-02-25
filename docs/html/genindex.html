@@ -257,6 +257,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -450,20 +456,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
-<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-experiment">Snippet Handoff to Experiment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -472,7 +478,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -983,6 +989,13 @@
 </li>
       </ul></li>
       <li>
+    agi_node.agi_dispatcher.build
+
+      <ul>
+        <li><a href="module-agi-node.html#module-agi_node.agi_dispatcher.build">module</a>
+</li>
+      </ul></li>
+      <li>
     agi_node.dag_worker.dag_worker
 
       <ul>
@@ -1239,6 +1252,8 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.check_internet">check_internet() (agi_env.agi_env.AgiEnv static method)</a>, <a href="module-agi-env.html#agi_env.agi_env.AgiEnv.check_internet">[1]</a>
 </li>
+      <li><a href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links">cleanup_links() (in module agi_node.agi_dispatcher.build)</a>
+</li>
       <li><a href="flight-project.html#flight.flight_args.FlightArgsTD.clear">clear() (flight.flight_args.FlightArgsTD method)</a>
 
       <ul>
@@ -1276,6 +1291,8 @@
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_rename_map">create_rename_map() (agi_env.agi_env.AgiEnv method)</a>, <a href="module-agi-env.html#agi_env.agi_env.AgiEnv.create_rename_map">[1]</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_symlink">create_symlink() (agi_env.agi_env.AgiEnv static method)</a>, <a href="module-agi-env.html#agi_env.agi_env.AgiEnv.create_symlink">[1]</a>
+</li>
+      <li><a href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module">create_symlink_for_module() (in module agi_node.agi_dispatcher.build)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_symlink_windows">create_symlink_windows() (agi_env.agi_env.AgiEnv static method)</a>, <a href="module-agi-env.html#agi_env.agi_env.AgiEnv.create_symlink_windows">[1]</a>
 </li>
@@ -1510,6 +1527,8 @@
 </li>
       </ul></li>
       <li><a href="agi-distributor.html#agi_cluster.agi_distributor.agi_distributor.AGI.find_free_port">find_free_port() (agi_cluster.agi_distributor.agi_distributor.AGI static method)</a>, <a href="module-agi-cluster.html#agi_cluster.agi_distributor.agi_distributor.AGI.find_free_port">[1]</a>
+</li>
+      <li><a href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix">find_sys_prefix() (in module agi_node.agi_dispatcher.build)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.Flight">Flight (class in flight.flight)</a>
 </li>
@@ -1760,8 +1779,12 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="module-agilab.html#agilab.lab_run.main">main() (in module agilab.lab_run)</a>
+      <li><a href="module-agi-node.html#agi_node.agi_dispatcher.build.main">main() (in module agi_node.agi_dispatcher.build)</a>
+
+      <ul>
+        <li><a href="module-agilab.html#agilab.lab_run.main">(in module agilab.lab_run)</a>
 </li>
+      </ul></li>
       <li><a href="agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.managed_pc_home_suffix">managed_pc_home_suffix (agi_node.dag_worker.dag_worker.DagWorker attribute)</a>, <a href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.managed_pc_home_suffix">[1]</a>
 
       <ul>
@@ -1918,6 +1941,8 @@
 </li>
         <li><a href="agi-env.html#module-agi_env.agi_env">agi_env.agi_env</a>, <a href="module-agi-env.html#module-agi_env.agi_env">[1]</a>
 </li>
+        <li><a href="module-agi-node.html#module-agi_node.agi_dispatcher.build">agi_node.agi_dispatcher.build</a>
+</li>
         <li><a href="agi-node.html#module-agi_node.dag_worker.dag_worker">agi_node.dag_worker.dag_worker</a>, <a href="module-agi-node.html#module-agi_node.dag_worker.dag_worker">[1]</a>
 </li>
         <li><a href="agi-node.html#module-agi_node.pandas_worker.pandas_worker">agi_node.pandas_worker.pandas_worker</a>, <a href="module-agi-node.html#module-agi_node.pandas_worker.pandas_worker">[1]</a>
@@ -2055,6 +2080,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-node.html#agi_node.pandas_worker.pandas_worker.PandasWorker">PandasWorker (class in agi_node.pandas_worker.pandas_worker)</a>, <a href="module-agi-node.html#agi_node.pandas_worker.pandas_worker.PandasWorker">[1]</a>
+</li>
+      <li><a href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args">parse_custom_args() (in module agi_node.agi_dispatcher.build)</a>
 </li>
       <li><a href="flight-project.html#flight.flight_args.FlightArgs.parse_file">parse_file() (flight.flight_args.FlightArgs class method)</a>
 
@@ -2331,6 +2358,8 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight_args.FlightArgs.to_toml_payload">to_toml_payload() (flight.flight_args.FlightArgs method)</a>
+</li>
+      <li><a href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment">truncate_path_at_segment() (in module agi_node.agi_dispatcher.build)</a>
 </li>
   </ul></td>
 </tr></table>

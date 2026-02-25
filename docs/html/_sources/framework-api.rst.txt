@@ -35,7 +35,7 @@ Working with the API
 - Derive from ``agi_node`` base classes to implement new DAG steps or worker
   behaviours that can be shipped with your app bundles.
 - Call into ``agi_distributor.AGI`` for programmatic install / get_distrib / run
-  flows; this is the same surface area surfaced in the Execute page snippets.
+  flows; this is the same surface area surfaced in the Orchestrate page snippets.
 
 App structure conventions
 -------------------------

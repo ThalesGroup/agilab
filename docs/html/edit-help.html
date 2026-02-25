@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>▶️ EDIT &mdash; AGILab 2025.12.12 documentation</title>
+  <title>▶️ SETUP &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -24,7 +24,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="▶️ EXECUTE" href="execute-help.html" />
+    <link rel="next" title="▶️ ORCHESTRATE" href="execute-help.html" />
     <link rel="prev" title="▶️ HOME (AGILAB.py)" href="agilab-help.html" /> 
 </head>
 
@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,19 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ EDIT</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -474,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -895,7 +902,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">▶️ EDIT</li>
+      <li class="breadcrumb-item active">▶️ SETUP</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/edit-help.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -905,8 +912,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="edit">
-<h1>▶️ EDIT<a class="headerlink" href="#edit" title="Link to this heading"></a></h1>
+  <section id="setup">
+<h1>▶️ SETUP<a class="headerlink" href="#setup" title="Link to this heading"></a></h1>
 <div class="toctree-wrapper compound">
 </div>
 <section id="sidebar">
@@ -947,15 +954,15 @@ sections before saving.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">EXPORT-APP-FILTER</span></code> controls the <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code> rules that the export flow
 applies when producing the archive.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">APP-SETTINGS</span></code> opens <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>. AGILab keeps the <code class="docutils literal notranslate"><span class="pre">[args]</span></code> and
-<code class="docutils literal notranslate"><span class="pre">[pages]</span></code> sections in sync with the Execute and Explore pages.</p></li>
+<code class="docutils literal notranslate"><span class="pre">[pages]</span></code> sections in sync with the Orchestrate and Analysis pages.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">README</span></code> allows quick edits to the project <code class="docutils literal notranslate"><span class="pre">README.md</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">APP-ARGS</span></code> targets <code class="docutils literal notranslate"><span class="pre">app_args.py</span></code> in the app package. Use it to
-synchronise default arguments with the Execute page.</p></li>
+synchronise default arguments with the Orchestrate page.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">APP-ARGS-FORM</span></code> displays (and creates if missing) the optional
 <code class="docutils literal notranslate"><span class="pre">app_args_form.py</span></code> Streamlit snippet used to render a custom parameter UI
-in Execute.</p></li>
+in Orchestrate.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">PRE-PROMPT</span></code> serialises <code class="docutils literal notranslate"><span class="pre">pre_prompt.json</span></code> so you can tailor the prompt
-used by the Experiment assistant.</p></li>
+used by the Pipeline assistant.</p></li>
 </ul>
 </li>
 </ul>
@@ -971,7 +978,7 @@ used by the Experiment assistant.</p></li>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="agilab-help.html" class="btn btn-neutral float-left" title="▶️ HOME (AGILAB.py)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="execute-help.html" class="btn btn-neutral float-right" title="▶️ EXECUTE" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="execute-help.html" class="btn btn-neutral float-right" title="▶️ ORCHESTRATE" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

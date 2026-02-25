@@ -450,19 +450,20 @@
 <li class="toctree-l2"><a class="reference internal" href="../../agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../experiment-help.html#assistant">ASSISTANT</a></li>
@@ -471,7 +472,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../explore-help.html#main-content-area">Main Content Area</a></li>
@@ -1541,11 +1542,11 @@
                     <span class="k">pass</span>
                 <span class="n">active_app</span> <span class="o">=</span> <span class="n">base_dir</span> <span class="o">/</span> <span class="n">app</span>
 
-                <span class="c1"># Prefer builtin copy only when the app is absent from apps_path.</span>
+                <span class="c1"># Prefer builtin app directories over legacy duplicated roots.</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">builtin_apps_path</span><span class="p">:</span>
                     <span class="n">candidate_builtin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">builtin_apps_path</span> <span class="o">/</span> <span class="n">app</span>
                     <span class="k">try</span><span class="p">:</span>
-                        <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">candidate_builtin</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">candidate_builtin</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                             <span class="n">active_app</span> <span class="o">=</span> <span class="n">candidate_builtin</span>
                     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                         <span class="k">pass</span>
