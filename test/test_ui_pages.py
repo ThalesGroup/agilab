@@ -9,6 +9,8 @@ from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
 
+APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
+
 @pytest.fixture
 def mock_ui_env(tmp_path):
     # Set up temporary directories for apps and config
@@ -71,7 +73,8 @@ def load_args_from_toml(path):
             "AGILAB_APP": "flight_project",
             "AGI_SHARE_DIR": str(tmp_path),
             "AGILAB_PAGES_ABS": str(pages_dir),
-            "OPENAI_API_KEY": "dummy"
+            "OPENAI_API_KEY": "dummy",
+            "IS_SOURCE_ENV": "1",
         }):
             yield {"apps_dir": apps_dir, "project_dir": project_dir, "pages_dir": pages_dir}
 
@@ -150,76 +153,77 @@ def test_execute_page_cluster_settings(mock_ui_env):
 
 def test_flight_project_app_args_form_render(mock_ui_env):
     """Test that the flight_project UI data source form renders without errors."""
-    import sys
-    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
-    
-    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    
-    at.session_state["env"] = env
-    at.run()
-    
-    assert not at.exception
-    
-    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+    project_src = str(mock_ui_env["project_dir"] / "src")
+    sys.path.insert(0, project_src)
+    try:
+        at = AppTest.from_file(APP_ARGS_FORM)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+
+        at.session_state["env"] = env
+        at.run()
+
+        assert not at.exception
+    finally:
+        if project_src in sys.path:
+            sys.path.remove(project_src)
 
 def test_flight_project_app_args_form(mock_ui_env):
     """Test the flight_project UI data source form interactions."""
-    
-    import sys
-    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
-    
-    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    
-    # To avoid the 'not initialised' error
-    at.session_state["env"] = env
-    
-    at.run()
-    assert not at.exception
-    
-    # The default data source is 'file', we switch it to 'hawk'
-    at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
-    
-    # Check if the text input labels changed
-    # Text input for "Hawk cluster URI" should exist (it replaces "Data directory")
-    # Actually, AppTest exposes text inputs but their labels might vary. Let's find it by key
-    data_in_input = at.text_input(key="flight_project:app_args_form:data_in")
-    assert data_in_input.label == "Hawk cluster URI"
-    
-    files_input = at.text_input(key="flight_project:app_args_form:files")
-    assert files_input.label == "Pipeline name"
-    
-    # Let's set some values 
-    data_in_input.set_value("http://localhost:9200")
-    files_input.set_value("test_pipeline")
-    at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
-    
-    at.run()
-    
-    if at.error:
-        print("ERRORS:", [e.value for e in at.error])
-    
-    print("SUCCESS MSGS:", [m.value for m in at.success])
-    print("INFO MSGS:", [m.value for m in at.info])
-    print("WARNING MSGS:", [m.value for m in at.warning])
-    print("ERROR MSGS:", [m.value for m in at.error])
+    project_src = str(mock_ui_env["project_dir"] / "src")
+    sys.path.insert(0, project_src)
+    try:
+        at = AppTest.from_file(APP_ARGS_FORM)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
 
-    assert not at.exception
-    
-    # The current parameters are collected in the session state payload or validated structure
-    # The UI saves to `settings_path` and updates `app_settings`
-    assert "app_settings" in at.session_state, "app_settings was not saved!"
-    assert at.session_state["app_settings"]["args"]["data_source"] == "hawk"
-    assert at.session_state["app_settings"]["args"]["data_in"] == "http://localhost:9200"
-    assert at.session_state["app_settings"]["args"]["files"] == "test_pipeline"
-    assert at.session_state["app_settings"]["args"]["nfile"] == 5
-    
-    # Look for the success message containing "Saved to"
-    success_msgs = [s.value for s in at.success]
-    assert any("Saved to" in msg for msg in success_msgs)
-    
-    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+        # To avoid the 'not initialised' error
+        at.session_state["env"] = env
+
+        at.run()
+        assert not at.exception
+
+        # The default data source is 'file', we switch it to 'hawk'
+        at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
+
+        # Check if the text input labels changed
+        # Text input for "Hawk cluster URI" should exist (it replaces "Data directory")
+        # Actually, AppTest exposes text inputs but their labels might vary. Let's find it by key
+        data_in_input = at.text_input(key="flight_project:app_args_form:data_in")
+        assert data_in_input.label == "Hawk cluster URI"
+
+        files_input = at.text_input(key="flight_project:app_args_form:files")
+        assert files_input.label == "Pipeline name"
+
+        # Let's set some values
+        data_in_input.set_value("http://localhost:9200")
+        files_input.set_value("test_pipeline")
+        at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
+
+        at.run()
+
+        if at.error:
+            print("ERRORS:", [e.value for e in at.error])
+
+        print("SUCCESS MSGS:", [m.value for m in at.success])
+        print("INFO MSGS:", [m.value for m in at.info])
+        print("WARNING MSGS:", [m.value for m in at.warning])
+        print("ERROR MSGS:", [m.value for m in at.error])
+
+        assert not at.exception
+
+        # The current parameters are collected in the session state payload or validated structure
+        # The UI saves to `settings_path` and updates `app_settings`
+        assert "app_settings" in at.session_state, "app_settings was not saved!"
+        assert at.session_state["app_settings"]["args"]["data_source"] == "hawk"
+        assert at.session_state["app_settings"]["args"]["data_in"] == "http://localhost:9200"
+        assert at.session_state["app_settings"]["args"]["files"] == "test_pipeline"
+        assert at.session_state["app_settings"]["args"]["nfile"] == 5
+
+        # Look for the success message containing "Saved to"
+        success_msgs = [s.value for s in at.success]
+        assert any("Saved to" in msg for msg in success_msgs)
+    finally:
+        if project_src in sys.path:
+            sys.path.remove(project_src)
 
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
@@ -357,49 +361,51 @@ def test_explore_page_deselect_view(mock_ui_env):
 
 def test_app_args_form_no_changes(mock_ui_env):
     """Test that submitting the form with no changes shows 'No changes to save.'."""
-    import sys
-    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
+    project_src = str(mock_ui_env["project_dir"] / "src")
+    sys.path.insert(0, project_src)
+    try:
+        at = AppTest.from_file(APP_ARGS_FORM)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        at.session_state["env"] = env
 
-    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    at.session_state["env"] = env
+        at.run()
+        assert not at.exception
 
-    at.run()
-    assert not at.exception
+        # Run again without changing anything
+        at.run()
+        assert not at.exception
 
-    # Run again without changing anything
-    at.run()
-    assert not at.exception
-
-    info_msgs = [m.value for m in at.info]
-    assert any("No changes" in msg for msg in info_msgs)
-
-    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+        info_msgs = [m.value for m in at.info]
+        assert any("No changes" in msg for msg in info_msgs)
+    finally:
+        if project_src in sys.path:
+            sys.path.remove(project_src)
 
 
 def test_app_args_form_switch_back_to_file(mock_ui_env):
     """Test switching data source from file -> hawk -> file and verifying labels revert."""
-    import sys
-    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
+    project_src = str(mock_ui_env["project_dir"] / "src")
+    sys.path.insert(0, project_src)
+    try:
+        at = AppTest.from_file(APP_ARGS_FORM)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        at.session_state["env"] = env
+        at.run()
+        assert not at.exception
 
-    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    at.session_state["env"] = env
-    at.run()
-    assert not at.exception
+        # Switch to hawk
+        at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
+        assert not at.exception
+        assert at.text_input(key="flight_project:app_args_form:data_in").label == "Hawk cluster URI"
 
-    # Switch to hawk
-    at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
-    assert not at.exception
-    assert at.text_input(key="flight_project:app_args_form:data_in").label == "Hawk cluster URI"
-
-    # Switch back to file
-    at.selectbox(key="flight_project:app_args_form:data_source").set_value("file").run()
-    assert not at.exception
-    assert at.text_input(key="flight_project:app_args_form:data_in").label == "Data directory"
-    assert at.text_input(key="flight_project:app_args_form:files").label == "Files filter"
-
-    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+        # Switch back to file
+        at.selectbox(key="flight_project:app_args_form:data_source").set_value("file").run()
+        assert not at.exception
+        assert at.text_input(key="flight_project:app_args_form:data_in").label == "Data directory"
+        assert at.text_input(key="flight_project:app_args_form:files").label == "Files filter"
+    finally:
+        if project_src in sys.path:
+            sys.path.remove(project_src)
 
 
 def test_agilab_main_page_theme_injection(mock_ui_env):
@@ -436,11 +442,22 @@ def test_edit_page_project_selectbox(mock_ui_env):
     """Test that the EDIT page has a project selectbox with available projects."""
     at = AppTest.from_file("src/agilab/pages/▶️ EDIT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_project"]
+    env.get_projects = MagicMock(return_value=["flight_project"])
     at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Edit"
 
     at.run()
     assert not at.exception
 
-    # The page should have at least one selectbox for project selection
-    selectboxes = at.selectbox
-    assert len(selectboxes) > 0, "EDIT page should have at least one selectbox"
+    main_selectboxes = list(at.selectbox)
+    sidebar_selectboxes = list(at.sidebar.selectbox)
+    selectbox_keys = [sb.key for sb in main_selectboxes] + [sb.key for sb in sidebar_selectboxes]
+    assert selectbox_keys, (
+        "EDIT page should have at least one selectbox "
+        f"(main={len(main_selectboxes)}, sidebar={len(sidebar_selectboxes)}, "
+        f"errors={[e.value for e in at.error]})"
+    )
+    assert "project_selectbox" in selectbox_keys
