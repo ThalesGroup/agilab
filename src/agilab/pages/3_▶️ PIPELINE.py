@@ -3376,6 +3376,61 @@ def get_available_virtualenvs(env: AgiEnv) -> List[Path]:
     return [Path(path) for path in venv_paths]
 
 
+def get_existing_snippets(env: AgiEnv, steps_file: Path) -> Dict[str, Path]:
+    """Discover reusable snippet files and return a label->path mapping."""
+    discovered: List[Path] = []
+    seen: set[str] = set()
+
+    def _add_path(candidate: Path) -> None:
+        try:
+            path = candidate.expanduser()
+        except Exception:
+            path = candidate
+        if not path.exists() or not path.is_file() or path.suffix.lower() != ".py":
+            return
+        try:
+            unique_key = str(path.resolve())
+        except Exception:
+            unique_key = str(path)
+        if unique_key in seen:
+            return
+        seen.add(unique_key)
+        discovered.append(path)
+
+    snippet_file = st.session_state.get("snippet_file")
+    if snippet_file:
+        _add_path(Path(snippet_file))
+
+    run_script = steps_file.parent / "AGI_run.py"
+    _add_path(run_script)
+
+    runenv_root = getattr(env, "runenv", None)
+    if runenv_root:
+        try:
+            runenv_path = Path(runenv_root).expanduser()
+            if runenv_path.exists():
+                for py_file in sorted(runenv_path.glob("*.py")):
+                    _add_path(py_file)
+        except Exception:
+            pass
+
+    discovered.sort(key=lambda p: (p.name.lower(), str(p).lower()))
+
+    option_map: Dict[str, Path] = {}
+    for path in discovered:
+        base_label = path.name
+        label = base_label
+        if label in option_map:
+            parent_name = path.parent.name or str(path.parent)
+            label = f"{base_label} ({parent_name})"
+            idx = 2
+            while label in option_map:
+                label = f"{base_label} ({parent_name} #{idx})"
+                idx += 1
+        option_map[label] = path
+    return option_map
+
+
 def display_lab_tab(
     lab_dir: Path,
     index_page_str: str,
@@ -3441,6 +3496,7 @@ def display_lab_tab(
     ]
     available_venvs = [path for path in dict.fromkeys(available_venvs) if path]
     env_active_app = normalize_runtime_path(env.active_app)
+    manager_runtime = env_active_app
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
 
@@ -3455,6 +3511,12 @@ def display_lab_tab(
         else:
             selected_map.pop(idx_key, None)
 
+    snippet_option_map = get_existing_snippets(env, steps_file)
+    step_source_key = f"{safe_prefix}_new_step_source"
+    source_options = ["gen step"] + list(snippet_option_map.keys())
+    if st.session_state.get(step_source_key) not in source_options:
+        st.session_state[step_source_key] = source_options[0]
+
     # No steps yet: allow creating the first one via Generate code
     if total_steps == 0:
         st.info("No steps recorded yet. Generate your first step below.")
@@ -3463,47 +3525,112 @@ def display_lab_tab(
         if new_q_key not in st.session_state:
             st.session_state[new_q_key] = ""
         with st.expander("New step", expanded=True):
-            st.text_area(
-                "Ask code generator:",
-                key=new_q_key,
-                placeholder="Enter a prompt describing the code you want generated",
-                label_visibility="collapsed",
+            step_source = st.selectbox(
+                "Step source",
+                source_options,
+                key=step_source_key,
+                help="Select `gen step` to use the code generator, or choose an existing snippet to import as read-only.",
             )
-            venv_labels = ["Use AGILAB environment"] + available_venvs
-            selected_new_venv = st.selectbox(
-                "venv",
-                venv_labels,
-                key=new_venv_key,
-                help="Choose which virtual environment should execute this step.",
-            )
-            selected_path = (
-                "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
-            )
-            run_new = st.button("Generate code", type="primary", use_container_width=True)
-            if run_new:
-                prompt_text = st.session_state.get(new_q_key, "").strip()
-                if not prompt_text:
-                    st.warning("Enter a prompt before generating code.")
-                else:
-                    df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
-                    answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
-                    venv_map = {0: selected_path} if selected_path else {}
-                    eng_map = {0: "agi.run" if selected_path else "runpy"}
-                    expander_state_key = f"{safe_prefix}_expander_open"
-                    expander_state = st.session_state.setdefault(expander_state_key, {})
-                    expander_state[0] = True
-                    st.session_state[expander_state_key] = expander_state
-                    save_step(
-                        module_path,
-                        answer,
-                        0,
-                        1,
-                        steps_file,
-                        venv_map=venv_map,
-                        engine_map=eng_map,
-                    )
-                    _bump_history_revision()
-                    st.rerun()
+
+            if step_source == "gen step":
+                st.text_area(
+                    "Ask code generator:",
+                    key=new_q_key,
+                    placeholder="Enter a prompt describing the code you want generated",
+                    label_visibility="collapsed",
+                )
+                venv_labels = ["Use AGILAB environment"] + available_venvs
+                selected_new_venv = st.selectbox(
+                    "venv",
+                    venv_labels,
+                    key=new_venv_key,
+                    help="Choose which virtual environment should execute this step.",
+                )
+                selected_path = (
+                    "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+                )
+                run_new = st.button(
+                    "Generate code",
+                    type="primary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_add_first_step_btn",
+                )
+                if run_new:
+                    prompt_text = st.session_state.get(new_q_key, "").strip()
+                    if not prompt_text:
+                        st.warning("Enter a prompt before generating code.")
+                    else:
+                        df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                        answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                        venv_map = {0: selected_path} if selected_path else {}
+                        eng_map = {0: "agi.run" if selected_path else "runpy"}
+                        expander_state_key = f"{safe_prefix}_expander_open"
+                        expander_state = st.session_state.setdefault(expander_state_key, {})
+                        expander_state[0] = True
+                        st.session_state[expander_state_key] = expander_state
+                        save_step(
+                            module_path,
+                            answer,
+                            0,
+                            1,
+                            steps_file,
+                            venv_map=venv_map,
+                            engine_map=eng_map,
+                        )
+                        _bump_history_revision()
+                        st.rerun()
+            else:
+                snippet_path = snippet_option_map.get(step_source)
+                snippet_code = ""
+                if snippet_path:
+                    try:
+                        snippet_code = snippet_path.read_text(encoding="utf-8")
+                    except Exception as exc:
+                        st.warning(f"Unable to read snippet `{snippet_path}`: {exc}")
+                st.text_input(
+                    "venv",
+                    value=manager_runtime or "Use AGILAB environment",
+                    disabled=True,
+                    key=f"{safe_prefix}_first_snippet_venv_ro",
+                )
+                st.caption("Imported snippets use the project manager runtime (read-only).")
+                if snippet_path:
+                    st.caption(f"Snippet source: `{snippet_path}`")
+                st.code(snippet_code or "# Empty snippet", language="python")
+                import_new = st.button(
+                    "Add snippet",
+                    type="primary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_add_first_snippet_btn",
+                )
+                if import_new:
+                    if not snippet_code.strip():
+                        st.warning("Selected snippet is empty.")
+                    else:
+                        df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                        question = f"Imported snippet: {snippet_path.name if snippet_path else step_source}"
+                        detail = f"Imported from {snippet_path}" if snippet_path else ""
+                        answer = [df_path, question, "snippet", snippet_code, detail]
+                        venv_map = {0: manager_runtime} if manager_runtime else {}
+                        eng_map = {0: "agi.run"}
+                        expander_state_key = f"{safe_prefix}_expander_open"
+                        expander_state = st.session_state.setdefault(expander_state_key, {})
+                        expander_state[0] = True
+                        st.session_state[expander_state_key] = expander_state
+                        save_step(
+                            module_path,
+                            answer,
+                            0,
+                            1,
+                            steps_file,
+                            venv_map=venv_map,
+                            engine_map=eng_map,
+                        )
+                        if detail:
+                            detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                            detail_store[0] = detail
+                        _bump_history_revision()
+                        st.rerun()
         return
 
     run_logs_key = f"{index_page_str}__run_logs"
@@ -4062,77 +4189,138 @@ def display_lab_tab(
     if new_q_key not in st.session_state:
         st.session_state[new_q_key] = ""
     with st.expander("Add step", expanded=False):
-        st.text_area(
-            "Ask code generator:",
-            key=new_q_key,
-            placeholder="Enter a prompt describing the code you want generated",
-            label_visibility="collapsed",
+        step_source = st.selectbox(
+            "Step source",
+            source_options,
+            key=step_source_key,
+            help="Select `gen step` to use the code generator, or choose an existing snippet to import as read-only.",
         )
-        venv_labels = ["Use AGILAB environment"] + available_venvs
-        selected_new_venv = st.selectbox(
-            "venv",
-            venv_labels,
-            key=new_venv_key,
-            help="Choose which virtual environment should execute this step.",
-        )
-        selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
-        run_new = st.button("Generate code", type="primary", use_container_width=True, key=f"{safe_prefix}_add_step_btn")
-        if run_new:
-            prompt_text = st.session_state.get(new_q_key, "").strip()
-            if prompt_text:
-                df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
-                answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
-                merged_code = None
-                code_txt = answer[3] if len(answer) > 3 else ""
-                detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
-                if code_txt:
-                    summary_line = f"# {detail_txt}\n" if detail_txt else ""
-                    merged_code = f"{summary_line}{code_txt}"
-                    if len(answer) > 3:
-                        answer[3] = merged_code
+        if step_source == "gen step":
+            st.text_area(
+                "Ask code generator:",
+                key=new_q_key,
+                placeholder="Enter a prompt describing the code you want generated",
+                label_visibility="collapsed",
+            )
+            venv_labels = ["Use AGILAB environment"] + available_venvs
+            selected_new_venv = st.selectbox(
+                "venv",
+                venv_labels,
+                key=new_venv_key,
+                help="Choose which virtual environment should execute this step.",
+            )
+            selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+            run_new = st.button("Generate code", type="primary", use_container_width=True, key=f"{safe_prefix}_add_step_btn")
+            if run_new:
+                prompt_text = st.session_state.get(new_q_key, "").strip()
+                if prompt_text:
+                    df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                    answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                    merged_code = None
+                    code_txt = answer[3] if len(answer) > 3 else ""
+                    detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
+                    if code_txt:
+                        summary_line = f"# {detail_txt}\n" if detail_txt else ""
+                        merged_code = f"{summary_line}{code_txt}"
+                        if len(answer) > 3:
+                            answer[3] = merged_code
 
-                if merged_code:
-                    fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
-                        original_request=prompt_text,
-                        df_path=df_path,
-                        index_page=index_page_str,
-                        env=env,
-                        merged_code=str(merged_code),
-                        model_label=str(answer[2] if len(answer) > 2 else ""),
-                        detail=str(answer[4] if len(answer) > 4 else ""),
+                    if merged_code:
+                        fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
+                            original_request=prompt_text,
+                            df_path=df_path,
+                            index_page=index_page_str,
+                            env=env,
+                            merged_code=str(merged_code),
+                            model_label=str(answer[2] if len(answer) > 2 else ""),
+                            detail=str(answer[4] if len(answer) > 4 else ""),
+                        )
+                        merged_code = fixed_code
+                        if len(answer) > 3:
+                            answer[3] = fixed_code
+                        if len(answer) > 2:
+                            answer[2] = fixed_model
+                        if len(answer) > 4:
+                            answer[4] = fixed_detail
+                    new_idx = len(persisted_steps)
+                    venv_map = selected_map.copy()
+                    engine_map_local = engine_map.copy()
+                    if selected_path:
+                        venv_map[new_idx] = selected_path
+                        engine_map_local[new_idx] = "agi.run"
+                    else:
+                        engine_map_local[new_idx] = "runpy"
+                    save_step(
+                        module_path,
+                        answer,
+                        new_idx,
+                        new_idx + 1,
+                        steps_file,
+                        venv_map=venv_map,
+                        engine_map=engine_map_local,
                     )
-                    merged_code = fixed_code
-                    if len(answer) > 3:
-                        answer[3] = fixed_code
-                    if len(answer) > 2:
-                        answer[2] = fixed_model
-                    if len(answer) > 4:
-                        answer[4] = fixed_detail
-                new_idx = len(persisted_steps)
-                venv_map = selected_map.copy()
-                engine_map_local = engine_map.copy()
-                if selected_path:
-                    venv_map[new_idx] = selected_path
-                    engine_map_local[new_idx] = "agi.run"
+                    detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                    detail = answer[4] if len(answer) > 4 else ""
+                    if detail:
+                        detail_store[new_idx] = detail
+                    _bump_history_revision()
+                    st.rerun()
                 else:
-                    engine_map_local[new_idx] = "runpy"
-                save_step(
-                    module_path,
-                    answer,
-                    new_idx,
-                    new_idx + 1,
-                    steps_file,
-                    venv_map=venv_map,
-                    engine_map=engine_map_local,
-                )
-                detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
-                detail = answer[4] if len(answer) > 4 else ""
-                if detail:
-                    detail_store[new_idx] = detail
-                _bump_history_revision()
-                st.rerun()
-            else:
-                st.warning("Enter a prompt before generating code.")
+                    st.warning("Enter a prompt before generating code.")
+        else:
+            snippet_path = snippet_option_map.get(step_source)
+            snippet_code = ""
+            if snippet_path:
+                try:
+                    snippet_code = snippet_path.read_text(encoding="utf-8")
+                except Exception as exc:
+                    st.warning(f"Unable to read snippet `{snippet_path}`: {exc}")
+            st.text_input(
+                "venv",
+                value=manager_runtime or "Use AGILAB environment",
+                disabled=True,
+                key=f"{safe_prefix}_add_snippet_venv_ro",
+            )
+            st.caption("Imported snippets use the project manager runtime (read-only).")
+            if snippet_path:
+                st.caption(f"Snippet source: `{snippet_path}`")
+            st.code(snippet_code or "# Empty snippet", language="python")
+            import_new = st.button(
+                "Add snippet",
+                type="primary",
+                use_container_width=True,
+                key=f"{safe_prefix}_add_step_snippet_btn",
+            )
+            if import_new:
+                if not snippet_code.strip():
+                    st.warning("Selected snippet is empty.")
+                else:
+                    df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                    new_idx = len(persisted_steps)
+                    question = f"Imported snippet: {snippet_path.name if snippet_path else step_source}"
+                    detail = f"Imported from {snippet_path}" if snippet_path else ""
+                    answer = [df_path, question, "snippet", snippet_code, detail]
+                    venv_map = selected_map.copy()
+                    engine_map_local = engine_map.copy()
+                    if manager_runtime:
+                        venv_map[new_idx] = manager_runtime
+                    else:
+                        venv_map.pop(new_idx, None)
+                    engine_map_local[new_idx] = "agi.run"
+                    save_step(
+                        module_path,
+                        answer,
+                        new_idx,
+                        new_idx + 1,
+                        steps_file,
+                        venv_map=venv_map,
+                        engine_map=engine_map_local,
+                    )
+                    if detail:
+                        detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                        detail_store[new_idx] = detail
+                    _bump_history_revision()
+                    st.rerun()
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"

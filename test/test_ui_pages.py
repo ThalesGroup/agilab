@@ -122,7 +122,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     """Test the EXECUTE page cluster settings interactivity."""
     
     # For execute page we need an initialized env in session_state
-    at = AppTest.from_file("src/agilab/pages/▶️ EXECUTE.py")
+    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     
     # Pre-inject environment into session state
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
@@ -227,7 +227,7 @@ def test_flight_project_app_args_form(mock_ui_env):
 
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXPLORE.py")
+    at = AppTest.from_file("src/agilab/pages/4_▶️ ANALYSIS.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     
     at.session_state["env"] = env
@@ -250,7 +250,7 @@ def test_explore_page_multiselect(mock_ui_env):
 
 def test_experiment_page_load(mock_ui_env):
     """Test that the EXPERIMENT page loads without exceptions."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXPERIMENT.py")
+    at = AppTest.from_file("src/agilab/pages/3_▶️ PIPELINE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     
     # We must ensure there is a lab_steps file to not throw exceptions, or handling it safely
@@ -265,7 +265,7 @@ def test_experiment_page_load(mock_ui_env):
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EDIT.py")
+    at = AppTest.from_file("src/agilab/pages/1_▶️ SETUP.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     
     at.session_state["env"] = env
@@ -276,7 +276,7 @@ def test_edit_page_load(mock_ui_env):
 
 def test_execute_page_cython_toggle(mock_ui_env):
     """Test toggling the Cython checkbox on the EXECUTE page."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXECUTE.py")
+    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
 
@@ -296,7 +296,7 @@ def test_execute_page_cython_toggle(mock_ui_env):
 
 def test_execute_page_workers_data_path(mock_ui_env):
     """Test setting the workers data path when cluster is enabled."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXECUTE.py")
+    at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
 
@@ -317,7 +317,7 @@ def test_execute_page_workers_data_path(mock_ui_env):
 
 def test_explore_page_multiple_views_selected(mock_ui_env):
     """Test selecting multiple views and verifying a button is rendered for each."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXPLORE.py")
+    at = AppTest.from_file("src/agilab/pages/4_▶️ ANALYSIS.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.run()
@@ -337,7 +337,7 @@ def test_explore_page_multiple_views_selected(mock_ui_env):
 
 def test_explore_page_deselect_view(mock_ui_env):
     """Test selecting then deselecting a view removes its button."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXPLORE.py")
+    at = AppTest.from_file("src/agilab/pages/4_▶️ ANALYSIS.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.run()
@@ -423,7 +423,7 @@ def test_agilab_main_page_theme_injection(mock_ui_env):
 
 def test_experiment_page_missing_openai_key(mock_ui_env):
     """Test that EXPERIMENT page handles a missing OpenAI API key gracefully."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EXPERIMENT.py")
+    at = AppTest.from_file("src/agilab/pages/3_▶️ PIPELINE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
 
     at.session_state["env"] = env
@@ -440,7 +440,7 @@ def test_experiment_page_missing_openai_key(mock_ui_env):
 
 def test_edit_page_project_selectbox(mock_ui_env):
     """Test that the EDIT page has a project selectbox with available projects."""
-    at = AppTest.from_file("src/agilab/pages/▶️ EDIT.py")
+    at = AppTest.from_file("src/agilab/pages/1_▶️ SETUP.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
