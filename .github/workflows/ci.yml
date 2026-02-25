@@ -24,6 +24,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Guard against committed docs/html artifacts
+        run: |
+          set -euo pipefail
+          tracked="$(git ls-files docs/html | wc -l | tr -d ' ')"
+          if [ "${tracked}" != "0" ]; then
+            echo "docs/html artifacts must not be tracked in git."
+            git ls-files docs/html
+            exit 1
+          fi
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
