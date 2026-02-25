@@ -111,7 +111,7 @@ $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 Ensure-Directory $LocalDir
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
-$DefaultShareDir = if ($AgiShareDir) { $AgiShareDir } elseif ($env:AGI_SHARE_DIR) { $env:AGI_SHARE_DIR } else { "" }
+$DefaultShareDir = if ($AgiShareDir) { $AgiShareDir } elseif ($env:AGI_SHARE_DIR) { $env:AGI_SHARE_DIR } else { Join-Path $env:USERPROFILE "clustershare" }
 function Get-EnvValueFromFile {
     param([string]$FilePath, [string]$Key)
     if (-not (Test-Path -LiteralPath $FilePath)) { return "" }
