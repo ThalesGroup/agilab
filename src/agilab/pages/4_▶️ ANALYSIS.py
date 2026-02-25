@@ -336,7 +336,6 @@ async def main():
     if env.app:
         st.query_params["active_app"] = env.app
 
-    page_title = "Explore"
     # Sidebar header/logo
     render_logo()
 
@@ -364,8 +363,7 @@ async def main():
             st.error(f"Failed to render view: {e}")
         return
 
-    # ---------- Main "Explore" page ----------
-    st.title(page_title)
+    # ---------- Main analysis page ----------
 
     if not all_views:
         st.info("No pages found under AGILAB_PAGES_ABS.")
@@ -442,7 +440,7 @@ async def render_view_page(view_path: Path):
 
     back_col, title_col, _ = st.columns([1, 6, 1])
     with back_col:
-        if st.button("← Back to Explore", type="primary"):
+        if st.button("← Back to Analysis", type="primary"):
             st.session_state["current_page"] = "main"
             st.query_params["current_page"] = "main"
             st.rerun()
