@@ -268,3 +268,179 @@ def test_edit_page_load(mock_ui_env):
     
     at.run()
     assert not at.exception
+
+
+def test_execute_page_cython_toggle(mock_ui_env):
+    """Test toggling the Cython checkbox on the EXECUTE page."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXECUTE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+
+    at.run()
+    assert not at.exception
+
+    # Enable cython
+    at.checkbox(key="cluster_cython").set_value(True).run()
+    assert not at.exception
+    assert at.session_state["app_settings"]["cluster"]["cython"] is True
+
+    # Disable cython
+    at.checkbox(key="cluster_cython").set_value(False).run()
+    assert not at.exception
+    assert at.session_state["app_settings"]["cluster"]["cython"] is False
+
+
+def test_execute_page_workers_data_path(mock_ui_env):
+    """Test setting the workers data path when cluster is enabled."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXECUTE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+
+    at.run()
+    assert not at.exception
+
+    # Enable cluster first
+    enabled_key = f"cluster_enabled__flight_project"
+    at.toggle(key=enabled_key).set_value(True).run()
+    assert not at.exception
+
+    # Set workers data path
+    wdp_key = f"cluster_workers_data_path__flight_project"
+    at.text_input(key=wdp_key).set_value("/data/shared").run()
+    assert not at.exception
+    assert at.session_state["app_settings"]["cluster"]["workers_data_path"] == "/data/shared"
+
+
+def test_explore_page_multiple_views_selected(mock_ui_env):
+    """Test selecting multiple views and verifying a button is rendered for each."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXPLORE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+    at.run()
+    assert not at.exception
+
+    selection_key = "view_selection__flight_project"
+    ms = at.multiselect(key=selection_key)
+
+    # Select two views
+    ms.select("view_maps").select("view_barycentric").run()
+    assert not at.exception
+
+    btns = [b.label for b in at.button]
+    assert "view_maps" in btns
+    assert "view_barycentric" in btns
+
+
+def test_explore_page_deselect_view(mock_ui_env):
+    """Test selecting then deselecting a view removes its button."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXPLORE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+    at.run()
+    assert not at.exception
+
+    selection_key = "view_selection__flight_project"
+    ms = at.multiselect(key=selection_key)
+
+    # Select two views
+    ms.select("view_maps").select("view_barycentric").run()
+    assert not at.exception
+
+    # Now deselect view_maps
+    ms.unselect("view_maps").run()
+    assert not at.exception
+
+    btns = [b.label for b in at.button]
+    assert "view_maps" not in btns
+    assert "view_barycentric" in btns
+
+
+def test_app_args_form_no_changes(mock_ui_env):
+    """Test that submitting the form with no changes shows 'No changes to save.'."""
+    import sys
+    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
+
+    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+
+    at.run()
+    assert not at.exception
+
+    # Run again without changing anything
+    at.run()
+    assert not at.exception
+
+    info_msgs = [m.value for m in at.info]
+    assert any("No changes" in msg for msg in info_msgs)
+
+    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+
+
+def test_app_args_form_switch_back_to_file(mock_ui_env):
+    """Test switching data source from file -> hawk -> file and verifying labels revert."""
+    import sys
+    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
+
+    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+    at.run()
+    assert not at.exception
+
+    # Switch to hawk
+    at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
+    assert not at.exception
+    assert at.text_input(key="flight_project:app_args_form:data_in").label == "Hawk cluster URI"
+
+    # Switch back to file
+    at.selectbox(key="flight_project:app_args_form:data_source").set_value("file").run()
+    assert not at.exception
+    assert at.text_input(key="flight_project:app_args_form:data_in").label == "Data directory"
+    assert at.text_input(key="flight_project:app_args_form:files").label == "Files filter"
+
+    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+
+
+def test_agilab_main_page_theme_injection(mock_ui_env):
+    """Test that the main page injects theme CSS on load."""
+    at = AppTest.from_file("src/agilab/AGILAB.py")
+    at.run()
+    assert not at.exception
+
+    # The page injects CSS via st.markdown with unsafe_allow_html=True
+    # In AppTest, these show up as at.markdown elements
+    md_values = [m.value for m in at.markdown]
+    assert any("<style>" in val or "style" in val.lower() for val in md_values if isinstance(val, str)), \
+        "Expected theme CSS to be injected via st.markdown"
+
+
+def test_experiment_page_missing_openai_key(mock_ui_env):
+    """Test that EXPERIMENT page handles a missing OpenAI API key gracefully."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXPERIMENT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+
+    at.session_state["env"] = env
+    at.session_state["flight_project"] = [0, "", "", "", "", ""]
+    at.session_state["flight_project__venv_map"] = {}
+
+    # Remove the API key from the environment
+    with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
+        at.run()
+
+    # The page should still load without crashing
+    assert not at.exception
+
+
+def test_edit_page_project_selectbox(mock_ui_env):
+    """Test that the EDIT page has a project selectbox with available projects."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EDIT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+
+    at.run()
+    assert not at.exception
+
+    # The page should have at least one selectbox for project selection
+    selectboxes = at.selectbox
+    assert len(selectboxes) > 0, "EDIT page should have at least one selectbox"
