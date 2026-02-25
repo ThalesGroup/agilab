@@ -4,8 +4,8 @@
 AGILAB.py is the main Streamlit entry point. It provides a single navigation
 surface for:
 
-- **Core pages** (Home, Edit, Execute, Experiment, Explore), and
-- **Page bundles** (optional dashboards launched from Explore).
+- **Core pages** (Home, Setup, Orchestrate, Pipeline, Analysis), and
+- **Page bundles** (optional dashboards launched from Analysis).
 
 How pages are presented
 -----------------------
@@ -19,10 +19,10 @@ How pages are presented
 Core pages
 ----------
 
-- :doc:`edit-help` — inspect and modify project sources and settings.
-- :doc:`execute-help` — install workers, generate distributions, and run pipelines.
-- :doc:`experiment-help` — iterate in ``lab_steps.toml`` and run snippets against exported data.
-- :doc:`explore-help` — discover, configure, and launch page bundles.
+- :doc:`edit-help` — **SETUP**: inspect and modify project sources and settings.
+- :doc:`execute-help` — **ORCHESTRATE**: install workers, generate distributions, and run pipelines.
+- :doc:`experiment-help` — **PIPELINE**: iterate in ``lab_steps.toml`` and run snippets against exported data.
+- :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles.
 
 Page bundles (apps-pages)
 -------------------------

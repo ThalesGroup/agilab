@@ -1,5 +1,5 @@
-▶️ EDIT
-==========
+▶️ SETUP
+========
 
 .. toctree::
    :hidden:
@@ -40,15 +40,15 @@ Main Content Area
   - ``EXPORT-APP-FILTER`` controls the ``.gitignore`` rules that the export flow
     applies when producing the archive.
   - ``APP-SETTINGS`` opens ``app_settings.toml``. AGILab keeps the ``[args]`` and
-    ``[pages]`` sections in sync with the Execute and Explore pages.
+    ``[pages]`` sections in sync with the Orchestrate and Analysis pages.
   - ``README`` allows quick edits to the project ``README.md``.
   - ``APP-ARGS`` targets ``app_args.py`` in the app package. Use it to
-    synchronise default arguments with the Execute page.
+    synchronise default arguments with the Orchestrate page.
   - ``APP-ARGS-FORM`` displays (and creates if missing) the optional
     ``app_args_form.py`` Streamlit snippet used to render a custom parameter UI
-    in Execute.
+    in Orchestrate.
   - ``PRE-PROMPT`` serialises ``pre_prompt.json`` so you can tailor the prompt
-    used by the Experiment assistant.
+    used by the Pipeline assistant.
 
 
 Support

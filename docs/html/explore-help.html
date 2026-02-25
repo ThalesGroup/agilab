@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>▶️ EXPLORE &mdash; AGILab 2025.12.12 documentation</title>
+  <title>▶️ ANALYSIS &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="▶️ PAGE BUNDLES (apps-pages)" href="apps-pages.html" />
-    <link rel="prev" title="▶️ EXPERIMENT" href="experiment-help.html" /> 
+    <link rel="prev" title="▶️ PIPELINE" href="experiment-help.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,19 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -474,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ EXPLORE</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#main-content-area">Main Content Area</a></li>
@@ -895,7 +902,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">▶️ EXPLORE</li>
+      <li class="breadcrumb-item active">▶️ ANALYSIS</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/explore-help.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -905,13 +912,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="explore">
-<h1>▶️ EXPLORE<a class="headerlink" href="#explore" title="Link to this heading"></a></h1>
+  <section id="analysis">
+<h1>▶️ ANALYSIS<a class="headerlink" href="#analysis" title="Link to this heading"></a></h1>
 <div class="toctree-wrapper compound">
 </div>
 <section id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h2>
-<p>The <strong>Explore</strong> page is the catalog for Streamlit views that belong to your
+<p>The <strong>Analysis</strong> page is the catalog for Streamlit views that belong to your
 AGILab installation. It lets you pick which views should appear on the main
 landing page and launch any of them in an isolated sidecar session for a richer
 interactive experience.</p>
@@ -940,7 +947,7 @@ what is available on disk.</p>
 <label class="sd-tab-label" for="sd-tab-item-1">
 Configure</label><div class="sd-tab-content docutils">
 <p>Use the multi-select to decide which views should be surfaced on the
-Explore page and on the home dashboard. The selection is written to
+Analysis page and on the home dashboard. The selection is written to
 <code class="docutils literal notranslate"><span class="pre">src/&lt;project&gt;/src/app_settings.toml</span></code> in the <code class="docutils literal notranslate"><span class="pre">[pages]</span></code> section under
 <code class="docutils literal notranslate"><span class="pre">view_module</span></code>. Only the names you choose are persisted for the active
 project; every project keeps its own list.</p>
@@ -953,7 +960,7 @@ a dedicated Streamlit process (one port per view, per session) using the
 nearest virtual environment (<code class="docutils literal notranslate"><span class="pre">.venv</span></code>/<code class="docutils literal notranslate"><span class="pre">venv</span></code> in the bundle or the
 directories pointed to <code class="docutils literal notranslate"><span class="pre">${AGILAB_VENVS_ABS}</span></code> and
 <code class="docutils literal notranslate"><span class="pre">${AGILAB_PAGES_VENVS_ABS}</span></code>). The child app is then embedded via iframe
-and a <code class="docutils literal notranslate"><span class="pre">Back</span> <span class="pre">to</span> <span class="pre">Explore</span></code> control keeps navigation lightweight.</p>
+and a <code class="docutils literal notranslate"><span class="pre">Back</span> <span class="pre">to</span> <span class="pre">Analysis</span></code> control keeps navigation lightweight.</p>
 </div>
 </div>
 </section>
@@ -962,15 +969,15 @@ and a <code class="docutils literal notranslate"><span class="pre">Back</span> <
 <ul class="simple">
 <li><p>Views are ordinary Streamlit projects. Bundles that expose a <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>
 and a <code class="docutils literal notranslate"><span class="pre">src/&lt;module&gt;/&lt;module&gt;.py</span></code> entry point are automatically picked up.</p></li>
-<li><p>Built-in IDE pages (Edit, Execute, Experiment, Explore) always remain
-available; page bundles simply add extra entries to the Explore catalogue when
+<li><p>Built-in IDE pages (Setup, Orchestrate, Pipeline, Analysis) always remain
+available; page bundles simply add extra entries to the Analysis catalogue when
 the project opts into them.</p></li>
-<li><p>AGILab caches the list per project, so the Explore grid reflects the exact
+<li><p>AGILab caches the list per project, so the Analysis grid reflects the exact
 configuration stored in <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>.</p></li>
 <li><p>If a view needs its own Python environment, place it alongside the page
 bundle (<code class="docutils literal notranslate"><span class="pre">.venv</span></code> or <code class="docutils literal notranslate"><span class="pre">venv</span></code>) or in the shared directories referenced by the
 <code class="docutils literal notranslate"><span class="pre">AGILAB_VENVS_ABS</span></code> / <code class="docutils literal notranslate"><span class="pre">AGILAB_PAGES_VENVS_ABS</span></code> environment variables.
-Explore automatically picks the first interpreter that exists when spinning up
+Analysis automatically picks the first interpreter that exists when spinning up
 the sidecar process.</p></li>
 </ul>
 </section>
@@ -980,7 +987,7 @@ the sidecar process.</p></li>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="experiment-help.html" class="btn btn-neutral float-left" title="▶️ EXPERIMENT" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="experiment-help.html" class="btn btn-neutral float-left" title="▶️ PIPELINE" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="apps-pages.html" class="btn btn-neutral float-right" title="▶️ PAGE BUNDLES (apps-pages)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

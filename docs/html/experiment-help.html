@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>▶️ EXPERIMENT &mdash; AGILab 2025.12.12 documentation</title>
+  <title>▶️ PIPELINE &mdash; AGILab 2025.12.12 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -24,8 +24,8 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="▶️ EXPLORE" href="explore-help.html" />
-    <link rel="prev" title="▶️ EXECUTE" href="execute-help.html" /> 
+    <link rel="next" title="▶️ ANALYSIS" href="explore-help.html" />
+    <link rel="prev" title="▶️ ORCHESTRATE" href="execute-help.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,20 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
-<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-experiment">Snippet Handoff to Experiment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#assistant">ASSISTANT</a></li>
@@ -475,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -896,7 +902,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">▶️ EXPERIMENT</li>
+      <li class="breadcrumb-item active">▶️ PIPELINE</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/experiment-help.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -906,8 +912,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="experiment">
-<h1>▶️ EXPERIMENT<a class="headerlink" href="#experiment" title="Link to this heading"></a></h1>
+  <section id="pipeline">
+<h1>▶️ PIPELINE<a class="headerlink" href="#pipeline" title="Link to this heading"></a></h1>
 <div class="toctree-wrapper compound">
 </div>
 <section id="sidebar">
@@ -941,7 +947,7 @@ reacts to the toolbar actions:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">Remove</span></code> deletes the step from <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Run</span></code> writes the snippet to <code class="docutils literal notranslate"><span class="pre">lab_snippet.py</span></code>, executes it and stores any
 produced dataframe under <code class="docutils literal notranslate"><span class="pre">lab_out.csv</span></code> so the preview and the
-Execute/Explore pages can consume the result.</p></li>
+Orchestrate/Analysis pages can consume the result.</p></li>
 </ul>
 <p>The runtime is chosen from the <em>Execution environment</em> box below the editor.
 If you pick a concrete virtual environment path the snippet runs via
@@ -952,9 +958,9 @@ app. In both cases the exported dataframe and history behave identically.</p>
 <p>The assistant automatically reloads the most recent dataframe and shows it below
 the editor. If nothing has been saved yet, you will see a reminder to run a
 snippet first.</p>
-<p>When your lab step is based on app execution, copy the snippet from the Execute
-page and paste it into the Experiment step. If you edit app argument values in
-Execute, regenerate the snippet and update the Experiment step again before you
+<p>When your lab step is based on app execution, copy the snippet from the Orchestrate
+page and paste it into the Pipeline step. If you edit app argument values in
+Orchestrate, regenerate the snippet and update the Pipeline step again before you
 run it.</p>
 </section>
 <section id="history">
@@ -969,8 +975,8 @@ file here immediately refreshes the assistant tab.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="execute-help.html" class="btn btn-neutral float-left" title="▶️ EXECUTE" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="explore-help.html" class="btn btn-neutral float-right" title="▶️ EXPLORE" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="execute-help.html" class="btn btn-neutral float-left" title="▶️ ORCHESTRATE" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="explore-help.html" class="btn btn-neutral float-right" title="▶️ ANALYSIS" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

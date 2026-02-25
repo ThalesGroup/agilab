@@ -33,7 +33,7 @@ Manager (`flight.flight`)
 - Wraps the runnable application. Converts user-supplied arguments into a
   validated `FlightArgs` model, normalises data URIs, and initialises cluster
   dispatch by seeding ``WorkDispatcher``.
-- Provides ``from_toml`` / ``to_toml`` helpers so snippets on the Execute page can
+- Provides ``from_toml`` / ``to_toml`` helpers so snippets on the Orchestrate page can
   reload configuration and persist overrides.
 - Handles managed-PC specifics (path remapping, data directory resets) and keeps
   the dataframe export folder clean between runs.
@@ -44,7 +44,7 @@ Args (`flight.flight_args`)
   configuration, including dataset location, slicing parameters and cluster
   toggles.
 - Ships conversion utilities for reading/writing ``app_settings.toml`` and merging
-  overrides that are injected by the Execute page.
+  overrides that are injected by the Orchestrate page.
 
 Worker (`flight_worker.flight_worker`)
 --------------------------------------
@@ -61,7 +61,7 @@ Assets & Tests
 - ``test/_test_*`` modules focus on unit-level behaviour for manager, worker and
   orchestration glue.
 - ``Modules`` and ``lab_steps.toml`` contain the Streamlit lab material used by
-  the Experiment page.
+  the Pipeline page.
 
 API Reference
 -------------

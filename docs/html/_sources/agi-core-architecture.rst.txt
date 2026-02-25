@@ -28,7 +28,7 @@ Modules at a glance
     opt-in to common validation, start here.
 ``agi_core.streamlit``
     Shared Streamlit widgets (status panels, history view, deploy dialogs) used
-    by EXECUTE/EXPLORE/EDIT. Keeping them here avoids circular imports from the
+    by ORCHESTRATE/ANALYSIS/SETUP. Keeping them here avoids circular imports from the
     page packages.
 ``agi_core.telemetry``
     Structured logging, run-history helpers, and wrappers used by ``AGI.run`` to
@@ -54,9 +54,9 @@ Execution flow
    Generated from ``pyreverse`` to show how ``agi_core`` orchestrates calls to
    ``agi_env`` helpers and dispatcher facades.
 
-Typical call stack when a user clicks **RUN** on the EXECUTE page:
+Typical call stack when a user clicks **RUN** on the ORCHESTRATE page:
 
-1. ``src/agilab/pages/▶️ EXECUTE.py`` collects form values and calls
+1. ``src/agilab/pages/2_▶️ ORCHESTRATE.py`` collects form values and calls
    ``agi_core.apps.loader.build_work_plan``.
 2. ``agi_core.apps`` builds an ``AppManifest`` and passes it to
    ``framework_api.AGILabSession``.
@@ -84,7 +84,7 @@ Repository pointers
 Directory      Purpose
 =============  =============================================================
 ``apps``       Metadata helpers shared by ``src/agilab/apps`` managers.
-``streamlit``  Widgets, layout templates, and modal logic for EXECUTE/EXPLORE.
+``streamlit``  Widgets, layout templates, and modal logic for ORCHESTRATE/ANALYSIS.
 ``telemetry``  Structured logging, status persistence, and run history APIs.
 ``services``   Standalone service objects (encryption, caching, dataset registry).
 =============  =============================================================

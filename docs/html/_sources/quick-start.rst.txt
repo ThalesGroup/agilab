@@ -36,7 +36,7 @@ Install Agilab
 
        uv run agilab
 
-   The EXECUTE page opens automatically. Point the sidebar to your apps
+   The ORCHESTRATE page opens automatically. Point the sidebar to your apps
    directory (defaults to ``~/agi-workspace/src/agilab/apps``).
 
 4. **Run the sample ``mycode`` app** either from the UI or the CLI
@@ -81,7 +81,7 @@ workflow. ``pycharm/setup_pycharm.py`` mirrors Streamlit run configurations to
    kicking off AGI, copying each ``AGI_*.py`` helper from
    ``src/agilab/examples/<app>/`` into ``~/log/execute/<app>/`` so the first
    install has runnable mirrors. After that initial bootstrap, the Streamlit
-   EXECUTE page re-generates the snippets on demand according to the form
+   ORCHESTRATE page re-generates the snippets on demand according to the form
    inputs you provide, keeping IDE and CLI flows in sync. Field defaults are
    read from each app's ``app_settings.toml`` before the form renders, so
    adjust that file first when you need new baselines.

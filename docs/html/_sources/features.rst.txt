@@ -93,5 +93,5 @@ agilab
     virtual environment during Install.
   - Build additional **page bundles** (standalone Streamlit dashboards) that
     live under ``src/agilab/apps-pages``. Every bundle carries its own
-    ``pyproject.toml`` or embedded ``.venv`` so the Explore launcher spins it up
+    ``pyproject.toml`` or embedded ``.venv`` so the Analysis launcher spins it up
     inside an isolated interpreter.

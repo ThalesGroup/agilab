@@ -56,7 +56,7 @@ summarises the supported keys.
      - Where MLflow tracking data is stored when experiments are enabled.
    * - ``AGI_PAGES_DIR``
      - ``agilab/apps-pages``
-     - Location of Streamlit page bundles loaded by the Explore/Edit views.
+     - Location of Streamlit page bundles loaded by the Analysis/Setup views.
    * - ``APPS_REPOSITORY``
      - unset
      - Optional pointer to the repository checkout containing apps or overrides.

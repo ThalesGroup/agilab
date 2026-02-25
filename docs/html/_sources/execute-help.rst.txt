@@ -1,12 +1,12 @@
-▶️ EXECUTE
-============
+▶️ ORCHESTRATE
+==============
 
 .. toctree::
    :hidden:
 
 Introduction
 ------------
-Execute walks through the lifecycle required to ship and operate an AGILab
+Orchestrate walks through the lifecycle required to ship and operate an AGILab
 application. It generates ready-to-run snippets, streams logs back into the UI
 and keeps ``app_settings.toml`` synchronised so that installs, distribution
 checks and runs are reproducible.
@@ -46,19 +46,19 @@ Main Content Area
   ``benchmark.json``, which is summarised under ``Benchmark results``.
 - ``LOAD DATA`` fetches the latest dataframe path configured for the project and
   shows an in-place preview. The preview is available even after a rerun.
-- ``Prepare Data for Experiment and Explore`` creates (or updates) the CSV that
-  powers the Experiment and Explore pages. Use the column selector with
+- ``Prepare Data for Pipeline and Analysis`` creates (or updates) the CSV that
+  powers the Pipeline and Analysis pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
 
-Snippet Handoff to Experiment
------------------------------
-For newcomers, keep Execute and Experiment in sync with this workflow:
+Snippet Handoff to Pipeline
+---------------------------
+For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
 
-1. Generate the snippet in **Execute** (typically ``AGI.run``).
-2. Copy/paste that snippet into the current **Experiment** step before running it.
+1. Generate the snippet in **Orchestrate** (typically ``AGI.run``).
+2. Copy/paste that snippet into the current **Pipeline** step before running it.
 3. Each time you change values in ``<module> args`` (``app_settings.toml`` /
-   ``[args]``), regenerate the snippet in Execute and replace the snippet stored
-   in the Experiment step.
+   ``[args]``), regenerate the snippet in Orchestrate and replace the snippet stored
+   in the Pipeline step.
 
 This avoids running stale code that still references old app argument values.

@@ -262,6 +262,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="module-agi-node.html">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="module-agi-node.html#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -455,19 +461,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -476,7 +483,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -914,10 +921,10 @@
 <ul class="simple">
 <li><p>Minimal starter template you can copy to bootstrap a new AGILab application.</p></li>
 <li><p>Demonstrates the project layout expected by the platform (manager package,
-worker package, <code class="docutils literal notranslate"><span class="pre">app_args</span></code> definitions, Explore configuration) with minimal
+worker package, <code class="docutils literal notranslate"><span class="pre">app_args</span></code> definitions, Analysis configuration) with minimal
 business logic so you can focus on custom code.</p></li>
 <li><p>Ships with blank Streamlit forms and prompt files to illustrate where to plug
-in UI customisation and Experiment prompts.</p></li>
+in UI customisation and Pipeline prompts.</p></li>
 </ul>
 </section>
 <section id="scientific-placeholders">
@@ -936,7 +943,7 @@ data loading, feature extraction, and artifact export around this core loop.</p>
 <li><p>Lightweight subclass of <code class="docutils literal notranslate"><span class="pre">BaseWorker</span></code> that shows how to wire argument
 handling, logging and dataframe export without heavy dependencies.</p></li>
 <li><p>Provides the same <code class="docutils literal notranslate"><span class="pre">from_toml</span></code> / <code class="docutils literal notranslate"><span class="pre">to_toml</span></code> helpers as production projects so
-you can reuse the Execute page snippets verbatim.</p></li>
+you can reuse the Orchestrate page snippets verbatim.</p></li>
 </ul>
 </section>
 <section id="args-mycode-app-args">
@@ -944,7 +951,7 @@ you can reuse the Execute page snippets verbatim.</p></li>
 <ul class="simple">
 <li><p>Simple Pydantic model that mirrors the keys present in <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>.</p></li>
 <li><p>Ideal starting point for capturing new configuration options; extend the model
-and the Streamlit form generated on the Execute page will pick them up.</p></li>
+and the Streamlit form generated on the Orchestrate page will pick them up.</p></li>
 </ul>
 </section>
 <section id="worker-mycode-worker-mycode-worker">

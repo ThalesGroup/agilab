@@ -260,6 +260,12 @@
 </ul>
 </li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">agi_node package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#agi_node.agi_dispatcher.build.cleanup_links"><code class="docutils literal notranslate"><span class="pre">cleanup_links()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agi_node.agi_dispatcher.build.create_symlink_for_module"><code class="docutils literal notranslate"><span class="pre">create_symlink_for_module()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agi_node.agi_dispatcher.build.find_sys_prefix"><code class="docutils literal notranslate"><span class="pre">find_sys_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agi_node.agi_dispatcher.build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agi_node.agi_dispatcher.build.parse_custom_args"><code class="docutils literal notranslate"><span class="pre">parse_custom_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agi_node.agi_dispatcher.build.truncate_path_at_segment"><code class="docutils literal notranslate"><span class="pre">truncate_path_at_segment()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agi_node.dag_worker.dag_worker.DagWorker"><code class="docutils literal notranslate"><span class="pre">DagWorker</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#agi_node.dag_worker.dag_worker.DagWorker.args_dump_mode"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dump_mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#agi_node.dag_worker.dag_worker.DagWorker.args_dumper"><code class="docutils literal notranslate"><span class="pre">DagWorker.args_dumper</span></code></a></li>
@@ -453,20 +459,20 @@
 <li class="toctree-l2"><a class="reference internal" href="agilab-help.html#see-also">See also</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ SETUP</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ ORCHESTRATE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
-<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-experiment">Snippet Handoff to Experiment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#snippet-handoff-to-pipeline">Snippet Handoff to Pipeline</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ PIPELINE</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="experiment-help.html#assistant">ASSISTANT</a></li>
@@ -475,7 +481,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ ANALYSIS</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
@@ -907,9 +913,87 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="module-agi_node.dag_worker.dag_worker">
-<span id="agi-node-package"></span><h1>agi_node package<a class="headerlink" href="#module-agi_node.dag_worker.dag_worker" title="Link to this heading"></a></h1>
-<dl class="py class">
+  <section id="module-agi_node.agi_dispatcher.build">
+<span id="agi-node-package"></span><h1>agi_node package<a class="headerlink" href="#module-agi_node.agi_dispatcher.build" title="Link to this heading"></a></h1>
+<p>AGI app setup
+Author: Jean-Pierre Morard
+Tested on Windows, Linux and MacOS</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_node.agi_dispatcher.build.cleanup_links">
+<span class="sig-prename descclassname"><span class="pre">agi_node.agi_dispatcher.build.</span></span><span class="sig-name descname"><span class="pre">cleanup_links</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">links</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_node/agi_dispatcher/build.html#cleanup_links"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.agi_dispatcher.build.cleanup_links" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_node.agi_dispatcher.build.create_symlink_for_module">
+<span class="sig-prename descclassname"><span class="pre">agi_node.agi_dispatcher.build.</span></span><span class="sig-name descname"><span class="pre">create_symlink_for_module</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pck</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_node/agi_dispatcher/build.html#create_symlink_for_module"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.agi_dispatcher.build.create_symlink_for_module" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_node.agi_dispatcher.build.find_sys_prefix">
+<span class="sig-prename descclassname"><span class="pre">agi_node.agi_dispatcher.build.</span></span><span class="sig-name descname"><span class="pre">find_sys_prefix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_node/agi_dispatcher/build.html#find_sys_prefix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.agi_dispatcher.build.find_sys_prefix" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_node.agi_dispatcher.build.main">
+<span class="sig-prename descclassname"><span class="pre">agi_node.agi_dispatcher.build.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">argv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_node/agi_dispatcher/build.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.agi_dispatcher.build.main" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_node.agi_dispatcher.build.parse_custom_args">
+<span class="sig-prename descclassname"><span class="pre">agi_node.agi_dispatcher.build.</span></span><span class="sig-name descname"><span class="pre">parse_custom_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw_args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_node/agi_dispatcher/build.html#parse_custom_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.agi_dispatcher.build.parse_custom_args" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Namespace</span></code></span></p>
+</dd>
+</dl>
+<p>Parse custom CLI arguments and return an argparse Namespace.
+Known args:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>packages: comma-separated list</p></li>
+<li><p>build_dir: output directory for build_ext (alias -b)</p></li>
+<li><p>dist_dir: output directory for bdist_egg (alias -d)</p></li>
+<li><p>command: setup command (“build_ext” or “bdist_egg”)</p></li>
+</ul>
+</div></blockquote>
+<p>Unknown args are left in remaining.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_node.agi_dispatcher.build.truncate_path_at_segment">
+<span class="sig-prename descclassname"><span class="pre">agi_node.agi_dispatcher.build.</span></span><span class="sig-name descname"><span class="pre">truncate_path_at_segment</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'_worker'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exact_match</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiple</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_node/agi_dispatcher/build.html#truncate_path_at_segment"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.agi_dispatcher.build.truncate_path_at_segment" title="Link to this definition"></a></dt>
+<dd><p>Return the Path up through the last directory whose name ends with <cite>segment</cite>,
+e.g. ‘/foo/flight_worker/bar.py’ → ‘/foo/flight_worker’.</p>
+<p>exact_match and multiple are kept for signature compatibility but ignored,
+since we want any dir name ending in segment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class" id="module-agi_node.dag_worker.dag_worker">
 <dt class="sig sig-object py" id="agi_node.dag_worker.dag_worker.DagWorker">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">agi_node.dag_worker.dag_worker.</span></span><span class="sig-name descname"><span class="pre">DagWorker</span></span><a class="reference internal" href="_modules/agi_node/dag_worker/dag_worker.html#DagWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_node.dag_worker.dag_worker.DagWorker" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseWorker</span></code></p>
