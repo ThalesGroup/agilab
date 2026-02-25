@@ -87,10 +87,26 @@ def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
     (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
-    (fake_home / ".agilab" / ".env").write_text("AGI_CLUSTER_ENABLED=1\n")
+    (fake_home / ".agilab" / ".env").write_text(
+        "AGI_CLUSTER_ENABLED=1\nAGI_CLUSTER_SHARE=/nonexistent_cluster_share\n"
+    )
+    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
+    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
     share_dir = fake_home / ".local" / "share" / "agilab"
     share_dir.mkdir(parents=True, exist_ok=True)
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+
+    # Create a fake app with cluster_enabled = true in app_settings.toml
+    # so _cluster_enabled_from_settings() returns True (the real mycode_project
+    # has cluster_enabled = false which would prevent the warning from firing).
+    fake_apps = tmp_path / "apps"
+    fake_app = fake_apps / "mycode_project"
+    fake_app_src = fake_app / "src" / "mycode"
+    fake_app_src.mkdir(parents=True, exist_ok=True)
+    (fake_app / "src" / "app_settings.toml").write_text(
+        "[cluster]\ncluster_enabled = true\n"
+    )
+
     monkeypatch.setenv("HOME", str(fake_home))
 
     AgiEnv.reset()
@@ -98,9 +114,8 @@ def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger):
-        apps_path = agipath / "apps"
-        AgiEnv(apps_path=apps_path, app="mycode_project", verbose=1)
-        AgiEnv(apps_path=apps_path, app="mycode_project", verbose=1)
+        AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
+        AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
 
     warning_calls = [
         call
@@ -110,3 +125,4 @@ def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
         and "AGI_CLUSTER_SHARE is not mounted" in call.args[0]
     ]
     assert len(warning_calls) == 1
+
