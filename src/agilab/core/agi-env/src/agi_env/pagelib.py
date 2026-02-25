@@ -721,12 +721,18 @@ def get_about_content():
     }
 
 
-def init_custom_ui(render_generic_ui):
-    """Ensure the custom app-args form toggle reflects the snippet state."""
-    env = st.session_state["env"]
-    form_path = env.app_args_form
-    if "toggle_edit" not in st.session_state:
-        st.session_state["toggle_edit"] = form_path.stat().st_size > 0
+def init_custom_ui(_form_path):
+    """Keep edit-mode toggles in sync and signal app-args forms to refresh."""
+    toggle_ui = bool(st.session_state.get("toggle_edit_ui", False))
+    st.session_state["toggle_edit"] = toggle_ui
+    # Reset custom form widget state on each mode switch so non-edit mode reloads
+    # persisted args instead of stale in-memory values.
+    for key in list(st.session_state.keys()):
+        if ":app_args_form:" in key:
+            del st.session_state[key]
+    st.session_state["app_args_form_refresh_nonce"] = (
+        int(st.session_state.get("app_args_form_refresh_nonce", 0)) + 1
+    )
     return
 
 
@@ -742,6 +748,8 @@ def on_project_change(project, switch_to_select=False):
         "is_args_from_ui",
         "args_default",
         "toggle_edit",
+        "toggle_edit_ui",
+        "app_args_form_refresh_nonce",
         "df_file_selectbox",
         "app_settings",
         "input_datadir",
@@ -767,7 +775,11 @@ def on_project_change(project, switch_to_select=False):
             pass  # If the key doesn't exist, do nothing
 
     # Collect keys to delete that start with specified prefixes
-    keys_to_delete = [key for key in session_state if key.startswith(prefixes)]
+    keys_to_delete = [
+        key
+        for key in session_state
+        if key.startswith(prefixes) or ":app_args_form:" in key
+    ]
 
     # Delete the collected keys using 'del' for better performance
     for key in keys_to_delete:
