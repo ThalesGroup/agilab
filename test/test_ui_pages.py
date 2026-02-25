@@ -194,7 +194,7 @@ def test_flight_project_app_args_form(mock_ui_env):
         assert files_input.label == "Pipeline name"
 
         # Let's set some values
-        data_in_input.set_value("http://localhost:9200")
+        data_in_input.set_value("hawk.cluster.local:9200")
         files_input.set_value("test_pipeline")
         at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
 
@@ -214,7 +214,7 @@ def test_flight_project_app_args_form(mock_ui_env):
         # The UI saves to `settings_path` and updates `app_settings`
         assert "app_settings" in at.session_state, "app_settings was not saved!"
         assert at.session_state["app_settings"]["args"]["data_source"] == "hawk"
-        assert at.session_state["app_settings"]["args"]["data_in"] == "http://localhost:9200"
+        assert at.session_state["app_settings"]["args"]["data_in"] == "hawk.cluster.local:9200"
         assert at.session_state["app_settings"]["args"]["files"] == "test_pipeline"
         assert at.session_state["app_settings"]["args"]["nfile"] == 5
 
