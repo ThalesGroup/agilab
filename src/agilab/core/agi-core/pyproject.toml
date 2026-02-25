@@ -1,5 +1,5 @@
 [project]
-version = "2026.02.20"
+version = "2026.02.25"
 name = "agi-core"
 description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
 readme = "README.md"
@@ -16,12 +16,14 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
 ]
-dependencies = ["agi-env==2026.02.20", "agi-node==2026.02.20", "agi-cluster==2026.02.20"]
+dependencies = ["agi-env==2026.02.25", "agi-node==2026.02.25", "agi-cluster==2026.02.25"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
+
+
 
 
 
