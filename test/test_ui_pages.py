@@ -1,0 +1,270 @@
+from __future__ import annotations
+
+import os
+import sys
+import pytest
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+from streamlit.testing.v1 import AppTest
+
+from agi_env import AgiEnv
+
+@pytest.fixture
+def mock_ui_env(tmp_path):
+    # Set up temporary directories for apps and config
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir()
+    
+    # Create a dummy project structure
+    project_dir = apps_dir / "flight_project"
+    project_dir.mkdir()
+    
+    # Create src dir and app_settings.toml
+    src_dir = project_dir / "src"
+    src_dir.mkdir()
+    settings_file = src_dir / "app_settings.toml"
+    settings_file.write_text("[flight]\n") # Just some dummy TOML
+    
+    # Needs to be able to import flight
+    (src_dir / "flight.py").write_text("""
+from pydantic import BaseModel
+from datetime import date
+class FlightArgs(BaseModel):
+    data_source: str = "file"
+    data_in: str = ""
+    data_out: str = ""
+    files: str = "*"
+    nfile: int = 1
+    nskip: int = 0
+    nread: int = 0
+    sampling_rate: float = 1.0
+    datemin: date = date(2020, 1, 1)
+    datemax: date = date(2021, 1, 1)
+    output_format: str = "parquet"
+    reset_target: bool = False
+
+    
+    def to_toml_payload(self):
+        return self.model_dump(mode="json")
+        
+def apply_source_defaults(args):
+    return args
+    
+def dump_args_to_toml(args, path):
+    pass
+    
+def load_args_from_toml(path):
+        return FlightArgs()
+""")
+    
+    # Create apps-pages directory structure (not strictly needed since AgiEnv falls back to builtin apps)
+    pages_dir = project_dir / "apps-pages"
+    pages_dir.mkdir(parents=True, exist_ok=True)
+
+
+    # Mock CLI argv for AGILAB main page
+    test_argv = ["AGILAB.py", "--apps-dir", str(apps_dir), "--active-app", "flight_project"]
+    
+    # Patch sys.argv and env variables
+    with patch("sys.argv", test_argv):
+        with patch.dict(os.environ, {
+            "AGILAB_APP": "flight_project",
+            "AGI_SHARE_DIR": str(tmp_path),
+            "AGILAB_PAGES_ABS": str(pages_dir),
+            "OPENAI_API_KEY": "dummy"
+        }):
+            yield {"apps_dir": apps_dir, "project_dir": project_dir, "pages_dir": pages_dir}
+
+
+def test_agilab_main_page_env_editor(mock_ui_env):
+    """Test the main AGILAB page and interacting with the .env editor form."""
+    at = AppTest.from_file("src/agilab/AGILAB.py")
+    
+    # Run the app to initialize
+    at.run()
+    assert not at.exception
+    
+    # Find the environment editor form
+    # We expand the Environment Variables expander (Streamlit AppTest exposes them linearly, but we can look for the form)
+    # Actually, we can just interact with the text inputs directly by key
+    
+    # Wait, the form might not be rendered unless the expander is open. By default it's expanded=False
+    # However AppTest runs the whole script. In AppTest, expander contents are accessible
+    assert "env_editor_new_key" in [ti.key for ti in at.text_input]
+    assert "env_editor_new_value" in [ti.key for ti in at.text_input]
+    
+    # Set values in the text inputs
+    at.text_input(key="env_editor_new_key").set_value("TEST_UI_VAR")
+    at.text_input(key="env_editor_new_value").set_value("helloworld")
+    
+    # Submit the form
+    # We find the button with label "Save .env"
+    save_btn = None
+    for btn in at.button:
+        if btn.label == "Save .env":
+            save_btn = btn
+            break
+            
+    assert save_btn is not None
+    save_btn.click().run()
+    
+    assert not at.exception
+    # Check if the success message appeared
+    # In AppTest, st.success is mapped to at.success
+    success_msgs = [s.value for s in at.success]
+    assert any("Environment variables updated" in msg for msg in success_msgs)
+
+
+def test_execute_page_cluster_settings(mock_ui_env):
+    """Test the EXECUTE page cluster settings interactivity."""
+    
+    # For execute page we need an initialized env in session_state
+    at = AppTest.from_file("src/agilab/pages/▶️ EXECUTE.py")
+    
+    # Pre-inject environment into session state
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+    
+    at.run()
+    assert not at.exception
+    
+    enabled_toggle_key = f"cluster_enabled__flight_project"
+    
+    # Enable cluster
+    at.toggle(key=enabled_toggle_key).set_value(True).run()
+    
+    scheduler_key = f"cluster_scheduler__flight_project"
+    # Find scheduler text input
+    at.text_input(key=scheduler_key).set_value("127.0.0.1:8786")
+    
+    # Toggle some cluster settings
+    at.checkbox(key="cluster_pool").set_value(True)
+    
+    at.run()
+    
+    assert not at.exception
+    assert at.session_state["app_settings"]["cluster"]["cluster_enabled"] is True
+    assert at.session_state["app_settings"]["cluster"]["pool"] is True
+    assert at.session_state[scheduler_key] == "127.0.0.1:8786"
+
+
+def test_flight_project_app_args_form_render(mock_ui_env):
+    """Test that the flight_project UI data source form renders without errors."""
+    import sys
+    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
+    
+    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    
+    at.session_state["env"] = env
+    at.run()
+    
+    assert not at.exception
+    
+    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+
+def test_flight_project_app_args_form(mock_ui_env):
+    """Test the flight_project UI data source form interactions."""
+    
+    import sys
+    sys.path.insert(0, str(mock_ui_env["project_dir"] / "src"))
+    
+    at = AppTest.from_file("apps/builtin/flight_project/src/app_args_form.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    
+    # To avoid the 'not initialised' error
+    at.session_state["env"] = env
+    
+    at.run()
+    assert not at.exception
+    
+    # The default data source is 'file', we switch it to 'hawk'
+    at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
+    
+    # Check if the text input labels changed
+    # Text input for "Hawk cluster URI" should exist (it replaces "Data directory")
+    # Actually, AppTest exposes text inputs but their labels might vary. Let's find it by key
+    data_in_input = at.text_input(key="flight_project:app_args_form:data_in")
+    assert data_in_input.label == "Hawk cluster URI"
+    
+    files_input = at.text_input(key="flight_project:app_args_form:files")
+    assert files_input.label == "Pipeline name"
+    
+    # Let's set some values 
+    data_in_input.set_value("http://localhost:9200")
+    files_input.set_value("test_pipeline")
+    at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
+    
+    at.run()
+    
+    if at.error:
+        print("ERRORS:", [e.value for e in at.error])
+    
+    print("SUCCESS MSGS:", [m.value for m in at.success])
+    print("INFO MSGS:", [m.value for m in at.info])
+    print("WARNING MSGS:", [m.value for m in at.warning])
+    print("ERROR MSGS:", [m.value for m in at.error])
+
+    assert not at.exception
+    
+    # The current parameters are collected in the session state payload or validated structure
+    # The UI saves to `settings_path` and updates `app_settings`
+    assert "app_settings" in at.session_state, "app_settings was not saved!"
+    assert at.session_state["app_settings"]["args"]["data_source"] == "hawk"
+    assert at.session_state["app_settings"]["args"]["data_in"] == "http://localhost:9200"
+    assert at.session_state["app_settings"]["args"]["files"] == "test_pipeline"
+    assert at.session_state["app_settings"]["args"]["nfile"] == 5
+    
+    # Look for the success message containing "Saved to"
+    success_msgs = [s.value for s in at.success]
+    assert any("Saved to" in msg for msg in success_msgs)
+    
+    sys.path.remove(str(mock_ui_env["project_dir"] / "src"))
+
+def test_explore_page_multiselect(mock_ui_env):
+    """Test the EXPLORE page multiselect and button rendering."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXPLORE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    
+    at.session_state["env"] = env
+    at.run()
+    assert not at.exception
+    
+    # Check that 'dummy_view' is an option in the multiselect
+    selection_key = f"view_selection__flight_project"
+    ms = at.multiselect(key=selection_key)
+    
+    assert "view_maps" in ms.options
+    
+    # Select it
+    ms.select("view_maps").run()
+    assert not at.exception
+    
+    # Ensure that the button was created for it
+    btns = [b.label for b in at.button]
+    assert "view_maps" in btns
+
+def test_experiment_page_load(mock_ui_env):
+    """Test that the EXPERIMENT page loads without exceptions."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EXPERIMENT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    
+    # We must ensure there is a lab_steps file to not throw exceptions, or handling it safely
+    # In mock env we just pass env
+    at.session_state["env"] = env
+    # Mock some expected session_states for the page
+    at.session_state["flight_project"] = [0, "", "", "", "", ""]
+    at.session_state["flight_project__venv_map"] = {}
+    
+    at.run()
+    assert not at.exception
+
+def test_edit_page_load(mock_ui_env):
+    """Test that the EDIT page loads without exceptions."""
+    at = AppTest.from_file("src/agilab/pages/▶️ EDIT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    
+    at.session_state["env"] = env
+    
+    at.run()
+    assert not at.exception
