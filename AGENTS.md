@@ -93,14 +93,11 @@ Use this runbook whenever you:
 - **Docs source of truth**: Editable docs sources live in the sibling repository
   `../thales_agilab/docs/source` (for this machine:
   `/Users/agi/PycharmProjects/thales_agilab/docs/source`).
-- **Docs edits**: `docs/html` in this repo is generated output only. Do not treat
-  `docs/html/_sources/*.txt` as editable source files. Regenerate from
-  `../thales_agilab/docs/source` with the documentation tooling, then commit the
-  updated `docs/html/`.
-- **Docs guardrail**: Never stage or commit `docs/html/**` changes unless the matching
-  source change exists under `../thales_agilab/docs/source/**` and `docs/html` was
-  regenerated from that source. If `docs/html/**` changed from broad refactors/search
-  replace, discard those generated-file edits instead of committing them.
+- **Docs edits**: `docs/html` in this repo is generated local output and is ignored by
+  git. Do not treat `docs/html/_sources/*.txt` as editable source files. Edit docs in
+  `../thales_agilab/docs/source`.
+- **Docs guardrail**: Never stage or commit `docs/html/**`. If generated files appear in
+  status, unstage/remove them from the index and keep only source edits.
 - **VIRTUAL_ENV warning**: `uv` may emit `VIRTUAL_ENV=... does not match the project environment path ...; use --active...`.
   This is expected because AGILAB manages multiple venvs per app/local/shared install. Ignore unless you intend to run against the currently activated venv.
 
@@ -206,12 +203,10 @@ Use this runbook whenever you:
 - Adjust timeout with `--cleanup-timeout` (default 60s) when invoking `tools/pypi_publish.py`.
 
 **Docs Publishing**
-- The published site is committed under `docs/html` (tracked in git).
-- Canonical editable docs live in `../thales_agilab/docs/source`; this repo stores
-  the generated site artifact.
-- GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
-- To update docs, edit `../thales_agilab/docs/source`, regenerate `docs/html/`, and
-  commit the result in this repo.
+- `docs/html` is not tracked in git in this repository.
+- Canonical editable docs live in `../thales_agilab/docs/source`.
+- Generated `docs/html` may be created locally for preview, but must not be committed.
+- GitHub Pages deployment only runs when a `docs/html` artifact is provided by the workflow.
 
 **CI & Badges**
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
