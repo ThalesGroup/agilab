@@ -17,7 +17,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$ProjectFileDir$/tools/apps_pages_launcher.py" />
-    <option name="PARAMETERS" value="--active-app $ProjectFileDir$/src/agilab/apps/flight_project" />
+    <option name="PARAMETERS" value="--active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="true" />
     <option name="MODULE_MODE" value="false" />
@@ -26,4 +26,3 @@
     <method v="2" />
   </configuration>
 </component>
-
