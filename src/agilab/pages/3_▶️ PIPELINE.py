@@ -3760,6 +3760,9 @@ def display_lab_tab(
             revert_pressed = False
             save_pressed = False
             delete_clicked = False
+            arm_delete_clicked = False
+            cancel_delete_clicked = False
+            confirm_delete_key = f"{safe_prefix}_confirm_delete_{step}"
             snippet_dict: Optional[Dict[str, Any]] = None
             st.text_area(
                 "Ask code generator:",
@@ -3791,12 +3794,33 @@ def display_lab_tab(
                     key=f"{safe_prefix}_revert_{step}",
                 )
             with btn_delete:
-                delete_clicked = st.button(
-                    "Remove",
-                    type="secondary",
-                    use_container_width=True,
-                    key=f"{safe_prefix}_delete_{step}",
-                )
+                if st.session_state.get(confirm_delete_key, False):
+                    delete_clicked = st.button(
+                        "Confirm remove",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"{safe_prefix}_delete_confirm_{step}",
+                    )
+                    cancel_delete_clicked = st.button(
+                        "Cancel",
+                        type="secondary",
+                        use_container_width=True,
+                        key=f"{safe_prefix}_delete_cancel_{step}",
+                    )
+                else:
+                    arm_delete_clicked = st.button(
+                        "Remove",
+                        type="secondary",
+                        use_container_width=True,
+                        key=f"{safe_prefix}_delete_{step}",
+                    )
+
+            if arm_delete_clicked:
+                st.session_state[confirm_delete_key] = True
+                st.rerun()
+            if cancel_delete_clicked:
+                st.session_state.pop(confirm_delete_key, None)
+                st.rerun()
 
             # Code editor rendered outside the form so overlay actions fire without submit
             code_text = st.session_state.get(code_val_key, "")
@@ -4174,6 +4198,7 @@ def display_lab_tab(
                 st.rerun()
 
             if delete_clicked:
+                st.session_state.pop(confirm_delete_key, None)
                 selected_map.pop(step, None)
                 st.session_state.pop(select_key, None)
                 remove_step(lab_dir, str(step), steps_file, index_page_str)
@@ -4357,6 +4382,10 @@ def display_lab_tab(
             _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
     run_all_col, delete_all_col = st.columns(2)
+    delete_all_clicked = False
+    arm_delete_all_clicked = False
+    cancel_delete_all_clicked = False
+    delete_all_confirm_key = f"{index_page_str}_confirm_delete_all"
     with run_all_col:
         run_all_clicked = st.button(
             "Run pipeline",
@@ -4366,13 +4395,35 @@ def display_lab_tab(
             use_container_width=True,
         )
     with delete_all_col:
-        delete_all_clicked = st.button(
-            "Delete pipeline",
-            key=f"{index_page_str}_delete_all",
-            help="Remove every step in this lab.",
-            type="secondary",
-            use_container_width=True,
-        )
+        if st.session_state.get(delete_all_confirm_key, False):
+            delete_all_clicked = st.button(
+                "Confirm delete all",
+                key=f"{index_page_str}_delete_all_confirm",
+                help="Permanently remove every step in this lab.",
+                type="primary",
+                use_container_width=True,
+            )
+            cancel_delete_all_clicked = st.button(
+                "Cancel",
+                key=f"{index_page_str}_delete_all_cancel",
+                type="secondary",
+                use_container_width=True,
+            )
+        else:
+            arm_delete_all_clicked = st.button(
+                "Delete pipeline",
+                key=f"{index_page_str}_delete_all",
+                help="Remove every step in this lab.",
+                type="secondary",
+                use_container_width=True,
+            )
+
+    if arm_delete_all_clicked:
+        st.session_state[delete_all_confirm_key] = True
+        st.rerun()
+    if cancel_delete_all_clicked:
+        st.session_state.pop(delete_all_confirm_key, None)
+        st.rerun()
 
     if run_all_clicked:
         run_placeholder = _get_run_placeholder(index_page_str)
@@ -4398,6 +4449,7 @@ def display_lab_tab(
         st.rerun()
 
     if delete_all_clicked:
+        st.session_state.pop(delete_all_confirm_key, None)
         total_steps = st.session_state[index_page_str][-1]
         for idx_remove in reversed(range(total_steps)):
             remove_step(lab_dir, str(idx_remove), steps_file, index_page_str)
