@@ -1813,8 +1813,8 @@ def sidebar_views():
         index=index,
         on_change=lambda: on_df_change(
             module_path,
-            st.session_state["df_file"],
             index_page_str,
+            st.session_state.get("df_file"),
         ),
     )
     if st.session_state[key_df]:
@@ -1823,7 +1823,7 @@ def sidebar_views():
         st.session_state["df_file"] = None
 
 
-def on_df_change(module_dir, index_page, df_file, steps_file=None):
+def on_df_change(module_dir, index_page, df_file=None, steps_file=None):
     """
     Handle DataFrame selection.
 
@@ -1833,14 +1833,41 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
         index_page (str): The index page identifier.
         steps_file (Path): The steps file path.
     """
-    st.session_state[index_page + "df_file"] = st.session_state[
-        index_page + "select_df"
-        ]
+    index_page_str = str(index_page)
+    select_df_key = index_page_str + "df"
+
+    # Backward-compatible guard: if callers pass args in the old order, swap them.
+    if (
+        select_df_key not in st.session_state
+        and df_file is not None
+        and (str(df_file) + "df") in st.session_state
+    ):
+        df_file, index_page_str = index_page, str(df_file)
+        select_df_key = index_page_str + "df"
+
+    selected_df = st.session_state.get(select_df_key)
+    selected_path = None
+    if selected_df:
+        selected_path = Path(selected_df)
+        if not selected_path.is_absolute():
+            env = st.session_state.get("env")
+            export_root = Path(env.AGILAB_EXPORT_ABS) if env else None
+            if export_root:
+                selected_path = export_root / selected_path
+    elif df_file:
+        selected_path = Path(df_file)
+
+    if selected_path is not None:
+        st.session_state[index_page_str + "df_file"] = selected_path
+        st.session_state["df_file"] = selected_path
+    else:
+        st.session_state.pop(index_page_str + "df_file", None)
+
     if steps_file:
         logger.info(f"mkdir {steps_file.parent}")
         steps_file.parent.mkdir(parents=True, exist_ok=True)
-        load_last_step(module_dir, steps_file, index_page)
-    st.session_state.pop(index_page, None)
+        load_last_step(module_dir, steps_file, index_page_str)
+    st.session_state.pop(index_page_str, None)
     st.session_state.page_broken = True
 
 
