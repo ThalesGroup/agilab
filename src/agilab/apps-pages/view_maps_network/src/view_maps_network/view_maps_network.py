@@ -208,6 +208,139 @@ terrain_layer = pdk.Layer(
     visible=True,
 )
 
+EARTH_RADIUS_M = 6_371_000.0
+DEFAULT_CLOUDMAP_SAT = "/home/agi/localshare/link_sim/dataset/CloudMapSat.npz"
+DEFAULT_CLOUDMAP_IVDL = "/home/agi/localshare/link_sim/dataset/CloudMapIvdl.npz"
+_CLOUD_HEATMAP_MAX_POINTS = 120_000
+_SAT_HEATMAP_COLOR_RANGE = [
+    [0, 0, 0, 0],
+    [0, 32, 96, 80],
+    [0, 92, 184, 120],
+    [0, 160, 255, 160],
+    [96, 220, 255, 190],
+    [220, 250, 255, 220],
+]
+_IVDL_HEATMAP_COLOR_RANGE = [
+    [0, 0, 0, 0],
+    [88, 20, 0, 80],
+    [150, 45, 0, 120],
+    [210, 82, 0, 160],
+    [245, 150, 45, 190],
+    [255, 218, 110, 220],
+]
+
+
+@st.cache_data(show_spinner=False)
+def _load_cloud_heatmap_points(
+    npz_path: str,
+    stride: int = 25,
+    min_weight: float = 0.0,
+    max_points: int = _CLOUD_HEATMAP_MAX_POINTS,
+) -> pd.DataFrame:
+    """Load a link_sim cloud map NPZ and convert sampled grid points to lat/lon."""
+    path = Path(npz_path).expanduser()
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    with np.load(path) as data:
+        if "heatmap" not in data.files:
+            raise ValueError(f"Missing 'heatmap' array in {path}")
+        required = ("x_min", "z_min", "step", "center")
+        missing = [key for key in required if key not in data.files]
+        if missing:
+            raise ValueError(f"Missing required key(s) {missing} in {path}")
+
+        heatmap = np.asarray(data["heatmap"], dtype=np.float32)
+        if heatmap.ndim != 2:
+            raise ValueError(f"Expected 2D heatmap in {path}, got shape={heatmap.shape}")
+        x_min = float(np.asarray(data["x_min"]).item())
+        z_min = float(np.asarray(data["z_min"]).item())
+        step = float(np.asarray(data["step"]).item())
+        center = np.asarray(data["center"], dtype=np.float64).reshape(-1)
+        if center.size < 2:
+            raise ValueError(f"Invalid center in {path}: {center}")
+        center_x = float(center[0])
+        center_z = float(center[1])
+
+    safe_stride = max(1, int(stride))
+    sampled = heatmap[::safe_stride, ::safe_stride]
+    mask = sampled > float(min_weight)
+    if not np.any(mask):
+        return pd.DataFrame(columns=["long", "lat", "weight"])
+
+    rows, cols = np.nonzero(mask)
+    weights = sampled[rows, cols].astype(np.float32)
+    abs_rows = rows.astype(np.int64) * safe_stride
+    abs_cols = cols.astype(np.int64) * safe_stride
+
+    x_world = center_x + x_min + abs_cols.astype(np.float64) * step
+    z_world = center_z + z_min + abs_rows.astype(np.float64) * step
+
+    lon = np.degrees(x_world / EARTH_RADIUS_M)
+    lat = np.degrees(z_world / EARTH_RADIUS_M)
+    valid = (
+        np.isfinite(lon)
+        & np.isfinite(lat)
+        & np.isfinite(weights)
+        & (lat >= -90.0)
+        & (lat <= 90.0)
+        & (lon >= -180.0)
+        & (lon <= 180.0)
+    )
+    if not np.any(valid):
+        return pd.DataFrame(columns=["long", "lat", "weight"])
+
+    lon = lon[valid]
+    lat = lat[valid]
+    weights = weights[valid]
+
+    if len(weights) > int(max_points):
+        keep_idx = np.argpartition(weights, -int(max_points))[-int(max_points):]
+        lon = lon[keep_idx]
+        lat = lat[keep_idx]
+        weights = weights[keep_idx]
+
+    return pd.DataFrame({"long": lon, "lat": lat, "weight": weights})
+
+
+def _cloud_heatmap_layers() -> list[Any]:
+    if not bool(st.session_state.get("show_cloud_heatmap", False)):
+        return []
+
+    stride = int(st.session_state.get("cloud_heatmap_stride", 25) or 25)
+    min_weight = float(st.session_state.get("cloud_heatmap_min_weight", 0.0) or 0.0)
+    specs = (
+        ("SAT", str(st.session_state.get("cloud_heatmap_sat_path", "")).strip(), _SAT_HEATMAP_COLOR_RANGE),
+        ("IVDL", str(st.session_state.get("cloud_heatmap_ivdl_path", "")).strip(), _IVDL_HEATMAP_COLOR_RANGE),
+    )
+
+    layers: list[Any] = []
+    for label, path, color_range in specs:
+        if not path:
+            continue
+        try:
+            points = _load_cloud_heatmap_points(path, stride=stride, min_weight=min_weight)
+        except Exception as exc:
+            st.sidebar.warning(f"{label} cloud map unavailable ({path}): {exc}")
+            continue
+        if points.empty:
+            continue
+        layers.append(
+            pdk.Layer(
+                "HeatmapLayer",
+                data=points,
+                get_position="[long,lat]",
+                get_weight="weight",
+                radius_pixels=45,
+                intensity=1.0,
+                threshold=0.03,
+                opacity=0.55,
+                aggregation="SUM",
+                color_range=color_range,
+            )
+        )
+    return layers
+
 st.markdown("<h1 style='text-align: center;'>🌐 Network Topology</h1>", unsafe_allow_html=True)
 
 def _svg_data_url(svg: str) -> str:
@@ -711,6 +844,7 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
 
     include_terrain = bool(st.session_state.get("show_terrain", True))
     layers = [terrain_layer] if include_terrain else []
+    layers.extend(_cloud_heatmap_layers())
     for idx, link_col in enumerate(selected_links):
         edges_df = create_edges_geomap(df, link_col, current_positions)
         if edges_df.empty:
@@ -1630,6 +1764,11 @@ def page():
         "show_map",
         "show_graph",
         "show_terrain",
+        "show_cloud_heatmap",
+        "cloud_heatmap_sat_path",
+        "cloud_heatmap_ivdl_path",
+        "cloud_heatmap_stride",
+        "cloud_heatmap_min_weight",
         "jitter_overlap",
         "show_metrics",
         "map_marker_style",
@@ -1790,6 +1929,11 @@ def page():
         "show_map": st.session_state.get("show_map", True),
         "show_graph": st.session_state.get("show_graph", True),
         "show_terrain": st.session_state.get("show_terrain", True),
+        "show_cloud_heatmap": st.session_state.get("show_cloud_heatmap", False),
+        "cloud_heatmap_sat_path": st.session_state.get("cloud_heatmap_sat_path", DEFAULT_CLOUDMAP_SAT),
+        "cloud_heatmap_ivdl_path": st.session_state.get("cloud_heatmap_ivdl_path", DEFAULT_CLOUDMAP_IVDL),
+        "cloud_heatmap_stride": int(st.session_state.get("cloud_heatmap_stride", 25)),
+        "cloud_heatmap_min_weight": float(st.session_state.get("cloud_heatmap_min_weight", 0.0)),
         "jitter_overlap": st.session_state.get("jitter_overlap", False),
         "show_metrics": st.session_state.get("show_metrics", False),
         "map_marker_style": st.session_state.get("map_marker_style", "Plane icons"),
@@ -2292,10 +2436,38 @@ def page():
         key="map_marker_style",
     )
     st.session_state.setdefault("show_terrain", True)
+    st.session_state.setdefault("show_cloud_heatmap", False)
+    st.session_state.setdefault("cloud_heatmap_sat_path", DEFAULT_CLOUDMAP_SAT)
+    st.session_state.setdefault("cloud_heatmap_ivdl_path", DEFAULT_CLOUDMAP_IVDL)
+    st.session_state.setdefault("cloud_heatmap_stride", 25)
+    st.session_state.setdefault("cloud_heatmap_min_weight", 0.0)
     st.sidebar.checkbox(
         "Show terrain overlay",
         key="show_terrain",
         help="Toggle satellite/terrain background tiles (Mapbox-based). Disable for a lighter view or if you see rendering errors.",
+    )
+    st.sidebar.checkbox(
+        "Show cloud heatmap overlay",
+        key="show_cloud_heatmap",
+        help="Overlay SAT/IVDL cloud maps from LinkSim NPZ files.",
+    )
+    st.sidebar.text_input("SAT cloud map (.npz)", key="cloud_heatmap_sat_path")
+    st.sidebar.text_input("IVDL cloud map (.npz)", key="cloud_heatmap_ivdl_path")
+    st.sidebar.slider(
+        "Cloud heatmap sampling stride",
+        min_value=5,
+        max_value=100,
+        step=5,
+        key="cloud_heatmap_stride",
+        help="Higher stride samples fewer cells (faster rendering).",
+    )
+    st.sidebar.slider(
+        "Cloud min intensity",
+        min_value=0.0,
+        max_value=1.0,
+        step=0.01,
+        key="cloud_heatmap_min_weight",
+        help="Filter low-intensity cloud cells before rendering.",
     )
 
     layout_options = ["bipartite", "circular", "planar", "random", "rescale", "shell", "spring", "spiral"]
