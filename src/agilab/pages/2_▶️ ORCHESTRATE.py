@@ -670,10 +670,43 @@ def render_generic_ui():
             except (SyntaxError, ValueError):
                 pass
             c3.text(type(new_val).__name__)
-            if not c4.button("🗑️", key=f"args_remove_button{i}", type="primary", help=f"Remove {new_key}"):
-                new_args_list.append((new_key, new_val))
+            remove_confirm_key = f"args_remove_confirm_{i}"
+            row_delete_confirmed = False
+            row_delete_armed = False
+            row_delete_canceled = False
+
+            if st.session_state.get(remove_confirm_key, False):
+                row_delete_confirmed = c4.button(
+                    "✅",
+                    key=f"args_remove_confirm_button{i}",
+                    type="primary",
+                    help=f"Confirm remove {new_key}",
+                )
+                row_delete_canceled = c4.button(
+                    "✖",
+                    key=f"args_remove_cancel_button{i}",
+                    type="secondary",
+                    help=f"Cancel remove {new_key}",
+                )
             else:
+                row_delete_armed = c4.button(
+                    "🗑️",
+                    key=f"args_remove_button{i}",
+                    type="primary",
+                    help=f"Remove {new_key}",
+                )
+
+            if row_delete_armed:
+                st.session_state[remove_confirm_key] = True
+                st.rerun()
+            if row_delete_canceled:
+                st.session_state.pop(remove_confirm_key, None)
+                st.rerun()
+            if row_delete_confirmed:
+                st.session_state.pop(remove_confirm_key, None)
                 st.session_state["args_remove_arg"] = True
+            else:
+                new_args_list.append((new_key, new_val))
 
     c1_add, c2_add, c3_add = st.columns(3)
     i = len(args_default) + 1
@@ -1948,13 +1981,39 @@ if __name__ == "__main__":
         if st.session_state.pop("_combo_load_trigger", False):
             load_clicked = True
 
-        delete_clicked = delete_col.button(
-            "DELETE dataframe",
-            key="delete_data_main",
-            type="secondary",
-            use_container_width=True,
-            help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
-        )
+        delete_clicked = False
+        delete_armed_clicked = False
+        delete_cancel_clicked = False
+        delete_confirm_key = "delete_data_main_confirm"
+        if st.session_state.get(delete_confirm_key, False):
+            delete_clicked = delete_col.button(
+                "Confirm delete",
+                key="delete_data_main_confirm_btn",
+                type="primary",
+                use_container_width=True,
+                help="Confirm deletion of the loaded dataframe/export file.",
+            )
+            delete_cancel_clicked = delete_col.button(
+                "Cancel",
+                key="delete_data_main_cancel_btn",
+                type="secondary",
+                use_container_width=True,
+            )
+        else:
+            delete_armed_clicked = delete_col.button(
+                "DELETE dataframe",
+                key="delete_data_main",
+                type="secondary",
+                use_container_width=True,
+                help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+            )
+
+        if delete_armed_clicked:
+            st.session_state[delete_confirm_key] = True
+            st.rerun()
+        if delete_cancel_clicked:
+            st.session_state.pop(delete_confirm_key, None)
+            st.rerun()
 
         if load_clicked:
             if st.session_state.get("dataframe_deleted"):
@@ -2106,6 +2165,7 @@ if __name__ == "__main__":
                         st.error(f"Unable to load {target_file.name}: {exc}")
 
         if delete_clicked:
+            st.session_state.pop(delete_confirm_key, None)
             st.session_state["dataframe_deleted"] = True
             source_path = st.session_state.pop("loaded_source_path", None)
             st.session_state["loaded_df"] = None
