@@ -1682,12 +1682,12 @@ def page():
 
     render_logo()
 
-    # Quick access to EXPERIMENT history
-    if st.sidebar.button("Open HISTORY (EXPERIMENT)"):
+    # Quick access to PIPELINE history
+    if st.sidebar.button("Open HISTORY (PIPELINE)"):
         try:
-            st.switch_page("▶️ EXPERIMENT.py")
+            st.switch_page("3_▶️ PIPELINE.py")
         except Exception:
-            st.experimental_set_query_params(page="EXPERIMENT")
+            st.experimental_set_query_params(page="PIPELINE")
             st.rerun()
 
     if not st.session_state.get("server_started"):
