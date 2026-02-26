@@ -18,6 +18,7 @@ import sys
 import socket
 import time
 import hashlib
+import re
 from pathlib import Path
 from typing import Union
 import asyncio
@@ -236,6 +237,14 @@ def _read_config(path: Path) -> dict:
         st.error(f"Error loading configuration: {e}")
     return {}
 
+
+def _normalize_view_name(value: str) -> str:
+    """Normalize page bundle labels by removing leading icon glyphs/decoration."""
+    if not value:
+        return ""
+    normalized = re.sub(r"^\s*[^\w-]+", "", value).strip()
+    return normalized or value.strip()
+
 def _write_config(path: Path, cfg: dict):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -354,6 +363,9 @@ async def main():
 
     # Discover pages dynamically under AGILAB_PAGES_ABS
     all_views = discover_views(Path(env.AGILAB_PAGES_ABS))
+    normalized_view_lookup: dict[str, Path] = {
+        _normalize_view_name(view_path.stem): view_path for view_path in all_views
+    }
 
     # Route: only render a view when the param is a concrete path, not "main"/empty
     if current_page and current_page not in ("", "main"):
@@ -373,10 +385,12 @@ async def main():
     cfg = _read_config(app_settings)
     if "pages" not in cfg:
         cfg["pages"] = {}
-    project_views: list[str] = cfg.get("pages", {}).get("view_module", [])
+    project_views: list[str] = [
+        _normalize_view_name(v) for v in cfg.get("pages", {}).get("view_module", [])
+    ]
 
     # Multiselect with current selections
-    view_names = [p.stem for p in all_views]
+    view_names = sorted(normalized_view_lookup.keys())
     # Keep only those that still exist
     preselect = [v for v in project_views if v in view_names]
 
@@ -417,12 +431,12 @@ async def main():
 
     if selected_views:
         for i, view_name in enumerate(selected_views):
-            view_path = next((p for p in all_views if p.stem == view_name), None)
-            module = view_name.replace('-', '_')
-            view_path = view_path / "src" / module / (module + ".py")
+            view_path = normalized_view_lookup.get(view_name)
             if not view_path:
                 st.error(f"Page '{view_name}' not found.")
                 continue
+            module = view_name.replace("-", "_")
+            view_path = view_path / "src" / module / (module + ".py")
             with cols[i % len(cols)]:
                 if st.button(view_name, type="primary", use_container_width=True):
                     view_str = str(view_path.resolve())
