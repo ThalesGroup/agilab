@@ -837,7 +837,7 @@ install_pycharm_script() {
 }
 
 usage() {
-  echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps]"
+  echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test]"
     exit 1
 }
 
@@ -884,7 +884,11 @@ while [[ "$#" -gt 0 ]]; do
             fi
             shift
             ;;
-        --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
+        --test-apps|--apps-test)
+            TEST_APPS_FLAG=1
+            INSTALL_APPS_FLAG=1
+            shift
+            ;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
         --help|-h) usage && exit;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;

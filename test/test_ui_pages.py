@@ -65,7 +65,7 @@ def load_args_from_toml(path):
 
 
     # Mock CLI argv for AGILAB main page
-    test_argv = ["agilab.py", "--apps-dir", str(apps_dir), "--active-app", "flight_project"]
+    test_argv = ["About_agilab.py", "--apps-dir", str(apps_dir), "--active-app", "flight_project"]
     
     # Patch sys.argv and env variables
     with patch("sys.argv", test_argv):
@@ -81,7 +81,7 @@ def load_args_from_toml(path):
 
 def test_agilab_main_page_env_editor(mock_ui_env):
     """Test the main AGILAB page and interacting with the .env editor form."""
-    at = AppTest.from_file("src/agilab/agilab.py")
+    at = AppTest.from_file("src/agilab/About_agilab.py")
     
     # Run the app to initialize
     at.run()
@@ -265,7 +265,7 @@ def test_experiment_page_load(mock_ui_env):
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
-    at = AppTest.from_file("src/agilab/pages/1_▶️ SETUP.py")
+    at = AppTest.from_file("src/agilab/pages/1_▶️ PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     
     at.session_state["env"] = env
@@ -410,7 +410,7 @@ def test_app_args_form_switch_back_to_file(mock_ui_env):
 
 def test_agilab_main_page_theme_injection(mock_ui_env):
     """Test that the main page injects theme CSS on load."""
-    at = AppTest.from_file("src/agilab/agilab.py")
+    at = AppTest.from_file("src/agilab/About_agilab.py")
     at.run()
     assert not at.exception
 
@@ -440,7 +440,7 @@ def test_experiment_page_missing_openai_key(mock_ui_env):
 
 def test_edit_page_project_selectbox(mock_ui_env):
     """Test that the EDIT page has a project selectbox with available projects."""
-    at = AppTest.from_file("src/agilab/pages/1_▶️ SETUP.py")
+    at = AppTest.from_file("src/agilab/pages/1_▶️ PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
