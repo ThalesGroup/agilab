@@ -759,6 +759,20 @@ def on_project_change(project, switch_to_select=False):
         "projects",
         "log_text",
         "run_log_cache",
+        # Pipeline/Analysis shared UI state that must track project changes.
+        "lab_dir_selectbox",
+        "lab_dir",
+        "index_page",
+        "steps_file",
+        "df_file",
+        "df_file_in",
+        "df_file_out",
+        "steps_files",
+        "df_files",
+        "df_dir",
+        "lab_prompt",
+        "lab_selected_venv",
+        "pipeline_config_snapshot",
     )
 
     # Define the prefixes as a tuple for efficient checking
@@ -792,6 +806,10 @@ def on_project_change(project, switch_to_select=False):
         
 
         module = env.target
+        try:
+            store_last_active_app(env.active_app)
+        except Exception:
+            pass
 
         # Update session state with new module and data directory paths
         session_state.module_rel = Path(module)

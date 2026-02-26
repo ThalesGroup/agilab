@@ -84,7 +84,7 @@ def main():
     args, unknown = parser.parse_known_args()
 
     # Determine the target script (adjust path if necessary)
-    target_script = str(Path(__file__).parent /"agilab.py")
+    target_script = str(Path(__file__).parent /"About_agilab.py")
 
     # Build the base argument list for Streamlit.
     new_argv = ["streamlit", "run", target_script]
