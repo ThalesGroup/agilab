@@ -55,6 +55,7 @@ codex/codex_shell_command_stats.tsv
 codex/codex_shell_command_main_stats.tsv
 codex/codex_shell_summary.md
 codex/codex_shell_summary.tsv
+log/codex/*.log
 
 # Run-matrix dumps (generated)
 run_matrix_dump.txt
