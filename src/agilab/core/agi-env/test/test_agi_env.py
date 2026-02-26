@@ -169,3 +169,34 @@ def test_cluster_enabled_fallback_when_app_src_invalid(tmp_path: Path, monkeypat
     ]
     assert len(warning_calls) == 1
     assert env.agi_share_path == env.AGI_LOCAL_SHARE
+
+
+def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, monkeypatch):
+    """Use process environment as fallback when app settings cannot be read."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    (fake_home / ".local" / "share" / "agilab").mkdir(parents=True, exist_ok=True)
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "1")
+    monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share_dir / "cluster_shared"))
+    (share_dir / "cluster_shared").mkdir(exist_ok=True, parents=True)
+
+    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
+    fake_apps = tmp_path / "apps"
+    bad_app = fake_apps / "broken_project"
+    bad_app.mkdir(parents=True, exist_ok=True)
+    (bad_app / "src").write_text("broken")
+
+    AgiEnv.reset()
+    AgiEnv._share_mount_warning_keys.clear()
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiEnv, "_init_apps", lambda self: None), mock.patch.object(
+        AgiLogger, "configure", return_value=mock_logger
+    ):
+        env = AgiEnv(apps_path=fake_apps, app="broken_project", verbose=1)
+
+    assert env.agi_share_path == env.AGI_CLUSTER_SHARE
