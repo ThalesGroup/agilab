@@ -410,10 +410,10 @@ async def main():
     # Styling is handled globally in resources/theme.css. No per-page override here to avoid double borders.
 
     selected_views = st.multiselect(
-        "Select page to expose on the home page",
+        "Choose which pages appear on the Home page",
         view_names,
         key=selection_key,
-        help="These will appear as buttons below."
+        help="These pages are shown as shortcuts and quick-open buttons."
     )
 
     cleaned_selection = [v for v in selected_views if v in view_names]
