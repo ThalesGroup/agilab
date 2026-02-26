@@ -949,13 +949,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.uv_worker = self.uv
             use_freethread = False
 
-        self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE", "localshare")
-        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE", "clustershare")
+        self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE") or os.environ.get("AGI_LOCAL_SHARE")
+        if not self.AGI_LOCAL_SHARE:
+            self.AGI_LOCAL_SHARE = "localshare"
+
+        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE") or os.environ.get("AGI_CLUSTER_SHARE")
+        if not self.AGI_CLUSTER_SHARE:
+            self.AGI_CLUSTER_SHARE = "clustershare"
 
         # `AGI_SHARE_DIR` is the user-facing knob (installer + Streamlit UI). Treat it
         # as an override for the cluster share root so updating it is immediately
         # reflected without having to also edit `AGI_CLUSTER_SHARE` manually.
-        share_dir_override = envars.get("AGI_SHARE_DIR")
+        share_dir_override = envars.get("AGI_SHARE_DIR") or os.environ.get("AGI_SHARE_DIR")
         if share_dir_override is not None:
             share_dir_value = str(share_dir_override).strip()
             if share_dir_value:
@@ -1032,6 +1037,26 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     settings_candidates.append(_candidate_setting_path(self.active_app / "src"))
                 if self.apps_path is not None and self.app is not None:
                     settings_candidates.append(_candidate_setting_path(self.apps_path / self.app / "src"))
+                    # Handle worker/project aliasing when app source is incomplete.
+                    if str(self.app).endswith("_project_worker"):
+                        base_name = str(self.app)[: -len("_project_worker")]
+                        app_aliases = {base_name + "_project", base_name + "_project_worker"}
+                    elif str(self.app).endswith("_project"):
+                        base_name = str(self.app)[:-len("_project")]
+                        app_aliases = {str(self.app), base_name + "_worker"}
+                    elif str(self.app).endswith("_worker"):
+                        base_name = str(self.app)[:-len("_worker")]
+                        if base_name.endswith("_project"):
+                            app_aliases = {str(self.app), base_name}
+                        else:
+                            app_aliases = {str(self.app), base_name + "_project"}
+                    else:
+                        app_aliases = {str(self.app)}
+
+                    for app_alias in app_aliases:
+                        candidate = _candidate_setting_path(self.apps_path / app_alias / "src")
+                        if candidate is not None:
+                            settings_candidates.append(candidate)
 
                 for settings_path in settings_candidates:
                     if settings_path is None:
@@ -1046,6 +1071,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return parsed
 
             parsed = _parse_bool(envars.get("AGI_CLUSTER_ENABLED"))
+            if parsed is None:
+                parsed = _parse_bool(os.environ.get("AGI_CLUSTER_ENABLED"))
             return bool(parsed) if parsed is not None else False
 
         cluster_enabled = _cluster_enabled_from_settings()
