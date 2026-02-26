@@ -25,6 +25,21 @@ cluster, core libraries, and reference applications) that work together to provi
 The project is licensed under the [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) and is
 maintained by the Thales Group with community contributions welcomed.
 
+## Unique value proposition
+
+AGILAB is unique because it combines three layers in one ecosystem:
+
+- **A single control path** from interactive workflows (Streamlit/CLI) to distributed worker execution.
+- **Built-in reproducibility** through managed environments, explicit execution pipelines, and **multiple venv support inside notebooks**
+  (a different venv can be selected per cell).
+- **A modular architecture** (`agi-env`, `agi-node`, `agi-cluster`) you can install as a full stack or component by component.
+
+AGILAB is easiest to discover and adopt when users can:
+
+- install from PyPI in one command,
+- launch a minimal scenario in less than one minute,
+- and find links to docs, source, issues, and changes in one place.
+
 ## Repository layout
 
 The monorepo hosts several tightly-coupled packages:
@@ -49,9 +64,23 @@ cd agilab
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/AGILAB.py
 ```
 
+To try the package quickly from PyPI:
+
+```bash
+pip install agilab
+agilab --help
+```
 
 The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, set up
 required credentials, run tests with coverage, and link bundled applications into the local workspace.
+
+For development mode, the strongly recommended tools are:
+
+- **PyCharm** with repository-specific settings.
+- **Codex CLI** configured from repository-specific guidance (`AGENTS.md` and
+  repository `.codex/skills`/workflow settings).
+
+Use macOS or Linux when you need to validate or reuse Linux-dependent code paths.
 
 See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes (PyPI/TestPyPI) and end
 user deployment instructions.
@@ -67,7 +96,9 @@ user deployment instructions.
 ## Documentation & resources
 
 - 📘 **Docs:** https://thalesgroup.github.io/agilab
+- 💬 **Discussions:** https://github.com/ThalesGroup/agilab/discussions
 - 📦 **PyPI:** https://pypi.org/project/agilab
+- 🧩 **Core package index:** https://pypi.org/search/?q=agi-
 - 🧪 **Test matrix:** refer to `.github/workflows/ci.yml`
 - ✅ **Coverage snapshot:** see badge above (auto-updated after CI)
 - 🧾 **Runbook:** [AGENTS.md](AGENTS.md)

@@ -1,12 +1,14 @@
 [project]
 version = "2026.02.25"
 name = "agi-core"
-description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
+description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
+license = { text = "BSD-3-Clause" }
 classifiers = [
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
   "Development Status :: 3 - Alpha",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -16,12 +18,22 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
 ]
+keywords = [
+  "ai-experimentation",
+  "distributed-execution",
+  "orchestration",
+  "agi",
+  "streamlit",
+]
 dependencies = ["agi-env==2026.02.25", "agi-node==2026.02.25", "agi-cluster==2026.02.25"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
 
 
 
