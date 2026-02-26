@@ -200,3 +200,41 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
         env = AgiEnv(apps_path=fake_apps, app="broken_project", verbose=1)
 
     assert env.agi_share_path == env.AGI_CLUSTER_SHARE
+
+
+def test_cluster_enabled_from_apps_repository_when_app_src_invalid(tmp_path: Path, monkeypatch):
+    """Read cluster toggle from APPS_REPOSITORY when active app source is invalid."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(agipath) + "\n")
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("APPS_REPOSITORY", str(tmp_path / "repo"))
+
+    app_repo = tmp_path / "repo" / "src" / "agilab" / "apps" / "mycode_project" / "src"
+    app_repo.mkdir(parents=True, exist_ok=True)
+    (app_repo / "app_settings.toml").write_text("[cluster]\ncluster_enabled = true\n")
+
+    cluster_share = fake_home / "cluster_share"
+    cluster_share.mkdir()
+    monkeypatch.setenv("AGI_CLUSTER_SHARE", str(cluster_share))
+
+    fake_apps = tmp_path / "apps"
+    bad_app = fake_apps / "mycode_project"
+    bad_app.mkdir(parents=True, exist_ok=True)
+    (bad_app / "src").write_text("broken")
+
+    AgiEnv.reset()
+    AgiEnv._share_mount_warning_keys.clear()
+
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
+        AgiEnv, "_init_apps", lambda self: None
+    ), mock.patch.object(AgiEnv, "_ensure_repository_app_link", lambda self: False):
+        env = AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
+
+    assert env.agi_share_path == env.AGI_CLUSTER_SHARE
