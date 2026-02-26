@@ -322,6 +322,14 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
             st.rerun()
     return True
 
+def _strip_dotenv_quotes(value: str) -> str:
+    """Remove surrounding quotes from a .env value, matching python-dotenv behaviour."""
+    v = value.strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+        return v[1:-1]
+    return v
+
+
 def _read_env_file(path: Path) -> List[Dict[str, str]]:
     path = _ensure_env_file(path)
     entries: List[Dict[str, str]] = []
@@ -341,7 +349,7 @@ def _read_env_file(path: Path) -> List[Dict[str, str]]:
                     {
                         "type": "entry",
                         "key": key.strip(),
-                        "value": value,
+                        "value": _strip_dotenv_quotes(value),
                         "raw": raw,
                         "commented": stripped.startswith("#"),
                     }
@@ -351,25 +359,36 @@ def _read_env_file(path: Path) -> List[Dict[str, str]]:
     return entries
 
 def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str, str], new_entry: Dict[str, str] | None) -> None:
+    """Write the .env file, consolidating duplicate keys (last value wins)."""
     path = _ensure_env_file(path)
     lines: List[str] = []
-    processed_keys = set()
+    emitted_keys: set[str] = set()
+
+    # Build consolidated value map: for each key, determine the final value.
+    # updates > last file occurrence > first file occurrence.
+    file_values: Dict[str, str] = {}
+    for entry in entries:
+        if entry["type"] == "entry":
+            file_values[entry["key"]] = entry["value"]
+    final_values: Dict[str, str] = {**file_values, **updates}
 
     for entry in entries:
         if entry["type"] != "entry":
             lines.append(entry["raw"])
             continue
         key = entry["key"]
-        processed_keys.add(key)
-        value = updates.get(key, entry["value"])
+        if key in emitted_keys:
+            continue  # skip duplicate — already written with the final value
+        emitted_keys.add(key)
+        value = final_values.get(key, entry["value"])
         lines.append(f"{key}={value}")
 
     for key, value in updates.items():
-        if key not in processed_keys:
+        if key not in emitted_keys:
             lines.append(f"{key}={value}")
-            processed_keys.add(key)
+            emitted_keys.add(key)
 
-    if new_entry and new_entry.get("key") and new_entry["key"] not in processed_keys:
+    if new_entry and new_entry.get("key") and new_entry["key"] not in emitted_keys:
         lines.append(f"{new_entry['key']}={new_entry['value']}")
 
     content = "\n".join(lines).rstrip() + "\n"
@@ -439,6 +458,16 @@ def _refresh_env_from_file(env: Any) -> None:
                 env.envars[key] = val
         except Exception:
             pass
+
+    # Keep env.apps_path in sync with the user's .env APPS_PATH
+    new_apps_path = env_map.get("APPS_PATH", "").strip()
+    if new_apps_path and str(getattr(env, "apps_path", "")) != new_apps_path:
+        try:
+            resolved = Path(new_apps_path).expanduser().resolve()
+            env.apps_path = resolved
+        except Exception:
+            pass
+
     st.session_state["env_file_mtime_ns"] = current_mtime
 
 
@@ -452,17 +481,38 @@ def _render_env_editor(env, help_file: Path):
 
     entries = _read_env_file(ENV_FILE_PATH)
     existing_entries = [entry for entry in entries if entry["type"] == "entry"]
-    seen_keys: set[str] = set()
-    existing_values = {entry["key"]: entry["value"].strip() for entry in existing_entries}
+
+    # Build a last-wins value map so that the form shows the most recent value
+    # for each key (AgiEnv.set_env_var appends updates at the end of the file).
+    last_value_map: Dict[str, str] = {}
+    for entry in existing_entries:
+        last_value_map[entry["key"]] = entry["value"].strip()
+    existing_values = dict(last_value_map)
+
+    # Only show keys defined in the template .env (the canonical user-facing
+    # settings), in template order, with values from the user's file.
+    template_keys: List[str] = []
+    if TEMPLATE_ENV_PATH is not None:
+        try:
+            with TEMPLATE_ENV_PATH.open("r", encoding="utf-8") as tf:
+                for raw in tf.readlines():
+                    stripped = raw.strip()
+                    if not stripped or "=" not in stripped:
+                        continue
+                    key = stripped.lstrip("#").split("=", 1)[0].strip()
+                    if key and key not in template_keys:
+                        template_keys.append(key)
+        except Exception:
+            pass
+
+    unique_keys = template_keys if template_keys else list(dict.fromkeys(
+        entry["key"] for entry in existing_entries
+    ))
 
     with st.form("env_editor_form"):
         updated_values: Dict[str, str] = {}
-        for entry in existing_entries:
-            key = entry["key"]
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-            default_value = entry["value"].strip()
+        for key in unique_keys:
+            default_value = last_value_map[key]
             updated_values[key] = st.text_input(
                 key,
                 value=default_value,
@@ -478,8 +528,7 @@ def _render_env_editor(env, help_file: Path):
 
     if submitted:
         cleaned_updates: Dict[str, str] = {}
-        for entry in existing_entries:
-            key = entry["key"]
+        for key in unique_keys:
             cleaned_updates[key] = st.session_state.get(f"env_editor_val_{key}", "").strip()
 
         new_entry_data = None
@@ -539,7 +588,7 @@ def _render_env_editor(env, help_file: Path):
             if "=" not in normalized:
                 continue
             key, val = normalized.split("=", 1)
-            current[key.strip()] = val.strip()
+            current[key.strip()] = _strip_dotenv_quotes(val)
 
         merged = []
         for key in template_keys:
@@ -679,6 +728,12 @@ def main():
             apps_arg = args.apps_path
 
             if apps_arg is None:
+                # Prefer the user's .env APPS_PATH over the .agilab-path default
+                _env_apps = _load_env_file_map(ENV_FILE_PATH).get("APPS_PATH")
+                if _env_apps and _env_apps.strip() and not _env_apps.startswith("/path/to"):
+                    apps_arg = _env_apps.strip()
+
+            if apps_arg is None:
                 if os.name == "nt":
                     agi_path_file = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.agilab-path"
                 else:
@@ -738,12 +793,26 @@ def main():
                 st.warning("OPENAI_API_KEY not set. OpenAI-powered features will be disabled.")
 
             cluster_credentials = env.CLUSTER_CREDENTIALS if env.CLUSTER_CREDENTIALS else args.cluster_ssh_credentials or ""
+
+            # Only persist defaults for keys NOT already saved in the user's
+            # .env file so that values edited via the UI survive page reloads.
+            # Explicit CLI arguments always take priority.
+            _saved = _load_env_file_map(ENV_FILE_PATH)
+
+            def _init_env_var(key: str, value: str, *, force: bool = False) -> None:
+                """Set env var in memory; persist to .env only if missing."""
+                os.environ[key] = value
+                if hasattr(env, "envars") and isinstance(env.envars, dict):
+                    env.envars[key] = value
+                if force or key not in _saved:
+                    AgiEnv.set_env_var(key, value)
+
             if openai_api_key:
-                AgiEnv.set_env_var("OPENAI_API_KEY", openai_api_key)
-            AgiEnv.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
-            AgiEnv.set_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
-            AgiEnv.set_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
-            AgiEnv.set_env_var("APPS_PATH", str(apps_path))
+                _init_env_var("OPENAI_API_KEY", openai_api_key, force=bool(args.openai_api_key))
+            _init_env_var("CLUSTER_CREDENTIALS", cluster_credentials, force=bool(args.cluster_ssh_credentials))
+            _init_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
+            _init_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
+            _init_env_var("APPS_PATH", str(apps_path), force=bool(args.apps_path))
 
             st.session_state["first_run"] = False
             try:
