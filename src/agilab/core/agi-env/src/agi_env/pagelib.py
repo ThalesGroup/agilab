@@ -724,7 +724,10 @@ def get_about_content():
 def init_custom_ui(_form_path):
     """Keep edit-mode toggles in sync and signal app-args forms to refresh."""
     toggle_ui = bool(st.session_state.get("toggle_edit_ui", False))
-    st.session_state["toggle_edit"] = toggle_ui
+    # `toggle_edit_ui=True` means ORCHESTRATE generic editor is active.
+    # App-specific forms use `toggle_edit=True` for their guided editor branch,
+    # so keep this state inverted when switching back to custom forms.
+    st.session_state["toggle_edit"] = not toggle_ui
     # Reset custom form widget state on each mode switch so non-edit mode reloads
     # persisted args instead of stale in-memory values.
     for key in list(st.session_state.keys()):
