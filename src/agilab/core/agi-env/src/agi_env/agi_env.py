@@ -525,17 +525,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             part.startswith(".venv") for part in agilab_pkg_dir.parts
         )
 
-        if apps_path is not None:
+        # User's .env APPS_PATH takes priority over the constructor argument
+        # so that values saved via the env editor UI are always honoured.
+        _env_apps_path = envars.get("APPS_PATH", "").strip()
+        if _env_apps_path:
+            apps_path = Path(_env_apps_path).expanduser()
+            try:
+                apps_path = apps_path.resolve()
+            except Exception:
+                pass
+        elif apps_path is not None:
             apps_path = Path(apps_path).expanduser()
             try:
                 apps_path = apps_path.resolve()
             except FileNotFoundError:
-                pass
-        elif envars.get("APPS_PATH"):
-            apps_path = Path(envars["APPS_PATH"]).expanduser()
-            try:
-                apps_path = apps_path.resolve()
-            except Exception:
                 pass
         elif active_app_override is not None:
             # Use the provided active_app path as the anchor when no apps_path is supplied.
