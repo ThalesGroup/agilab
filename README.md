@@ -61,7 +61,7 @@ to clone this repository and use the provided scripts.
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps --test-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/AGILAB.py
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/agilab.py
 ```
 
 To try the package quickly from PyPI:
@@ -96,7 +96,7 @@ user deployment instructions.
 
 ## Framework execution flow
 
-- **Entrypoints**: Streamlit (`src/agilab/AGILAB.py`) and CLI mirrors call `AGI.run`/`AGI.install`, which hydrate an `AgiEnv` and load app manifests via `agi_core.apps`.
+- **Entrypoints**: Streamlit (`src/agilab/agilab.py`) and CLI mirrors call `AGI.run`/`AGI.install`, which hydrate an `AgiEnv` and load app manifests via `agi_core.apps`.
 - **Environment bootstrap**: `agi_env` resolves paths (`agi_share_path`, `wenv`), credentials, and uv-managed interpreters before any worker code runs; config precedence is env vars → `~/.agilab/.env` → app settings.
 - **Planning**: `agi_core` builds a WorkDispatcher plan (datasets, workers, telemetry) and emits structured status to Streamlit widgets/CLI for live progress.
 - **Dispatch**: `agi_cluster` schedules tasks locally or over SSH; `agi_node` packages workers, validates dependencies, and executes workloads in isolated envs.
