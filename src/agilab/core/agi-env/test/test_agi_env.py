@@ -126,3 +126,46 @@ def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
     ]
     assert len(warning_calls) == 1
 
+
+def test_cluster_enabled_fallback_when_app_src_invalid(tmp_path: Path, monkeypatch):
+    """When app_src is not a valid directory, env should still derive cluster from settings fallback."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True, exist_ok=True)
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
+    (fake_home / ".agilab" / ".env").write_text(
+        "AGI_CLUSTER_ENABLED=1\nAGI_CLUSTER_SHARE=/nonexistent_cluster_share\n"
+    )
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
+    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
+
+    # Create an app with an unusable `src` entry to mimic a transient broken path
+    # during local build steps (e.g. pre-Cython local compilation).
+    fake_apps = tmp_path / "apps"
+    bad_app = fake_apps / "broken_project"
+    bad_app.mkdir(parents=True, exist_ok=True)
+    (bad_app / "src").write_text("broken")
+
+    AgiEnv.reset()
+    AgiEnv._share_mount_warning_keys.clear()
+
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
+        AgiEnv, "_init_apps", lambda self: None
+    ):
+        env = AgiEnv(apps_path=fake_apps, app="broken_project", verbose=1)
+
+    warning_calls = [
+        call
+        for call in mock_logger.warning.call_args_list
+        if call.args
+        and isinstance(call.args[0], str)
+        and "AGI_CLUSTER_SHARE is not mounted" in call.args[0]
+    ]
+    assert len(warning_calls) == 1
+    assert env.agi_share_path == env.AGI_LOCAL_SHARE

@@ -989,26 +989,56 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         return False
                 return None
 
-            parsed: bool | None = None
+            def _candidate_setting_path(base: object) -> Path | None:
+                """Return a safe candidate for app_settings.toml or None."""
+                try:
+                    candidate = Path(base) / "app_settings.toml"
+                except Exception:
+                    return None
+                try:
+                    if candidate.exists():
+                        return candidate
+                    candidate_parent = candidate.parent
+                    if candidate_parent.is_dir() and candidate_parent.exists():
+                        return candidate
+                    if candidate.is_file():
+                        return candidate
+                except Exception:
+                    return None
+                return None
 
-            try:
-                settings_path = self.app_src / "app_settings.toml"
-            except Exception:
-                settings_path = None
-
-            try:
-                if (
-                    settings_path is not None
-                    and settings_path.exists()
-                    and settings_path.stat().st_size > 0
-                ):
+            def _read_cluster_setting(path: Path) -> bool | None:
+                """Read [cluster].cluster_enabled from a settings file."""
+                try:
+                    if not path.is_file() or path.stat().st_size <= 0:
+                        return None
                     import tomllib
 
-                    with settings_path.open("rb") as handle:
+                    with path.open("rb") as handle:
                         doc = tomllib.load(handle)
                     cluster_section = doc.get("cluster")
                     if isinstance(cluster_section, dict) and "cluster_enabled" in cluster_section:
-                        parsed = _parse_bool(cluster_section.get("cluster_enabled"))
+                        return _parse_bool(cluster_section.get("cluster_enabled"))
+                    return None
+                except Exception:
+                    return None
+
+            parsed: bool | None = None
+
+            try:
+                settings_candidates = [_candidate_setting_path(self.app_src)]
+                # Best-effort fallback if callers pass a malformed app_src.
+                if self.active_app is not None:
+                    settings_candidates.append(_candidate_setting_path(self.active_app / "src"))
+                if self.apps_path is not None and self.app is not None:
+                    settings_candidates.append(_candidate_setting_path(self.apps_path / self.app / "src"))
+
+                for settings_path in settings_candidates:
+                    if settings_path is None:
+                        continue
+                    parsed = _read_cluster_setting(settings_path)
+                    if parsed is not None:
+                        break
             except Exception:
                 parsed = None
 
