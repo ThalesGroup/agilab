@@ -76,7 +76,7 @@ def main():
         "--openai-api-key", type=str, help="OpenAI API key", default=None
     )
     parser.add_argument(
-        "--apps-dir", type=str, help="Where you store your apps (default is ./)",
+        "--apps-path", type=str, help="Where you store your apps (default is ./)",
                         default=None
     )
 
@@ -103,7 +103,7 @@ def main():
         custom_args.extend(["--openai-api-key", args.openai_api_key])
 
     if resolved_apps_path:
-        custom_args.extend(["--apps-dir", resolved_apps_path])
+        custom_args.extend(["--apps-path", resolved_apps_path])
 
     if unknown:
         custom_args.extend(unknown)

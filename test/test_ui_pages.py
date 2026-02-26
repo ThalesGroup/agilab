@@ -65,7 +65,7 @@ def load_args_from_toml(path):
 
 
     # Mock CLI argv for AGILAB main page
-    test_argv = ["About_agilab.py", "--apps-dir", str(apps_dir), "--active-app", "flight_project"]
+    test_argv = ["About_agilab.py", "--apps-path", str(apps_dir), "--active-app", "flight_project"]
     
     # Patch sys.argv and env variables
     with patch("sys.argv", test_argv):
