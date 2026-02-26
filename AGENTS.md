@@ -415,10 +415,16 @@ This repository uses Codex CLI for local agent development. Follow these notes w
 
 ## Codex CLI Quickstart
 
-- Start app development after an initial creation via EXECUTE project clone using:
-  - `codex  --dangerously-bypass-approvals-and-sandbox --model gpt-5-codexr`
-- Run the command from the repository root to give the agent full filesystem access with a non-interactive approval policy.
-- Use only on your local, trusted machine. Do not run with these flags on shared or untrusted environments.
+- Use the repository wrapper to keep agent sessions consistent:
+  - `./tools/codex_workflow.sh review`
+  - `./tools/codex_workflow.sh exec "..."` (short, scoped prompt)
+  - `./tools/codex_workflow.sh apply <task-id>`
+- The wrapper runs by default from repo root with `-a on-request` and
+  `-s workspace-write`.
+- Re-run review after code edits and before handing off changes.
+- Keep this only as a fallback:
+  - `codex --dangerously-bypass-approvals-and-sandbox ...`
+  - do this only in isolated, explicitly approved environments.
 
 ## Windows Path Tips
 

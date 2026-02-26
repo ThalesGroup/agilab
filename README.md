@@ -80,6 +80,13 @@ For development mode, the strongly recommended tools are:
 - **Codex CLI** configured from repository-specific guidance (`AGENTS.md` and
   repository `.codex/skills`/workflow settings).
 
+For a professional Codex workflow, use the repo helper:
+
+- `./tools/codex_workflow.sh review` before coding changes.
+- `./tools/codex_workflow.sh exec "..."` for implementation tasks.
+- `./tools/codex_workflow.sh apply <task-id>` for generated task patch application.
+- Configuration and usage details: `tools/codex_workflow.md`.
+
 Use macOS or Linux when you need to validate or reuse Linux-dependent code paths.
 
 See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes (PyPI/TestPyPI) and end
