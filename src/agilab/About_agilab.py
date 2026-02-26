@@ -666,7 +666,7 @@ def main():
             parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)",
                                 default=None)
             parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (optional; can also use OPENAI_API_KEY)", default=None)
-            parser.add_argument("--apps-dir", type=str, help="Where you store your apps (default is ./)",
+            parser.add_argument("--apps-path", type=str, help="Where you store your apps (default is ./)",
                                 default=None)
             parser.add_argument(
                 "--active-app",
@@ -676,10 +676,7 @@ def main():
             )
 
             args, _ = parser.parse_known_args()
-            # Support both old --apps-path and new --apps-dir flags.
-            apps_arg = getattr(args, "apps_dir", None)
-            if not apps_arg:
-                apps_arg = getattr(args, "apps_path", None)
+            apps_arg = args.apps_path
 
             if apps_arg is None:
                 if os.name == "nt":
@@ -693,12 +690,12 @@ def main():
                     apps_arg = Path(before) / "apps"
 
             if apps_arg is None:
-                st.error("Error: Missing mandatory parameter: --apps-dir")
+                st.error("Error: Missing mandatory parameter: --apps-path")
                 sys.exit(1)
 
             apps_path = Path(apps_arg).expanduser() if apps_arg else None
             if apps_path is None:
-                st.error("Error: Missing mandatory parameter: --apps-dir")
+                st.error("Error: Missing mandatory parameter: --apps-path")
                 sys.exit(1)
 
             st.session_state["apps_path"] = str(apps_path)
