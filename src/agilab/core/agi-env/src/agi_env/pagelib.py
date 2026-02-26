@@ -1470,13 +1470,7 @@ def update_views(project, pages):
     expected_pages = set()
     for view_abs in pages:
         view_abs_path = Path(view_abs)
-        view = view_abs_path.parts[-2]
-        prefix = "📈"
-        if "carto" in view:
-            prefix = "🌎"
-        elif "network" in view:
-            prefix = "🗺️"
-        page_name = prefix + str(view_abs_path.stem).capitalize() + ".py"
+        page_name = f"{view_abs_path.stem}.py"
         expected_pages.add(page_name)
 
         page_link = pages_root / page_name

@@ -55,6 +55,7 @@ codex/codex_shell_command_stats.tsv
 codex/codex_shell_command_main_stats.tsv
 codex/codex_shell_summary.md
 codex/codex_shell_summary.tsv
+log/codex/*.log
 
 # Run-matrix dumps (generated)
 run_matrix_dump.txt
@@ -63,8 +64,8 @@ run_matrix_parsed.tsv
 # Work-plan dumps (generated)
 distribution.json
 
-# Sphinx build intermediates (docs/html is committed, but doctrees are not)
-docs/html/.doctrees/
+# Sphinx output (generated locally, not versioned)
+docs/html/
 
 apps/
 _fcas_work

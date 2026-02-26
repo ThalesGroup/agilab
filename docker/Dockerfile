@@ -76,4 +76,4 @@ RUN chmod +x ./install.sh && \
 EXPOSE 8501
 
 # Default command to run the GUI
-CMD ["bash", "-c", "uv run streamlit run /app/src/agilab/AGILAB.py -- --apps-dir /app/src/agilab/apps"]
+CMD ["bash", "-c", "uv run streamlit run /app/src/agilab/agilab.py -- --apps-dir /app/src/agilab/apps"]
