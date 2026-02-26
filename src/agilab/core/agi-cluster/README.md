@@ -1,22 +1,27 @@
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.02.20-informational?logo=pypi)](https://pypi.org/project/agi-cluster)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
-[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
-[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) ![coverage](https://img.shields.io/badge/coverage-13.6%25-red) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
-[![black](https://img.shields.io/badge/code%20style-black-000000.svg)]()
-[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
-[![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
+# AGI-CLUSTER
 
+[![PyPI version](https://img.shields.io/pypi/v/agi-cluster?label=agi-cluster)](https://pypi.org/project/agi-cluster/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-cluster.svg)](https://pypi.org/project/agi-cluster/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-cluster)](https://opensource.org/licenses/BSD-3-Clause)
+[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 
-# AGI-CLUSTER Open Source Project
+`agi-cluster` provides distributed execution orchestration for AGILAB workloads across local and SSH-based backends.
 
-agi-cluster is one component of agi-core [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
-See [documentation](https://thalesgroup.github.io/agilab).
-
-It is as a pure meta-package containing the subpackages declare in pyproject.toml
-
-## Install
+## Quick install
 
 ```bash
 pip install agi-cluster
 ```
+
+## Scope
+
+- Cluster-aware scheduling and job submission
+- Worker lifecycle orchestration
+- Integration glue for larger AGILAB deployments
+
+## Repository
+
+- Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster
+- Docs: https://thalesgroup.github.io/agilab
+- Issues: https://github.com/ThalesGroup/agilab/issues

@@ -1,22 +1,28 @@
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.02.20-informational?logo=pypi)](https://pypi.org/project/agi-env)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
-[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
-[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) ![coverage](https://img.shields.io/badge/coverage-37.4%25-orange) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
-[![black](https://img.shields.io/badge/code%20style-black-000000.svg)]()
-[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
-[![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
+# AGI-ENV
 
+[![PyPI version](https://img.shields.io/pypi/v/agi-env?label=agi-env)](https://pypi.org/project/agi-env/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-env.svg)](https://pypi.org/project/agi-env/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-env)](https://opensource.org/licenses/BSD-3-Clause)
+[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 
-# AGI-ENV Open Source Project
+`agi-env` provides environment bootstrap and runtime helpers used across the AGILAB stack (paths, credentials, virtualenvs,
+and application launch context).
 
-agi-env is the env compoment for AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
-See [documentation](https://thalesgroup.github.io/agilab).
-
-It is as a pure meta-package containing the subpackages declare in pyproject.toml
-
-## Install
+## Quick install
 
 ```bash
 pip install agi-env
 ```
+
+## Typical usage
+
+- Create or update environment context for AGILAB sessions.
+- Resolve workspace paths consistently across local and shared installs.
+- Centralize small utilities used by managers and worker packaging.
+
+## Repository
+
+- Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-env
+- Docs: https://thalesgroup.github.io/agilab
+- Issues: https://github.com/ThalesGroup/agilab/issues

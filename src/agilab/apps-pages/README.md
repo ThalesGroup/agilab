@@ -25,6 +25,8 @@ Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_project`).
 - Each page falls back to `AGILAB_APP` env var, then tries a default `flight_project` under the saved `~/.local/share/agilab/.agilab-path` if not provided.
 - Data directory defaults to the app’s export folder (e.g. `~/export/<app>`); adjust in the sidebar if needed.
+- AGILAB Analysis can scaffold new custom page bundles from the same panel:
+  - Use **Create** to generate a minimal complete bundle.
 
 ## Repository Pages (optional)
 
