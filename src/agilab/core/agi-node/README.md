@@ -1,21 +1,29 @@
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.02.20-informational?logo=pypi)](https://pypi.org/project/agi-node)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
-[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
-[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) ![coverage](https://img.shields.io/badge/coverage-38.7%25-orange) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
-[![black](https://img.shields.io/badge/code%20style-black-000000.svg)]()
-[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
-[![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
+# AGI-NODE
 
-# AGI-NODE Open Source Project
+[![PyPI version](https://img.shields.io/pypi/v/agi-node?label=agi-node)](https://pypi.org/project/agi-node/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-node.svg)](https://pypi.org/project/agi-node/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-node)](https://opensource.org/licenses/BSD-3-Clause)
+[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 
-agi-node is a compoment for AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
-See [documentation](https://thalesgroup.github.io/agilab).
+`agi-node` is the orchestration layer for AGILAB workers. It manages worker dispatch, packaging, execution isolation, and
+runtime integration used by the core AGILAB stack.
 
-It is as a pure meta-package containing the subpackages declare in pyproject.toml
-
-## Install
+## Quick install
 
 ```bash
 pip install agi-node
 ```
+
+## Key entry points
+
+- Worker packaging for local and remote execution
+- Runtime dispatch contracts used by `agi-cluster`
+- Utilities to validate and bootstrap worker environments
+
+
+## Repository
+
+- Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-node
+- Docs: https://thalesgroup.github.io/agilab
+- Issues: https://github.com/ThalesGroup/agilab/issues

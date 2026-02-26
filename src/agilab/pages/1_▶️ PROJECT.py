@@ -1669,7 +1669,7 @@ def page():
 
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
         # Redirect back to the landing page and rerun immediately
-        page_module = importlib.import_module("AGILAB")
+        page_module = importlib.import_module("agilab.agilab")
         page_module.main()
         st.rerun()
 
@@ -1681,14 +1681,6 @@ def page():
     inject_theme(env.st_resources)
 
     render_logo()
-
-    # Quick access to PIPELINE history
-    if st.sidebar.button("Open HISTORY (PIPELINE)"):
-        try:
-            st.switch_page("3_▶️ PIPELINE.py")
-        except Exception:
-            st.experimental_set_query_params(page="PIPELINE")
-            st.rerun()
 
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
@@ -1753,7 +1745,10 @@ def page():
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
-        "PROJECT", ["Edit", "Clone", "Rename", "Delete", "Import"], key="sidebar_selection"
+        "",
+        ["Edit", "Clone", "Rename", "Delete", "Import"],
+        key="sidebar_selection",
+        label_visibility="collapsed",
     )
 
     if sidebar_selection == "Edit":

@@ -1,4 +1,4 @@
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.02.20-informational?logo=pypi)](https://pypi.org/project/agilab)
+[![PyPI version](https://img.shields.io/badge/PyPI-2026.02.25-informational?logo=pypi)](https://pypi.org/project/agilab)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
@@ -25,6 +25,21 @@ cluster, core libraries, and reference applications) that work together to provi
 The project is licensed under the [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) and is
 maintained by the Thales Group with community contributions welcomed.
 
+## Unique value proposition
+
+AGILAB is unique because it combines three layers in one ecosystem:
+
+- **A single control path** from interactive workflows (Streamlit/CLI) to distributed worker execution.
+- **Built-in reproducibility** through managed environments, explicit execution pipelines, and **multiple venv support inside notebooks**
+  (a different venv can be selected per cell).
+- **A modular architecture** (`agi-env`, `agi-node`, `agi-cluster`) you can install as a full stack or component by component.
+
+AGILAB is easiest to discover and adopt when users can:
+
+- install from PyPI in one command,
+- launch a minimal scenario in less than one minute,
+- and find links to docs, source, issues, and changes in one place.
+
 ## Repository layout
 
 The monorepo hosts several tightly-coupled packages:
@@ -46,19 +61,42 @@ to clone this repository and use the provided scripts.
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps --test-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/AGILAB.py
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/agilab.py
 ```
 
+To try the package quickly from PyPI:
+
+```bash
+pip install agilab
+agilab --help
+```
 
 The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, set up
 required credentials, run tests with coverage, and link bundled applications into the local workspace.
+
+For development mode, the strongly recommended tools are:
+
+- **PyCharm (Professional)** with repository-specific settings.
+- Community-only workflows can still work through CLI wrappers and manual entry points,
+  but Pro is required for the full IDE-oriented setup flow.
+- **Codex CLI** configured from repository-specific guidance (`AGENTS.md` and
+  repository `.codex/skills`/workflow settings).
+
+For a professional Codex workflow, use the repo helper:
+
+- `./tools/codex_workflow.sh review` before coding changes.
+- `./tools/codex_workflow.sh exec "..."` for implementation tasks.
+- `./tools/codex_workflow.sh apply <task-id>` for generated task patch application.
+- Configuration and usage details: `tools/codex_workflow.md`.
+
+Use macOS or Linux when you need to validate or reuse Linux-dependent code paths.
 
 See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes (PyPI/TestPyPI) and end
 user deployment instructions.
 
 ## Framework execution flow
 
-- **Entrypoints**: Streamlit (`src/agilab/AGILAB.py`) and CLI mirrors call `AGI.run`/`AGI.install`, which hydrate an `AgiEnv` and load app manifests via `agi_core.apps`.
+- **Entrypoints**: Streamlit (`src/agilab/agilab.py`) and CLI mirrors call `AGI.run`/`AGI.install`, which hydrate an `AgiEnv` and load app manifests via `agi_core.apps`.
 - **Environment bootstrap**: `agi_env` resolves paths (`agi_share_path`, `wenv`), credentials, and uv-managed interpreters before any worker code runs; config precedence is env vars → `~/.agilab/.env` → app settings.
 - **Planning**: `agi_core` builds a WorkDispatcher plan (datasets, workers, telemetry) and emits structured status to Streamlit widgets/CLI for live progress.
 - **Dispatch**: `agi_cluster` schedules tasks locally or over SSH; `agi_node` packages workers, validates dependencies, and executes workloads in isolated envs.
@@ -67,7 +105,9 @@ user deployment instructions.
 ## Documentation & resources
 
 - 📘 **Docs:** https://thalesgroup.github.io/agilab
+- 💬 **Discussions:** https://github.com/ThalesGroup/agilab/discussions
 - 📦 **PyPI:** https://pypi.org/project/agilab
+- 🧩 **Core package index:** https://pypi.org/search/?q=agi-
 - 🧪 **Test matrix:** refer to `.github/workflows/ci.yml`
 - ✅ **Coverage snapshot:** see badge above (auto-updated after CI)
 - 🧾 **Runbook:** [AGENTS.md](AGENTS.md)
