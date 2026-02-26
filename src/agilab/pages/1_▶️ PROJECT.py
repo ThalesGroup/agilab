@@ -1745,7 +1745,7 @@ def page():
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
-        "",
+        "Project action",
         ["Edit", "Clone", "Rename", "Delete", "Import"],
         key="sidebar_selection",
         label_visibility="collapsed",
