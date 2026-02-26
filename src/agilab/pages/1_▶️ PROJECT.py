@@ -1682,14 +1682,6 @@ def page():
 
     render_logo()
 
-    # Quick access to PIPELINE history
-    if st.sidebar.button("Open HISTORY (PIPELINE)"):
-        try:
-            st.switch_page("3_▶️ PIPELINE.py")
-        except Exception:
-            st.experimental_set_query_params(page="PIPELINE")
-            st.rerun()
-
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
         st.session_state["server_started"] = True
