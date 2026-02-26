@@ -2940,11 +2940,44 @@ def sidebar_controls() -> None:
     if not Agi_export_abs.is_absolute():
         Agi_export_abs = home_root / Agi_export_abs
     modules = scan_dir(Agi_export_abs)
+    if not modules:
+        modules = [env.target] if env.target else []
+
+    # Keep the current AgiEnv target available even when no export directory
+    # exists yet so the workflow does not jump to another project.
+    if env.target and env.target not in modules:
+        modules = [env.target] + modules
+
+    # The active app can be renamed with _project; the exports are usually
+    # un-suffixed (e.g. "flight"), keep both forms synchronized.
+    target_name = Path(env.target).name if env.target else None
+    if target_name and target_name not in modules:
+        modules = [target_name] + modules
+
+    # If no explicit project was known, prefer the configured environment target.
+    project_changed = st.session_state.pop("project_changed", False)
+    if project_changed:
+        for key in (
+            "lab_dir_selectbox",
+            "lab_dir",
+            "index_page",
+            "steps_file",
+            "df_file",
+            "df_file_in",
+            "df_file_out",
+            "steps_files",
+            "df_files",
+            "df_dir",
+            "lab_prompt",
+            "_experiment_reload_required",
+        ):
+            st.session_state.pop(key, None)
+
     # Drop a top-level "apps" directory when other labs exist; it isn't a valid lab.
     if len(modules) > 1 and "apps" in modules:
         modules = [m for m in modules if m != "apps"]
     if not modules:
-        modules = [env.target]
+        modules = ["apps"]
     st.session_state['modules'] = modules
 
     def _qp_first(key: str) -> str | None:
@@ -3015,13 +3048,16 @@ def sidebar_controls() -> None:
         st.session_state.pop("gpt_oss_endpoint", None)
 
     last_active = _load_last_active_app_name(modules)
-    persisted_lab = (
-        _qp_first("lab_dir_selectbox")
-        or st.session_state.get("lab_dir_selectbox")
-        or st.session_state.get("lab_dir")
-        or last_active
-        or env.target
-    )
+    if project_changed:
+        persisted_lab = env.target
+    else:
+        persisted_lab = (
+            _qp_first("lab_dir_selectbox")
+            or st.session_state.get("lab_dir_selectbox")
+            or st.session_state.get("lab_dir")
+            or last_active
+            or env.target
+        )
 
     if persisted_lab not in modules:
         # If env.target is a name and not present, try its parent or the first module.
@@ -3099,6 +3135,7 @@ def sidebar_controls() -> None:
     df_files_rel = sorted((Path(file).relative_to(Agi_export_abs) for file in df_files), key=str)
     key_df = index_page_str + "df"
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
+    df_file_default = st.session_state.get("df_file")
 
     module_path = lab_dir.relative_to(Agi_export_abs)
     st.session_state["module_path"] = module_path
@@ -3109,7 +3146,7 @@ def sidebar_controls() -> None:
         key=key_df,
         index=index,
         on_change=on_df_change,
-        args=(module_path, st.session_state.df_file, index_page_str, steps_file),
+        args=(module_path, df_file_default, index_page_str, steps_file),
     )
 
     if st.session_state.get(key_df):
@@ -4842,7 +4879,7 @@ def page() -> None:
     global df_file
 
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
-        page_module = importlib.import_module("agilab.agilab")
+        page_module = importlib.import_module("agilab.About_agilab")
         page_module.main()
         st.rerun()
 
@@ -4855,12 +4892,23 @@ def page() -> None:
     pre_prompt_path = Path(env.app_src) / "pre_prompt.json"
     try:
         with open(pre_prompt_path) as f:
-            st.session_state["lab_prompt"] = json.load(f)
+            pre_prompt_content = json.load(f)
+            if isinstance(pre_prompt_content, list):
+                st.session_state["lab_prompt"] = pre_prompt_content
+            else:
+                st.warning(
+                    f"pre_prompt.json at {pre_prompt_path} is not a list of messages; using empty prompt."
+                )
+                st.session_state["lab_prompt"] = []
     except FileNotFoundError:
-        st.session_state["lab_prompt"] = {}
+        st.session_state["lab_prompt"] = []
         st.warning(f"Missing pre_prompt.json at {pre_prompt_path}; using empty prompt.")
+        try:
+            pre_prompt_path.write_text("[]\n", encoding="utf-8")
+        except OSError:
+            st.warning(f"Unable to create {pre_prompt_path}; check folder permissions.")
     except Exception as exc:
-        st.session_state["lab_prompt"] = {}
+        st.session_state["lab_prompt"] = []
         st.warning(f"Failed to load pre_prompt.json: {exc}")
 
     sidebar_controls()
@@ -4915,7 +4963,7 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 def main() -> None:
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = importlib.import_module("agilab.agilab")
+        page_module = importlib.import_module("agilab.About_agilab")
         page_module.main()
         st.rerun()
 
