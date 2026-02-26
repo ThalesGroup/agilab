@@ -410,10 +410,10 @@ async def main():
     # Styling is handled globally in resources/theme.css. No per-page override here to avoid double borders.
 
     selected_views = st.multiselect(
-        "Show these pages as quick-access shortcuts",
+        "Choose pages for analyzing the selected project",
         view_names,
         key=selection_key,
-        help="Selected pages are shown as shortcuts on the AGILAB landing screen."
+        help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen."
     )
 
     cleaned_selection = [v for v in selected_views if v in view_names]
