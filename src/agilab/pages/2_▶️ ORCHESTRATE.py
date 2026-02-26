@@ -1354,7 +1354,7 @@ def _is_app_installed(env):
 # ===========================
 async def page():
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = importlib.import_module("AGILAB")
+        page_module = importlib.import_module("agilab.agilab")
         page_module.main()
         st.rerun()
         return
