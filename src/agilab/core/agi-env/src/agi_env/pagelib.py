@@ -1470,7 +1470,6 @@ def update_views(project, pages):
     expected_pages = set()
     for view_abs in pages:
         view_abs_path = Path(view_abs)
-        view = view_abs_path.parts[-2]
         page_name = f"{view_abs_path.stem}.py"
         expected_pages.add(page_name)
 
