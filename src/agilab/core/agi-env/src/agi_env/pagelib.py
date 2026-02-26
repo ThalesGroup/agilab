@@ -585,51 +585,14 @@ def render_logo(*_args, **_kwargs):
     else:
         return
 
-    agilab_logo_path = env.st_resources / "agilab_logo.png"  # Replace with your logo filename
-    agilab_logo_base64 = get_base64_of_image(agilab_logo_path)
-    if agilab_logo_base64:
+    agilab_logo_path = env.st_resources / "agilab_logo.png"
+    if agilab_logo_path.exists():
+        # Render in normal sidebar flow so it does not overlap controls and
+        # scrolls with the sidebar content.
+        st.sidebar.image(str(agilab_logo_path), width=170)
         version = _detect_agilab_version(env)
-        version_css = f"v{version}" if version else ""
-        st.markdown(
-            f"""
-            <style>
-            /* Ensure the sidebar container is positioned relative */
-            [data-testid="stSidebar"] {{
-                position: relative;
-            }}
-            /* Display the AGILab logo using the ::after pseudo-element */
-            [data-testid="stSidebar"]::after {{
-                content: "";
-                display: block;
-                background-image: url("data:image/png;base64,{agilab_logo_base64}");
-                background-size: contain;
-                background-repeat: no-repeat;
-                background-position: left top;
-                position: absolute;
-                top: 10px;       /* adjust vertical position as needed */
-                left: 18px;      /* adjust horizontal position as needed */
-                width: 70%;
-                height: 48px;
-            }}
-            /* Remove extra margin/padding from the h1 title */
-            h1.page-title {{
-                margin-top: 0 !important;
-                padding-top: 0 !important;
-            }}
-            /* Display the version text on the right side using the ::before pseudo-element */
-            [data-testid="stSidebar"]::before {{
-                content: "{version_css}";
-                position: absolute;
-                bottom: 10px;       /* align vertically with the logo */
-                right: 18px;     /* position on the right side */
-                font-size: 0.8em;
-                color: gray;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
+        if version:
+            st.sidebar.caption(f"v{version}")
     else:
         st.sidebar.warning("Logo could not be loaded. Please check the logo path.")
 
