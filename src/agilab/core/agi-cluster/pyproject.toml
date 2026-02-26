@@ -1,14 +1,16 @@
 [project]
 version = "2026.02.25"
 name = "agi-cluster"
-description = "agi-cluster a framework for AGI"
+description = "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
+license = { text = "BSD-3-Clause" }
 classifiers = [
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -22,12 +24,12 @@ keywords = [
     "asyncio",
     "dask",
     "rapids",
-    "distributed",
-    "cython",
+    "distributed-execution",
     "cluster",
     "dataframe",
     "dataset",
     "loadbalancing",
+    "job-scheduling",
     "agi",
     "datascience",
 ]
@@ -63,7 +65,11 @@ dependencies = [
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster"
-Tracker = "https://github.com/ThalesGroup/agilab/issues"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
 
 
 
