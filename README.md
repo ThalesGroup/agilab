@@ -76,7 +76,9 @@ required credentials, run tests with coverage, and link bundled applications int
 
 For development mode, the strongly recommended tools are:
 
-- **PyCharm** with repository-specific settings.
+- **PyCharm (Professional)** with repository-specific settings.
+- Community-only workflows can still work through CLI wrappers and manual entry points,
+  but Pro is required for the full IDE-oriented setup flow.
 - **Codex CLI** configured from repository-specific guidance (`AGENTS.md` and
   repository `.codex/skills`/workflow settings).
 
