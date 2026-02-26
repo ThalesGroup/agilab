@@ -51,6 +51,8 @@ from agi_env.defaults import get_default_openai_model
 STEPS_FILE_NAME = "lab_steps.toml"
 DEFAULT_DF = "lab_out.csv"
 JUPYTER_URL = "http://localhost:8888"
+ORCHESTRATE_LOCKED_STEP_KEY = "_orchestrate_locked_step"
+ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -159,6 +161,117 @@ def _get_run_placeholder(index_page: str) -> Optional[Any]:
     key = f"{index_page}__run_placeholder"
     placeholder = st.session_state.get(key)
     return placeholder
+
+
+def _run_locked_step(
+    env: AgiEnv,
+    index_page_str: str,
+    steps_file: Path,
+    step: int,
+    entry: Dict[str, Any],
+    selected_map: Dict[int, str],
+    engine_map: Dict[int, str],
+) -> None:
+    """Execute one immutable ORCHESTRATE-derived step."""
+    stored_placeholder = st.session_state.get(f"{index_page_str}__run_placeholder")
+    st.session_state[f"{index_page_str}__run_logs"] = []
+    if stored_placeholder is not None:
+        stored_placeholder.caption("Starting step execution…")
+    snippet_file = st.session_state.get("snippet_file")
+    if not snippet_file:
+        st.error("Snippet file is not configured. Reload the page and try again.")
+        return
+
+    selected_map_entry = normalize_runtime_path(selected_map.get(step, ""))
+    entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
+    venv_root = selected_map_entry or (entry_runtime_raw if _is_valid_runtime_root(entry_runtime_raw) else "")
+    if not venv_root:
+        fallback = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+        if fallback and _is_valid_runtime_root(fallback):
+            venv_root = fallback
+    if not venv_root:
+        fallback = normalize_runtime_path(getattr(env, "active_app", ""))
+        if _is_valid_runtime_root(fallback):
+            venv_root = fallback
+
+    entry_engine = str(entry.get("R", "") or "")
+    engine = entry_engine or ("agi.run" if venv_root else "runpy")
+    if engine.startswith("agi.") and not venv_root:
+        fallback = normalize_runtime_path(getattr(env, "active_app", ""))
+        if _is_valid_runtime_root(fallback):
+            venv_root = fallback
+    if venv_root:
+        selected_map[step] = venv_root
+        st.session_state["lab_selected_venv"] = venv_root
+        if engine == "runpy":
+            engine = "agi.run"
+
+    code_to_run = str(entry.get("C", ""))
+    engine_map[step] = engine
+    st.session_state["lab_selected_engine"] = engine
+
+    log_file_path, log_error = _prepare_run_log_file(
+        index_page_str,
+        env,
+        prefix=f"step_{step + 1}",
+    )
+    if log_file_path:
+        _push_run_log(
+            index_page_str,
+            f"Run step {step + 1} started… logs will be saved to {log_file_path}",
+            stored_placeholder,
+        )
+    else:
+        _push_run_log(
+            index_page_str,
+            f"Run step {step + 1} started… (unable to prepare log file: {log_error})",
+            stored_placeholder,
+        )
+
+    try:
+        target_base = Path(steps_file).parent.resolve()
+        target_base.mkdir(parents=True, exist_ok=True)
+        run_output = ""
+        if engine == "runpy":
+            run_output = run_lab(
+                [entry.get("D", ""), entry.get("Q", ""), code_to_run],
+                snippet_file,
+                env.copilot_file,
+            )
+        else:
+            script_path = (target_base / "AGI_run.py").resolve()
+            script_path.write_text(code_to_run)
+            python_cmd = _python_for_venv(venv_root)
+            run_output = _stream_run_command(
+                env,
+                index_page_str,
+                f"{python_cmd} {script_path}",
+                cwd=target_base,
+                placeholder=stored_placeholder,
+            )
+        env_label = Path(venv_root).name if venv_root else "default env"
+        summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
+        _push_run_log(
+            index_page_str,
+            f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+            stored_placeholder,
+        )
+        if run_output:
+            preview = run_output.strip()
+            if preview:
+                _push_run_log(
+                    index_page_str,
+                    f"Output (step {step + 1}):\n{preview}",
+                    stored_placeholder,
+                )
+        elif engine == "runpy":
+            _push_run_log(
+                index_page_str,
+                f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                stored_placeholder,
+            )
+    finally:
+        st.session_state.pop(f"{index_page_str}__run_log_file", None)
 
 
 def _python_for_venv(venv_root: str | Path | None) -> Path:
@@ -2526,6 +2639,7 @@ def save_step(
     steps_file: Path,
     venv_map: Optional[Dict[int, str]] = None,
     engine_map: Optional[Dict[int, str]] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Tuple[int, Dict[str, Any]]:
     """Save a step in the steps file."""
     st.session_state["_experiment_last_save_skipped"] = False
@@ -2563,7 +2677,8 @@ def save_step(
         if isinstance(current_entry, dict):
             existing_entry = current_entry
 
-    # Persist only D, Q, M, and C (+ E/R when provided). Handle both shapes:
+    # Persist D, Q, M, and C (+ E/R when provided). Preserve existing metadata
+    # fields (for locked snippets and future extension keys).
     # - [D, Q, M, C]
     # - [step, D, Q, M, C, ...]
     if len(query) >= 5 and _looks_like_step(query[0]):
@@ -2571,12 +2686,11 @@ def save_step(
     else:
         d_idx, q_idx, m_idx, c_idx = 0, 1, 2, 3
 
-    entry = {
-        "D": query[d_idx] if d_idx < len(query) else "",
-        "Q": query[q_idx] if q_idx < len(query) else "",
-        "M": query[m_idx] if m_idx < len(query) else "",
-        "C": query[c_idx] if c_idx < len(query) else "",
-    }
+    entry: Dict[str, Any] = dict(existing_entry) if isinstance(existing_entry, dict) else {}
+    entry["D"] = query[d_idx] if d_idx < len(query) else ""
+    entry["Q"] = query[q_idx] if q_idx < len(query) else ""
+    entry["M"] = query[m_idx] if m_idx < len(query) else ""
+    entry["C"] = query[c_idx] if c_idx < len(query) else ""
 
     # Prefer the current env's OPENAI_MODEL (or Azure deployment) when available
     try:
@@ -2607,6 +2721,12 @@ def save_step(
     if not isinstance(code_text, str):
         code_text = str(code_text or "")
     entry["C"] = code_text
+    if extra_fields:
+        for key, value in extra_fields.items():
+            if value is None:
+                entry.pop(key, None)
+            else:
+                entry[key] = value
 
     nsteps_saved = len(steps[module_str])
     nsteps = max(int(nsteps), nsteps_saved)
@@ -2649,7 +2769,10 @@ def _force_persist_step(
         steps.setdefault(module_key, [])
         while len(steps[module_key]) <= step_idx:
             steps[module_key].append({})
-        steps[module_key][step_idx] = convert_paths_to_strings(entry)
+        current = steps[module_key][step_idx]
+        merged = dict(current) if isinstance(current, dict) else {}
+        merged.update(convert_paths_to_strings(entry))
+        steps[module_key][step_idx] = merged
         steps_file.parent.mkdir(parents=True, exist_ok=True)
         with open(steps_file, "wb") as f:
             tomli_w.dump(steps, f)
@@ -3692,13 +3815,25 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path) -> Dict[str, Path]:
     run_script = steps_file.parent / "AGI_run.py"
     _add_path(run_script)
 
+    # Avoid importing arbitrary execute logs (stale app_args) from runenv.
+    # Only keep a short-lived, app-scoped run snippet that is still
+    # aligned with the current app_settings modification timestamp.
     runenv_root = getattr(env, "runenv", None)
     if runenv_root:
         try:
             runenv_path = Path(runenv_root).expanduser()
-            if runenv_path.exists():
-                for py_file in sorted(runenv_path.glob("*.py")):
-                    _add_path(py_file)
+            app_settings_mtime = Path(env.app_settings_file).stat().st_mtime if Path(env.app_settings_file).exists() else None
+            expected_suffix = f"_{env.app}.py"
+            for py_file in sorted(runenv_path.glob("AGI_*.py")):
+                if not py_file.name.endswith(expected_suffix):
+                    continue
+                if app_settings_mtime is not None:
+                    try:
+                        if py_file.stat().st_mtime < app_settings_mtime:
+                            continue
+                    except Exception:
+                        continue
+                _add_path(py_file)
         except Exception:
             pass
 
@@ -3717,6 +3852,50 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path) -> Dict[str, Path]:
                 idx += 1
         option_map[label] = path
     return option_map
+
+
+def _snippet_source_guidance(has_snippets: bool, app_name: str) -> str:
+    """Return the explanatory message displayed near the step source selector."""
+    if has_snippets:
+        return (
+            f"Snippets are refreshed from the latest ORCHESTRATE run for `{app_name}`. "
+            "If they look stale, rerun INSTALL → DISTRIBUTE → RUN in ORCHESTRATE."
+        )
+    return (
+        "No ORCHESTRATE-generated snippet is available yet. "
+        "Run INSTALL → DISTRIBUTE → RUN in ORCHESTRATE first (same project) "
+        "to generate the INSTALL / DISTRIBUTE / RUN snippets, then come back to PIPELINE."
+    )
+
+
+def _is_orchestrate_locked_step(entry: Dict[str, Any]) -> bool:
+    """Return True for steps that originated from an ORCHESTRATE snippet."""
+    if not isinstance(entry, dict):
+        return False
+    value = entry.get(ORCHESTRATE_LOCKED_STEP_KEY)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "y"}
+    question = (entry.get("Q") or "").strip().lower()
+    if question.startswith("imported snippet:"):
+        return True
+    return False
+
+
+def _orchestrate_snippet_source(entry: Dict[str, Any]) -> str:
+    """Return the source filename for a locked ORCHESTRATE-derived step."""
+    if not isinstance(entry, dict):
+        return ""
+    source = entry.get(ORCHESTRATE_LOCKED_SOURCE_KEY)
+    if isinstance(source, str) and source.strip():
+        return source.strip()
+    question = (entry.get("Q") or "").strip()
+    lower_question = question.lower()
+    if lower_question.startswith("imported snippet:"):
+        prefix_len = len("Imported snippet:")
+        return question[prefix_len:].strip()
+    return ""
 
 
 def display_lab_tab(
@@ -3799,6 +3978,10 @@ def display_lab_tab(
             selected_map.pop(idx_key, None)
 
     snippet_option_map = get_existing_snippets(env, steps_file)
+    snippet_guidance = _snippet_source_guidance(
+        bool(snippet_option_map),
+        env.app,
+    )
     step_source_key = f"{safe_prefix}_new_step_source"
     source_options = ["gen step"] + list(snippet_option_map.keys())
     if st.session_state.get(step_source_key) not in source_options:
@@ -3807,6 +3990,7 @@ def display_lab_tab(
     # No steps yet: allow creating the first one via Generate code
     if total_steps == 0:
         st.info("No steps recorded yet. Generate your first step below.")
+        st.info(snippet_guidance)
         new_q_key = f"{index_page_str}_new_q"
         new_venv_key = f"{index_page_str}_new_venv"
         if new_q_key not in st.session_state:
@@ -3881,6 +4065,7 @@ def display_lab_tab(
                     key=f"{safe_prefix}_first_snippet_venv_ro",
                 )
                 st.caption("Imported snippets use the project manager runtime (read-only).")
+                st.caption("Edit a copied version if you need to adjust this snippet.")
                 if snippet_path:
                     st.caption(f"Snippet source: `{snippet_path}`")
                 st.code(snippet_code or "# Empty snippet", language="python")
@@ -3900,6 +4085,10 @@ def display_lab_tab(
                         answer = [df_path, question, "snippet", snippet_code, detail]
                         venv_map = {0: manager_runtime} if manager_runtime else {}
                         eng_map = {0: "agi.run"}
+                        extra_fields = {
+                            ORCHESTRATE_LOCKED_STEP_KEY: True,
+                            ORCHESTRATE_LOCKED_SOURCE_KEY: str(snippet_path) if snippet_path else "",
+                        }
                         expander_state_key = f"{safe_prefix}_expander_open"
                         expander_state = st.session_state.setdefault(expander_state_key, {})
                         expander_state[0] = True
@@ -3912,12 +4101,13 @@ def display_lab_tab(
                             steps_file,
                             venv_map=venv_map,
                             engine_map=eng_map,
+                            extra_fields=extra_fields,
                         )
                         if detail:
                             detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
                             detail_store[0] = detail
-                        _bump_history_revision()
-                        st.rerun()
+                    _bump_history_revision()
+                    st.rerun()
         return
 
     run_logs_key = f"{index_page_str}__run_logs"
@@ -4017,6 +4207,10 @@ def display_lab_tab(
         expanded_flag = expander_state.get(step, False)
         title_suffix = summary if summary else "No description yet"
         expander_title = f"{step + 1} {title_suffix}"
+        is_locked_step = _is_orchestrate_locked_step(entry)
+        locked_source = _orchestrate_snippet_source(entry)
+        if is_locked_step:
+            expander_title = f"{step + 1} 🔒 ORCHESTRATE • {title_suffix}"
         with st.expander(expander_title, expanded=expanded_flag):
             # venv selector
             venv_col, _ = st.columns([3, 2], gap="small")
@@ -4035,6 +4229,7 @@ def display_lab_tab(
                     venv_labels,
                     key=select_key,
                     help="Choose which virtual environment should execute this step.",
+                    disabled=is_locked_step,
                 )
                 selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
                 if selected_path:
@@ -4046,6 +4241,73 @@ def display_lab_tab(
             computed_engine = "agi.run" if selected_map.get(step) else "runpy"
             engine_map[step] = computed_engine
             st.session_state["lab_selected_engine"] = computed_engine
+
+            if is_locked_step:
+                if locked_source:
+                    source_name = Path(locked_source).name if locked_source else locked_source
+                    if source_name:
+                        st.caption(f"Imported from ORCHESTRATE: `{source_name}`.")
+                else:
+                    st.caption("Imported from ORCHESTRATE.")
+                st.caption("This step is locked. Re-run ORCHESTRATE and re-import it here if you need changes.")
+                st.code(st.session_state.get(code_val_key, entry.get("C", "")) or "# Empty snippet", language="python")
+
+                if st.button(
+                    "Run imported step",
+                    type="primary",
+                    use_container_width=True,
+                    key=f"{safe_prefix}_run_locked_{step}",
+                ):
+                    _run_locked_step(
+                        env,
+                        index_page_str,
+                        steps_file,
+                        step,
+                        entry,
+                        selected_map,
+                        engine_map,
+                    )
+
+                if st.session_state.get(confirm_delete_key, False):
+                    delete_clicked = st.button(
+                        "Confirm remove",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"{safe_prefix}_delete_confirm_{step}",
+                    )
+                    cancel_delete_clicked = st.button(
+                        "Cancel",
+                        type="secondary",
+                        use_container_width=True,
+                        key=f"{safe_prefix}_delete_cancel_{step}",
+                    )
+                else:
+                    delete_clicked = False
+                    cancel_delete_clicked = False
+                    arm_delete_clicked = st.button(
+                        "Remove",
+                        type="secondary",
+                        use_container_width=True,
+                        key=f"{safe_prefix}_delete_{step}",
+                    )
+                    if arm_delete_clicked:
+                        st.session_state[confirm_delete_key] = True
+                        st.rerun()
+
+                if cancel_delete_clicked:
+                    st.session_state.pop(confirm_delete_key, None)
+                    st.rerun()
+
+                if delete_clicked:
+                    delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
+                    delete_snapshot["label"] = f"remove step {step + 1}"
+                    delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
+                    st.session_state[delete_undo_key] = delete_snapshot
+                    selected_map.pop(step, None)
+                    st.session_state.pop(select_key, None)
+                    remove_step(lab_dir, str(step), steps_file, index_page_str)
+                    st.rerun()
+                continue
 
             # Form for prompt and code
             run_pressed = False
@@ -4506,6 +4768,7 @@ def display_lab_tab(
     if new_q_key not in st.session_state:
         st.session_state[new_q_key] = ""
     with st.expander("Add step", expanded=False):
+        st.info(snippet_guidance)
         step_source = st.selectbox(
             "Step source",
             source_options,
@@ -4599,6 +4862,7 @@ def display_lab_tab(
                 key=f"{safe_prefix}_add_snippet_venv_ro",
             )
             st.caption("Imported snippets use the project manager runtime (read-only).")
+            st.caption("Edit a copied version if you need to adjust this snippet.")
             if snippet_path:
                 st.caption(f"Snippet source: `{snippet_path}`")
             st.code(snippet_code or "# Empty snippet", language="python")
@@ -4624,6 +4888,10 @@ def display_lab_tab(
                     else:
                         venv_map.pop(new_idx, None)
                     engine_map_local[new_idx] = "agi.run"
+                    extra_fields = {
+                        ORCHESTRATE_LOCKED_STEP_KEY: True,
+                        ORCHESTRATE_LOCKED_SOURCE_KEY: str(snippet_path) if snippet_path else "",
+                    }
                     save_step(
                         module_path,
                         answer,
@@ -4632,6 +4900,7 @@ def display_lab_tab(
                         steps_file,
                         venv_map=venv_map,
                         engine_map=engine_map_local,
+                        extra_fields=extra_fields,
                     )
                     if detail:
                         detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
