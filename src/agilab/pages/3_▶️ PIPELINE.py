@@ -2208,6 +2208,260 @@ def remove_step(
     return nsteps
 
 
+def _write_steps_for_module(
+    module: Path,
+    steps_file: Path,
+    module_steps: List[Dict[str, Any]],
+) -> int:
+    """Overwrite the module step list in ``steps_file`` and refresh notebook export."""
+    module_path = Path(module)
+    steps = get_steps_dict(module_path, steps_file)
+    module_key = _module_keys(module_path)[0]
+
+    normalized_steps: List[Dict[str, Any]] = []
+    for raw_entry in module_steps:
+        if not isinstance(raw_entry, dict):
+            continue
+        normalized_steps.append(
+            {
+                "D": raw_entry.get("D", ""),
+                "Q": raw_entry.get("Q", ""),
+                "M": raw_entry.get("M", ""),
+                "C": raw_entry.get("C", ""),
+                "E": normalize_runtime_path(raw_entry.get("E", "")) if raw_entry.get("E") else "",
+                "R": str(raw_entry.get("R", "") or ""),
+            }
+        )
+
+    steps[module_key] = _prune_invalid_entries(normalized_steps)
+    serializable_steps = convert_paths_to_strings(steps)
+    with open(steps_file, "wb") as f:
+        tomli_w.dump(serializable_steps, f)
+    toml_to_notebook(steps, steps_file)
+    return len(steps[module_key])
+
+
+def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Capture the current pipeline state so delete actions can be undone."""
+    steps_snapshot: List[Dict[str, Any]] = []
+    for raw_entry in steps:
+        if not isinstance(raw_entry, dict):
+            continue
+        steps_snapshot.append(
+            {
+                "D": raw_entry.get("D", ""),
+                "Q": raw_entry.get("Q", ""),
+                "M": raw_entry.get("M", ""),
+                "C": raw_entry.get("C", ""),
+                "E": normalize_runtime_path(raw_entry.get("E", "")) if raw_entry.get("E") else "",
+                "R": str(raw_entry.get("R", "") or ""),
+            }
+        )
+
+    details_key = f"{index_page}__details"
+    venv_key = f"{index_page}__venv_map"
+    engine_key = f"{index_page}__engine_map"
+    sequence_key = f"{index_page}__run_sequence"
+
+    details_snapshot: Dict[int, str] = {}
+    for raw_idx, text in st.session_state.get(details_key, {}).items():
+        try:
+            idx = int(raw_idx)
+        except Exception:
+            continue
+        if 0 <= idx < len(steps_snapshot):
+            details_snapshot[idx] = str(text or "")
+
+    venv_snapshot: Dict[int, str] = {}
+    for raw_idx, raw_path in st.session_state.get(venv_key, {}).items():
+        try:
+            idx = int(raw_idx)
+        except Exception:
+            continue
+        if 0 <= idx < len(steps_snapshot):
+            normalized = normalize_runtime_path(raw_path)
+            if normalized:
+                venv_snapshot[idx] = normalized
+
+    engine_snapshot: Dict[int, str] = {}
+    for raw_idx, engine in st.session_state.get(engine_key, {}).items():
+        try:
+            idx = int(raw_idx)
+        except Exception:
+            continue
+        if 0 <= idx < len(steps_snapshot):
+            engine_snapshot[idx] = str(engine or "")
+
+    raw_sequence = st.session_state.get(sequence_key, list(range(len(steps_snapshot))))
+    sequence_snapshot: List[int] = []
+    for raw_idx in raw_sequence:
+        try:
+            idx = int(raw_idx)
+        except Exception:
+            continue
+        if 0 <= idx < len(steps_snapshot) and idx not in sequence_snapshot:
+            sequence_snapshot.append(idx)
+    if len(steps_snapshot) > 0 and not sequence_snapshot:
+        sequence_snapshot = list(range(len(steps_snapshot)))
+
+    page_state = st.session_state.get(index_page, [0])
+    try:
+        active_step = int(page_state[0]) if isinstance(page_state, list) and page_state else 0
+    except Exception:
+        active_step = 0
+
+    return {
+        "steps": steps_snapshot,
+        "details": details_snapshot,
+        "venv_map": venv_snapshot,
+        "engine_map": engine_snapshot,
+        "sequence": sequence_snapshot,
+        "active_step": active_step,
+        "selected_venv": normalize_runtime_path(st.session_state.get("lab_selected_venv", "")),
+        "selected_engine": str(st.session_state.get("lab_selected_engine", "") or ""),
+    }
+
+
+def _reset_pipeline_editor_state(index_page: str) -> None:
+    """Drop per-step widget keys so restored snapshots reseed editor state from disk."""
+    safe_prefix = index_page.replace("/", "_")
+    key_prefixes = (
+        f"{safe_prefix}_q_step_",
+        f"{safe_prefix}_code_step_",
+        f"{safe_prefix}_venv_",
+        f"{safe_prefix}_editor_rev_",
+        f"{safe_prefix}_pending_q_",
+        f"{safe_prefix}_pending_c_",
+        f"{safe_prefix}_step_init_",
+        f"{safe_prefix}_editor_resync_sig_",
+        f"{safe_prefix}_ignore_blank_editor_",
+        f"{safe_prefix}_undo_",
+        f"{safe_prefix}_confirm_delete_",
+    )
+    for key in list(st.session_state.keys()):
+        if key.startswith(key_prefixes) or key.startswith(f"{safe_prefix}a"):
+            st.session_state.pop(key, None)
+
+
+def _restore_pipeline_snapshot(
+    module_path: Path,
+    steps_file: Path,
+    index_page: str,
+    sequence_widget_key: str,
+    snapshot: Dict[str, Any],
+) -> Optional[str]:
+    """Restore steps and UI state from a previously captured snapshot."""
+    try:
+        steps_snapshot = snapshot.get("steps", [])
+        if not isinstance(steps_snapshot, list):
+            steps_snapshot = []
+        nsteps = _write_steps_for_module(module_path, steps_file, steps_snapshot)
+
+        details_key = f"{index_page}__details"
+        venv_key = f"{index_page}__venv_map"
+        engine_key = f"{index_page}__engine_map"
+        sequence_key = f"{index_page}__run_sequence"
+
+        details_map: Dict[int, str] = {}
+        for raw_idx, text in snapshot.get("details", {}).items():
+            try:
+                idx = int(raw_idx)
+            except Exception:
+                continue
+            if 0 <= idx < nsteps:
+                details_map[idx] = str(text or "")
+        st.session_state[details_key] = details_map
+
+        venv_map: Dict[int, str] = {}
+        for raw_idx, raw_path in snapshot.get("venv_map", {}).items():
+            try:
+                idx = int(raw_idx)
+            except Exception:
+                continue
+            if 0 <= idx < nsteps:
+                normalized = normalize_runtime_path(raw_path)
+                if normalized:
+                    venv_map[idx] = normalized
+        st.session_state[venv_key] = venv_map
+
+        engine_map: Dict[int, str] = {}
+        for raw_idx, engine in snapshot.get("engine_map", {}).items():
+            try:
+                idx = int(raw_idx)
+            except Exception:
+                continue
+            if 0 <= idx < nsteps:
+                engine_map[idx] = str(engine or "")
+        st.session_state[engine_key] = engine_map
+
+        raw_sequence = snapshot.get("sequence", [])
+        restored_sequence: List[int] = []
+        if isinstance(raw_sequence, list):
+            for raw_idx in raw_sequence:
+                try:
+                    idx = int(raw_idx)
+                except Exception:
+                    continue
+                if 0 <= idx < nsteps and idx not in restored_sequence:
+                    restored_sequence.append(idx)
+        if nsteps > 0 and not restored_sequence:
+            restored_sequence = list(range(nsteps))
+        st.session_state[sequence_key] = restored_sequence
+        _persist_sequence_preferences(module_path, steps_file, restored_sequence)
+        st.session_state.pop(sequence_widget_key, None)
+        st.session_state.pop(f"{index_page}__clear_q", None)
+        st.session_state.pop(f"{index_page}__force_blank_q", None)
+        st.session_state.pop(f"{index_page}__q_rev", None)
+        st.session_state.pop(f"{index_page}_confirm_delete_all", None)
+        _reset_pipeline_editor_state(index_page)
+
+        page_state = st.session_state.get(index_page)
+        if not isinstance(page_state, list) or len(page_state) < 7:
+            page_state = [0, "", "", "", "", "", 0]
+            st.session_state[index_page] = page_state
+
+        if nsteps > 0:
+            try:
+                active_step = int(snapshot.get("active_step", 0))
+            except Exception:
+                active_step = 0
+            active_step = max(0, min(active_step, nsteps - 1))
+            active_entry = steps_snapshot[active_step] if active_step < len(steps_snapshot) else {}
+            if not isinstance(active_entry, dict):
+                active_entry = {}
+            page_state[0] = active_step
+            page_state[1:6] = [
+                active_entry.get("D", ""),
+                active_entry.get("Q", ""),
+                active_entry.get("M", ""),
+                active_entry.get("C", ""),
+                details_map.get(active_step, ""),
+            ]
+            restored_selected_venv = normalize_runtime_path(snapshot.get("selected_venv", ""))
+            if not restored_selected_venv:
+                restored_selected_venv = normalize_runtime_path(venv_map.get(active_step, ""))
+            st.session_state["lab_selected_venv"] = (
+                restored_selected_venv if _is_valid_runtime_root(restored_selected_venv) else ""
+            )
+            restored_selected_engine = str(snapshot.get("selected_engine", "") or "")
+            if not restored_selected_engine:
+                restored_selected_engine = engine_map.get(active_step, "") or (
+                    "agi.run" if st.session_state.get("lab_selected_venv") else "runpy"
+                )
+            st.session_state["lab_selected_engine"] = restored_selected_engine
+        else:
+            page_state[:] = [0, "", "", "", "", "", 0]
+            st.session_state["lab_selected_venv"] = ""
+            st.session_state["lab_selected_engine"] = "runpy"
+
+        page_state[-1] = nsteps
+        _bump_history_revision()
+        return None
+    except Exception as exc:
+        logger.error(f"Undo restore failed for {steps_file}: {exc}")
+        return str(exc)
+
+
 def toml_to_notebook(toml_data: Dict[str, Any], toml_path: Path) -> None:
     """Convert TOML steps data to a Jupyter notebook file."""
     notebook_data = {"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
@@ -3631,6 +3885,7 @@ def display_lab_tab(
 
     run_logs_key = f"{index_page_str}__run_logs"
     run_placeholder_key = f"{index_page_str}__run_placeholder"
+    delete_undo_key = f"{index_page_str}__undo_delete_snapshot"
     st.session_state.setdefault(run_logs_key, [])
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
@@ -4199,6 +4454,10 @@ def display_lab_tab(
 
             if delete_clicked:
                 st.session_state.pop(confirm_delete_key, None)
+                delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
+                delete_snapshot["label"] = f"remove step {step + 1}"
+                delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
+                st.session_state[delete_undo_key] = delete_snapshot
                 selected_map.pop(step, None)
                 st.session_state.pop(select_key, None)
                 remove_step(lab_dir, str(step), steps_file, index_page_str)
@@ -4425,6 +4684,33 @@ def display_lab_tab(
         st.session_state.pop(delete_all_confirm_key, None)
         st.rerun()
 
+    undo_delete_clicked = False
+    undo_payload = st.session_state.get(delete_undo_key)
+    if isinstance(undo_payload, dict) and isinstance(undo_payload.get("steps"), list):
+        undo_label = str(undo_payload.get("label", "last delete"))
+        undo_delete_clicked = st.button(
+            f"Undo {undo_label}",
+            key=f"{index_page_str}_undo_delete",
+            help="Restore the pipeline state before the latest delete action.",
+            type="secondary",
+            use_container_width=True,
+        )
+
+    if undo_delete_clicked:
+        restore_error = _restore_pipeline_snapshot(
+            module_path,
+            steps_file,
+            index_page_str,
+            sequence_widget_key,
+            undo_payload,
+        )
+        if restore_error:
+            st.error(f"Undo failed: {restore_error}")
+        else:
+            st.session_state.pop(delete_undo_key, None)
+            st.success("Deleted steps restored.")
+            st.rerun()
+
     if run_all_clicked:
         run_placeholder = _get_run_placeholder(index_page_str)
         log_file_path, log_error = _prepare_run_log_file(index_page_str, env, prefix="pipeline")
@@ -4450,6 +4736,10 @@ def display_lab_tab(
 
     if delete_all_clicked:
         st.session_state.pop(delete_all_confirm_key, None)
+        delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
+        delete_snapshot["label"] = "delete pipeline"
+        delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
+        st.session_state[delete_undo_key] = delete_snapshot
         total_steps = st.session_state[index_page_str][-1]
         for idx_remove in reversed(range(total_steps)):
             remove_step(lab_dir, str(idx_remove), steps_file, index_page_str)

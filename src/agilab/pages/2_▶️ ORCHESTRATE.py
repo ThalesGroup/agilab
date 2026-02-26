@@ -13,6 +13,7 @@ import json
 import numbers
 import logging
 import subprocess
+import shutil
 from functools import lru_cache
 from pathlib import Path
 import importlib
@@ -1039,6 +1040,59 @@ def update_select_all():
         col for i, col in enumerate(st.session_state.df_cols) if st.session_state.get(f"export_col_{i}", False)
     ]
 
+
+def _capture_dataframe_preview_state() -> dict:
+    """Capture dataframe preview-related session state for one-step undo."""
+    df_cols_raw = st.session_state.get("df_cols", [])
+    selected_cols_raw = st.session_state.get("selected_cols", [])
+    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
+    selected_cols = list(selected_cols_raw) if isinstance(selected_cols_raw, (list, tuple)) else []
+    return {
+        "loaded_df": st.session_state.get("loaded_df"),
+        "loaded_graph": st.session_state.get("loaded_graph"),
+        "loaded_source_path": st.session_state.get("loaded_source_path"),
+        "df_cols": df_cols,
+        "selected_cols": selected_cols,
+        "check_all": bool(st.session_state.get("check_all", False)),
+        "force_export_open": bool(st.session_state.get("_force_export_open", False)),
+        "dataframe_deleted": bool(st.session_state.get("dataframe_deleted", False)),
+    }
+
+
+def _restore_dataframe_preview_state(payload: dict) -> None:
+    """Restore dataframe preview session state from an undo payload."""
+    st.session_state["loaded_df"] = payload.get("loaded_df")
+    if payload.get("loaded_graph") is None:
+        st.session_state.pop("loaded_graph", None)
+    else:
+        st.session_state["loaded_graph"] = payload.get("loaded_graph")
+
+    source_path = payload.get("loaded_source_path")
+    if source_path:
+        st.session_state["loaded_source_path"] = source_path
+    else:
+        st.session_state.pop("loaded_source_path", None)
+
+    df_cols_raw = payload.get("df_cols", [])
+    selected_cols_raw = payload.get("selected_cols", [])
+    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
+    selected_cols = [col for col in (selected_cols_raw or []) if col in df_cols]
+    requested_all = bool(payload.get("check_all", False))
+    if requested_all and df_cols:
+        selected_cols = df_cols.copy()
+
+    st.session_state["df_cols"] = df_cols
+    st.session_state["selected_cols"] = selected_cols
+    st.session_state["check_all"] = bool(df_cols) and len(selected_cols) == len(df_cols)
+    st.session_state["_force_export_open"] = bool(payload.get("force_export_open", False))
+    st.session_state["dataframe_deleted"] = bool(payload.get("dataframe_deleted", False))
+
+    for key in [key for key in st.session_state.keys() if key.startswith("export_col_")]:
+        st.session_state.pop(key, None)
+    for idx, col in enumerate(df_cols):
+        st.session_state[f"export_col_{idx}"] = col in selected_cols
+
+
 def _draw_distribution(graph, partition_key, show_leaf_list, title):
     """
     Shared drawing routine for distribution or DAG graphs.
@@ -1985,6 +2039,7 @@ if __name__ == "__main__":
         delete_armed_clicked = False
         delete_cancel_clicked = False
         delete_confirm_key = "delete_data_main_confirm"
+        delete_undo_key = "delete_data_main_undo_payload"
         if st.session_state.get(delete_confirm_key, False):
             delete_clicked = delete_col.button(
                 "Confirm delete",
@@ -2013,6 +2068,52 @@ if __name__ == "__main__":
             st.rerun()
         if delete_cancel_clicked:
             st.session_state.pop(delete_confirm_key, None)
+            st.rerun()
+
+        undo_delete_clicked = False
+        undo_payload = st.session_state.get(delete_undo_key)
+        if isinstance(undo_payload, dict):
+            undo_delete_clicked = st.button(
+                "UNDO last delete dataframe",
+                key="delete_data_main_undo_btn",
+                type="secondary",
+                use_container_width=True,
+                help="Restore the most recently deleted dataframe preview and file.",
+            )
+
+        if undo_delete_clicked and isinstance(undo_payload, dict):
+            restored_file = False
+            backup_file = undo_payload.get("backup_file")
+            source_file = undo_payload.get("source_file")
+            if backup_file and source_file:
+                backup_path = Path(backup_file)
+                source_path = Path(source_file)
+                try:
+                    if backup_path.exists():
+                        source_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.move(str(backup_path), str(source_path))
+                        restored_file = True
+                    elif not source_path.exists():
+                        st.warning("Undo could not restore file from disk backup (backup not found).")
+                except Exception as exc:
+                    st.error(f"Failed to restore deleted file: {exc}")
+
+            _restore_dataframe_preview_state(undo_payload)
+            st.session_state["dataframe_deleted"] = False
+            st.session_state.pop(delete_undo_key, None)
+            st.session_state.pop(delete_confirm_key, None)
+            try:
+                cached_load_df.clear()
+            except Exception:
+                pass
+            try:
+                find_files.clear()
+            except Exception:
+                pass
+            if restored_file:
+                st.success("Dataframe delete undone and file restored.")
+            else:
+                st.success("Dataframe preview restore completed.")
             st.rerun()
 
         if load_clicked:
@@ -2166,8 +2267,13 @@ if __name__ == "__main__":
 
         if delete_clicked:
             st.session_state.pop(delete_confirm_key, None)
+            undo_payload = _capture_dataframe_preview_state()
+            undo_payload["deleted_at"] = datetime.now().isoformat(timespec="seconds")
             st.session_state["dataframe_deleted"] = True
-            source_path = st.session_state.pop("loaded_source_path", None)
+            source_path = st.session_state.get("loaded_source_path")
+            undo_payload["source_file"] = str(source_path) if source_path else ""
+            undo_payload["backup_file"] = ""
+            st.session_state.pop("loaded_source_path", None)
             st.session_state["loaded_df"] = None
             st.session_state.pop("df_cols", None)
             st.session_state.pop("selected_cols", None)
@@ -2180,7 +2286,14 @@ if __name__ == "__main__":
                 file_path = Path(source_path)
                 try:
                     if file_path.exists():
-                        file_path.unlink()
+                        trash_dir = file_path.parent / ".agilab-trash"
+                        trash_dir.mkdir(parents=True, exist_ok=True)
+                        backup_name = (
+                            f"{file_path.name}.{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.bak"
+                        )
+                        backup_path = trash_dir / backup_name
+                        shutil.move(str(file_path), str(backup_path))
+                        undo_payload["backup_file"] = str(backup_path)
                         try:
                             cached_load_df.clear()
                         except Exception:
@@ -2198,6 +2311,7 @@ if __name__ == "__main__":
 
             if not deleted:
                 st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
+            st.session_state[delete_undo_key] = undo_payload
 
 
     if run_clicked and cmd:
