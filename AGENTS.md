@@ -151,8 +151,8 @@ Use this runbook whenever you:
 
 | Group | Config name | Entry | Args | Workdir | Env | How to run | Interpreter |
 |---|---|---|---|---|---|---|---|
-| agilab | agilab run (dev) | streamlit | run $ProjectFileDir$/src/agilab/agilab.py -- --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1 | cd $ProjectFileDir$ && uv run streamlit run $ProjectFileDir$/src/agilab/agilab.py -- --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps |  |
-| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/agilab.py -- --openai-api-key "your-key" | $ProjectFileDir$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/agilab.py -- --openai-api-key "your-key" | uv (agi-space) |
+| agilab | agilab run (dev) | streamlit | run $ProjectFileDir$/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1 | cd $ProjectFileDir$ && uv run streamlit run $ProjectFileDir$/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps |  |
+| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key" | $ProjectFileDir$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key" | uv (agi-space) |
 | agilab | app_script gen | $ProjectFileDir$/pycharm/gen_app_script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/pycharm/gen_app_script.py $Prompt:Enter app manager name:flight$ |  |
 | agilab | apps-pages launcher | $ProjectFileDir$/tools/apps_pages_launcher.py | --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/apps_pages_launcher.py --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project | uv (agilab) |
 | agilab | apps-pages smoke | $ProjectFileDir$/tools/smoke_preinit.py | --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project --timeout 20 | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/smoke_preinit.py --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project --timeout 20 | uv (agilab) |
@@ -232,7 +232,7 @@ Use this runbook whenever you:
 ## Progressive test plan
 
 ### Tier A — Quick checks (fast sanity)
-- UI smoke: `cd $ProjectFileDir$ && uv --preview-features extra-build-dependencies run streamlit run src/agilab/agilab.py -- --openai-api-key "your-key" --apps-dir src/agilab/apps` (agilab run dev)
+- UI smoke: `cd $ProjectFileDir$ && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-dir src/agilab/apps` (agilab run dev)
 - Dependencies: `cd $ProjectFileDir$ && uv --preview-features extra-build-dependencies run python tools/show_dependencies.py --repo testpypi`
 - App skeleton: `uv --preview-features extra-build-dependencies run python src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app_test.py`
 
@@ -265,7 +265,7 @@ Use this runbook whenever you:
 - `▶️ EXECUTE` page tips:
   - Use the sidebar `Verbosity level` select to choose AgiEnv verbosity (0–3). The value propagates to the generated install/distribute/run snippets and appears in the install log header.
   - Install output now streams inside the dedicated **Install logs** expander. Keep it open to watch live progress even if the snippet expander is collapsed.
-- End-user mode: `cd ../agi-space && uv --preview-features extra-build-dependencies run streamlit run .venv/lib/python3.13/site-packages/agilab/agilab.py -- --openai-api-key "your-key"`
+- End-user mode: `cd ../agi-space && uv --preview-features extra-build-dependencies run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key"`
 
 For each tier, capture: command, expected output, and pitfalls (CWD, env vars, interpreter).
 
