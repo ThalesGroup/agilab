@@ -1,5 +1,5 @@
 [project]
-version = "2026.02.25"
+version = "2026.02.27"
 name = "agilab"
 description = "AGILAB is an end-to-end experimentation platform linking interactive development with scalable, reproducible execution orchestration."
 requires-python = ">=3.11"
@@ -37,7 +37,7 @@ keywords = [
     "jupyter",
     "ci-cd"
 ]
-dependencies = ["astor", "asyncssh", "build", "cmake>=3.29", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "pip", "plotly", "polars", "pulp", "py7zr", "pytest-cov", "scipy==1.15.2", "seaborn", "setuptools", "streamlit", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "twine", "watchdog", "wheel", "sgp4", "agi-core==2026.02.25", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
+dependencies = ["astor", "asyncssh", "build", "cmake>=3.29", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "pip", "plotly", "polars", "pulp", "py7zr", "pytest-cov", "scipy==1.15.2", "seaborn", "setuptools", "streamlit", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "twine", "watchdog", "wheel", "sgp4", "agi-core==2026.02.27", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -52,6 +52,8 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "accelerate>=0.34.2; python_version >= '3.12'"]
+
+
 
 
 
