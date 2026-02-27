@@ -9,6 +9,7 @@ import pytest
 from agi_cluster.agi_distributor import AGI
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
 from agi_env import AgiEnv, normalize_path
+from agi_node.agi_dispatcher import BaseWorker
 
 # Set AGI verbosity low to avoid extra prints during test.
 AGI.verbose = 0
@@ -44,6 +45,20 @@ class _FakeClient:
 
     def scheduler_info(self):
         return {"workers": {f"tcp://{worker}": {} for worker in self._workers}}
+
+
+def _real_service_stub_new(**_kwargs):
+    return {"status": "ready"}
+
+
+def _real_service_stub_loop(*, poll_interval=None):
+    delay = max(float(poll_interval or 0.05), 0.01)
+    time.sleep(delay)
+    return {"status": "loop-exited"}
+
+
+def _real_service_stub_break_loop():
+    return True
 
 
 @pytest.fixture(autouse=True)
@@ -398,3 +413,106 @@ async def test_agi_status_auto_restarts_stale_heartbeat(monkeypatch, tmp_path):
     assert "break_loop" in submitted
     assert "_new" in submitted
     assert "loop" in submitted
+
+
+@pytest.mark.asyncio
+async def test_agi_service_real_dask_e2e_self_heal_submit_stop(monkeypatch, tmp_path):
+    distributed = pytest.importorskip("dask.distributed")
+    LocalCluster = distributed.LocalCluster
+    Client = distributed.Client
+
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "AgiDataWorker"
+
+    cluster = LocalCluster(
+        n_workers=1,
+        threads_per_worker=2,
+        processes=False,
+        host="127.0.0.1",
+        protocol="tcp",
+        dashboard_address=None,
+    )
+    client = Client(cluster)
+
+    async def _fake_start(_scheduler):
+        AGI._dask_client = client
+        AGI._scheduler = "127.0.0.1:8786"
+        AGI._scheduler_ip = "127.0.0.1"
+        AGI._scheduler_port = 8786
+
+    async def _fake_sync():
+        return None
+
+    async def _fake_stop():
+        return None
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+    monkeypatch.setattr(BaseWorker, "_new", staticmethod(_real_service_stub_new))
+    monkeypatch.setattr(BaseWorker, "loop", staticmethod(_real_service_stub_loop))
+    monkeypatch.setattr(BaseWorker, "break_loop", staticmethod(_real_service_stub_break_loop))
+
+    try:
+        started = await asyncio.wait_for(
+            AGI.serve(
+                env,
+                scheduler="127.0.0.1",
+                workers={"127.0.0.1": 1},
+                mode=AGI.DASK_MODE,
+                action="start",
+                service_queue_dir=tmp_path / "service_queue",
+                poll_interval=0.05,
+                heartbeat_timeout=0.2,
+                stop_timeout=3.0,
+            ),
+            timeout=20.0,
+        )
+        assert started["status"] == "running"
+        assert started["workers"], "expected at least one running service worker"
+        worker = started["workers"][0]
+
+        await asyncio.sleep(0.15)
+
+        status = await asyncio.wait_for(
+            AGI.serve(
+                env,
+                action="status",
+                heartbeat_timeout=0.2,
+            ),
+            timeout=20.0,
+        )
+        assert worker in (status.get("restarted_workers") or [])
+
+        submitted = await asyncio.wait_for(
+            AGI.submit(
+                env,
+                work_plan=[["step"]],
+                work_plan_metadata=[[{"meta": 1}]],
+                task_name="e2e-batch",
+            ),
+            timeout=20.0,
+        )
+        assert submitted["status"] == "queued"
+        assert submitted["queued_files"], "submit should enqueue at least one file"
+
+        stopped = await asyncio.wait_for(
+            AGI.serve(
+                env,
+                action="stop",
+                shutdown_on_stop=False,
+                stop_timeout=3.0,
+            ),
+            timeout=20.0,
+        )
+        assert stopped["status"] in {"stopped", "partial"}
+    finally:
+        try:
+            AGI._dask_client = None
+            client.close()
+        except Exception:
+            pass
+        try:
+            cluster.close()
+        except Exception:
+            pass

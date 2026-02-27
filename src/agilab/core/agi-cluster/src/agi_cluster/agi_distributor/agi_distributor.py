@@ -682,6 +682,30 @@ class AGI:
                 AGI._service_shutdown_on_stop,
             )
             AGI._service_heartbeat_timeout = state.get("heartbeat_timeout", AGI._service_heartbeat_timeout)
+            AGI._service_cleanup_done_ttl_sec = state.get(
+                "cleanup_done_ttl_sec",
+                AGI._service_cleanup_done_ttl_sec,
+            )
+            AGI._service_cleanup_failed_ttl_sec = state.get(
+                "cleanup_failed_ttl_sec",
+                AGI._service_cleanup_failed_ttl_sec,
+            )
+            AGI._service_cleanup_heartbeat_ttl_sec = state.get(
+                "cleanup_heartbeat_ttl_sec",
+                AGI._service_cleanup_heartbeat_ttl_sec,
+            )
+            AGI._service_cleanup_done_max_files = state.get(
+                "cleanup_done_max_files",
+                AGI._service_cleanup_done_max_files,
+            )
+            AGI._service_cleanup_failed_max_files = state.get(
+                "cleanup_failed_max_files",
+                AGI._service_cleanup_failed_max_files,
+            )
+            AGI._service_cleanup_heartbeat_max_files = state.get(
+                "cleanup_heartbeat_max_files",
+                AGI._service_cleanup_heartbeat_max_files,
+            )
             started_at = state.get("started_at")
             AGI._service_started_at = (
                 float(started_at)
@@ -889,6 +913,32 @@ class AGI:
         return float(AGI._service_heartbeat_timeout)
 
     @staticmethod
+    def _service_apply_runtime_config(
+            *,
+            heartbeat_timeout: Optional[float] = None,
+            cleanup_done_ttl_sec: Optional[float] = None,
+            cleanup_failed_ttl_sec: Optional[float] = None,
+            cleanup_heartbeat_ttl_sec: Optional[float] = None,
+            cleanup_done_max_files: Optional[int] = None,
+            cleanup_failed_max_files: Optional[int] = None,
+            cleanup_heartbeat_max_files: Optional[int] = None,
+    ) -> None:
+        if heartbeat_timeout is not None:
+            AGI._service_heartbeat_timeout = max(float(heartbeat_timeout), 0.1)
+        if cleanup_done_ttl_sec is not None:
+            AGI._service_cleanup_done_ttl_sec = max(float(cleanup_done_ttl_sec), 0.0)
+        if cleanup_failed_ttl_sec is not None:
+            AGI._service_cleanup_failed_ttl_sec = max(float(cleanup_failed_ttl_sec), 0.0)
+        if cleanup_heartbeat_ttl_sec is not None:
+            AGI._service_cleanup_heartbeat_ttl_sec = max(float(cleanup_heartbeat_ttl_sec), 0.0)
+        if cleanup_done_max_files is not None:
+            AGI._service_cleanup_done_max_files = max(int(cleanup_done_max_files), 0)
+        if cleanup_failed_max_files is not None:
+            AGI._service_cleanup_failed_max_files = max(int(cleanup_failed_max_files), 0)
+        if cleanup_heartbeat_max_files is not None:
+            AGI._service_cleanup_heartbeat_max_files = max(int(cleanup_heartbeat_max_files), 0)
+
+    @staticmethod
     def _service_state_payload(env: AgiEnv) -> Dict[str, Any]:
         return {
             "schema": "agi.service.state.v1",
@@ -907,6 +957,12 @@ class AGI:
             "stop_timeout": AGI._service_stop_timeout,
             "shutdown_on_stop": AGI._service_shutdown_on_stop,
             "heartbeat_timeout": AGI._service_heartbeat_timeout_value(),
+            "cleanup_done_ttl_sec": AGI._service_cleanup_done_ttl_sec,
+            "cleanup_failed_ttl_sec": AGI._service_cleanup_failed_ttl_sec,
+            "cleanup_heartbeat_ttl_sec": AGI._service_cleanup_heartbeat_ttl_sec,
+            "cleanup_done_max_files": AGI._service_cleanup_done_max_files,
+            "cleanup_failed_max_files": AGI._service_cleanup_failed_max_files,
+            "cleanup_heartbeat_max_files": AGI._service_cleanup_heartbeat_max_files,
             "started_at": AGI._service_started_at or time.time(),
             "owner_pid": os.getpid(),
         }
@@ -933,6 +989,72 @@ class AGI:
             except Exception:
                 continue
         return beats
+
+    @staticmethod
+    def _service_read_heartbeat_payloads() -> Dict[str, Dict[str, Any]]:
+        heartbeat_dir = AGI._service_queue_heartbeats
+        if heartbeat_dir is None or not heartbeat_dir.exists():
+            return {}
+
+        payloads: Dict[str, Dict[str, Any]] = {}
+        for beat_file in heartbeat_dir.glob("*.json"):
+            try:
+                with open(beat_file, "r", encoding="utf-8") as stream:
+                    payload = json.load(stream)
+                if not isinstance(payload, dict):
+                    continue
+                worker = str(payload.get("worker", "")).strip()
+                timestamp = float(payload.get("timestamp", 0.0) or 0.0)
+                if not worker or timestamp <= 0:
+                    continue
+                previous = payloads.get(worker)
+                if previous is None or float(previous.get("timestamp", 0.0) or 0.0) < timestamp:
+                    payloads[worker] = payload
+            except Exception:
+                continue
+        return payloads
+
+    @staticmethod
+    def _service_worker_health(workers: List[str]) -> List[Dict[str, Any]]:
+        now = time.time()
+        timeout = AGI._service_heartbeat_timeout_value()
+        heartbeat_payloads = AGI._service_read_heartbeat_payloads()
+        unhealthy = AGI._service_unhealthy_workers(workers)
+        service_started_at = AGI._service_started_at or now
+        warmup_done = (now - service_started_at) >= timeout
+
+        report: List[Dict[str, Any]] = []
+        for worker in workers:
+            payload = heartbeat_payloads.get(worker, {})
+            timestamp = float(payload.get("timestamp", 0.0) or 0.0)
+            heartbeat_age = (now - timestamp) if timestamp > 0 else None
+            heartbeat_state = str(payload.get("state", "missing")).strip() or "missing"
+            future = AGI._service_futures.get(worker)
+            future_state = (
+                str(getattr(future, "status", "unknown")).lower()
+                if future is not None
+                else "detached"
+            )
+            reason = unhealthy.get(worker)
+            if reason:
+                healthy = False
+            elif heartbeat_age is None:
+                healthy = not warmup_done
+            else:
+                healthy = heartbeat_age <= timeout
+
+            report.append(
+                {
+                    "worker": worker,
+                    "future_state": future_state,
+                    "heartbeat_state": heartbeat_state,
+                    "heartbeat_age_sec": round(heartbeat_age, 3) if heartbeat_age is not None else None,
+                    "healthy": healthy,
+                    "reason": reason or "",
+                }
+            )
+
+        return report
 
     @staticmethod
     def _service_unhealthy_workers(workers: List[str]) -> Dict[str, str]:
@@ -1077,6 +1199,13 @@ class AGI:
             shutdown_on_stop: bool = True,
             stop_timeout: Optional[float] = 30.0,
             service_queue_dir: Optional[Union[str, Path]] = None,
+            heartbeat_timeout: Optional[float] = None,
+            cleanup_done_ttl_sec: Optional[float] = None,
+            cleanup_failed_ttl_sec: Optional[float] = None,
+            cleanup_heartbeat_ttl_sec: Optional[float] = None,
+            cleanup_done_max_files: Optional[int] = None,
+            cleanup_failed_max_files: Optional[int] = None,
+            cleanup_heartbeat_max_files: Optional[int] = None,
             **args: Any,
     ) -> Dict[str, Any]:
         """Manage persistent worker services without invoking the run workplan.
@@ -1094,6 +1223,15 @@ class AGI:
         AGI._service_shutdown_on_stop = shutdown_on_stop
         AGI._service_stop_timeout = stop_timeout
         AGI._service_poll_interval = poll_interval
+        AGI._service_apply_runtime_config(
+            heartbeat_timeout=heartbeat_timeout,
+            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+            cleanup_done_max_files=cleanup_done_max_files,
+            cleanup_failed_max_files=cleanup_failed_max_files,
+            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
+        )
 
         if command == "status":
             client = AGI._dask_client
@@ -1101,6 +1239,15 @@ class AGI:
                 recovered = await AGI._service_recover(env)
                 if recovered:
                     client = AGI._dask_client
+            AGI._service_apply_runtime_config(
+                heartbeat_timeout=heartbeat_timeout,
+                cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+                cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+                cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+                cleanup_done_max_files=cleanup_done_max_files,
+                cleanup_failed_max_files=cleanup_failed_max_files,
+                cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
+            )
 
             restart_info: Dict[str, Any] = {"restarted": [], "reasons": {}}
             if client is not None and AGI._service_workers:
@@ -1110,6 +1257,7 @@ class AGI:
             queue_state = AGI._service_queue_counts()
             queue_dir = str(AGI._service_queue_root) if AGI._service_queue_root else None
             workers_snapshot = list(AGI._service_workers)
+            worker_health = AGI._service_worker_health(workers_snapshot) if workers_snapshot else []
 
             if not AGI._service_futures and not workers_snapshot:
                 client_status = getattr(client, "status", None) if client else None
@@ -1121,6 +1269,8 @@ class AGI:
                     "queue": queue_state,
                     "queue_dir": queue_dir,
                     "cleanup": cleanup_info,
+                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                    "worker_health": worker_health,
                     "restarted_workers": restart_info["restarted"],
                     "restart_reasons": restart_info["reasons"],
                 }
@@ -1135,6 +1285,8 @@ class AGI:
                     "queue": queue_state,
                     "queue_dir": queue_dir,
                     "cleanup": cleanup_info,
+                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                    "worker_health": worker_health,
                     "restarted_workers": restart_info["restarted"],
                     "restart_reasons": restart_info["reasons"],
                 }
@@ -1168,6 +1320,8 @@ class AGI:
                 "queue": queue_state,
                 "queue_dir": queue_dir,
                 "cleanup": cleanup_info,
+                "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                "worker_health": worker_health,
                 "restarted_workers": restart_info["restarted"],
                 "restart_reasons": restart_info["reasons"],
             }
@@ -1178,6 +1332,15 @@ class AGI:
             if not AGI._service_futures and not AGI._service_workers:
                 recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
                 client = AGI._dask_client
+                AGI._service_apply_runtime_config(
+                    heartbeat_timeout=heartbeat_timeout,
+                    cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+                    cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+                    cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+                    cleanup_done_max_files=cleanup_done_max_files,
+                    cleanup_failed_max_files=cleanup_failed_max_files,
+                    cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
+                )
                 if not recovered:
                     logger.info("AGI.serve(stop): no active service loops to stop.")
                     if shutdown_on_stop and client:
@@ -1270,11 +1433,21 @@ class AGI:
             )
 
         recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
+        AGI._service_apply_runtime_config(
+            heartbeat_timeout=heartbeat_timeout,
+            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+            cleanup_done_max_files=cleanup_done_max_files,
+            cleanup_failed_max_files=cleanup_failed_max_files,
+            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
+        )
         if recovered:
             restart_info: Dict[str, Any] = {"restarted": [], "reasons": {}}
             if AGI._dask_client is not None:
                 restart_info = await AGI._service_auto_restart_unhealthy(env, AGI._dask_client)
             cleanup_info = AGI._service_cleanup_artifacts()
+            worker_health = AGI._service_worker_health(list(AGI._service_workers))
             return {
                 "status": "running",
                 "workers": list(AGI._service_workers),
@@ -1282,6 +1455,8 @@ class AGI:
                 "queue": AGI._service_queue_counts(),
                 "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else None,
                 "cleanup": cleanup_info,
+                "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                "worker_health": worker_health,
                 "restarted_workers": restart_info["restarted"],
                 "restart_reasons": restart_info["reasons"],
                 "recovered": True,
@@ -1439,6 +1614,8 @@ class AGI:
             "pending": [],
             "queue_dir": str(queue_paths["root"]),
             "cleanup": cleanup_info,
+            "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+            "worker_health": AGI._service_worker_health(list(dask_workers)),
         }
 
     @staticmethod
