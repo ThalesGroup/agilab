@@ -389,6 +389,12 @@ class AGI:
     _service_queue_heartbeats: Optional[Path] = None
     _service_heartbeat_timeout: Optional[float] = None
     _service_started_at: Optional[float] = None
+    _service_cleanup_done_ttl_sec: float = 7 * 24 * 3600
+    _service_cleanup_failed_ttl_sec: float = 14 * 24 * 3600
+    _service_cleanup_heartbeat_ttl_sec: float = 24 * 3600
+    _service_cleanup_done_max_files: int = 2000
+    _service_cleanup_failed_max_files: int = 2000
+    _service_cleanup_heartbeat_max_files: int = 1000
     _service_submit_counter: int = 0
     _service_worker_args: Dict[str, Any] = {}
 
@@ -787,6 +793,76 @@ class AGI:
         return counts
 
     @staticmethod
+    def _service_cleanup_artifacts() -> Dict[str, int]:
+        """Trim stale service artifacts (done/failed tasks, old heartbeats)."""
+
+        def _cleanup_dir(
+                path: Optional[Path],
+                *,
+                pattern: str,
+                ttl_sec: float,
+                max_files: int,
+        ) -> int:
+            if path is None or not path.exists():
+                return 0
+
+            now = time.time()
+            kept: List[Tuple[float, Path]] = []
+            removed = 0
+
+            for file_path in path.glob(pattern):
+                try:
+                    mtime = file_path.stat().st_mtime
+                except FileNotFoundError:
+                    continue
+
+                if ttl_sec > 0 and (now - mtime) > ttl_sec:
+                    try:
+                        file_path.unlink()
+                        removed += 1
+                    except FileNotFoundError:
+                        continue
+                    continue
+
+                kept.append((mtime, file_path))
+
+            if max_files >= 0 and len(kept) > max_files:
+                kept.sort(key=lambda item: item[0], reverse=True)
+                for _, stale in kept[max_files:]:
+                    try:
+                        stale.unlink()
+                        removed += 1
+                    except FileNotFoundError:
+                        continue
+
+            return removed
+
+        cleaned_done = _cleanup_dir(
+            AGI._service_queue_done,
+            pattern="*.task.pkl",
+            ttl_sec=max(float(AGI._service_cleanup_done_ttl_sec), 0.0),
+            max_files=max(int(AGI._service_cleanup_done_max_files), 0),
+        )
+        cleaned_failed = _cleanup_dir(
+            AGI._service_queue_failed,
+            pattern="*.task.pkl",
+            ttl_sec=max(float(AGI._service_cleanup_failed_ttl_sec), 0.0),
+            max_files=max(int(AGI._service_cleanup_failed_max_files), 0),
+        )
+        cleaned_heartbeats = _cleanup_dir(
+            AGI._service_queue_heartbeats,
+            pattern="*.json",
+            ttl_sec=max(float(AGI._service_cleanup_heartbeat_ttl_sec), 0.0),
+            max_files=max(int(AGI._service_cleanup_heartbeat_max_files), 0),
+        )
+
+        return {
+            "done": cleaned_done,
+            "failed": cleaned_failed,
+            "heartbeats": cleaned_heartbeats,
+        }
+
+    @staticmethod
     def _service_public_args(args: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Drop AGI internal service keys before building a distribution plan."""
 
@@ -1030,6 +1106,7 @@ class AGI:
             if client is not None and AGI._service_workers:
                 restart_info = await AGI._service_auto_restart_unhealthy(env, client)
 
+            cleanup_info = AGI._service_cleanup_artifacts()
             queue_state = AGI._service_queue_counts()
             queue_dir = str(AGI._service_queue_root) if AGI._service_queue_root else None
             workers_snapshot = list(AGI._service_workers)
@@ -1043,6 +1120,7 @@ class AGI:
                     "client_status": client_status,
                     "queue": queue_state,
                     "queue_dir": queue_dir,
+                    "cleanup": cleanup_info,
                     "restarted_workers": restart_info["restarted"],
                     "restart_reasons": restart_info["reasons"],
                 }
@@ -1056,6 +1134,7 @@ class AGI:
                     "client_status": "missing",
                     "queue": queue_state,
                     "queue_dir": queue_dir,
+                    "cleanup": cleanup_info,
                     "restarted_workers": restart_info["restarted"],
                     "restart_reasons": restart_info["reasons"],
                 }
@@ -1088,6 +1167,7 @@ class AGI:
                 "client_status": getattr(client, "status", None),
                 "queue": queue_state,
                 "queue_dir": queue_dir,
+                "cleanup": cleanup_info,
                 "restarted_workers": restart_info["restarted"],
                 "restart_reasons": restart_info["reasons"],
             }
@@ -1194,12 +1274,14 @@ class AGI:
             restart_info: Dict[str, Any] = {"restarted": [], "reasons": {}}
             if AGI._dask_client is not None:
                 restart_info = await AGI._service_auto_restart_unhealthy(env, AGI._dask_client)
+            cleanup_info = AGI._service_cleanup_artifacts()
             return {
                 "status": "running",
                 "workers": list(AGI._service_workers),
                 "pending": [],
                 "queue": AGI._service_queue_counts(),
                 "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else None,
+                "cleanup": cleanup_info,
                 "restarted_workers": restart_info["restarted"],
                 "restart_reasons": restart_info["reasons"],
                 "recovered": True,
@@ -1306,6 +1388,7 @@ class AGI:
 
         dask_workers = list(AGI._dask_workers)
         queue_paths = AGI._init_service_queue(env, service_queue_dir=service_queue_dir)
+        cleanup_info = AGI._service_cleanup_artifacts()
         AGI._service_worker_args = {
             **(AGI._args or {}),
             "_agi_service_mode": True,
@@ -1355,6 +1438,7 @@ class AGI:
             "workers": dask_workers,
             "pending": [],
             "queue_dir": str(queue_paths["root"]),
+            "cleanup": cleanup_info,
         }
 
     @staticmethod
@@ -1416,6 +1500,7 @@ class AGI:
         submit_seq = AGI._service_submit_counter
         batch_id = task_id or f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
         batch_name = task_name or "service-workplan"
+        cleanup_info = AGI._service_cleanup_artifacts()
 
         pending_dir = AGI._service_queue_pending
         queued_files: List[str] = []
@@ -1461,6 +1546,7 @@ class AGI:
             "workers": service_workers,
             "queued_files": queued_files,
             "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else str(pending_dir.parent),
+            "cleanup": cleanup_info,
         }
 
     @staticmethod

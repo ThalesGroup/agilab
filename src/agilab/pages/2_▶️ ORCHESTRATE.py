@@ -2142,6 +2142,27 @@ if __name__ == "__main__":
                 result_payload = _extract_result_dict_from_output(service_stdout)
                 if isinstance(result_payload, dict) and isinstance(result_payload.get("status"), str):
                     st.session_state["service_status_cache"] = result_payload["status"]
+                    restarted_workers = result_payload.get("restarted_workers") or []
+                    restart_reasons = result_payload.get("restart_reasons") or {}
+                    cleanup_stats = result_payload.get("cleanup") or {}
+
+                    if restarted_workers:
+                        _append_log_lines(local_log, "=== Service auto-restart ===")
+                        for worker in restarted_workers:
+                            reason = restart_reasons.get(worker, "unhealthy")
+                            _append_log_lines(local_log, f"restart {worker}: {reason}")
+
+                    if isinstance(cleanup_stats, dict) and any(
+                            int(cleanup_stats.get(key, 0) or 0) > 0
+                            for key in ("done", "failed", "heartbeats")
+                    ):
+                        _append_log_lines(local_log, "=== Service cleanup ===")
+                        _append_log_lines(
+                            local_log,
+                            f"done={int(cleanup_stats.get('done', 0) or 0)} "
+                            f"failed={int(cleanup_stats.get('failed', 0) or 0)} "
+                            f"heartbeats={int(cleanup_stats.get('heartbeats', 0) or 0)}",
+                        )
                 elif service_error or service_stderr.strip():
                     st.session_state["service_status_cache"] = "error"
 
@@ -2151,6 +2172,13 @@ if __name__ == "__main__":
                 if service_error or service_stderr.strip():
                     st.error(f"Service action '{action_name}' failed.")
                 else:
+                    if isinstance(result_payload, dict):
+                        restarted_workers = result_payload.get("restarted_workers") or []
+                        if restarted_workers:
+                            st.warning(
+                                "Service auto-restarted worker loops: "
+                                + ", ".join(str(worker) for worker in restarted_workers)
+                            )
                     st.success(
                         f"Service action '{action_name}' completed with status "
                         f"'{st.session_state.get('service_status_cache', 'unknown')}'."
