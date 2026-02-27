@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pickle
 from pathlib import Path
 import threading
 import time
@@ -125,3 +126,65 @@ def test_service_loop_without_worker_override_stops_cleanly():
     payload = result.get("payload")
     assert isinstance(payload, dict)
     assert payload.get("status") == "stopped"
+
+
+def test_service_loop_consumes_queued_tasks(tmp_path):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+    calls: list[tuple[object, object]] = []
+
+    def _works(plan, metadata):
+        calls.append((plan, metadata))
+
+    worker.works = _works
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "task_id": "batch-1",
+        "worker_idx": 0,
+        "worker": "127.0.0.1:8787",
+        "plan": {
+            "__agi_worker_chunk__": True,
+            "chunk": ["step-1"],
+            "total_workers": 1,
+            "worker_idx": 0,
+        },
+        "metadata": {
+            "__agi_worker_chunk__": True,
+            "chunk": [{"meta": 1}],
+            "total_workers": 1,
+            "worker_idx": 0,
+        },
+    }
+    task_file = pending / "000001-batch-1-000-worker.task.pkl"
+    with open(task_file, "wb") as stream:
+        pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 2.0
+    done_file = queue_root / "done" / task_file.name
+    while time.time() < deadline and not done_file.exists():
+        time.sleep(0.05)
+
+    assert done_file.exists(), "Service queue task was not moved to done"
+    assert len(calls) == 1
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+
+    payload_out = result.get("payload")
+    assert isinstance(payload_out, dict)
+    assert payload_out.get("processed") == 1
