@@ -81,6 +81,14 @@ jobs:
             --cov=agi_core --cov-report=xml:coverage-agi-core.xml \
             src/agilab/core/test || true
 
+      - name: Run service health smoke tests
+        if: matrix.python-version == '3.13'
+        run: |
+          set -e
+          uv run pytest -q \
+            src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json \
+            test/test_service_health_check.py
+
       - name: Upload JUnit results
         if: always()
         uses: actions/upload-artifact@v4
