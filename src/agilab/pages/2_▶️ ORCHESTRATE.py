@@ -538,6 +538,76 @@ def _extract_result_dict_from_output(raw_output: str) -> Optional[dict]:
     return None
 
 
+def _coerce_bool_setting(raw_value, default: bool) -> bool:
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, (int, float)):
+        return bool(raw_value)
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _coerce_int_setting(raw_value, default: int, *, minimum: int = 0) -> int:
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+    return max(value, minimum)
+
+
+def _coerce_float_setting(
+        raw_value,
+        default: float,
+        *,
+        minimum: float = 0.0,
+        maximum: float = 1.0,
+) -> float:
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return default
+    if value < minimum:
+        return minimum
+    if value > maximum:
+        return maximum
+    return value
+
+
+def _evaluate_service_health_gate(
+        payload: dict,
+        *,
+        allow_idle: bool,
+        max_unhealthy: int,
+        max_restart_rate: float,
+) -> tuple[int, str, dict]:
+    status = str(payload.get("status", "unknown") or "unknown").lower()
+    unhealthy = _coerce_int_setting(payload.get("workers_unhealthy_count"), 0, minimum=0)
+    running = _coerce_int_setting(payload.get("workers_running_count"), 0, minimum=0)
+    restarted = _coerce_int_setting(payload.get("workers_restarted_count"), 0, minimum=0)
+    restart_rate = (float(restarted) / float(running)) if running > 0 else 0.0
+    details = {
+        "status": status,
+        "workers_unhealthy_count": unhealthy,
+        "workers_running_count": running,
+        "workers_restarted_count": restarted,
+        "restart_rate": restart_rate,
+    }
+    if unhealthy > max_unhealthy:
+        return 2, f"unhealthy workers {unhealthy} exceeds limit {max_unhealthy}", details
+    if status in {"error", "degraded"}:
+        return 3, f"service status is {status}", details
+    if status == "idle" and not allow_idle:
+        return 4, "service status is idle (set 'Allow idle status' to accept)", details
+    if restart_rate > max_restart_rate:
+        return 5, f"restart rate {restart_rate:.3f} exceeds limit {max_restart_rate:.3f}", details
+    return 0, "ok", details
+
+
 def safe_eval(expression, expected_type, error_message):
     try:
         result = ast.literal_eval(expression)
@@ -2082,6 +2152,81 @@ if __name__ == "__main__":
                     disabled=not service_enabled,
                 )
 
+            service_health_defaults = {
+                "allow_idle": False,
+                "max_unhealthy": 0,
+                "max_restart_rate": 0.25,
+            }
+            service_health_settings = cluster_params.get("service_health", {})
+            if isinstance(service_health_settings, dict):
+                service_health_defaults["allow_idle"] = _coerce_bool_setting(
+                    service_health_settings.get("allow_idle"),
+                    service_health_defaults["allow_idle"],
+                )
+                service_health_defaults["max_unhealthy"] = _coerce_int_setting(
+                    service_health_settings.get("max_unhealthy"),
+                    service_health_defaults["max_unhealthy"],
+                    minimum=0,
+                )
+                service_health_defaults["max_restart_rate"] = _coerce_float_setting(
+                    service_health_settings.get("max_restart_rate"),
+                    service_health_defaults["max_restart_rate"],
+                    minimum=0.0,
+                    maximum=1.0,
+                )
+
+            gate_allow_idle_key = f"service_health_allow_idle__{env.app}"
+            gate_max_unhealthy_key = f"service_health_max_unhealthy__{env.app}"
+            gate_max_restart_rate_key = f"service_health_max_restart_rate__{env.app}"
+            if gate_allow_idle_key not in st.session_state:
+                st.session_state[gate_allow_idle_key] = service_health_defaults["allow_idle"]
+            if gate_max_unhealthy_key not in st.session_state:
+                st.session_state[gate_max_unhealthy_key] = service_health_defaults["max_unhealthy"]
+            if gate_max_restart_rate_key not in st.session_state:
+                st.session_state[gate_max_restart_rate_key] = service_health_defaults["max_restart_rate"]
+
+            with st.expander("Health gate (SLA)", expanded=False):
+                st.caption("Used by the one-click HEALTH gate action and persisted in app_settings.toml.")
+                service_health_allow_idle = st.toggle(
+                    "Allow idle status",
+                    key=gate_allow_idle_key,
+                    disabled=not service_enabled,
+                )
+                service_health_max_unhealthy = st.number_input(
+                    "Max unhealthy workers",
+                    min_value=0,
+                    value=int(st.session_state.get(gate_max_unhealthy_key, 0)),
+                    step=1,
+                    key=gate_max_unhealthy_key,
+                    disabled=not service_enabled,
+                )
+                service_health_max_restart_rate = st.number_input(
+                    "Max restart rate (0.0-1.0)",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=float(st.session_state.get(gate_max_restart_rate_key, 0.25)),
+                    step=0.05,
+                    key=gate_max_restart_rate_key,
+                    disabled=not service_enabled,
+                )
+
+            updated_service_health_settings = {
+                "allow_idle": bool(service_health_allow_idle),
+                "max_unhealthy": int(service_health_max_unhealthy),
+                "max_restart_rate": float(service_health_max_restart_rate),
+            }
+            if cluster_params.get("service_health") != updated_service_health_settings:
+                cluster_params["service_health"] = updated_service_health_settings
+                st.session_state.app_settings["cluster"] = cluster_params
+                st.session_state.app_settings = _write_app_settings_toml(
+                    env.app_settings_file,
+                    st.session_state.app_settings,
+                )
+                try:
+                    load_toml_file.clear()
+                except Exception:
+                    pass
+
             st.caption(f"Service status: `{st.session_state.get('service_status_cache', 'idle')}`")
 
             def _build_service_snippet(service_action: str) -> str:
@@ -2128,7 +2273,7 @@ if __name__ == "__main__":
             )
             st.code(_build_service_snippet(preview_action), language="python")
 
-            start_col, status_col, stop_col = st.columns(3)
+            start_col, status_col, health_col, stop_col = st.columns(4)
             start_service_clicked = start_col.button(
                 "START service",
                 key="service_start_btn",
@@ -2139,6 +2284,13 @@ if __name__ == "__main__":
             status_service_clicked = status_col.button(
                 "STATUS service",
                 key="service_status_btn",
+                type="secondary",
+                use_container_width=True,
+                disabled=not service_enabled,
+            )
+            health_gate_clicked = health_col.button(
+                "HEALTH gate",
+                key="service_health_gate_btn",
                 type="secondary",
                 use_container_width=True,
                 disabled=not service_enabled,
@@ -2206,6 +2358,9 @@ if __name__ == "__main__":
                     f"cleanup_done_max: {service_cleanup_done_max_files}",
                     f"cleanup_failed_max: {service_cleanup_failed_max_files}",
                     f"cleanup_heartbeat_max: {service_cleanup_heartbeat_max_files}",
+                    f"health_allow_idle: {bool(service_health_allow_idle)}",
+                    f"health_max_unhealthy: {int(service_health_max_unhealthy)}",
+                    f"health_max_restart_rate: {float(service_health_max_restart_rate)}",
                     "=== Streaming service logs ===",
                 ]
                 for line in context_lines:
@@ -2325,11 +2480,37 @@ if __name__ == "__main__":
                         f"Service action '{action_name}' completed with status "
                         f"'{st.session_state.get('service_status_cache', 'unknown')}'."
                     )
+                if isinstance(result_payload, dict):
+                    return result_payload
+                return None
 
             if start_service_clicked:
                 await _execute_service_action("start")
             elif status_service_clicked:
                 await _execute_service_action("status")
+            elif health_gate_clicked:
+                health_payload = await _execute_service_action("health")
+                if isinstance(health_payload, dict):
+                    gate_code, gate_reason, gate_details = _evaluate_service_health_gate(
+                        health_payload,
+                        allow_idle=bool(service_health_allow_idle),
+                        max_unhealthy=int(service_health_max_unhealthy),
+                        max_restart_rate=float(service_health_max_restart_rate),
+                    )
+                    restart_rate = float(gate_details.get("restart_rate", 0.0) or 0.0)
+                    st.caption(
+                        f"Health gate metrics: status={gate_details.get('status')}, "
+                        f"unhealthy={gate_details.get('workers_unhealthy_count')}, "
+                        f"restarted={gate_details.get('workers_restarted_count')}, "
+                        f"running={gate_details.get('workers_running_count')}, "
+                        f"restart_rate={restart_rate:.3f}"
+                    )
+                    if gate_code == 0:
+                        st.success("HEALTH gate passed.")
+                    else:
+                        st.error(f"HEALTH gate failed (code {gate_code}): {gate_reason}")
+                else:
+                    st.error("HEALTH gate failed: unable to parse service health payload.")
             elif stop_service_clicked:
                 await _execute_service_action("stop")
 
