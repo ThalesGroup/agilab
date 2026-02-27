@@ -551,17 +551,60 @@ class AGI:
 
         ``action="start"`` provisions workers and submits ``BaseWorker.loop`` as a
         long-lived service task pinned to each Dask worker. ``action="stop"``
-        signals the loop through ``BaseWorker.break`` and optionally tears down
-        the Dask cluster when ``shutdown_on_stop`` is true.
+        signals the loop through ``BaseWorker.break_loop`` and optionally tears
+        down the Dask cluster when ``shutdown_on_stop`` is true.
         """
 
         command = (action or "start").lower()
-        if command not in {"start", "stop"}:
-            raise ValueError("action must be 'start' or 'stop'")
+        if command not in {"start", "stop", "status"}:
+            raise ValueError("action must be 'start', 'stop' or 'status'")
 
         AGI._service_shutdown_on_stop = shutdown_on_stop
         AGI._service_stop_timeout = stop_timeout
         AGI._service_poll_interval = poll_interval
+
+        if command == "status":
+            client = AGI._dask_client
+            if not AGI._service_futures:
+                client_status = getattr(client, "status", None) if client else None
+                return {
+                    "status": "idle",
+                    "workers": [],
+                    "pending": [],
+                    "client_status": client_status,
+                }
+
+            if client is None:
+                pending = list(AGI._service_futures.keys())
+                return {
+                    "status": "error",
+                    "workers": [],
+                    "pending": pending,
+                    "client_status": "missing",
+                }
+
+            running_workers: List[str] = []
+            pending_workers: List[str] = []
+            for worker, future in AGI._service_futures.items():
+                state = str(getattr(future, "status", "pending")).lower()
+                if state in {"finished", "error", "cancelled"}:
+                    pending_workers.append(worker)
+                else:
+                    running_workers.append(worker)
+
+            if running_workers and not pending_workers:
+                status = "running"
+            elif running_workers:
+                status = "degraded"
+            else:
+                status = "stopped"
+
+            return {
+                "status": status,
+                "workers": running_workers,
+                "pending": pending_workers,
+                "client_status": getattr(client, "status", None),
+            }
 
         if command == "stop":
             client = AGI._dask_client
@@ -686,15 +729,37 @@ class AGI:
             with open(path, "rb") as f:
                 AGI._capacity_predictor = pickle.load(f)
         else:
-            AGI._train_capacity(Path(env.home_abs))
+            AGI._capacity_predictor = None
+            logger.info(
+                "Capacity model not found at %s; skipping capacity bootstrap for service mode.",
+                path,
+            )
 
         AGI.agi_workers = {
+            "AgiDataWorker": "pandas-worker",
             "PolarsWorker": "polars-worker",
             "PandasWorker": "pandas-worker",
             "FireducksWorker": "fireducks-worker",
             "DagWorker": "dag-worker",
         }
-        AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
+        base_worker_cls = getattr(env, "base_worker_cls", None)
+        if not base_worker_cls:
+            target_worker_class = (
+                getattr(env, "target_worker_class", None) or "<worker class>"
+            )
+            worker_path = getattr(env, "worker_path", None) or "<worker path>"
+            supported = ", ".join(sorted(AGI.agi_workers.keys()))
+            raise ValueError(
+                f"Missing {target_worker_class} definition; expected {worker_path}. "
+                f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
+            )
+        try:
+            AGI.install_worker_group = [AGI.agi_workers[base_worker_cls]]
+        except KeyError as exc:
+            supported = ", ".join(sorted(AGI.agi_workers.keys()))
+            raise ValueError(
+                f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
+            ) from exc
 
         client = AGI._dask_client
         if client is None or getattr(client, "status", "") in {"closed", "closing"}:
