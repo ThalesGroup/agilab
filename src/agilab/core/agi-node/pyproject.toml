@@ -1,5 +1,5 @@
 [project]
-version = "2026.02.25"
+version = "2026.02.27"
 name = "agi-node"
 description = "Distributed worker orchestration and execution support library for AGILAB"
 requires-python = ">=3.11"
@@ -61,6 +61,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
+
 
 
 

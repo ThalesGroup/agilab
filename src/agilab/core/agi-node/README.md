@@ -1,6 +1,6 @@
 # AGI-NODE
 
-[![PyPI version](https://img.shields.io/pypi/v/agi-node?label=agi-node)](https://pypi.org/project/agi-node/)
+[![PyPI version](https://img.shields.io/badge/PyPI-2026.02.27-informational?logo=pypi)](https://pypi.org/project/agi-node)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-node.svg)](https://pypi.org/project/agi-node/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-node)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
