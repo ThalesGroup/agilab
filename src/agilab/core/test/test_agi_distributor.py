@@ -65,6 +65,21 @@ def _real_service_stub_break_loop():
 def _reset_agi_service_state(monkeypatch, tmp_path):
     state_file = tmp_path / "service_state.json"
     monkeypatch.setattr(AGI, "_service_state_path", staticmethod(lambda _env: state_file))
+    health_file = tmp_path / "service_health.json"
+
+    def _health_path(_env, health_output_path=None):
+        if health_output_path is None:
+            health_file.parent.mkdir(parents=True, exist_ok=True)
+            return health_file
+        explicit = Path(str(health_output_path))
+        if explicit.is_absolute():
+            explicit.parent.mkdir(parents=True, exist_ok=True)
+            return explicit
+        resolved = (tmp_path / explicit).resolve(strict=False)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        return resolved
+
+    monkeypatch.setattr(AGI, "_service_health_path", staticmethod(_health_path))
     AGI._service_futures = {}
     AGI._service_workers = []
     AGI._dask_client = None
@@ -147,6 +162,23 @@ async def test_agi_serve_status_idle_when_not_started():
     assert status["status"] == "idle"
     assert status["workers"] == []
     assert status["pending"] == []
+    assert status["health"]["schema"] == "agi.service.health.v1"
+    assert status["health_path"]
+    assert Path(status["health_path"]).exists()
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_health_action_writes_json(tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    health_path = tmp_path / "export" / "health.json"
+    payload = await AGI.serve(env, action="health", health_output_path=health_path)
+    assert payload["schema"] == "agi.service.health.v1"
+    assert payload["status"] == "idle"
+    assert payload["path"] == str(health_path)
+    assert health_path.exists()
+    written = json.loads(health_path.read_text(encoding="utf-8"))
+    assert written["schema"] == "agi.service.health.v1"
+    assert written["status"] == "idle"
 
 
 @pytest.mark.asyncio
@@ -182,13 +214,19 @@ async def test_agi_serve_start_status_stop_supports_agidataworker(monkeypatch):
     )
     assert started["status"] == "running"
     assert AGI.install_worker_group == ["pandas-worker"]
+    assert started["health"]["schema"] == "agi.service.health.v1"
+    assert Path(started["health_path"]).exists()
 
     status = await AGI.serve(env, action="status")
     assert status["status"] == "running"
     assert status["workers"] == ["127.0.0.1:8787"]
+    assert status["health"]["status"] == "running"
+    assert Path(status["health_path"]).exists()
 
     stopped = await AGI.serve(env, action="stop", shutdown_on_stop=False)
     assert stopped["status"] == "stopped"
+    assert stopped["health"]["status"] == "stopped"
+    assert Path(stopped["health_path"]).exists()
 
 
 @pytest.mark.asyncio
