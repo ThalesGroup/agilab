@@ -2,6 +2,10 @@
 
 ## v2026.02.27-2 (2026-02-27)
 
+### Packaging note
+- `v2026.02.27-2` is a Git patch tag only.
+- Python package version remains `2026.02.27` (no PyPI republish for this patch tag).
+
 ### Added
 - Service health checker now supports SLA thresholds loaded from per-app
   `app_settings.toml` (`[cluster.service_health]`) with CLI overrides.
