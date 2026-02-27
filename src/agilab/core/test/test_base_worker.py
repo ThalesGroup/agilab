@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -103,3 +105,23 @@ def test_apply_managed_pc_path_overrides():
 
     assert isinstance(result.payload, Path)
     assert str(result.payload).startswith(str(Path.home() / OverrideWorker.managed_pc_home_suffix))
+
+
+def test_service_loop_without_worker_override_stops_cleanly():
+    worker = DummyWorker()
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+    time.sleep(0.1)
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "BaseWorker.loop did not stop after break_loop"
+
+    payload = result.get("payload")
+    assert isinstance(payload, dict)
+    assert payload.get("status") == "stopped"
