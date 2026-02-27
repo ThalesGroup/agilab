@@ -89,6 +89,25 @@ jobs:
             src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json \
             test/test_service_health_check.py
 
+      - name: Validate coverage artifacts
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          if [ ! -f .coverage.service-health ]; then
+            echo "Missing .coverage.service-health artifact after service health smoke tests."
+            ls -la .coverage* || true
+            exit 1
+          fi
+          shopt -s nullglob
+          coverage_files=(.coverage .coverage.*)
+          if [ ${#coverage_files[@]} -eq 0 ]; then
+            echo "No .coverage artifacts found before combine."
+            exit 1
+          fi
+          printf 'Coverage artifacts:\\n'
+          printf '  %s\\n' "${coverage_files[@]}"
+          shopt -u nullglob
+
       - name: Upload JUnit results
         if: always()
         uses: actions/upload-artifact@v4
