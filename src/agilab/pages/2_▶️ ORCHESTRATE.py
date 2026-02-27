@@ -2122,7 +2122,7 @@ if __name__ == "__main__":
 
             preview_action = st.selectbox(
                 "Service snippet action",
-                options=["start", "status", "stop"],
+                options=["start", "status", "health", "stop"],
                 index=0,
                 key="service_snippet_action",
             )
@@ -2256,6 +2256,7 @@ if __name__ == "__main__":
                     cleanup_stats = result_payload.get("cleanup") or {}
                     worker_health = result_payload.get("worker_health") or []
                     heartbeat_timeout_sec = result_payload.get("heartbeat_timeout_sec")
+                    health_json_path = result_payload.get("health_path") or result_payload.get("path")
 
                     if isinstance(worker_health, list):
                         st.session_state["service_health_cache"] = worker_health
@@ -2288,6 +2289,8 @@ if __name__ == "__main__":
 
                     if heartbeat_timeout_sec is not None:
                         _append_log_lines(local_log, f"heartbeat_timeout_sec={heartbeat_timeout_sec}")
+                    if health_json_path:
+                        _append_log_lines(local_log, f"service_health_json={health_json_path}")
 
                     if isinstance(cleanup_stats, dict) and any(
                             int(cleanup_stats.get(key, 0) or 0) > 0

@@ -639,6 +639,145 @@ class AGI:
             logger.debug("Failed to remove service state file %s: %s", state_path, exc)
 
     @staticmethod
+    def _service_health_path(
+            env: AgiEnv,
+            health_output_path: Optional[Union[str, Path]] = None,
+    ) -> Path:
+        if health_output_path:
+            candidate = Path(str(health_output_path))
+            if candidate.is_absolute():
+                path = candidate
+            else:
+                try:
+                    path = env.resolve_share_path(candidate)
+                except Exception:
+                    fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
+                    path = (fallback_home / ".agilab_service" / env.target / candidate).resolve(
+                        strict=False
+                    )
+        else:
+            relative_path = Path("service") / env.target / "health.json"
+            try:
+                path = env.resolve_share_path(relative_path)
+            except Exception:
+                fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
+                path = (
+                    fallback_home / ".agilab_service" / env.target / "health.json"
+                ).resolve(strict=False)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @staticmethod
+    def _service_health_payload(env: AgiEnv, result_payload: Dict[str, Any]) -> Dict[str, Any]:
+        workers = [str(worker) for worker in (result_payload.get("workers") or []) if worker]
+        pending = [str(worker) for worker in (result_payload.get("pending") or []) if worker]
+        restarted = [str(worker) for worker in (result_payload.get("restarted_workers") or []) if worker]
+        restart_reasons = result_payload.get("restart_reasons") or {}
+        queue = result_payload.get("queue") or {}
+        worker_health = result_payload.get("worker_health")
+        worker_health_rows = worker_health if isinstance(worker_health, list) else []
+
+        healthy_workers: List[str] = []
+        unhealthy_workers: List[str] = []
+        for row in worker_health_rows:
+            if not isinstance(row, dict):
+                continue
+            worker_name = str(row.get("worker", "")).strip()
+            if not worker_name:
+                continue
+            if bool(row.get("healthy", False)):
+                healthy_workers.append(worker_name)
+            else:
+                unhealthy_workers.append(worker_name)
+
+        health_payload: Dict[str, Any] = {
+            "schema": "agi.service.health.v1",
+            "timestamp": time.time(),
+            "app": env.app,
+            "target": env.target,
+            "status": str(result_payload.get("status", "unknown") or "unknown"),
+            "workers_running": workers,
+            "workers_pending": pending,
+            "workers_restarted": restarted,
+            "workers_healthy": healthy_workers,
+            "workers_unhealthy": unhealthy_workers,
+            "workers_running_count": len(workers),
+            "workers_pending_count": len(pending),
+            "workers_restarted_count": len(restarted),
+            "workers_healthy_count": len(healthy_workers),
+            "workers_unhealthy_count": len(unhealthy_workers),
+            "queue": queue if isinstance(queue, dict) else {},
+        }
+
+        if isinstance(restart_reasons, dict) and restart_reasons:
+            health_payload["restart_reasons"] = {
+                str(worker): str(reason)
+                for worker, reason in restart_reasons.items()
+            }
+        client_status = result_payload.get("client_status")
+        if client_status is not None:
+            health_payload["client_status"] = str(client_status)
+        heartbeat_timeout = result_payload.get("heartbeat_timeout_sec")
+        if heartbeat_timeout is not None:
+            try:
+                health_payload["heartbeat_timeout_sec"] = float(heartbeat_timeout)
+            except (TypeError, ValueError):
+                pass
+        queue_dir = result_payload.get("queue_dir")
+        if queue_dir:
+            health_payload["queue_dir"] = str(queue_dir)
+        cleanup = result_payload.get("cleanup")
+        if isinstance(cleanup, dict):
+            health_payload["cleanup"] = cleanup
+        if worker_health_rows:
+            health_payload["worker_health"] = worker_health_rows
+
+        return health_payload
+
+    @staticmethod
+    def _service_write_health_payload(
+            env: AgiEnv,
+            health_payload: Dict[str, Any],
+            *,
+            health_output_path: Optional[Union[str, Path]] = None,
+    ) -> Optional[str]:
+        try:
+            output_path = AGI._service_health_path(env, health_output_path=health_output_path)
+            tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as stream:
+                json.dump(health_payload, stream, indent=2)
+            os.replace(tmp_path, output_path)
+            return str(output_path)
+        except Exception as exc:
+            logger.warning("Failed to write service health payload: %s", exc)
+            return None
+
+    @staticmethod
+    def _service_finalize_response(
+            env: AgiEnv,
+            result_payload: Dict[str, Any],
+            *,
+            health_output_path: Optional[Union[str, Path]] = None,
+            health_only: bool = False,
+    ) -> Dict[str, Any]:
+        payload = dict(result_payload)
+        health_payload = AGI._service_health_payload(env, payload)
+        health_path = AGI._service_write_health_payload(
+            env,
+            health_payload,
+            health_output_path=health_output_path,
+        )
+        payload["health"] = health_payload
+        if health_path:
+            payload["health_path"] = health_path
+        if health_only:
+            exported = dict(health_payload)
+            if health_path:
+                exported["path"] = health_path
+            return exported
+        return payload
+
+    @staticmethod
     async def _service_connected_workers(client: Client) -> List[str]:
         info = client.scheduler_info()
         if inspect.isawaitable(info):
@@ -1206,6 +1345,7 @@ class AGI:
             cleanup_done_max_files: Optional[int] = None,
             cleanup_failed_max_files: Optional[int] = None,
             cleanup_heartbeat_max_files: Optional[int] = None,
+            health_output_path: Optional[Union[str, Path]] = None,
             **args: Any,
     ) -> Dict[str, Any]:
         """Manage persistent worker services without invoking the run workplan.
@@ -1217,8 +1357,11 @@ class AGI:
         """
 
         command = (action or "start").lower()
+        health_only = (command == "health")
+        if health_only:
+            command = "status"
         if command not in {"start", "stop", "status"}:
-            raise ValueError("action must be 'start', 'stop' or 'status'")
+            raise ValueError("action must be 'start', 'stop', 'status' or 'health'")
 
         AGI._service_shutdown_on_stop = shutdown_on_stop
         AGI._service_stop_timeout = stop_timeout
@@ -1261,35 +1404,45 @@ class AGI:
 
             if not AGI._service_futures and not workers_snapshot:
                 client_status = getattr(client, "status", None) if client else None
-                return {
-                    "status": "idle",
-                    "workers": [],
-                    "pending": [],
-                    "client_status": client_status,
-                    "queue": queue_state,
-                    "queue_dir": queue_dir,
-                    "cleanup": cleanup_info,
-                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                    "worker_health": worker_health,
-                    "restarted_workers": restart_info["restarted"],
-                    "restart_reasons": restart_info["reasons"],
-                }
+                return AGI._service_finalize_response(
+                    env,
+                    {
+                        "status": "idle",
+                        "workers": [],
+                        "pending": [],
+                        "client_status": client_status,
+                        "queue": queue_state,
+                        "queue_dir": queue_dir,
+                        "cleanup": cleanup_info,
+                        "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                        "worker_health": worker_health,
+                        "restarted_workers": restart_info["restarted"],
+                        "restart_reasons": restart_info["reasons"],
+                    },
+                    health_output_path=health_output_path,
+                    health_only=health_only,
+                )
 
             if client is None:
                 pending = list(AGI._service_futures.keys())
-                return {
-                    "status": "error",
-                    "workers": workers_snapshot,
-                    "pending": pending,
-                    "client_status": "missing",
-                    "queue": queue_state,
-                    "queue_dir": queue_dir,
-                    "cleanup": cleanup_info,
-                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                    "worker_health": worker_health,
-                    "restarted_workers": restart_info["restarted"],
-                    "restart_reasons": restart_info["reasons"],
-                }
+                return AGI._service_finalize_response(
+                    env,
+                    {
+                        "status": "error",
+                        "workers": workers_snapshot,
+                        "pending": pending,
+                        "client_status": "missing",
+                        "queue": queue_state,
+                        "queue_dir": queue_dir,
+                        "cleanup": cleanup_info,
+                        "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                        "worker_health": worker_health,
+                        "restarted_workers": restart_info["restarted"],
+                        "restart_reasons": restart_info["reasons"],
+                    },
+                    health_output_path=health_output_path,
+                    health_only=health_only,
+                )
 
             if AGI._service_futures:
                 running_workers: List[str] = []
@@ -1312,19 +1465,24 @@ class AGI:
                 pending_workers = []
                 status = "running" if running_workers else "stopped"
 
-            return {
-                "status": status,
-                "workers": running_workers,
-                "pending": pending_workers,
-                "client_status": getattr(client, "status", None),
-                "queue": queue_state,
-                "queue_dir": queue_dir,
-                "cleanup": cleanup_info,
-                "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                "worker_health": worker_health,
-                "restarted_workers": restart_info["restarted"],
-                "restart_reasons": restart_info["reasons"],
-            }
+            return AGI._service_finalize_response(
+                env,
+                {
+                    "status": status,
+                    "workers": running_workers,
+                    "pending": pending_workers,
+                    "client_status": getattr(client, "status", None),
+                    "queue": queue_state,
+                    "queue_dir": queue_dir,
+                    "cleanup": cleanup_info,
+                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                    "worker_health": worker_health,
+                    "restarted_workers": restart_info["restarted"],
+                    "restart_reasons": restart_info["reasons"],
+                },
+                health_output_path=health_output_path,
+                health_only=health_only,
+            )
 
         if command == "stop":
             client = AGI._dask_client
@@ -1349,7 +1507,11 @@ class AGI:
                         AGI._clean_job(True)
                     AGI._service_clear_state(env)
                     AGI._reset_service_queue_state()
-                    return {"status": "idle", "workers": [], "pending": []}
+                    return AGI._service_finalize_response(
+                        env,
+                        {"status": "idle", "workers": [], "pending": []},
+                        health_output_path=health_output_path,
+                    )
 
             if client is None:
                 logger.error(
@@ -1362,7 +1524,11 @@ class AGI:
                     AGI._clean_job(True)
                 AGI._service_clear_state(env)
                 AGI._reset_service_queue_state()
-                return {"status": "error", "workers": [], "pending": pending}
+                return AGI._service_finalize_response(
+                    env,
+                    {"status": "error", "workers": [], "pending": pending},
+                    health_output_path=health_output_path,
+                )
 
             future_map = {future: worker for worker, future in AGI._service_futures.items()}
             target_workers = list(AGI._service_futures.keys()) or list(AGI._service_workers)
@@ -1377,7 +1543,11 @@ class AGI:
                 AGI._service_workers = []
                 AGI._service_clear_state(env)
                 AGI._reset_service_queue_state()
-                return {"status": "idle", "workers": [], "pending": []}
+                return AGI._service_finalize_response(
+                    env,
+                    {"status": "idle", "workers": [], "pending": []},
+                    health_output_path=health_output_path,
+                )
 
             break_tasks = [
                 client.submit(
@@ -1424,7 +1594,11 @@ class AGI:
                 AGI._clean_job(True)
 
             status = "stopped" if not pending_workers else "partial"
-            return {"status": status, "workers": stopped_workers, "pending": pending_workers}
+            return AGI._service_finalize_response(
+                env,
+                {"status": status, "workers": stopped_workers, "pending": pending_workers},
+                health_output_path=health_output_path,
+            )
 
         # command == "start"
         if AGI._service_futures:
@@ -1448,19 +1622,24 @@ class AGI:
                 restart_info = await AGI._service_auto_restart_unhealthy(env, AGI._dask_client)
             cleanup_info = AGI._service_cleanup_artifacts()
             worker_health = AGI._service_worker_health(list(AGI._service_workers))
-            return {
-                "status": "running",
-                "workers": list(AGI._service_workers),
-                "pending": [],
-                "queue": AGI._service_queue_counts(),
-                "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else None,
-                "cleanup": cleanup_info,
-                "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                "worker_health": worker_health,
-                "restarted_workers": restart_info["restarted"],
-                "restart_reasons": restart_info["reasons"],
-                "recovered": True,
-            }
+            return AGI._service_finalize_response(
+                env,
+                {
+                    "status": "running",
+                    "workers": list(AGI._service_workers),
+                    "pending": [],
+                    "queue": AGI._service_queue_counts(),
+                    "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else None,
+                    "cleanup": cleanup_info,
+                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                    "worker_health": worker_health,
+                    "restarted_workers": restart_info["restarted"],
+                    "restart_reasons": restart_info["reasons"],
+                    "recovered": True,
+                },
+                health_output_path=health_output_path,
+                health_only=health_only,
+            )
 
         if not workers:
             workers = _workers_default
@@ -1608,15 +1787,20 @@ class AGI:
         AGI._service_write_state(env, AGI._service_state_payload(env))
 
         logger.info("Service loops started for workers: %s", dask_workers)
-        return {
-            "status": "running",
-            "workers": dask_workers,
-            "pending": [],
-            "queue_dir": str(queue_paths["root"]),
-            "cleanup": cleanup_info,
-            "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-            "worker_health": AGI._service_worker_health(list(dask_workers)),
-        }
+        return AGI._service_finalize_response(
+            env,
+            {
+                "status": "running",
+                "workers": dask_workers,
+                "pending": [],
+                "queue_dir": str(queue_paths["root"]),
+                "cleanup": cleanup_info,
+                "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
+                "worker_health": AGI._service_worker_health(list(dask_workers)),
+            },
+            health_output_path=health_output_path,
+            health_only=health_only,
+        )
 
     @staticmethod
     async def submit(
