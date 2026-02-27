@@ -478,8 +478,16 @@ class BaseWorker(abc.ABC):
             BaseWorker._service_stop_events[worker_id] = stop_event
             BaseWorker._service_active[worker_id] = True
 
-        poll = BaseWorker._service_poll_default if poll_interval is None else max(poll_interval, 0.0)
-        loop_fn = getattr(worker_inst, "loop", None)
+        poll = BaseWorker._service_poll_default if poll_interval is None else max(
+            poll_interval, 0.0
+        )
+        # Only invoke a worker-defined loop implementation. If the worker
+        # relies on BaseWorker.loop (default), block on stop_event instead of
+        # recursively calling this method again.
+        worker_loop = getattr(type(worker_inst), "loop", None)
+        loop_fn = None
+        if callable(worker_loop) and worker_loop is not BaseWorker.loop:
+            loop_fn = getattr(worker_inst, "loop", None)
         accepts_event = False
         if callable(loop_fn):
             try:
@@ -505,7 +513,7 @@ class BaseWorker(abc.ABC):
             if not callable(loop_fn):
                 # No custom loop provided; block until break is requested.
                 stop_event.wait()
-                return {"status": "idle", "runtime": 0.0}
+                return {"status": "stopped", "runtime": time.time() - start_time}
 
             def _run_once() -> Any:
                 if accepts_event:
@@ -516,11 +524,11 @@ class BaseWorker(abc.ABC):
                 result = _run_once()
                 if inspect.isawaitable(result):
                     try:
-                        asyncio.run(result)
+                        result = asyncio.run(result)
                     except RuntimeError:
                         loop = asyncio.new_event_loop()
                         try:
-                            loop.run_until_complete(result)
+                            result = loop.run_until_complete(result)
                         finally:
                             loop.close()
 

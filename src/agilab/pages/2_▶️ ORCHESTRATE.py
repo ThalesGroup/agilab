@@ -520,6 +520,24 @@ def parse_benchmark(benchmark_str):
     return {try_int(k): v for k, v in data.items()}
 
 
+def _extract_result_dict_from_output(raw_output: str) -> Optional[dict]:
+    """Best-effort parse of the printed AGI result dictionary."""
+    if not raw_output:
+        return None
+
+    for line in reversed(raw_output.splitlines()):
+        candidate = line.strip()
+        if not candidate or not candidate.startswith("{") or not candidate.endswith("}"):
+            continue
+        try:
+            parsed = ast.literal_eval(candidate)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
 def safe_eval(expression, expected_type, error_message):
     try:
         result = ast.literal_eval(expression)
@@ -1428,6 +1446,9 @@ async def page():
         st.session_state["args_serialized"] = ""
         st.session_state["run_log_cache"] = ""
         st.session_state.pop("log_text", None)
+        st.session_state.pop("service_log_cache", None)
+        st.session_state.pop("service_status_cache", None)
+        st.session_state.pop("_service_logs_expanded", None)
         st.session_state.pop("_benchmark_expand", None)
         st.session_state.pop("benchmark", None)
         args_override = None
@@ -1951,6 +1972,196 @@ if __name__ == "__main__":
 
                 except json.JSONDecodeError as e:
                     st.warning(f"Error decoding JSON: {e}")
+
+        st.session_state.setdefault("service_log_cache", "")
+        st.session_state.setdefault("service_status_cache", "idle")
+        st.session_state.setdefault("service_poll_interval", 1.0)
+        st.session_state.setdefault("service_stop_timeout", 30.0)
+        st.session_state.setdefault("service_shutdown_on_stop", True)
+
+        with st.expander("Service mode (persistent workers)", expanded=False):
+            service_enabled = bool(cluster_params.get("cluster_enabled", False))
+            if not service_enabled:
+                st.info("Enable Cluster in deployment settings before starting service mode.")
+
+            service_mode = (
+                int(cluster_params.get("pool", False))
+                + int(cluster_params.get("cython", False)) * 2
+                + int(service_enabled) * 4
+                + int(cluster_params.get("rapids", False)) * 8
+            )
+
+            service_poll_interval = st.number_input(
+                "Service poll interval (seconds)",
+                min_value=0.0,
+                value=float(st.session_state.get("service_poll_interval", 1.0)),
+                step=0.1,
+                key="service_poll_interval",
+                disabled=not service_enabled,
+                help="Used when worker loop does not handle stop_event directly.",
+            )
+            service_stop_timeout = st.number_input(
+                "Service stop timeout (seconds)",
+                min_value=0.0,
+                value=float(st.session_state.get("service_stop_timeout", 30.0)),
+                step=1.0,
+                key="service_stop_timeout",
+                disabled=not service_enabled,
+                help="Maximum wait time for worker service loops to stop.",
+            )
+            service_shutdown_on_stop = st.toggle(
+                "Shutdown cluster on STOP",
+                value=bool(st.session_state.get("service_shutdown_on_stop", True)),
+                key="service_shutdown_on_stop",
+                disabled=not service_enabled,
+            )
+
+            st.caption(f"Service status: `{st.session_state.get('service_status_cache', 'idle')}`")
+
+            def _build_service_snippet(service_action: str) -> str:
+                return f"""
+import asyncio
+from pathlib import Path
+from agi_cluster.agi_distributor import AGI
+from agi_env import AgiEnv
+
+APPS_PATH = "{env.apps_path}"
+APP = "{env.app}"
+
+async def main():
+    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={verbose})
+    res = await AGI.serve(
+        app_env,
+        action="{service_action}",
+        mode={service_mode},
+        scheduler={scheduler},
+        workers={workers},
+        poll_interval={float(service_poll_interval)},
+        shutdown_on_stop={bool(service_shutdown_on_stop)},
+        stop_timeout={float(service_stop_timeout)},
+        {st.session_state.args_serialized}
+    )
+    print(res)
+    return res
+
+if __name__ == "__main__":
+    asyncio.run(main())"""
+
+            preview_action = st.selectbox(
+                "Service snippet action",
+                options=["start", "status", "stop"],
+                index=0,
+                key="service_snippet_action",
+            )
+            st.code(_build_service_snippet(preview_action), language="python")
+
+            start_col, status_col, stop_col = st.columns(3)
+            start_service_clicked = start_col.button(
+                "START service",
+                key="service_start_btn",
+                type="primary",
+                use_container_width=True,
+                disabled=not service_enabled,
+            )
+            status_service_clicked = status_col.button(
+                "STATUS service",
+                key="service_status_btn",
+                type="secondary",
+                use_container_width=True,
+                disabled=not service_enabled,
+            )
+            stop_service_clicked = stop_col.button(
+                "STOP service",
+                key="service_stop_btn",
+                type="secondary",
+                use_container_width=True,
+                disabled=not service_enabled,
+            )
+
+            service_log_placeholder = st.empty()
+            cached_service_log = st.session_state.get("service_log_cache", "").strip()
+            if cached_service_log:
+                service_log_placeholder.code(
+                    cached_service_log,
+                    language="python",
+                    height=INSTALL_LOG_HEIGHT,
+                )
+
+            async def _execute_service_action(action_name: str) -> None:
+                _reset_traceback_skip()
+                local_log: list[str] = []
+                context_lines = [
+                    f"=== Service action: {action_name.upper()} ===",
+                    f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
+                    f"app: {env.app}",
+                    f"mode: {service_mode}",
+                    f"scheduler: {cluster_params.get('scheduler') if service_enabled else 'None'}",
+                    f"workers: {cluster_params.get('workers') if service_enabled else 'None'}",
+                    f"poll_interval: {service_poll_interval}",
+                    f"stop_timeout: {service_stop_timeout}",
+                    f"shutdown_on_stop: {service_shutdown_on_stop}",
+                    "=== Streaming service logs ===",
+                ]
+                for line in context_lines:
+                    _append_log_lines(local_log, line)
+
+                def _render_logs() -> None:
+                    service_log_placeholder.code(
+                        "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
+                        language="python",
+                        height=INSTALL_LOG_HEIGHT,
+                    )
+
+                _render_logs()
+                cmd_service = _build_service_snippet(action_name)
+                service_stdout = ""
+                service_stderr = ""
+                service_error: Exception | None = None
+
+                with st.spinner(f"Service action '{action_name}' in progress..."):
+                    def _service_log_callback(message: str) -> None:
+                        _append_log_lines(local_log, message)
+                        _render_logs()
+
+                    try:
+                        service_stdout, service_stderr = await env.run_agi(
+                            cmd_service.replace("asyncio.run(main())", env.snippet_tail),
+                            log_callback=_service_log_callback,
+                            venv=project_path,
+                        )
+                    except Exception as exc:
+                        service_error = exc
+                        service_stderr = str(exc)
+                        _append_log_lines(local_log, f"ERROR: {service_stderr}")
+
+                if service_stdout:
+                    _append_log_lines(local_log, service_stdout)
+                if service_stderr:
+                    _append_log_lines(local_log, service_stderr)
+
+                result_payload = _extract_result_dict_from_output(service_stdout)
+                if isinstance(result_payload, dict) and isinstance(result_payload.get("status"), str):
+                    st.session_state["service_status_cache"] = result_payload["status"]
+                elif service_error or service_stderr.strip():
+                    st.session_state["service_status_cache"] = "error"
+
+                st.session_state["service_log_cache"] = "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:])
+                _render_logs()
+
+                if service_error or service_stderr.strip():
+                    st.error(f"Service action '{action_name}' failed.")
+                else:
+                    st.success(
+                        f"Service action '{action_name}' completed with status "
+                        f"'{st.session_state.get('service_status_cache', 'unknown')}'."
+                    )
+
+            if start_service_clicked:
+                await _execute_service_action("start")
+            elif status_service_clicked:
+                await _execute_service_action("status")
+            elif stop_service_clicked:
+                await _execute_service_action("stop")
 
         existing_run_log = st.session_state.get("run_log_cache", "").strip()
         run_log_expander = None
