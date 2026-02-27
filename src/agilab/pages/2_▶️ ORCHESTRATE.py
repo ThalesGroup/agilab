@@ -1978,6 +1978,14 @@ if __name__ == "__main__":
         st.session_state.setdefault("service_poll_interval", 1.0)
         st.session_state.setdefault("service_stop_timeout", 30.0)
         st.session_state.setdefault("service_shutdown_on_stop", True)
+        st.session_state.setdefault("service_heartbeat_timeout", 10.0)
+        st.session_state.setdefault("service_cleanup_done_ttl_hours", 168.0)
+        st.session_state.setdefault("service_cleanup_failed_ttl_hours", 336.0)
+        st.session_state.setdefault("service_cleanup_heartbeat_ttl_hours", 24.0)
+        st.session_state.setdefault("service_cleanup_done_max_files", 2000)
+        st.session_state.setdefault("service_cleanup_failed_max_files", 2000)
+        st.session_state.setdefault("service_cleanup_heartbeat_max_files", 1000)
+        st.session_state.setdefault("service_health_cache", [])
 
         with st.expander("Service mode (persistent workers)", expanded=False):
             service_enabled = bool(cluster_params.get("cluster_enabled", False))
@@ -2015,6 +2023,64 @@ if __name__ == "__main__":
                 key="service_shutdown_on_stop",
                 disabled=not service_enabled,
             )
+            service_heartbeat_timeout = st.number_input(
+                "Heartbeat timeout (seconds)",
+                min_value=0.1,
+                value=float(st.session_state.get("service_heartbeat_timeout", 10.0)),
+                step=0.5,
+                key="service_heartbeat_timeout",
+                disabled=not service_enabled,
+                help="Worker health timeout before auto-restart is triggered.",
+            )
+            with st.expander("Retention policy", expanded=False):
+                service_cleanup_done_ttl_hours = st.number_input(
+                    "Done artifacts TTL (hours)",
+                    min_value=0.0,
+                    value=float(st.session_state.get("service_cleanup_done_ttl_hours", 168.0)),
+                    step=1.0,
+                    key="service_cleanup_done_ttl_hours",
+                    disabled=not service_enabled,
+                )
+                service_cleanup_failed_ttl_hours = st.number_input(
+                    "Failed artifacts TTL (hours)",
+                    min_value=0.0,
+                    value=float(st.session_state.get("service_cleanup_failed_ttl_hours", 336.0)),
+                    step=1.0,
+                    key="service_cleanup_failed_ttl_hours",
+                    disabled=not service_enabled,
+                )
+                service_cleanup_heartbeat_ttl_hours = st.number_input(
+                    "Heartbeat artifacts TTL (hours)",
+                    min_value=0.0,
+                    value=float(st.session_state.get("service_cleanup_heartbeat_ttl_hours", 24.0)),
+                    step=1.0,
+                    key="service_cleanup_heartbeat_ttl_hours",
+                    disabled=not service_enabled,
+                )
+                service_cleanup_done_max_files = st.number_input(
+                    "Done artifacts max files",
+                    min_value=0,
+                    value=int(st.session_state.get("service_cleanup_done_max_files", 2000)),
+                    step=100,
+                    key="service_cleanup_done_max_files",
+                    disabled=not service_enabled,
+                )
+                service_cleanup_failed_max_files = st.number_input(
+                    "Failed artifacts max files",
+                    min_value=0,
+                    value=int(st.session_state.get("service_cleanup_failed_max_files", 2000)),
+                    step=100,
+                    key="service_cleanup_failed_max_files",
+                    disabled=not service_enabled,
+                )
+                service_cleanup_heartbeat_max_files = st.number_input(
+                    "Heartbeat artifacts max files",
+                    min_value=0,
+                    value=int(st.session_state.get("service_cleanup_heartbeat_max_files", 1000)),
+                    step=100,
+                    key="service_cleanup_heartbeat_max_files",
+                    disabled=not service_enabled,
+                )
 
             st.caption(f"Service status: `{st.session_state.get('service_status_cache', 'idle')}`")
 
@@ -2039,6 +2105,13 @@ async def main():
         poll_interval={float(service_poll_interval)},
         shutdown_on_stop={bool(service_shutdown_on_stop)},
         stop_timeout={float(service_stop_timeout)},
+        heartbeat_timeout={float(service_heartbeat_timeout)},
+        cleanup_done_ttl_sec={float(service_cleanup_done_ttl_hours) * 3600.0},
+        cleanup_failed_ttl_sec={float(service_cleanup_failed_ttl_hours) * 3600.0},
+        cleanup_heartbeat_ttl_sec={float(service_cleanup_heartbeat_ttl_hours) * 3600.0},
+        cleanup_done_max_files={int(service_cleanup_done_max_files)},
+        cleanup_failed_max_files={int(service_cleanup_failed_max_files)},
+        cleanup_heartbeat_max_files={int(service_cleanup_heartbeat_max_files)},
         {st.session_state.args_serialized}
     )
     print(res)
@@ -2079,6 +2152,32 @@ if __name__ == "__main__":
             )
 
             service_log_placeholder = st.empty()
+            service_health_placeholder = st.empty()
+
+            def _render_service_health_table() -> None:
+                health_rows = st.session_state.get("service_health_cache") or []
+                if not isinstance(health_rows, list) or not health_rows:
+                    service_health_placeholder.empty()
+                    return
+                try:
+                    health_df = pd.DataFrame(health_rows)
+                except Exception:
+                    service_health_placeholder.empty()
+                    return
+                ordered_cols = [
+                    "worker",
+                    "healthy",
+                    "reason",
+                    "future_state",
+                    "heartbeat_state",
+                    "heartbeat_age_sec",
+                ]
+                display_cols = [col for col in ordered_cols if col in health_df.columns]
+                if display_cols:
+                    health_df = health_df[display_cols]
+                service_health_placeholder.dataframe(health_df, use_container_width=True)
+
+            _render_service_health_table()
             cached_service_log = st.session_state.get("service_log_cache", "").strip()
             if cached_service_log:
                 service_log_placeholder.code(
@@ -2100,6 +2199,13 @@ if __name__ == "__main__":
                     f"poll_interval: {service_poll_interval}",
                     f"stop_timeout: {service_stop_timeout}",
                     f"shutdown_on_stop: {service_shutdown_on_stop}",
+                    f"heartbeat_timeout: {service_heartbeat_timeout}",
+                    f"cleanup_done_ttl_h: {service_cleanup_done_ttl_hours}",
+                    f"cleanup_failed_ttl_h: {service_cleanup_failed_ttl_hours}",
+                    f"cleanup_heartbeat_ttl_h: {service_cleanup_heartbeat_ttl_hours}",
+                    f"cleanup_done_max: {service_cleanup_done_max_files}",
+                    f"cleanup_failed_max: {service_cleanup_failed_max_files}",
+                    f"cleanup_heartbeat_max: {service_cleanup_heartbeat_max_files}",
                     "=== Streaming service logs ===",
                 ]
                 for line in context_lines:
@@ -2142,15 +2248,46 @@ if __name__ == "__main__":
                 result_payload = _extract_result_dict_from_output(service_stdout)
                 if isinstance(result_payload, dict) and isinstance(result_payload.get("status"), str):
                     st.session_state["service_status_cache"] = result_payload["status"]
+                    if st.session_state["service_status_cache"] in {"stopped", "idle"}:
+                        st.session_state["service_health_cache"] = []
+                        _render_service_health_table()
                     restarted_workers = result_payload.get("restarted_workers") or []
                     restart_reasons = result_payload.get("restart_reasons") or {}
                     cleanup_stats = result_payload.get("cleanup") or {}
+                    worker_health = result_payload.get("worker_health") or []
+                    heartbeat_timeout_sec = result_payload.get("heartbeat_timeout_sec")
+
+                    if isinstance(worker_health, list):
+                        st.session_state["service_health_cache"] = worker_health
+                        _render_service_health_table()
+                        if worker_health:
+                            _append_log_lines(local_log, "=== Service health ===")
+                            for row in worker_health:
+                                if not isinstance(row, dict):
+                                    continue
+                                worker_name = row.get("worker", "?")
+                                healthy = bool(row.get("healthy", False))
+                                reason = row.get("reason", "")
+                                age = row.get("heartbeat_age_sec", None)
+                                hb_state = row.get("heartbeat_state", "missing")
+                                status_word = "healthy" if healthy else "unhealthy"
+                                _append_log_lines(
+                                    local_log,
+                                    f"{worker_name}: {status_word} "
+                                    f"(hb_state={hb_state}, hb_age={age}, reason={reason})",
+                                )
+                    else:
+                        st.session_state["service_health_cache"] = []
+                        _render_service_health_table()
 
                     if restarted_workers:
                         _append_log_lines(local_log, "=== Service auto-restart ===")
                         for worker in restarted_workers:
                             reason = restart_reasons.get(worker, "unhealthy")
                             _append_log_lines(local_log, f"restart {worker}: {reason}")
+
+                    if heartbeat_timeout_sec is not None:
+                        _append_log_lines(local_log, f"heartbeat_timeout_sec={heartbeat_timeout_sec}")
 
                     if isinstance(cleanup_stats, dict) and any(
                             int(cleanup_stats.get(key, 0) or 0) > 0
@@ -2165,6 +2302,8 @@ if __name__ == "__main__":
                         )
                 elif service_error or service_stderr.strip():
                     st.session_state["service_status_cache"] = "error"
+                    st.session_state["service_health_cache"] = []
+                    _render_service_health_table()
 
                 st.session_state["service_log_cache"] = "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:])
                 _render_logs()
