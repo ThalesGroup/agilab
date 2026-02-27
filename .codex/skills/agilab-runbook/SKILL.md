@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-02-20
+  updated: 2026-02-27
 ---
 
 # AGILab runbook (Agent Skill)
@@ -39,7 +39,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 ## Common commands (from the runbook matrix)
 
-- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/AGILAB.py -- --openai-api-key "…" --apps-dir src/agilab/apps`
+- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --openai-api-key "…" --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --leave-most-recent --verbose`
 
