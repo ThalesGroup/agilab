@@ -8,4 +8,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$REPO_ROOT"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
-uv run python $REPO_ROOT/tools/zip_all.py --dir2zip $FilePrompt$ --follow-app-links --exclude-dir docs,codex
+uv run python $REPO_ROOT/tools/zip_all.py --dir2zip $FilePrompt$ --follow-app-links --exclude-dir docs --exclude-dir codex
