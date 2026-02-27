@@ -65,6 +65,12 @@ Use this runbook whenever you:
 - **Model defaults**: `agi_env.defaults` centralises the fallback OpenAI model. Set
   `AGILAB_DEFAULT_OPENAI_MODEL` to override globally without editing code; individual
   runs can still pass `OPENAI_MODEL`.
+- **Service health gates**: For service mode projects, persist SLA thresholds in
+  `[cluster.service_health]` in each app `app_settings.toml`:
+  - `allow_idle` (bool)
+  - `max_unhealthy` (int)
+  - `max_restart_rate` (float, `0.0` to `1.0`)
+  Use `tools/service_health_check.py` for CLI checks (`--format json|prometheus`).
 - **History metadata**: `lab_steps.toml` now records an `M` field for each step so the
   saved history shows which model produced the snippet. Older automations should ignore
   unknown keys.
@@ -211,6 +217,7 @@ Use this runbook whenever you:
 **CI & Badges**
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
 - Coverage uploads to Codecov for public reporting; README includes a Codecov badge. No Codecov token required for public repos.
+- In CI `tests (3.13)`, service health smoke tests write `.coverage.service-health`; coverage combine validates `.coverage*` artifacts before merging.
 
 **Tagging**
 - Git tags now use a date-based scheme in UTC: `YYYY.MM.DD` (e.g., `2025.10.08`).

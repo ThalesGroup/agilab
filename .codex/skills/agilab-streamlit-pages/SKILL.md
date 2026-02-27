@@ -3,13 +3,13 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-01-09
+  updated: 2026-02-27
 ---
 
 # Streamlit Pages Skill (AGILAB)
 
 Use this skill when editing:
-- `src/agilab/AGILAB.py`
+- `src/agilab/About_agilab.py`
 - `src/agilab/pages/*.py`
 - `src/agilab/apps-pages/*/src/*/*.py`
 
@@ -37,4 +37,3 @@ Use this skill when editing:
 
 - Every widget must have a stable, unique key.
 - Prefer namespaced keys: `f\"{page_id}:df_files\"`, not `"df_files"`.
-
