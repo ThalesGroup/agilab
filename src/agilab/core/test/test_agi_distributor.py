@@ -1,7 +1,10 @@
+import json
 import os
+import pickle
 import socket
 from pathlib import Path, PurePosixPath
 import asyncio
+import time
 import pytest
 from agi_cluster.agi_distributor import AGI
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
@@ -20,8 +23,18 @@ class _FakeClient:
     def __init__(self, workers: list[str]):
         self._workers = workers
         self.status = "running"
+        self.submissions: list[dict[str, object]] = []
 
-    def submit(self, *_args, **_kwargs):
+    def submit(self, *args, **kwargs):
+        fn = args[0] if args else None
+        fn_name = getattr(fn, "__name__", str(fn))
+        self.submissions.append(
+            {
+                "fn": fn_name,
+                "args": args[1:],
+                "kwargs": kwargs,
+            }
+        )
         return _FakeFuture()
 
     def gather(self, futures, errors="raise"):
@@ -34,16 +47,20 @@ class _FakeClient:
 
 
 @pytest.fixture(autouse=True)
-def _reset_agi_service_state():
+def _reset_agi_service_state(monkeypatch, tmp_path):
+    state_file = tmp_path / "service_state.json"
+    monkeypatch.setattr(AGI, "_service_state_path", staticmethod(lambda _env: state_file))
     AGI._service_futures = {}
     AGI._service_workers = []
     AGI._dask_client = None
     AGI._jobs = None
+    AGI._reset_service_queue_state()
     yield
     AGI._service_futures = {}
     AGI._service_workers = []
     AGI._dask_client = None
     AGI._jobs = None
+    AGI._reset_service_queue_state()
 
 
 def test_normalize_path():
@@ -170,3 +187,214 @@ async def test_agi_serve_rejects_unsupported_base_worker():
             mode=AGI.DASK_MODE,
             action="start",
         )
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_requires_running_service():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    with pytest.raises(RuntimeError, match=r"Service is not running"):
+        await AGI.submit(env, work_plan=[], work_plan_metadata=[])
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_queues_tasks_for_service_workers(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "AgiDataWorker"
+    fake_client = _FakeClient(["127.0.0.1:8787"])
+
+    async def _fake_start(_scheduler):
+        AGI._dask_client = fake_client
+
+    async def _fake_sync():
+        return None
+
+    async def _fake_stop():
+        return None
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+    monkeypatch.setattr(
+        agi_distributor_module,
+        "wait",
+        lambda futures, **_kwargs: (set(futures), set()),
+    )
+
+    await AGI.serve(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+        action="start",
+        service_queue_dir=tmp_path / "service_queue",
+    )
+
+    result = await AGI.submit(
+        env,
+        work_plan=[["mock-step"]],
+        work_plan_metadata=[[{"step": 1}]],
+        task_name="test-batch",
+    )
+    assert result["status"] == "queued"
+    assert len(result["queued_files"]) == 1
+
+    queued_file = Path(result["queued_files"][0])
+    assert queued_file.exists()
+    with open(queued_file, "rb") as stream:
+        payload = pickle.load(stream)
+    assert payload["task_name"] == "test-batch"
+    assert payload["worker_idx"] == 0
+    assert payload["worker"] == "127.0.0.1:8787"
+
+    stopped = await AGI.serve(env, action="stop", shutdown_on_stop=False)
+    assert stopped["status"] == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_status_recovers_persistent_state(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    queue_dir = tmp_path / "service_queue"
+    for name in ("pending", "running", "done", "failed"):
+        (queue_dir / name).mkdir(parents=True, exist_ok=True)
+
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "scheduler_ip": "127.0.0.1",
+            "scheduler_port": 8786,
+            "workers": {"127.0.0.1": 1},
+            "service_workers": ["127.0.0.1:8787"],
+            "queue_dir": str(queue_dir),
+            "args": {},
+            "poll_interval": 1.0,
+            "stop_timeout": 30.0,
+            "shutdown_on_stop": True,
+        },
+    )
+
+    fake_client = _FakeClient(["127.0.0.1:8787"])
+
+    async def _fake_connect(*_args, **_kwargs):
+        return fake_client
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect))
+
+    status = await AGI.serve(env, action="status")
+    assert status["status"] == "running"
+    assert status["workers"] == ["127.0.0.1:8787"]
+    assert status["queue_dir"] == str(queue_dir)
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_recovers_persistent_state(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    queue_dir = tmp_path / "service_queue"
+    for name in ("pending", "running", "done", "failed"):
+        (queue_dir / name).mkdir(parents=True, exist_ok=True)
+
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "scheduler_ip": "127.0.0.1",
+            "scheduler_port": 8786,
+            "workers": {"127.0.0.1": 1},
+            "service_workers": ["127.0.0.1:8787"],
+            "queue_dir": str(queue_dir),
+            "args": {},
+            "poll_interval": 1.0,
+            "stop_timeout": 30.0,
+            "shutdown_on_stop": True,
+        },
+    )
+
+    fake_client = _FakeClient(["127.0.0.1:8787"])
+
+    async def _fake_connect(*_args, **_kwargs):
+        return fake_client
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect))
+
+    result = await AGI.submit(
+        env,
+        work_plan=[["recovered-step"]],
+        work_plan_metadata=[[{"meta": "ok"}]],
+        task_name="recovered-batch",
+    )
+
+    assert result["status"] == "queued"
+    assert len(result["queued_files"]) == 1
+    queued_file = Path(result["queued_files"][0])
+    assert queued_file.exists()
+
+
+@pytest.mark.asyncio
+async def test_agi_status_auto_restarts_stale_heartbeat(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    queue_dir = tmp_path / "service_queue"
+    for name in ("pending", "running", "done", "failed", "heartbeats"):
+        (queue_dir / name).mkdir(parents=True, exist_ok=True)
+
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "scheduler_ip": "127.0.0.1",
+            "scheduler_port": 8786,
+            "workers": {"127.0.0.1": 1},
+            "service_workers": ["127.0.0.1:8787"],
+            "queue_dir": str(queue_dir),
+            "args": {},
+            "poll_interval": 0.1,
+            "stop_timeout": 30.0,
+            "shutdown_on_stop": True,
+            "heartbeat_timeout": 0.5,
+            "started_at": time.time() - 30.0,
+        },
+    )
+
+    stale_hb = queue_dir / "heartbeats" / "000-127.0.0.1-8787.json"
+    stale_hb.write_text(
+        json.dumps(
+            {
+                "worker_id": 0,
+                "worker": "127.0.0.1:8787",
+                "timestamp": time.time() - 20.0,
+                "state": "running",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    fake_client = _FakeClient(["127.0.0.1:8787"])
+
+    async def _fake_connect(*_args, **_kwargs):
+        return fake_client
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect))
+
+    status = await AGI.serve(env, action="status")
+    assert status["status"] == "running"
+    assert status["restarted_workers"] == ["127.0.0.1:8787"]
+    assert status["restart_reasons"]["127.0.0.1:8787"].startswith("stale-heartbeat")
+
+    submitted = [entry["fn"] for entry in fake_client.submissions]
+    assert "break_loop" in submitted
+    assert "_new" in submitted
+    assert "loop" in submitted
