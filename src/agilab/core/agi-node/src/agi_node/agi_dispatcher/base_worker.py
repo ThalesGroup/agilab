@@ -30,6 +30,8 @@ import inspect
 import io
 import json
 import os
+import pickle
+import re
 import shutil
 import stat
 import subprocess
@@ -501,6 +503,47 @@ class BaseWorker(abc.ABC):
                 # Some builtins don't expose signatures; fall back to simple mode
                 accepts_event = False
 
+        service_queue_dir = None
+        worker_args = getattr(worker_inst, "args", None)
+        if worker_args is not None:
+            service_queue_dir = getattr(worker_args, "_agi_service_queue_dir", None)
+            if service_queue_dir is None and hasattr(worker_args, "get"):
+                service_queue_dir = worker_args.get("_agi_service_queue_dir")
+
+        def _write_heartbeat(_state: str) -> None:
+            return
+
+        if service_queue_dir:
+            queue_root = Path(str(service_queue_dir)).expanduser().resolve(strict=False)
+            heartbeat_dir = queue_root / "heartbeats"
+            heartbeat_dir.mkdir(parents=True, exist_ok=True)
+            safe_worker = re.sub(
+                r"[^a-zA-Z0-9_.-]+", "-", str(BaseWorker._worker or worker_id)
+            ).strip("-") or "worker"
+            heartbeat_file = heartbeat_dir / f"{worker_id:03d}-{safe_worker}.json"
+
+            def _write_heartbeat(state: str) -> None:
+                payload = {
+                    "worker_id": worker_id,
+                    "worker": str(BaseWorker._worker),
+                    "pid": os.getpid(),
+                    "timestamp": time.time(),
+                    "state": state,
+                }
+                tmp = heartbeat_file.with_suffix(heartbeat_file.suffix + ".tmp")
+                try:
+                    with open(tmp, "w", encoding="utf-8") as stream:
+                        json.dump(payload, stream)
+                    os.replace(tmp, heartbeat_file)
+                except Exception:
+                    with suppress(FileNotFoundError):
+                        tmp.unlink()
+                    logger.debug(
+                        "worker #%s: failed to write service heartbeat",
+                        worker_id,
+                        exc_info=True,
+                    )
+
         start_time = time.time()
         logger.info(
             "worker #%s: %s entering service loop (poll %.3fs)",
@@ -511,6 +554,112 @@ class BaseWorker(abc.ABC):
 
         try:
             if not callable(loop_fn):
+                if service_queue_dir:
+                    queue_root = Path(str(service_queue_dir)).expanduser().resolve(strict=False)
+                    queue_dirs = {
+                        "pending": queue_root / "pending",
+                        "running": queue_root / "running",
+                        "done": queue_root / "done",
+                        "failed": queue_root / "failed",
+                        "heartbeats": queue_root / "heartbeats",
+                    }
+                    for path in queue_dirs.values():
+                        path.mkdir(parents=True, exist_ok=True)
+
+                    def _dump_payload(path: Path, payload: dict[str, Any]) -> None:
+                        tmp = path.with_suffix(path.suffix + ".tmp")
+                        with open(tmp, "wb") as stream:
+                            pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+                        os.replace(tmp, path)
+
+                    processed = 0
+                    failures = 0
+                    idle_wait = poll if poll > 0 else 0.05
+                    _write_heartbeat("running")
+
+                    while not stop_event.is_set():
+                        _write_heartbeat("running")
+                        claimed = False
+                        for pending_path in sorted(queue_dirs["pending"].glob("*.task.pkl")):
+                            try:
+                                with open(pending_path, "rb") as stream:
+                                    payload = pickle.load(stream)
+                            except FileNotFoundError:
+                                continue
+                            except Exception as exc:
+                                logger.error(
+                                    "worker #%s: cannot read service task %s: %s",
+                                    worker_id,
+                                    pending_path,
+                                    exc,
+                                )
+                                failed_path = queue_dirs["failed"] / pending_path.name
+                                with suppress(FileNotFoundError):
+                                    pending_path.replace(failed_path)
+                                continue
+
+                            target_idx = payload.get("worker_idx")
+                            target_worker = str(payload.get("worker", "") or "").strip()
+                            if target_idx is not None and target_idx != worker_id:
+                                continue
+                            if target_worker and target_worker != str(BaseWorker._worker):
+                                continue
+
+                            running_path = queue_dirs["running"] / pending_path.name
+                            try:
+                                pending_path.replace(running_path)
+                            except FileNotFoundError:
+                                continue
+
+                            claimed = True
+                            task_start = time.time()
+                            try:
+                                _write_heartbeat("processing")
+                                logs = BaseWorker._do_works(
+                                    payload.get("plan", []),
+                                    payload.get("metadata", []),
+                                )
+                                payload["status"] = "done"
+                                payload["finished_at"] = time.time()
+                                payload["runtime"] = time.time() - task_start
+                                payload["worker_id"] = worker_id
+                                payload["worker_name"] = BaseWorker._worker
+                                payload["logs"] = logs
+                                _dump_payload(queue_dirs["done"] / pending_path.name, payload)
+                                processed += 1
+                            except Exception as exc:
+                                payload["status"] = "failed"
+                                payload["finished_at"] = time.time()
+                                payload["runtime"] = time.time() - task_start
+                                payload["worker_id"] = worker_id
+                                payload["worker_name"] = BaseWorker._worker
+                                payload["error"] = str(exc)
+                                payload["traceback"] = traceback.format_exc()
+                                _dump_payload(queue_dirs["failed"] / pending_path.name, payload)
+                                failures += 1
+                                logger.exception(
+                                    "worker #%s: service task failed (%s)",
+                                    worker_id,
+                                    pending_path.name,
+                                )
+                            finally:
+                                _write_heartbeat("running")
+                                with suppress(FileNotFoundError):
+                                    running_path.unlink()
+                            break
+
+                        if not claimed:
+                            stop_event.wait(idle_wait)
+
+                    _write_heartbeat("stopped")
+
+                    return {
+                        "status": "stopped",
+                        "runtime": time.time() - start_time,
+                        "processed": processed,
+                        "failed": failures,
+                    }
+
                 # No custom loop provided; block until break is requested.
                 stop_event.wait()
                 return {"status": "stopped", "runtime": time.time() - start_time}
@@ -521,6 +670,7 @@ class BaseWorker(abc.ABC):
                 return loop_fn()
 
             while not stop_event.is_set():
+                _write_heartbeat("running")
                 result = _run_once()
                 if inspect.isawaitable(result):
                     try:
@@ -542,6 +692,7 @@ class BaseWorker(abc.ABC):
                 if poll > 0:
                     stop_event.wait(poll)
 
+            _write_heartbeat("stopped")
             return {"status": "stopped", "runtime": time.time() - start_time}
 
         except Exception as exc:  # pragma: no cover - defensive logging
@@ -549,6 +700,7 @@ class BaseWorker(abc.ABC):
             raise
 
         finally:
+            _write_heartbeat("stopped")
             with BaseWorker._service_lock:
                 BaseWorker._service_active.pop(worker_id, None)
                 BaseWorker._service_stop_events.pop(worker_id, None)
