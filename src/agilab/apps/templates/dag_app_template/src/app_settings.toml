@@ -11,5 +11,10 @@ rapids = false
 verbose = true
 workers_enabled = false
 
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
 [cluster.workers]
 "127.0.0.1" = 1
