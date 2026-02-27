@@ -85,7 +85,7 @@ jobs:
         if: matrix.python-version == '3.13'
         run: |
           set -e
-          uv run pytest -q \
+          COVERAGE_FILE=.coverage.service-health uv run pytest -q \
             src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json \
             test/test_service_health_check.py
 
@@ -142,7 +142,11 @@ jobs:
         run: |
           set -e
           shopt -s nullglob
-          coverage_files=(.coverage.*)
+          coverage_files=()
+          if [ -f .coverage ]; then
+            coverage_files+=(.coverage)
+          fi
+          coverage_files+=(.coverage.*)
           if [ ${#coverage_files[@]} -eq 0 ]; then
             echo "No coverage data files produced."
             exit 1
