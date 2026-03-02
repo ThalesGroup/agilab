@@ -32,12 +32,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Checkout docs source repository
-        uses: actions/checkout@v4
-        with:
-          repository: jpmorard/thales_agilab
-          ref: main
-          path: thales_agilab
+      - name: Fetch docs source repository
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/jpmorard/thales_agilab.git thales_agilab
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
