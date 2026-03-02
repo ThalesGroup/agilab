@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -120,43 +121,53 @@ jobs:
 
       - name: Upload agilab coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agilab.xml
           flags: agilab
-          fail_ci_if_error: false
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
 
       - name: Upload agi-env coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-env.xml
           flags: agi-env
-          fail_ci_if_error: false
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
 
       - name: Upload agi-node coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-node.xml
           flags: agi-node
-          fail_ci_if_error: false
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
 
       - name: Upload agi-cluster coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-cluster.xml
           flags: agi-cluster
-          fail_ci_if_error: false
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
 
       - name: Upload agi-core coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-core.xml
           flags: agi-core
-          fail_ci_if_error: false
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
 
       - name: Combine coverage data
         if: matrix.python-version == '3.13'
