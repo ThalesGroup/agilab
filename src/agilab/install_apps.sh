@@ -900,7 +900,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       echo -e "${YELLOW} no tests found, skipping. ${NC}"
       continue
     fi
-    if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
+    if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . --with pytest --with pytest-cov pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
         rc=$?
