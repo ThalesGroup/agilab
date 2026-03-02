@@ -166,6 +166,136 @@ def test_service_queue_keeps_workers_data_path_literal():
         AGI._workers_data_path = previous
 
 
+def test_service_public_args_filters_internal_keys():
+    payload = {
+        "_agi_service_mode": True,
+        "_agi_service_queue_dir": "/tmp/queue",
+        "model": "gpt",
+        "temperature": 0.2,
+    }
+    cleaned = AGI._service_public_args(payload)
+    assert "_agi_service_mode" not in cleaned
+    assert "_agi_service_queue_dir" not in cleaned
+    assert cleaned["model"] == "gpt"
+    assert cleaned["temperature"] == 0.2
+
+
+def test_service_safe_worker_name_and_timeout_default():
+    AGI._service_poll_interval = 0.5
+    AGI._service_heartbeat_timeout = None
+    timeout = AGI._service_heartbeat_timeout_value()
+    assert timeout == 5.0
+    assert AGI._service_safe_worker_name("tcp://127.0.0.1:8786") == "tcp-127.0.0.1-8786"
+
+
+def test_service_health_payload_counts_and_fields():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    payload = AGI._service_health_payload(
+        env,
+        {
+            "status": "running",
+            "workers": ["w1", "w2"],
+            "pending": ["p1"],
+            "restarted_workers": ["w2"],
+            "restart_reasons": {"w2": "missing-heartbeat"},
+            "queue": {"pending": 1, "done": 2},
+            "queue_dir": Path("/tmp/queue"),
+            "heartbeat_timeout_sec": "9.5",
+            "client_status": "running",
+            "cleanup": {"done": 0, "failed": 1, "heartbeats": 1},
+            "worker_health": [
+                {"worker": "w1", "healthy": True},
+                {"worker": "w2", "healthy": False},
+                "bad-row",
+                {"worker": "", "healthy": True},
+            ],
+        },
+    )
+    assert payload["schema"] == "agi.service.health.v1"
+    assert payload["status"] == "running"
+    assert payload["workers_running_count"] == 2
+    assert payload["workers_pending_count"] == 1
+    assert payload["workers_restarted_count"] == 1
+    assert payload["workers_healthy"] == ["w1"]
+    assert payload["workers_unhealthy"] == ["w2"]
+    assert payload["heartbeat_timeout_sec"] == 9.5
+    assert payload["queue_dir"] == "/tmp/queue"
+    assert payload["restart_reasons"]["w2"] == "missing-heartbeat"
+
+
+def test_service_read_heartbeats_keeps_latest_and_ignores_bad(tmp_path):
+    hb_dir = tmp_path / "heartbeats"
+    hb_dir.mkdir(parents=True, exist_ok=True)
+    AGI._service_queue_heartbeats = hb_dir
+
+    (hb_dir / "a.json").write_text(
+        json.dumps({"worker": "w1", "timestamp": 1.0}),
+        encoding="utf-8",
+    )
+    (hb_dir / "b.json").write_text(
+        json.dumps({"worker": "w1", "timestamp": 3.0}),
+        encoding="utf-8",
+    )
+    (hb_dir / "c.json").write_text(
+        json.dumps({"worker": "w2", "timestamp": 2.0, "state": "running"}),
+        encoding="utf-8",
+    )
+    (hb_dir / "bad.json").write_text("not-json", encoding="utf-8")
+    (hb_dir / "zero.json").write_text(
+        json.dumps({"worker": "w3", "timestamp": 0}),
+        encoding="utf-8",
+    )
+
+    beats = AGI._service_read_heartbeats()
+    payloads = AGI._service_read_heartbeat_payloads()
+    assert beats == {"w1": 3.0, "w2": 2.0}
+    assert set(payloads) == {"w1", "w2"}
+    assert float(payloads["w1"]["timestamp"]) == 3.0
+
+
+def test_service_cleanup_artifacts_ttl_and_max_files(tmp_path):
+    done_dir = tmp_path / "done"
+    failed_dir = tmp_path / "failed"
+    hb_dir = tmp_path / "heartbeats"
+    for folder in (done_dir, failed_dir, hb_dir):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    done_old = done_dir / "old.task.pkl"
+    done_new = done_dir / "new.task.pkl"
+    failed_old = failed_dir / "old.task.pkl"
+    hb_old = hb_dir / "old.json"
+    hb_new = hb_dir / "new.json"
+    for file_path in (done_old, done_new, failed_old, hb_old, hb_new):
+        file_path.write_text("x", encoding="utf-8")
+
+    now = time.time()
+    os.utime(done_old, (now - 1000, now - 1000))
+    os.utime(done_new, (now - 5, now - 5))
+    os.utime(failed_old, (now - 1000, now - 1000))
+    os.utime(hb_old, (now - 1000, now - 1000))
+    os.utime(hb_new, (now - 10, now - 10))
+
+    AGI._service_queue_done = done_dir
+    AGI._service_queue_failed = failed_dir
+    AGI._service_queue_heartbeats = hb_dir
+    AGI._service_cleanup_done_ttl_sec = 100.0
+    AGI._service_cleanup_failed_ttl_sec = 100.0
+    AGI._service_cleanup_heartbeat_ttl_sec = 100.0
+    AGI._service_cleanup_done_max_files = 10
+    AGI._service_cleanup_failed_max_files = 10
+    AGI._service_cleanup_heartbeat_max_files = 1
+
+    cleaned = AGI._service_cleanup_artifacts()
+    assert cleaned["done"] == 1
+    assert cleaned["failed"] == 1
+    assert cleaned["heartbeats"] == 1
+    assert done_old.exists() is False
+    assert failed_old.exists() is False
+    assert hb_old.exists() is False
+    assert done_new.exists() is True
+    assert hb_new.exists() is True
+
+
 @pytest.mark.asyncio
 async def test_agi_run_requires_base_worker_cls():
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
