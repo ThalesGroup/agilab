@@ -781,7 +781,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     pass
 
 
-        resources_root = self.env_pck if self.is_source_env else ""
+        # Resource seed files (.agilab/.env, balancer assets) always live under
+        # the agi_env package tree, regardless of install mode.
+        resources_root = self.env_pck
         if not self.is_worker_env:
             self._init_resources(resources_root / self._agi_resources)
         self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000000))
