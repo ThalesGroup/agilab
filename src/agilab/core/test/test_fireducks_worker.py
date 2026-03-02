@@ -132,3 +132,35 @@ def test_works_method(worker_csv):
     exec_time = worker_csv.works(dummy_tree, None)
     assert isinstance(exec_time, float)
     assert exec_time >= 0
+
+
+def test_ensure_pandas_handles_none_and_attribute_df():
+    class Holder:
+        def __init__(self):
+            self.df = pd.DataFrame({"col": [7]})
+
+    assert FireducksWorker._ensure_pandas(None) is None
+    converted = FireducksWorker._ensure_pandas(Holder())
+    assert isinstance(converted, pd.DataFrame)
+    assert converted["col"].tolist() == [7]
+
+
+def test_ensure_pandas_fallback_and_type_error():
+    converted = FireducksWorker._ensure_pandas([{"col": 3}])
+    assert isinstance(converted, pd.DataFrame)
+    assert converted["col"].tolist() == [3]
+
+    with pytest.raises(TypeError):
+        FireducksWorker._ensure_pandas(object())
+
+
+def test_fireducks_work_done_none_and_delegate_works():
+    worker = DummyFireducksWorker(worker_id=0, output_format="csv", verbose=0)
+    worker._mode = 0
+
+    # Cover the None branch in FireducksWorker.work_done.
+    FireducksWorker.work_done(worker, None)
+
+    # Cover FireducksWorker.works delegation to PandasWorker.works.
+    result = FireducksWorker.works(worker, {}, None)
+    assert isinstance(result, float)

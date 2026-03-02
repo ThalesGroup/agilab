@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import polars as pl
 import pytest
+import agi_node.polars_worker.polars_worker as polars_worker_module
 
 data_src = Path(__file__).parent.parent
 worker_root = data_src.parent / "node/src"
@@ -116,3 +117,47 @@ def test_works_method(worker_csv):
     exec_time = worker_csv.works(dummy_tree, dummy_info)
     assert isinstance(exec_time, float), "works() should return a float."
     assert exec_time > 0, f"Expected execution time > 0, got {exec_time}."
+
+
+def test_work_done_unsupported_format_raises(worker_csv):
+    worker_csv.args["output_format"] = "json"
+    with pytest.raises(ValueError):
+        worker_csv.work_done(pl.DataFrame({"col": [1]}))
+
+
+def test_work_done_ignores_empty_dataframe(worker_csv):
+    worker_csv.work_done(pl.DataFrame())
+    assert worker_csv.last_df is not None
+
+
+def test_works_mode4_dispatches_to_multi(worker_csv, monkeypatch):
+    calls = []
+
+    def fake_multi(_plan, _meta):
+        calls.append("multi")
+
+    def fake_mono(_plan, _meta):
+        calls.append("mono")
+
+    monkeypatch.setattr(worker_csv, "_exec_multi_process", fake_multi)
+    monkeypatch.setattr(worker_csv, "_exec_mono_process", fake_mono)
+    worker_csv._mode = 4
+    result = worker_csv.works({0: [[1]]}, None)
+    assert isinstance(result, float)
+    assert calls == ["multi"]
+
+
+def test_exec_multi_process_list_plan_and_windows_branch(monkeypatch):
+    class MixedPolarsWorker(DummyPolarsWorker):
+        def _actual_work_pool(self, x):
+            if x == 0:
+                return pl.DataFrame()
+            return pl.DataFrame({"col": [x]})
+
+    worker = MixedPolarsWorker(worker_id=0, output_format="csv", verbose=0)
+    worker._mode = 1
+    monkeypatch.setattr(polars_worker_module.os, "name", "nt", raising=False)
+    worker._exec_multi_process([[[0, 1]]], None)
+
+    assert worker.last_df is not None
+    assert worker.last_df["col"].to_list() == [1]
