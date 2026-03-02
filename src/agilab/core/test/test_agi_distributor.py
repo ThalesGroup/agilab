@@ -141,6 +141,31 @@ def test_is_local():
     assert not AgiEnv.is_local("8.8.8.8"), "8.8.8.8 should not be considered local."
 
 
+def test_service_queue_prefers_workers_data_path(tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    previous = AGI._workers_data_path
+    try:
+        AGI._workers_data_path = str(tmp_path / "cluster-share")
+        queue_paths = AGI._init_service_queue(env)
+        expected_root = Path(AGI._workers_data_path) / "service" / env.target / "queue"
+        assert queue_paths["root"] == expected_root
+        assert queue_paths["heartbeats"].parent == expected_root
+    finally:
+        AGI._workers_data_path = previous
+
+
+def test_service_queue_keeps_workers_data_path_literal():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    previous = AGI._workers_data_path
+    try:
+        AGI._workers_data_path = "/tmp/agilab_test_share"
+        queue_paths = AGI._init_service_queue(env)
+        expected = Path("/tmp/agilab_test_share") / "service" / env.target / "queue"
+        assert queue_paths["root"] == expected
+    finally:
+        AGI._workers_data_path = previous
+
+
 @pytest.mark.asyncio
 async def test_agi_run_requires_base_worker_cls():
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)

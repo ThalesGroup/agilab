@@ -84,8 +84,22 @@ class LogFormatter(logging.Formatter):
         else:
             functionName_str = className + "." + functionName + RESET
 
-        # Message
-        message = COLORS["msg"] + record.getMessage() + RESET
+        # Message: guard against recursive __str__/format paths coming from
+        # third-party log payloads (can happen on remote workers).
+        try:
+            rendered_message = record.getMessage()
+        except RecursionError:
+            msg_obj = getattr(record, "msg", None)
+            rendered_message = (
+                f"<log-message-recursion type={type(msg_obj).__name__}>"
+            )
+        except Exception as exc:  # pragma: no cover - defensive formatting guard
+            msg_obj = getattr(record, "msg", None)
+            rendered_message = (
+                f"<log-message-format-error type={type(msg_obj).__name__} error={exc}>"
+            )
+
+        message = COLORS["msg"] + rendered_message + RESET
         if not hasattr(record, "subprocess"):
             return levelname + venv_str + '.' + functionName_str + ' ' + message
         return f"{message}"

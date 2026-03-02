@@ -915,14 +915,29 @@ class AGI:
             env: AgiEnv,
             service_queue_dir: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Path]:
-        queue_hint = service_queue_dir or (Path("service") / env.target / "queue")
-        try:
-            queue_root = env.resolve_share_path(queue_hint)
-        except Exception:
-            fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
-            queue_root = (fallback_home / ".agilab_service" / env.target / "queue").resolve(
-                strict=False
+        # Prefer an explicit cluster share path when provided so service queue paths
+        # stay valid across heterogeneous hosts (e.g. macOS manager + Linux workers).
+        if service_queue_dir is not None:
+            # Keep caller-provided absolute paths verbatim to avoid host-specific
+            # canonicalisation (e.g. macOS /tmp -> /private/tmp) that breaks
+            # heterogeneous clusters.
+            queue_root = Path(service_queue_dir).expanduser()
+        elif AGI._workers_data_path:
+            queue_root = (
+                Path(str(AGI._workers_data_path)).expanduser()
+                / "service"
+                / env.target
+                / "queue"
             )
+        else:
+            queue_hint = Path("service") / env.target / "queue"
+            try:
+                queue_root = env.resolve_share_path(queue_hint)
+            except Exception:
+                fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
+                queue_root = (fallback_home / ".agilab_service" / env.target / "queue").resolve(
+                    strict=False
+                )
         queue_paths = AGI._service_apply_queue_root(queue_root, create=True)
 
         # Do not replay stale requests from previous sessions after a restart.
@@ -3415,12 +3430,15 @@ class AGI:
             env_pck = "agi-env"
             node_pck = "agi-node"
 
+        def _pkg_ref(pkg: Union[str, Path]) -> str:
+            return pkg.as_posix() if isinstance(pkg, Path) else str(pkg)
+
         # install env
-        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {env_pck.as_posix()}"
+        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(env_pck)}"
         await AGI.exec_ssh(ip, cmd)
 
         # install node
-        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {node_pck.as_posix()}"
+        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(node_pck)}"
         await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
