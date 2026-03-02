@@ -6,7 +6,6 @@ on:
     branches:
       - main
     paths:
-      - 'docs/**'
       - 'src/agilab/resources/help/**'
       - '.github/workflows/docs-publish.yaml'
   workflow_dispatch:
@@ -33,21 +32,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Check docs/html availability
-        id: docs_html
+      - name: Checkout docs source repository
+        uses: actions/checkout@v4
+        with:
+          repository: jpmorard/thales_agilab
+          ref: main
+          path: thales_agilab
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install Graphviz
         run: |
           set -euo pipefail
-          if [ -d docs/html ] && [ -n "$(ls -A docs/html 2>/dev/null)" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "[docs] docs/html missing in repository checkout; skipping Pages deployment."
-          fi
-      # Tests and coverage badges are handled by ci.yml + Codecov; docs publish remains build-free
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+      - name: Build docs/html artifact from docs source
+        run: |
+          set -euo pipefail
+          uv sync --project thales_agilab --dev --group sphinx
+          uv run --project thales_agilab --dev --group sphinx \
+            python thales_agilab/docs/gen-docs.py \
+            --agilab-repository "$GITHUB_WORKSPACE" \
+            --no-open
+          test -f docs/html/index.html
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
       - name: Prepare docs/html for Pages
-        if: steps.docs_html.outputs.available == 'true'
         run: |
           set -euo pipefail
           if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
@@ -70,14 +85,9 @@ jobs:
             fi
           fi
       - name: Upload artifact
-        if: steps.docs_html.outputs.available == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'docs/html'
       - name: Deploy to GitHub Pages
-        if: steps.docs_html.outputs.available == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
-      - name: Skip deploy (docs/html unavailable)
-        if: steps.docs_html.outputs.available != 'true'
-        run: echo "Skipping deploy because docs/html is not tracked in this repository."
