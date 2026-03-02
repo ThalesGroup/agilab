@@ -2835,6 +2835,14 @@ class AGI:
                 spec_part = ','.join(specifiers)
             return f"{name}{extras_part}{spec_part}"
 
+        def _is_within_repo(path: Path, root: Path | None) -> bool:
+            if root is None:
+                return False
+            try:
+                return path.resolve().is_relative_to(root.resolve())
+            except Exception:
+                return False
+
         def _update_pyproject_dependencies(
             pyproject_file: Path,
             pinned_versions: dict[str, str] | None,
@@ -3022,12 +3030,20 @@ class AGI:
         # =========
 
         app_path = env.active_app
+        manager_pyproject = app_path / "pyproject.toml"
+        manager_pyproject_is_repo_file = _is_within_repo(manager_pyproject, repo_root)
         if (not env.is_source_env) and (not env.is_worker_env) and dependency_info:
-            _update_pyproject_dependencies(
-                app_path / "pyproject.toml",
-                pinned_versions=None,
-                filter_to_worker=False,
-            )
+            if manager_pyproject_is_repo_file:
+                logger.info(
+                    "Skipping dependency rewrite for %s to avoid mutating source checkout.",
+                    manager_pyproject,
+                )
+            else:
+                _update_pyproject_dependencies(
+                    manager_pyproject,
+                    pinned_versions=None,
+                    filter_to_worker=False,
+                )
         extra_indexes = ""
         if str(run_type).strip().startswith("sync") and _agi__version_missing_on_pypi(app_path):
             extra_indexes = (
