@@ -73,7 +73,7 @@ for proj in [
 
 project = "AGILab"
 author = "Jean-Pierre MORARD"
-copyright = "2025, THALES SIX GTS France SAS"
+copyright = "2026, THALES SIX GTS France SAS"
 release = "2025.12.12"
 version = "2025.12.12"
 
