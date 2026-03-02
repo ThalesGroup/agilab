@@ -1,11 +1,17 @@
 import json
+import io
 import os
 import pickle
 import socket
+import urllib.request
+import getpass
+from types import SimpleNamespace
 from pathlib import Path, PurePosixPath
+from contextlib import asynccontextmanager
 import asyncio
 import time
 import pytest
+import psutil
 from agi_cluster.agi_distributor import AGI
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
 from agi_env import AgiEnv, normalize_path
@@ -13,6 +19,8 @@ from agi_node.agi_dispatcher import BaseWorker
 
 # Set AGI verbosity low to avoid extra prints during test.
 AGI.verbose = 0
+_REAL_SERVICE_STATE_PATH = AGI._service_state_path
+_REAL_SERVICE_HEALTH_PATH = AGI._service_health_path
 
 
 class _FakeFuture:
@@ -59,6 +67,220 @@ def _real_service_stub_loop(*, poll_interval=None):
 
 def _real_service_stub_break_loop():
     return True
+
+
+def test_envar_truthy_handles_common_inputs_and_failures():
+    assert agi_distributor_module._envar_truthy({"A": True}, "A") is True
+    assert agi_distributor_module._envar_truthy({"A": 1}, "A") is True
+    assert agi_distributor_module._envar_truthy({"A": 1.0}, "A") is True
+    assert agi_distributor_module._envar_truthy({"A": " yes "}, "A") is True
+    assert agi_distributor_module._envar_truthy({"A": "ON"}, "A") is True
+    assert agi_distributor_module._envar_truthy({"A": None}, "A") is False
+    assert agi_distributor_module._envar_truthy({"A": 2}, "A") is False
+    assert agi_distributor_module._envar_truthy({"A": "off"}, "A") is False
+    assert agi_distributor_module._envar_truthy({"A": float("nan")}, "A") is False
+
+    class _BrokenEnv:
+        def get(self, _key):
+            raise RuntimeError("boom")
+
+    assert agi_distributor_module._envar_truthy(_BrokenEnv(), "A") is False
+
+
+def test_ensure_optional_extras_noop_when_extras_empty(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    agi_distributor_module._ensure_optional_extras(pyproject, set())
+    assert pyproject.exists() is False
+
+
+def test_ensure_optional_extras_creates_and_updates_table(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "demo"
+optional-dependencies = []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    agi_distributor_module._ensure_optional_extras(pyproject, {"polars-worker", " ", "dag-worker"})
+    content = pyproject.read_text(encoding="utf-8")
+    assert "[project.optional-dependencies]" in content
+    assert "polars-worker = []" in content
+    assert "dag-worker = []" in content
+
+
+def test_rewrite_uv_sources_paths_rewrites_invalid_entries_and_logs(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src" / "worker"
+    dst_dir = tmp_path / "dst" / "worker"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    src_deps = src_dir.parent / "deps"
+    (src_deps / "foo").mkdir(parents=True, exist_ok=True)
+    (src_deps / "bar").mkdir(parents=True, exist_ok=True)
+    (dst_dir / "keep-bar").mkdir(parents=True, exist_ok=True)
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dst_pyproject = dst_dir / "pyproject.toml"
+
+    src_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../deps/foo" }
+bar = { path = "../deps/bar" }
+missing = { path = "../deps/missing" }
+blank = { path = "" }
+non_dict = "value"
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../bad/foo" }
+bar = { path = "keep-bar" }
+missing = { path = "../bad/missing" }
+blank = { path = "../bad/blank" }
+non_dict = { path = "../bad/non_dict" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    logs = []
+    monkeypatch.setattr(
+        agi_distributor_module.logger,
+        "info",
+        lambda *args, **kwargs: logs.append(args),
+    )
+
+    agi_distributor_module._rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+        log_rewrites=True,
+    )
+
+    content = dst_pyproject.read_text(encoding="utf-8")
+    expected_rel_foo = os.path.relpath((src_deps / "foo").resolve(strict=False), start=dst_dir)
+    assert f'foo = {{ path = "{expected_rel_foo}" }}' in content
+    assert 'bar = { path = "keep-bar" }' in content
+    assert 'missing = { path = "../bad/missing" }' in content
+    assert any("Rewrote uv source" in str(entry[0]) for entry in logs if entry)
+
+
+def test_rewrite_uv_sources_paths_ignores_missing_files(tmp_path):
+    src_pyproject = tmp_path / "missing-src.toml"
+    dst_pyproject = tmp_path / "missing-dst.toml"
+    agi_distributor_module._rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+    )
+    assert src_pyproject.exists() is False
+    assert dst_pyproject.exists() is False
+
+
+def test_ensure_asyncio_run_signature_patches_pydevd_shim(monkeypatch):
+    original = agi_distributor_module.asyncio.run
+
+    def _fake_run(main, debug=None):
+        return ("orig", main, debug)
+
+    _fake_run.__module__ = "pydevd.fake"
+    monkeypatch.setattr(agi_distributor_module.asyncio, "run", _fake_run)
+    agi_distributor_module._ensure_asyncio_run_signature()
+
+    patched = agi_distributor_module.asyncio.run
+    assert patched is not _fake_run
+    assert patched("task", debug=True) == ("orig", "task", True)
+
+    async def _coro():
+        return 7
+
+    assert patched(_coro(), loop_factory=asyncio.new_event_loop) == 7
+    monkeypatch.setattr(agi_distributor_module.asyncio, "run", original)
+
+
+def test_ensure_asyncio_run_signature_leaves_non_pydevd_shim_untouched(monkeypatch):
+    def _fake_run(main, debug=None):
+        return ("orig", main, debug)
+
+    _fake_run.__module__ = "custom.runner"
+    monkeypatch.setattr(agi_distributor_module.asyncio, "run", _fake_run)
+    agi_distributor_module._ensure_asyncio_run_signature()
+    assert agi_distributor_module.asyncio.run is _fake_run
+
+
+def test_ensure_asyncio_run_signature_handles_uninspectable_run(monkeypatch):
+    def _fake_run(main, debug=None):
+        return ("orig", main, debug)
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "run", _fake_run)
+    monkeypatch.setattr(
+        agi_distributor_module.inspect,
+        "signature",
+        lambda *_a, **_k: (_ for _ in ()).throw(ValueError("no signature")),
+    )
+    agi_distributor_module._ensure_asyncio_run_signature()
+    assert agi_distributor_module.asyncio.run is _fake_run
+
+
+def test_agi_version_missing_on_pypi_detection(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir(parents=True, exist_ok=True)
+
+    # no pyproject
+    assert agi_distributor_module._agi__version_missing_on_pypi(project) is False
+
+    pyproject = project / "pyproject.toml"
+    pyproject.write_text("[project]\nname='demo'\n", encoding="utf-8")
+    assert agi_distributor_module._agi__version_missing_on_pypi(project) is False
+
+    pyproject.write_text('agi-core = "==1.2.3"\n', encoding="utf-8")
+
+    class _Resp:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def __enter__(self):
+            return io.StringIO(json.dumps(self._payload))
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_a, **_k: _Resp({"releases": {"1.2.3": [{}]}}),
+    )
+    assert agi_distributor_module._agi__version_missing_on_pypi(project) is False
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_a, **_k: _Resp({"releases": {"1.2.4": [{}]}}),
+    )
+    assert agi_distributor_module._agi__version_missing_on_pypi(project) is True
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("network down")),
+    )
+    assert agi_distributor_module._agi__version_missing_on_pypi(project) is False
+
+
+def test_format_exception_chain_compacts_causes():
+    try:
+        try:
+            raise ValueError("inner")
+        except ValueError as exc:
+            raise RuntimeError("RuntimeError: inner") from exc
+    except Exception as exc:
+        text = agi_distributor_module._format_exception_chain(exc)
+
+    assert "inner" in text
+    assert ("RuntimeError" in text) or ("ValueError" in text)
 
 
 @pytest.fixture(autouse=True)
@@ -117,6 +339,27 @@ def test_find_free_port():
             pytest.fail(f"find_free_port returned a port that is not free: {e}")
 
 
+def test_find_free_port_raises_when_no_candidate_is_bindable(monkeypatch):
+    class _FailingSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def setsockopt(self, *_args, **_kwargs):
+            return None
+
+        def bind(self, *_args, **_kwargs):
+            raise OSError("busy")
+
+    monkeypatch.setattr(agi_distributor_module.random, "randint", lambda *_a, **_k: 5001)
+    monkeypatch.setattr(agi_distributor_module.socket, "socket", lambda *_a, **_k: _FailingSocket())
+
+    with pytest.raises(RuntimeError, match="No free port found"):
+        AGI.find_free_port(start=5000, end=5002, attempts=3)
+
+
 def test_mode_constants_exposed():
     assert AGI.PYTHON_MODE == 1
     assert AGI.CYTHON_MODE == 2
@@ -134,11 +377,456 @@ def test_get_default_local_ip():
         assert part.isdigit(), f"IP part '{part}' is not numeric."
 
 
+def test_get_default_local_ip_returns_fallback_on_failure(monkeypatch):
+    class _BrokenSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def connect(self, *_args, **_kwargs):
+            raise OSError("no route")
+
+    monkeypatch.setattr(agi_distributor_module.socket, "socket", lambda *_a, **_k: _BrokenSocket())
+    assert AGI.get_default_local_ip() == "Unable to determine local IP"
+
+
 def test_is_local():
     # Test that known local IP addresses are detected as local.
     assert AgiEnv.is_local("127.0.0.1"), "127.0.0.1 should be local."
     # Use a public IP that is likely not local.
     assert not AgiEnv.is_local("8.8.8.8"), "8.8.8.8 should not be considered local."
+
+
+def test_get_scheduler_uses_workers_first_ip_and_random_port(monkeypatch):
+    AGI._workers = {"10.0.0.2": 2}
+    monkeypatch.setattr(AGI, "find_free_port", staticmethod(lambda: 6123))
+    ip, port = AGI._get_scheduler(None)
+    assert (ip, port) == ("10.0.0.2", 6123)
+    assert AGI._scheduler == "10.0.0.2:6123"
+
+
+def test_get_scheduler_accepts_dict_with_explicit_port(monkeypatch):
+    monkeypatch.setattr(AGI, "find_free_port", staticmethod(lambda: 6000))
+    ip, port = AGI._get_scheduler({"10.1.1.1": 7788})
+    assert (ip, port) == ("10.1.1.1", 7788)
+    assert AGI._scheduler == "10.1.1.1:7788"
+
+
+def test_get_scheduler_rejects_invalid_type(monkeypatch):
+    monkeypatch.setattr(AGI, "find_free_port", staticmethod(lambda: 6000))
+    with pytest.raises(ValueError, match="Scheduler ip address is not valid"):
+        AGI._get_scheduler(42)
+
+
+def test_get_stdout_captures_printed_output():
+    def _fn(x, y=0):
+        print(f"sum={x + y}")
+        return x + y
+
+    out, result = AGI._get_stdout(_fn, 2, y=3)
+    assert "sum=5" in out
+    assert result == 5
+
+
+def test_read_stderr_iterable_stream_sets_project_error_flag():
+    AGI._worker_init_error = False
+    stream = [b"plain line\n", "boom [ProjectError]\n"]
+    AGI._read_stderr(stream)
+    assert AGI._worker_init_error is True
+
+
+def test_read_stderr_channel_stream_sets_project_error_flag():
+    class _Chan:
+        def __init__(self):
+            self._chunks = [b"line-a\n", b"line-b [ProjectError]\n"]
+
+        def recv_stderr_ready(self):
+            return bool(self._chunks)
+
+        def recv_stderr(self, _size):
+            return self._chunks.pop(0) if self._chunks else b""
+
+        def exit_status_ready(self):
+            return not self._chunks
+
+    AGI._worker_init_error = False
+    stream = SimpleNamespace(channel=_Chan())
+    AGI._read_stderr(stream)
+    assert AGI._worker_init_error is True
+
+
+def test_read_stderr_channel_handles_recv_exception(monkeypatch):
+    class _Chan:
+        def __init__(self):
+            self._calls = 0
+
+        def recv_stderr_ready(self):
+            return self._calls < 2
+
+        def recv_stderr(self, _size):
+            self._calls += 1
+            if self._calls == 1:
+                raise RuntimeError("transient read failure")
+            return b"ok line\n"
+
+        def exit_status_ready(self):
+            return self._calls >= 2
+
+    monkeypatch.setattr(agi_distributor_module.time, "sleep", lambda *_a, **_k: None)
+    AGI._worker_init_error = False
+    AGI._read_stderr(SimpleNamespace(channel=_Chan()))
+    assert AGI._worker_init_error is False
+
+
+def test_reset_deploy_state_initializes_flags():
+    AGI._run_types = ["run", "sync", "upgrade", "simulate"]
+    AGI._mode = AGI.DASK_MODE
+    AGI._install_done_local = True
+    AGI._install_done = True
+    AGI._worker_init_error = True
+    AGI._reset_deploy_state()
+    assert AGI._run_type == "run"
+    assert AGI._install_done_local is False
+    assert AGI._install_done is False
+    assert AGI._worker_init_error is False
+
+
+def test_hardware_supports_rapids_true_and_false(monkeypatch):
+    monkeypatch.setattr(agi_distributor_module.subprocess, "run", lambda *_a, **_k: None)
+    assert AGI._hardware_supports_rapids() is True
+
+    monkeypatch.setattr(
+        agi_distributor_module.subprocess,
+        "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(FileNotFoundError("nvidia-smi missing")),
+    )
+    assert AGI._hardware_supports_rapids() is False
+
+
+@pytest.mark.asyncio
+async def test_send_file_local_relative_destination(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    local_file = tmp_path / "source.txt"
+    local_file.write_text("payload", encoding="utf-8")
+
+    env = SimpleNamespace(home_abs=str(home), user="user", password="pwd")
+    await AGI.send_file(
+        env=env,
+        ip="127.0.0.1",
+        local_path=local_file,
+        remote_path=Path("remote/result.txt"),
+    )
+    copied = home / "remote" / "result.txt"
+    assert copied.exists()
+    assert copied.read_text(encoding="utf-8") == "payload"
+
+
+@pytest.mark.asyncio
+async def test_send_file_remote_success_and_command_construction(monkeypatch, tmp_path):
+    local_file = tmp_path / "src.bin"
+    local_file.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(
+        user="alice",
+        password="secret",
+        ssh_key_path=str(tmp_path / "id_rsa"),
+    )
+
+    calls = []
+
+    class _Proc:
+        def __init__(self, returncode=0):
+            self.returncode = returncode
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def _fake_subproc(*cmd, **_kwargs):
+        calls.append(cmd)
+        return _Proc(returncode=0)
+
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_subproc)
+
+    await AGI.send_file(
+        env=env,
+        ip="10.0.0.9",
+        local_path=local_file,
+        remote_path=Path("/tmp/remote.bin"),
+        user=None,
+        password=None,
+    )
+    assert len(calls) == 1
+    flat = list(calls[0])
+    assert flat[0] == "sshpass"
+    assert "scp" in flat
+    assert "-i" in flat
+    assert str(local_file) in flat
+    assert "alice@10.0.0.9:/tmp/remote.bin" in flat
+
+
+@pytest.mark.asyncio
+async def test_send_file_remote_retries_without_sshpass_on_first_failure(monkeypatch, tmp_path):
+    local_file = tmp_path / "src.bin"
+    local_file.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(user="alice", password="secret", ssh_key_path=None)
+
+    calls = []
+    procs = [
+        SimpleNamespace(returncode=1, communicate=lambda: asyncio.sleep(0, result=(b"", b"fail-1"))),
+        SimpleNamespace(returncode=0, communicate=lambda: asyncio.sleep(0, result=(b"ok", b""))),
+    ]
+
+    async def _fake_subproc(*cmd, **_kwargs):
+        calls.append(cmd)
+        proc = procs.pop(0)
+        return proc
+
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_subproc)
+
+    await AGI.send_file(
+        env=env,
+        ip="10.0.0.9",
+        local_path=local_file,
+        remote_path=Path("/tmp/remote.bin"),
+    )
+    assert len(calls) == 2
+    assert calls[0][0] == "sshpass"
+    assert calls[1][0] == "sshpass"
+    assert "-p" in calls[0]
+    assert "-p" not in calls[1]
+
+
+@pytest.mark.asyncio
+async def test_send_file_remote_raises_after_retry_failure(monkeypatch, tmp_path):
+    local_file = tmp_path / "src.bin"
+    local_file.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(user="alice", password="secret", ssh_key_path=None)
+
+    async def _fake_subproc(*_cmd, **_kwargs):
+        return SimpleNamespace(
+            returncode=1,
+            communicate=lambda: asyncio.sleep(0, result=(b"", b"fail")),
+        )
+
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_subproc)
+
+    with pytest.raises(ConnectionError, match="SCP error"):
+        await AGI.send_file(
+            env=env,
+            ip="10.0.0.9",
+            local_path=local_file,
+            remote_path=Path("/tmp/remote.bin"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_send_files_delegates_to_send_file(monkeypatch, tmp_path):
+    env = SimpleNamespace()
+    sent = []
+    files = [tmp_path / "a.txt", tmp_path / "b.txt"]
+    for f in files:
+        f.write_text("x", encoding="utf-8")
+
+    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+        sent.append((ip, local_path.name, remote_path.name, user))
+
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
+    await AGI.send_files(env, "10.0.0.2", files, Path("/remote"), user="bob")
+    assert sent == [
+        ("10.0.0.2", "a.txt", "a.txt", "bob"),
+        ("10.0.0.2", "b.txt", "b.txt", "bob"),
+    ]
+
+
+def test_remove_dir_forcefully_retries_and_raises(monkeypatch, tmp_path):
+    target = tmp_path / "to-remove"
+    target.mkdir(parents=True, exist_ok=True)
+    calls = {"n": 0}
+
+    def _fake_rmtree(path, onerror=None):
+        calls["n"] += 1
+        raise RuntimeError("rm fail")
+
+    monkeypatch.setattr(agi_distributor_module.shutil, "rmtree", _fake_rmtree)
+    monkeypatch.setattr(agi_distributor_module.time, "sleep", lambda *_a, **_k: None)
+    with pytest.raises(RuntimeError):
+        AGI._remove_dir_forcefully(str(target))
+    assert calls["n"] == 2
+
+
+def test_remove_dir_forcefully_second_attempt_succeeds(monkeypatch, tmp_path):
+    target = tmp_path / "to-remove"
+    target.mkdir(parents=True, exist_ok=True)
+    calls = {"n": 0}
+
+    def _fake_rmtree(path, onerror=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("rm fail once")
+        return None
+
+    monkeypatch.setattr(agi_distributor_module.shutil, "rmtree", _fake_rmtree)
+    monkeypatch.setattr(agi_distributor_module.time, "sleep", lambda *_a, **_k: None)
+    AGI._remove_dir_forcefully(str(target))
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_for_port_release_success_after_retry(monkeypatch):
+    calls = {"n": 0}
+
+    class _Sock:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def bind(self, *_args, **_kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError("busy")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(agi_distributor_module.socket, "socket", lambda *_a, **_k: _Sock())
+    released = await AGI._wait_for_port_release("127.0.0.1", 9000, timeout=0.3, interval=0.01)
+    assert released is True
+    assert calls["n"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_wait_for_port_release_timeout(monkeypatch):
+    class _Sock:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def bind(self, *_args, **_kwargs):
+            raise OSError("always busy")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(agi_distributor_module.socket, "socket", lambda *_a, **_k: _Sock())
+    released = await AGI._wait_for_port_release("127.0.0.1", 9000, timeout=0.05, interval=0.01)
+    assert released is False
+
+
+def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(monkeypatch, tmp_path):
+    AGI.env = SimpleNamespace(wenv_abs=tmp_path / "wenv")
+    AGI.env.wenv_abs.mkdir(parents=True, exist_ok=True)
+    killed = []
+
+    class _Proc:
+        def __init__(self, info, raise_on_kill=False):
+            self.info = info
+            self._raise_on_kill = raise_on_kill
+
+        def kill(self):
+            if self._raise_on_kill:
+                raise psutil.AccessDenied(pid=self.info["pid"])
+            killed.append(self.info["pid"])
+
+    me = getpass.getuser()
+    procs = [
+        _Proc({"pid": os.getpid(), "username": me, "cmdline": ["dask-worker"]}),  # self pid ignored
+        _Proc({"pid": 4242, "username": me, "cmdline": ["python", "DASK worker"]}),
+        _Proc({"pid": 4343, "username": me, "cmdline": ["python", "other"]}),
+        _Proc({"pid": 4444, "username": me, "cmdline": ["python", "dask scheduler"]}, raise_on_kill=True),
+    ]
+    monkeypatch.setattr(agi_distributor_module.psutil, "process_iter", lambda *_a, **_k: procs)
+    AGI._clean_dirs_local()
+    assert 4242 in killed
+    assert 4343 not in killed
+
+
+@pytest.mark.asyncio
+async def test_clean_dirs_removes_local_wenv_and_execs_remote(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    env = SimpleNamespace(
+        uv="/usr/bin/uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        python_version="3.13",
+        envars={"10.0.0.9_CMD_PREFIX": "source /env && "},
+    )
+    AGI.env = env
+    calls = {"removed": 0, "ssh": []}
+
+    monkeypatch.setattr(
+        AGI,
+        "_remove_dir_forcefully",
+        staticmethod(lambda _p: calls.__setitem__("removed", calls["removed"] + 1)),
+    )
+
+    async def _fake_exec(ip, cmd):
+        calls["ssh"].append((ip, cmd))
+        return "ok"
+
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    await AGI._clean_dirs("10.0.0.9")
+    assert calls["removed"] == 1
+    assert calls["ssh"]
+    assert "clean wenv" in calls["ssh"][0][1]
+
+
+@pytest.mark.asyncio
+async def test_clean_remote_procs_only_non_local(monkeypatch):
+    called = []
+
+    async def _fake_kill(ip, current_pid, force=True):
+        called.append((ip, force))
+        return None
+
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    await AGI._clean_remote_procs({"127.0.0.1", "10.0.0.2"}, force=False)
+    assert called == [("10.0.0.2", False)]
+
+
+@pytest.mark.asyncio
+async def test_clean_remote_dirs_runs_for_all(monkeypatch):
+    called = []
+
+    async def _fake_clean(ip):
+        called.append(ip)
+
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_clean))
+    await AGI._clean_remote_dirs({"127.0.0.1", "10.0.0.2"})
+    assert set(called) == {"127.0.0.1", "10.0.0.2"}
+
+
+@pytest.mark.asyncio
+async def test_clean_nodes_runs_local_and_remote_cleanup(monkeypatch):
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    calls = {"local": 0, "procs": None, "dirs": None}
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _addr=None: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
+    monkeypatch.setattr(
+        AGI,
+        "_clean_dirs_local",
+        staticmethod(lambda: calls.__setitem__("local", calls["local"] + 1)),
+    )
+
+    async def _clean_procs(list_ip, force=True):
+        calls["procs"] = (set(list_ip), force)
+
+    async def _clean_dirs(list_ip):
+        calls["dirs"] = set(list_ip)
+
+    monkeypatch.setattr(AGI, "_clean_remote_procs", staticmethod(_clean_procs))
+    monkeypatch.setattr(AGI, "_clean_remote_dirs", staticmethod(_clean_dirs))
+
+    list_ip = await AGI._clean_nodes("127.0.0.1:8786", force=True)
+    assert set(list_ip) == {"127.0.0.1", "10.0.0.2"}
+    assert calls["local"] >= 1
+    assert calls["procs"][1] is True
+    assert calls["dirs"] == {"127.0.0.1", "10.0.0.2"}
 
 
 def test_service_queue_prefers_workers_data_path(tmp_path):
@@ -186,6 +874,917 @@ def test_service_safe_worker_name_and_timeout_default():
     timeout = AGI._service_heartbeat_timeout_value()
     assert timeout == 5.0
     assert AGI._service_safe_worker_name("tcp://127.0.0.1:8786") == "tcp-127.0.0.1-8786"
+
+
+def test_service_public_args_handles_none():
+    assert AGI._service_public_args(None) == {}
+
+
+def test_service_safe_worker_name_fallback_and_explicit_timeout():
+    AGI._service_heartbeat_timeout = 2.5
+    assert AGI._service_heartbeat_timeout_value() == 2.5
+    assert AGI._service_safe_worker_name(":::") == "worker"
+
+
+def test_wrap_worker_chunk_handles_non_list_and_out_of_range_index():
+    assert AGI._wrap_worker_chunk("raw-payload", worker_index=0) == "raw-payload"
+    wrapped = AGI._wrap_worker_chunk([["a"], ["b"]], worker_index=8)
+    assert wrapped["__agi_worker_chunk__"] is True
+    assert wrapped["chunk"] == []
+    assert wrapped["total_workers"] == 2
+    assert wrapped["worker_idx"] == 8
+
+
+def test_service_read_state_returns_none_for_invalid_payload(tmp_path, monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    state_path = tmp_path / "state.json"
+    monkeypatch.setattr(AGI, "_service_state_path", staticmethod(lambda _env: state_path))
+
+    state_path.write_text("not-json", encoding="utf-8")
+    assert AGI._service_read_state(env) is None
+
+    state_path.write_text(json.dumps(["not-a-dict"]), encoding="utf-8")
+    assert AGI._service_read_state(env) is None
+
+
+def test_service_finalize_response_health_only_adds_export_path(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    monkeypatch.setattr(
+        AGI,
+        "_service_write_health_payload",
+        staticmethod(lambda *_args, **_kwargs: "/tmp/health.json"),
+    )
+    payload = AGI._service_finalize_response(env, {"status": "idle"}, health_only=True)
+    assert payload["schema"] == "agi.service.health.v1"
+    assert payload["path"] == "/tmp/health.json"
+    assert payload["status"] == "idle"
+
+
+def test_service_write_health_payload_returns_none_on_failure(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(AGI, "_service_health_path", staticmethod(_raise))
+    assert AGI._service_write_health_payload(env, {"schema": "x"}) is None
+
+
+@pytest.mark.asyncio
+async def test_service_connected_workers_supports_awaitable_scheduler_info():
+    class _AwaitableClient:
+        async def scheduler_info(self):
+            return {
+                "workers": {
+                    "tcp://127.0.0.1:8787": {},
+                    "tcp://127.0.0.1:8788": {},
+                }
+            }
+
+    workers = await AGI._service_connected_workers(_AwaitableClient())
+    assert workers == ["127.0.0.1:8787", "127.0.0.1:8788"]
+
+
+@pytest.mark.asyncio
+async def test_service_connected_workers_supports_sync_scheduler_info():
+    class _SyncClient:
+        def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:9001": {}}}
+
+    workers = await AGI._service_connected_workers(_SyncClient())
+    assert workers == ["127.0.0.1:9001"]
+
+
+def test_service_apply_runtime_config_clamps_values():
+    AGI._service_apply_runtime_config(
+        heartbeat_timeout=-4.0,
+        cleanup_done_ttl_sec=-1.0,
+        cleanup_failed_ttl_sec=-2.0,
+        cleanup_heartbeat_ttl_sec=-3.0,
+        cleanup_done_max_files=-10,
+        cleanup_failed_max_files=-11,
+        cleanup_heartbeat_max_files=-12,
+    )
+    assert AGI._service_heartbeat_timeout == 0.1
+    assert AGI._service_cleanup_done_ttl_sec == 0.0
+    assert AGI._service_cleanup_failed_ttl_sec == 0.0
+    assert AGI._service_cleanup_heartbeat_ttl_sec == 0.0
+    assert AGI._service_cleanup_done_max_files == 0
+    assert AGI._service_cleanup_failed_max_files == 0
+    assert AGI._service_cleanup_heartbeat_max_files == 0
+
+
+def test_service_queue_paths_and_apply_queue_root_without_create(tmp_path):
+    queue_root = tmp_path / "queue-root"
+    paths = AGI._service_queue_paths(queue_root)
+    assert paths["pending"] == queue_root / "pending"
+    assert paths["running"] == queue_root / "running"
+    assert paths["done"] == queue_root / "done"
+    assert paths["failed"] == queue_root / "failed"
+    assert paths["heartbeats"] == queue_root / "heartbeats"
+
+    applied = AGI._service_apply_queue_root(queue_root, create=False)
+    assert applied["root"] == queue_root
+    assert AGI._service_queue_root == queue_root
+    assert AGI._service_queue_pending == queue_root / "pending"
+    assert queue_root.exists() is False
+
+
+def test_service_queue_counts_reads_task_files(tmp_path):
+    pending = tmp_path / "pending"
+    running = tmp_path / "running"
+    done = tmp_path / "done"
+    failed = tmp_path / "failed"
+    for folder in (pending, running, done, failed):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    (pending / "a.task.pkl").write_text("x", encoding="utf-8")
+    (pending / "b.task.pkl").write_text("x", encoding="utf-8")
+    (running / "c.task.pkl").write_text("x", encoding="utf-8")
+    (done / "d.task.pkl").write_text("x", encoding="utf-8")
+
+    AGI._service_queue_pending = pending
+    AGI._service_queue_running = running
+    AGI._service_queue_done = done
+    AGI._service_queue_failed = failed
+
+    assert AGI._service_queue_counts() == {
+        "pending": 2,
+        "running": 1,
+        "done": 1,
+        "failed": 0,
+    }
+
+
+def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    queue_root = tmp_path / "queue"
+    for name in ("pending", "running", "done", "failed", "heartbeats"):
+        (queue_root / name).mkdir(parents=True, exist_ok=True)
+
+    stale_pending = queue_root / "pending" / "old.task.pkl"
+    stale_running = queue_root / "running" / "old.task.pkl"
+    stale_heartbeat = queue_root / "heartbeats" / "old.json"
+    stale_pending.write_text("x", encoding="utf-8")
+    stale_running.write_text("x", encoding="utf-8")
+    stale_heartbeat.write_text("{}", encoding="utf-8")
+
+    queue_paths = AGI._init_service_queue(env, service_queue_dir=queue_root)
+    assert queue_paths["root"] == queue_root
+    assert stale_pending.exists() is False
+    assert stale_running.exists() is False
+    assert stale_heartbeat.exists() is False
+
+
+def test_service_state_path_falls_back_when_resolve_share_path_is_missing(tmp_path):
+    env = SimpleNamespace(target="demo_target", home_abs=str(tmp_path))
+    path = _REAL_SERVICE_STATE_PATH(env)
+    assert str(path).endswith("demo_target/service_state.json")
+    assert path.exists() is False
+    assert path.parent.exists()
+
+
+def test_service_health_path_falls_back_when_resolve_share_path_is_missing(tmp_path):
+    env = SimpleNamespace(target="demo_target", app="demo_app", home_abs=str(tmp_path))
+    path = _REAL_SERVICE_HEALTH_PATH(env, health_output_path=Path("nested/health.json"))
+    assert str(path).endswith("demo_target/nested/health.json")
+    assert path.parent.exists()
+
+
+def test_service_finalize_response_without_health_path(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    monkeypatch.setattr(AGI, "_service_write_health_payload", staticmethod(lambda *_a, **_k: None))
+    payload = AGI._service_finalize_response(env, {"status": "idle"}, health_only=False)
+    assert payload["status"] == "idle"
+    assert "health_path" not in payload
+    assert payload["health"]["schema"] == "agi.service.health.v1"
+
+
+def test_service_health_payload_ignores_invalid_timeout_value():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    payload = AGI._service_health_payload(
+        env,
+        {"status": "running", "heartbeat_timeout_sec": "not-a-number"},
+    )
+    assert payload["status"] == "running"
+    assert "heartbeat_timeout_sec" not in payload
+
+
+def test_service_read_heartbeats_and_payloads_return_empty_without_dir():
+    AGI._service_queue_heartbeats = None
+    assert AGI._service_read_heartbeats() == {}
+    assert AGI._service_read_heartbeat_payloads() == {}
+
+
+def test_service_read_heartbeats_and_payloads_skip_non_dict_payload(tmp_path):
+    hb_dir = tmp_path / "heartbeats"
+    hb_dir.mkdir(parents=True, exist_ok=True)
+    AGI._service_queue_heartbeats = hb_dir
+    (hb_dir / "list.json").write_text(json.dumps(["not", "dict"]), encoding="utf-8")
+    assert AGI._service_read_heartbeats() == {}
+    assert AGI._service_read_heartbeat_payloads() == {}
+
+
+def test_service_unhealthy_workers_returns_empty_for_no_workers():
+    assert AGI._service_unhealthy_workers([]) == {}
+
+
+def test_service_unhealthy_workers_reports_loop_missing_and_stale(tmp_path):
+    hb_dir = tmp_path / "heartbeats"
+    hb_dir.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+
+    (hb_dir / "ok.json").write_text(
+        json.dumps({"worker": "w_ok", "timestamp": now, "state": "running"}),
+        encoding="utf-8",
+    )
+    (hb_dir / "stale.json").write_text(
+        json.dumps({"worker": "w_stale", "timestamp": now - 8.0, "state": "running"}),
+        encoding="utf-8",
+    )
+
+    AGI._service_queue_heartbeats = hb_dir
+    AGI._service_started_at = now - 20.0
+    AGI._service_heartbeat_timeout = 1.0
+    AGI._service_futures = {
+        "w_loop": _FakeFuture(status="finished"),
+        "w_ok": _FakeFuture(status="running"),
+        "w_missing": _FakeFuture(status="running"),
+        "w_stale": _FakeFuture(status="running"),
+    }
+
+    reasons = AGI._service_unhealthy_workers(["w_loop", "w_ok", "w_missing", "w_stale"])
+    assert reasons["w_loop"] == "loop-finished"
+    assert reasons["w_missing"] == "missing-heartbeat"
+    assert reasons["w_stale"].startswith("stale-heartbeat(")
+    assert "w_ok" not in reasons
+
+
+def test_service_worker_health_builds_mixed_report(monkeypatch):
+    now = time.time()
+    AGI._service_started_at = now - 30.0
+    AGI._service_heartbeat_timeout = 2.0
+    AGI._service_futures = {
+        "w_good": _FakeFuture(status="running"),
+        "w_bad": _FakeFuture(status="error"),
+    }
+
+    monkeypatch.setattr(
+        AGI,
+        "_service_read_heartbeat_payloads",
+        staticmethod(
+            lambda: {
+                "w_good": {"worker": "w_good", "timestamp": now - 0.5, "state": "running"},
+                "w_bad": {"worker": "w_bad", "timestamp": now - 0.2, "state": "running"},
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_service_unhealthy_workers",
+        staticmethod(lambda workers: {"w_bad": "loop-error"}),
+    )
+
+    report = AGI._service_worker_health(["w_good", "w_bad", "w_new"])
+    by_worker = {row["worker"]: row for row in report}
+    assert by_worker["w_good"]["healthy"] is True
+    assert by_worker["w_bad"]["healthy"] is False
+    assert by_worker["w_bad"]["reason"] == "loop-error"
+    assert by_worker["w_new"]["future_state"] == "detached"
+    assert by_worker["w_new"]["healthy"] is False
+
+
+@pytest.mark.asyncio
+async def test_service_restart_workers_returns_empty_for_empty_input():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    restarted = await AGI._service_restart_workers(env, client=_FakeClient([]), workers_to_restart=[])
+    assert restarted == []
+
+
+@pytest.mark.asyncio
+async def test_service_restart_workers_restarts_and_tracks_futures(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._args = {"sample": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI._service_poll_interval = 0.2
+    AGI._service_queue_root = None
+    AGI._service_workers = []
+    AGI._service_futures = {}
+
+    class _RestartClient:
+        def __init__(self):
+            self.calls = []
+            self._gather_calls = 0
+
+        def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        def submit(self, fn, *args, **kwargs):
+            self.calls.append(getattr(fn, "__name__", str(fn)))
+            return _FakeFuture(status="running")
+
+        def gather(self, futures, errors="raise"):
+            self._gather_calls += 1
+            if self._gather_calls == 1:
+                raise RuntimeError("ignore break gather failure")
+            return [None for _ in futures]
+
+    client = _RestartClient()
+
+    def _fake_init_queue(_env):
+        return AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    monkeypatch.setattr(AGI, "_init_service_queue", staticmethod(_fake_init_queue))
+
+    restarted = await AGI._service_restart_workers(env, client, ["127.0.0.1:8787"])
+    assert restarted == ["127.0.0.1:8787"]
+    assert AGI._service_futures["127.0.0.1:8787"].status == "running"
+    assert {"break_loop", "_new", "loop"}.issubset(set(client.calls))
+
+
+@pytest.mark.asyncio
+async def test_service_auto_restart_unhealthy_returns_empty_without_workers(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_workers = []
+
+    async def _connected(_client):
+        return []
+
+    monkeypatch.setattr(AGI, "_service_connected_workers", staticmethod(_connected))
+    result = await AGI._service_auto_restart_unhealthy(env, client=object())
+    assert result == {"restarted": [], "reasons": {}}
+
+
+@pytest.mark.asyncio
+async def test_service_auto_restart_unhealthy_restarts_and_persists(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_workers = []
+    calls = {"write": 0}
+
+    async def _connected(_client):
+        return ["w1"]
+
+    async def _restart(_env, _client, _workers):
+        return ["w1"]
+
+    monkeypatch.setattr(AGI, "_service_connected_workers", staticmethod(_connected))
+    monkeypatch.setattr(AGI, "_service_unhealthy_workers", staticmethod(lambda _workers: {"w1": "missing-heartbeat"}))
+    monkeypatch.setattr(AGI, "_service_restart_workers", staticmethod(_restart))
+    monkeypatch.setattr(AGI, "_service_state_payload", staticmethod(lambda _env: {"schema": "state"}))
+    monkeypatch.setattr(
+        AGI,
+        "_service_write_state",
+        staticmethod(lambda _env, _payload: calls.__setitem__("write", calls["write"] + 1)),
+    )
+
+    result = await AGI._service_auto_restart_unhealthy(env, client=object())
+    assert result["restarted"] == ["w1"]
+    assert result["reasons"]["w1"] == "missing-heartbeat"
+    assert calls["write"] == 1
+
+
+@pytest.mark.asyncio
+async def test_service_recover_allow_stale_cleanup_clears_state_on_failure(tmp_path, monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    queue_dir = tmp_path / "service_queue"
+    queue_dir.mkdir(parents=True, exist_ok=True)
+
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "workers": {"127.0.0.1": 1},
+            "service_workers": ["127.0.0.1:8787"],
+            "queue_dir": str(queue_dir),
+            "args": {},
+        },
+    )
+
+    async def _fail_connect(*_args, **_kwargs):
+        raise RuntimeError("connect failed")
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fail_connect))
+
+    recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
+    assert recovered is False
+    assert AGI._service_read_state(env) is None
+    assert AGI._service_queue_root is None
+    assert AGI._service_workers == []
+    assert AGI._service_futures == {}
+
+
+@pytest.mark.asyncio
+async def test_service_recover_without_stale_cleanup_keeps_state_on_failure(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    state_path = AGI._service_state_path(env)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "workers": {"127.0.0.1": 1},
+            "args": {},
+        },
+    )
+
+    async def _fail_connect(*_args, **_kwargs):
+        raise RuntimeError("connect failed")
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fail_connect))
+    recovered = await AGI._service_recover(env, allow_stale_cleanup=False)
+    assert recovered is False
+    assert state_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_service_recover_fails_when_no_workers_attached(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "workers": {"127.0.0.1": 1},
+            "args": {},
+        },
+    )
+
+    class _NoWorkerClient:
+        status = "running"
+
+        def scheduler_info(self):
+            return {"workers": {}}
+
+    async def _connect(*_args, **_kwargs):
+        return _NoWorkerClient()
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_connect))
+    recovered = await AGI._service_recover(env, allow_stale_cleanup=False)
+    assert recovered is False
+
+
+@pytest.mark.asyncio
+async def test_agi_run_delegates_to_benchmark_with_sorted_mode_list(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    captured = {}
+
+    async def _fake_benchmark(env_, scheduler, workers, verbose, mode_range, rapids_enabled, **args):
+        captured["env"] = env_
+        captured["scheduler"] = scheduler
+        captured["workers"] = workers
+        captured["verbose"] = verbose
+        captured["mode_range"] = list(mode_range)
+        captured["rapids_enabled"] = rapids_enabled
+        captured["args"] = dict(args)
+        return {"status": "bench"}
+
+    monkeypatch.setattr(AGI, "_benchmark", staticmethod(_fake_benchmark))
+
+    result = await AGI.run(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        verbose=2,
+        mode=[5, 1, 3],
+        rapids_enabled=True,
+        example_flag=True,
+    )
+
+    assert result == {"status": "bench"}
+    assert captured["env"] is env
+    assert captured["scheduler"] == "127.0.0.1"
+    assert captured["workers"] == {"127.0.0.1": 1}
+    assert captured["verbose"] == 2
+    assert captured["mode_range"] == [1, 3, 5]
+    assert captured["rapids_enabled"] is True
+    assert captured["args"]["example_flag"] is True
+
+
+@pytest.mark.asyncio
+async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.benchmark = tmp_path / "benchmark.json"
+    env.benchmark.write_text("stale", encoding="utf-8")
+
+    async def _fake_run(_env, scheduler=None, workers=None, mode=None, **_args):
+        return f"mode{mode} {float(mode) + 1.0}"
+
+    async def _fake_bench_dask(_env, _scheduler, _workers, _modes, _mask, runs, **_args):
+        runs[4] = {"mode": "mode4", "timing": "4 seconds", "seconds": 4.0}
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(_fake_bench_dask))
+
+    payload = await AGI._benchmark(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode_range=[0, 1, 4],
+        rapids_enabled=False,
+    )
+    data = json.loads(payload)
+    assert set(data.keys()) == {"0", "1", "4"}
+    assert data["0"]["order"] == 1
+    assert data["1"]["order"] == 2
+    assert data["4"]["order"] == 3
+    assert AGI._best_mode[env.target]["mode"] == data["0"]["mode"]
+    assert env.benchmark.exists()
+    assert AGI._mode_auto is False
+
+
+@pytest.mark.asyncio
+async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.benchmark = tmp_path / "benchmark.json"
+    called = {"install": 0}
+
+    async def _fake_install(*_args, **_kwargs):
+        called["install"] += 1
+        return None
+
+    async def _fake_run(_env, scheduler=None, workers=None, mode=None, **_args):
+        return f"mode{mode} 1.0"
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: False))
+    monkeypatch.setattr(AGI, "install", staticmethod(_fake_install))
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    payload = await AGI._benchmark(env, mode_range=[0], rapids_enabled=False)
+    assert json.loads(payload)["0"]["mode"].startswith("mode")
+    assert called["install"] == 1
+
+
+@pytest.mark.asyncio
+async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.benchmark = tmp_path / "benchmark.json"
+
+    async def _bad_run(*_args, **_kwargs):
+        return "invalid-format"
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_bad_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        await AGI._benchmark(env, mode_range=[0], rapids_enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.benchmark = tmp_path / "benchmark.json"
+
+    async def _non_str_run(*_args, **_kwargs):
+        return {"status": "not-a-string"}
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_non_str_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    with pytest.raises(RuntimeError, match="No ordered runs available"):
+        await AGI._benchmark(env, mode_range=[0], rapids_enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    calls = {"start": 0, "stop": 0, "update": 0}
+    runs = {}
+    sequence = iter(["m4 2.0", "m5 1.0"])
+
+    async def _start(_scheduler):
+        calls["start"] += 1
+        return True
+
+    async def _stop():
+        calls["stop"] += 1
+
+    async def _distribute():
+        return next(sequence)
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(
+        AGI,
+        "_update_capacity",
+        staticmethod(lambda: calls.__setitem__("update", calls["update"] + 1)),
+    )
+
+    await AGI._benchmark_dask_modes(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode_range=[4, 5],
+        rapids_mode_mask=AGI._RAPIDS_RESET,
+        runs=runs,
+    )
+    assert calls["start"] == 1
+    assert calls["stop"] == 1
+    assert calls["update"] == 2
+    assert runs[4]["seconds"] == 2.0
+    assert runs[5]["seconds"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_stops_even_when_run_format_is_invalid(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    calls = {"stop": 0}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        calls["stop"] += 1
+
+    async def _distribute():
+        return "bad-run"
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(lambda: None))
+
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        await AGI._benchmark_dask_modes(
+            env,
+            scheduler="127.0.0.1",
+            workers={"127.0.0.1": 1},
+            mode_range=[4],
+            rapids_mode_mask=AGI._RAPIDS_RESET,
+            runs={},
+        )
+    assert calls["stop"] == 1
+
+
+@pytest.mark.asyncio
+async def test_agi_run_uses_default_workers_in_benchmark(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=1)
+    captured = {}
+
+    async def _fake_benchmark(_env, _scheduler, workers, _verbose, mode_range, _rapids_enabled, **_args):
+        captured["workers"] = workers
+        captured["modes"] = list(mode_range)
+        return {"status": "bench-default-workers"}
+
+    monkeypatch.setattr(AGI, "_benchmark", staticmethod(_fake_benchmark))
+
+    result = await AGI.run(
+        env,
+        scheduler="127.0.0.1",
+        workers=None,
+        mode=None,
+    )
+    assert result == {"status": "bench-default-workers"}
+    assert captured["workers"] == agi_distributor_module._workers_default
+    assert captured["modes"] == list(range(8))
+
+
+@pytest.mark.asyncio
+async def test_agi_run_rejects_invalid_workers_type():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    with pytest.raises(ValueError, match=r"workers must be a dict"):
+        await AGI.run(
+            env,
+            workers=["127.0.0.1"],  # type: ignore[arg-type]
+            mode=AGI.DASK_MODE,
+        )
+
+
+@pytest.mark.asyncio
+async def test_agi_run_rejects_invalid_mode_string():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    with pytest.raises(ValueError, match=r"parameter <mode> must only contain the letters"):
+        await AGI.run(
+            env,
+            workers={"127.0.0.1": 1},
+            mode="dcx",
+        )
+
+
+@pytest.mark.asyncio
+async def test_agi_run_rejects_invalid_mode_type():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    with pytest.raises(ValueError, match=r"parameter <mode> must be an int"):
+        await AGI.run(
+            env,
+            workers={"127.0.0.1": 1},
+            mode={"bad": "type"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_agi_run_rejects_unsupported_base_worker_class(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "UnknownWorker"
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    with pytest.raises(ValueError, match=r"Unsupported base worker class"):
+        await AGI.run(
+            env,
+            workers={"127.0.0.1": 1},
+            mode=AGI.DASK_MODE,
+        )
+
+
+@pytest.mark.asyncio
+async def test_agi_run_mode_string_valid_path_calls_mode2int_and_main(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    called = {"mode2int": None, "main": None}
+
+    def _mode2int(mode):
+        called["mode2int"] = mode
+        return 5
+
+    async def _fake_main(scheduler):
+        called["main"] = scheduler
+        return {"status": "ok"}
+
+    monkeypatch.setattr(env, "mode2int", _mode2int)
+    monkeypatch.setattr(AGI, "_main", staticmethod(_fake_main))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    result = await AGI.run(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode="dc",
+    )
+    assert result == {"status": "ok"}
+    assert called["mode2int"] == "dc"
+    assert called["main"] == "127.0.0.1"
+
+
+@pytest.mark.asyncio
+async def test_agi_run_mode_zero_sets_run_type(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+
+    async def _fake_main(_scheduler):
+        return {"status": "ok"}
+
+    monkeypatch.setattr(AGI, "_main", staticmethod(_fake_main))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    result = await AGI.run(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode=0,
+    )
+    assert result == {"status": "ok"}
+    assert AGI._run_type == "run --no-sync"
+
+
+@pytest.mark.asyncio
+async def test_agi_run_trains_capacity_when_model_is_missing(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    called = {"train": 0}
+
+    async def _fake_main(_scheduler):
+        return {"status": "ok"}
+
+    monkeypatch.setattr(Path, "is_file", lambda self: False, raising=False)
+    monkeypatch.setattr(AGI, "_main", staticmethod(_fake_main))
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda *_args, **_kwargs: called.__setitem__("train", called["train"] + 1)),
+    )
+
+    result = await AGI.run(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+    )
+    assert result == {"status": "ok"}
+    assert called["train"] == 1
+
+
+@pytest.mark.asyncio
+async def test_agi_run_returns_none_on_process_error(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+
+    class _FakeProcessError(Exception):
+        pass
+
+    async def _fake_main(_scheduler):
+        raise _FakeProcessError("process failed")
+
+    monkeypatch.setattr(agi_distributor_module, "ProcessError", _FakeProcessError)
+    monkeypatch.setattr(AGI, "_main", staticmethod(_fake_main))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    result = await AGI.run(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_agi_run_returns_connection_error_payload(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    async def _boom(_scheduler):
+        raise ConnectionError("scheduler unavailable")
+
+    monkeypatch.setattr(AGI, "_main", staticmethod(_boom))
+    result = await AGI.run(
+        env,
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+    )
+    assert result["status"] == "error"
+    assert result["kind"] == "connection"
+    assert "scheduler unavailable" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_agi_run_returns_none_on_module_not_found(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    async def _missing(_scheduler):
+        raise ModuleNotFoundError("missing module")
+
+    monkeypatch.setattr(AGI, "_main", staticmethod(_missing))
+    assert await AGI.run(env, workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE) is None
+
+
+@pytest.mark.asyncio
+async def test_agi_run_reraises_unhandled_exception(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    async def _unexpected(_scheduler):
+        raise RuntimeError("unexpected failure")
+
+    monkeypatch.setattr(AGI, "_main", staticmethod(_unexpected))
+    with pytest.raises(RuntimeError, match="unexpected failure"):
+        await AGI.run(env, workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)
+
+
+@pytest.mark.asyncio
+async def test_agi_run_logs_debug_traceback_when_debug_enabled(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    class _FakeLogger:
+        def __init__(self):
+            self.debug_calls = 0
+
+        def info(self, *args, **kwargs):
+            return None
+
+        def error(self, *args, **kwargs):
+            return None
+
+        def warning(self, *args, **kwargs):
+            return None
+
+        def isEnabledFor(self, _level):
+            return True
+
+        def debug(self, *args, **kwargs):
+            self.debug_calls += 1
+
+    async def _unexpected(_scheduler):
+        raise RuntimeError("boom-debug")
+
+    fake_logger = _FakeLogger()
+    monkeypatch.setattr(AGI, "_main", staticmethod(_unexpected))
+    monkeypatch.setattr(agi_distributor_module, "logger", fake_logger)
+
+    with pytest.raises(RuntimeError, match="boom-debug"):
+        await AGI.run(env, workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)
+    assert fake_logger.debug_calls >= 1
 
 
 def test_service_health_payload_counts_and_fields():
@@ -323,6 +1922,90 @@ async def test_agi_serve_status_idle_when_not_started():
 
 
 @pytest.mark.asyncio
+async def test_agi_serve_rejects_invalid_action():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    with pytest.raises(ValueError, match=r"action must be"):
+        await AGI.serve(env, action="invalid-action")
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_stop_returns_idle_when_nothing_to_stop(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    calls = {"stop": 0, "clean": 0}
+    AGI._dask_client = _FakeClient([])
+    AGI._jobs = object()
+    AGI._service_futures = {}
+    AGI._service_workers = []
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    async def _stop():
+        calls["stop"] += 1
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(
+        AGI,
+        "_clean_job",
+        staticmethod(lambda *_a, **_k: calls.__setitem__("clean", calls["clean"] + 1)),
+    )
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=True)
+    assert result["status"] == "idle"
+    assert calls["stop"] == 1
+    assert calls["clean"] == 1
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_stop_returns_error_when_client_missing(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._dask_client = None
+    AGI._jobs = object()
+    AGI._service_futures = {"w1": _FakeFuture("running")}
+    AGI._service_workers = ["w1"]
+    calls = {"clean": 0}
+
+    monkeypatch.setattr(
+        AGI,
+        "_clean_job",
+        staticmethod(lambda *_a, **_k: calls.__setitem__("clean", calls["clean"] + 1)),
+    )
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=False)
+    assert result["status"] == "error"
+    assert "w1" in result["pending"]
+    assert calls["clean"] == 1
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_stop_handles_empty_targets_and_shuts_down(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._dask_client = _FakeClient([])
+    AGI._service_futures = {}
+    AGI._service_workers = []
+    calls = {"stop": 0}
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        AGI._dask_client = _FakeClient([])
+        return True
+
+    async def _connected(_client):
+        return []
+
+    async def _stop():
+        calls["stop"] += 1
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_service_connected_workers", staticmethod(_connected))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=True)
+    assert result["status"] == "idle"
+    assert calls["stop"] == 1
+
+
+@pytest.mark.asyncio
 async def test_agi_serve_health_action_writes_json(tmp_path):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
     health_path = tmp_path / "export" / "health.json"
@@ -385,6 +2068,125 @@ async def test_agi_serve_start_status_stop_supports_agidataworker(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_agi_serve_start_reuses_recovered_service(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_workers = ["127.0.0.1:8787"]
+    AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return True
+
+    async def _auto_restart(_env, _client):
+        return {"restarted": ["127.0.0.1:8787"], "reasons": {"127.0.0.1:8787": "stale-heartbeat"}}
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_service_auto_restart_unhealthy", staticmethod(_auto_restart))
+    monkeypatch.setattr(AGI, "_service_cleanup_artifacts", staticmethod(lambda: {"done": 0, "failed": 0, "heartbeats": 0}))
+    monkeypatch.setattr(AGI, "_service_worker_health", staticmethod(lambda workers: [{"worker": w, "healthy": True} for w in workers]))
+    monkeypatch.setattr(AGI, "_service_queue_counts", staticmethod(lambda: {"pending": 0, "running": 0, "done": 0, "failed": 0}))
+
+    started = await AGI.serve(env, action="start", mode=AGI.DASK_MODE)
+    assert started["status"] == "running"
+    assert started["recovered"] is True
+    assert started["restarted_workers"] == ["127.0.0.1:8787"]
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_start_rejects_invalid_workers_type(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    with pytest.raises(ValueError, match=r"workers must be a dict"):
+        await AGI.serve(env, action="start", workers=["127.0.0.1"], mode=AGI.DASK_MODE)
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_start_rejects_modes_without_dask(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    with pytest.raises(ValueError, match=r"requires Dask mode"):
+        await AGI.serve(env, action="start", workers={"127.0.0.1": 1}, mode=AGI.PYTHON_MODE)
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_start_rejects_invalid_mode_string(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    with pytest.raises(ValueError, match=r"parameter <mode> must only contain the letters"):
+        await AGI.serve(env, action="start", workers={"127.0.0.1": 1}, mode="xyz")
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_start_rejects_invalid_mode_type(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    with pytest.raises(ValueError, match=r"parameter <mode> must be an int or a string"):
+        await AGI.serve(env, action="start", workers={"127.0.0.1": 1}, mode=[AGI.DASK_MODE])  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_start_uses_sync_when_client_already_running(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
+    calls = {"sync": 0}
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    async def _sync():
+        calls["sync"] += 1
+        return None
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_sync))
+
+    result = await AGI.serve(
+        env,
+        action="start",
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+        shutdown_on_stop=False,
+    )
+    assert result["status"] == "running"
+    assert calls["sync"] == 1
+
+
+@pytest.mark.asyncio
+async def test_agi_serve_start_raises_when_client_not_obtained(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    AGI._dask_client = None
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    async def _start(_scheduler):
+        return True
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+
+    with pytest.raises(RuntimeError, match=r"Failed to obtain Dask client"):
+        await AGI.serve(env, action="start", workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)
+
+
+@pytest.mark.asyncio
 async def test_agi_serve_rejects_unsupported_base_worker():
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
     env.base_worker_cls = "UnknownWorker"
@@ -402,6 +2204,59 @@ async def test_agi_submit_requires_running_service():
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
     with pytest.raises(RuntimeError, match=r"Service is not running"):
         await AGI.submit(env, work_plan=[], work_plan_metadata=[])
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_requires_env_when_not_initialized():
+    AGI.env = None
+    with pytest.raises(ValueError, match=r"env is required"):
+        await AGI.submit(env=None, work_plan=[], work_plan_metadata=[])
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_fails_when_dask_client_is_unavailable():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_futures = {"w1": _FakeFuture("running")}
+    AGI._service_workers = ["w1"]
+    AGI._dask_client = None
+    with pytest.raises(RuntimeError, match=r"Dask client is unavailable"):
+        await AGI.submit(env, work_plan=[["step"]], work_plan_metadata=[[{}]])
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_rejects_invalid_workers_type_when_running(tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_futures = {"w1": _FakeFuture("running")}
+    AGI._service_workers = ["w1"]
+    AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+    with pytest.raises(ValueError, match=r"workers must be a dict"):
+        await AGI.submit(
+            env,
+            workers=["127.0.0.1"],  # type: ignore[arg-type]
+            work_plan=[["step"]],
+            work_plan_metadata=[[{}]],
+        )
+
+
+@pytest.mark.asyncio
+async def test_agi_submit_builds_distribution_when_plan_missing(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_futures = {"w1": _FakeFuture("running")}
+    AGI._service_workers = ["w1"]
+    AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {"alpha": 1}
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    async def _do_distrib(_env, _workers, _args):
+        return {"127.0.0.1": 1}, [["gen-step"]], [[{"auto": True}]]
+
+    monkeypatch.setattr(agi_distributor_module.WorkDispatcher, "_do_distrib", staticmethod(_do_distrib))
+
+    result = await AGI.submit(env, work_plan=None, work_plan_metadata=None, task_name="auto-plan")
+    assert result["status"] == "queued"
+    assert len(result["queued_files"]) == 1
 
 
 @pytest.mark.asyncio
@@ -709,3 +2564,1654 @@ async def test_agi_service_real_dask_e2e_self_heal_submit_stop(monkeypatch, tmp_
             cluster.close()
         except Exception:
             pass
+
+
+@pytest.mark.asyncio
+async def test_prepare_local_env_offline_worker_env_initializes_project(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "wenv_local"
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        verbose=1,
+        envars={"AGI_INTERNET_ON": "0"},
+        uv="uv",
+        is_worker_env=True,
+        hw_rapids_capable=None,
+    )
+    AGI._rapids_enabled = True
+    captured_set_env = []
+    run_calls = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_run(cmd, cwd):
+        run_calls.append((cmd, str(cwd)))
+        return ""
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: False))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(
+        agi_distributor_module.AgiEnv,
+        "set_env_var",
+        staticmethod(lambda *args: captured_set_env.append(args)),
+    )
+    monkeypatch.setattr(agi_distributor_module.distributor_cli, "python_version", lambda: "3.13.12")
+
+    await AGI._prepare_local_env()
+
+    assert wenv_abs.exists()
+    assert any(entry[0] == "127.0.0.1_CMD_PREFIX" for entry in captured_set_env)
+    assert any(entry[0] == "127.0.0.1_PYTHON_VERSION" for entry in captured_set_env)
+    assert any("no_rapids_hw" in entry for entry in captured_set_env)
+    assert len(run_calls) == 1
+    assert "--project" in run_calls[0][0]
+    assert "init --bare --no-workspace" in run_calls[0][0]
+
+
+@pytest.mark.asyncio
+async def test_prepare_local_env_online_handles_python_download_warning(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "wenv_local"
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        verbose=1,
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        is_worker_env=False,
+        hw_rapids_capable=None,
+    )
+    AGI._rapids_enabled = True
+    run_calls = []
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_run(cmd, _cwd):
+        run_calls.append(cmd)
+        if "python install" in cmd:
+            raise RuntimeError("No download found for request")
+        return ""
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: True))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(agi_distributor_module.distributor_cli, "python_version", lambda: "3.13.12")
+    monkeypatch.setattr(agi_distributor_module.os, "name", "posix", raising=False)
+
+    await AGI._prepare_local_env()
+
+    assert any("self update" in cmd for cmd in run_calls)
+    assert any("python install 3.13" in cmd for cmd in run_calls)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='demo-manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        target_worker="demo_worker",
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    sent = []
+    remote_cmds = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _fake_noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_noop))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    assert any("self update" in cmd for _, cmd in remote_cmds)
+    assert any(item[2] == "wenv" for item in sent)
+    assert any("cli.py" in names for _, names, _ in sent)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_raises_when_uv_missing_offline(monkeypatch):
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: False,
+        envars={"AGI_INTERNET_ON": "0"},
+        uv="uv",
+        cluster_pck=Path("."),
+        worker_pyproject=Path("worker_pyproject.toml"),
+        manager_pyproject=Path("manager_pyproject.toml"),
+        uvproject=Path("uv.toml"),
+        target_worker="demo_worker",
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+
+    async def _fake_exec(_ip, _cmd):
+        raise RuntimeError("uv missing")
+
+    async def _fake_detect(_ip):
+        return ""
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    with pytest.raises(EnvironmentError, match="Uv binary is not installed"):
+        await AGI._prepare_cluster_env("127.0.0.1")
+
+
+@pytest.mark.asyncio
+async def test_deploy_application_calls_local_and_remote_workers(monkeypatch):
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI.install_worker_group = ["pandas-worker"]
+    AGI.env = SimpleNamespace(
+        active_app=Path("/tmp/demo_app"),
+        wenv_rel=Path("wenv"),
+        base_worker_cls="PandasWorker",
+        verbose=1,
+        is_local=lambda ip: ip == "127.0.0.1",
+    )
+    calls = {"local": [], "remote": [], "todo": []}
+
+    async def _fake_local(src, wenv_rel, options):
+        calls["local"].append((str(src), str(wenv_rel), options))
+
+    async def _fake_remote(ip, _env, wenv_rel, options):
+        calls["remote"].append((ip, str(wenv_rel), options))
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(
+        AGI,
+        "_venv_todo",
+        staticmethod(lambda node_ips: calls["todo"].append(set(node_ips))),
+    )
+    monkeypatch.setattr(AGI, "_deploy_local_worker", staticmethod(_fake_local))
+    monkeypatch.setattr(AGI, "_deploy_remote_worker", staticmethod(_fake_remote))
+
+    await AGI._deploy_application("127.0.0.1")
+
+    assert calls["local"]
+    assert calls["remote"] == [("10.0.0.2", "wenv", " --extra pandas-worker")]
+    assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    active_app = tmp_path / "app"
+    active_app.mkdir(parents=True, exist_ok=True)
+    (active_app / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+
+    AGI._mode = AGI.DASK_MODE
+    AGI._mode_auto = False
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._worker_init_error = False
+    AGI.env = SimpleNamespace(
+        wenv_rel=Path("wenv"),
+        wenv_abs=tmp_path / "wenv",
+        active_app=active_app,
+        app="demo_app",
+        uv="uv",
+        envars={},
+        cluster_pck=cluster_pck,
+        export_local_bin="",
+        is_local=lambda ip: ip == "127.0.0.1",
+    )
+    AGI.env.wenv_abs.mkdir(parents=True, exist_ok=True)
+    calls = {"bg": [], "set_env": []}
+
+    async def _fake_send(*_args, **_kwargs):
+        return None
+
+    async def _fake_kill(*_args, **_kwargs):
+        return None
+
+    async def _fake_connect(*_args, **_kwargs):
+        return "fake-client"
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_sleep(_delay):
+        return None
+
+    async def _fake_port_release(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(
+        AGI,
+        "_get_scheduler",
+        staticmethod(lambda scheduler: ("127.0.0.1", 8786) if scheduler else ("127.0.0.1", 8786)),
+    )
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_port_release))
+    monkeypatch.setattr(AGI, "find_free_port", staticmethod(lambda *_a, **_k: 8899))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect))
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", _fake_sleep)
+    monkeypatch.setattr(
+        agi_distributor_module.AgiEnv,
+        "set_env_var",
+        staticmethod(lambda *args: calls["set_env"].append(args)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_exec_bg",
+        staticmethod(lambda cmd, cwd: calls["bg"].append((cmd, cwd))),
+    )
+
+    ok = await AGI._start_scheduler("127.0.0.1")
+
+    assert ok is True
+    assert AGI._scheduler_port == 8899
+    assert AGI._dask_client == "fake-client"
+    assert AGI._install_done is True
+    assert calls["bg"]
+    assert any(entry[0] == "127.0.0.1_CMD_PREFIX" for entry in calls["set_env"])
+
+
+@pytest.mark.asyncio
+async def test_connect_scheduler_with_retry_succeeds_after_retry(monkeypatch):
+    attempts = {"n": 0}
+
+    async def _fake_client(_address, heartbeat_interval=5000, timeout=1.0):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise RuntimeError("not ready")
+        return {"connected": True, "timeout": timeout, "heartbeat": heartbeat_interval}
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(agi_distributor_module, "Client", _fake_client)
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", _fake_sleep)
+
+    client = await AGI._connect_scheduler_with_retry("tcp://127.0.0.1:8786", timeout=2.0)
+    assert client["connected"] is True
+    assert attempts["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_connect_scheduler_with_retry_times_out(monkeypatch):
+    async def _fake_client(_address, heartbeat_interval=5000, timeout=1.0):
+        raise RuntimeError("never ready")
+
+    async def _fake_sleep(_delay):
+        return None
+
+    clock = {"t": 0.0}
+
+    def _monotonic():
+        clock["t"] += 0.25
+        return clock["t"]
+
+    monkeypatch.setattr(agi_distributor_module, "Client", _fake_client)
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", _fake_sleep)
+    monkeypatch.setattr(agi_distributor_module.time, "monotonic", _monotonic)
+
+    with pytest.raises(RuntimeError, match="Failed to instantiate Dask Client"):
+        await AGI._connect_scheduler_with_retry("tcp://127.0.0.1:8786", timeout=0.1)
+
+
+@pytest.mark.asyncio
+async def test_detect_export_cmd_local_and_remote(monkeypatch):
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
+    had_attr = hasattr(AgiEnv, "export_local_bin")
+    old_export = getattr(AgiEnv, "export_local_bin", None)
+    setattr(AgiEnv, "export_local_bin", "LOCAL_PREFIX ")
+    assert await AGI._detect_export_cmd("127.0.0.1") == "LOCAL_PREFIX "
+
+    async def _fake_exec(_ip, _cmd):
+        return "Linux"
+
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    assert await AGI._detect_export_cmd("10.0.0.2") == 'export PATH="$HOME/.local/bin:$PATH";'
+    if had_attr:
+        setattr(AgiEnv, "export_local_bin", old_export)
+    else:
+        delattr(AgiEnv, "export_local_bin")
+
+
+@pytest.mark.asyncio
+async def test_detect_export_cmd_returns_empty_for_non_posix(monkeypatch):
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    async def _fake_exec(_ip, _cmd):
+        return "Windows_NT"
+
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    assert await AGI._detect_export_cmd("10.0.0.3") == ""
+
+
+def test_dask_env_prefix_and_scale_cluster_trim_workers():
+    AGI._dask_log_level = ""
+    assert AGI._dask_env_prefix() == ""
+    AGI._dask_log_level = "INFO"
+    assert "DASK_DISTRIBUTED__LOGGING__distributed=INFO" in AGI._dask_env_prefix()
+
+    AGI._workers = {"10.0.0.1": 1}
+    AGI._dask_workers = ["10.0.0.1:1001", "10.0.0.1:1002", "10.0.0.2:1001"]
+    AGI._scale_cluster()
+    assert AGI._dask_workers == ["10.0.0.1:1001"]
+
+
+def test_exec_bg_raises_when_background_job_fails():
+    class _Jobs:
+        def __init__(self):
+            self.new_calls = []
+
+        def new(self, cmd, cwd=None):
+            self.new_calls.append((cmd, cwd))
+
+        def result(self, _index):
+            return False
+
+    AGI._jobs = _Jobs()
+    with pytest.raises(RuntimeError, match="running echo test"):
+        AGI._exec_bg("echo test", "/tmp")
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_reuses_cached_connection(monkeypatch):
+    class _Conn:
+        def is_closed(self):
+            return False
+
+    AGI.env = SimpleNamespace(user="alice", password=None, ssh_key_path=None)
+    AGI._ssh_connections = {"10.0.0.2": _Conn()}
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    async with AGI.get_ssh_connection("10.0.0.2") as conn:
+        assert conn is AGI._ssh_connections["10.0.0.2"]
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_requires_user_when_remote(monkeypatch):
+    AGI.env = SimpleNamespace(user=None, password=None, ssh_key_path=None)
+    AGI._ssh_connections = {}
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    with pytest.raises(ValueError, match="SSH username is not configured"):
+        async with AGI.get_ssh_connection("10.0.0.2"):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_timeout_permission_and_network(monkeypatch):
+    AGI.env = SimpleNamespace(user="alice", password=None, ssh_key_path=None)
+    AGI._ssh_connections = {}
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    async def _fake_connect(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(agi_distributor_module.asyncssh, "connect", _fake_connect)
+
+    async def _raise_timeout(_awaitable, timeout):
+        _awaitable.close()
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "wait_for", _raise_timeout)
+    with pytest.raises(ConnectionError, match="timed out"):
+        async with AGI.get_ssh_connection("10.0.0.2", timeout_sec=1):
+            pass
+
+    async def _raise_permission(_awaitable, timeout):
+        _awaitable.close()
+        raise agi_distributor_module.asyncssh.PermissionDenied("denied")
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "wait_for", _raise_permission)
+    with pytest.raises(ConnectionError, match="Authentication failed"):
+        async with AGI.get_ssh_connection("10.0.0.3", timeout_sec=1):
+            pass
+
+    async def _raise_network(_awaitable, timeout):
+        _awaitable.close()
+        raise OSError(agi_distributor_module.errno.EHOSTUNREACH, "host unreachable")
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "wait_for", _raise_network)
+    with pytest.raises(ConnectionError, match="Unable to connect"):
+        async with AGI.get_ssh_connection("10.0.0.4", timeout_sec=1):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_handles_asyncssh_error(monkeypatch):
+    AGI.env = SimpleNamespace(user="alice", password=None, ssh_key_path=None)
+    AGI._ssh_connections = {}
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    async def _fake_connect(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(agi_distributor_module.asyncssh, "connect", _fake_connect)
+
+    async def _raise_asyncssh(_awaitable, timeout):
+        _awaitable.close()
+        raise agi_distributor_module.asyncssh.Error(1, "generic ssh error")
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "wait_for", _raise_asyncssh)
+    with pytest.raises(ConnectionError, match="generic ssh error"):
+        async with AGI.get_ssh_connection("10.0.0.5", timeout_sec=1):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_success_and_error_paths(monkeypatch):
+    class _Result:
+        stdout = b"line-1\n"
+        stderr = b"warn\n"
+
+    class _Conn:
+        async def run(self, _cmd, check=True):
+            return _Result()
+
+    class _ProcessError(Exception):
+        def __init__(self, msg="process error", stdout=b"", stderr=b""):
+            super().__init__(msg)
+            self.stdout = stdout
+            self.stderr = stderr
+
+    @asynccontextmanager
+    async def _conn_ctx(_ip):
+        yield _Conn()
+
+    monkeypatch.setattr(AGI, "get_ssh_connection", staticmethod(_conn_ctx))
+    output = await AGI.exec_ssh("10.0.0.2", "echo hi")
+    assert "line-1" in output
+    assert "warn" in output
+
+    class _ErrConn:
+        async def run(self, _cmd, check=True):
+            raise _ProcessError("boom", stdout=b"", stderr=b"stderr")
+
+    @asynccontextmanager
+    async def _err_ctx(_ip):
+        yield _ErrConn()
+
+    monkeypatch.setattr(AGI, "get_ssh_connection", staticmethod(_err_ctx))
+    monkeypatch.setattr(agi_distributor_module, "ProcessError", _ProcessError)
+    with pytest.raises(_ProcessError):
+        await AGI.exec_ssh("10.0.0.2", "echo hi")
+
+    class _OsErrConn:
+        async def run(self, _cmd, check=True):
+            raise OSError("socket failure")
+
+    @asynccontextmanager
+    async def _os_err_ctx(_ip):
+        yield _OsErrConn()
+
+    monkeypatch.setattr(AGI, "get_ssh_connection", staticmethod(_os_err_ctx))
+    with pytest.raises(ConnectionError, match="Connection to 10.0.0.2 failed"):
+        await AGI.exec_ssh("10.0.0.2", "echo hi")
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_async_and_close_all_connections(monkeypatch):
+    class _Stdout:
+        async def read(self):
+            return b"\nalpha\nbeta\n"
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _Stdout()
+
+        async def wait(self):
+            return None
+
+    class _Conn:
+        def __init__(self):
+            self.closed = False
+            self.waited = False
+
+        async def create_process(self, _cmd):
+            return _Proc()
+
+        def close(self):
+            self.closed = True
+
+        async def wait_closed(self):
+            self.waited = True
+
+        def is_closed(self):
+            return self.closed
+
+    conn = _Conn()
+
+    @asynccontextmanager
+    async def _conn_ctx(_ip):
+        yield conn
+
+    monkeypatch.setattr(AGI, "get_ssh_connection", staticmethod(_conn_ctx))
+    last_line = await AGI.exec_ssh_async("10.0.0.2", "run")
+    assert last_line == b"beta"
+
+    AGI._ssh_connections = {"10.0.0.2": conn}
+    await AGI._close_all_connections()
+    assert AGI._ssh_connections == {}
+    assert conn.closed is True
+    assert conn.waited is True
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_non_source_flow(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+    )
+    AGI._run_type = "sync"
+    AGI._rapids_enabled = False
+    AGI._module_to_clean = []
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: False))
+    monkeypatch.setattr(AGI, "_build_lib_local", staticmethod(_fake_build))
+    monkeypatch.setattr(AGI, "_uninstall_modules", staticmethod(_fake_uninstall))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._deploy_local_worker(app_path, Path("worker_env"), " --extra pandas-worker")
+
+    assert AGI._install_done_local is True
+    assert any(" add agi-env" in cmd for cmd, _ in commands)
+    assert any(" add agi-node" in cmd for cmd, _ in commands)
+    assert any("threaded" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "worker_env",
+        wenv_rel=Path("worker_env"),
+        dist_rel=Path("worker_env/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={},
+        uv_worker="uv",
+        is_source_env=False,
+        app="demo_app",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        verbose=0,
+    )
+    AGI._rapids_enabled = False
+    AGI._workers_data_path = None
+    ssh_calls = []
+    send_calls = []
+
+    async def _fake_exec_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        send_calls.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec_ssh))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+
+    await AGI._deploy_remote_worker("10.0.0.2", env, Path("worker_env"), " --extra pandas-worker")
+
+    assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
+    assert any("ensurepip" in cmd for cmd in ssh_calls)
+    assert any("python -m demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "worker_env"
+    (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "dist" / "demo.egg").write_text("x", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={},
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+    )
+    AGI._mode = AGI.DASK_MODE
+    AGI._mode_auto = False
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI._scheduler = "127.0.0.1:8786"
+    AGI._worker_init_error = False
+    calls = {"bg": [], "remote": [], "uploaded": []}
+
+    class _Client:
+        def upload_file(self, path):
+            calls["uploaded"].append(path)
+
+    async def _fake_start_scheduler(_scheduler):
+        return True
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_sync(timeout=60):
+        return None
+
+    async def _fake_build_remote():
+        return None
+
+    async def _fake_exec_ssh_async(ip, cmd):
+        calls["remote"].append((ip, cmd))
+        return ""
+
+    monkeypatch.setattr(AGI, "_dask_client", _Client())
+    monkeypatch.setattr(AGI, "_start_scheduler", staticmethod(_fake_start_scheduler))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_build_lib_remote", staticmethod(_fake_build_remote))
+    monkeypatch.setattr(AGI, "exec_ssh_async", staticmethod(_fake_exec_ssh_async))
+    monkeypatch.setattr(
+        agi_distributor_module.AgiEnv,
+        "set_env_var",
+        staticmethod(lambda *_a, **_k: None),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_exec_bg",
+        staticmethod(lambda cmd, cwd: calls["bg"].append((cmd, cwd))),
+    )
+
+    await AGI._start("127.0.0.1")
+    await asyncio.sleep(0)
+
+    assert calls["bg"]
+    assert any(ip == "10.0.0.2" for ip, _ in calls["remote"])
+    assert calls["uploaded"]
+
+
+@pytest.mark.asyncio
+async def test_stop_retires_workers_and_shutdown(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.info_calls = 0
+            self.retire_calls = 0
+            self.shutdown_calls = 0
+
+        async def scheduler_info(self):
+            self.info_calls += 1
+            if self.info_calls == 1:
+                return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {"workers": {}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            self.retire_calls += 1
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+
+    AGI._dask_client = _Client()
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._TIMEOUT = 3
+    AGI.env = SimpleNamespace()
+    closed = {"count": 0}
+
+    async def _fake_close_all():
+        closed["count"] += 1
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", _fake_sleep)
+
+    await AGI._stop()
+
+    assert AGI._dask_client.retire_calls >= 1
+    assert AGI._dask_client.shutdown_calls == 1
+    assert closed["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_run_raises_when_worker_venv_is_missing(tmp_path, monkeypatch):
+    AGI.env = SimpleNamespace(
+        envars={},
+        wenv_abs=tmp_path / "missing_wenv",
+        debug=False,
+        verbose=0,
+        uv="uv",
+        target_worker="demo_worker",
+    )
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {}
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(FileNotFoundError, match="Worker installation"):
+        await AGI._run()
+
+
+@pytest.mark.asyncio
+async def test_run_debug_branch_returns_list_result(tmp_path, monkeypatch):
+    wenv_abs = tmp_path / "wenv"
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    AGI.env = SimpleNamespace(
+        envars={},
+        wenv_abs=wenv_abs,
+        debug=True,
+        verbose=1,
+        uv="uv",
+        target_worker="demo_worker",
+    )
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {"alpha": 1}
+    monkeypatch.chdir(tmp_path)
+    calls = {"new": 0, "run": 0, "kill": 0}
+
+    def _fake_new(*_args, **_kwargs):
+        calls["new"] += 1
+
+    async def _fake_run(*_args, **_kwargs):
+        calls["run"] += 1
+        return ["ok", "done"]
+
+    async def _fake_kill(*_args, **_kwargs):
+        calls["kill"] += 1
+        return None
+
+    monkeypatch.setattr(BaseWorker, "_new", staticmethod(_fake_new))
+    monkeypatch.setattr(BaseWorker, "_run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+
+    result = await AGI._run()
+    assert result == ["ok", "done"]
+    assert calls["new"] == 1
+    assert calls["run"] == 1
+    assert calls["kill"] == 1
+    assert (tmp_path / "dask_worker_0.pid").exists()
+
+
+@pytest.mark.asyncio
+async def test_run_non_debug_branch_parses_last_line(tmp_path, monkeypatch):
+    wenv_abs = tmp_path / "wenv"
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    AGI.env = SimpleNamespace(
+        envars={},
+        wenv_abs=wenv_abs,
+        debug=False,
+        verbose=0,
+        uv="uv",
+        target_worker="demo_worker",
+    )
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {"beta": 2}
+    monkeypatch.chdir(tmp_path)
+
+    async def _fake_kill(*_args, **_kwargs):
+        return None
+
+    async def _fake_run_async(_cmd, _cwd):
+        return "header\nresult-line\n"
+
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run_async", staticmethod(_fake_run_async))
+
+    result = await AGI._run()
+    assert result == "result-line"
+
+
+@pytest.mark.asyncio
+async def test_distribute_executes_new_calibration_and_works(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self._gather_calls = 0
+            self.submissions = []
+
+        def scheduler_info(self):
+            return {
+                "workers": {
+                    "tcp://127.0.0.1:8787": {},
+                    "tcp://10.0.0.2:8788": {},
+                }
+            }
+
+        def submit(self, fn, *args, **kwargs):
+            self.submissions.append(getattr(fn, "__name__", str(fn)))
+            return {"fn": getattr(fn, "__name__", "fn"), "args": args, "kwargs": kwargs}
+
+        def gather(self, futures):
+            self._gather_calls += 1
+            if self._gather_calls == 1:
+                return [None for _ in futures]
+            return ["log-a", "log-b"]
+
+    AGI.env = SimpleNamespace(
+        debug=False,
+        target_worker="demo_worker",
+        mode2str=lambda _mode: "dask",
+    )
+    AGI._dask_client = _Client()
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI._args = {"k": "v"}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 0
+    AGI.debug = False
+    called = {"calibration": 0}
+
+    async def _fake_distrib(_env, workers, _args):
+        return workers, [["step-a"], ["step-b"]], [[{"m": 1}], [{"m": 2}]]
+
+    async def _fake_calibration():
+        called["calibration"] += 1
+        AGI._capacity = {"127.0.0.1:8787": 1.0, "10.0.0.2:8788": 1.0}
+
+    monkeypatch.setattr(agi_distributor_module.WorkDispatcher, "_do_distrib", staticmethod(_fake_distrib))
+    monkeypatch.setattr(AGI, "_calibration", staticmethod(_fake_calibration))
+
+    result = await AGI._distribute()
+    assert result.startswith("dask ")
+    assert called["calibration"] == 1
+    assert AGI._work_plan == [["step-a"], ["step-b"]]
+    assert AGI._work_plan_metadata == [[{"m": 1}], [{"m": 2}]]
+    assert "BaseWorker._new" not in AGI._dask_client.submissions
+
+
+@pytest.mark.asyncio
+async def test_sync_waits_until_expected_workers(monkeypatch):
+    class _FakeClient:
+        def __init__(self):
+            self.calls = 0
+
+        def scheduler_info(self):
+            self.calls += 1
+            if self.calls == 1:
+                return {"workers": None}
+            if self.calls == 2:
+                return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {
+                "workers": {
+                    "tcp://127.0.0.1:8787": {},
+                    "tcp://10.0.0.2:8788": {},
+                }
+            }
+
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    fake_client = _FakeClient()
+    monkeypatch.setattr(agi_distributor_module, "Client", _FakeClient)
+    AGI._dask_client = fake_client
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", _fake_sleep)
+
+    await AGI._sync(timeout=2)
+    assert fake_client.calls >= 3
+
+
+@pytest.mark.asyncio
+async def test_sync_raises_timeout_on_repeated_failures(monkeypatch):
+    class _FakeClient:
+        def scheduler_info(self):
+            raise RuntimeError("scheduler down")
+
+    AGI._workers = {"127.0.0.1": 1}
+    fake_client = _FakeClient()
+    monkeypatch.setattr(agi_distributor_module, "Client", _FakeClient)
+    AGI._dask_client = fake_client
+
+    async def _fake_sleep(_delay):
+        return None
+
+    clock = {"t": 0.0}
+
+    def _fake_time():
+        clock["t"] += 0.3
+        return clock["t"]
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", _fake_sleep)
+    monkeypatch.setattr(agi_distributor_module.time, "time", _fake_time)
+
+    with pytest.raises(TimeoutError, match="Timeout waiting for all workers"):
+        await AGI._sync(timeout=0.5)
+
+
+@pytest.mark.asyncio
+async def test_main_branches_simulate_install_dask_and_local(monkeypatch):
+    class _Jobs:
+        def flush(self):
+            return None
+
+    monkeypatch.setattr(agi_distributor_module.bg, "BackgroundJobManager", lambda: _Jobs())
+    calls = []
+
+    async def _fake_run():
+        calls.append("run")
+        return "run-result"
+
+    async def _fake_prepare_local():
+        calls.append("prepare_local")
+        return None
+
+    async def _fake_prepare_cluster(_scheduler):
+        calls.append("prepare_cluster")
+        return None
+
+    async def _fake_deploy(_scheduler):
+        calls.append("deploy")
+        return None
+
+    async def _fake_start(_scheduler):
+        calls.append("start")
+        return None
+
+    async def _fake_distribute():
+        calls.append("distribute")
+        return "dist-result"
+
+    async def _fake_stop():
+        calls.append("stop")
+        return None
+
+    monkeypatch.setattr(AGI, "_run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_prepare_local_env", staticmethod(_fake_prepare_local))
+    monkeypatch.setattr(AGI, "_prepare_cluster_env", staticmethod(_fake_prepare_cluster))
+    monkeypatch.setattr(AGI, "_deploy_application", staticmethod(_fake_deploy))
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_fake_distribute))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(lambda: calls.append("update_capacity")))
+    monkeypatch.setattr(AGI, "_clean_dirs_local", staticmethod(lambda: calls.append("clean_dirs_local")))
+    monkeypatch.setattr(AGI, "_clean_job", staticmethod(lambda cond: calls.append(("clean_job", cond))))
+
+    AGI._mode = AGI._SIMULATE_MODE
+    result = await AGI._main("127.0.0.1")
+    assert result == "run-result"
+
+    times = iter([10.0, 14.5])
+    monkeypatch.setattr(agi_distributor_module.time, "time", lambda: next(times))
+    AGI._mode = AGI._INSTALL_MODE | AGI.DASK_MODE
+    result = await AGI._main("127.0.0.1")
+    assert result == 4.5
+
+    AGI._mode = AGI.DASK_MODE
+    result = await AGI._main("127.0.0.1")
+    assert result == "dist-result"
+
+    AGI._mode = AGI.PYTHON_MODE
+    result = await AGI._main("127.0.0.1")
+    assert result == "run-result"
+
+    assert "prepare_local" in calls
+    assert "prepare_cluster" in calls
+    assert "deploy" in calls
+    assert "start" in calls
+    assert "distribute" in calls
+    assert "stop" in calls
+
+
+def test_clean_job_respects_cond_and_verbosity(monkeypatch):
+    class _Jobs:
+        def __init__(self):
+            self.flush_calls = 0
+
+        def flush(self):
+            self.flush_calls += 1
+
+    jobs = _Jobs()
+    AGI._jobs = jobs
+
+    AGI.verbose = 1
+    AGI._clean_job(True)
+    assert jobs.flush_calls == 1
+
+    AGI.verbose = 0
+    AGI._clean_job(True)
+    assert jobs.flush_calls == 2
+
+    AGI._clean_job(False)
+    assert jobs.flush_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_calibration_computes_normalized_capacity(monkeypatch):
+    class _Predictor:
+        def predict(self, _data):
+            return [4.0]
+
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {
+                "tcp://127.0.0.1:8787": {
+                    "ram_total": [10.0],
+                    "ram_available": [5.0],
+                    "cpu_count": [4.0],
+                    "cpu_frequency": [2.5],
+                    "network_speed": [1.0],
+                }
+            }
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["127.0.0.1:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = _Predictor()
+
+    await AGI._calibration()
+
+    assert AGI.workers_info["127.0.0.1:8787"]["label"] == 4.0
+    assert AGI._capacity["127.0.0.1:8787"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_fallback_when_predictor_has_no_data():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["127.0.0.1:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [1.0])
+
+    await AGI._calibration()
+    assert AGI._capacity["127.0.0.1:8787"] == 1.0
+
+
+def test_update_capacity_success_and_guard_paths(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        }
+    }
+    AGI._run_time = ["error-line"]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    AGI._update_capacity()
+    assert train_calls["count"] == 0
+
+    AGI._run_time = [{"127.0.0.1:8787": 2.0}]
+    AGI._update_capacity()
+    assert train_calls["count"] == 1
+    assert Path(AGI._capacity_data_file).exists()
+
+    AGI.workers_info["127.0.0.1:8787"]["label"] = 0.0
+    AGI._run_time = [{"127.0.0.1:8787": 2.0}]
+    with pytest.raises(RuntimeError, match="workers BaseWorker.do_works failed"):
+        AGI._update_capacity()
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_non_cython_uploads_egg(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    wenv_abs = tmp_path / "wenv"
+    (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
+    egg_path = wenv_abs / "dist" / "demo.egg"
+    egg_path.write_text("egg", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    uploads = []
+    commands = []
+
+    class _Client:
+        def upload_file(self, path):
+            uploads.append(path)
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        base_worker_cls="PandasWorker",
+        active_app=app_path,
+        setup_app_module="agi_node.agi_dispatcher.build",
+        uv="uv",
+        envars={},
+        is_free_threading_available=False,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        verbose=0,
+        pyvers_worker="3.13",
+    )
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._dask_client = _Client()
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+
+    await AGI._build_lib_local()
+
+    assert (wenv_abs / worker_pyproject.name).exists()
+    assert any("pip install agi-env" in cmd for cmd, _ in commands)
+    assert any("pip install agi-node" in cmd for cmd, _ in commands)
+    assert any("bdist_egg" in cmd for cmd, _ in commands)
+    assert str(egg_path) in uploads
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_cython_copies_worker_lib(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    wenv_abs = tmp_path / "wenv"
+    dist_dir = wenv_abs / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    worker_lib = dist_dir / "demo_cy.so"
+    worker_lib.write_text("binary", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        if "build_ext" in cmd:
+            return "build ok"
+        return ""
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        base_worker_cls="PandasWorker",
+        active_app=app_path,
+        setup_app_module="agi_node.agi_dispatcher.build",
+        uv="uv",
+        envars={},
+        is_free_threading_available=False,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        verbose=2,
+        pyvers_worker="3.13",
+    )
+    AGI._mode = AGI.CYTHON_MODE
+    AGI._dask_client = None
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+
+    await AGI._build_lib_local()
+
+    target = wenv_abs / ".venv/lib/python3.13/site-packages/demo_cy.so"
+    assert target.exists()
+    assert any("build_ext" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_build_lib_remote_logs_when_pool_open_zero():
+    AGI.verbose = 1
+    AGI._dask_client = SimpleNamespace(
+        scheduler=SimpleNamespace(pool=SimpleNamespace(open=0)),
+        scheduler_info=lambda: {"workers": {"tcp://127.0.0.1:8787": {}}},
+    )
+    await AGI._build_lib_remote()
+
+
+def test_train_capacity_missing_and_success(tmp_path):
+    AGI._capacity_data_file = "capacity_data.csv"
+    AGI._capacity_model_file = "capacity_model.pkl"
+
+    with pytest.raises(FileNotFoundError):
+        AGI._train_capacity(tmp_path)
+
+    csv_path = tmp_path / AGI._capacity_data_file
+    rows = [
+        "nb_workers,ram_total,ram_available,cpu_count,cpu_frequency,network_speed,label",
+        "skip,skip,skip,skip,skip,skip,skip",
+        "skip,skip,skip,skip,skip,skip,skip",
+        "1,32,16,8,2.5,100,1.0",
+        "1,32,15,8,2.4,95,0.9",
+        "1,32,14,8,2.3,90,0.8",
+        "2,64,30,16,2.6,120,1.4",
+        "2,64,28,16,2.5,115,1.3",
+        "2,64,26,16,2.4,110,1.2",
+        "3,96,40,24,2.7,140,1.8",
+        "3,96,38,24,2.6,135,1.7",
+    ]
+    csv_path.write_text("\n".join(rows), encoding="utf-8")
+
+    AGI._train_capacity(tmp_path)
+
+    model_path = tmp_path / AGI._capacity_model_file
+    assert model_path.exists()
+    assert hasattr(AGI._capacity_predictor, "predict")
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_fallback_installer_and_no_download(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=tmp_path / "manager_pyproject.toml",
+        uvproject=uvproject,
+        target_worker="demo_worker",
+    )
+    env.manager_pyproject.write_text("[project]\nname='manager'\n", encoding="utf-8")
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    sent = []
+    cmds = []
+
+    class _FakeProcessError(Exception):
+        pass
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(ip, cmd):
+        cmds.append((ip, cmd))
+        if "--version" in cmd:
+            raise RuntimeError("uv missing")
+        if "install.ps1" in cmd:
+            raise RuntimeError("windows installer failed")
+        if "curl -LsSf https://astral.sh/uv/install.sh | sh" in cmd:
+            return "ok"
+        if "python install" in cmd:
+            raise _FakeProcessError("No download found for request")
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_noop))
+    monkeypatch.setattr(agi_distributor_module, "ProcessError", _FakeProcessError)
+    monkeypatch.setattr(
+        agi_distributor_module.AgiEnv,
+        "set_env_var",
+        staticmethod(lambda key, value=None: env.envars.__setitem__(key, value)),
+    )
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    joined = "\n".join(cmd for _, cmd in cmds)
+    assert "install.ps1" in joined
+    assert "install.sh | sh" in joined
+    assert any("python install 3.13" in cmd for _, cmd in cmds)
+    assert any(item[2] == "wenv" for item in sent)
+    assert any("cli.py" in names for _, names, _ in sent)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_install_type_zero_non_source_covers_dependency_flow(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo" / "src" / "agilab"
+    env_project = repo_root / "core" / "agi-env"
+    node_project = repo_root / "core" / "agi-node"
+    core_project = repo_root / "core" / "agi-core"
+    cluster_project = repo_root / "core" / "agi-cluster"
+    for project in (env_project, node_project, core_project, cluster_project):
+        project.mkdir(parents=True, exist_ok=True)
+        (project / "pyproject.toml").write_text(
+            "[project]\nname='demo'\ndependencies=['pip>=1']\n",
+            encoding="utf-8",
+        )
+    (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
+
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "src").mkdir(parents=True, exist_ok=True)
+    (app_path / "src" / "Trajectory.7z").write_text("traj", encoding="utf-8")
+    (app_path / ".venv").mkdir(parents=True, exist_ok=True)
+    (app_path / "uv.lock").write_text("lock", encoding="utf-8")
+
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+
+    env_pck = tmp_path / "env_pck" / "agi_env"
+    env_pck.mkdir(parents=True, exist_ok=True)
+    (env_pck.parent / "__editable__.agi_env-demo.pth").write_text("x", encoding="utf-8")
+
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("dataset", encoding="utf-8")
+    share_root = tmp_path / "share"
+    sat_path = share_root / "sat_trajectory" / "dataframe" / "Trajectory"
+    sat_path.mkdir(parents=True, exist_ok=True)
+    (sat_path / "a.csv").write_text("x", encoding="utf-8")
+    (sat_path / "b.csv").write_text("y", encoding="utf-8")
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=env_project,
+        agi_node=node_project,
+        agi_cluster=cluster_project,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=env_pck,
+        dataset_archive=dataset_archive,
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user="another-user",
+        cluster_pck=cluster_pck,
+        share_root_path=lambda: share_root,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    AGI._run_type = "sync --dev"
+    AGI._rapids_enabled = True
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    commands = []
+    ssh_calls = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    async def _fake_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        raise ConnectionError("localhost ssh denied")
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "read_agilab_path", staticmethod(lambda: repo_root))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: True))
+    monkeypatch.setattr(AGI, "_build_lib_local", staticmethod(_fake_build))
+    monkeypatch.setattr(AGI, "_uninstall_modules", staticmethod(_fake_uninstall))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_ssh))
+    monkeypatch.setattr(agi_distributor_module, "_agi__version_missing_on_pypi", lambda _p: True)
+
+    await AGI._deploy_local_worker(app_path, Path("wenv"), " --extra pandas-worker")
+
+    manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
+    worker_toml = (wenv_abs / "pyproject.toml").read_text(encoding="utf-8")
+    assert "pip" in manager_toml
+    assert "pip==" in worker_toml
+    assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
+    assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
+    assert AGI._install_done_local is True
+    assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
+    assert any("run --project" in cmd and "python -m ensurepip --upgrade" in cmd for cmd, _ in commands)
+    assert any("demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_source_env_branch(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    agi_env = tmp_path / "agi_env"
+    agi_node = tmp_path / "agi_node"
+    agi_cluster = tmp_path / "agi_cluster"
+    for p in (agi_env, agi_node, agi_cluster):
+        p.mkdir(parents=True, exist_ok=True)
+        (p / "dist").mkdir(parents=True, exist_ok=True)
+    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_source_env=True,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env,
+        agi_node=agi_node,
+        agi_cluster=agi_cluster,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=tmp_path / "env_pck",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    AGI._run_type = "sync"
+    AGI._rapids_enabled = False
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: False))
+    monkeypatch.setattr(AGI, "_build_lib_local", staticmethod(_fake_build))
+    monkeypatch.setattr(AGI, "_uninstall_modules", staticmethod(_fake_uninstall))
+    monkeypatch.setattr(agi_distributor_module, "_agi__version_missing_on_pypi", lambda _p: False)
+
+    await AGI._deploy_local_worker(app_path, Path("wenv"), " --extra pandas-worker")
+
+    assert AGI._install_done_local is True
+    assert any("pip install -e '" in cmd and str(agi_cluster) in cmd for cmd, _ in commands)
+    assert any("build --wheel" in cmd and str(agi_env) in cmd for cmd, _ in commands)
+    assert any("build --wheel" in cmd and str(agi_node) in cmd for cmd, _ in commands)
+    assert (wenv_abs / "agi_node-0.0.1-py3-none-any.whl").exists()
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("egg", encoding="utf-8")
+    agi_env = tmp_path / "agi_env"
+    agi_node = tmp_path / "agi_node"
+    for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
+        (p / "dist").mkdir(parents=True, exist_ok=True)
+        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "wenv",
+        wenv_rel=Path("wenv"),
+        dist_rel=Path("wenv/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={},
+        uv_worker="uv",
+        is_source_env=True,
+        app="demo_app",
+        target_worker="demo_worker",
+        agi_env=agi_env,
+        agi_node=agi_node,
+        post_install_rel="demo.post_install",
+        verbose=2,
+    )
+    AGI._rapids_enabled = True
+    AGI._workers_data_path = str(tmp_path / "share")
+    sent = []
+    ssh = []
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _fake_exec(ip, cmd):
+        ssh.append((ip, cmd))
+        if cmd.strip() == "nvidia-smi":
+            return "NVIDIA-SMI"
+        return "ok"
+
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._deploy_remote_worker("10.0.0.2", env, Path("wenv"), " --extra pandas-worker")
+
+    assert any(".agilab/.env" in cmd for _, cmd in ssh)
+    assert any("nvidia-smi" == cmd for _, cmd in ssh)
+    assert any("agi_env-0.0.1-py3-none-any.whl" in names for _, names, _ in sent)
+    assert any("agi_node-0.0.1-py3-none-any.whl" in names for _, names, _ in sent)
+    assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
