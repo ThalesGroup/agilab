@@ -649,8 +649,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.logger = AgiLogger.configure(verbose=verbose, base_name="agi_env")
         self.debug = debug
 
-        # Simplified environment flags
-        self.is_source_env = not is_agilab_installed
+        # Keep resolved flags from env/config/layout detection above.
         self.is_local_worker = False
         # Backward-compat: map booleans to legacy install_type
         self.install_type = 1 if self.is_source_env else (2 if self.is_worker_env else 0)
