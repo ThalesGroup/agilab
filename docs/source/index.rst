@@ -35,16 +35,21 @@ simultaneous multiple virtual environments, with one venv per cell/snippet.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Web Interface
+   :caption: Web Interface Pages
 
    About Agilab <agilab-help>
    edit-help
    execute-help
+   experiment-help
+   explore-help
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Service and Operations
+
    service-mode
    Service install paths <service_mode_and_paths>
    service-health-schema
-   experiment-help
-   explore-help
 
 .. toctree::
    :maxdepth: 2
