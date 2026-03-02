@@ -3385,14 +3385,14 @@ class AGI:
             try:
                 env_whl = next(iter(wenv.glob("agi_env*.whl")))
             except StopIteration:
-                raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
+                raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_env*'}")
 
             # build agi_node*.whl
             wenv = env.agi_node / 'dist'
             try:
                 node_whl = next(iter(wenv.glob("agi_node*.whl")))
             except StopIteration:
-                raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
+                raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_node*'}")
 
             dist_remote = wenv_rel / "dist"
             logger.info(f"mkdir {dist_remote}")

@@ -87,6 +87,7 @@ jobs:
         run: |
           set -e
           COVERAGE_FILE=.coverage.service-health uv run pytest -q -o addopts='' \
+            --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml \
             src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json \
             test/test_service_health_check.py
 
