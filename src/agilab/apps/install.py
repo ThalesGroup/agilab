@@ -253,8 +253,7 @@ async def main():
 
         try:
             app_env = AgiEnv(
-                apps_path=app_path.parent,
-                app=app_path.name,
+                active_app=app_path,
                 verbose=args.verbose,
             )
         except RuntimeError as err:
