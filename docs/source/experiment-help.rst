@@ -1,0 +1,88 @@
+PIPELINE
+===========
+
+.. toctree::
+   :hidden:
+
+Sidebar
+-------
+- ``Lab Directory``: choose the module whose lab artefacts you want to work on.
+  The selection points at ``${AGILAB_EXPORT_ABS}/<module>`` and initialises
+  ``lab_steps.toml`` if it does not exist yet.
+- ``Steps``: pick the ``lab_steps`` file relative to the export directory. When
+  you change the selection the assistant reloads the stored conversation.
+- ``DataFrame``: select which CSV (or parquet) is mounted for the assistant. The
+  resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
+- ``Import Notebook``: upload an ``.ipynb`` file to seed the conversation when
+  working offline.
+- ``Open MLflow UI``: launches the MLflow dashboard in a new browser tab once
+  ``activate_mlflow`` has started the local tracking server.
+
+Main Content Area
+-----------------
+
+ASSISTANT
+~~~~~~~~~
+Each lab is organised as a sequence of steps stored in ``lab_steps.toml``.
+The numbered buttons at the top let you jump between them. Ask questions or
+describe transformations in the text area—AGILab forwards the prompt to the
+Responses API together with the selected DataFrame metadata. The code editor
+reacts to the toolbar actions:
+
+* ``Save`` keeps the snippet as-is in the current step.
+* ``Next`` persists the snippet and advances to a fresh step.
+* ``Remove`` deletes the step from ``lab_steps.toml``.
+* ``Run`` writes the snippet to ``lab_snippet.py``, executes it and stores any
+  produced dataframe under ``lab_out.csv`` so the preview and the
+  Orchestrate/Analysis pages can consume the result.
+
+The runtime is chosen from the *Execution environment* box below the editor.
+If you pick a concrete virtual environment path the snippet runs via
+``run_agi`` inside that environment (the path is kept with the step under
+the ``E`` field). Leaving the selector on the default AGILab environment
+falls back to ``run_lab``, reusing the managed runtime that ships with the
+app. In both cases the exported dataframe and history behave identically.
+
+The assistant automatically reloads the most recent dataframe and shows it below
+the editor. If nothing has been saved yet, you will see a reminder to run a
+snippet first.
+
+When your lab step is based on app execution, use the **Pipeline** add flow:
+
+- Generate the target snippet in **ORCHESTRATE** (typically ``AGI.run``).
+- In **Add step** (or **New step** on an empty project), choose ``Step source =``
+  ``gen step`` to regenerate from prompt, or select an existing exported snippet
+  to import it directly.
+- Imported snippets are marked read-only and run with the project manager runtime.
+
+If you change values in Orchestrate arguments, regenerate or re-import the
+snippet in Pipeline before running the step.
+
+HISTORY
+~~~~~~~
+Inspect or tweak the raw ``lab_steps.toml`` via the code editor. Saving the
+file here immediately refreshes the assistant tab.
+
+Troubleshooting and checks
+--------------------------
+
+Use these checks if Pipeline steps are confusing or fail to execute:
+
+- If numbered step buttons do not match ``lab_steps.toml``, open **HISTORY** and
+  confirm the selected file is the current module's lab file.
+- If execution fails on a stale path, regenerate or re-import the snippet in
+  PIPELINE before rerunning the step.
+- If ``Run`` writes no dataframe, check the destination under
+  ``${AGILAB_EXPORT_ABS}/<module>/lab_out.csv`` and ensure ``Write permissions``
+  are enabled for the selected execution environment.
+- If an imported notebook is not loaded, re-upload ``.ipynb`` and then reopen the
+  step editor to force a refresh.
+- If MLflow link fails to open, verify ``activate_mlflow`` completed and port
+  forwarding is not blocked locally.
+
+See also
+--------
+
+- :doc:`agilab-help` for the overall page sequence.
+- :doc:`execute-help` for generating reliable snippets before running a step.
+- :doc:`apps-pages` for analysis-side visualisations after a successful run.

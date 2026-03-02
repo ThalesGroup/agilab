@@ -6,6 +6,7 @@ on:
     branches:
       - main
     paths:
+      - 'docs/source/**'
       - 'src/agilab/resources/help/**'
       - '.github/workflows/docs-publish.yaml'
   workflow_dispatch:
@@ -32,10 +33,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Fetch docs source repository
-        run: |
-          set -euo pipefail
-          git clone --depth 1 https://github.com/jpmorard/thales_agilab.git thales_agilab
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -49,14 +46,19 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y graphviz
-      - name: Build docs/html artifact from docs source
+      - name: Build docs/html artifact from in-repo Sphinx source
         run: |
           set -euo pipefail
-          uv sync --project thales_agilab --dev --group sphinx
-          uv run --project thales_agilab --dev --group sphinx \
-            python thales_agilab/docs/gen-docs.py \
-            --agilab-repository "$GITHUB_WORKSPACE" \
-            --no-open
+          uv run \
+            --with sphinx \
+            --with sphinx-rtd-theme \
+            --with myst-parser \
+            --with linkify-it-py \
+            --with sphinx-pyreverse \
+            --with sphinx-autodoc-typehints \
+            --with sphinx-design \
+            --with sphinx-tabs \
+            python -m sphinx -b html docs/source docs/html
           test -f docs/html/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
