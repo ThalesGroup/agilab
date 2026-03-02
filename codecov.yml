@@ -14,3 +14,22 @@ flags:
   agi-core:
     paths:
       - src/agilab/core/agi-core
+ignore:
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/sitecustomize.py"
+  - "src/agilab/About_agilab.py"
+  - "src/agilab/agi_codex.py"
+  - "src/agilab/apps/install.py"
+  - "src/agilab/lab_run.py"
+  - "src/agilab/apps/__init__.py"
+  - "src/agilab/core/agi-cluster/build.py"
+  - "src/agilab/core/gen_app_script.py"
+  - "src/agilab/core/tools/test_kill.py"
+  - "src/agilab/core/agi-env/src/agi_env/pagelib.py"
+  - "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/agi_distributor.py"
+  - "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/cli.py"
+  - "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/*.py"
+  - "src/agilab/core/agi-env/src/agi_env/agi_env.py"
+  - "src/agilab/core/agi-node/src/agi_node/dag_worker/dag_worker.py"
+  - "src/agilab/core/agi-node/src/agi_node/pandas_worker/pandas_worker.py"
