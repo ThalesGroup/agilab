@@ -1,0 +1,35 @@
+digraph RepoSplit {
+  rankdir=LR;
+  node [shape=box, style=filled, color="#0f172a", fillcolor="#e2e8f0", fontname="Helvetica", fontsize=11];
+  edge [color="#475569", penwidth=1.4];
+
+  subgraph cluster_framework {
+    label="AGILAB (open-source framework)";
+    style=rounded;
+    color="#cbd5e1";
+    FrameworkCore [label="agi_node\ncore runtime", fillcolor="#c7d2fe", color="#312e81"];
+    FrameworkCluster [label="agi_cluster\nwork orchestration", fillcolor="#bfdbfe", color="#1d4ed8"];
+    FrameworkEnv [label="agi_env\nenvironment/config"];
+    FrameworkPages [label="page bundles\nweb dashboards"];
+  }
+
+  subgraph cluster_apps {
+    label="Optional apps (installed separately)";
+    style=rounded;
+    color="#cbd5e1";
+    AppTraj [label="Trajectory generators", fillcolor="#bfdbfe", color="#1d4ed8"];
+    AppSim [label="Simulation stages", fillcolor="#c7f9cc", color="#15803d"];
+    AppDecision [label="Decision engines\n(learned / optimization)", fillcolor="#fde68a", color="#ca8a04"];
+    AppViz [label="Visualisation dashboards", fillcolor="#fbcfe8", color="#be185d"];
+  }
+
+  FrameworkCore -> FrameworkCluster;
+  FrameworkCore -> FrameworkEnv;
+  FrameworkCore -> FrameworkPages;
+  FrameworkCluster -> AppTraj [label="worker runtime", fontsize=10];
+  FrameworkCluster -> AppSim [label="worker runtime", fontsize=10];
+  FrameworkCluster -> AppDecision [label="worker runtime", fontsize=10];
+  FrameworkCluster -> AppViz [label="shared artefacts", fontsize=10];
+  FrameworkEnv -> AppViz [style=dashed, label="paths/config", fontsize=10];
+  FrameworkPages -> AppViz [style=dashed, label="UI assets", fontsize=10];
+}

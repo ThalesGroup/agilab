@@ -1,0 +1,22 @@
+digraph PipelineExample {
+  rankdir=LR;
+  graph [splines=true, nodesep=0.55, ranksep=0.75];
+  node [shape=box, style=filled, color="#0f172a", fillcolor="#e2e8f0", fontname="Helvetica", fontsize=11];
+  edge [color="#475569", penwidth=1.4];
+
+  TrajFlight [label="Trajectory generator\n(air tracks)", fillcolor="#bfdbfe", color="#1d4ed8"];
+  TrajSat [label="Trajectory generator\n(space tracks)", fillcolor="#bfdbfe", color="#1d4ed8"];
+  EnvMaps [label="Environment maps\n(weather / attenuation)", fillcolor="#e0f2fe", color="#0284c7"];
+  Sim [label="Simulation\n(link + demand models)", fillcolor="#c7f9cc", color="#15803d"];
+  Learned [label="Learned decision engine\n(ML / RL)", fillcolor="#fde68a", color="#ca8a04"];
+  Opt [label="Optimization baseline\n(ILP / MILP)", fillcolor="#fde68a", color="#ca8a04"];
+  View [label="Visualisation + KPIs\n(maps / charts)", fillcolor="#fbcfe8", color="#be185d"];
+
+  TrajFlight -> Sim;
+  TrajSat -> Sim;
+  EnvMaps -> Sim [label="attenuation inputs", fontsize=10];
+  Sim -> Learned;
+  Sim -> Opt;
+  Learned -> View [label="allocations", fontsize=10];
+  Opt -> View [label="allocations", fontsize=10];
+}

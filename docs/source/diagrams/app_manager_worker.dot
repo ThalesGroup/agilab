@@ -1,0 +1,14 @@
+digraph AppManagerWorker {
+  rankdir=LR;
+  node [shape=box, style=filled, color="#0f172a", fillcolor="#e2e8f0", fontname="Helvetica", fontsize=11];
+  edge [color="#475569", penwidth=1.4];
+
+  Manager [label="App Manager\n(orchestration)", fillcolor="#c7d2fe", color="#312e81"];
+  Distributor [label="AGI (agi_cluster)\nAgiDistributor / AGI.run", fillcolor="#bfdbfe", color="#1d4ed8"];
+  Worker1 [label="App Worker #1\n(BaseWorker subclass)", fillcolor="#c7f9cc", color="#15803d"];
+  Worker2 [label="App Worker #2\n(BaseWorker subclass)", fillcolor="#c7f9cc", color="#15803d"];
+
+  Manager -> Distributor [label="build args + submit plan", fontsize=10];
+  Distributor -> Worker1 [label="tasks", fontsize=10];
+  Distributor -> Worker2 [label="tasks", fontsize=10];
+}
