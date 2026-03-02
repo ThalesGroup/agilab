@@ -182,7 +182,7 @@ jobs:
           set -e
           # Publish a unified runtime report for the `agilab` flag.
           # Exclude tests plus heavy UI/bootstrap wrappers that are integration-driven.
-          COVERAGE_OMIT='*/test/*,*/tests/*,*/sitecustomize.py,src/agilab/About_agilab.py,src/agilab/agi_codex.py,src/agilab/apps/install.py,src/agilab/lab_run.py,src/agilab/apps/__init__.py,src/agilab/core/agi-cluster/build.py,src/agilab/core/gen_app_script.py,src/agilab/core/tools/test_kill.py,src/agilab/core/agi-env/src/agi_env/pagelib.py,src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/agi_distributor.py,src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/cli.py,src/agilab/core/agi-node/src/agi_node/agi_dispatcher/*.py,src/agilab/core/agi-env/src/agi_env/agi_env.py,src/agilab/core/agi-node/src/agi_node/dag_worker/dag_worker.py,src/agilab/core/agi-node/src/agi_node/pandas_worker/pandas_worker.py'
+          COVERAGE_OMIT='*/test/*,*/tests/*,*/sitecustomize.py,*/About_agilab.py,*/agi_codex.py,*/apps/install.py,*/lab_run.py,*/apps/__init__.py,*/agi_cluster/build.py,*/core/gen_app_script.py,*/core/tools/test_kill.py,*/agi_env/pagelib.py,*/agi_distributor/agi_distributor.py,*/agi_distributor/cli.py,*/agi_dispatcher/*.py,*/agi_env/agi_env.py,*/dag_worker/dag_worker.py,*/pandas_worker/pandas_worker.py'
           COVERAGE_FILE=.coverage uv run --group dev python -m coverage xml \
             -o coverage-agilab.xml \
             --omit="${COVERAGE_OMIT}"
