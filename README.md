@@ -105,6 +105,7 @@ user deployment instructions.
 ## Documentation & resources
 
 - 📘 **Docs:** https://thalesgroup.github.io/agilab
+- ⚙️ **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
 - 💬 **Discussions:** https://github.com/ThalesGroup/agilab/discussions
 - 📦 **PyPI:** https://pypi.org/project/agilab
 - 🧩 **Core package index:** https://pypi.org/search/?q=agi-
