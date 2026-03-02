@@ -19,6 +19,8 @@ cluster, core libraries, and reference applications) that work together to provi
 - **Reproducible experimentation** with managed virtual environments, dependency tracking, and application templates.
 - **Scalable execution** through local and distributed worker orchestration (agi-node / agi-cluster) that mirrors
   production-like topologies.
+- **Persistent service orchestration** with `AGI.serve` (`start` / `status` / `health` / `stop`) and health gates for
+  long-lived cluster workers.
 - **Rich tooling** including Streamlit-powered apps, notebooks, workflow automation, and coverage-guided CI pipelines.
 - **Turn‑key examples** covering classical analytics and more advanced domains such as flight simulation, network traffic,
   industrial IoT, and optimization workloads.
@@ -102,6 +104,33 @@ user deployment instructions.
 - **Planning**: `agi_core` builds a WorkDispatcher plan (datasets, workers, telemetry) and emits structured status to Streamlit widgets/CLI for live progress.
 - **Dispatch**: `agi_cluster` schedules tasks locally or over SSH; `agi_node` packages workers, validates dependencies, and executes workloads in isolated envs.
 - **Telemetry & artifacts**: run history and logs are written under `~/log/execute/<app>/`, while app-specific outputs land relative to `agi_share_path` (see app docs for locations).
+- **Service mode**: `AGI.serve` manages persistent workers and returns machine-readable health snapshots (`agi.service.health.v1`) for gating and monitoring.
+
+## Web interface workflow
+
+The main interface is organized around four pages:
+
+- **PROJECT**: project/app selection, settings, and source/config editing.
+- **ORCHESTRATE**: install/distribute/run workflows, service controls, and health gate checks.
+- **PIPELINE**: compose and replay step sequences, including locked snippets imported from ORCHESTRATE.
+- **ANALYSIS**: launch built-in and custom Streamlit page bundles for post-run analysis.
+
+## AGI.serve and health gates
+
+`AGI.serve` is the persistent service API used by ORCHESTRATE service mode.
+
+- Actions: `start`, `status`, `health`, `stop`.
+- `health` writes/returns a JSON snapshot with schema `agi.service.health.v1`.
+- Default gate thresholds are read from app settings under `[cluster.service_health]`:
+  `allow_idle`, `max_unhealthy`, `max_restart_rate`.
+- Health gates can be executed from ORCHESTRATE or from CLI:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/service_health_check.py \
+  --app mycode_project \
+  --apps-path src/agilab/apps/builtin \
+  --format json
+```
 
 ## Documentation & resources
 

@@ -3,6 +3,7 @@ import pytest
 
 # Import the real package
 from agi_node.dag_worker import DagWorker
+import agi_node.dag_worker.dag_worker as dag_module
 from agi_node.agi_dispatcher import BaseWorker
 
 
@@ -75,6 +76,29 @@ class DummyDagWorker(DagWorker):
         # simulate a bit of work; return a value to allow dependency passing
         time.sleep(0.001)
         return {"ok": True, "deps": dict(pipeline_result)}
+
+
+class InvokeDagWorker(DagWorker):
+    def zero(self):
+        return "zero"
+
+    def one(self, payload):
+        return payload
+
+    def pair(self, left, right):
+        return left, right
+
+    def kw(self, *, args=None, prev_result=None):
+        return args, prev_result
+
+    def kw_alt(self, *, args=None, previous_result=None):
+        return args, previous_result
+
+    def fallback_pair(self, left, right):
+        return left, right
+
+    def boom(self, args, prev_result):
+        raise RuntimeError("boom")
 
 
 # -------------------- Core ordering tests --------------------
@@ -208,6 +232,58 @@ def test_works_dispatches_to_multi_when_mode_flag_set(monkeypatch):
     w.works([[]], [[]])  # non-empty triggers dispatch
     assert called == ["multi"]
 
-# New: make tests robust to DagWorker calling _invoke instead of get_work
-def _invoke(self, fn_name, args, prev_result):
-    return self.get_work(fn_name, args, prev_result)
+
+def test_get_work_delegates_to_invoke():
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    assert w.get_work("pair", "l", "r") == ("l", "r")
+
+
+def test_invoke_supports_zero_arity_method():
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    assert w._invoke("zero", args=("unused",), prev_result={"p": 1}) == "zero"
+
+
+def test_invoke_one_parameter_prefers_args_then_prev_result():
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    assert w._invoke("one", args="arg-value", prev_result="prev-value") == "arg-value"
+    assert w._invoke("one", args=None, prev_result="prev-value") == "prev-value"
+
+
+def test_invoke_supports_keyword_args_and_prev_result():
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    assert w._invoke("kw", args=("a",), prev_result={"dep": 1}) == (("a",), {"dep": 1})
+
+
+def test_invoke_supports_previous_result_alias():
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    assert w._invoke("kw_alt", args=1, prev_result=2) == (1, 2)
+
+
+def test_invoke_exception_falls_back_to_positional_call(monkeypatch):
+    def _raise_signature(_):
+        raise ValueError("signature unavailable")
+
+    monkeypatch.setattr(dag_module.inspect, "signature", _raise_signature)
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    assert w._invoke("fallback_pair", args="x", prev_result="y") == ("x", "y")
+
+
+def test_exec_mono_process_delegates_to_multi(monkeypatch):
+    def fake_multi(self, workers_tree, workers_tree_info):
+        return 123.0
+
+    monkeypatch.setattr(DagWorker, "_exec_multi_process", fake_multi, raising=True)
+    w = _cfg(DagWorker(), 0, 0, 0)
+    assert w._exec_mono_process([[]], [[]]) == 123.0
+
+
+def test_exec_multi_process_future_exception_is_captured(caplog):
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    workers_tree = [[(make_fn("boom"), [])]]
+    workers_tree_info = [[("P0", 1)]]
+
+    with caplog.at_level("ERROR"):
+        elapsed = w._exec_multi_process(workers_tree, workers_tree_info)
+
+    assert elapsed == 0.0
+    assert any("generated an exception" in record.message for record in caplog.records)
