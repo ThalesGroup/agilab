@@ -119,16 +119,6 @@ jobs:
           path: test-results/junit.xml
           if-no-files-found: ignore
 
-      - name: Upload agilab coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v5
-        with:
-          files: ./coverage-agilab.xml
-          flags: agilab
-          use_oidc: true
-          verbose: true
-          fail_ci_if_error: true
-
       - name: Upload agi-env coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v5
@@ -185,3 +175,23 @@ jobs:
           fi
           COVERAGE_FILE=.coverage uv run --group dev python -m coverage combine "${coverage_files[@]}"
           shopt -u nullglob
+
+      - name: Build combined agilab coverage report
+        if: matrix.python-version == '3.13'
+        run: |
+          set -e
+          # Publish a unified product-code report for the `agilab` flag.
+          # Exclude tests and local bootstrap shims to avoid skewing the metric.
+          COVERAGE_FILE=.coverage uv run --group dev python -m coverage xml \
+            -o coverage-agilab.xml \
+            --omit='*/test/*,*/tests/*,*/sitecustomize.py'
+
+      - name: Upload agilab coverage to Codecov
+        if: always() && matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage-agilab.xml
+          flags: agilab
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
