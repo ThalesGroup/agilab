@@ -103,6 +103,11 @@ def test_render_form_handles_various_field_types(dummy_streamlit):
     assert dummy_streamlit.number_inputs[1][1]["step"] == pytest.approx(0.25)
 
 
+def test_constraint_value_returns_none_when_constraint_absent():
+    field = DemoArgs.model_fields["name"]
+    assert streamlit_args._constraint_value(field, Ge, "ge") is None
+
+
 def test_load_args_state_reads_settings(tmp_path, dummy_streamlit):
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
@@ -124,6 +129,52 @@ def test_load_args_state_reads_settings(tmp_path, dummy_streamlit):
     assert defaults_model.name == "Bob"
     assert payload["count"] == 5
     assert dummy_streamlit.session_state["app_settings"]["args"]["ratio"] == pytest.approx(1.5)
+
+
+def test_load_args_state_prefers_session_state_when_args_from_ui(tmp_path, dummy_streamlit):
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text('[args]\nname = "DiskValue"\n', encoding="utf-8")
+    dummy_streamlit.session_state["app_settings"] = {
+        "args": {
+            "name": "SessionValue",
+            "choice": "beta",
+            "count": 6,
+            "ratio": 1.5,
+        }
+    }
+    dummy_streamlit.session_state["is_args_from_ui"] = True
+
+    args_module = SimpleNamespace(
+        ArgsModel=DemoArgs,
+        ensure_defaults=lambda args, env: args,
+    )
+    env = SimpleNamespace(app_settings_file=settings_path, humanize_validation_errors=lambda exc: ["msg"])
+
+    defaults_model, payload, _ = streamlit_args.load_args_state(
+        env,
+        args_module=args_module,
+    )
+
+    assert defaults_model.name == "SessionValue"
+    assert payload["name"] == "SessionValue"
+
+
+def test_load_args_state_handles_missing_settings_file(tmp_path, dummy_streamlit):
+    settings_path = tmp_path / "missing.toml"
+    args_module = SimpleNamespace(
+        ArgsModel=DemoArgs,
+        ensure_defaults=lambda args, env: args,
+    )
+    env = SimpleNamespace(app_settings_file=settings_path, humanize_validation_errors=lambda exc: ["msg"])
+
+    defaults_model, payload, returned_path = streamlit_args.load_args_state(
+        env,
+        args_module=args_module,
+    )
+
+    assert returned_path == settings_path
+    assert defaults_model.name == "Alice"
+    assert payload["name"] == "Alice"
 
 
 def test_load_args_state_warns_on_validation_error(tmp_path, dummy_streamlit):
@@ -153,6 +204,69 @@ def test_load_args_state_warns_on_validation_error(tmp_path, dummy_streamlit):
     assert "is_args_from_ui" not in dummy_streamlit.session_state
 
 
+def test_resolve_shared_path_handles_absolute_and_relative(tmp_path):
+    share_root = tmp_path / "share"
+    env = SimpleNamespace(share_root_path=lambda: share_root)
+    absolute = (tmp_path / "absolute").resolve()
+
+    resolved_abs = streamlit_args.resolve_shared_path(env, absolute)
+    resolved_rel = streamlit_args.resolve_shared_path(env, "nested/path")
+
+    assert resolved_abs == absolute
+    assert resolved_rel == share_root / "nested/path"
+
+
+def test_ensure_shared_directory_create_and_no_create_paths(tmp_path, monkeypatch):
+    share_root = tmp_path / "share"
+    env = SimpleNamespace(share_root_path=lambda: share_root)
+    existing = share_root / "existing"
+    existing.mkdir(parents=True)
+
+    target, created, error = streamlit_args.ensure_shared_directory(env, existing)
+    assert target == existing
+    assert created is False
+    assert error is None
+
+    target, created, error = streamlit_args.ensure_shared_directory(env, "created/folder")
+    assert target.is_dir()
+    assert created is True
+    assert error is None
+
+    monkeypatch.setattr(streamlit_args, "diagnose_data_directory", lambda _path: None)
+    target, created, error = streamlit_args.ensure_shared_directory(
+        env,
+        "missing/folder",
+        description="payload path",
+        create_missing=False,
+    )
+    assert target == share_root / "missing/folder"
+    assert created is False
+    assert "payload path" in error
+    assert "not a directory" in error
+
+
+def test_ensure_shared_directory_reports_mkdir_failure(tmp_path, monkeypatch):
+    share_root = tmp_path / "share"
+    env = SimpleNamespace(share_root_path=lambda: share_root)
+    target = share_root / "blocked"
+
+    monkeypatch.setattr(streamlit_args, "resolve_shared_path", lambda *_args, **_kwargs: target)
+    monkeypatch.setattr(streamlit_args, "diagnose_data_directory", lambda _path: "diagnosis")
+
+    original_mkdir = Path.mkdir
+
+    def raising_mkdir(self, *args, **kwargs):
+        if self == target:
+            raise OSError("permission denied")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", raising_mkdir)
+    resolved, created, error = streamlit_args.ensure_shared_directory(env, "blocked")
+    assert resolved == target
+    assert created is False
+    assert error == "diagnosis"
+
+
 def test_persist_args_writes_when_changed(tmp_path, dummy_streamlit):
     settings_path = tmp_path / "app_settings.toml"
     dummy_streamlit.session_state.app_settings = {"args": DemoArgs().model_dump(mode="json")}
@@ -179,3 +293,35 @@ def test_persist_args_writes_when_changed(tmp_path, dummy_streamlit):
     assert calls and calls[0][1] == settings_path
     assert dummy_streamlit.session_state["app_settings"]["args"]["name"] == "Charlie"
     assert dummy_streamlit.session_state.is_args_from_ui is True
+
+
+def test_persist_args_unchanged_payload_noop_and_sets_args_project(tmp_path, dummy_streamlit):
+    settings_path = tmp_path / "app_settings.toml"
+    defaults_payload = DemoArgs().model_dump(mode="json")
+    dummy_streamlit.session_state.app_settings = {"args": defaults_payload.copy()}
+
+    calls: list[tuple] = []
+
+    def dump_args(model, output_path, section="args"):
+        calls.append((model, output_path, section))
+
+    args_module = SimpleNamespace(dump_args=dump_args)
+
+    streamlit_args.persist_args(
+        args_module,
+        DemoArgs(),
+        settings_path=settings_path,
+        defaults_payload=defaults_payload,
+    )
+    assert calls == []
+    assert "is_args_from_ui" not in dummy_streamlit.session_state
+
+    dummy_streamlit.session_state["env"] = SimpleNamespace(app="demo-project")
+    updated = DemoArgs(name="Delta")
+    streamlit_args.persist_args(
+        args_module,
+        updated,
+        settings_path=settings_path,
+        defaults_payload=defaults_payload,
+    )
+    assert dummy_streamlit.session_state["args_project"] == "demo-project"
