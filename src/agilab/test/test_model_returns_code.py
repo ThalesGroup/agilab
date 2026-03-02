@@ -7,6 +7,8 @@ import pytest
 
 from agi_env.defaults import get_default_openai_model
 
+pytestmark = pytest.mark.integration
+
 
 def _extract_fenced_code(text: str) -> str:
     """Return code inside the first triple‑backtick block, if any.

@@ -167,6 +167,9 @@ pythonpath = [
 
 # (merge everything you had inline here)
 asyncio_mode = "auto"
+markers = [
+  "integration: live/external integration checks (excluded from default CI suite)",
+]
 # addopts = "--import-mode=importlib"   # if you had it
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",

@@ -48,44 +48,45 @@ jobs:
       - name: Run agilab tests with coverage
         run: |
           set -e
-          COVERAGE_FILE=.coverage.agilab uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agilab uv run pytest -q --maxfail=1 --disable-warnings -o addopts='' \
+            -m "not integration" \
             --cov=agilab --cov-report=xml:coverage-agilab.xml \
             --junitxml=test-results/junit.xml \
-            src/agilab/test || true
+            src/agilab/test
 
       - name: Run agi-env tests with coverage
         run: |
           set -e
-          COVERAGE_FILE=.coverage.agi-env uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-env uv run pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_env --cov-report=xml:coverage-agi-env.xml \
-            src/agilab/core/agi-env/test || true
+            src/agilab/core/agi-env/test
 
       - name: Run agi-node tests with coverage
         run: |
           set -e
-          COVERAGE_FILE=.coverage.agi-node uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-node uv run pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_node --cov-report=xml:coverage-agi-node.xml \
-            src/agilab/core/test || true
+            src/agilab/core/test
 
       - name: Run agi-cluster tests with coverage
         run: |
           set -e
-          COVERAGE_FILE=.coverage.agi-cluster uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-cluster uv run pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_cluster --cov-report=xml:coverage-agi-cluster.xml \
-            src/agilab/core/test || true
+            src/agilab/core/test
 
       - name: Run agi-core tests with coverage
         run: |
           set -e
-          COVERAGE_FILE=.coverage.agi-core uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-core uv run pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_core --cov-report=xml:coverage-agi-core.xml \
-            src/agilab/core/test || true
+            src/agilab/core/test
 
       - name: Run service health smoke tests
         if: matrix.python-version == '3.13'
         run: |
           set -e
-          COVERAGE_FILE=.coverage.service-health uv run pytest -q \
+          COVERAGE_FILE=.coverage.service-health uv run pytest -q -o addopts='' \
             src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json \
             test/test_service_health_check.py
 
