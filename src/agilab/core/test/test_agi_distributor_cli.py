@@ -1,5 +1,6 @@
 import zipfile
 from pathlib import Path
+import signal
 
 from agi_cluster.agi_distributor import cli as cli_mod
 
@@ -18,6 +19,29 @@ def test_get_processes_containing_parses_unix_ps(monkeypatch):
     assert pids == {101, 303}
 
 
+def test_get_processes_containing_parses_windows_tasklist(monkeypatch):
+    output = "\n".join(
+        [
+            '"dask-scheduler.exe","111","Console","1","10,000 K"',
+            '"python.exe","222","Console","1","10,000 K"',
+            '"DASK-worker.exe","333","Console","1","10,000 K"',
+        ]
+    )
+    monkeypatch.setattr(cli_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(cli_mod.subprocess, "check_output", lambda *args, **kwargs: output)
+    assert cli_mod.get_processes_containing("dask") == {111, 333}
+
+
+def test_get_processes_containing_returns_empty_on_failure(monkeypatch):
+    monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "check_output",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("ps failed")),
+    )
+    assert cli_mod.get_processes_containing("dask") == set()
+
+
 def test_get_child_pids_parses_ppid_map(monkeypatch):
     output = "\n".join(["100 1", "200 100", "300 999", "400 200"])
     monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
@@ -26,10 +50,69 @@ def test_get_child_pids_parses_ppid_map(monkeypatch):
     assert children == {200}
 
 
+def test_get_child_pids_returns_empty_on_failure(monkeypatch):
+    monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "check_output",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("ps failed")),
+    )
+    assert cli_mod.get_child_pids({100}) == set()
+
+
 def test_poll_until_dead_returns_empty_when_all_dead(monkeypatch):
     monkeypatch.setattr(cli_mod, "_is_alive", lambda _pid: False)
     remaining = cli_mod._poll_until_dead({1, 2}, total=0.05, interval=0.01)
     assert remaining == set()
+
+
+def test_is_alive_handles_expected_exceptions(monkeypatch):
+    monkeypatch.setattr(
+        cli_mod.os,
+        "kill",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ProcessLookupError()),
+    )
+    assert cli_mod._is_alive(1) is False
+
+    monkeypatch.setattr(
+        cli_mod.os,
+        "kill",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError()),
+    )
+    assert cli_mod._is_alive(1) is True
+
+
+def test_kill_pids_collects_survivors_on_errors(monkeypatch):
+    calls = []
+
+    def _fake_kill(pid, _sig):
+        calls.append(pid)
+        if pid == 2:
+            raise PermissionError()
+        if pid == 3:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli_mod.os, "kill", _fake_kill)
+    survivors = cli_mod.kill_pids({1, 2, 3}, signal.SIGTERM)
+    assert survivors == {2, 3}
+    assert set(calls) == {1, 2, 3}
+
+
+def test_kill_invokes_sigkill_after_grace(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: {10, 11})
+    monkeypatch.setattr(cli_mod, "_poll_until_dead", lambda pids: set(pids))
+    monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
+    monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
+
+    def _fake_kill_pids(pids, sig):
+        calls.append((set(pids), sig))
+        return set()
+
+    monkeypatch.setattr(cli_mod, "kill_pids", _fake_kill_pids)
+    cli_mod.kill(exclude_pids=set())
+    assert calls[0][1] == signal.SIGTERM
+    assert calls[1][1] == signal.SIGKILL
 
 
 def test_choose_iters_calibration(monkeypatch):
