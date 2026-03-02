@@ -1,6 +1,8 @@
 import os
 from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 
@@ -371,3 +373,198 @@ def test_post_main_ignores_optional_seeding_exception(tmp_path, monkeypatch):
     monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
 
     assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+
+
+class _DummyLogger:
+    def info(self, *_args, **_kwargs):
+        return None
+
+    def warning(self, *_args, **_kwargs):
+        return None
+
+    def error(self, *_args, **_kwargs):
+        return None
+
+    def debug(self, *_args, **_kwargs):
+        return None
+
+
+def test_build_create_symlink_for_module_hardlink_fallback(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_file = tmp_path / "app" / "demo_worker" / "module_a"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("payload", encoding="utf-8")
+
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi_node",
+        agi_env=tmp_path / "agi_env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app",
+    )
+
+    monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", _DummyLogger(), raising=False)
+    monkeypatch.setattr(
+        build_mod.AgiEnv,
+        "create_symlink",
+        staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("symlink disabled"))),
+        raising=False,
+    )
+
+    links = build_mod.create_symlink_for_module(env, "demo_worker.module_a")
+    assert len(links) == 1
+    dest = links[0]
+    assert dest.exists()
+    assert os.path.samefile(dest, source_file)
+
+
+def test_build_cleanup_links_removes_file_and_empty_parents(tmp_path):
+    target = tmp_path / "a" / "agi_node" / "demo" / "payload.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x", encoding="utf-8")
+
+    build_mod.cleanup_links([target])
+    assert not target.exists()
+    assert not (tmp_path / "a" / "agi_node" / "demo").exists()
+
+
+def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    (app_dir / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    worker_file = worker_home / "workers" / "demo_worker.py"
+    worker_file.parent.mkdir(parents=True, exist_ok=True)
+    worker_file.write_text("value = 1\n", encoding="utf-8")
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    out_dir = worker_home / "demo_worker"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        @staticmethod
+        def create_symlink(src, dest):
+            os.symlink(src, dest)
+
+        @staticmethod
+        def create_junction_windows(_src, _dest):
+            return None
+
+        def __init__(self, *, apps_path, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = str(worker_file.relative_to(worker_home))
+            self.pre_install = str(pre_script)
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod, "find_sys_prefix", lambda _base: str(tmp_path / "prefix"))
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": ["demo_worker"])
+
+    run_calls = []
+    monkeypatch.setattr(build_mod.subprocess, "run", lambda cmd, check=True: run_calls.append((cmd, check)))
+    cythonize_calls = []
+    monkeypatch.setattr(
+        build_mod,
+        "cythonize",
+        lambda modules, language_level=3, quiet=False, compiler_directives=None: (
+            cythonize_calls.append((modules, quiet, compiler_directives)) or ["ext_mod"]
+        ),
+    )
+    setup_calls = []
+    monkeypatch.setattr(build_mod, "setup", lambda **kwargs: setup_calls.append(kwargs))
+
+    build_mod.main(
+        [
+            "--app-path",
+            str(app_dir),
+            "build_ext",
+            "-b",
+            str(out_dir),
+            "--packages",
+            "pkg_a,pkg_b",
+            "--quiet",
+        ]
+    )
+
+    assert run_calls, "Expected pre_install subprocess to run when .pyx is missing"
+    assert cythonize_calls, "Expected Cythonize to be invoked for build_ext"
+    assert cythonize_calls[0][1] is True, "Expected quiet=True when --quiet is passed"
+    assert setup_calls and setup_calls[0]["name"] == "demo_worker"
+
+
+def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    out_dir = worker_home / "demo_project"
+    dist_dir = out_dir / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+
+    egg_path = dist_dir / "demo_worker-0.1.0.egg"
+    with ZipFile(egg_path, "w") as zf:
+        zf.writestr("demo_worker/__init__.py", "")
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        @staticmethod
+        def create_symlink(src, dest):
+            os.symlink(src, dest)
+
+        @staticmethod
+        def create_junction_windows(_src, _dest):
+            return None
+
+        def __init__(self, *, apps_path, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = "workers/demo_worker.py"
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = False
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": ["demo_worker"])
+    monkeypatch.setattr(build_mod, "setup", lambda **_kwargs: None)
+
+    links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
+    links_created[0].parent.mkdir(parents=True, exist_ok=True)
+    links_created[0].write_text("x", encoding="utf-8")
+    monkeypatch.setattr(build_mod, "create_symlink_for_module", lambda *_args, **_kwargs: links_created)
+
+    cleanup_calls = []
+    monkeypatch.setattr(build_mod, "cleanup_links", lambda links: cleanup_calls.append(list(links)))
+    os_calls = []
+    monkeypatch.setattr(build_mod.os, "system", lambda cmd: os_calls.append(cmd) or 0)
+
+    build_mod.main(
+        [
+            "--app-path",
+            str(app_dir),
+            "bdist_egg",
+            "-d",
+            str(out_dir),
+            "--packages",
+            "agi_env.tools",
+        ]
+    )
+
+    extracted = out_dir / "src" / "demo_worker" / "__init__.py"
+    assert extracted.exists()
+    assert os_calls and "remove_decorators" in os_calls[0]
+    assert cleanup_calls and cleanup_calls[0] == links_created
