@@ -969,7 +969,6 @@ configure_streamlit
 
 FINAL_STATUS=""
 FINAL_OK=1
-FINAL_OK=1
 run_extras=true
 
 if (( INSTALL_APPS_FLAG )); then
@@ -1008,4 +1007,8 @@ if [[ -n "$FINAL_STATUS" ]]; then
     else
         echo -e "${YELLOW}Completed with issues: ${FINAL_STATUS}${NC}"
     fi
+fi
+
+if (( TEST_APPS_FLAG )) && (( ! FINAL_OK )); then
+    exit 1
 fi
