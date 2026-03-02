@@ -5,6 +5,29 @@ description = "Built-in AGILab example app template (minimal manager + worker)"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic",
+  "humanize",
+  "python-dotenv",
+  "setuptools",
+  "tomlkit",
+  "astor",
+  "psutil",
+  "pathspec",
+  "ipython",
+  "py7zr",
+  "cmake>=3.29",
+  "numba>=0.61.0",
+  "streamlit",
+  "scikit-learn",
+  "parso",
+  "cython",
+  "msgpack",
+  "tomli",
+  "dask[distributed]",
+  "wheel",
+  "scipy==1.15.2",
+  "typing-inspection>=0.4.1",
+  "polars",
+  "pandas",
 ]
 
 [build-system]
