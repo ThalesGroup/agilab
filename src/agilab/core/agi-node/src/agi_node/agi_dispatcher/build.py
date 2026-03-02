@@ -351,8 +351,9 @@ def main(argv: list[str] | None = None) -> None:
         define_macros = [("CYTHON_FALLTHROUGH", "")]
         if sys.platform.startswith("win") and env.pyvers_worker[-1] == "t":
             define_macros.append(("Py_GIL_DISABLED", "1"))
-        logger.info(f"mkdir {Path() /"Modules/_hacl"}")
-        os.makedirs(Path() /"Modules/_hacl", exist_ok=True)
+        hacl_dir = Path("Modules/_hacl")
+        logger.info(f"mkdir {hacl_dir}")
+        os.makedirs(hacl_dir, exist_ok=True)
         mod = Extension(
             name=f"{worker_module}_cy",
             sources=[str(src_rel)],
