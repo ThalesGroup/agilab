@@ -171,3 +171,203 @@ def test_build_keep_lflag(tmp_path):
     assert build_mod._keep_lflag("-Wl,--as-needed") is True
     assert build_mod._keep_lflag(f"-L{existing}") is True
     assert build_mod._keep_lflag("-L/definitely/missing/path") is False
+
+
+def test_post_main_invalid_args_returns_usage_code():
+    assert post_mod.main([]) == 1
+    assert post_mod.main(["a", "b"]) == 1
+
+
+def test_post_main_relative_app_arg_uses_home_wenv(tmp_path, monkeypatch):
+    captured = {}
+
+    class DummyEnv:
+        share_target_name = "demo"
+        dataset_archive = tmp_path / "missing.7z"
+        agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share"
+
+        def unzip_data(self, _archive, _dest):
+            raise AssertionError("unzip_data should not be called when archive is missing")
+
+        def share_root_path(self):
+            return tmp_path / "share-root"
+
+    monkeypatch.setattr(post_mod.Path, "home", staticmethod(lambda: tmp_path))
+
+    def _fake_build_env(app_arg):
+        captured["app_arg"] = app_arg
+        return DummyEnv()
+
+    monkeypatch.setattr(post_mod, "_build_env", _fake_build_env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [tmp_path / "missing.7z"])
+
+    assert post_mod.main(["demo_project"]) == 0
+    assert captured["app_arg"] == tmp_path / "wenv" / "demo_project"
+
+
+def test_post_main_missing_archive_returns_zero_without_unzip(tmp_path, monkeypatch):
+    flags = {"unzipped": False}
+
+    class DummyEnv:
+        share_target_name = "demo"
+        dataset_archive = tmp_path / "missing.7z"
+        agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share"
+
+        def unzip_data(self, _archive, _dest):
+            flags["unzipped"] = True
+
+        def share_root_path(self):
+            return tmp_path / "share-root"
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: DummyEnv())
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [tmp_path / "missing.7z"])
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert flags["unzipped"] is False
+
+
+def test_post_main_links_preferred_sat_trajectory(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    share_root = tmp_path / "share"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    class DummyEnv:
+        def __init__(self):
+            self.share_target_name = "demo"
+            self.dataset_archive = dataset_archive
+            self.agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share-dest"
+
+        def unzip_data(self, _archive, dest):
+            (Path(dest) / "dataset").mkdir(parents=True, exist_ok=True)
+
+        def share_root_path(self):
+            return share_root
+
+    link_calls = []
+
+    def _fake_try_link(link_path, target_path):
+        link_calls.append((Path(link_path), Path(target_path)))
+        return True
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: DummyEnv())
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod, "_try_link_dir", _fake_try_link)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert len(link_calls) == 1
+    assert link_calls[0][0].name == "sat"
+    assert link_calls[0][1] == preferred
+
+
+def test_post_main_respects_preserve_existing_sat_flag(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    share_root = tmp_path / "share"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    class DummyEnv:
+        def __init__(self):
+            self.share_target_name = "demo"
+            self.dataset_archive = dataset_archive
+            self.agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share-dest"
+
+        def unzip_data(self, _archive, dest):
+            sat = Path(dest) / "dataset" / "sat"
+            sat.mkdir(parents=True, exist_ok=True)
+            (sat / "x.csv").write_text("1", encoding="utf-8")
+            (sat / "y.csv").write_text("2", encoding="utf-8")
+
+        def share_root_path(self):
+            return share_root
+
+    called = {"link": False}
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: DummyEnv())
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setenv("AGILAB_PRESERVE_LINK_SIM_SAT", "1")
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: called.update(link=True))
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert called["link"] is False
+
+
+def test_post_main_extracts_then_copies_when_link_unavailable(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    trajectory_archive = tmp_path / "Trajectory.7z"
+    trajectory_archive.write_text("x", encoding="utf-8")
+
+    class DummyEnv:
+        def __init__(self):
+            self.share_target_name = "demo"
+            self.dataset_archive = dataset_archive
+            self.agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share-dest"
+
+        def unzip_data(self, _archive, dest):
+            (Path(dest) / "dataset" / "sat").mkdir(parents=True, exist_ok=True)
+
+        def share_root_path(self):
+            return tmp_path / "share"
+
+    def _fake_extract(_archive, dest):
+        traj = Path(dest) / "Trajectory"
+        traj.mkdir(parents=True, exist_ok=True)
+        (traj / "a.csv").write_text("1", encoding="utf-8")
+        (traj / "b.csv").write_text("2", encoding="utf-8")
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: DummyEnv())
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod, "_extract_archive", _fake_extract)
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    sat = tmp_path / "share-dest" / "dataset" / "sat"
+    assert (sat / "a.csv").exists()
+    assert (sat / "b.csv").exists()
+
+
+def test_post_main_ignores_optional_seeding_exception(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+
+    class DummyEnv:
+        def __init__(self):
+            self.share_target_name = "demo"
+            self.dataset_archive = dataset_archive
+            self.agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share-dest"
+
+        def unzip_data(self, _archive, dest):
+            (Path(dest) / "dataset").mkdir(parents=True, exist_ok=True)
+
+        def share_root_path(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: DummyEnv())
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
