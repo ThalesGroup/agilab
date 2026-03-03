@@ -2,9 +2,13 @@ import logging
 import os
 import json
 import ast
+import socket
+import time
 import traceback
+import uuid
 from pathlib import Path
 import importlib
+import importlib.util
 import importlib.metadata as importlib_metadata
 import sys
 import sysconfig
@@ -53,6 +57,11 @@ DEFAULT_DF = "lab_out.csv"
 JUPYTER_URL = "http://localhost:8888"
 ORCHESTRATE_LOCKED_STEP_KEY = "_orchestrate_locked_step"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
+PIPELINE_LOCK_SCHEMA = "agilab.pipeline.lock.v1"
+PIPELINE_LOCK_FILENAME = "pipeline_run.lock"
+PIPELINE_LOCK_DEFAULT_TTL_SEC = 6 * 3600.0
+SAFE_SERVICE_START_TEMPLATE_FILENAME = "AGI_serve_safe_start_template.py"
+SAFE_SERVICE_START_TEMPLATE_MARKER = "# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START"
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -163,6 +172,299 @@ def _get_run_placeholder(index_page: str) -> Optional[Any]:
     return placeholder
 
 
+def _pipeline_lock_ttl_seconds() -> float:
+    """Return lock TTL used to recycle stale pipeline run locks."""
+    raw = str(os.environ.get("AGILAB_PIPELINE_LOCK_TTL_SEC", "")).strip()
+    if not raw:
+        return PIPELINE_LOCK_DEFAULT_TTL_SEC
+    try:
+        ttl = float(raw)
+    except Exception:
+        return PIPELINE_LOCK_DEFAULT_TTL_SEC
+    return ttl if ttl > 0 else PIPELINE_LOCK_DEFAULT_TTL_SEC
+
+
+def _pipeline_lock_path(env: AgiEnv) -> Path:
+    """Return shared lock path for one app pipeline execution."""
+    target = str(getattr(env, "target", "") or getattr(env, "app", "") or "agilab").strip()
+    relative = Path("pipeline") / target / PIPELINE_LOCK_FILENAME
+    try:
+        path = env.resolve_share_path(relative)
+    except Exception:
+        fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
+        path = (fallback_home / ".agilab_pipeline" / target / PIPELINE_LOCK_FILENAME).resolve(strict=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _read_pipeline_lock_payload(path: Path) -> Dict[str, Any]:
+    """Read lock payload; return empty dict on parse/read failure."""
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            payload = json.load(stream)
+        if isinstance(payload, dict):
+            return payload
+    except Exception:
+        pass
+    return {}
+
+
+def _pipeline_lock_owner_text(payload: Dict[str, Any], age_sec: Optional[float]) -> str:
+    """Format a concise lock owner description for logs/UI."""
+    owner_host = str(payload.get("host", "?"))
+    owner_pid = payload.get("pid", "?")
+    owner_app = str(payload.get("app", "?"))
+    age_txt = f"{age_sec:.0f}s" if isinstance(age_sec, (int, float)) else "unknown"
+    return f"host={owner_host}, pid={owner_pid}, app={owner_app}, age={age_txt}"
+
+
+def _acquire_pipeline_run_lock(
+    env: AgiEnv,
+    index_page: str,
+    placeholder: Optional[Any] = None,
+) -> Optional[Dict[str, Any]]:
+    """Acquire a cross-process pipeline lock with stale lock cleanup."""
+    lock_path = _pipeline_lock_path(env)
+    token = uuid.uuid4().hex
+    now = time.time()
+    payload = {
+        "schema": PIPELINE_LOCK_SCHEMA,
+        "token": token,
+        "app": str(getattr(env, "app", "")),
+        "target": str(getattr(env, "target", "")),
+        "host": socket.gethostname(),
+        "pid": os.getpid(),
+        "created_at": now,
+        "heartbeat_at": now,
+    }
+    ttl_sec = _pipeline_lock_ttl_seconds()
+
+    for _ in range(2):
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(payload, stream, indent=2)
+            _push_run_log(index_page, f"Pipeline lock acquired: {lock_path}", placeholder)
+            return {"path": lock_path, "token": token}
+        except FileExistsError:
+            owner_payload = _read_pipeline_lock_payload(lock_path)
+            age_sec: Optional[float]
+            try:
+                age_sec = max(time.time() - lock_path.stat().st_mtime, 0.0)
+            except Exception:
+                age_sec = None
+
+            if isinstance(age_sec, float) and age_sec > ttl_sec:
+                try:
+                    lock_path.unlink()
+                    _push_run_log(
+                        index_page,
+                        f"Removed stale pipeline lock ({age_sec:.0f}s > {ttl_sec:.0f}s): {lock_path}",
+                        placeholder,
+                    )
+                    continue
+                except FileNotFoundError:
+                    continue
+                except Exception as exc:
+                    msg = f"Unable to remove stale pipeline lock `{lock_path}`: {exc}"
+                    st.warning(msg)
+                    _push_run_log(index_page, msg, placeholder)
+                    return None
+
+            owner_txt = _pipeline_lock_owner_text(owner_payload, age_sec)
+            msg = (
+                "Another pipeline execution is already running. "
+                f"Owner: {owner_txt}. Current run cancelled."
+            )
+            st.warning(msg)
+            _push_run_log(index_page, msg, placeholder)
+            return None
+        except Exception as exc:
+            msg = f"Unable to acquire pipeline lock `{lock_path}`: {exc}"
+            st.error(msg)
+            _push_run_log(index_page, msg, placeholder)
+            return None
+
+    msg = f"Unable to acquire pipeline lock after stale cleanup retries: {lock_path}"
+    st.warning(msg)
+    _push_run_log(index_page, msg, placeholder)
+    return None
+
+
+def _refresh_pipeline_run_lock(lock_handle: Optional[Dict[str, Any]]) -> None:
+    """Refresh heartbeat for an acquired pipeline lock."""
+    if not lock_handle:
+        return
+    lock_path_raw = lock_handle.get("path")
+    token = lock_handle.get("token")
+    if not lock_path_raw or not token:
+        return
+    lock_path = Path(lock_path_raw)
+    if not lock_path.exists():
+        return
+
+    payload = _read_pipeline_lock_payload(lock_path)
+    if payload.get("token") != token:
+        return
+    payload["heartbeat_at"] = time.time()
+    tmp_path = lock_path.with_suffix(lock_path.suffix + ".tmp")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, indent=2)
+        os.replace(tmp_path, lock_path)
+    except Exception:
+        logger.debug("Failed to refresh pipeline lock heartbeat for %s", lock_path, exc_info=True)
+
+
+def _release_pipeline_run_lock(
+    lock_handle: Optional[Dict[str, Any]],
+    index_page: str,
+    placeholder: Optional[Any] = None,
+) -> None:
+    """Release pipeline lock if still owned by this process/token."""
+    if not lock_handle:
+        return
+    lock_path_raw = lock_handle.get("path")
+    token = lock_handle.get("token")
+    if not lock_path_raw or not token:
+        return
+    lock_path = Path(lock_path_raw)
+    try:
+        if not lock_path.exists():
+            return
+        payload = _read_pipeline_lock_payload(lock_path)
+        if payload and payload.get("token") != token:
+            return
+        lock_path.unlink()
+        _push_run_log(index_page, f"Pipeline lock released: {lock_path}", placeholder)
+    except FileNotFoundError:
+        return
+    except Exception as exc:
+        logger.debug("Failed to release pipeline lock %s: %s", lock_path, exc)
+
+
+def _to_bool_flag(value: Any, default: bool = False) -> bool:
+    """Convert settings values to bool with tolerant parsing."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return default
+
+
+def _safe_service_start_template(env: AgiEnv) -> str:
+    """Build an idempotent AGI.serve(start) snippet for PIPELINE import."""
+    settings: Dict[str, Any] = {}
+    try:
+        app_settings_path = Path(env.app_settings_file)
+        if app_settings_path.exists():
+            with open(app_settings_path, "rb") as stream:
+                loaded = tomllib.load(stream)
+            if isinstance(loaded, dict):
+                settings = loaded
+    except Exception:
+        settings = {}
+
+    cluster = settings.get("cluster", {}) if isinstance(settings.get("cluster"), dict) else {}
+    run_args = settings.get("args", {}) if isinstance(settings.get("args"), dict) else {}
+
+    cluster_enabled = _to_bool_flag(cluster.get("cluster_enabled"), False)
+    pool = _to_bool_flag(cluster.get("pool"), False)
+    cython = _to_bool_flag(cluster.get("cython"), False)
+    rapids = _to_bool_flag(cluster.get("rapids"), False)
+    mode = int(pool) + int(cython) * 2 + int(cluster_enabled) * 4 + int(rapids) * 8
+    scheduler = cluster.get("scheduler") if cluster.get("scheduler") else None
+    workers = cluster.get("workers") if isinstance(cluster.get("workers"), dict) else None
+    verbose_raw = cluster.get("verbose", 1)
+    try:
+        verbose = int(verbose_raw)
+    except Exception:
+        verbose = 1
+
+    return f"""{SAFE_SERVICE_START_TEMPLATE_MARKER}
+import asyncio
+from agi_cluster.agi_distributor import AGI
+from agi_env import AgiEnv
+
+APPS_PATH = {str(env.apps_path)!r}
+APP = {str(env.app)!r}
+VERBOSE = {verbose}
+MODE = {mode}
+SCHEDULER = {scheduler!r}
+WORKERS = {workers!r}
+RUN_ARGS = {run_args!r}
+
+async def safe_service_start():
+    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=VERBOSE)
+    if MODE & 4 == 0:
+        raise RuntimeError(
+            "Cluster (Dask) is disabled in app_settings.toml. "
+            "Enable cluster before starting AGI.serve."
+        )
+
+    status = await AGI.serve(
+        app_env,
+        action="status",
+        mode=MODE,
+        scheduler=SCHEDULER,
+        workers=WORKERS,
+        **RUN_ARGS,
+    )
+    state = str((status or {{}}).get("status", "")).lower()
+
+    if state in {{"running", "degraded"}}:
+        print("Service already running; start skipped.")
+        print(status)
+        return status
+
+    if state == "error":
+        await AGI.serve(
+            app_env,
+            action="stop",
+            mode=MODE,
+            scheduler=SCHEDULER,
+            workers=WORKERS,
+            **RUN_ARGS,
+        )
+
+    result = await AGI.serve(
+        app_env,
+        action="start",
+        mode=MODE,
+        scheduler=SCHEDULER,
+        workers=WORKERS,
+        **RUN_ARGS,
+    )
+    print(result)
+    return result
+
+if __name__ == "__main__":
+    asyncio.run(safe_service_start())
+"""
+
+
+def _ensure_safe_service_template(env: AgiEnv, steps_file: Path) -> Optional[Path]:
+    """Create/update autogenerated safe service snippet file near lab steps."""
+    template_path = steps_file.parent / SAFE_SERVICE_START_TEMPLATE_FILENAME
+    content = _safe_service_start_template(env)
+    try:
+        existing = template_path.read_text(encoding="utf-8") if template_path.exists() else None
+        if existing == content:
+            return template_path
+        if existing:
+            first_line = existing.splitlines()[0].strip()
+            if first_line and first_line != SAFE_SERVICE_START_TEMPLATE_MARKER:
+                return template_path
+        template_path.parent.mkdir(parents=True, exist_ok=True)
+        template_path.write_text(content, encoding="utf-8")
+        return template_path
+    except Exception as exc:
+        logger.debug("Unable to ensure safe service template at %s: %s", template_path, exc)
+        return None
+
+
 def _run_locked_step(
     env: AgiEnv,
     index_page_str: str,
@@ -181,97 +483,105 @@ def _run_locked_step(
     if not snippet_file:
         st.error("Snippet file is not configured. Reload the page and try again.")
         return
-
-    selected_map_entry = normalize_runtime_path(selected_map.get(step, ""))
-    entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
-    venv_root = selected_map_entry or (entry_runtime_raw if _is_valid_runtime_root(entry_runtime_raw) else "")
-    if not venv_root:
-        fallback = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
-        if fallback and _is_valid_runtime_root(fallback):
-            venv_root = fallback
-    if not venv_root:
-        fallback = normalize_runtime_path(getattr(env, "active_app", ""))
-        if _is_valid_runtime_root(fallback):
-            venv_root = fallback
-
-    entry_engine = str(entry.get("R", "") or "")
-    engine = entry_engine or ("agi.run" if venv_root else "runpy")
-    if engine.startswith("agi.") and not venv_root:
-        fallback = normalize_runtime_path(getattr(env, "active_app", ""))
-        if _is_valid_runtime_root(fallback):
-            venv_root = fallback
-    if venv_root:
-        selected_map[step] = venv_root
-        st.session_state["lab_selected_venv"] = venv_root
-        if engine == "runpy":
-            engine = "agi.run"
-
-    code_to_run = str(entry.get("C", ""))
-    engine_map[step] = engine
-    st.session_state["lab_selected_engine"] = engine
-
-    log_file_path, log_error = _prepare_run_log_file(
-        index_page_str,
-        env,
-        prefix=f"step_{step + 1}",
-    )
-    if log_file_path:
-        _push_run_log(
-            index_page_str,
-            f"Run step {step + 1} started… logs will be saved to {log_file_path}",
-            stored_placeholder,
-        )
-    else:
-        _push_run_log(
-            index_page_str,
-            f"Run step {step + 1} started… (unable to prepare log file: {log_error})",
-            stored_placeholder,
-        )
+    lock_handle = _acquire_pipeline_run_lock(env, index_page_str, stored_placeholder)
+    if lock_handle is None:
+        return
 
     try:
-        target_base = Path(steps_file).parent.resolve()
-        target_base.mkdir(parents=True, exist_ok=True)
-        run_output = ""
-        if engine == "runpy":
-            run_output = run_lab(
-                [entry.get("D", ""), entry.get("Q", ""), code_to_run],
-                snippet_file,
-                env.copilot_file,
-            )
-        else:
-            script_path = (target_base / "AGI_run.py").resolve()
-            script_path.write_text(code_to_run)
-            python_cmd = _python_for_venv(venv_root)
-            run_output = _stream_run_command(
-                env,
-                index_page_str,
-                f"{python_cmd} {script_path}",
-                cwd=target_base,
-                placeholder=stored_placeholder,
-            )
-        env_label = Path(venv_root).name if venv_root else "default env"
-        summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
-        _push_run_log(
+        selected_map_entry = normalize_runtime_path(selected_map.get(step, ""))
+        entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
+        venv_root = selected_map_entry or (entry_runtime_raw if _is_valid_runtime_root(entry_runtime_raw) else "")
+        if not venv_root:
+            fallback = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+            if fallback and _is_valid_runtime_root(fallback):
+                venv_root = fallback
+        if not venv_root:
+            fallback = normalize_runtime_path(getattr(env, "active_app", ""))
+            if _is_valid_runtime_root(fallback):
+                venv_root = fallback
+
+        entry_engine = str(entry.get("R", "") or "")
+        engine = entry_engine or ("agi.run" if venv_root else "runpy")
+        if engine.startswith("agi.") and not venv_root:
+            fallback = normalize_runtime_path(getattr(env, "active_app", ""))
+            if _is_valid_runtime_root(fallback):
+                venv_root = fallback
+        if venv_root:
+            selected_map[step] = venv_root
+            st.session_state["lab_selected_venv"] = venv_root
+            if engine == "runpy":
+                engine = "agi.run"
+
+        code_to_run = str(entry.get("C", ""))
+        engine_map[step] = engine
+        st.session_state["lab_selected_engine"] = engine
+
+        log_file_path, log_error = _prepare_run_log_file(
             index_page_str,
-            f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-            stored_placeholder,
+            env,
+            prefix=f"step_{step + 1}",
         )
-        if run_output:
-            preview = run_output.strip()
-            if preview:
-                _push_run_log(
-                    index_page_str,
-                    f"Output (step {step + 1}):\n{preview}",
-                    stored_placeholder,
-                )
-        elif engine == "runpy":
+        if log_file_path:
             _push_run_log(
                 index_page_str,
-                f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                f"Run step {step + 1} started… logs will be saved to {log_file_path}",
                 stored_placeholder,
             )
+        else:
+            _push_run_log(
+                index_page_str,
+                f"Run step {step + 1} started… (unable to prepare log file: {log_error})",
+                stored_placeholder,
+            )
+
+        try:
+            _refresh_pipeline_run_lock(lock_handle)
+            target_base = Path(steps_file).parent.resolve()
+            target_base.mkdir(parents=True, exist_ok=True)
+            run_output = ""
+            if engine == "runpy":
+                run_output = run_lab(
+                    [entry.get("D", ""), entry.get("Q", ""), code_to_run],
+                    snippet_file,
+                    env.copilot_file,
+                )
+            else:
+                script_path = (target_base / "AGI_run.py").resolve()
+                script_path.write_text(code_to_run)
+                python_cmd = _python_for_venv(venv_root)
+                run_output = _stream_run_command(
+                    env,
+                    index_page_str,
+                    f"{python_cmd} {script_path}",
+                    cwd=target_base,
+                    placeholder=stored_placeholder,
+                )
+            _refresh_pipeline_run_lock(lock_handle)
+            env_label = Path(venv_root).name if venv_root else "default env"
+            summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
+            _push_run_log(
+                index_page_str,
+                f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                stored_placeholder,
+            )
+            if run_output:
+                preview = run_output.strip()
+                if preview:
+                    _push_run_log(
+                        index_page_str,
+                        f"Output (step {step + 1}):\n{preview}",
+                        stored_placeholder,
+                    )
+            elif engine == "runpy":
+                _push_run_log(
+                    index_page_str,
+                    f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                    stored_placeholder,
+                )
+        finally:
+            st.session_state.pop(f"{index_page_str}__run_log_file", None)
     finally:
-        st.session_state.pop(f"{index_page_str}__run_log_file", None)
+        _release_pipeline_run_lock(lock_handle, index_page_str, stored_placeholder)
 
 
 def _python_for_venv(venv_root: str | Path | None) -> Path:
@@ -2817,122 +3127,130 @@ def run_all_steps(
     if not sequence:
         sequence = list(range(len(steps)))
 
+    lock_handle = _acquire_pipeline_run_lock(env, index_page_str, log_placeholder)
+    if lock_handle is None:
+        return
+
     executed = 0
-    with st.spinner("Running all steps…"):
-        for idx in sequence:
-            entry = steps[idx]
-            code = entry.get("C", "")
-            if not _is_runnable_step(entry):
-                continue
-            _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
+    try:
+        with st.spinner("Running all steps…"):
+            for idx in sequence:
+                _refresh_pipeline_run_lock(lock_handle)
+                entry = steps[idx]
+                code = entry.get("C", "")
+                if not _is_runnable_step(entry):
+                    continue
+                _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
 
-            raw_runtime = normalize_runtime_path(entry.get("E", ""))
-            venv_path = raw_runtime if _is_valid_runtime_root(raw_runtime) else ""
-            if venv_path:
-                selected_map[idx] = venv_path
-                st.session_state["lab_selected_venv"] = venv_path
-            else:
-                selected_map.pop(idx, None)
-            runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
+                raw_runtime = normalize_runtime_path(entry.get("E", ""))
+                venv_path = raw_runtime if _is_valid_runtime_root(raw_runtime) else ""
+                if venv_path:
+                    selected_map[idx] = venv_path
+                    st.session_state["lab_selected_venv"] = venv_path
+                else:
+                    selected_map.pop(idx, None)
+                runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
 
-            st.session_state[index_page_str][0] = idx
-            st.session_state[index_page_str][1] = entry.get("D", "")
-            st.session_state[index_page_str][2] = entry.get("Q", "")
-            st.session_state[index_page_str][3] = entry.get("M", "")
-            st.session_state[index_page_str][4] = code
-            st.session_state[index_page_str][5] = details_store.get(idx, "")
+                st.session_state[index_page_str][0] = idx
+                st.session_state[index_page_str][1] = entry.get("D", "")
+                st.session_state[index_page_str][2] = entry.get("Q", "")
+                st.session_state[index_page_str][3] = entry.get("M", "")
+                st.session_state[index_page_str][4] = code
+                st.session_state[index_page_str][5] = details_store.get(idx, "")
 
-            venv_root = runtime_root
-            entry_engine = str(entry.get("R", "") or "")
-            ui_engine = str(engine_map.get(idx) or "")
-            if ui_engine and ui_engine != entry_engine:
-                if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                venv_root = runtime_root
+                entry_engine = str(entry.get("R", "") or "")
+                ui_engine = str(engine_map.get(idx) or "")
+                if ui_engine and ui_engine != entry_engine:
+                    if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                        engine = entry_engine
+                    else:
+                        engine = ui_engine
+                elif entry_engine:
                     engine = entry_engine
                 else:
-                    engine = ui_engine
-            elif entry_engine:
-                engine = entry_engine
-            else:
-                engine = "agi.run" if venv_root else "runpy"
-            if venv_root and engine == "runpy":
-                engine = "agi.run"
-            if engine.startswith("agi.") and not venv_root:
-                fallback_runtime = normalize_runtime_path(getattr(env, "active_app", "") or "")
-                if _is_valid_runtime_root(fallback_runtime):
-                    venv_root = fallback_runtime
-                    st.session_state["lab_selected_venv"] = venv_root
-            target_base = Path(steps_file).parent.resolve()
-            # Collapse duplicated tail (e.g., export/<app>/export/<app>)
-            if target_base.name == target_base.parent.name:
-                target_base = target_base.parent
-            target_base.mkdir(parents=True, exist_ok=True)
-            if engine == "runpy":
-                output = run_lab(
-                    [entry.get("D", ""), entry.get("Q", ""), code],
-                    snippet_file,
-                    env.copilot_file,
-                )
-            else:
-                script_path = (target_base / "AGI_run.py").resolve()
-                script_path.write_text(code)
-                python_cmd = _python_for_venv(venv_root)
-                output = _stream_run_command(
-                    env,
-                    index_page_str,
-                    f"{python_cmd} {script_path}",
-                    cwd=target_base,
-                    placeholder=log_placeholder,
-                )
-
-            # Append execution output to logs for better visibility
-            if output:
-                preview = output.strip()
-                if preview:
-                    _push_run_log(
-                        index_page_str,
-                        f"Output (step {idx + 1}):\n{preview}",
-                        log_placeholder,
+                    engine = "agi.run" if venv_root else "runpy"
+                if venv_root and engine == "runpy":
+                    engine = "agi.run"
+                if engine.startswith("agi.") and not venv_root:
+                    fallback_runtime = normalize_runtime_path(getattr(env, "active_app", "") or "")
+                    if _is_valid_runtime_root(fallback_runtime):
+                        venv_root = fallback_runtime
+                        st.session_state["lab_selected_venv"] = venv_root
+                target_base = Path(steps_file).parent.resolve()
+                # Collapse duplicated tail (e.g., export/<app>/export/<app>)
+                if target_base.name == target_base.parent.name:
+                    target_base = target_base.parent
+                target_base.mkdir(parents=True, exist_ok=True)
+                if engine == "runpy":
+                    output = run_lab(
+                        [entry.get("D", ""), entry.get("Q", ""), code],
+                        snippet_file,
+                        env.copilot_file,
                     )
-                    if "No such file or directory" in preview:
+                else:
+                    script_path = (target_base / "AGI_run.py").resolve()
+                    script_path.write_text(code)
+                    python_cmd = _python_for_venv(venv_root)
+                    output = _stream_run_command(
+                        env,
+                        index_page_str,
+                        f"{python_cmd} {script_path}",
+                        cwd=target_base,
+                        placeholder=log_placeholder,
+                    )
+                _refresh_pipeline_run_lock(lock_handle)
+
+                # Append execution output to logs for better visibility
+                if output:
+                    preview = output.strip()
+                    if preview:
                         _push_run_log(
                             index_page_str,
-                            "Hint: the code tried to call a file that is not present in the export environment. "
-                            "Adjust the step to use a path that exists under the export/lab directory.",
+                            f"Output (step {idx + 1}):\n{preview}",
                             log_placeholder,
                         )
-            else:
+                        if "No such file or directory" in preview:
+                            _push_run_log(
+                                index_page_str,
+                                "Hint: the code tried to call a file that is not present in the export environment. "
+                                "Adjust the step to use a path that exists under the export/lab directory.",
+                                log_placeholder,
+                            )
+                else:
+                    _push_run_log(
+                        index_page_str,
+                        f"Output (step {idx + 1}): {engine} executed (no captured stdout)",
+                        log_placeholder,
+                    )
+
+                if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
+                    export_target = st.session_state.get("df_file_out", "")
+                    if save_csv(st.session_state["data"], export_target):
+                        st.session_state["df_file_in"] = export_target
+                        st.session_state["step_checked"] = True
+                summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
+                env_label = Path(venv_root).name if venv_root else "default env"
                 _push_run_log(
                     index_page_str,
-                    f"Output (step {idx + 1}): {engine} executed (no captured stdout)",
+                    f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
                     log_placeholder,
                 )
+                executed += 1
 
-            if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                export_target = st.session_state.get("df_file_out", "")
-                if save_csv(st.session_state["data"], export_target):
-                    st.session_state["df_file_in"] = export_target
-                    st.session_state["step_checked"] = True
-            summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
-            env_label = Path(venv_root).name if venv_root else "default env"
-            _push_run_log(
-                index_page_str,
-                f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                log_placeholder,
-            )
-            executed += 1
-
-    st.session_state[index_page_str][0] = original_step
-    st.session_state["lab_selected_venv"] = normalize_runtime_path(original_selected)
-    st.session_state["lab_selected_engine"] = original_engine
-    st.session_state[f"{index_page_str}__force_blank_q"] = True
-    st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-
-    if executed:
-        st.success(f"Executed {executed} step{'s' if executed != 1 else ''}.")
-        _push_run_log(index_page_str, f"Run pipeline completed: {executed} step(s) executed.", log_placeholder)
-    else:
-        st.info("No runnable code found in the steps.")
-        _push_run_log(index_page_str, "Run pipeline completed: no runnable code found.", log_placeholder)
+        if executed:
+            st.success(f"Executed {executed} step{'s' if executed != 1 else ''}.")
+            _push_run_log(index_page_str, f"Run pipeline completed: {executed} step(s) executed.", log_placeholder)
+        else:
+            st.info("No runnable code found in the steps.")
+            _push_run_log(index_page_str, "Run pipeline completed: no runnable code found.", log_placeholder)
+    finally:
+        st.session_state[index_page_str][0] = original_step
+        st.session_state["lab_selected_venv"] = normalize_runtime_path(original_selected)
+        st.session_state["lab_selected_engine"] = original_engine
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        _release_pipeline_run_lock(lock_handle, index_page_str, log_placeholder)
 
 
 def on_nb_change(
@@ -3814,6 +4132,9 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path) -> Dict[str, Path]:
 
     run_script = steps_file.parent / "AGI_run.py"
     _add_path(run_script)
+    safe_service_template = _ensure_safe_service_template(env, steps_file)
+    if safe_service_template:
+        _add_path(safe_service_template)
 
     # Avoid importing arbitrary execute logs (stale app_args) from runenv.
     # Only keep a short-lived, app-scoped run snippet that is still
@@ -5232,7 +5553,27 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 def main() -> None:
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = importlib.import_module("agilab.About_agilab")
+        page_module = None
+        last_exc: Optional[Exception] = None
+        for module_name in ("agilab.About_agilab", "About_agilab"):
+            try:
+                page_module = importlib.import_module(module_name)
+                break
+            except ModuleNotFoundError as exc:
+                last_exc = exc
+        if page_module is None:
+            try:
+                about_path = Path(__file__).resolve().parents[1] / "About_agilab.py"
+                spec = importlib.util.spec_from_file_location("agilab_about_fallback", about_path)
+                if spec and spec.loader:
+                    page_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(page_module)
+            except Exception as exc:
+                last_exc = exc
+        if page_module is None or not hasattr(page_module, "main"):
+            if last_exc is not None:
+                raise last_exc
+            raise ModuleNotFoundError("Unable to import About_agilab page module.")
         page_module.main()
         st.rerun()
 
