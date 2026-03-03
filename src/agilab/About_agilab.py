@@ -492,6 +492,7 @@ def _render_env_editor(env, help_file: Path):
     # Only show keys defined in the template .env (the canonical user-facing
     # settings), in template order, with values from the user's file.
     template_keys: List[str] = []
+    template_defaults: Dict[str, str] = {}
     if TEMPLATE_ENV_PATH is not None:
         try:
             with TEMPLATE_ENV_PATH.open("r", encoding="utf-8") as tf:
@@ -499,9 +500,13 @@ def _render_env_editor(env, help_file: Path):
                     stripped = raw.strip()
                     if not stripped or "=" not in stripped:
                         continue
-                    key = stripped.lstrip("#").split("=", 1)[0].strip()
+                    key_part, value_part = stripped.lstrip("#").split("=", 1)
+                    key = key_part.strip()
+                    value = value_part.strip()
                     if key and key not in template_keys:
                         template_keys.append(key)
+                    if key and key not in template_defaults:
+                        template_defaults[key] = value
         except Exception:
             pass
 
@@ -512,7 +517,7 @@ def _render_env_editor(env, help_file: Path):
     with st.form("env_editor_form"):
         updated_values: Dict[str, str] = {}
         for key in unique_keys:
-            default_value = last_value_map[key]
+            default_value = last_value_map.get(key, template_defaults.get(key, ""))
             updated_values[key] = st.text_input(
                 key,
                 value=default_value,

@@ -604,7 +604,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             active_app = home_abs / "wenv" / app
         else:
             if app is None:
-                app = envars.get("APP_DEFAULT", 'flight_project')
+                app_default = str(envars.get("APP_DEFAULT", "flight_project") or "").strip()
+                app = app_default or "flight_project"
 
             # If caller provided an explicit path and it exists, honour it directly.
             if active_app_override is not None and Path(active_app_override).exists():
@@ -786,8 +787,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         resources_root = self.env_pck
         if not self.is_worker_env:
             self._init_resources(resources_root / self._agi_resources)
-        self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000000))
-        self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
+        try:
+            self.TABLE_MAX_ROWS = int(str(envars.get("TABLE_MAX_ROWS", 1000000) or "").strip() or 1000000)
+        except Exception:
+            self.TABLE_MAX_ROWS = 1000000
+        try:
+            self.GUI_SAMPLING = int(str(envars.get("GUI_SAMPLING", 20) or "").strip() or 20)
+        except Exception:
+            self.GUI_SAMPLING = 20
 
         self.target = target
         wenv_root = Path("wenv")
