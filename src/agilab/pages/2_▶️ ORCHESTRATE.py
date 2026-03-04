@@ -1933,13 +1933,13 @@ if __name__ == "__main__":
 
         execution_view = st.radio(
             "Execution panel",
-            options=("Run now", "Submit"),
+            options=("Run now", "Serve"),
             key=execution_view_key,
             horizontal=True,
             help="Show either the run panel or the submit panel.",
         )
         show_run_panel = execution_view == "Run now"
-        show_submit_panel = execution_view == "Submit"
+        show_submit_panel = execution_view == "Serve"
 
         cluster_params = st.session_state.app_settings["cluster"]
         cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
@@ -2706,7 +2706,7 @@ if __name__ == "__main__":
                     st.success("Dataframe preview restore completed.")
                 st.rerun()
         else:
-            st.info("`Submit` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
+            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
             st.session_state.pop("_combo_load_trigger", None)
             st.session_state.pop("_combo_export_trigger", None)
             st.session_state.pop(delete_confirm_key, None)
