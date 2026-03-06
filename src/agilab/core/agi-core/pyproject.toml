@@ -157,6 +157,8 @@ Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
 
 
 
+
+
 [tool.uv.sources.agi-env]
     path = "../agi-env"
     editable = true

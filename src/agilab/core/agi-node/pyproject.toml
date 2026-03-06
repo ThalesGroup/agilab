@@ -123,6 +123,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
 
 
 
+
 [dependency-groups]
 dev = [
     "black",
