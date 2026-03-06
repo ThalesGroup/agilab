@@ -1,5 +1,5 @@
 [project]
-version = "2026.02.27"
+version = "2026.03.06"
 name = "agi-cluster"
 description = "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends"
 requires-python = ">=3.11"
@@ -7,10 +7,10 @@ readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 classifiers = [
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -70,6 +70,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
+
 
 
 
