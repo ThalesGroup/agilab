@@ -4,7 +4,7 @@ FAQ
 This page captures recurring questions about the AGILab tooling and runtime.
 
 Missing worker packages during `AGI.run_*`
------------------------------------------
+------------------------------------------
 If a run fails with `ModuleNotFoundError` inside a worker virtual environment, rerun the
 matching installer script (for example ``uv run --project src/agilab/core/agi-cluster python
 src/agilab/examples/flight/AGI.install_flight.py``). The installer rebuilds the worker egg and
@@ -17,7 +17,7 @@ that produces eggs and symlinks the required modules before they are sent to Das
 wheels would break that upload contract, so eggs remain the canonical package format.
 
 Do we already have DAG/task orchestration?
------------------------------------------
+------------------------------------------
 Yes. Managers hand ``WorkDispatcher`` a work plan and ``DagWorker`` executes it, enforcing
 dependencies and parallelism across workers. The improvement areas are telemetry and richer
 policies (retries, priorities), not building a brand-new planner.
@@ -55,13 +55,13 @@ you hop between them. If you truly want to reuse the activated environment, pass
 ``--active`` to ``uv``; otherwise you can safely ignore the warning.
 
 Why does a run create ``distribution.json``?
--------------------------------------------
+--------------------------------------------
 ``WorkDispatcher`` caches the last work-plan in ``distribution.json`` inside each app
 directory. On subsequent runs it reuses the plan if the workers layout and arguments
 are unchanged; delete the file (or change args) to force a full repartition.
 
 Switching the active app in the web interface
--------------------------------------
+---------------------------------------------
 Use the project selector in the left sidebar of the web interface. ``AgiEnv`` will
 recreate symbolic links under ``~/wenv`` and adjust the virtual environment for the
 chosen app. When you add a brand-new app under ``src/agilab/apps/``, restart the
@@ -74,7 +74,7 @@ reference documentation with ``uv run --group sphinx --dev docs/gen-docs.py`` so
 match the updated source.
 
 `AGI.install_*` fails looking for ``pyproject.toml``
----------------------------------------------------
+----------------------------------------------------
 Each worker must carry its own ``pyproject.toml`` (for example
 ``src/agilab/apps/builtin/flight_project/src/flight_worker/pyproject.toml``). If the installer raises
 ``FileNotFoundError`` for that path, add the file with the worker’s runtime

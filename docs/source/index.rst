@@ -37,7 +37,7 @@ simultaneous multiple virtual environments, with one venv per cell/snippet.
    :maxdepth: 2
    :caption: Web Interface Pages
 
-   About Agilab <agilab-help>
+   About AGILab <agilab-help>
    edit-help
    execute-help
    experiment-help

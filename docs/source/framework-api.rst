@@ -12,11 +12,15 @@ Core packages
 - ``agi_env`` maps the current project into an ``AgiEnv`` object and provides the
   helper utilities relied upon by web pages (project discovery, dataset
   export, templating helpers, etc.).
+- ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
+  the architecture page is more useful than autodoc because the top-level Python
+  package exports only a minimal public surface.
 - ``agi_node`` contains the base worker/node abstractions that run inside a
   cluster. Extend these classes when you need custom pipelines or want to add
   typed contracts around data exchange.
-- ``agi_distributor`` bundles the orchestration layer responsible for installing
-  apps, creating distributions, and delegating tasks to remote workers.
+- ``agi-distributor`` is the orchestration layer implemented under
+  ``agi_cluster.agi_distributor``. It handles app installation, distribution
+  creation, and task delegation to remote workers.
 
 The detailed API reference for each package is available below.
 
@@ -34,8 +38,9 @@ Working with the API
   active project structure and configuration.
 - Derive from ``agi_node`` base classes to implement new DAG steps or worker
   behaviours that can be shipped with your app bundles.
-- Call into ``agi_distributor.AGI`` for programmatic install / get_distrib / run
-  flows; this is the same surface area surfaced in the Orchestrate page snippets.
+- Call into ``agi_cluster.agi_distributor.agi_distributor.AGI`` for programmatic
+  install / get_distrib / run flows; this is the same surface area surfaced in
+  the Orchestrate page snippets.
 
 App structure conventions
 -------------------------

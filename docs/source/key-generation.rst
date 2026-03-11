@@ -25,7 +25,7 @@
 Key Generation
 ==============
 
-This guide provides detailed instructions for generating SSH key pairs and securely deploying public keys to remote worker machines in various operating system configurations within the Agilab environment.
+This guide provides detailed instructions for generating SSH key pairs and securely deploying public keys to remote worker machines in various operating system configurations within the AGILab environment.
 
 In the rest of the guide, I would refer to:
 
@@ -82,7 +82,7 @@ If you have not changed the default path, the public key will be stored in ``~/.
 
 
 2.2 Verify the key Addition
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. tabs::
 
