@@ -1,7 +1,7 @@
 Quick-Start
 ===========
 
-Agilab is a software solution to explore AI for engineering. This quick-start
+AGILab is a software solution to explore AI for engineering. This quick-start
 walks you through the minimal steps required to install the framework, open the
 web interface, and run one of the sample apps. For architectural context see
 :doc:`architecture` and :doc:`agi-core-architecture`.
@@ -36,7 +36,7 @@ LICENSE
 
 New BSD. See :doc:`License File <license>`.
 
-Install Agilab
+Install AGILab
 ^^^^^^^^^^^^^^
 
 1. **Bootstrap a workspace** (keeps project files and the web interface cache in a

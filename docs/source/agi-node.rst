@@ -89,6 +89,24 @@ apps that need to enrich the exported structure.
 Reference
 ---------
 
+This page documents the public worker foundation and the concrete worker types.
+Operational build and hook entry points such as ``build``, ``pre_install``, and
+``post_install`` remain covered in the runbook because they are packaging
+tooling rather than the main API surface extended by app authors.
+
+base_worker
+~~~~~~~~~~~
+
+.. image:: diagrams/classes_agi_node.svg
+   :width: 400
+   :alt: Classes diagram for agi_node base worker layer
+   :align: center
+
+.. automodule:: agi_node.agi_dispatcher.base_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 dag_worker
 ~~~~~~~~~~
 

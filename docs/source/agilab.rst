@@ -19,3 +19,16 @@ See:
 - :doc:`agilab-help` for the landing page entry point.
 - :doc:`edit-help`, :doc:`execute-help`, :doc:`experiment-help`, :doc:`explore-help` for the built-in pages.
 - :doc:`apps-pages` for page bundles (sidecar dashboards).
+
+Reference
+---------
+
+.. automodule:: agilab
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: agilab.lab_run
+   :members:
+   :undoc-members:
+   :show-inheritance:
