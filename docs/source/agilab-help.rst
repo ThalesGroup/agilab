@@ -1,4 +1,4 @@
-About Agilab
+About AGILab
 ============
 
 agilab.py is the main web interface entry point. It provides a single navigation

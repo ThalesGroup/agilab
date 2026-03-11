@@ -194,6 +194,9 @@ html_theme = "sphinx_rtd_theme"  # Specify the theme
 # Logo # put your SVG in, say, _static/agi_logo.svg
 html_logo = "logo/agi_logo.svg"
 display_version = True
+html_context = {
+    "docs_version": release,
+}
 
 # Theme options
 html_theme_options = {

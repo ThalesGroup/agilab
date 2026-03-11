@@ -55,7 +55,7 @@ This page lists the page bundles shipped with the repository. You can discover
 and launch them from :doc:`explore-help`.
 
 view_autoencoder_latentspace
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Autoencoder-powered dimensionality reduction.
 

@@ -1,1 +1,15 @@
 /* Custom overrides for AGILab Sphinx docs. */
+
+.wy-side-nav-search .agilab-doc-version {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
