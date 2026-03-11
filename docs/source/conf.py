@@ -1,4 +1,6 @@
 import sys
+import tomllib
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from unittest import mock
 
@@ -71,11 +73,58 @@ for proj in [
 
 # -- Project Information -----------------------------------------------------
 
+
+def _resolve_agilab_repo_root() -> Path | None:
+    if agi_path is None:
+        return None
+
+    if agi_path.name == "agilab" and agi_path.parent.name == "src":
+        return agi_path.parent.parent
+
+    if (agi_path / "pyproject.toml").exists():
+        return agi_path
+
+    if (agi_path.parent / "pyproject.toml").exists():
+        return agi_path.parent
+
+    return None
+
+
+def _read_pyproject_version(pyproject_path: Path) -> str | None:
+    try:
+        project_data = tomllib.loads(pyproject_path.read_text())
+        version_value = project_data.get("project", {}).get("version")
+        if isinstance(version_value, str) and version_value.strip():
+            return version_value.strip()
+    except Exception as e:
+        print(f"Warning: unable to read docs version from {pyproject_path}: {e}")
+    return None
+
+
+def _resolve_docs_version() -> str:
+    candidate_roots = [repo_root, _resolve_agilab_repo_root()]
+    for root in candidate_roots:
+        if root is None:
+            continue
+        pyproject_path = root / "pyproject.toml"
+        if pyproject_path.exists():
+            version_value = _read_pyproject_version(pyproject_path)
+            if version_value is not None:
+                return version_value
+
+    try:
+        return importlib_metadata.version("agilab")
+    except Exception as e:
+        print(f"Warning: unable to read installed AGILab version: {e}")
+
+    return "dev"
+
+
 project = "AGILab"
 author = "Jean-Pierre MORARD"
 copyright = "2026, THALES SIX GTS France SAS"
-release = "2025.12.12"
-version = "2025.12.12"
+release = _resolve_docs_version()
+version = release
 
 # -- General Configuration ---------------------------------------------------
 
