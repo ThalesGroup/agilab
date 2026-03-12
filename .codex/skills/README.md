@@ -18,6 +18,7 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
+- `fcas-presentations`: FCAS PPTX/DOCX/PDF workflow for figures, generators, and Confluence-safe deliverables.
 - `template`: Minimal skeleton for adding a new skill.
 
 ## Adding A New Skill
