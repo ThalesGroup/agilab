@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-02-19T08:10:53Z",
+  "generated_at_utc": "2026-03-12T16:50:33Z",
   "tool": "tools/codex_skills.py",
-  "count": 7,
+  "count": 8,
   "skills": [
     {
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-01-09",
+      "updated": "2026-02-26",
       "path": ".codex/skills/agilab-docs/SKILL.md",
-      "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing `docs/source` or any docs build tooling.\n## Source Of Truth\n- `docs/html` is generated: do not hand-edit it."
+      "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
     {
       "name": "agilab-installer",
@@ -31,7 +31,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-01-08",
+      "updated": "2026-02-27",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## Background: Agent Skills (status update 2026-01-08)\n- Codex now supports **Agent Skills** using the open **Agent Skills** standard (`SKILL.md` + folder layout)."
     },
@@ -39,17 +39,25 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-01-09",
+      "updated": "2026-02-27",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
-      "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/AGILAB.py`\n- `src/agilab/pages/*.py`"
+      "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/About_agilab.py`\n- `src/agilab/pages/*.py`"
     },
     {
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-01-09",
+      "updated": "2026-02-27",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- Start small and local: run only the tests that cover the files you changed."
+    },
+    {
+      "name": "fcas-presentations",
+      "description": "Workflow for FCAS PPTX/DOCX/PDF deliverables, figure assets, and Confluence-safe exports in the sibling thales_agilab repo.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-03-12",
+      "path": ".codex/skills/fcas-presentations/SKILL.md",
+      "body_preview": "# FCAS presentations and chapter deliverables\nUse this skill when working on the FCAS materials in the sibling repo\n`../thales_agilab`, especially:\n- `FCAS/Routing-Algo.pptx`"
     },
     {
       "name": "template",
