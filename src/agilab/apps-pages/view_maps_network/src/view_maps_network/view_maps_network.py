@@ -303,6 +303,282 @@ def _load_cloud_heatmap_points(
     return pd.DataFrame({"long": lon, "lat": lat, "weight": weights})
 
 
+@st.cache_data(show_spinner=False)
+def _load_cloud_heatmap_grid(npz_path: str) -> dict[str, Any]:
+    path = Path(npz_path).expanduser()
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    with np.load(path) as data:
+        if "heatmap" not in data.files:
+            raise ValueError(f"Missing 'heatmap' array in {path}")
+        required = ("x_min", "z_min", "step", "center")
+        missing = [key for key in required if key not in data.files]
+        if missing:
+            raise ValueError(f"Missing required key(s) {missing} in {path}")
+
+        heatmap = np.asarray(data["heatmap"], dtype=np.float32)
+        if heatmap.ndim != 2:
+            raise ValueError(f"Expected 2D heatmap in {path}, got shape={heatmap.shape}")
+        x_min = float(np.asarray(data["x_min"]).item())
+        z_min = float(np.asarray(data["z_min"]).item())
+        step = float(np.asarray(data["step"]).item())
+        center = np.asarray(data["center"], dtype=np.float64).reshape(-1)
+        if center.size < 2:
+            raise ValueError(f"Invalid center in {path}: {center}")
+        center_x = float(center[0])
+        center_z = float(center[1])
+
+    return {
+        "heatmap": heatmap,
+        "x_min": x_min,
+        "z_min": z_min,
+        "step": step,
+        "center_x": center_x,
+        "center_z": center_z,
+    }
+
+
+def _sample_cloud_heatmap_stats(
+    npz_path: str,
+    lat: Any,
+    lon: Any,
+    neighborhood_radius_cells: int = 25,
+) -> dict[str, float]:
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except Exception:
+        return {
+            "raw_value": float("nan"),
+            "proxy_value": float("nan"),
+            "local_mean": float("nan"),
+            "local_max": float("nan"),
+        }
+    if not np.isfinite(lat_f) or not np.isfinite(lon_f):
+        return {
+            "raw_value": float("nan"),
+            "proxy_value": float("nan"),
+            "local_mean": float("nan"),
+            "local_max": float("nan"),
+        }
+
+    try:
+        grid = _load_cloud_heatmap_grid(npz_path)
+    except Exception:
+        return {
+            "raw_value": float("nan"),
+            "proxy_value": float("nan"),
+            "local_mean": float("nan"),
+            "local_max": float("nan"),
+        }
+
+    x_world = float(EARTH_RADIUS_M * np.radians(lon_f))
+    z_world = float(EARTH_RADIUS_M * np.radians(lat_f))
+    col = int(round((x_world - (grid["center_x"] + grid["x_min"])) / grid["step"]))
+    row = int(round((z_world - (grid["center_z"] + grid["z_min"])) / grid["step"]))
+    heatmap = grid["heatmap"]
+    if not (0 <= row < heatmap.shape[0] and 0 <= col < heatmap.shape[1]):
+        return {
+            "raw_value": float("nan"),
+            "proxy_value": float("nan"),
+            "local_mean": float("nan"),
+            "local_max": float("nan"),
+        }
+
+    raw_value = float(heatmap[row, col])
+    radius = max(1, int(neighborhood_radius_cells))
+    row0 = max(0, row - radius)
+    row1 = min(heatmap.shape[0], row + radius + 1)
+    col0 = max(0, col - radius)
+    col1 = min(heatmap.shape[1], col + radius + 1)
+    window = np.asarray(heatmap[row0:row1, col0:col1], dtype=np.float32)
+    if window.size == 0:
+        return {
+            "raw_value": raw_value,
+            "proxy_value": raw_value,
+            "local_mean": raw_value,
+            "local_max": raw_value,
+        }
+
+    local_mean = float(np.nanmean(window))
+    local_max = float(np.nanmax(window))
+    return {
+        "raw_value": raw_value,
+        "proxy_value": local_max,
+        "local_mean": local_mean,
+        "local_max": local_max,
+    }
+
+
+def _decision_time_samples(
+    alloc_df: pd.DataFrame,
+    baseline_df: pd.DataFrame,
+    time_index_values: list[int],
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for time_index in time_index_values:
+        sample_time = np.nan
+        for df_in in (alloc_df, baseline_df):
+            if df_in.empty or "time_index" not in df_in.columns or "t_now_s" not in df_in.columns:
+                continue
+            time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
+            match = time_series.eq(float(time_index))
+            if not match.any():
+                continue
+            t_series = pd.to_numeric(df_in.loc[match, "t_now_s"], errors="coerce").dropna()
+            if not t_series.empty:
+                sample_time = float(t_series.iloc[0])
+                break
+        if not np.isfinite(sample_time):
+            try:
+                sample_time = float(time_index)
+            except Exception:
+                continue
+        rows.append({"time_index": int(time_index), "sample_time_s": sample_time})
+    return pd.DataFrame(rows)
+
+
+def _selected_nodes_heatmap_timeline(
+    trajectory_df: pd.DataFrame,
+    npz_path: str,
+    selected_nodes: set[str],
+    neighborhood_radius_cells: int = 25,
+    max_points_per_node: int = 1200,
+) -> pd.DataFrame:
+    if trajectory_df is None or trajectory_df.empty or not npz_path or not selected_nodes:
+        return pd.DataFrame()
+    if not {"id_col", "time_col", "lat", "long"} <= set(trajectory_df.columns):
+        return pd.DataFrame()
+
+    traj_df = trajectory_df.copy()
+    traj_df["id_col"] = traj_df["id_col"].astype(str)
+    traj_df = traj_df[traj_df["id_col"].isin(selected_nodes)].copy()
+    if traj_df.empty:
+        return pd.DataFrame()
+
+    traj_df["lat"] = pd.to_numeric(traj_df["lat"], errors="coerce")
+    traj_df["long"] = pd.to_numeric(traj_df["long"], errors="coerce")
+    traj_df = traj_df.dropna(subset=["time_col", "lat", "long"])
+    if traj_df.empty:
+        return pd.DataFrame()
+
+    sampled_groups: list[pd.DataFrame] = []
+    max_points = max(20, int(max_points_per_node))
+    for _, group in traj_df.groupby("id_col", sort=False):
+        try:
+            group = group.sort_values("time_col")
+        except Exception:
+            pass
+        if len(group) > max_points:
+            keep = np.linspace(0, len(group) - 1, max_points, dtype=int)
+            group = group.iloc[keep]
+        sampled_groups.append(group)
+    if not sampled_groups:
+        return pd.DataFrame()
+
+    sampled_traj = pd.concat(sampled_groups, ignore_index=True)
+    rows: list[dict[str, Any]] = []
+    for _, row in sampled_traj.iterrows():
+        stats = _sample_cloud_heatmap_stats(
+            npz_path,
+            row.get("lat"),
+            row.get("long"),
+            neighborhood_radius_cells=neighborhood_radius_cells,
+        )
+        rows.append(
+            {
+                "node_id": str(row.get("id_col")),
+                "map_time": row.get("time_col"),
+                "heatmap_value": stats["proxy_value"],
+                "raw_heatmap_value": stats["raw_value"],
+                "local_mean": stats["local_mean"],
+                "local_max": stats["local_max"],
+                "lat": pd.to_numeric(row.get("lat"), errors="coerce"),
+                "long": pd.to_numeric(row.get("long"), errors="coerce"),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _plot_selected_nodes_heatmap_timeline(
+    timeline_df: pd.DataFrame,
+    map_label: str,
+    decision_markers: pd.DataFrame | None = None,
+) -> go.Figure:
+    fig = go.Figure()
+    if timeline_df.empty:
+        fig.update_layout(height=240)
+        return fig
+
+    node_ids = timeline_df["node_id"].dropna().astype(str).drop_duplicates().tolist()
+    cmap = plt.get_cmap("tab10", max(1, len(node_ids)))
+    if len(node_ids) == 1:
+        title_text = f"{map_label} cloud intensity proxy at plane {node_ids[0]} over decision steps"
+    elif len(node_ids) == 2:
+        title_text = f"{map_label} cloud intensity proxy at planes {node_ids[0]} and {node_ids[1]} over decision steps"
+    else:
+        title_text = f"{map_label} cloud intensity proxy at selected planes over decision steps"
+
+    for idx, node_id in enumerate(node_ids):
+        subset = timeline_df[timeline_df["node_id"].astype(str) == node_id].sort_values("map_time")
+        if subset.empty:
+            continue
+        color = mcolors.rgb2hex(cmap(idx % max(1, len(node_ids))))
+        fig.add_trace(
+            go.Scatter(
+                x=subset["map_time"],
+                y=subset["heatmap_value"],
+                mode="lines+markers",
+                name=str(node_id),
+                line=dict(color=color, width=2),
+                marker=dict(color=color, size=8),
+                customdata=np.stack(
+                    [
+                        subset["raw_heatmap_value"].fillna(np.nan),
+                        subset["local_mean"].fillna(np.nan),
+                        subset["local_max"].fillna(np.nan),
+                        subset["lat"].fillna(np.nan),
+                        subset["long"].fillna(np.nan),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "Plane: %{fullData.name}<br>"
+                    "Map time: %{x}<br>"
+                    "Proxy value: %{y}<br>"
+                    "Raw cell value: %{customdata[0]}<br>"
+                    "Local mean: %{customdata[1]}<br>"
+                    "Local max: %{customdata[2]}<br>"
+                    "Latitude: %{customdata[3]}<br>"
+                    "Longitude: %{customdata[4]}<extra></extra>"
+                ),
+                connectgaps=False,
+            )
+        )
+
+    if decision_markers is not None and not decision_markers.empty and "sample_time_s" in decision_markers.columns:
+        marker_times = pd.to_numeric(decision_markers["sample_time_s"], errors="coerce").dropna().tolist()
+        for marker_time in sorted(dict.fromkeys(float(v) for v in marker_times)):
+            fig.add_vline(
+                x=marker_time,
+                line_width=1,
+                line_dash="dot",
+                line_color="rgba(220, 70, 70, 0.45)",
+            )
+
+    fig.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=35, b=10),
+        title_text=title_text,
+        legend_title_text="Plane",
+        xaxis_title="Map time",
+        yaxis_title="Cloud intensity proxy",
+    )
+    return fig
+
+
 def _cloud_heatmap_layers() -> list[Any]:
     if not bool(st.session_state.get("show_cloud_heatmap", False)):
         return []
@@ -341,6 +617,110 @@ def _cloud_heatmap_layers() -> list[Any]:
         )
     return layers
 
+
+def _trajectory_trace_layers(points_df: pd.DataFrame, color_lookup: dict[str, Any] | None = None) -> list[Any]:
+    if not bool(st.session_state.get("show_trajectory_traces", True)):
+        return []
+    if points_df is None or points_df.empty:
+        return []
+    if not {"id_col", "long", "lat"} <= set(points_df.columns):
+        return []
+
+    traj_df = points_df.copy()
+    traj_df["long"] = pd.to_numeric(traj_df["long"], errors="coerce")
+    traj_df["lat"] = pd.to_numeric(traj_df["lat"], errors="coerce")
+    traj_df = traj_df.dropna(subset=["id_col", "long", "lat"])
+    if traj_df.empty:
+        return []
+
+    if "time_col" in traj_df.columns:
+        try:
+            traj_df = traj_df.sort_values(["id_col", "time_col"])
+        except Exception:
+            traj_df = traj_df.sort_values(["id_col"])
+    else:
+        traj_df = traj_df.sort_values(["id_col"])
+
+    max_points_per_track = 600
+    path_rows: list[dict[str, Any]] = []
+    for node_id, group in traj_df.groupby("id_col", sort=False):
+        coords = group[["long", "lat"]].drop_duplicates().values.tolist()
+        if len(coords) < 2:
+            continue
+        if len(coords) > max_points_per_track:
+            keep = np.linspace(0, len(coords) - 1, max_points_per_track, dtype=int)
+            coords = [coords[idx] for idx in keep]
+        color = [90, 90, 90, 170]
+        if color_lookup is not None:
+            lookup_color = color_lookup.get(str(node_id))
+            if lookup_color is not None:
+                color = lookup_color
+        path_rows.append(
+            {
+                "id_col": str(node_id),
+                "path": [[float(lon), float(lat)] for lon, lat in coords],
+                "color": color,
+            }
+        )
+
+    if not path_rows:
+        return []
+
+    return [
+        pdk.Layer(
+            "PathLayer",
+            data=path_rows,
+            get_path="path",
+            get_color="color",
+            width_min_pixels=2,
+            get_width=2,
+            opacity=0.55,
+            pickable=False,
+        )
+    ]
+
+
+def _topology_link_layers(
+    selected_links: list[str],
+    df: pd.DataFrame,
+    current_positions: pd.DataFrame,
+    link_color_map: dict[str, Any],
+) -> list[Any]:
+    if not bool(st.session_state.get("show_topology_links", True)):
+        return []
+
+    layers: list[Any] = []
+    for idx, link_col in enumerate(selected_links):
+        edges_df = create_edges_geomap(df, link_col, current_positions)
+        if edges_df.empty:
+            continue
+        rgb_color = _color_to_rgb(link_color_map.get(link_col, link_colors_plotly.get(link_col, f"C{idx}")), idx=idx)
+        line_layer = pdk.Layer(
+            "LineLayer",
+            data=edges_df,
+            get_source_position="source",
+            get_target_position="target",
+            get_color=rgb_color,
+            get_width=1.5,
+            opacity=0.7,
+        )
+        text_layer = pdk.Layer(
+            "TextLayer",
+            data=edges_df,
+            get_position="midpoint",
+            get_text="label",
+            get_size=16,
+            get_color=rgb_color[:3],
+            get_alignment_baseline="'bottom'",
+            billboard=True,
+            get_angle=0,
+            get_text_anchor='"middle"',
+            pickable=False,
+        )
+        layers.extend([line_layer, text_layer])
+    return layers
+
+
 st.markdown("<h1 style='text-align: center;'>🌐 Network Topology</h1>", unsafe_allow_html=True)
 
 def _svg_data_url(svg: str) -> str:
@@ -378,6 +758,7 @@ TIME_INDEX_KEY = _vmn_key("selected_time_idx")
 TIME_PREV_BUTTON_KEY = _vmn_key("decrement_button")
 TIME_NEXT_BUTTON_KEY = _vmn_key("increment_button")
 DECISION_STEP_KEY = _vmn_key("alloc_time_index")
+FLIGHT_FILTER_KEY = _vmn_key("selected_flights_filter")
 
 
 def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool = False) -> Any:
@@ -835,7 +1216,15 @@ def create_edges_geomap(df, link_column, current_positions):
                     )
     return pd.DataFrame(edges_list)
 
-def create_layers_geomap(selected_links, df, current_positions, link_color_map, *, marker_style: str = "Dots"):
+def create_layers_geomap(
+    selected_links,
+    df,
+    current_positions,
+    link_color_map,
+    *,
+    marker_style: str = "Dots",
+    trajectory_df: pd.DataFrame | None = None,
+):
     required = ["flight_id", "long", "lat", "alt"]
     missing = [col for col in required if col not in df.columns]
     if missing:
@@ -845,34 +1234,16 @@ def create_layers_geomap(selected_links, df, current_positions, link_color_map, 
     include_terrain = bool(st.session_state.get("show_terrain", True))
     layers = [terrain_layer] if include_terrain else []
     layers.extend(_cloud_heatmap_layers())
-    for idx, link_col in enumerate(selected_links):
-        edges_df = create_edges_geomap(df, link_col, current_positions)
-        if edges_df.empty:
-            continue
-        rgb_color = _color_to_rgb(link_color_map.get(link_col, link_colors_plotly.get(link_col, f"C{idx}")), idx=idx)
-        line_layer = pdk.Layer(
-            "LineLayer",
-            data=edges_df,
-            get_source_position="source",
-            get_target_position="target",
-            get_color=rgb_color,
-            get_width=1.5,
-            opacity=0.7,
-        )
-        text_layer = pdk.Layer(
-            "TextLayer",
-            data=edges_df,
-            get_position="midpoint",
-            get_text="label",
-            get_size=16,
-            get_color=rgb_color[:3],
-            get_alignment_baseline="'bottom'",
-            billboard=True,
-            get_angle=0,
-            get_text_anchor='"middle"',
-            pickable=False,
-        )
-        layers.extend([line_layer, text_layer])
+    color_lookup = (
+        {
+            str(row["id_col"]): row["color"]
+            for _, row in current_positions[["id_col", "color"]].dropna(subset=["id_col"]).iterrows()
+        }
+        if {"id_col", "color"} <= set(current_positions.columns)
+        else {}
+    )
+    layers.extend(_trajectory_trace_layers(trajectory_df if trajectory_df is not None else df, color_lookup))
+    layers.extend(_topology_link_layers(selected_links, df, current_positions, link_color_map))
 
     marker_style_norm = (marker_style or "Dots").strip().lower()
     if marker_style_norm.startswith("plane"):
@@ -1477,6 +1848,359 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
         )
     ]
 
+
+def _bearer_path_label(cell: Any) -> str:
+    if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+        return ""
+    if isinstance(cell, list):
+        return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
+    if isinstance(cell, tuple):
+        return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
+    if isinstance(cell, str):
+        parsed = safe_literal_eval(cell)
+        if isinstance(parsed, (list, tuple)):
+            return " → ".join(str(x) for x in parsed if x is not None and str(x).strip())
+        return cell.strip()
+    return str(cell).strip()
+
+
+def _bearer_tokens(cell: Any) -> list[str]:
+    if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+        return []
+    parsed: Any = cell
+    if isinstance(parsed, str):
+        literal = safe_literal_eval(parsed)
+        if isinstance(literal, (list, tuple)):
+            parsed = literal
+        else:
+            parts = [part.strip() for part in re.split(r"\s*(?:->|→|\|)\s*", parsed) if part.strip()]
+            return parts if parts else ([parsed.strip()] if parsed.strip() else [])
+    if isinstance(parsed, tuple):
+        parsed = list(parsed)
+    if isinstance(parsed, list):
+        return [str(item).strip() for item in parsed if item is not None and str(item).strip()]
+    return [str(parsed).strip()] if str(parsed).strip() else []
+
+
+def _canonical_bearer_state(cell: Any, routed: bool) -> str:
+    if not routed:
+        return "Not routed"
+    tokens = _bearer_tokens(cell)
+    if not tokens:
+        return "Routed"
+    token = tokens[0].strip().lower()
+    if not token:
+        return "Routed"
+    if "opt" in token:
+        return "OPT"
+    if "sat" in token:
+        return "SAT"
+    if "iv" in token:
+        return "IVDL"
+    if "legacy" in token or token == "leg":
+        return "Legacy"
+    return tokens[0].strip().upper()
+
+
+def _selected_node_bearer_timeline(
+    df_in: pd.DataFrame,
+    selected_nodes: set[str],
+    method_label: str,
+) -> pd.DataFrame:
+    if df_in.empty or not selected_nodes:
+        return pd.DataFrame()
+    if "time_index" not in df_in.columns or not {"source", "destination"} <= set(df_in.columns):
+        return pd.DataFrame()
+
+    src_ids = _normalize_node_id_series(df_in["source"]) if "source" in df_in.columns else pd.Series("", index=df_in.index)
+    dst_ids = _normalize_node_id_series(df_in["destination"]) if "destination" in df_in.columns else pd.Series("", index=df_in.index)
+    if "bearers" in df_in.columns:
+        bearer_raw_series = df_in["bearers"]
+    elif "bearer" in df_in.columns:
+        bearer_raw_series = df_in["bearer"]
+    else:
+        bearer_raw_series = pd.Series("", index=df_in.index)
+    routed_series = (
+        df_in["routed"].fillna(False).astype(bool)
+        if "routed" in df_in.columns
+        else pd.Series(True, index=df_in.index)
+    )
+    time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
+
+    rows: list[dict[str, Any]] = []
+    for idx in df_in.index:
+        time_val = time_series.get(idx)
+        if pd.isna(time_val):
+            continue
+        src = src_ids.get(idx, "")
+        dst = dst_ids.get(idx, "")
+        bearer_raw = bearer_raw_series.get(idx, "")
+        bearer_path = _bearer_path_label(bearer_raw)
+        routed = bool(routed_series.get(idx, False))
+        label = _canonical_bearer_state(bearer_raw, routed)
+        if src in selected_nodes:
+            rows.append(
+                {
+                    "method": method_label,
+                    "node_id": src,
+                    "time_index": int(time_val),
+                    "bearer_path": label,
+                    "peer_id": dst,
+                }
+            )
+        if dst in selected_nodes and dst != src:
+            rows.append(
+                {
+                    "method": method_label,
+                    "node_id": dst,
+                    "time_index": int(time_val),
+                    "bearer_path": label,
+                    "peer_id": src,
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame()
+
+    timeline = pd.DataFrame(rows)
+    grouped = (
+        timeline.groupby(["method", "node_id", "time_index"], as_index=False)
+        .agg(
+            bearer_path=("bearer_path", lambda vals: " | ".join(sorted({v for v in vals if v}))),
+            peers=("peer_id", lambda vals: ", ".join(sorted({str(v) for v in vals if v}))),
+        )
+    )
+    grouped["row_label"] = grouped["method"] + " | " + grouped["node_id"].astype(str)
+    return grouped.sort_values(["method", "node_id", "time_index"]).reset_index(drop=True)
+
+
+def _plot_selected_node_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
+    fig = go.Figure()
+    if timeline_df.empty:
+        fig.update_layout(height=220)
+        return fig
+
+    bearer_values = timeline_df["bearer_path"].fillna("").replace("", "unrouted").unique().tolist()
+    cmap = plt.get_cmap("tab20", max(1, len(bearer_values)))
+    color_map = {
+        bearer: ("#9e9e9e" if bearer == "unrouted" else mcolors.rgb2hex(cmap(i % max(1, len(bearer_values)))))
+        for i, bearer in enumerate(sorted(bearer_values))
+    }
+    ordered_rows = timeline_df["row_label"].drop_duplicates().tolist()
+
+    for bearer in sorted(bearer_values):
+        subset = timeline_df[timeline_df["bearer_path"] == bearer]
+        if subset.empty:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=subset["time_index"],
+                y=subset["row_label"],
+                mode="markers",
+                name=bearer,
+                marker=dict(size=11, color=color_map[bearer]),
+                customdata=np.stack(
+                    [
+                        subset["node_id"].astype(str),
+                        subset["method"].astype(str),
+                        subset["peers"].fillna("").astype(str),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "Time: %{x}<br>"
+                    "Row: %{y}<br>"
+                    "Node: %{customdata[0]}<br>"
+                    "Method: %{customdata[1]}<br>"
+                    "Peers: %{customdata[2]}<br>"
+                    f"Bearer: {bearer}<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        height=max(280, 70 * len(ordered_rows)),
+        margin=dict(l=10, r=10, t=35, b=10),
+        legend_title_text="Bearer",
+        xaxis_title="Decision step",
+        yaxis_title="Selected node",
+        yaxis=dict(categoryorder="array", categoryarray=list(reversed(ordered_rows))),
+    )
+    return fig
+
+
+def _selected_pair_bearer_timeline(
+    df_in: pd.DataFrame,
+    selected_nodes: set[str],
+    method_label: str,
+    focus_pair: tuple[int, int] | None = None,
+) -> pd.DataFrame:
+    if df_in.empty:
+        return pd.DataFrame()
+    if "time_index" not in df_in.columns or not {"source", "destination"} <= set(df_in.columns):
+        return pd.DataFrame()
+
+    src_ids = _normalize_node_id_series(df_in["source"])
+    dst_ids = _normalize_node_id_series(df_in["destination"])
+    time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
+    delivered_series = pd.to_numeric(df_in.get("delivered_bandwidth", np.nan), errors="coerce")
+    latency_series = pd.to_numeric(df_in.get("latency", np.nan), errors="coerce")
+    routed_series = (
+        df_in["routed"].fillna(False).astype(bool)
+        if "routed" in df_in.columns
+        else pd.Series(True, index=df_in.index)
+    )
+    if "bearers" in df_in.columns:
+        bearer_raw_series = df_in["bearers"]
+    elif "bearer" in df_in.columns:
+        bearer_raw_series = df_in["bearer"]
+    else:
+        bearer_raw_series = pd.Series("", index=df_in.index)
+
+    focus_pair_norm: tuple[str, str] | None = None
+    if focus_pair is not None:
+        focus_pair_norm = (
+            _normalize_node_id_value(focus_pair[0]),
+            _normalize_node_id_value(focus_pair[1]),
+        )
+
+    rows: list[dict[str, Any]] = []
+    for idx in df_in.index:
+        time_val = time_series.get(idx)
+        if pd.isna(time_val):
+            continue
+        src = src_ids.get(idx, "")
+        dst = dst_ids.get(idx, "")
+        if not src or not dst:
+            continue
+        if focus_pair_norm is not None:
+            if (src, dst) != focus_pair_norm:
+                continue
+        else:
+            if len(selected_nodes) != 2 or src not in selected_nodes or dst not in selected_nodes:
+                continue
+
+        bearer_raw = bearer_raw_series.get(idx, "")
+        bearer_path = _bearer_path_label(bearer_raw)
+        routed = bool(routed_series.get(idx, False))
+        state = _canonical_bearer_state(bearer_raw, routed)
+        rows.append(
+            {
+                "method": method_label,
+                "pair_label": f"{src} → {dst}",
+                "time_index": int(time_val),
+                "bearer_state": state,
+                "bearer_path": bearer_path,
+                "routed": routed,
+                "delivered_bandwidth": delivered_series.get(idx, np.nan),
+                "latency": latency_series.get(idx, np.nan),
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame()
+
+    timeline = pd.DataFrame(rows)
+    timeline = (
+        timeline.groupby(["method", "pair_label", "time_index"], as_index=False)
+        .agg(
+            bearer_state=("bearer_state", lambda vals: next((str(v) for v in vals if str(v).strip()), "Not routed")),
+            bearer_path=("bearer_path", lambda vals: " | ".join(sorted({str(v) for v in vals if str(v).strip()}))),
+            routed=("routed", "any"),
+            delivered_bandwidth=("delivered_bandwidth", "sum"),
+            latency=("latency", "mean"),
+        )
+    )
+    timeline["series_label"] = timeline["method"] + " | " + timeline["pair_label"]
+    return timeline.sort_values(["method", "pair_label", "time_index"]).reset_index(drop=True)
+
+
+def _plot_selected_pair_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
+    fig = go.Figure()
+    if timeline_df.empty:
+        fig.update_layout(height=240)
+        return fig
+
+    fixed_state_order = ["Not routed", "IVDL", "SAT", "OPT"]
+    raw_states = (
+        timeline_df["bearer_state"]
+        .fillna("Not routed")
+        .replace("", "Not routed")
+        .astype(str)
+        .tolist()
+    )
+    extra_states = sorted({state for state in raw_states if state not in fixed_state_order})
+    state_order = fixed_state_order + extra_states
+    state_to_y = {state: idx for idx, state in enumerate(state_order)}
+    series_labels = timeline_df["series_label"].drop_duplicates().tolist()
+    pair_labels = timeline_df["pair_label"].drop_duplicates().tolist()
+    if len(pair_labels) == 1:
+        title_text = f"Bearer switching for {pair_labels[0]} over decision steps"
+    elif pair_labels:
+        title_text = "Bearer switching for selected source-destination pairs"
+    else:
+        title_text = "Bearer switching over decision steps"
+    method_colors = {"RL": "#1f77b4", "ILP": "#ff7f0e"}
+    dash_cycle = ["solid", "dash", "dot", "dashdot"]
+    pair_dash: dict[str, str] = {}
+    for idx, pair_label in enumerate(pair_labels):
+        pair_dash[pair_label] = dash_cycle[idx % len(dash_cycle)]
+
+    for series_label in series_labels:
+        subset = timeline_df[timeline_df["series_label"] == series_label].sort_values("time_index")
+        if subset.empty:
+            continue
+        method = str(subset["method"].iloc[0])
+        pair_label = str(subset["pair_label"].iloc[0])
+        fig.add_trace(
+            go.Scatter(
+                x=subset["time_index"],
+                y=subset["bearer_state"].map(state_to_y),
+                mode="lines+markers",
+                line=dict(color=method_colors.get(method, "#666"), width=3, dash=pair_dash.get(pair_label, "solid"), shape="hv"),
+                marker=dict(size=9, color=method_colors.get(method, "#666")),
+                name=series_label,
+                customdata=np.stack(
+                    [
+                        subset["pair_label"].astype(str),
+                        subset["method"].astype(str),
+                        subset["bearer_state"].astype(str),
+                        subset.get("bearer_path", pd.Series("", index=subset.index)).fillna("").astype(str),
+                        subset["delivered_bandwidth"].fillna(np.nan),
+                        subset["latency"].fillna(np.nan),
+                        subset["routed"].astype(str),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "Time: %{x}<br>"
+                    "Pair: %{customdata[0]}<br>"
+                    "Method: %{customdata[1]}<br>"
+                    "State: %{customdata[2]}<br>"
+                    "Path: %{customdata[3]}<br>"
+                    "Delivered bandwidth: %{customdata[4]}<br>"
+                    "Latency: %{customdata[5]}<br>"
+                    "Routed: %{customdata[6]}<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        height=max(280, 120 + 50 * len(series_labels)),
+        margin=dict(l=10, r=10, t=35, b=10),
+        title_text=title_text,
+        legend_title_text="Method / demand",
+        xaxis_title="Decision step",
+        yaxis_title="Bearer state",
+        yaxis=dict(
+            tickmode="array",
+            tickvals=list(range(len(state_order))),
+            ticktext=state_order,
+            range=[-0.1, max(0.1, len(state_order) - 0.9)],
+        ),
+    )
+    return fig
+
 def bezier_curve(x1, y1, x2, y2, control_points=20, offset=0.2):
     t = np.linspace(0, 1, control_points)
     x_mid = (x1 + x2) / 2
@@ -1763,7 +2487,9 @@ def page():
         "link_multiselect",
         "show_map",
         "show_graph",
+        "show_topology_links",
         "show_terrain",
+        "show_trajectory_traces",
         "show_cloud_heatmap",
         "cloud_heatmap_sat_path",
         "cloud_heatmap_ivdl_path",
@@ -1786,6 +2512,9 @@ def page():
             st.session_state[key] = vm_settings[key]
     if "df_file" in vm_settings and "df_file" not in st.session_state:
         st.session_state["df_file"] = vm_settings["df_file"]
+    saved_flight_filter = vm_settings.get("selected_flights_filter")
+    if FLIGHT_FILTER_KEY not in st.session_state:
+        st.session_state[FLIGHT_FILTER_KEY] = saved_flight_filter if isinstance(saved_flight_filter, list) else []
 
     qp_base = _read_query_param("base_dir_choice")
     qp_input = _read_query_param("input_datadir")
@@ -1928,7 +2657,9 @@ def page():
         "link_multiselect": st.session_state.get("link_multiselect", []),
         "show_map": st.session_state.get("show_map", True),
         "show_graph": st.session_state.get("show_graph", True),
+        "show_topology_links": st.session_state.get("show_topology_links", True),
         "show_terrain": st.session_state.get("show_terrain", True),
+        "show_trajectory_traces": st.session_state.get("show_trajectory_traces", True),
         "show_cloud_heatmap": st.session_state.get("show_cloud_heatmap", False),
         "cloud_heatmap_sat_path": st.session_state.get("cloud_heatmap_sat_path", DEFAULT_CLOUDMAP_SAT),
         "cloud_heatmap_ivdl_path": st.session_state.get("cloud_heatmap_ivdl_path", DEFAULT_CLOUDMAP_IVDL),
@@ -2289,6 +3020,32 @@ def page():
         if coord not in df_std.columns:
             df_std[coord] = 0.0
         df_std[coord] = pd.to_numeric(df_std[coord], errors="coerce").fillna(0.0)
+
+    available_node_ids = sorted(df_std["id_col"].dropna().astype(str).unique().tolist())
+    current_filter = st.session_state.get(FLIGHT_FILTER_KEY, [])
+    if not isinstance(current_filter, list):
+        current_filter = []
+    current_filter = [_normalize_node_id_value(item) for item in current_filter]
+    current_filter = [item for item in current_filter if item in available_node_ids]
+    if st.session_state.get(FLIGHT_FILTER_KEY) != current_filter:
+        st.session_state[FLIGHT_FILTER_KEY] = current_filter
+
+    selected_node_ids = st.sidebar.multiselect(
+        "Flights / nodes",
+        options=available_node_ids,
+        key=FLIGHT_FILTER_KEY,
+        help="Leave empty to show all flights/nodes from the selected dataset.",
+    )
+    selected_node_set = set(selected_node_ids)
+    shown_count = len(selected_node_ids) if selected_node_ids else len(available_node_ids)
+    st.sidebar.caption(f"{shown_count} / {len(available_node_ids)} flights shown")
+    if vm_settings.get("selected_flights_filter") != selected_node_ids:
+        vm_settings["selected_flights_filter"] = selected_node_ids
+        _persist_app_settings(env)
+
+    if selected_node_set:
+        df_std = df_std[df_std["id_col"].isin(selected_node_set)].copy()
+        df = df[df["flight_id"].astype(str).isin(selected_node_set)].copy()
     if df.empty:
         st.warning("The dataset is empty. Please select a valid data file.")
         return
@@ -2421,6 +3178,7 @@ def page():
     )
     st.session_state.setdefault("show_map", True)
     st.session_state.setdefault("show_graph", True)
+    st.session_state.setdefault("show_topology_links", True)
     st.session_state.setdefault("jitter_overlap", False)
     st.session_state.setdefault("show_metrics", False)
     show_map = st.sidebar.checkbox("Show map view", key="show_map")
@@ -2436,15 +3194,26 @@ def page():
         key="map_marker_style",
     )
     st.session_state.setdefault("show_terrain", True)
+    st.session_state.setdefault("show_trajectory_traces", True)
     st.session_state.setdefault("show_cloud_heatmap", False)
     st.session_state.setdefault("cloud_heatmap_sat_path", DEFAULT_CLOUDMAP_SAT)
     st.session_state.setdefault("cloud_heatmap_ivdl_path", DEFAULT_CLOUDMAP_IVDL)
     st.session_state.setdefault("cloud_heatmap_stride", 25)
     st.session_state.setdefault("cloud_heatmap_min_weight", 0.0)
     st.sidebar.checkbox(
+        "Show topology links",
+        key="show_topology_links",
+        help="Toggle the pydeck layer that draws link lines and link-type labels.",
+    )
+    st.sidebar.checkbox(
         "Show terrain overlay",
         key="show_terrain",
         help="Toggle satellite/terrain background tiles (Mapbox-based). Disable for a lighter view or if you see rendering errors.",
+    )
+    st.sidebar.checkbox(
+        "Show trajectory traces",
+        key="show_trajectory_traces",
+        help="Draw each node trajectory up to the selected time as a pydeck PathLayer.",
     )
     st.sidebar.checkbox(
         "Show cloud heatmap overlay",
@@ -2655,6 +3424,7 @@ def page():
     if hasattr(color_series, "fillna"):
         color_series = color_series.fillna("#888")
     current_positions["color"] = color_series.apply(hex_to_rgba)
+    trajectory_positions_std = df_std[df_std["time_col"] <= selected_time].copy()
 
     # Quick dual-screen links
     base_params: dict[str, str] = {}
@@ -2703,6 +3473,7 @@ def page():
                 current_positions,
                 link_color_map,
                 marker_style=map_marker_style,
+                trajectory_df=trajectory_positions_std,
             )
             if not layers:
                 st.warning("Map view is unavailable: missing required columns/layers.")
@@ -3066,8 +3837,34 @@ def page():
         except Exception:
             pass
 
-    alloc_df_view = _filter_by_pair(alloc_df, selected_pair)
-    baseline_df_view = _filter_by_pair(baseline_df, selected_pair)
+    selected_nodes_pair: tuple[str, str] | None = None
+    if len(selected_node_set) == 2:
+        selected_nodes_pair = tuple(sorted(selected_node_set))
+    if selected_pair is not None and selected_nodes_pair is not None:
+        focus_pair_norm = (
+            _normalize_node_id_value(selected_pair[0]),
+            _normalize_node_id_value(selected_pair[1]),
+        )
+        if tuple(sorted(focus_pair_norm)) != selected_nodes_pair:
+            st.info(
+                "Ignoring Focus demand because it does not match the two selected flights/nodes."
+            )
+            selected_pair = None
+
+    def _filter_alloc_nodes(df_in: pd.DataFrame) -> pd.DataFrame:
+        if df_in.empty or not selected_node_set:
+            return df_in
+        keep_mask = pd.Series(True, index=df_in.index)
+        if "source" in df_in.columns:
+            keep_mask &= _normalize_node_id_series(df_in["source"]).isin(selected_node_set)
+        if "destination" in df_in.columns:
+            keep_mask &= _normalize_node_id_series(df_in["destination"]).isin(selected_node_set)
+        return df_in.loc[keep_mask].copy()
+
+    alloc_df_nodes = _filter_alloc_nodes(alloc_df)
+    baseline_df_nodes = _filter_alloc_nodes(baseline_df)
+    alloc_df_view = _filter_by_pair(alloc_df_nodes, selected_pair)
+    baseline_df_view = _filter_by_pair(baseline_df_nodes, selected_pair)
 
     def _time_values(df_in: pd.DataFrame) -> list[int]:
         if df_in.empty:
@@ -3079,9 +3876,28 @@ def page():
             return [0]
         return sorted({int(x) for x in series.tolist()})
 
+    def _display_alloc_source(path_obj: Path | None) -> str:
+        if path_obj is None:
+            return "(none)"
+        try:
+            return path_obj.name or str(path_obj)
+        except Exception:
+            return str(path_obj)
+
     times = sorted(set(_time_values(alloc_df_view)) | set(_time_values(baseline_df_view)))
     if not times:
-        st.info("No allocations found yet (routing or baseline).")
+        if selected_node_set:
+            st.info(
+                "No allocation rows found for the selected flights/nodes. "
+                "A topology link (for example OPT) only shows physical connectivity; it does not guarantee a routing demand exists between those two planes."
+            )
+            st.caption(
+                "Loaded allocation files: "
+                f"RL = `{_display_alloc_source(alloc_path_obj)}`, "
+                f"ILP = `{_display_alloc_source(baseline_path_obj)}`."
+            )
+        else:
+            st.info("No allocations found yet (routing or baseline).")
     else:
         alloc_time_qp = (st.session_state.pop("_alloc_time_index_qp", "") or "").strip()
         if DECISION_STEP_KEY not in st.session_state and "alloc_time_index" in st.session_state:
@@ -3133,6 +3949,11 @@ def page():
                 t_for_positions = float(t_series.iloc[0])
                 break
         positions_live = load_positions_at_time(traj_glob_clean, t_for_positions) if traj_glob_clean else pd.DataFrame()
+        if selected_node_set and not positions_live.empty and "flight_id" in positions_live.columns:
+            live_mask = positions_live["flight_id"].apply(
+                lambda value: any(candidate in selected_node_set for candidate in _candidate_node_ids(value))
+            )
+            positions_live = positions_live.loc[live_mask].copy()
 
         if not alloc_step.empty:
             st.caption("Routing allocations at this timestep")
@@ -3145,27 +3966,13 @@ def page():
             return
 
         if selected_pair is not None:
-            def _bearer_path(cell: Any) -> str:
-                if cell is None or (isinstance(cell, float) and np.isnan(cell)):
-                    return ""
-                if isinstance(cell, list):
-                    return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
-                if isinstance(cell, tuple):
-                    return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
-                if isinstance(cell, str):
-                    parsed = safe_literal_eval(cell)
-                    if isinstance(parsed, (list, tuple)):
-                        return " → ".join(str(x) for x in parsed if x is not None and str(x).strip())
-                    return cell.strip()
-                return str(cell).strip()
-
             with st.expander("Demand timeline (selected demand)", expanded=True):
                 if not alloc_df_view.empty and "time_index" in alloc_df_view.columns:
                     timeline = alloc_df_view.sort_values("time_index").copy()
                     if "bearers" in timeline.columns:
-                        timeline["bearer_path"] = timeline["bearers"].apply(_bearer_path)
+                        timeline["bearer_path"] = timeline["bearers"].apply(_bearer_path_label)
                     elif "bearer" in timeline.columns:
-                        timeline["bearer_path"] = timeline["bearer"].apply(_bearer_path)
+                        timeline["bearer_path"] = timeline["bearer"].apply(_bearer_path_label)
                     else:
                         timeline["bearer_path"] = ""
                     cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in timeline.columns]
@@ -3181,9 +3988,9 @@ def page():
                 if not baseline_df_view.empty and "time_index" in baseline_df_view.columns:
                     base_tl = baseline_df_view.sort_values("time_index").copy()
                     if "bearers" in base_tl.columns:
-                        base_tl["bearer_path"] = base_tl["bearers"].apply(_bearer_path)
+                        base_tl["bearer_path"] = base_tl["bearers"].apply(_bearer_path_label)
                     elif "bearer" in base_tl.columns:
-                        base_tl["bearer_path"] = base_tl["bearer"].apply(_bearer_path)
+                        base_tl["bearer_path"] = base_tl["bearer"].apply(_bearer_path_label)
                     else:
                         base_tl["bearer_path"] = ""
                     cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in base_tl.columns]
@@ -3255,6 +4062,77 @@ def page():
                         "No node positions found for this timestep. "
                         "Ensure trajectory files include `time_s` (or `t_now_s`) and `latitude/longitude` (or `lat/long`)."
                     )
+
+        if selected_pair is not None or len(selected_node_set) == 2:
+            bearer_frames: list[pd.DataFrame] = []
+            if not alloc_df_nodes.empty:
+                bearer_frames.append(_selected_pair_bearer_timeline(alloc_df_nodes, selected_node_set, "RL", focus_pair=selected_pair))
+            if not baseline_df_nodes.empty:
+                bearer_frames.append(_selected_pair_bearer_timeline(baseline_df_nodes, selected_node_set, "ILP", focus_pair=selected_pair))
+            bearer_frames = [frame for frame in bearer_frames if not frame.empty]
+            if bearer_frames:
+                bearer_timeline = pd.concat(bearer_frames, ignore_index=True)
+                st.plotly_chart(_plot_selected_pair_bearer_timeline(bearer_timeline), use_container_width=True)
+            else:
+                st.info("No bearer selections found for the selected pair.")
+
+            heatmap_node_ids: set[str] = set()
+            if selected_pair is not None:
+                heatmap_node_ids = {
+                    _normalize_node_id_value(selected_pair[0]),
+                    _normalize_node_id_value(selected_pair[1]),
+                }
+                heatmap_node_ids.discard("")
+            elif selected_node_set:
+                heatmap_node_ids = set(selected_node_set)
+
+            heatmap_specs = [
+                ("SAT", str(st.session_state.get("cloud_heatmap_sat_path", "")).strip()),
+                ("IVDL", str(st.session_state.get("cloud_heatmap_ivdl_path", "")).strip()),
+            ]
+            heatmap_specs = [(label, path) for label, path in heatmap_specs if path]
+            if not heatmap_specs:
+                st.info("No cloud heatmap path configured for plane sampling.")
+            elif trajectory_positions_std.empty:
+                st.info("No trajectory history available for cloud heatmap sampling.")
+            else:
+                time_samples = _decision_time_samples(alloc_df_view, baseline_df_view, times)
+                proxy_radius_cells = max(3, int(st.session_state.get("cloud_heatmap_stride", 25) or 25))
+                sampled_any = False
+                for map_label, heatmap_path in heatmap_specs:
+                    try:
+                        heatmap_timeline = _selected_nodes_heatmap_timeline(
+                            trajectory_positions_std,
+                            heatmap_path,
+                            heatmap_node_ids,
+                            neighborhood_radius_cells=proxy_radius_cells,
+                        )
+                    except Exception as exc:
+                        st.info(f"Unable to sample {map_label} heatmap values: {exc}")
+                        continue
+                    if not heatmap_timeline.empty and heatmap_timeline["heatmap_value"].notna().any():
+                        sampled_any = True
+                        st.plotly_chart(
+                            _plot_selected_nodes_heatmap_timeline(
+                                heatmap_timeline,
+                                map_label,
+                                decision_markers=time_samples,
+                            ),
+                            use_container_width=True,
+                        )
+                if sampled_any:
+                    st.caption(
+                        "These curves follow the same trajectory time axis as the map. "
+                        "Red dotted lines mark the allocation decision-step times. "
+                        "The proxy is the local maximum within "
+                        f"+/-{proxy_radius_cells} heatmap cells around each plane; hover for the exact raw cell value."
+                    )
+                else:
+                    st.info("No cloud heatmap samples found for the selected planes.")
+        elif selected_node_set:
+            st.caption("Select exactly two flights/nodes, or use Focus demand, to plot bearer switching over decision steps.")
+        else:
+            st.caption("Select exactly two flights/nodes in the sidebar to plot bearer switching over decision steps.")
 
 def main():
     try:
