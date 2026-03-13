@@ -561,6 +561,9 @@ def page(env):
     st.session_state.GUI_SAMPLING = int(sampling_ratio)
     st.session_state.loaded_df = downsample_df_deterministic(st.session_state.loaded_df, sampling_ratio)
     nrows = st.session_state.loaded_df.shape[0]
+    if nrows == 0:
+        st.warning("No points remain after sampling. Reduce the sampling ratio or choose another dataset.")
+        return
     min_lines = 1 if nrows < 5 else 5
 
     line_limit_key = _vm_key("table_max_rows")
@@ -577,13 +580,18 @@ def page(env):
         except Exception:
             current_limit = default_line_limit
         st.session_state[line_limit_key] = min(max(min_lines, current_limit), nrows)
-    lines = st.slider(
-        "Select the desired number of points:",
-        min_value=min_lines,
-        max_value=nrows,
-        key=line_limit_key,
-        step=1,
-    )
+    if nrows <= min_lines:
+        lines = nrows
+        st.session_state[line_limit_key] = nrows
+        st.caption(f"Showing all {nrows} available point{'s' if nrows != 1 else ''}.")
+    else:
+        lines = st.slider(
+            "Select the desired number of points:",
+            min_value=min_lines,
+            max_value=nrows,
+            key=line_limit_key,
+            step=1,
+        )
     st.session_state.TABLE_MAX_ROWS = int(lines)
     if lines >= 0:
         st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
