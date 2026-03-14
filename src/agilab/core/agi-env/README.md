@@ -1,9 +1,10 @@
 # AGI-ENV
 
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.03.06-informational?logo=pypi)](https://pypi.org/project/agi-env)
+[![PyPI version](https://img.shields.io/pypi/v/agi-env.svg)](https://pypi.org/project/agi-env/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-env.svg)](https://pypi.org/project/agi-env/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-env)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-env.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-env)
 [![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 
 `agi-env` provides environment bootstrap and runtime helpers used across the AGILAB stack (paths, credentials, virtualenvs,
