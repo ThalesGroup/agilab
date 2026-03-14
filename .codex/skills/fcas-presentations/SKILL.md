@@ -3,7 +3,7 @@ name: fcas-presentations
 description: Workflow for FCAS PPTX/DOCX/PDF deliverables, figure assets, and Confluence-safe exports in the sibling thales_agilab repo.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-03-12
+  updated: 2026-03-14
 ---
 
 # FCAS presentations and chapter deliverables
@@ -14,6 +14,7 @@ Use this skill when working on the FCAS materials in the sibling repo
 - `FCAS/Routing-Algo.pptx`
 - `FCAS/7_Decision-Engine (FCAS-R-2420051).docx`
 - `FCAS/7_Decision-Engine_export.docx`
+- `FCAS/FCAS-R-XXXXXXX_Final report for PCM Decision-Engine.docx`
 - `FCAS/*.dot`, `FCAS/*.svg`, `FCAS/*.png`
 - `FCAS/tools/generate_routing_algo_slides.py`
 - `FCAS/tools/generate_routing_algo_slides_pptx.py`
@@ -31,8 +32,8 @@ Use this skill when working on the FCAS materials in the sibling repo
 ## Figure conventions
 
 - Use the same notation family across MILP and RL figures:
-  - `G_t`, `D_t`, `s_d`, `t_d`, `b_d`, `L_d`, `p_d`, `c_e`, `ell_e`,
-    `a_d`, `y_{d,e}`, `x_{d,e}`, `f_d`
+  - `G_t`, `D_t`, `src_d`, `dst_d`, `b_d`, `b_d^{min}`, `L_d`, `p_d`,
+    `c_e`, `ell_e`, `q_g`, `q_g^{max}`, `a_d`, `y_{d,e}`, `x_{d,e}`, `f_d`
 - Use consistent color semantics when possible:
   - `orange` for runtime inference / decision path
   - `purple` for offline training-only blocks
@@ -60,10 +61,58 @@ Use this skill when working on the FCAS materials in the sibling repo
   `word/media/image*.png` asset that matches the target figure.
 - For text and ordering edits, use `python-docx` or direct OOXML manipulation only
   if paragraph order and styles stay intact.
+- When the user says the final report is the only target, do not assume the source
+  chapter or export chapter should be kept in sync in the same pass.
+- When editing the final report, keep the visible front matter aligned with the
+  current content:
+  - `Table of Contents`
+  - `Table of Figures`
+  - visible `Number of pages` row
+- When a figure caption has been fixed but the user still sees stale wording, check
+  the embedded image bytes in `word/media/*`, not only the paragraph text. Word may
+  display a stale embedded bitmap even when the caption is already correct.
+- For inherited PCM report content, watch explicitly for stale leftovers such as:
+  - `chapter 7` / `chapter-7`
+  - old `see page ...` pointers
+  - old `.doc` titles for earlier deliveries
+  - glossary or definitions rows that still use superseded notation
+- In the final report, prefer document-traceability prose over bibliography rows for
+  previous internal deliverables when they are mentioned only once.
+- For abbreviations used only once, prefer expanding them in place and removing them
+  from the abbreviations table.
+- For the content tables in the final report (`Applicable Documents`, `Referenced
+  Documents`, `Abbreviations`, `Definitions`), a safe normalization is:
+  - top cell alignment
+  - left paragraph alignment
+  - zero before/after spacing in body rows
+- Do not apply that normalization blindly to the cover, signature, or identification
+  form tables; those often mix alignments intentionally.
+- Small manual font overrides in Annex D subheads can be intentional layout aids.
+  Check the rendered PDF before normalizing them away.
 - After edits, always validate with:
   - `python-docx` open test
   - `zipfile.ZipFile(...).testzip()`
 - If visual fidelity matters, export to PDF and inspect the affected pages.
+
+## Final report annex pattern
+
+- The current FCAS final report uses annexes as a traceability extension of the
+  main narrative, not as a repository dump.
+- Keep the annex roles distinct:
+  - `Annex A`: implementation traceability matrix
+  - `Annex B`: variable-name traceability matrix
+  - `Annex C`: app input/output traceability matrix
+  - `Annex D`: project implementation metrics
+- When adding or extending annexes:
+  - add one short bridge sentence in the body so the reader is told why the
+    annex matters
+  - keep matrix tables compact and page-readable
+  - prefer one annex per traceability question rather than one oversized table
+- For annex tables:
+  - use repeated header rows
+  - use explicit column widths
+  - top-align cells
+  - break long code-path cells across lines for PDF readability
 
 ## Source and export chapters
 
@@ -103,5 +152,6 @@ Use this skill when working on the FCAS materials in the sibling repo
 - Training-only blocks and inference blocks are visibly separated.
 - MILP and RL notation match.
 - Slide and chapter wording reflect the latest approved terminology.
+- Visible TOC / annex pages / page-count fields match the exported PDF.
 - Generator sources, live deliverables, and exported previews are not contradicting
   each other.
