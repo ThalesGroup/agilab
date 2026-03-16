@@ -141,6 +141,9 @@ Use this skill when working on the FCAS materials in the sibling repo
   rebuilt later.
 - Preserve role coloring with a chat-style layout instead of a plain text dump.
 - If the user gives a start message, export only from that point onward.
+- For technical chats, do not stop at the conversational transcript alone:
+  append a `Code Changes` section and a `Run Log` section when the turn included
+  concrete patches, diffs, tests, or command outputs.
 - Prefer a Unicode-capable font such as `Arial Unicode` when available so
   arrows, bullets, and path-like text survive in the PDF.
 - After generation, verify:
