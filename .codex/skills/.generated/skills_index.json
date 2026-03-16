@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-03-14T10:09:58Z",
+  "generated_at_utc": "2026-03-16T13:31:59Z",
   "tool": "tools/codex_skills.py",
   "count": 8,
   "skills": [
@@ -55,7 +55,7 @@
       "name": "fcas-presentations",
       "description": "Workflow for FCAS PPTX/DOCX/PDF deliverables, figure assets, and Confluence-safe exports in the sibling thales_agilab repo.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-03-14",
+      "updated": "2026-03-16",
       "path": "/Users/agi/PycharmProjects/agilab/.codex/skills/fcas-presentations/SKILL.md",
       "body_preview": "# FCAS presentations and chapter deliverables\nUse this skill when working on the FCAS materials in the sibling repo\n`../thales_agilab`, especially:\n- `FCAS/Routing-Algo.pptx`"
     },
