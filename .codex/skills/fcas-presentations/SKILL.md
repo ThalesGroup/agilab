@@ -3,7 +3,7 @@ name: fcas-presentations
 description: Workflow for FCAS PPTX/DOCX/PDF deliverables, figure assets, and Confluence-safe exports in the sibling thales_agilab repo.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-03-14
+  updated: 2026-03-16
 ---
 
 # FCAS presentations and chapter deliverables
@@ -131,6 +131,25 @@ Use this skill when working on the FCAS materials in the sibling repo
   readable.
 - Remove decorative text that turns into clutter after Confluence import or PDF
   downscaling.
+
+## Chat transcript PDF exports
+
+- When the user asks for a chat export, store the export inside
+  `../thales_agilab/FCAS/chat_exports/`, not only in `~/Downloads`.
+- Keep a repo-local generator script next to the PDF, for example
+  `FCAS/chat_exports/export_<slug>_chat_pdf.py`, so the same transcript can be
+  rebuilt later.
+- Preserve role coloring with a chat-style layout instead of a plain text dump.
+- If the user gives a start message, export only from that point onward.
+- For technical chats, do not stop at the conversational transcript alone:
+  append a `Code Changes` section and a `Run Log` section when the turn included
+  concrete patches, diffs, tests, or command outputs.
+- Prefer a Unicode-capable font such as `Arial Unicode` when available so
+  arrows, bullets, and path-like text survive in the PDF.
+- After generation, verify:
+  - the PDF exists in the repo
+  - the file type is `PDF document`
+  - the reported page count is plausible for the selected range
 
 ## Useful commands
 
