@@ -1,9 +1,10 @@
 # AGI-CORE
 
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.03.06-informational?logo=pypi)](https://pypi.org/project/agi-core)
+[![PyPI version](https://img.shields.io/pypi/v/agi-core.svg)](https://pypi.org/project/agi-core/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-core.svg)](https://pypi.org/project/agi-core/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-core)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-core.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-core)
 [![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 
 `agi-core` is the AGILAB meta-package that wires `agi-env`, `agi-node`, and `agi-cluster` for one-step installation.

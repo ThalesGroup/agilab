@@ -1,9 +1,10 @@
 # AGI-NODE
 
-[![PyPI version](https://img.shields.io/badge/PyPI-2026.03.06-informational?logo=pypi)](https://pypi.org/project/agi-node)
+[![PyPI version](https://img.shields.io/pypi/v/agi-node.svg)](https://pypi.org/project/agi-node/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-node.svg)](https://pypi.org/project/agi-node/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-node)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-node.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-node)
 [![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 
 `agi-node` is the orchestration layer for AGILAB workers. It manages worker dispatch, packaging, execution isolation, and
