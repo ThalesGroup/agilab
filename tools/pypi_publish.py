@@ -36,7 +36,6 @@ import shutil
 import subprocess
 import sys
 import urllib.request
-import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
@@ -465,11 +464,10 @@ def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> boo
 
 
 # ---------- README badge helpers ----------
-def shields_badge(version: str, package_name: str) -> str:
-    safe_version = urllib.parse.quote(version, safe="")
+def shields_badge(_version: str, package_name: str) -> str:
     return (
-        f"[![PyPI version](https://img.shields.io/badge/PyPI-{safe_version}-informational?logo=pypi)]"
-        f"(https://pypi.org/project/{package_name})"
+        f"[![PyPI version](https://img.shields.io/pypi/v/{package_name}.svg)]"
+        f"(https://pypi.org/project/{package_name}/)"
     )
 
 
