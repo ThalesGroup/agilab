@@ -2669,20 +2669,6 @@ def create_network_graph(
             )
             legend_added = True
 
-            # Edge label at midpoint (type label)
-            mx, my = (x0 + x1) / 2, (y0 + y1) / 2
-            edge_traces.append(
-                go.Scatter(
-                    x=[mx],
-                    y=[my],
-                    mode="text",
-                    text=[label],
-                    textfont=dict(color=edge_color, size=12),
-                    textposition="middle center",
-                    hoverinfo="skip",
-                    showlegend=False,
-                )
-            )
     node_x = [pos[node][0] for node in G.nodes()]
     node_y = [pos[node][1] for node in G.nodes()]
     unique_nodes = list(G.nodes())
@@ -2771,19 +2757,6 @@ def create_network_graph(
                         text=group_node_ids,
                         textposition="middle center",
                         textfont=dict(color="#ffffff", size=14),
-                        hoverinfo="skip",
-                        cliponaxis=False,
-                        showlegend=False,
-                    )
-                )
-                node_traces.append(
-                    go.Scatter(
-                        x=[pos[n][0] for n in group_nodes],
-                        y=[pos[n][1] for n in group_nodes],
-                        mode="text",
-                        text=group_node_ids,
-                        textposition="middle center",
-                        textfont=dict(color="#111111", size=11),
                         hoverinfo="skip",
                         cliponaxis=False,
                         showlegend=False,
