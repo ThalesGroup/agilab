@@ -23,3 +23,47 @@ cluster_enabled = false
 allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
+
+[pages]
+view_module = [
+    "view_maps_network",
+]
+
+[pages.view_maps_network]
+dataset_base_choice = "AGI_SHARE_DIR"
+dataset_custom_base = ""
+dataset_subpath = "flight/dataframe"
+default_traj_globs = [
+    "flight/dataframe/*.parquet",
+    "flight/dataframe/*.csv",
+]
+
+[view_maps_network]
+base_dir_choice = "AGI_SHARE_DIR"
+input_datadir = ""
+datadir_rel = "flight/dataframe"
+file_ext_choice = "all"
+id_col = ""
+time_col = ""
+edges_file = ""
+allocations_file = ""
+baseline_allocations_file = ""
+traj_glob = ""
+link_multiselect = []
+show_map = true
+show_graph = true
+show_terrain = true
+show_cloud_heatmap = false
+cloud_heatmap_sat_path = ""
+cloud_heatmap_ivdl_path = ""
+cloud_heatmap_stride = 25
+cloud_heatmap_min_weight = 0.0
+jitter_overlap = false
+show_metrics = false
+map_marker_style = "Plane icons"
+df_file = ""
+df_select_mode = "Single file"
+df_file_regex = ""
+df_files = []
+layout_type_select = "spring"
+metric_type_select = ""

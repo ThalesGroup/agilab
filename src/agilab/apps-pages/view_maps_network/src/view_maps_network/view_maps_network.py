@@ -130,6 +130,61 @@ def _get_view_maps_settings() -> dict:
     return vm_settings
 
 
+def _get_view_maps_page_settings() -> dict:
+    app_settings = st.session_state.setdefault("app_settings", {})
+    pages = app_settings.get("pages")
+    if not isinstance(pages, dict):
+        return {}
+    vm_settings = pages.get("view_maps_network")
+    return vm_settings if isinstance(vm_settings, dict) else {}
+
+
+def _coerce_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        raw_items = re.split(r"[,;\n]", value)
+    elif isinstance(value, (list, tuple, set)):
+        raw_items = [str(item) for item in value]
+    else:
+        raw_items = [str(value)]
+    items: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        cleaned = str(item).strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        items.append(cleaned)
+    return items
+
+
+def _get_first_nonempty_setting(sources: list[dict[str, Any]], *keys: str) -> str:
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for key in keys:
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def _get_setting_list(sources: list[dict[str, Any]], *keys: str) -> list[str]:
+    items: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for key in keys:
+            for item in _coerce_str_list(source.get(key)):
+                if item in seen:
+                    continue
+                seen.add(item)
+                items.append(item)
+    return items
+
+
 def _read_query_param(key: str) -> Optional[str]:
     value = st.query_params.get(key)
     if isinstance(value, list):
@@ -209,8 +264,8 @@ terrain_layer = pdk.Layer(
 )
 
 EARTH_RADIUS_M = 6_371_000.0
-DEFAULT_CLOUDMAP_SAT = "/home/agi/localshare/link_sim/dataset/CloudMapSat.npz"
-DEFAULT_CLOUDMAP_IVDL = "/home/agi/localshare/link_sim/dataset/CloudMapIvdl.npz"
+DEFAULT_CLOUDMAP_SAT = ""
+DEFAULT_CLOUDMAP_IVDL = ""
 _CLOUD_HEATMAP_MAX_POINTS = 120_000
 _SAT_HEATMAP_COLOR_RANGE = [
     [0, 0, 0, 0],
@@ -945,14 +1000,104 @@ def _quick_share_edges_paths(share_root: Path) -> list[Path]:
 def _quick_share_traj_globs(share_root: Path) -> list[str]:
     share_root = share_root.expanduser()
     candidates = [
-        str(share_root / "flight_trajectory" / "pipeline" / "*.parquet"),
-        str(share_root / "flight_trajectory" / "pipeline" / "*.csv"),
-        str(share_root / "sat_trajectory" / "pipeline" / "*.parquet"),
-        str(share_root / "sat_trajectory" / "pipeline" / "*.csv"),
         str(share_root / "*_trajectory" / "pipeline" / "*.parquet"),
         str(share_root / "*_trajectory" / "pipeline" / "*.csv"),
+        str(share_root / "*trajectory*" / "pipeline" / "*.parquet"),
+        str(share_root / "*trajectory*" / "pipeline" / "*.csv"),
     ]
     return [c for c in candidates if glob.glob(str(Path(c).expanduser()))]
+
+
+def _candidate_files_from_globs(globs_list: list[str]) -> list[Path]:
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    for pattern in globs_list:
+        expanded = Path(pattern).expanduser()
+        for match in glob.glob(str(expanded), recursive=True):
+            path = Path(match).expanduser()
+            if not path.is_file():
+                continue
+            try:
+                resolved = path.resolve(strict=False)
+            except Exception:
+                resolved = path
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            candidates.append(path)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
+
+
+def _expand_glob_patterns(patterns: list[str], base_dirs: list[Path]) -> list[str]:
+    expanded: list[str] = []
+    seen: set[str] = set()
+    bases = [base.expanduser() for base in base_dirs if base]
+    for pattern in patterns:
+        raw = pattern.strip()
+        if not raw:
+            continue
+        path = Path(raw).expanduser()
+        candidates = [str(path)] if path.is_absolute() else [str(base / raw) for base in bases]
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            expanded.append(candidate)
+    return expanded
+
+
+def _resolve_declared_path(value: str, base_dirs: list[Path]) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return str(path)
+    bases = [base.expanduser() for base in base_dirs if base]
+    for base in bases:
+        candidate = (base / raw).expanduser()
+        if candidate.exists():
+            return str(candidate)
+    return str((bases[0] / raw).expanduser()) if bases else raw
+
+
+def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list[Path]:
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    relative_paths = tuple(
+        Path(prefix) / name
+        for name in names
+        for prefix in ("", "dataset", "pipeline")
+    )
+    for base in bases:
+        base = base.expanduser()
+        if not base.exists():
+            continue
+        roots = [base]
+        try:
+            roots.extend(
+                entry
+                for entry in sorted(base.iterdir())
+                if entry.is_dir() and not entry.name.startswith(".")
+            )
+        except Exception:
+            pass
+        for root in roots:
+            for rel in relative_paths:
+                candidate = (root / rel).expanduser()
+                if not candidate.exists() or not candidate.is_file():
+                    continue
+                try:
+                    resolved = candidate.resolve(strict=False)
+                except Exception:
+                    resolved = candidate
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                candidates.append(candidate)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
 
 
 def _normalize_node_id_series(series: pd.Series) -> pd.Series:
@@ -1374,15 +1519,6 @@ def _candidate_allocation_paths(bases: list[Path]) -> list[Path]:
         Path("dataframe/allocations_steps.json"),
         Path("dataframe/allocations_steps.jsonl"),
         Path("dataframe/allocations_steps.csv"),
-        Path("trainer_routing/allocations_steps.parquet"),
-        Path("trainer_routing/allocations_steps.json"),
-        Path("trainer_routing/allocations_steps.csv"),
-        Path("trainer_gnn/allocations_steps.parquet"),
-        Path("trainer_gnn/allocations_steps.json"),
-        Path("trainer_gnn/allocations_steps.csv"),
-        Path("trainer_ilp_stepper/allocations_steps.parquet"),
-        Path("trainer_ilp_stepper/allocations_steps.json"),
-        Path("trainer_ilp_stepper/allocations_steps.csv"),
     )
     patterns = (
         "allocations_steps.parquet",
@@ -2898,9 +3034,11 @@ def page():
     if "projects" not in st.session_state:
         st.session_state.projects = env.projects
     vm_settings = _get_view_maps_settings()
-    base_seed = vm_settings.get("base_dir_choice")
-    input_seed = vm_settings.get("input_datadir")
-    rel_seed = vm_settings.get("datadir_rel", "")
+    page_vm_settings = _get_view_maps_page_settings()
+    setting_sources = [vm_settings, page_vm_settings]
+    base_seed = _get_first_nonempty_setting(setting_sources, "base_dir_choice", "dataset_base_choice")
+    input_seed = _get_first_nonempty_setting(setting_sources, "input_datadir", "dataset_custom_base")
+    rel_seed = _get_first_nonempty_setting(setting_sources, "datadir_rel", "dataset_subpath")
     if base_seed and "base_dir_choice" not in st.session_state:
         st.session_state["base_dir_choice"] = base_seed
     if input_seed and "input_datadir" not in st.session_state:
@@ -3628,11 +3766,37 @@ def page():
         options=marker_options,
         key="map_marker_style",
     )
+    cloudmap_candidate_bases = [
+        Path(st.session_state.datadir),
+        env.AGILAB_EXPORT_ABS,
+        env.share_root_path(),
+    ]
+    sat_cloud_default = _get_first_nonempty_setting(
+        [vm_settings, page_vm_settings],
+        "cloud_heatmap_sat_path",
+        "cloudmap_sat_path",
+    )
+    sat_cloud_default = _resolve_declared_path(sat_cloud_default, cloudmap_candidate_bases)
+    if not sat_cloud_default:
+        sat_candidates = _candidate_cloudmap_paths(cloudmap_candidate_bases, ("CloudMapSat.npz",))
+        sat_cloud_default = str(sat_candidates[0]) if sat_candidates else DEFAULT_CLOUDMAP_SAT
+    ivdl_cloud_default = _get_first_nonempty_setting(
+        [vm_settings, page_vm_settings],
+        "cloud_heatmap_ivdl_path",
+        "cloudmap_ivdl_path",
+    )
+    ivdl_cloud_default = _resolve_declared_path(ivdl_cloud_default, cloudmap_candidate_bases)
+    if not ivdl_cloud_default:
+        ivdl_candidates = _candidate_cloudmap_paths(
+            cloudmap_candidate_bases,
+            ("CloudMapIvdl.npz", "CloudMapIvbl.npz"),
+        )
+        ivdl_cloud_default = str(ivdl_candidates[0]) if ivdl_candidates else DEFAULT_CLOUDMAP_IVDL
     st.session_state.setdefault("show_terrain", True)
     st.session_state.setdefault("show_trajectory_traces", True)
     st.session_state.setdefault("show_cloud_heatmap", False)
-    st.session_state.setdefault("cloud_heatmap_sat_path", DEFAULT_CLOUDMAP_SAT)
-    st.session_state.setdefault("cloud_heatmap_ivdl_path", DEFAULT_CLOUDMAP_IVDL)
+    st.session_state.setdefault("cloud_heatmap_sat_path", sat_cloud_default)
+    st.session_state.setdefault("cloud_heatmap_ivdl_path", ivdl_cloud_default)
     st.session_state.setdefault("cloud_heatmap_stride", 25)
     st.session_state.setdefault("cloud_heatmap_min_weight", 0.0)
     st.session_state.setdefault(SAT_HEATMAP_STEP_KEY, 1)
@@ -3654,7 +3818,7 @@ def page():
     st.sidebar.checkbox(
         "Show cloud heatmap overlay",
         key="show_cloud_heatmap",
-        help="Overlay SAT/IVDL cloud maps from LinkSim NPZ files.",
+        help="Overlay cloud attenuation heatmaps from NPZ files when available.",
     )
     st.sidebar.text_input("SAT cloud map (.npz)", key="cloud_heatmap_sat_path")
     st.sidebar.text_input("IVDL cloud map (.npz)", key="cloud_heatmap_ivdl_path")
@@ -4110,6 +4274,20 @@ def page():
     share_root = env.share_root_path()
     target_name = getattr(env, "share_target_name", env.target)
     target_root = (share_root / str(target_name)).expanduser()
+    declared_alloc_globs = _expand_glob_patterns(
+        _get_setting_list(
+            [vm_settings, page_vm_settings],
+            "default_allocation_globs",
+        ),
+        [target_root, datadir_path, env.AGILAB_EXPORT_ABS, share_root],
+    )
+    declared_baseline_globs = _expand_glob_patterns(
+        _get_setting_list(
+            [vm_settings, page_vm_settings],
+            "default_baseline_globs",
+        ),
+        [target_root, datadir_path, env.AGILAB_EXPORT_ABS, share_root],
+    )
     alloc_candidate_bases = [
         target_root,
         target_root / "pipeline",
@@ -4120,17 +4298,23 @@ def page():
         env.AGILAB_EXPORT_ABS,
     ]
     alloc_candidates = _candidate_allocation_paths([p for p in alloc_candidate_bases if p.exists()])
+    alloc_candidates.extend(_candidate_files_from_globs(declared_alloc_globs + declared_baseline_globs))
+    alloc_candidates = sorted(
+        {p.resolve(strict=False): p for p in alloc_candidates if p.exists()}.values(),
+        key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+        reverse=True,
+    )
     baseline_candidates = [p for p in alloc_candidates if _is_baseline_alloc_path(p)]
     routing_candidates = [p for p in alloc_candidates if not _is_baseline_alloc_path(p)]
     if not alloc_candidates:
         st.info(
             f"No allocation exports detected under {target_root} yet. "
-            "Run a routing/baseline step or point the pickers to an existing allocations_steps.{json,jsonl,ndjson,csv,parquet} file."
+            "Generate a routing or baseline export, or point the pickers to an existing allocations_steps.{json,jsonl,ndjson,csv,parquet} file."
         )
     elif baseline_candidates and not routing_candidates:
         st.info(
-            "Baseline allocations detected (ILP), but no routing allocations yet. "
-            "Run `sb3_trainer` routing (e.g. `trainer_routing` / `trainer_gnn`) to generate allocations."
+            "Baseline allocations were detected, but no routing allocations are available yet. "
+            "Generate a routing-stage export or point the picker to an existing allocations_steps file."
         )
 
     if "allocations_file" not in st.session_state:
@@ -4139,7 +4323,11 @@ def page():
             st.session_state["allocations_file"] = legacy_val
     alloc_prev = (st.session_state.get("allocations_file") or "").strip()
 
-    alloc_placeholder = target_root / "trainer_routing" / "allocations_steps.parquet"
+    alloc_placeholder = (
+        routing_candidates[0]
+        if routing_candidates
+        else datadir_path / "pipeline" / "allocations_steps.parquet"
+    )
     alloc_options = ["(none)"] + [str(p) for p in routing_candidates] + ["(custom path…)"]
     if st.session_state.get("allocations_file_choice") not in alloc_options:
         if alloc_prev and alloc_prev in alloc_options:
@@ -4154,10 +4342,10 @@ def page():
             )
 
     alloc_choice = st.selectbox(
-        "Allocations file picker (routing/RL)",
+        "Allocations file picker (routing/policy)",
         options=alloc_options,
         key="allocations_file_choice",
-        help="Per-step routing allocations (typically from `trainer_routing` / `trainer_gnn`).",
+        help="Per-step routing or policy allocations used for the live overlay.",
     )
     if alloc_choice == "(custom path…)":
         alloc_clean = st.text_input(
@@ -4188,7 +4376,11 @@ def page():
             st.session_state["baseline_allocations_file"] = legacy_val
     baseline_prev = (st.session_state.get("baseline_allocations_file") or "").strip()
 
-    baseline_placeholder = target_root / "trainer_ilp_stepper" / "allocations_steps.json"
+    baseline_placeholder = (
+        baseline_candidates[0]
+        if baseline_candidates
+        else datadir_path / "pipeline" / "baseline_allocations_steps.json"
+    )
     baseline_options = ["(none)"] + [str(p) for p in baseline_candidates] + ["(custom path…)"]
     if st.session_state.get("baseline_alloc_file_choice") not in baseline_options:
         if baseline_prev and baseline_prev in baseline_options:
@@ -4203,10 +4395,10 @@ def page():
             )
 
     baseline_choice = st.selectbox(
-        "Baseline allocations file picker (ILP)",
+        "Baseline allocations file picker",
         options=baseline_options,
         key="baseline_alloc_file_choice",
-        help="Per-step baseline allocations (typically from `trainer_ilp_stepper`).",
+        help="Per-step reference allocations used as a baseline overlay.",
     )
     if baseline_choice == "(custom path…)":
         baseline_clean = st.text_input(
@@ -4230,12 +4422,21 @@ def page():
         baseline_path_obj = None
     if baseline_path_obj is not None and baseline_path_input and not baseline_path_obj.exists():
         st.info("Baseline allocations file not found. Update the path or generate a baseline.")
+    declared_traj_globs = _expand_glob_patterns(
+        _get_setting_list(
+            [vm_settings, page_vm_settings],
+            "default_traj_globs",
+            "trajectory_globs",
+        ),
+        [datadir_path, share_root, env.AGILAB_EXPORT_ABS],
+    )
     traj_glob_candidates = [
         str(datadir_path / "pipeline" / "*.parquet"),
         str(datadir_path / "pipeline" / "*.csv"),
         str(datadir_path / "dataframe" / "*.parquet"),
         str(datadir_path / "dataframe" / "*.csv"),
     ]
+    traj_glob_candidates.extend(declared_traj_globs)
     traj_glob_candidates.extend(_quick_share_traj_globs(share_root))
     traj_glob_candidates = list(dict.fromkeys([c for c in traj_glob_candidates if c]))
     traj_glob_default = next(
@@ -4269,7 +4470,11 @@ def page():
         key="traj_glob_choice",
         help="Pick a trajectory glob for node positions. Use custom to provide one or more globs (comma/semicolon/newline separated).",
     )
-    traj_placeholder = str(share_root / "flight_trajectory" / "pipeline" / "*.csv")
+    traj_placeholder = (
+        traj_candidates_existing[0]
+        if traj_candidates_existing
+        else str(share_root / "*_trajectory" / "pipeline" / "*.csv")
+    )
     if traj_choice == traj_custom_label:
         traj_clean = st.text_input(
             "Custom trajectory glob(s)",
