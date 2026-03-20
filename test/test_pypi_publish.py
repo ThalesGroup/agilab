@@ -1,0 +1,371 @@
+from __future__ import annotations
+
+import importlib.util
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+MODULE_PATH = Path("tools/pypi_publish.py").resolve()
+
+
+def _load_pypi_publish():
+    spec = importlib.util.spec_from_file_location("pypi_publish_test_module", MODULE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_shields_badge_uses_stable_cache_endpoint() -> None:
+    module = _load_pypi_publish()
+
+    badge = module.shields_badge("2026.03.23", "agilab")
+
+    assert "https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300" in badge
+
+
+def test_update_badge_rewrites_readme_link(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "[![PyPI version](https://img.shields.io/pypi/v/agilab.svg)]"
+        "(https://pypi.org/project/agilab/)\n",
+        encoding="utf-8",
+    )
+
+    changed = module.update_badge(readme, "agilab", "2026.03.23")
+
+    assert changed is True
+    assert "https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300" in readme.read_text(encoding="utf-8")
+
+
+def test_update_badge_is_noop_when_pattern_is_missing(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    readme = tmp_path / "README.md"
+    readme.write_text("No badge here.\n", encoding="utf-8")
+
+    changed = module.update_badge(readme, "agilab", "2026.03.23")
+
+    assert changed is False
+    assert readme.read_text(encoding="utf-8") == "No badge here.\n"
+
+
+def test_update_badge_is_noop_when_badge_is_already_current(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    current = "[![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab/)\n"
+    readme = tmp_path / "README.md"
+    readme.write_text(current, encoding="utf-8")
+
+    changed = module.update_badge(readme, "agilab", "2026.03.23")
+
+    assert changed is False
+    assert readme.read_text(encoding="utf-8") == current
+
+
+def test_compute_date_tag_without_collision(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    class _FixedDatetime:
+        @staticmethod
+        def now(_tz):
+            return datetime(2026, 3, 20, 10, 0, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(module, "datetime", _FixedDatetime)
+    monkeypatch.setattr(module, "_tag_exists", lambda _tag, repo=None: False)
+
+    assert module.compute_date_tag() == "2026.03.20"
+
+
+def test_compute_date_tag_with_collisions(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    class _FixedDatetime:
+        @staticmethod
+        def now(_tz):
+            return datetime(2026, 3, 20, 10, 0, 0, tzinfo=timezone.utc)
+
+    existing = {"v2026.03.20", "v2026.03.20-2"}
+    monkeypatch.setattr(module, "datetime", _FixedDatetime)
+    monkeypatch.setattr(module, "_tag_exists", lambda tag, repo=None: tag in existing)
+
+    assert module.compute_date_tag() == "2026.03.20-3"
+
+
+def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    core_dir = tmp_path / "core" / "agi-env"
+    core_dir.mkdir(parents=True)
+    core_toml = core_dir / "pyproject.toml"
+    core_toml.write_text("[project]\nname='agi-env'\nversion='1.0.0'\n", encoding="utf-8")
+    core_readme = core_dir / "README.md"
+    core_readme.write_text("core\n", encoding="utf-8")
+
+    umbrella_dir = tmp_path
+    umbrella_toml = umbrella_dir / "pyproject.toml"
+    umbrella_toml.write_text("[project]\nname='agilab'\nversion='1.0.0'\n", encoding="utf-8")
+    umbrella_readme = umbrella_dir / "README.md"
+    umbrella_readme.write_text("umbrella\n", encoding="utf-8")
+
+    builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    builtin_dir.mkdir(parents=True)
+    builtin_toml = builtin_dir / "pyproject.toml"
+    builtin_toml.write_text("[project]\nname='flight_project'\nversion='1.0.0'\n", encoding="utf-8")
+
+    docs_html = tmp_path / "docs" / "html"
+    docs_html.mkdir(parents=True)
+
+    monkeypatch.setattr(module, "CORE", [("agi-env", core_toml, core_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", umbrella_toml, umbrella_dir))
+    monkeypatch.setattr(module, "builtin_app_pyprojects", lambda: [builtin_toml, builtin_toml])
+
+    paths = module.git_paths_to_commit(include_docs=True)
+
+    assert paths == [
+        "core/agi-env/pyproject.toml",
+        "core/agi-env/README.md",
+        "pyproject.toml",
+        "src/agilab/apps/builtin/flight_project/pyproject.toml",
+        "README.md",
+        "docs/html",
+    ]
+
+
+def test_main_rejects_invalid_explicit_version(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026-03-23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+
+    try:
+        module.main()
+    except SystemExit as exc:
+        assert "Invalid --version format" in str(exc)
+    else:
+        raise AssertionError("main() should reject an invalid explicit version")
+
+
+def test_main_rejects_explicit_version_lower_than_latest_release(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.22",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: {"2026.03.23"})
+
+    try:
+        module.main()
+    except SystemExit as exc:
+        assert "is lower than existing release 2026.03.23" in str(exc)
+    else:
+        raise AssertionError("main() should reject a lower explicit version")
+
+
+def test_main_updates_badges_before_build(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-env"',
+                'version = "2026.03.16"',
+                'dependencies = []',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    order: list[str] = []
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: order.append("badge"))
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: order.append("build"))
+
+    module.main()
+
+    assert order[:2] == ["badge", "build"]
+
+
+def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-env"',
+                'version = "2026.03.16"',
+                'dependencies = []',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    order: list[str] = []
+    upload_calls = {"count": 0}
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23.post1",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    def _twine_upload(*_args, **_kwargs):
+        upload_calls["count"] += 1
+        if upload_calls["count"] == 1:
+            module.UPLOAD_COLLISION_DETECTED = True
+            module.UPLOAD_SUCCESS_COUNT = 0
+        else:
+            module.UPLOAD_COLLISION_DETECTED = False
+            module.UPLOAD_SUCCESS_COUNT = 1
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", _twine_upload)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: order.append("badge"))
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: order.append("build"))
+    monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: "2026.03.23.post2")
+
+    module.main()
+
+    assert order[:4] == ["badge", "build", "badge", "build"]
