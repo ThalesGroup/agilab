@@ -85,6 +85,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with pytest \
+            --with pytest-asyncio \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_node --cov-report=xml:coverage-agi-node.xml \
@@ -101,6 +102,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with pytest \
+            --with pytest-asyncio \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_cluster --cov-report=xml:coverage-agi-cluster.xml \
@@ -117,6 +119,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with pytest \
+            --with pytest-asyncio \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_core --cov-report=xml:coverage-agi-core.xml \
@@ -134,6 +137,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with pytest \
+            --with pytest-asyncio \
             --with pytest-cov \
             python -m pytest -q -o addopts='' \
             --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml \
