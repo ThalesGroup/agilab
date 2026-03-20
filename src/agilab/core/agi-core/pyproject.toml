@@ -4,7 +4,8 @@ name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
+authors = [{ name = "Jean-Pierre Morard" }]
+maintainers = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 classifiers = [

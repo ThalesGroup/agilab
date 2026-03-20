@@ -5,8 +5,9 @@ description = "Distributed cluster orchestration layer for AGILAB workers over l
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+    { name = "Jean-Pierre Morard" },
 ]
+maintainers = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 classifiers = [
