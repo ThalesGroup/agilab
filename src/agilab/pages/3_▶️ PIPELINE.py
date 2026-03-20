@@ -23,6 +23,7 @@ import pandas as pd
 import re
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 import tomli_w      # For writing TOML files
 
@@ -138,6 +139,14 @@ def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = No
             placeholder.code("\n".join(logs))
         else:
             placeholder.caption("No runs recorded yet.")
+
+
+def _rerun_fragment_or_app() -> None:
+    """Prefer a fragment rerun when valid; otherwise fall back to a full app rerun."""
+    try:
+        st.rerun(scope="fragment")
+    except StreamlitAPIException:
+        st.rerun()
 
 
 def _prepare_run_log_file(
@@ -4438,7 +4447,8 @@ def display_lab_tab(
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
 
-    for step, entry in enumerate(persisted_steps):
+    @st.fragment
+    def _render_pipeline_step_fragment(step: int, entry: Dict[str, Any]) -> None:
         # Per-step keys
         q_key = f"{safe_prefix}_q_step_{step}"
         code_val_key = f"{safe_prefix}_code_step_{step}"
@@ -4449,6 +4459,8 @@ def display_lab_tab(
         undo_key = f"{safe_prefix}_undo_{step}"
         apply_q_key = f"{q_key}_apply_pending"
         apply_c_key = f"{code_val_key}_apply_pending"
+        confirm_delete_key = f"{safe_prefix}_confirm_delete_{step}"
+
         # Apply any pending updates (set during a previous run-trigger) before rendering widgets.
         pending_q = st.session_state.pop(pending_q_key, None)
         pending_c = st.session_state.pop(pending_c_key, None)
@@ -4459,7 +4471,7 @@ def display_lab_tab(
         if (pending_q is not None or pending_c is not None) and (q_key in st.session_state or code_val_key in st.session_state):
             st.session_state.pop(q_key, None)
             st.session_state.pop(code_val_key, None)
-            st.rerun()
+            _rerun_fragment_or_app()
 
         initial_q = entry.get("Q", "")
         initial_c = entry.get("C", "")
@@ -4470,16 +4482,12 @@ def display_lab_tab(
         ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{step}"
         seeded_c: Optional[str] = None
         if not st.session_state.get(init_key):
-            # First render of this step in the session: seed from disk/pending values.
             st.session_state[q_key] = apply_q if apply_q is not None else initial_q
             seeded_code = apply_c if apply_c is not None else initial_c
             st.session_state[code_val_key] = seeded_code
-            # If the expander is open on first load, the editor component can emit an initial blank value
-            # that would overwrite seeded code. Mark the seed so we remount once and ignore a blank mount.
             seeded_c = seeded_code or None
             st.session_state[init_key] = True
         else:
-            # Always apply pending values, even after first render.
             if apply_q is not None or q_key not in st.session_state:
                 st.session_state[q_key] = apply_q if apply_q is not None else initial_q
             if apply_c is not None:
@@ -4490,7 +4498,6 @@ def display_lab_tab(
                 if code_val_key not in st.session_state or (not current_c and initial_c):
                     seeded_c = initial_c
                     st.session_state[code_val_key] = initial_c
-        # If we had to reseed code after a reload (stale editor state), force a remount once.
         if seeded_c is not None:
             last_sig = st.session_state.get(resync_sig_key)
             if last_sig != seeded_c:
@@ -4503,7 +4510,6 @@ def display_lab_tab(
             initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
             st.session_state[undo_key] = [initial_snapshot]
 
-        # Seed venv options
         current_path_raw = normalize_runtime_path(selected_map.get(step, ""))
         current_path = current_path_raw if _is_valid_runtime_root(current_path_raw) else ""
         if not current_path:
@@ -4523,8 +4529,7 @@ def display_lab_tab(
         summary = _step_summary(live_entry, width=80)
         dirty_key = f"{q_key}_dirty"
         if st.session_state.pop(dirty_key, False):
-            # On a dirty change, refresh the summary by rerunning
-            st.rerun()
+            _rerun_fragment_or_app()
         expanded_flag = expander_state.get(step, False)
         title_suffix = summary if summary else "No description yet"
         expander_title = f"{step + 1} {title_suffix}"
@@ -4532,8 +4537,8 @@ def display_lab_tab(
         locked_source = _orchestrate_snippet_source(entry)
         if is_locked_step:
             expander_title = f"{step + 1} 🔒 ORCHESTRATE • {title_suffix}"
+
         with st.expander(expander_title, expanded=expanded_flag):
-            # venv selector
             venv_col, _ = st.columns([3, 2], gap="small")
             with venv_col:
                 session_label = st.session_state.get(select_key, "")
@@ -4558,7 +4563,6 @@ def display_lab_tab(
                 else:
                     selected_map.pop(step, None)
 
-            # Engine derived from venv selection
             computed_engine = "agi.run" if selected_map.get(step) else "runpy"
             engine_map[step] = computed_engine
             st.session_state["lab_selected_engine"] = computed_engine
@@ -4602,6 +4606,7 @@ def display_lab_tab(
                         use_container_width=True,
                         key=f"{safe_prefix}_delete_cancel_{step}",
                     )
+                    arm_delete_clicked = False
                 else:
                     delete_clicked = False
                     cancel_delete_clicked = False
@@ -4611,14 +4616,13 @@ def display_lab_tab(
                         use_container_width=True,
                         key=f"{safe_prefix}_delete_{step}",
                     )
-                    if arm_delete_clicked:
-                        st.session_state[confirm_delete_key] = True
-                        st.rerun()
 
+                if arm_delete_clicked:
+                    st.session_state[confirm_delete_key] = True
+                    _rerun_fragment_or_app()
                 if cancel_delete_clicked:
                     st.session_state.pop(confirm_delete_key, None)
-                    st.rerun()
-
+                    _rerun_fragment_or_app()
                 if delete_clicked:
                     delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
                     delete_snapshot["label"] = f"remove step {step + 1}"
@@ -4628,16 +4632,14 @@ def display_lab_tab(
                     st.session_state.pop(select_key, None)
                     remove_step(lab_dir, str(step), steps_file, index_page_str)
                     st.rerun()
-                continue
+                return
 
-            # Form for prompt and code
             run_pressed = False
             revert_pressed = False
             save_pressed = False
             delete_clicked = False
             arm_delete_clicked = False
             cancel_delete_clicked = False
-            confirm_delete_key = f"{safe_prefix}_confirm_delete_{step}"
             snippet_dict: Optional[Dict[str, Any]] = None
             st.text_area(
                 "Ask code generator:",
@@ -4692,12 +4694,11 @@ def display_lab_tab(
 
             if arm_delete_clicked:
                 st.session_state[confirm_delete_key] = True
-                st.rerun()
+                _rerun_fragment_or_app()
             if cancel_delete_clicked:
                 st.session_state.pop(confirm_delete_key, None)
-                st.rerun()
+                _rerun_fragment_or_app()
 
-            # Code editor rendered outside the form so overlay actions fire without submit
             code_text = st.session_state.get(code_val_key, "")
             rev = st.session_state.get(rev_key, 0)
             editor_key = f"{safe_prefix}a{step}-{rev}"
@@ -4712,11 +4713,9 @@ def display_lab_tab(
                 key=editor_key,
             )
 
-            # Handle actions
             if snippet_dict and snippet_dict.get("text") is not None:
                 normalized_text = _normalize_editor_text(snippet_dict.get("text"))
                 if normalized_text == "" and st.session_state.get(ignore_blank_key) and st.session_state.get(code_val_key):
-                    # Skip a single empty mount update after a resync; keep seeded code.
                     st.session_state.pop(ignore_blank_key, None)
                 else:
                     st.session_state[code_val_key] = normalized_text
@@ -4729,10 +4728,8 @@ def display_lab_tab(
                     undo_stack.pop()
                 restored_q, restored_c = undo_stack[-1] if undo_stack else ("", "")
                 st.session_state[undo_key] = undo_stack if undo_stack else [(restored_q, restored_c)]
-                # Queue the restore for next render to avoid touching instantiated widgets
                 st.session_state[pending_q_key] = restored_q
                 st.session_state[pending_c_key] = restored_c
-                # Persist the restored content so reload matches what was just shown
                 save_step(
                     module_path,
                     [entry.get("D", ""), restored_q, entry.get("M", ""), restored_c],
@@ -4746,7 +4743,7 @@ def display_lab_tab(
                 expander_state[step] = True
                 st.session_state[expander_state_key] = expander_state
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
-                st.rerun()
+                _rerun_fragment_or_app()
 
             if save_pressed:
                 undo_stack = st.session_state.get(undo_key, [])
@@ -4765,7 +4762,6 @@ def display_lab_tab(
                     venv_map=selected_map,
                     engine_map=engine_map,
                 )
-                # Force sync to disk in case upstream save was skipped/overwritten
                 _force_persist_step(
                     module_path,
                     steps_file,
@@ -4779,14 +4775,12 @@ def display_lab_tab(
                         "R": engine_map.get(step, "") or ("agi.run" if selected_map.get(step) else "runpy"),
                     },
                 )
-                # Queue what was saved; keys will be applied on next render if not already set
                 st.session_state[pending_q_key] = st.session_state.get(q_key, "")
                 st.session_state[pending_c_key] = code_current
                 st.session_state.pop(q_key, None)
                 st.session_state.pop(code_val_key, None)
-                # _append_run_log(index_page_str, f"Saved step {step + 1}.")
                 _bump_history_revision()
-                st.rerun()
+                _rerun_fragment_or_app()
 
             overlay_type = snippet_dict.get("type") if snippet_dict else None
             overlay_flag_key = f"{safe_prefix}_overlay_done_{step}"
@@ -4800,18 +4794,16 @@ def display_lab_tab(
                 st.session_state.pop(overlay_flag_key, None)
                 st.session_state.pop(overlay_sig_key, None)
             elif overlay_type in {"save", "run"} and current_sig == last_sig:
-                # Duplicate event from the editor; skip handling to avoid loops
-                continue
+                return
             if snippet_dict and overlay_type == "save":
                 if st.session_state.get(overlay_flag_key):
-                    # Already handled; clear and skip
                     st.session_state.pop(overlay_flag_key, None)
                     snippet_dict = None
                 else:
                     st.session_state[overlay_flag_key] = True
                     st.session_state[overlay_sig_key] = current_sig
                 if snippet_dict is None:
-                    continue
+                    return
                 undo_stack = st.session_state.get(undo_key, [])
                 undo_stack.append((st.session_state.get(q_key, ""), st.session_state.get(code_val_key, "")))
                 st.session_state[undo_key] = undo_stack
@@ -4845,26 +4837,22 @@ def display_lab_tab(
                         "R": engine_map.get(step, "") or ("agi.run" if selected_map.get(step) else "runpy"),
                     },
                 )
-                # _append_run_log(index_page_str, f"Saved step {step + 1} (overlay).")
                 _bump_history_revision()
-                # Mirror the manual save flow so the expander stays open after rerun.
                 st.session_state[pending_q_key] = st.session_state.get(q_key, "")
                 st.session_state[pending_c_key] = code_current
                 st.session_state.pop(q_key, None)
                 st.session_state.pop(code_val_key, None)
                 st.session_state[expander_state_key] = expander_state
-                st.rerun()
+                _rerun_fragment_or_app()
             elif snippet_dict and overlay_type == "run":
                 if st.session_state.get(overlay_flag_key):
-                    # Already handled; clear and skip
                     st.session_state.pop(overlay_flag_key, None)
                     snippet_dict = None
                 else:
                     st.session_state[overlay_flag_key] = True
                     st.session_state[overlay_sig_key] = current_sig
                 if snippet_dict is None:
-                    continue
-                # Execute the current code using the selected engine/venv
+                    return
                 code_to_run = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
                 venv_root = normalize_runtime_path(selected_map.get(step, ""))
                 entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
@@ -4994,7 +4982,6 @@ def display_lab_tab(
                     else Path()
                 )
                 answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
-                # Merge the model detail (answer[4]) into the generated code (answer[3]) as a leading comment
                 merged_code = None
                 code_txt = answer[3] if len(answer) > 3 else ""
                 detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
@@ -5004,7 +4991,6 @@ def display_lab_tab(
                     if len(answer) > 3:
                         answer[3] = merged_code
                 else:
-                    # If no code returned, retain current editor content to avoid wiping the step
                     merged_code = st.session_state.get(code_val_key, "")
                     if len(answer) > 3:
                         answer[3] = merged_code
@@ -5036,7 +5022,6 @@ def display_lab_tab(
                     venv_map=selected_map,
                     engine_map=engine_map,
                 )
-                # Force the UI to show exactly what we saved
                 if len(answer) > 1:
                     st.session_state[pending_q_key] = answer[1]
                 st.session_state[pending_c_key] = (
@@ -5070,7 +5055,7 @@ def display_lab_tab(
                 )
                 expander_state[step] = True
                 st.session_state[expander_state_key] = expander_state
-                st.rerun()
+                _rerun_fragment_or_app()
 
             if delete_clicked:
                 st.session_state.pop(confirm_delete_key, None)
@@ -5082,6 +5067,9 @@ def display_lab_tab(
                 st.session_state.pop(select_key, None)
                 remove_step(lab_dir, str(step), steps_file, index_page_str)
                 st.rerun()
+
+    for step, entry in enumerate(persisted_steps):
+        _render_pipeline_step_fragment(step, entry)
 
     # Add-step expander to append a new step at the end
     new_q_key = f"{safe_prefix}_new_q"
