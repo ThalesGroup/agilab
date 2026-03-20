@@ -1009,6 +1009,10 @@ def main():
         for name in selected_core_names:
             pins[name] = chosen
 
+        # Update README badges before building so the packaged long_description
+        # and uploaded PyPI page embed the new versioned badge immediately.
+        update_selected_badges(selected_core_entries, build_umbrella)
+
         all_files: List[str] = []
 
         # core
@@ -1043,9 +1047,6 @@ def main():
         if sync_builtin_versions:
             sync_builtin_app_versions(chosen)
 
-        # keep README badges aligned even when running with --dry-run
-        update_selected_badges(selected_core_entries, build_umbrella)
-
         # Dry-run end
         if cfg.dry_run:
             print("[dry-run] Would twine check & upload:")
@@ -1063,6 +1064,7 @@ def main():
             pins2 = pins.copy()
             for name in selected_core_names:
                 pins2[name] = chosen2
+            update_selected_badges(selected_core_entries, build_umbrella)
             all_files2: List[str] = []
             for name, toml, project in selected_core_entries:
                 set_version_in_pyproject(toml, chosen2)
