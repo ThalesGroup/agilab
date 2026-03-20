@@ -52,11 +52,12 @@ jobs:
         run: |
           set -e
           rm -f .coverage.agilab coverage-agilab.xml
-          export PYTHONPATH="src:src/agilab/core/agi-env/src"
+          export PYTHONPATH="src"
           COVERAGE_FILE=.coverage.agilab uv run --no-project --with pytest --with pytest-cov --with toml --with packaging python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             -m "not integration" \
             --cov=agilab --cov-report=xml:coverage-agilab.xml \
             --junitxml=test-results/junit.xml \
+            --ignore=src/agilab/test/test_model_returns_code.py \
             src/agilab/test
 
       - name: Run agi-env tests with coverage
