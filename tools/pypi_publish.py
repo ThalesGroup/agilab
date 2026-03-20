@@ -505,7 +505,7 @@ def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> boo
 # ---------- README badge helpers ----------
 def shields_badge(_version: str, package_name: str) -> str:
     return (
-        f"[![PyPI version](https://img.shields.io/pypi/v/{package_name}.svg)]"
+        f"[![PyPI version](https://img.shields.io/pypi/v/{package_name}.svg?cacheSeconds=300)]"
         f"(https://pypi.org/project/{package_name}/)"
     )
 
