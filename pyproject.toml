@@ -5,10 +5,11 @@ description = "AGILAB is an end-to-end experimentation platform linking interact
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+    { name = "Jean-Pierre Morard" },
     { name = "Guillaume Demets" },
     { name = "Julien Bestard" }
 ]
+maintainers = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 
