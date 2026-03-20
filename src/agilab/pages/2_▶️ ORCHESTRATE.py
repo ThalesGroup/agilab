@@ -41,6 +41,7 @@ import pandas as pd
 # Theme configuration
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
@@ -70,6 +71,30 @@ def clear_log():
     to avoid mixing logs.
     """
     st.session_state["log_text"] = ""
+
+
+def _rerun_fragment_or_app() -> None:
+    """Prefer a fragment rerun when valid; otherwise fall back to a full app rerun."""
+    try:
+        st.rerun(scope="fragment")
+    except StreamlitAPIException:
+        st.rerun()
+
+
+def _update_delete_confirm_state(
+    confirm_key: str,
+    *,
+    delete_armed_clicked: bool,
+    delete_cancel_clicked: bool,
+) -> bool:
+    """Update the delete-confirm flag and report whether a local rerun is needed."""
+    if delete_armed_clicked:
+        st.session_state[confirm_key] = True
+        return True
+    if delete_cancel_clicked:
+        st.session_state.pop(confirm_key, None)
+        return True
+    return False
 
 def update_log(live_log_placeholder, message, max_lines=1000):
     """
@@ -2595,121 +2620,139 @@ if __name__ == "__main__":
 
         delete_confirm_key = "delete_data_main_confirm"
         delete_undo_key = "delete_data_main_undo_payload"
-        load_clicked = False
-        delete_clicked = False
 
-        if show_run_panel:
-            run_col, load_col, delete_col = st.columns(3)
-            run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
-            if cmd:
-                run_clicked = run_col.button(
-                    run_label,
-                    key="run_btn",
-                    type="primary",
-                    use_container_width=True,
-                )
-            else:
-                run_col.button(
-                    run_label,
-                    key="run_btn_disabled",
-                    type="primary",
-                    disabled=True,
-                    help="Configure the run snippet to enable execution",
-                    use_container_width=True,
-                )
+        @st.fragment
+        def _render_run_panel_controls() -> tuple[bool, bool, bool, bool]:
+            local_run_clicked = False
+            local_load_clicked = False
+            local_delete_clicked = False
+            local_combo_clicked = False
 
-            load_clicked = load_col.button(
-                "LOAD dataframe",
-                key="load_data_main",
-                type="primary",
-                use_container_width=True,
-                help="Fetch the latest dataframe preview for export",
-            )
-            if st.session_state.pop("_combo_load_trigger", False):
-                load_clicked = True
-
-            delete_armed_clicked = False
-            delete_cancel_clicked = False
-            if st.session_state.get(delete_confirm_key, False):
-                delete_clicked = delete_col.button(
-                    "Confirm delete",
-                    key="delete_data_main_confirm_btn",
-                    type="primary",
-                    use_container_width=True,
-                    help="Confirm deletion of the loaded dataframe/export file.",
-                )
-                delete_cancel_clicked = delete_col.button(
-                    "Cancel",
-                    key="delete_data_main_cancel_btn",
-                    type="secondary",
-                    use_container_width=True,
-                )
-            else:
-                delete_armed_clicked = delete_col.button(
-                    "DELETE dataframe",
-                    key="delete_data_main",
-                    type="secondary",
-                    use_container_width=True,
-                    help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
-                )
-
-            if delete_armed_clicked:
-                st.session_state[delete_confirm_key] = True
-                st.rerun()
-            if delete_cancel_clicked:
-                st.session_state.pop(delete_confirm_key, None)
-                st.rerun()
-
-            undo_delete_clicked = False
-            undo_payload = st.session_state.get(delete_undo_key)
-            if isinstance(undo_payload, dict):
-                undo_delete_clicked = st.button(
-                    "UNDO last delete dataframe",
-                    key="delete_data_main_undo_btn",
-                    type="secondary",
-                    use_container_width=True,
-                    help="Restore the most recently deleted dataframe preview and file.",
-                )
-
-            if undo_delete_clicked and isinstance(undo_payload, dict):
-                restored_file = False
-                backup_file = undo_payload.get("backup_file")
-                source_file = undo_payload.get("source_file")
-                if backup_file and source_file:
-                    backup_path = Path(backup_file)
-                    source_path = Path(source_file)
-                    try:
-                        if backup_path.exists():
-                            source_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.move(str(backup_path), str(source_path))
-                            restored_file = True
-                        elif not source_path.exists():
-                            st.warning("Undo could not restore file from disk backup (backup not found).")
-                    except Exception as exc:
-                        st.error(f"Failed to restore deleted file: {exc}")
-
-                _restore_dataframe_preview_state(undo_payload)
-                st.session_state["dataframe_deleted"] = False
-                st.session_state.pop(delete_undo_key, None)
-                st.session_state.pop(delete_confirm_key, None)
-                try:
-                    cached_load_df.clear()
-                except Exception:
-                    pass
-                try:
-                    find_files.clear()
-                except Exception:
-                    pass
-                if restored_file:
-                    st.success("Dataframe delete undone and file restored.")
+            if show_run_panel:
+                run_col, load_col, delete_col = st.columns(3)
+                run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
+                if cmd:
+                    local_run_clicked = run_col.button(
+                        run_label,
+                        key="run_btn",
+                        type="primary",
+                        use_container_width=True,
+                    )
                 else:
-                    st.success("Dataframe preview restore completed.")
-                st.rerun()
-        else:
-            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
-            st.session_state.pop("_combo_load_trigger", None)
-            st.session_state.pop("_combo_export_trigger", None)
-            st.session_state.pop(delete_confirm_key, None)
+                    run_col.button(
+                        run_label,
+                        key="run_btn_disabled",
+                        type="primary",
+                        disabled=True,
+                        help="Configure the run snippet to enable execution",
+                        use_container_width=True,
+                    )
+
+                local_load_clicked = load_col.button(
+                    "LOAD dataframe",
+                    key="load_data_main",
+                    type="primary",
+                    use_container_width=True,
+                    help="Fetch the latest dataframe preview for export",
+                )
+                if st.session_state.pop("_combo_load_trigger", False):
+                    local_load_clicked = True
+
+                delete_armed_clicked = False
+                delete_cancel_clicked = False
+                if st.session_state.get(delete_confirm_key, False):
+                    local_delete_clicked = delete_col.button(
+                        "Confirm delete",
+                        key="delete_data_main_confirm_btn",
+                        type="primary",
+                        use_container_width=True,
+                        help="Confirm deletion of the loaded dataframe/export file.",
+                    )
+                    delete_cancel_clicked = delete_col.button(
+                        "Cancel",
+                        key="delete_data_main_cancel_btn",
+                        type="secondary",
+                        use_container_width=True,
+                    )
+                else:
+                    delete_armed_clicked = delete_col.button(
+                        "DELETE dataframe",
+                        key="delete_data_main",
+                        type="secondary",
+                        use_container_width=True,
+                        help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+                    )
+
+                if _update_delete_confirm_state(
+                    delete_confirm_key,
+                    delete_armed_clicked=delete_armed_clicked,
+                    delete_cancel_clicked=delete_cancel_clicked,
+                ):
+                    _rerun_fragment_or_app()
+
+                undo_delete_clicked = False
+                undo_payload = st.session_state.get(delete_undo_key)
+                if isinstance(undo_payload, dict):
+                    undo_delete_clicked = st.button(
+                        "UNDO last delete dataframe",
+                        key="delete_data_main_undo_btn",
+                        type="secondary",
+                        use_container_width=True,
+                        help="Restore the most recently deleted dataframe preview and file.",
+                    )
+
+                if undo_delete_clicked and isinstance(undo_payload, dict):
+                    restored_file = False
+                    backup_file = undo_payload.get("backup_file")
+                    source_file = undo_payload.get("source_file")
+                    if backup_file and source_file:
+                        backup_path = Path(backup_file)
+                        source_path = Path(source_file)
+                        try:
+                            if backup_path.exists():
+                                source_path.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.move(str(backup_path), str(source_path))
+                                restored_file = True
+                            elif not source_path.exists():
+                                st.warning("Undo could not restore file from disk backup (backup not found).")
+                        except Exception as exc:
+                            st.error(f"Failed to restore deleted file: {exc}")
+
+                    _restore_dataframe_preview_state(undo_payload)
+                    st.session_state["dataframe_deleted"] = False
+                    st.session_state.pop(delete_undo_key, None)
+                    st.session_state.pop(delete_confirm_key, None)
+                    try:
+                        cached_load_df.clear()
+                    except Exception:
+                        pass
+                    try:
+                        find_files.clear()
+                    except Exception:
+                        pass
+                    if restored_file:
+                        st.success("Dataframe delete undone and file restored.")
+                    else:
+                        st.success("Dataframe preview restore completed.")
+                    _rerun_fragment_or_app()
+
+                if cmd:
+                    local_combo_clicked = st.button(
+                        "EXECUTE → LOAD → EXPORT",
+                        key="combo_exec_load_export",
+                        type="primary",
+                        help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
+                        use_container_width=True,
+                    )
+            else:
+                st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
+                st.session_state.pop("_combo_load_trigger", None)
+                st.session_state.pop("_combo_export_trigger", None)
+                st.session_state.pop(delete_confirm_key, None)
+
+            return local_run_clicked, local_load_clicked, local_delete_clicked, local_combo_clicked
+
+        run_clicked, load_clicked, delete_clicked, combo_clicked = _render_run_panel_controls()
 
         if show_run_panel and load_clicked:
             if st.session_state.get("dataframe_deleted"):
@@ -2914,16 +2957,6 @@ if __name__ == "__main__":
         if st.session_state.get("benchmark"):
             st.session_state["_benchmark_expand"] = True
             st.rerun()
-
-    combo_clicked = False
-    if show_run_panel and cmd:
-        combo_clicked = st.button(
-            "EXECUTE → LOAD → EXPORT",
-            key="combo_exec_load_export",
-            type="primary",
-            help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
-            use_container_width=True,
-        )
 
     if show_run_panel and combo_clicked:
         if cmd:

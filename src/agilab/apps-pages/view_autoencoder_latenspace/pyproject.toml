@@ -5,7 +5,7 @@ requires-python = "==3.12.12"
 dependencies = [
     "barviz>=1.2.2",
     "ipython>=9.5.0",
-    "streamlit>=1.49.1",
+    "streamlit>=1.55.0",
     "watchdog>=6.0.0",
     "agi-env",
     "sqlalchemy>=2.0.43",
