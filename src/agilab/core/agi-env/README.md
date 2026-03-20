@@ -1,6 +1,6 @@
 # AGI-ENV
 
-[![PyPI version](https://img.shields.io/pypi/v/agi-env.svg)](https://pypi.org/project/agi-env/)
+[![PyPI version](https://img.shields.io/pypi/v/agi-env.svg?cacheSeconds=300)](https://pypi.org/project/agi-env/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-env.svg)](https://pypi.org/project/agi-env/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-env)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
