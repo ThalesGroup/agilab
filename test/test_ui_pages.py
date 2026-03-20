@@ -11,6 +11,18 @@ from agi_env import AgiEnv
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
 
+
+def _run_pipeline_page_main() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
+    spec = importlib.util.spec_from_file_location("pipeline_page_test_main", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.main()
+
 @pytest.fixture
 def mock_ui_env(tmp_path):
     # Set up temporary directories for apps and config
@@ -448,6 +460,43 @@ def test_experiment_page_missing_openai_key(mock_ui_env):
 
     # The page should still load without crashing
     assert not at.exception
+
+
+def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
+    """Deleting then canceling a step should rerender locally without crashing."""
+    export_root = tmp_path / "export"
+    lab_dir = export_root / "flight"
+    lab_dir.mkdir(parents=True, exist_ok=True)
+    steps_file = lab_dir / "lab_steps.toml"
+    steps_file.write_text(
+        '[[flight]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
+        at = AppTest.from_function(_run_pipeline_page_main, default_timeout=20)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env.init_done = True
+        env.AGILAB_EXPORT_ABS = export_root
+        env.envars["AGI_EXPORT_DIR"] = str(export_root)
+        env.target = "flight"
+        env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+
+        at.session_state["env"] = env
+        at.session_state["flight"] = [0, "", "", "", "", "", 1]
+        at.run()
+        assert not at.exception
+
+        safe_prefix = "flight_lab_steps.toml"
+        at.button(key=f"{safe_prefix}_delete_0").click().run()
+        assert not at.exception
+        assert any(button.key == f"{safe_prefix}_delete_cancel_0" for button in at.button)
+
+        at.button(key=f"{safe_prefix}_delete_cancel_0").click().run()
+        assert not at.exception
+        assert at.text_area(key=f"{safe_prefix}_q_step_0").value == "demo prompt"
+        confirm_state_key = f"{safe_prefix}_confirm_delete_0"
+        assert not at.session_state.filtered_state.get(confirm_state_key, False)
 
 
 def test_edit_page_project_selectbox(mock_ui_env):
