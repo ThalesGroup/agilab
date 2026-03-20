@@ -1,6 +1,6 @@
 # AGI-CLUSTER
 
-[![PyPI version](https://img.shields.io/pypi/v/agi-cluster.svg)](https://pypi.org/project/agi-cluster/)
+[![PyPI version](https://img.shields.io/pypi/v/agi-cluster.svg?cacheSeconds=300)](https://pypi.org/project/agi-cluster/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-cluster.svg)](https://pypi.org/project/agi-cluster/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-cluster)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
