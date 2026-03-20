@@ -39,6 +39,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
+from html.parser import HTMLParser
 
 # third-party bootstrap (install if missing)
 def _ensure_pkgs():
@@ -243,6 +244,20 @@ def assert_pypirc_has(repo_name: str):
         sys.exit(f"ERROR: {p} missing section [{repo_name}]. Add it to use --repo {repo_name}.")
 
 
+def read_cleanup_creds_from_pypirc(repo_name: str) -> tuple[str | None, str | None]:
+    p = pathlib.Path.home() / ".pypirc"
+    if not p.exists():
+        return None, None
+    cfg = configparser.RawConfigParser()
+    cfg.read(p)
+    section = f"{repo_name}_cleanup"
+    if not cfg.has_section(section):
+        return None, None
+    username = (cfg.get(section, "username", fallback="") or "").strip() or None
+    password = (cfg.get(section, "password", fallback="") or "").strip() or None
+    return username, password
+
+
 def load_doc(p: pathlib.Path):
     return toml_parse(p.read_text(encoding="utf-8"))
 
@@ -280,15 +295,39 @@ def sanitize_project_names(paths: List[pathlib.Path]):
 # ---------- Version work ----------
 def pypi_releases(name: str, repo_target: str) -> set[str]:
     url = PYPI_JSON[repo_target].format(name=name)
+    releases: set[str] = set()
+
     try:
         with urllib.request.urlopen(url, timeout=10) as r:
             data = json.load(r) or {}
-        return set((data.get("releases") or {}).keys())
+        releases |= set((data.get("releases") or {}).keys())
     except Exception as e:
-        # Do NOT silently ignore; this commonly leads to version collisions later.
         print(f"[warn] Could not fetch releases for {name} from {url}: {e}")
-        # Return a sentinel to force a .postN bump downstream
-        return {"0.0.0.post0"}
+
+    simple_url = f"https://{'test.' if repo_target == 'testpypi' else ''}pypi.org/simple/{name}/"
+
+    class _SimpleVersionParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.versions: set[str] = set()
+
+        def handle_data(self, data: str) -> None:
+            self.versions |= set(re.findall(r"\d+\.\d+\.\d+(?:\.post\d+)?", data or ""))
+
+    try:
+        with urllib.request.urlopen(simple_url, timeout=10) as r:
+            html = r.read().decode("utf-8", "ignore")
+        parser = _SimpleVersionParser()
+        parser.feed(html)
+        releases |= parser.versions
+    except Exception as e:
+        print(f"[warn] Could not fetch simple index for {name} from {simple_url}: {e}")
+
+    if releases:
+        return releases
+
+    # Do NOT silently ignore; this commonly leads to version collisions later.
+    return {"0.0.0.post0"}
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -601,12 +640,23 @@ def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
     if cfg.repo == "testpypi":
         host = "https://test.pypi.org/"
 
-    # username/password precedence: CLI only
-    cleanup_user = (cfg.cleanup_user or "").strip() or None
-    cleanup_pass = (cfg.cleanup_pass or "").strip() or None
+    pypirc_user, pypirc_pass = read_cleanup_creds_from_pypirc(cfg.repo)
+
+    # precedence: CLI > env > ~/.pypirc cleanup section
+    cleanup_user = (
+        (cfg.cleanup_user or "").strip()
+        or (os.environ.get("PYPI_USERNAME") or "").strip()
+        or pypirc_user
+    )
+    cleanup_pass = (
+        (cfg.cleanup_pass or "").strip()
+        or (os.environ.get("PYPI_CLEANUP_PASSWORD") or "").strip()
+        or (os.environ.get("PYPI_PASSWORD") or "").strip()
+        or pypirc_pass
+    )
 
     if not cleanup_user or not cleanup_pass:
-        print("[cleanup] Skipping: requires --username and --password (web login), tokens won't work here.")
+        print("[cleanup] Skipping: requires cleanup web-login credentials via CLI, env, or ~/.pypirc; tokens won't work here.")
         return
     if cleanup_user == "__token__" or str(cleanup_pass).startswith("pypi-"):
         print("[cleanup] Skipping: cleanup needs real account credentials (not API token).")
