@@ -52,7 +52,8 @@ jobs:
         run: |
           set -e
           rm -f .coverage.agilab coverage-agilab.xml
-          COVERAGE_FILE=.coverage.agilab uv run pytest -q --maxfail=1 --disable-warnings -o addopts='' \
+          export PYTHONPATH="src:src/agilab/core/agi-env/src"
+          COVERAGE_FILE=.coverage.agilab uv run --no-project --with pytest --with pytest-cov --with toml --with packaging python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             -m "not integration" \
             --cov=agilab --cov-report=xml:coverage-agilab.xml \
             --junitxml=test-results/junit.xml \
