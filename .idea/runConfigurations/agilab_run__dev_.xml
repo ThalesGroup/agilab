@@ -15,7 +15,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="RUN_TOOL" value="" />
+    <option name="RUN_TOOL" value="true" />
     <option name="SCRIPT_NAME" value="streamlit" />
     <option name="PARAMETERS" value="run $ProjectFileDir$/src/agilab/About_agilab.py -- --openai-api-key &quot;your-key&quot; --apps-path $ProjectFileDir$/src/agilab/apps" />
     <option name="SHOW_COMMAND_LINE" value="false" />
