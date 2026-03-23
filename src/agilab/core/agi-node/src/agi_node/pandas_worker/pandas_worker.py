@@ -7,7 +7,7 @@
 """
 
 pandas_worker Framework Callback Functions Module
-===============================================
+==================================================
 
 This module provides the `PandasWorker` class, which extends the foundational
 functionalities of `BaseWorker` for processing data using multiprocessing or
@@ -50,7 +50,7 @@ class PandasWorker(BaseWorker):
     PandasWorker Class
     --------------------
 
-    Inherits from :class:`BaseWorker` to provide extended data processing functionalities using pandas.
+    Inherits from ``BaseWorker`` to provide extended data processing functionalities using pandas.
 
     Attributes:
         verbose (int): Verbosity level for logging.
