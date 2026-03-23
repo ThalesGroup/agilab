@@ -32,23 +32,31 @@ jobs:
       should_publish: ${{ steps.gate.outputs.should_publish }}
       reason: ${{ steps.gate.outputs.reason }}
     steps:
-      - name: Decide whether today's publish quota is already used
+      - name: Check daily publish quota
         id: gate
         uses: actions/github-script@v7
         with:
           script: |
-            if (context.eventName === 'workflow_dispatch') {
+            const allow = (reason) => {
               core.setOutput('should_publish', 'true');
-              core.setOutput('reason', 'manual dispatch bypasses daily cap');
+              core.setOutput('reason', reason);
+            };
+
+            const deny = (reason) => {
+              core.setOutput('should_publish', 'false');
+              core.setOutput('reason', reason);
+            };
+
+            if (context.eventName === 'workflow_dispatch') {
+              allow('manual dispatch bypasses daily cap');
               return;
             }
 
             const { owner, repo } = context.repo;
             const branch = context.ref.replace('refs/heads/', '');
-            const currentRunId = context.runId;
             const todayUtc = new Date().toISOString().slice(0, 10);
 
-            const response = await github.rest.actions.listWorkflowRuns({
+            const { data } = await github.rest.actions.listWorkflowRuns({
               owner,
               repo,
               workflow_id: 'docs-publish.yaml',
@@ -57,31 +65,22 @@ jobs:
               per_page: 20,
             });
 
-            const lastSuccessfulRun = response.data.workflow_runs
-              .filter((run) => run.id !== currentRunId && run.conclusion === 'success')
-              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+            const lastSuccessfulRun = data.workflow_runs.find(
+              (run) => run.id !== context.runId && run.conclusion === 'success'
+            );
 
             if (!lastSuccessfulRun) {
-              core.setOutput('should_publish', 'true');
-              core.setOutput('reason', 'no prior successful publish found');
+              allow('no prior successful publish found');
               return;
             }
 
             const lastPublishDay = String(lastSuccessfulRun.created_at).slice(0, 10);
             if (lastPublishDay === todayUtc) {
-              core.setOutput('should_publish', 'false');
-              core.setOutput(
-                'reason',
-                `publish already succeeded today (${lastSuccessfulRun.created_at})`
-              );
+              deny(`publish already succeeded today (${lastSuccessfulRun.created_at})`);
               return;
             }
 
-            core.setOutput('should_publish', 'true');
-            core.setOutput(
-              'reason',
-              `last successful publish was on ${lastSuccessfulRun.created_at}`
-            );
+            allow(`last successful publish was on ${lastSuccessfulRun.created_at}`);
 
       - name: Log publish decision
         run: |
