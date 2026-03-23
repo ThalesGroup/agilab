@@ -858,13 +858,36 @@ def _step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str
     return f"{display_idx + 1}. Step {step_idx + 1}"
 
 
+def _pipeline_export_root(env: Optional[AgiEnv]) -> Path:
+    """Return the effective export root, correcting empty/invalid AGI_EXPORT_DIR values."""
+    home_root = Path(getattr(env, "home_abs", Path.home()) or Path.home()).expanduser().resolve()
+    fallback = (home_root / "export").resolve()
+    raw_candidates: List[Any] = []
+    if env is not None:
+        raw_candidates.append(getattr(env, "AGILAB_EXPORT_ABS", None))
+        raw_candidates.append(getattr(getattr(env, "envars", {}), "get", lambda *_: None)("AGI_EXPORT_DIR"))
+    raw_candidates.append(os.environ.get("AGI_EXPORT_DIR"))
+    for raw in raw_candidates:
+        if raw in (None, ""):
+            continue
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = (home_root / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+        if candidate == home_root:
+            return fallback
+        return candidate
+    return fallback
+
+
 def _module_keys(module: Union[str, Path]) -> List[str]:
     """Return preferred TOML keys for the provided module path."""
     raw_path = Path(module)
     keys: List[str] = []
     env = st.session_state.get("env")
     try:
-        base = Path(env.AGILAB_EXPORT_ABS)  # type: ignore[attr-defined]
+        base = _pipeline_export_root(env)
         candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
         rel = str(candidate.relative_to(base))
         keys.append(rel)
@@ -2004,7 +2027,7 @@ def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
         base: Optional[Path] = None
         if env is not None:
             try:
-                base = Path(env.AGILAB_EXPORT_ABS)
+                base = _pipeline_export_root(env)
             except Exception:  # pragma: no cover - defensive
                 base = None
         if base is None:
@@ -3367,6 +3390,81 @@ def on_lab_change(new_index_page: str) -> None:
         pass
 
 
+def _available_lab_modules(env: AgiEnv, export_root: Path) -> List[str]:
+    """Return lab choices from project directories, not from the home export tree."""
+    modules: List[str] = []
+    try:
+        projects = env.get_projects(  # type: ignore[attr-defined]
+            getattr(env, "apps_path", None),
+            getattr(env, "builtin_apps_path", None),
+            getattr(env, "apps_repository_root", None),
+        )
+        modules.extend(str(project).strip() for project in projects if str(project).strip())
+    except Exception:
+        pass
+    if not modules:
+        modules = [str(module).strip() for module in scan_dir(export_root) if str(module).strip()]
+    seen: set[str] = set()
+    ordered: List[str] = []
+    for module in modules:
+        if module not in seen:
+            ordered.append(module)
+            seen.add(module)
+    return ordered
+
+
+def _normalize_lab_choice(raw_value: Any, modules: List[str]) -> str:
+    """Map persisted/query lab names to the canonical project-directory choice."""
+    if not modules:
+        return ""
+    text = str(raw_value or "").strip()
+    if not text:
+        return ""
+    candidates = [text]
+    path_name = Path(text).name
+    if path_name not in candidates:
+        candidates.append(path_name)
+    if text.endswith("_project"):
+        stem = text.removesuffix("_project")
+        candidates.append(stem)
+        path_stem = Path(stem).name
+        if path_stem not in candidates:
+            candidates.append(path_stem)
+    else:
+        candidates.append(f"{text}_project")
+        if path_name:
+            candidates.append(f"{path_name}_project")
+    for candidate in candidates:
+        if candidate in modules:
+            return candidate
+    candidate_stems = {
+        candidate.removesuffix("_project")
+        for candidate in candidates
+        if candidate
+    }
+    for module in modules:
+        if module.removesuffix("_project") in candidate_stems:
+            return module
+    return ""
+
+
+def _resolve_lab_export_dir(export_root: Path, lab_choice: str) -> Path:
+    """Resolve the export directory that matches a selected project directory."""
+    choice = str(lab_choice or "").strip()
+    if not choice:
+        return export_root.resolve()
+    candidates = [choice]
+    if choice.endswith("_project"):
+        candidates.append(choice.removesuffix("_project"))
+    else:
+        candidates.append(f"{choice}_project")
+    for candidate in candidates:
+        resolved = (export_root / candidate).resolve()
+        if resolved.exists():
+            return resolved
+    return (export_root / choice.removesuffix("_project")).resolve()
+
+
 def open_notebook_in_browser() -> None:
     """Inject JS to open the Jupyter Notebook URL in a new tab."""
     js_code = f"""
@@ -3380,16 +3478,8 @@ def open_notebook_in_browser() -> None:
 def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
-    home_root = Path(env.home_abs)
-    # Fall back to ~/export when env does not expose AGILAB_EXPORT_ABS
-    try:
-        export_root = env.AGILAB_EXPORT_ABS
-    except Exception:
-        export_root = home_root / "export"
-    Agi_export_abs = Path(export_root)
-    if not Agi_export_abs.is_absolute():
-        Agi_export_abs = home_root / Agi_export_abs
-    modules = scan_dir(Agi_export_abs)
+    Agi_export_abs = _pipeline_export_root(env)
+    modules = _available_lab_modules(env, Agi_export_abs)
     if not modules:
         modules = [env.target] if env.target else []
 
@@ -3423,9 +3513,7 @@ def sidebar_controls() -> None:
         ):
             st.session_state.pop(key, None)
 
-    # Drop a top-level "apps" directory when other labs exist; it isn't a valid lab.
-    if len(modules) > 1 and "apps" in modules:
-        modules = [m for m in modules if m != "apps"]
+    modules = [m for m in modules if m != "apps"]
     if not modules:
         modules = ["apps"]
     st.session_state['modules'] = modules
@@ -3498,31 +3586,25 @@ def sidebar_controls() -> None:
         st.session_state.pop("gpt_oss_endpoint", None)
 
     last_active = _load_last_active_app_name(modules)
+    normalized_target = _normalize_lab_choice(env.target, modules)
     if project_changed:
-        persisted_lab = env.target
+        persisted_lab = normalized_target or env.target
     else:
         persisted_lab = (
-            _qp_first("lab_dir_selectbox")
-            or st.session_state.get("lab_dir_selectbox")
-            or st.session_state.get("lab_dir")
-            or last_active
+            _normalize_lab_choice(_qp_first("lab_dir_selectbox"), modules)
+            or _normalize_lab_choice(st.session_state.get("lab_dir_selectbox"), modules)
+            or _normalize_lab_choice(st.session_state.get("lab_dir"), modules)
+            or _normalize_lab_choice(last_active, modules)
+            or normalized_target
             or env.target
         )
 
     if persisted_lab not in modules:
-        # If env.target is a name and not present, try its parent or the first module.
-        fallback = env.target if env.target in modules else None
-        if fallback is None and env.target:
-            try:
-                target_name = Path(env.target).name
-                if target_name in modules:
-                    fallback = target_name
-            except Exception:
-                fallback = None
+        fallback = _normalize_lab_choice(env.target, modules)
         persisted_lab = fallback if fallback in modules else modules[0]
-    elif persisted_lab == "apps" and env.target in modules:
+    elif persisted_lab == "apps" and normalized_target in modules:
         # Avoid selecting the top-level "apps" directory; prefer the active app/target.
-        persisted_lab = env.target
+        persisted_lab = normalized_target
 
     st.session_state["lab_dir"] = st.sidebar.selectbox(
         "Lab directory",
@@ -3533,18 +3615,17 @@ def sidebar_controls() -> None:
     )
 
     steps_file_name = st.session_state["steps_file_name"]
-    export_root = Path(env.AGILAB_EXPORT_ABS).expanduser()
-    if not export_root.is_absolute():
-        export_root = (Path.home() / export_root).resolve()
-    lab_name = Path(st.session_state["lab_dir_selectbox"]).name
-    lab_dir = (export_root / lab_name).resolve()
+    export_root = _pipeline_export_root(env)
+    lab_choice = Path(st.session_state["lab_dir_selectbox"]).name
+    lab_dir = _resolve_lab_export_dir(export_root, lab_choice)
+    lab_dir.mkdir(parents=True, exist_ok=True)
     st.session_state.df_dir = lab_dir
     steps_file = (lab_dir / steps_file_name).resolve()
     st.session_state["steps_file"] = steps_file
 
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
-    lab_root = Path(st.session_state["lab_dir_selectbox"]).name
+    lab_root = lab_dir.name
     steps_files_path = [
         Path(file)
         for file in steps_files
@@ -4226,6 +4307,413 @@ def _orchestrate_snippet_source(entry: Dict[str, Any]) -> str:
         prefix_len = len("Imported snippet:")
         return question[prefix_len:].strip()
     return ""
+
+
+def _pipeline_role_from_question(question: Any) -> str:
+    """Return the first non-empty line of the question as the inferred role."""
+    if not isinstance(question, str):
+        return ""
+    for line in question.splitlines():
+        cleaned = line.strip()
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def _pipeline_step_kind(entry: Dict[str, Any]) -> str:
+    """Infer the execution kind from the saved engine marker."""
+    raw = str(entry.get("R", "") or "").strip().lower()
+    if raw == "agi.install":
+        return "install"
+    if raw == "agi.run":
+        return "run"
+    if raw == "runpy":
+        return "python"
+    return raw or "step"
+
+
+def _pipeline_expr_to_text(node: ast.AST) -> str:
+    """Convert an AST expression to a short display string."""
+    try:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+            left = _pipeline_expr_to_text(node.left)
+            right = _pipeline_expr_to_text(node.right)
+            if left and right:
+                return f"{left} / {right}"
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "str"
+            and len(node.args) == 1
+            and not node.keywords
+        ):
+            return _pipeline_expr_to_text(node.args[0])
+        return ast.unparse(node).strip()
+    except Exception:
+        return ""
+
+
+def _pipeline_extract_app_name(code: str) -> str:
+    """Extract APP = '...' from a step snippet."""
+    if not isinstance(code, str) or not code.strip():
+        return ""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        match = re.search(r'^\s*APP\s*=\s*[\'"]([^\'"]+)[\'"]', code, re.MULTILINE)
+        return match.group(1).strip() if match else ""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "APP":
+                    return _pipeline_expr_to_text(node.value)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == "APP" and node.value is not None:
+                return _pipeline_expr_to_text(node.value)
+    return ""
+
+
+def _pipeline_find_agi_call(code: str) -> Tuple[str, Dict[str, str]]:
+    """Return the AGI call kind and its keyword args inferred from snippet code."""
+    if not isinstance(code, str) or not code.strip():
+        return "", {}
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return "", {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not isinstance(func, ast.Attribute):
+            continue
+        if not isinstance(func.value, ast.Name) or func.value.id != "AGI":
+            continue
+        if func.attr not in {"run", "install"}:
+            continue
+        kwargs: Dict[str, str] = {}
+        for kw in node.keywords:
+            if kw.arg:
+                kwargs[kw.arg] = _pipeline_expr_to_text(kw.value)
+        return func.attr, kwargs
+    return "", {}
+
+
+def _pipeline_group_from_project(project: str) -> str:
+    """Return the compact group suffix derived from the project name."""
+    stem = str(project or "").strip().removesuffix("_project")
+    if not stem:
+        return ""
+    return stem.split("_")[-1]
+
+
+def _pipeline_wrap_text(text: str, width: int) -> str:
+    """Wrap text without truncating it."""
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return ""
+    return textwrap.fill(
+        cleaned,
+        width=width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+
+def _pipeline_graphviz_escape(value: Any) -> str:
+    """Escape a value for Graphviz string attributes."""
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def _pipeline_conceptual_view_candidates(env: Optional[AgiEnv], lab_dir: Optional[Path]) -> List[Path]:
+    """Return candidate locations for an app-provided conceptual pipeline view."""
+    names = ("pipeline_view.dot", "pipeline_view.json")
+    roots: List[Path] = []
+    if env is not None:
+        for raw in (
+            getattr(env, "active_app", None),
+            getattr(env, "app_src", None),
+        ):
+            if raw:
+                try:
+                    roots.append(Path(raw))
+                except Exception:
+                    pass
+    if lab_dir is not None:
+        roots.append(Path(lab_dir))
+
+    candidates: List[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        try:
+            resolved_root = root.expanduser().resolve()
+        except Exception:
+            continue
+        for name in names:
+            candidate = resolved_root / name
+            if candidate not in seen:
+                candidates.append(candidate)
+                seen.add(candidate)
+    return candidates
+
+
+def _pipeline_dot_from_json(payload: Dict[str, Any]) -> str:
+    """Build a Graphviz DOT graph from a small JSON conceptual-view schema."""
+    dot_inline = payload.get("dot")
+    if isinstance(dot_inline, str) and dot_inline.strip():
+        return dot_inline.strip()
+
+    graph_attrs = {
+        "rankdir": str(payload.get("direction", "TB")),
+        "bgcolor": "transparent",
+        "nodesep": str(payload.get("nodesep", "0.24")),
+        "ranksep": str(payload.get("ranksep", "0.45")),
+        "splines": str(payload.get("splines", "polyline")),
+        "concentrate": str(payload.get("concentrate", "true")).lower(),
+    }
+    graph_attrs.update({str(k): str(v) for k, v in (payload.get("graph") or {}).items()})
+    node_defaults = {
+        "shape": "box",
+        "style": "rounded,filled",
+        "color": "#c7d2e4",
+        "fontname": "Helvetica",
+        "fontsize": "10",
+        "penwidth": "1.0",
+        "margin": "0.18,0.10",
+    }
+    node_defaults.update({str(k): str(v) for k, v in (payload.get("node") or {}).items()})
+    edge_defaults = {
+        "fontname": "Helvetica",
+        "fontsize": "9",
+        "color": "#93a4c2",
+    }
+    edge_defaults.update({str(k): str(v) for k, v in (payload.get("edge") or {}).items()})
+
+    def _attrs(attrs: Dict[str, Any]) -> str:
+        items = [f'{key}="{_pipeline_graphviz_escape(value)}"' for key, value in attrs.items()]
+        return ", ".join(items)
+
+    lines = [
+        "digraph PipelineConceptual {",
+        f"  graph [{_attrs(graph_attrs)}];",
+        f"  node [{_attrs(node_defaults)}];",
+        f"  edge [{_attrs(edge_defaults)}];",
+    ]
+    for node in payload.get("nodes", []) or []:
+        if not isinstance(node, dict):
+            continue
+        node_id = str(node.get("id", "")).strip()
+        if not node_id:
+            continue
+        attrs = {str(k): str(v) for k, v in node.items() if k != "id"}
+        lines.append(f"  {node_id} [{_attrs(attrs)}];")
+    for edge in payload.get("edges", []) or []:
+        if not isinstance(edge, dict):
+            continue
+        source = str(edge.get("source", "")).strip()
+        target = str(edge.get("target", "")).strip()
+        if not source or not target:
+            continue
+        attrs = {str(k): str(v) for k, v in edge.items() if k not in {"source", "target"}}
+        attr_suffix = f" [{_attrs(attrs)}]" if attrs else ""
+        lines.append(f"  {source} -> {target}{attr_suffix};")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _load_pipeline_conceptual_dot(env: Optional[AgiEnv], lab_dir: Optional[Path]) -> Tuple[Optional[Path], str]:
+    """Load an app-provided conceptual pipeline view when available."""
+    for candidate in _pipeline_conceptual_view_candidates(env, lab_dir):
+        if not candidate.is_file():
+            continue
+        try:
+            if candidate.suffix.lower() == ".dot":
+                return candidate, candidate.read_text(encoding="utf-8").strip()
+            if candidate.suffix.lower() == ".json":
+                payload = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    dot = _pipeline_dot_from_json(payload).strip()
+                    if dot:
+                        return candidate, dot
+        except Exception as exc:
+            logger.warning(f"Failed to load conceptual pipeline view from {candidate}: {exc}")
+    return None, ""
+
+
+def _pipeline_infer_entry(step_index: int, entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Infer pipeline metadata from a lab step entry."""
+    code = str(entry.get("C", "") or "")
+    role = _pipeline_role_from_question(entry.get("Q", ""))
+    project = _pipeline_extract_app_name(code)
+    agi_call_kind, kwargs = _pipeline_find_agi_call(code)
+    consumes = {key: value for key, value in kwargs.items() if key.endswith("_in")}
+    produces = {key: value for key, value in kwargs.items() if key.endswith("_out")}
+    kind = _pipeline_step_kind(entry)
+    if kind == "step" and agi_call_kind:
+        kind = agi_call_kind
+    group = _pipeline_group_from_project(project)
+    return {
+        "index": step_index,
+        "label": f"{step_index + 1}",
+        "role": role or f"Step {step_index + 1}",
+        "kind": kind,
+        "project": project,
+        "group": group,
+        "consumes": consumes,
+        "produces": produces,
+    }
+
+
+def _pipeline_edge_label(value: str) -> str:
+    """Shorten an inferred artefact path for graph labels."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = text.replace("\\n", " ").replace("\n", " ")
+    return _pipeline_wrap_text(text, width=30)
+
+
+def _pipeline_format_io_items(items: Dict[str, str], redundant_keys: set[str]) -> str:
+    """Format inferred IO items while hiding redundant generic arg names."""
+    rendered: List[str] = []
+    for key, value in items.items():
+        if key in redundant_keys:
+            rendered.append(str(value))
+        else:
+            rendered.append(f"{key}={value}")
+    return ", ".join(rendered)
+
+
+def _pipeline_io_summary(consumes: Dict[str, str], produces: Dict[str, str]) -> str:
+    """Merge inferred inputs/outputs into a single compact IO summary."""
+    def _format_items(items: Dict[str, str], redundant_keys: set[str]) -> str:
+        rendered: List[str] = []
+        for key, value in items.items():
+            if key in redundant_keys:
+                rendered.append(str(value))
+            else:
+                rendered.append(f"{key}={value}")
+        return ", ".join(rendered)
+
+    in_line = "in: " + _format_items(consumes, {"data_in"}) if consumes else "in:"
+    out_line = "out: " + _format_items(produces, {"data_out"}) if produces else "out:"
+    return f"{in_line}\n{out_line}"
+
+
+def _pipeline_graphviz_label(step_meta: Dict[str, Any]) -> str:
+    """Build a compact Graphviz label for a step node."""
+    role = _pipeline_wrap_text(
+        str(step_meta.get("role", "") or f"Step {step_meta.get('index', 0) + 1}"),
+        width=38,
+    )
+    group = str(step_meta.get("group", "") or "")
+    kind = str(step_meta.get("kind", "") or "")
+    parts = [f"{step_meta.get('index', 0) + 1}. {role}"]
+    footer = " · ".join(part for part in (group, kind) if part)
+    if footer:
+        parts.append(_pipeline_wrap_text(footer, width=24))
+    return "\n".join(parts).replace('"', '\\"')
+
+
+def _build_pipeline_graph_data(step_entries: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Infer nodes, sequence edges, and artefact edges for the pipeline view."""
+    nodes = [_pipeline_infer_entry(index, entry) for index, entry in enumerate(step_entries)]
+    artefact_edges: List[Dict[str, Any]] = []
+    produced_by_value: Dict[str, int] = {}
+    for node in nodes:
+        for value in node["produces"].values():
+            value_key = str(value or "").strip()
+            if value_key and value_key not in produced_by_value:
+                produced_by_value[value_key] = int(node["index"])
+    existing_pairs = set()
+    for node in nodes:
+        for value in node["consumes"].values():
+            value_key = str(value or "").strip()
+            if not value_key:
+                continue
+            source_index = produced_by_value.get(value_key)
+            target_index = int(node["index"])
+            if source_index is None or source_index == target_index:
+                continue
+            pair = (source_index, target_index)
+            if pair in existing_pairs:
+                continue
+            existing_pairs.add(pair)
+            artefact_edges.append(
+                {
+                    "source": source_index,
+                    "target": target_index,
+                    "label": _pipeline_edge_label(value_key),
+                }
+            )
+    sequence_edges: List[Dict[str, Any]] = []
+    for source_index in range(max(0, len(nodes) - 1)):
+        pair = (source_index, source_index + 1)
+        if pair in existing_pairs:
+            continue
+        sequence_edges.append({"source": source_index, "target": source_index + 1})
+    return nodes, sequence_edges, artefact_edges
+
+
+def _render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Pipeline view") -> None:
+    """Render an inferred pipeline graph and metadata table inside an expander."""
+    if not step_entries:
+        return
+    nodes, sequence_edges, artefact_edges = _build_pipeline_graph_data(step_entries)
+    with st.expander(title, expanded=False):
+        graph_lines = [
+            "digraph Pipeline {",
+            '  graph [rankdir=TB, bgcolor="transparent", nodesep="0.18", ranksep="0.45", splines=polyline, concentrate=true];',
+            '  node [shape=box, style="rounded,filled", color="#c7d2e4", fontname="Helvetica", fontsize=9, penwidth=1.0, margin="0.34,0.14", width=2.9];',
+            '  edge [fontname="Helvetica", fontsize=8, color="#93a4c2", minlen=1];',
+        ]
+        for node in nodes:
+            node_id = f"step_{node['index']}"
+            if node["kind"] == "install":
+                fill = "#f6f0ff"
+            elif node["kind"] == "run":
+                fill = "#eef8f1"
+            else:
+                fill = "#f6f8fc"
+            graph_lines.append(f'  {node_id} [label="{_pipeline_graphviz_label(node)}", fillcolor="{fill}"];')
+        for edge in sequence_edges:
+            graph_lines.append(
+                f'  step_{edge["source"]} -> step_{edge["target"]} [style=dashed, color="#c5cfdf", arrowhead=vee];'
+            )
+        for edge in artefact_edges:
+            label = str(edge.get("label", "") or "").replace('"', '\\"')
+            label_clause = f', label="{label}"' if label else ""
+            graph_lines.append(
+                f'  step_{edge["source"]} -> step_{edge["target"]} [color="#4f6fbf", penwidth=1.7, arrowhead=vee{label_clause}];'
+            )
+        graph_lines.append("}")
+        st.graphviz_chart("\n".join(graph_lines), use_container_width=False)
+
+        rows = []
+        for node in nodes:
+            rows.append(
+                {
+                    "step": node["label"],
+                    "role": node["role"],
+                    "group": node["group"],
+                    "in": _pipeline_format_io_items(node["consumes"], {"data_in"}),
+                    "out": _pipeline_format_io_items(node["produces"], {"data_out"}),
+                }
+            )
+        st.dataframe(
+            pd.DataFrame(rows),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "step": st.column_config.TextColumn("step", width="small"),
+                "role": st.column_config.TextColumn("role", width="medium"),
+                "group": st.column_config.TextColumn("group", width="small"),
+                "in": st.column_config.TextColumn("in", width="large"),
+                "out": st.column_config.TextColumn("out", width="large"),
+            },
+        )
 
 
 def display_lab_tab(
@@ -5068,6 +5556,16 @@ def display_lab_tab(
                 remove_step(lab_dir, str(step), steps_file, index_page_str)
                 st.rerun()
 
+    _conceptual_source, conceptual_dot = _load_pipeline_conceptual_dot(env, lab_dir)
+    if conceptual_dot:
+        with st.expander("Conceptual view", expanded=False):
+            st.graphviz_chart(conceptual_dot, use_container_width=False)
+
+    _render_pipeline_view(
+        persisted_steps,
+        title="Execution view" if conceptual_dot else "Pipeline view",
+    )
+
     for step, entry in enumerate(persisted_steps):
         _render_pipeline_step_fragment(step, entry)
 
@@ -5582,7 +6080,7 @@ def main() -> None:
         st.session_state.setdefault("mlflow_port", 5000)
         st.session_state.setdefault("lab_selected_venv", "")
 
-        df_dir_def = Path(env.AGILAB_EXPORT_ABS) / env.target
+        df_dir_def = _pipeline_export_root(env) / env.target
         st.session_state.setdefault("steps_file", Path(env.active_app) / STEPS_FILE_NAME)
         st.session_state.setdefault("df_file_out", str(df_dir_def / DEFAULT_DF))
         st.session_state.setdefault("df_file", str(df_dir_def / DEFAULT_DF))
