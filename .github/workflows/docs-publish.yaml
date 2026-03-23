@@ -7,12 +7,14 @@ on:
       - main
     paths:
       - 'docs/source/**'
+      - 'src/agilab/core/**'
       - 'src/agilab/resources/help/**'
       - '.github/workflows/docs-publish.yaml'
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -24,8 +26,72 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
+  publish-gate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.gate.outputs.should_publish }}
+      reason: ${{ steps.gate.outputs.reason }}
+    steps:
+      - name: Decide whether today's publish quota is already used
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const core = require('@actions/core');
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('should_publish', 'true');
+              core.setOutput('reason', 'manual dispatch bypasses daily cap');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const branch = context.ref.replace('refs/heads/', '');
+            const currentRunId = context.runId;
+            const todayUtc = new Date().toISOString().slice(0, 10);
+
+            const response = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'docs-publish.yaml',
+              branch,
+              event: 'push',
+              per_page: 20,
+            });
+
+            const lastSuccessfulRun = response.data.workflow_runs
+              .filter((run) => run.id !== currentRunId && run.conclusion === 'success')
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+            if (!lastSuccessfulRun) {
+              core.setOutput('should_publish', 'true');
+              core.setOutput('reason', 'no prior successful publish found');
+              return;
+            }
+
+            const lastPublishDay = String(lastSuccessfulRun.created_at).slice(0, 10);
+            if (lastPublishDay === todayUtc) {
+              core.setOutput('should_publish', 'false');
+              core.setOutput(
+                'reason',
+                `publish already succeeded today (${lastSuccessfulRun.created_at})`
+              );
+              return;
+            }
+
+            core.setOutput('should_publish', 'true');
+            core.setOutput(
+              'reason',
+              `last successful publish was on ${lastSuccessfulRun.created_at}`
+            );
+
+      - name: Log publish decision
+        run: |
+          echo "should_publish=${{ steps.gate.outputs.should_publish }}"
+          echo "reason=${{ steps.gate.outputs.reason }}"
+
   deploy:
+    needs: publish-gate
+    if: needs.publish-gate.outputs.should_publish == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
