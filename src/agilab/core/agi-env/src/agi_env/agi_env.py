@@ -18,13 +18,13 @@ by installers as well as runtime workers. Supporting free functions provide smal
 parsing and path utilities leveraged during setup.
 
 Notes on singleton and pre‑init behavior
----------------------------------------
+----------------------------------------
 - ``AgiEnv`` behaves as a true singleton. Instance attributes are the source of
   truth; class attribute reads proxy to the singleton instance when initialised.
   Methods and descriptors are never shadowed by the delegation.
 - A small subset of helpers is pre‑init safe and can be used before constructing
   an instance: :func:`AgiEnv.set_env_var`, :func:`AgiEnv.read_agilab_path`,
-  :func:`AgiEnv._build_env`, and :func:`AgiEnv.log_info`. These functions avoid
+  ``AgiEnv._build_env``, and :func:`AgiEnv.log_info`. These functions avoid
   hard failures when the shared logger/environment has not been configured yet.
   Logging in that mode is best‑effort and may fall back to ``print``.
 """
