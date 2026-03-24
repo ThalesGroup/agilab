@@ -203,6 +203,7 @@ testpaths = [
 
 # Make the core packages importable when running pytest from the repo root
 pythonpath = [
+  "src",
   "src/agilab/core/agi-env/src",
   "src/agilab/core/agi-node/src",
   "src/agilab/core/agi-cluster/src",
@@ -230,7 +231,7 @@ addopts = [
 
 [tool.coverage.run]
 branch = true
-source = ["agi_core", "agi_env", "agi_cluster", "agi_node"]
+source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
 
 [tool.coverage.report]
 omit = [
