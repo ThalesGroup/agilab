@@ -70,3 +70,9 @@ Additional host specific keys are supported for worker provisioning (for example
 
 Remember to restart the web interface session after changing ``$HOME/.agilab/.env`` so ``AgiEnv`` picks
 up the new values.
+
+.. note::
+
+   Prefer environment variables or ``$HOME/.agilab/.env`` for secrets such as
+   ``OPENAI_API_KEY`` and ``CLUSTER_CREDENTIALS``. Avoid passing them on the
+   command line because they can leak into shell history and process listings.

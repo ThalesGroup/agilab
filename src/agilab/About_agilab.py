@@ -691,6 +691,7 @@ def main():
     """Initialise the Streamlit app, bootstrap the environment and display the UI."""
     from agi_env.pagelib import get_about_content
     st.set_page_config(
+        page_title="AGILab",
         menu_items=get_about_content(),
         layout="wide",
     )
@@ -717,9 +718,18 @@ def main():
             from agi_env.pagelib import activate_mlflow
             from agi_env import AgiEnv
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
-            parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)",
-                                default=None)
-            parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (optional; can also use OPENAI_API_KEY)", default=None)
+            parser.add_argument(
+                "--cluster-ssh-credentials",
+                type=str,
+                help=argparse.SUPPRESS,
+                default=None,
+            )
+            parser.add_argument(
+                "--openai-api-key",
+                type=str,
+                help=argparse.SUPPRESS,
+                default=None,
+            )
             parser.add_argument("--apps-path", type=str, help="Where you store your apps (default is ./)",
                                 default=None)
             parser.add_argument(
@@ -792,6 +802,15 @@ def main():
                 _refresh_env_from_file(env)
             except Exception:
                 pass
+
+            if args.openai_api_key:
+                st.warning(
+                    "Passing OPENAI_API_KEY via CLI is deprecated. Prefer OPENAI_API_KEY in the environment or ~/.agilab/.env."
+                )
+            if args.cluster_ssh_credentials:
+                st.warning(
+                    "Passing CLUSTER_CREDENTIALS via CLI is deprecated. Prefer CLUSTER_CREDENTIALS in the environment or ~/.agilab/.env."
+                )
 
             openai_api_key = _clean_openai_key(env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key)
             if not openai_api_key:

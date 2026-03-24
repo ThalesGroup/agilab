@@ -909,7 +909,8 @@ def render_cluster_settings_ui():
         cluster_params[param] = updated_value
 
     # -------- per-project cluster toggle seeded from TOML; do not pass value= while also using session_state
-    cluster_enabled_key = f"cluster_enabled__{env.app}"
+    app_state_name = Path(str(env.app)).name if env.app else ""
+    cluster_enabled_key = f"cluster_enabled__{app_state_name}"
     if cluster_enabled_key not in st.session_state:
         st.session_state[cluster_enabled_key] = bool(cluster_params.get("cluster_enabled", False))
     cluster_enabled = st.toggle(
@@ -959,16 +960,16 @@ def render_cluster_settings_ui():
         st.markdown(f"**agi_share_path:** {share_display}")
 
         # per-project widget key & seeding; do not also pass value=
-        scheduler_widget_key = f"cluster_scheduler__{env.app}"
+        scheduler_widget_key = f"cluster_scheduler__{app_state_name}"
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
-        user_widget_key = f"cluster_user__{env.app}"
+        user_widget_key = f"cluster_user__{app_state_name}"
         stored_user = cluster_params.get("user")
         if stored_user in (None, ""):
             stored_user = env.user or ""
         if user_widget_key not in st.session_state:
             st.session_state[user_widget_key] = stored_user
-        auth_toggle_key = f"cluster_use_key__{env.app}"
+        auth_toggle_key = f"cluster_use_key__{app_state_name}"
         auth_method = cluster_params.get("auth_method")
         default_use_key = bool(cluster_params.get("ssh_key_path"))
         if isinstance(auth_method, str):
@@ -1015,7 +1016,7 @@ def render_cluster_settings_ui():
         cluster_params["auth_method"] = "ssh_key" if use_ssh_key else "password"
 
         if use_ssh_key:
-            ssh_key_widget_key = f"cluster_ssh_key__{env.app}"
+            ssh_key_widget_key = f"cluster_ssh_key__{app_state_name}"
             stored_key = cluster_params.get("ssh_key_path")
             if stored_key in (None, ""):
                 stored_key = env.ssh_key_path or ""
@@ -1033,7 +1034,7 @@ def render_cluster_settings_ui():
             if not sanitized_key and stored_key:
                 sanitized_key = str(stored_key).strip()
         else:
-            password_widget_key = f"cluster_password__{env.app}"
+            password_widget_key = f"cluster_password__{app_state_name}"
             stored_password = cluster_params.get("password")
             if stored_password is None:
                 stored_password = env.password or ""
@@ -1073,7 +1074,7 @@ def render_cluster_settings_ui():
             if scheduler:
                 cluster_params["scheduler"] = scheduler
 
-        workers_data_path_widget_key = f"cluster_workers_data_path__{env.app}"
+        workers_data_path_widget_key = f"cluster_workers_data_path__{app_state_name}"
         if workers_data_path_widget_key not in st.session_state:
             st.session_state[workers_data_path_widget_key] = cluster_params.get("workers_data_path", "")
 
@@ -1086,7 +1087,7 @@ def render_cluster_settings_ui():
         if workers_data_path_input:
             cluster_params["workers_data_path"] = workers_data_path_input
 
-        workers_widget_key = f"cluster_workers__{env.app}"
+        workers_widget_key = f"cluster_workers__{app_state_name}"
         workers_dict = cluster_params.get("workers", {})
         if workers_widget_key not in st.session_state:
             st.session_state[workers_widget_key] = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
@@ -1479,7 +1480,7 @@ async def page():
 
     st.session_state["_env"] = env
 
-    st.set_page_config(layout="wide", menu_items=get_about_content())
+    st.set_page_config(page_title="AGILab ORCHESTRATE", layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
     render_logo()
 
@@ -1640,7 +1641,7 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    with st.expander("Do deployment"):
+    with st.expander("Do deployment", expanded=True):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
@@ -3012,10 +3013,10 @@ if __name__ == "__main__":
             ]
 
             if ("export_tab_previous_project" not in st.session_state or
-                    st.session_state.export_tab_previous_project != env.app or
+                    st.session_state.export_tab_previous_project != app_state_name or
                     st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
 
-                st.session_state.export_tab_previous_project = env.app
+                st.session_state.export_tab_previous_project = app_state_name
                 st.session_state.df_cols = loaded_df.columns.tolist()
                 st.session_state.selected_cols = loaded_df.columns.tolist()
                 st.session_state.check_all = True
