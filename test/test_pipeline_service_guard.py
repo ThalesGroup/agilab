@@ -16,8 +16,17 @@ def _load_pipeline_module():
     return module
 
 
+def _load_runtime_module():
+    module_path = Path("src/agilab/pipeline_runtime.py")
+    spec = importlib.util.spec_from_file_location("agilab_pipeline_runtime_tests", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_safe_service_template_contains_guarded_start(tmp_path):
-    module = _load_pipeline_module()
+    module = _load_runtime_module()
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
         """
@@ -45,7 +54,10 @@ data_in = "in.csv"
         app="flight_project",
     )
 
-    content = module._safe_service_start_template(env)
+    content = module.safe_service_start_template(
+        env,
+        "# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START",
+    )
     assert "action=\"status\"" in content
     assert "state in {\"running\", \"degraded\"}" in content
     assert "action=\"stop\"" in content
@@ -55,10 +67,10 @@ data_in = "in.csv"
 
 
 def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
-    module = _load_pipeline_module()
+    module = _load_runtime_module()
     steps_file = tmp_path / "lab_steps.toml"
     steps_file.write_text("", encoding="utf-8")
-    template_path = tmp_path / module.SAFE_SERVICE_START_TEMPLATE_FILENAME
+    template_path = tmp_path / "AGI_serve_safe_start_template.py"
     manual_content = "# custom user template\nprint('manual')\n"
     template_path.write_text(manual_content, encoding="utf-8")
 
@@ -69,7 +81,13 @@ def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
     )
     env.app_settings_file.write_text("", encoding="utf-8")
 
-    written_path = module._ensure_safe_service_template(env, steps_file)
+    written_path = module.ensure_safe_service_template(
+        env,
+        steps_file,
+        template_filename="AGI_serve_safe_start_template.py",
+        marker="# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START",
+        debug_log=lambda *args, **kwargs: None,
+    )
     assert written_path == template_path
     assert template_path.read_text(encoding="utf-8") == manual_content
 
