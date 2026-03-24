@@ -287,30 +287,38 @@ Use this rule of thumb:
 
 Use both paths, because they serve different purposes:
 
-- **Quick popularity poll** in GitHub Discussions
-  - Create or answer a poll: <https://github.com/ThalesGroup/agilab/discussions/new?category=polls>
-  - Browse existing poll discussions: <https://github.com/ThalesGroup/agilab/discussions/categories/polls>
-- **Structured vote intake** in GitHub Issues
-  - Submit a vote: <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
-  - Browse submitted votes: <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+in%3Atitle+%22%5BRoadmap+vote%5D%22>
+1. Quick popularity signal in GitHub Discussions
+   - Create or answer a poll: <https://github.com/ThalesGroup/agilab/discussions/new?category=polls>
+   - Browse existing poll discussions: <https://github.com/ThalesGroup/agilab/discussions/categories/polls>
+2. Structured roadmap vote in GitHub Issues
+   - Submit a vote: <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
+   - Browse submitted votes: <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+in%3Atitle+%22%5BRoadmap+vote%5D%22>
+3. Open roadmap discussion in Issues
+   - Central roadmap thread: <https://github.com/ThalesGroup/agilab/issues/2>
+   - Use this thread if you want visible engineering discussion in the normal issue workflow.
 
-If the `roadmap` label is not visible yet in GitHub, the issue form still
-works. The repository workflow will create or update that label on the next
-successful run.
+### Comment template for `issues/2`
 
-Suggested poll question:
+```text
+Vote: <one option>
+Why: <why this matters now>
+Expected value: <product / engineering / user impact>
+Constraints or dependencies: <blocking items, staffing, sequencing>
+```
 
-> What should AGILab prioritize next?
-
-Suggested poll options:
+### Current candidate priorities
 
 - Experiment Cockpit
 - Evidence / Release View
 - Scenario Playback View
+- Connector framework hardening and external integrations
 - Elastic/OpenSearch + Grafana
 - OpenSearch + OpenSearch Dashboards
 - Postgres + Superset
-- Connector framework hardening and external integrations
+
+If the `roadmap` label is not visible yet in GitHub, the issue form still
+works. The repository workflow will create or update that label on the next
+successful run.
 
 ## Reference URLs
 
