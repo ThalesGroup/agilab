@@ -214,16 +214,24 @@ Use this rule of thumb:
 
 ## Final consolidated poll
 
-The poll is routed through GitHub issues in the canonical repository.
+Use both paths, because they serve different purposes:
 
-- Submit a vote: <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
-- Browse submitted votes: <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+in%3Atitle+%22%5BRoadmap+vote%5D%22>
+- **Quick popularity poll** in GitHub Discussions
+  - Create or answer a poll: <https://github.com/ThalesGroup/agilab/discussions/new?category=polls>
+  - Browse existing poll discussions: <https://github.com/ThalesGroup/agilab/discussions/categories/polls>
+- **Structured vote intake** in GitHub Issues
+  - Submit a vote: <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
+  - Browse submitted votes: <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+in%3Atitle+%22%5BRoadmap+vote%5D%22>
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
 works. The repository workflow will create or update that label on the next
 successful run.
 
-Available choices:
+Suggested poll question:
+
+> What should AGILab prioritize next?
+
+Suggested poll options:
 
 - Experiment Cockpit
 - Evidence / Release View
