@@ -1648,19 +1648,25 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def locate_agilab_installation(verbose=False):
         """Attempt to locate the installed AGILab package path on disk."""
 
-        base_dir: Path | None = None
+        try:
+            spec = importlib.util.find_spec("agilab")
+        except ModuleNotFoundError:
+            spec = None
 
-        for p in sys.path_importer_cache:
-            if isinstance(p, str) and p.endswith("agi_env"):
-                base_dir = Path(p)
+        if spec is not None and spec.origin:
+            agilab_root = Path(spec.origin).resolve().parent
+            if (agilab_root / "apps").exists():
+                return agilab_root
 
-        if base_dir is None:
-            base_dir = Path(__file__).resolve().parents[2] / "agi_env"
-
-        before, sep, _ = str(base_dir).rpartition("agilab")
-        candidate_repo = Path(before) / sep if sep else base_dir.parent
+        base_dir = Path(__file__).resolve().parents[2] / "agi_env"
+        candidate_repo = Path(__file__).resolve().parents[4]
         if (candidate_repo / "apps").exists():
             return candidate_repo
+
+        before, sep, _ = str(base_dir).rpartition("agilab")
+        fallback = Path(before) / sep if sep else base_dir.parent
+        if (fallback / "apps").exists():
+            return fallback
         return base_dir.parent
 
     # Backwards-compatible alias kept for older tests and scripts
@@ -2763,7 +2769,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if requested_name == current_name:
             return
 
-        apps_path = getattr(self, "apps_path", None) or AgiEnv.apps_path
+        apps_path = None
+        current_app = getattr(self, "app", None)
+        try:
+            current_app_path = Path(str(current_app))
+            if current_app_path.name:
+                apps_path = current_app_path.parent
+        except Exception:
+            apps_path = None
+
+        if apps_path is None:
+            apps_path = getattr(self, "apps_path", None) or AgiEnv.apps_path
         if apps_path is None:
             raise RuntimeError("apps_path is not configured on AgiEnv")
 

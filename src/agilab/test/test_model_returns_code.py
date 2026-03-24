@@ -84,7 +84,7 @@ def test_model_returns_fenced_python_code_for_savgol():
         resp = client.chat.completions.create(model=model, messages=messages)
     except Exception as exc:
         warn_msg = (
-            f"OpenAI chat.completions request failed: {exc}; OPENAI_API_KEY={api_key}."
+            f"OpenAI chat.completions request failed: {exc}; OPENAI_API_KEY=<redacted>."
             " Skipping assertion."
         )
         warnings.warn(warn_msg, stacklevel=1)
@@ -95,7 +95,7 @@ def test_model_returns_fenced_python_code_for_savgol():
     if not code:
         warn_msg = (
             "Model did not return fenced Python code; skipping assertion. "
-            f"OPENAI_API_KEY={api_key}"
+            "OPENAI_API_KEY=<redacted>"
         )
         warnings.warn(warn_msg, stacklevel=1)
         return

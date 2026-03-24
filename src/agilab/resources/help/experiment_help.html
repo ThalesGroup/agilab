@@ -509,12 +509,9 @@ HISTORY</label><div class="sd-tab-content docutils">
   <li><strong>Per-session only</strong>
     <pre><code>export OPENAI_API_KEY=sk-your-key</code></pre>
   </li>
-  <li><strong>One-off (dev launch)</strong>
-    <pre><code>uv run streamlit run src/agilab/About_agilab.py -- --openai-api-key "sk-your-key" --apps-path src/agilab/apps</code></pre>
-  </li>
 </ul>
 
-<p>From inside the Experiment page, if your key is missing/invalid, an inline helper lets you paste and save it securely; this writes to <code>~/.agilab/.env</code> and reloads the page.</p>
+<p>Avoid passing API keys on the command line because they leak into shell history and process listings. From inside the Experiment page, if your key is missing or invalid, an inline helper lets you paste and save it securely; this writes to <code>~/.agilab/.env</code> and reloads the page.</p>
 </section>
 </section>
 

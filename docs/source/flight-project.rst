@@ -84,6 +84,7 @@ API Reference
 .. automodule:: flight.flight_args
    :members:
    :undoc-members:
+   :exclude-members: model_json_schema
    :show-inheritance:
 
 .. image:: diagrams/classes_flight_args.svg

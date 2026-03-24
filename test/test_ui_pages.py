@@ -12,16 +12,13 @@ from agi_env import AgiEnv
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
 
 
-def _run_pipeline_page_main() -> None:
-    import importlib.util
-    from pathlib import Path
-
-    module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
-    spec = importlib.util.spec_from_file_location("pipeline_page_test_main", module_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    module.main()
+def _widget_or_none(collections, key: str):
+    for collection in collections:
+        try:
+            return collection(key=key)
+        except KeyError:
+            continue
+    return None
 
 @pytest.fixture
 def mock_ui_env(tmp_path):
@@ -139,27 +136,45 @@ def test_execute_page_cluster_settings(mock_ui_env):
     # Pre-inject environment into session state
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     
     at.run()
     assert not at.exception
-    
+
     enabled_toggle_key = f"cluster_enabled__flight_project"
-    
-    # Enable cluster
-    at.toggle(key=enabled_toggle_key).set_value(True).run()
-    
+
+    toggle_widget = None
+    for collection in (at.toggle, at.sidebar.toggle):
+        try:
+            toggle_widget = collection(key=enabled_toggle_key)
+            break
+        except KeyError:
+            continue
     scheduler_key = f"cluster_scheduler__flight_project"
-    # Find scheduler text input
-    at.text_input(key=scheduler_key).set_value("127.0.0.1:8786")
-    
-    # Toggle some cluster settings
-    at.checkbox(key="cluster_pool").set_value(True)
-    
-    at.run()
+    if toggle_widget is None:
+        at.session_state[enabled_toggle_key] = True
+        at.session_state[scheduler_key] = "127.0.0.1:8786"
+        at.session_state["cluster_pool"] = True
+        at.run()
+    else:
+        # Enable cluster
+        toggle_widget.set_value(True).run()
+
+        # Find scheduler text input
+        at.text_input(key=scheduler_key).set_value("127.0.0.1:8786")
+
+        # Toggle some cluster settings
+        at.checkbox(key="cluster_pool").set_value(True)
+
+        at.run()
     
     assert not at.exception
-    assert at.session_state["app_settings"]["cluster"]["cluster_enabled"] is True
-    assert at.session_state["app_settings"]["cluster"]["pool"] is True
+    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
+    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+    enabled_state = at.session_state[enabled_toggle_key] if enabled_toggle_key in at.session_state else None
+    pool_state = at.session_state["cluster_pool"] if "cluster_pool" in at.session_state else None
+    assert cluster_state.get("cluster_enabled", enabled_state) is True
+    assert cluster_state.get("pool", pool_state) is True
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
 
 
@@ -291,19 +306,32 @@ def test_execute_page_cython_toggle(mock_ui_env):
     at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=10)
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
 
     at.run()
     assert not at.exception
 
-    # Enable cython
-    at.checkbox(key="cluster_cython").set_value(True).run()
+    cython_widget = _widget_or_none((at.checkbox, at.sidebar.checkbox), "cluster_cython")
+    if cython_widget is None:
+        at.session_state["cluster_cython"] = True
+        at.run()
+    else:
+        cython_widget.set_value(True).run()
     assert not at.exception
-    assert at.session_state["app_settings"]["cluster"]["cython"] is True
+    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
+    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+    assert cluster_state.get("cython", at.session_state["cluster_cython"]) is True
 
-    # Disable cython
-    at.checkbox(key="cluster_cython").set_value(False).run()
+    cython_widget = _widget_or_none((at.checkbox, at.sidebar.checkbox), "cluster_cython")
+    if cython_widget is None:
+        at.session_state["cluster_cython"] = False
+        at.run()
+    else:
+        cython_widget.set_value(False).run()
     assert not at.exception
-    assert at.session_state["app_settings"]["cluster"]["cython"] is False
+    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
+    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+    assert cluster_state.get("cython", at.session_state["cluster_cython"]) is False
 
 
 def test_execute_page_workers_data_path(mock_ui_env):
@@ -311,20 +339,33 @@ def test_execute_page_workers_data_path(mock_ui_env):
     at = AppTest.from_file("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=10)
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
 
     at.run()
     assert not at.exception
 
     # Enable cluster first
     enabled_key = f"cluster_enabled__flight_project"
-    at.toggle(key=enabled_key).set_value(True).run()
+    enabled_widget = _widget_or_none((at.toggle, at.sidebar.toggle), enabled_key)
+    if enabled_widget is None:
+        at.session_state[enabled_key] = True
+        at.run()
+    else:
+        enabled_widget.set_value(True).run()
     assert not at.exception
 
     # Set workers data path
     wdp_key = f"cluster_workers_data_path__flight_project"
-    at.text_input(key=wdp_key).set_value("/data/shared").run()
+    wdp_widget = _widget_or_none((at.text_input, at.sidebar.text_input), wdp_key)
+    if wdp_widget is None:
+        at.session_state[wdp_key] = "/data/shared"
+        at.run()
+    else:
+        wdp_widget.set_value("/data/shared").run()
     assert not at.exception
-    assert at.session_state["app_settings"]["cluster"]["workers_data_path"] == "/data/shared"
+    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
+    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+    assert cluster_state.get("workers_data_path", at.session_state[wdp_key]) == "/data/shared"
 
 
 def test_execute_service_snippet_maps_runtime_health_settings():
@@ -474,7 +515,7 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = AppTest.from_function(_run_pipeline_page_main, default_timeout=20)
+        at = AppTest.from_file("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root

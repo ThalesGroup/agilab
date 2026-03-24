@@ -62,7 +62,7 @@ def render_form(model: BaseModel) -> dict[str, Any]:
     from pathlib import Path as _Path
 
     values: dict[str, Any] = {}
-    fields = model.model_fields
+    fields = type(model).model_fields
 
     for name, field in fields.items():
         annotation = field.annotation

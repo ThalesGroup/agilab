@@ -70,10 +70,10 @@ def main():
         description="Run AGILAB application with custom options."
     )
     parser.add_argument(
-        "--cluster-ssh-credentials", type=str, help="Cluster account user:password", default=None
+        "--cluster-ssh-credentials", type=str, help=argparse.SUPPRESS, default=None
     )
     parser.add_argument(
-        "--openai-api-key", type=str, help="OpenAI API key", default=None
+        "--openai-api-key", type=str, help=argparse.SUPPRESS, default=None
     )
     parser.add_argument(
         "--apps-path", type=str, help="Where you store your apps (default is ./)",
@@ -94,13 +94,13 @@ def main():
 
     resolved_apps_path = _resolve_apps_path(args.apps_path)
 
-    # SSH credentials are optional at wrapper level; pass through if provided.
+    # Keep legacy CLI support for compatibility, but move secrets to env vars
+    # rather than forwarding them in the Streamlit child argv.
     if args.cluster_ssh_credentials:
-        custom_args.extend(["--cluster-ssh-credentials", args.cluster_ssh_credentials])
+        os.environ["CLUSTER_CREDENTIALS"] = args.cluster_ssh_credentials
 
-    # OpenAI API key is optional at wrapper level; pass through if provided.
     if args.openai_api_key:
-        custom_args.extend(["--openai-api-key", args.openai_api_key])
+        os.environ["OPENAI_API_KEY"] = args.openai_api_key
 
     if resolved_apps_path:
         custom_args.extend(["--apps-path", resolved_apps_path])

@@ -60,15 +60,6 @@ class FlightArgs(BaseModel):
             return Path(value)
         raise TypeError("data_in must be a string or Path value")
 
-    @field_validator("data_in", mode="before")
-    @classmethod
-    def _coerce_data_in(cls, value: Any) -> Path:
-        if isinstance(value, Path):
-            return value
-        if isinstance(value, str):
-            return Path(value)
-        raise TypeError("data_in must be a string or Path value")
-
     @field_validator("data_out", mode="before")
     @classmethod
     def _coerce_data_out(cls, value: Any) -> Path | None:
@@ -261,4 +252,3 @@ __all__ = [
     "load_args_from_toml",
     "merge_args",
 ]
-
