@@ -370,7 +370,7 @@ def test_execute_page_workers_data_path(mock_ui_env):
 
 def test_execute_service_snippet_maps_runtime_health_settings():
     """Service snippet template must forward runtime heartbeat/cleanup settings."""
-    source = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py").read_text(encoding="utf-8")
+    source = Path("src/agilab/orchestrate_services.py").read_text(encoding="utf-8")
     assert 'heartbeat_timeout={float(service_heartbeat_timeout)}' in source
     assert 'cleanup_done_ttl_sec={float(service_cleanup_done_ttl_hours) * 3600.0}' in source
     assert 'cleanup_failed_ttl_sec={float(service_cleanup_failed_ttl_hours) * 3600.0}' in source
