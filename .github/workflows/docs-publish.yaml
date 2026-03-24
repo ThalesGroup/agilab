@@ -26,70 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish-gate:
-    runs-on: ubuntu-latest
-    outputs:
-      should_publish: ${{ steps.gate.outputs.should_publish }}
-      reason: ${{ steps.gate.outputs.reason }}
-    steps:
-      - name: Check daily publish quota
-        id: gate
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const allow = (reason) => {
-              core.setOutput('should_publish', 'true');
-              core.setOutput('reason', reason);
-            };
-
-            const deny = (reason) => {
-              core.setOutput('should_publish', 'false');
-              core.setOutput('reason', reason);
-            };
-
-            if (context.eventName === 'workflow_dispatch') {
-              allow('manual dispatch bypasses daily cap');
-              return;
-            }
-
-            const { owner, repo } = context.repo;
-            const branch = context.ref.replace('refs/heads/', '');
-            const todayUtc = new Date().toISOString().slice(0, 10);
-
-            const { data } = await github.rest.actions.listWorkflowRuns({
-              owner,
-              repo,
-              workflow_id: 'docs-publish.yaml',
-              branch,
-              event: 'push',
-              per_page: 20,
-            });
-
-            const lastSuccessfulRun = data.workflow_runs.find(
-              (run) => run.id !== context.runId && run.conclusion === 'success'
-            );
-
-            if (!lastSuccessfulRun) {
-              allow('no prior successful publish found');
-              return;
-            }
-
-            const lastPublishDay = String(lastSuccessfulRun.created_at).slice(0, 10);
-            if (lastPublishDay === todayUtc) {
-              deny(`publish already succeeded today (${lastSuccessfulRun.created_at})`);
-              return;
-            }
-
-            allow(`last successful publish was on ${lastSuccessfulRun.created_at}`);
-
-      - name: Log publish decision
-        run: |
-          echo "should_publish=${{ steps.gate.outputs.should_publish }}"
-          echo "reason=${{ steps.gate.outputs.reason }}"
-
   deploy:
-    needs: publish-gate
-    if: needs.publish-gate.outputs.should_publish == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
