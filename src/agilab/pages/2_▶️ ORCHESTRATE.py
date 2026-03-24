@@ -48,6 +48,24 @@ except ModuleNotFoundError:
     workload_barchart = _orchestrate_distribution_module.workload_barchart
 
 try:
+    from agilab.orchestrate_services import (
+        OrchestrateServiceDeps,
+        render_service_panel,
+    )
+except ModuleNotFoundError:
+    _orchestrate_services_path = Path(__file__).resolve().parents[1] / "orchestrate_services.py"
+    _orchestrate_services_spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_services_fallback",
+        _orchestrate_services_path,
+    )
+    if _orchestrate_services_spec is None or _orchestrate_services_spec.loader is None:
+        raise
+    _orchestrate_services_module = importlib.util.module_from_spec(_orchestrate_services_spec)
+    _orchestrate_services_spec.loader.exec_module(_orchestrate_services_module)
+    OrchestrateServiceDeps = _orchestrate_services_module.OrchestrateServiceDeps
+    render_service_panel = _orchestrate_services_module.render_service_panel
+
+try:
     from agilab.orchestrate_execute import (
         OrchestrateExecuteDeps,
         render_execute_section,
@@ -1546,476 +1564,28 @@ if __name__ == "__main__":
                         st.warning(f"Error decoding JSON: {e}")
 
         if show_submit_panel:
-            st.session_state.setdefault("service_log_cache", "")
-            st.session_state.setdefault("service_status_cache", "idle")
-            st.session_state.setdefault("service_poll_interval", 1.0)
-            st.session_state.setdefault("service_stop_timeout", 30.0)
-            st.session_state.setdefault("service_shutdown_on_stop", True)
-            st.session_state.setdefault("service_heartbeat_timeout", 10.0)
-            st.session_state.setdefault("service_cleanup_done_ttl_hours", 168.0)
-            st.session_state.setdefault("service_cleanup_failed_ttl_hours", 336.0)
-            st.session_state.setdefault("service_cleanup_heartbeat_ttl_hours", 24.0)
-            st.session_state.setdefault("service_cleanup_done_max_files", 2000)
-            st.session_state.setdefault("service_cleanup_failed_max_files", 2000)
-            st.session_state.setdefault("service_cleanup_heartbeat_max_files", 1000)
-            st.session_state.setdefault("service_health_cache", [])
-
-            with st.expander("Service mode (persistent workers)", expanded=False):
-                service_enabled = bool(cluster_params.get("cluster_enabled", False))
-                if not service_enabled:
-                    st.info("Enable Cluster in deployment settings before starting service mode.")
-
-                service_mode = (
-                    int(cluster_params.get("pool", False))
-                    + int(cluster_params.get("cython", False)) * 2
-                    + int(service_enabled) * 4
-                    + int(cluster_params.get("rapids", False)) * 8
-                )
-
-                service_poll_interval = st.number_input(
-                    "Service poll interval (seconds)",
-                    min_value=0.0,
-                    value=float(st.session_state.get("service_poll_interval", 1.0)),
-                    step=0.1,
-                    key="service_poll_interval",
-                    disabled=not service_enabled,
-                    help="Used when worker loop does not handle stop_event directly.",
-                )
-                service_stop_timeout = st.number_input(
-                    "Service stop timeout (seconds)",
-                    min_value=0.0,
-                    value=float(st.session_state.get("service_stop_timeout", 30.0)),
-                    step=1.0,
-                    key="service_stop_timeout",
-                    disabled=not service_enabled,
-                    help="Maximum wait time for worker service loops to stop.",
-                )
-                service_shutdown_on_stop = st.toggle(
-                    "Shutdown cluster on STOP",
-                    value=bool(st.session_state.get("service_shutdown_on_stop", True)),
-                    key="service_shutdown_on_stop",
-                    disabled=not service_enabled,
-                )
-                service_heartbeat_timeout = st.number_input(
-                    "Heartbeat timeout (seconds)",
-                    min_value=0.1,
-                    value=float(st.session_state.get("service_heartbeat_timeout", 10.0)),
-                    step=0.5,
-                    key="service_heartbeat_timeout",
-                    disabled=not service_enabled,
-                    help="Worker health timeout before auto-restart is triggered.",
-                )
-                with st.expander("Retention policy", expanded=False):
-                    service_cleanup_done_ttl_hours = st.number_input(
-                        "Done artifacts TTL (hours)",
-                        min_value=0.0,
-                        value=float(st.session_state.get("service_cleanup_done_ttl_hours", 168.0)),
-                        step=1.0,
-                        key="service_cleanup_done_ttl_hours",
-                        disabled=not service_enabled,
-                    )
-                    service_cleanup_failed_ttl_hours = st.number_input(
-                        "Failed artifacts TTL (hours)",
-                        min_value=0.0,
-                        value=float(st.session_state.get("service_cleanup_failed_ttl_hours", 336.0)),
-                        step=1.0,
-                        key="service_cleanup_failed_ttl_hours",
-                        disabled=not service_enabled,
-                    )
-                    service_cleanup_heartbeat_ttl_hours = st.number_input(
-                        "Heartbeat artifacts TTL (hours)",
-                        min_value=0.0,
-                        value=float(st.session_state.get("service_cleanup_heartbeat_ttl_hours", 24.0)),
-                        step=1.0,
-                        key="service_cleanup_heartbeat_ttl_hours",
-                        disabled=not service_enabled,
-                    )
-                    service_cleanup_done_max_files = st.number_input(
-                        "Done artifacts max files",
-                        min_value=0,
-                        value=int(st.session_state.get("service_cleanup_done_max_files", 2000)),
-                        step=100,
-                        key="service_cleanup_done_max_files",
-                        disabled=not service_enabled,
-                    )
-                    service_cleanup_failed_max_files = st.number_input(
-                        "Failed artifacts max files",
-                        min_value=0,
-                        value=int(st.session_state.get("service_cleanup_failed_max_files", 2000)),
-                        step=100,
-                        key="service_cleanup_failed_max_files",
-                        disabled=not service_enabled,
-                    )
-                    service_cleanup_heartbeat_max_files = st.number_input(
-                        "Heartbeat artifacts max files",
-                        min_value=0,
-                        value=int(st.session_state.get("service_cleanup_heartbeat_max_files", 1000)),
-                        step=100,
-                        key="service_cleanup_heartbeat_max_files",
-                        disabled=not service_enabled,
-                    )
-
-                service_health_defaults = {
-                    "allow_idle": False,
-                    "max_unhealthy": 0,
-                    "max_restart_rate": 0.25,
-                }
-                service_health_settings = cluster_params.get("service_health", {})
-                if isinstance(service_health_settings, dict):
-                    service_health_defaults["allow_idle"] = _coerce_bool_setting(
-                        service_health_settings.get("allow_idle"),
-                        service_health_defaults["allow_idle"],
-                    )
-                    service_health_defaults["max_unhealthy"] = _coerce_int_setting(
-                        service_health_settings.get("max_unhealthy"),
-                        service_health_defaults["max_unhealthy"],
-                        minimum=0,
-                    )
-                    service_health_defaults["max_restart_rate"] = _coerce_float_setting(
-                        service_health_settings.get("max_restart_rate"),
-                        service_health_defaults["max_restart_rate"],
-                        minimum=0.0,
-                        maximum=1.0,
-                    )
-
-                gate_allow_idle_key = f"service_health_allow_idle__{env.app}"
-                gate_max_unhealthy_key = f"service_health_max_unhealthy__{env.app}"
-                gate_max_restart_rate_key = f"service_health_max_restart_rate__{env.app}"
-                if gate_allow_idle_key not in st.session_state:
-                    st.session_state[gate_allow_idle_key] = service_health_defaults["allow_idle"]
-                if gate_max_unhealthy_key not in st.session_state:
-                    st.session_state[gate_max_unhealthy_key] = service_health_defaults["max_unhealthy"]
-                if gate_max_restart_rate_key not in st.session_state:
-                    st.session_state[gate_max_restart_rate_key] = service_health_defaults["max_restart_rate"]
-
-                with st.expander("Health gate (SLA)", expanded=False):
-                    st.caption("Used by the one-click HEALTH gate action and persisted in app_settings.toml.")
-                    service_health_allow_idle = st.toggle(
-                        "Allow idle status",
-                        key=gate_allow_idle_key,
-                        disabled=not service_enabled,
-                    )
-                    service_health_max_unhealthy = st.number_input(
-                        "Max unhealthy workers",
-                        min_value=0,
-                        value=int(st.session_state.get(gate_max_unhealthy_key, 0)),
-                        step=1,
-                        key=gate_max_unhealthy_key,
-                        disabled=not service_enabled,
-                    )
-                    service_health_max_restart_rate = st.number_input(
-                        "Max restart rate (0.0-1.0)",
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=float(st.session_state.get(gate_max_restart_rate_key, 0.25)),
-                        step=0.05,
-                        key=gate_max_restart_rate_key,
-                        disabled=not service_enabled,
-                    )
-
-                updated_service_health_settings = {
-                    "allow_idle": bool(service_health_allow_idle),
-                    "max_unhealthy": int(service_health_max_unhealthy),
-                    "max_restart_rate": float(service_health_max_restart_rate),
-                }
-                if cluster_params.get("service_health") != updated_service_health_settings:
-                    cluster_params["service_health"] = updated_service_health_settings
-                    st.session_state.app_settings["cluster"] = cluster_params
-                    st.session_state.app_settings = _write_app_settings_toml(
-                        env.app_settings_file,
-                        st.session_state.app_settings,
-                    )
-                    try:
-                        load_toml_file.clear()
-                    except Exception:
-                        pass
-
-                st.caption(f"Service status: `{st.session_state.get('service_status_cache', 'idle')}`")
-
-                def _build_service_snippet(service_action: str) -> str:
-                    return textwrap.dedent(f"""
-    import asyncio
-    from pathlib import Path
-    from agi_cluster.agi_distributor import AGI
-    from agi_env import AgiEnv
-
-    APPS_PATH = "{env.apps_path}"
-    APP = "{env.app}"
-
-    async def main():
-        app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={verbose})
-        res = await AGI.serve(
-            app_env,
-            action="{service_action}",
-            mode={service_mode},
-            scheduler={scheduler},
-            workers={workers},
-            poll_interval={float(service_poll_interval)},
-            shutdown_on_stop={bool(service_shutdown_on_stop)},
-            stop_timeout={float(service_stop_timeout)},
-            heartbeat_timeout={float(service_heartbeat_timeout)},
-            cleanup_done_ttl_sec={float(service_cleanup_done_ttl_hours) * 3600.0},
-            cleanup_failed_ttl_sec={float(service_cleanup_failed_ttl_hours) * 3600.0},
-            cleanup_heartbeat_ttl_sec={float(service_cleanup_heartbeat_ttl_hours) * 3600.0},
-            cleanup_done_max_files={int(service_cleanup_done_max_files)},
-            cleanup_failed_max_files={int(service_cleanup_failed_max_files)},
-            cleanup_heartbeat_max_files={int(service_cleanup_heartbeat_max_files)},
-            {st.session_state.args_serialized}
-        )
-        print(res)
-        return res
-
-    if __name__ == "__main__":
-        asyncio.run(main())""")
-
-                preview_action = st.selectbox(
-                    "Service snippet action",
-                    options=["start", "status", "health", "stop"],
-                    index=0,
-                    key="service_snippet_action",
-                )
-                st.code(_build_service_snippet(preview_action), language="python")
-
-                start_col, status_col, health_col, stop_col = st.columns(4)
-                start_service_clicked = start_col.button(
-                    "START service",
-                    key="service_start_btn",
-                    type="primary",
-                    use_container_width=True,
-                    disabled=not service_enabled,
-                )
-                status_service_clicked = status_col.button(
-                    "STATUS service",
-                    key="service_status_btn",
-                    type="secondary",
-                    use_container_width=True,
-                    disabled=not service_enabled,
-                )
-                health_gate_clicked = health_col.button(
-                    "HEALTH gate",
-                    key="service_health_gate_btn",
-                    type="secondary",
-                    use_container_width=True,
-                    disabled=not service_enabled,
-                )
-                stop_service_clicked = stop_col.button(
-                    "STOP service",
-                    key="service_stop_btn",
-                    type="secondary",
-                    use_container_width=True,
-                    disabled=not service_enabled,
-                )
-
-                service_log_placeholder = st.empty()
-                service_health_placeholder = st.empty()
-
-                def _render_service_health_table() -> None:
-                    health_rows = st.session_state.get("service_health_cache") or []
-                    if not isinstance(health_rows, list) or not health_rows:
-                        service_health_placeholder.empty()
-                        return
-                    try:
-                        health_df = pd.DataFrame(health_rows)
-                    except Exception:
-                        service_health_placeholder.empty()
-                        return
-                    ordered_cols = [
-                        "worker",
-                        "healthy",
-                        "reason",
-                        "future_state",
-                        "heartbeat_state",
-                        "heartbeat_age_sec",
-                    ]
-                    display_cols = [col for col in ordered_cols if col in health_df.columns]
-                    if display_cols:
-                        health_df = health_df[display_cols]
-                    service_health_placeholder.dataframe(health_df, use_container_width=True)
-
-                _render_service_health_table()
-                cached_service_log = st.session_state.get("service_log_cache", "").strip()
-                if cached_service_log:
-                    service_log_placeholder.code(
-                        cached_service_log,
-                        language="python",
-                        height=INSTALL_LOG_HEIGHT,
-                    )
-
-                async def _execute_service_action(action_name: str) -> None:
-                    _reset_traceback_skip()
-                    local_log: list[str] = []
-                    context_lines = [
-                        f"=== Service action: {action_name.upper()} ===",
-                        f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
-                        f"app: {env.app}",
-                        f"mode: {service_mode}",
-                        f"scheduler: {cluster_params.get('scheduler') if service_enabled else 'None'}",
-                        f"workers: {cluster_params.get('workers') if service_enabled else 'None'}",
-                        f"poll_interval: {service_poll_interval}",
-                        f"stop_timeout: {service_stop_timeout}",
-                        f"shutdown_on_stop: {service_shutdown_on_stop}",
-                        f"heartbeat_timeout: {service_heartbeat_timeout}",
-                        f"cleanup_done_ttl_h: {service_cleanup_done_ttl_hours}",
-                        f"cleanup_failed_ttl_h: {service_cleanup_failed_ttl_hours}",
-                        f"cleanup_heartbeat_ttl_h: {service_cleanup_heartbeat_ttl_hours}",
-                        f"cleanup_done_max: {service_cleanup_done_max_files}",
-                        f"cleanup_failed_max: {service_cleanup_failed_max_files}",
-                        f"cleanup_heartbeat_max: {service_cleanup_heartbeat_max_files}",
-                        f"health_allow_idle: {bool(service_health_allow_idle)}",
-                        f"health_max_unhealthy: {int(service_health_max_unhealthy)}",
-                        f"health_max_restart_rate: {float(service_health_max_restart_rate)}",
-                        "=== Streaming service logs ===",
-                    ]
-                    for line in context_lines:
-                        _append_log_lines(local_log, line)
-
-                    def _render_logs() -> None:
-                        service_log_placeholder.code(
-                            "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
-                            language="python",
-                            height=INSTALL_LOG_HEIGHT,
-                        )
-
-                    _render_logs()
-                    cmd_service = _build_service_snippet(action_name)
-                    service_stdout = ""
-                    service_stderr = ""
-                    service_error: Exception | None = None
-
-                    with st.spinner(f"Service action '{action_name}' in progress..."):
-                        def _service_log_callback(message: str) -> None:
-                            _append_log_lines(local_log, message)
-                            _render_logs()
-
-                        try:
-                            service_stdout, service_stderr = await env.run_agi(
-                                cmd_service.replace("asyncio.run(main())", env.snippet_tail),
-                                log_callback=_service_log_callback,
-                                venv=project_path,
-                            )
-                        except Exception as exc:
-                            service_error = exc
-                            service_stderr = str(exc)
-                            _append_log_lines(local_log, f"ERROR: {service_stderr}")
-
-                    if service_stdout:
-                        _append_log_lines(local_log, service_stdout)
-                    if service_stderr:
-                        _append_log_lines(local_log, service_stderr)
-
-                    result_payload = _extract_result_dict_from_output(service_stdout)
-                    if isinstance(result_payload, dict) and isinstance(result_payload.get("status"), str):
-                        st.session_state["service_status_cache"] = result_payload["status"]
-                        if st.session_state["service_status_cache"] in {"stopped", "idle"}:
-                            st.session_state["service_health_cache"] = []
-                            _render_service_health_table()
-                        restarted_workers = result_payload.get("restarted_workers") or []
-                        restart_reasons = result_payload.get("restart_reasons") or {}
-                        cleanup_stats = result_payload.get("cleanup") or {}
-                        worker_health = result_payload.get("worker_health") or []
-                        heartbeat_timeout_sec = result_payload.get("heartbeat_timeout_sec")
-                        health_json_path = result_payload.get("health_path") or result_payload.get("path")
-
-                        if isinstance(worker_health, list):
-                            st.session_state["service_health_cache"] = worker_health
-                            _render_service_health_table()
-                            if worker_health:
-                                _append_log_lines(local_log, "=== Service health ===")
-                                for row in worker_health:
-                                    if not isinstance(row, dict):
-                                        continue
-                                    worker_name = row.get("worker", "?")
-                                    healthy = bool(row.get("healthy", False))
-                                    reason = row.get("reason", "")
-                                    age = row.get("heartbeat_age_sec", None)
-                                    hb_state = row.get("heartbeat_state", "missing")
-                                    status_word = "healthy" if healthy else "unhealthy"
-                                    _append_log_lines(
-                                        local_log,
-                                        f"{worker_name}: {status_word} "
-                                        f"(hb_state={hb_state}, hb_age={age}, reason={reason})",
-                                    )
-                        else:
-                            st.session_state["service_health_cache"] = []
-                            _render_service_health_table()
-
-                        if restarted_workers:
-                            _append_log_lines(local_log, "=== Service auto-restart ===")
-                            for worker in restarted_workers:
-                                reason = restart_reasons.get(worker, "unhealthy")
-                                _append_log_lines(local_log, f"restart {worker}: {reason}")
-
-                        if heartbeat_timeout_sec is not None:
-                            _append_log_lines(local_log, f"heartbeat_timeout_sec={heartbeat_timeout_sec}")
-                        if health_json_path:
-                            _append_log_lines(local_log, f"service_health_json={health_json_path}")
-
-                        if isinstance(cleanup_stats, dict) and any(
-                                int(cleanup_stats.get(key, 0) or 0) > 0
-                                for key in ("done", "failed", "heartbeats")
-                        ):
-                            _append_log_lines(local_log, "=== Service cleanup ===")
-                            _append_log_lines(
-                                local_log,
-                                f"done={int(cleanup_stats.get('done', 0) or 0)} "
-                                f"failed={int(cleanup_stats.get('failed', 0) or 0)} "
-                                f"heartbeats={int(cleanup_stats.get('heartbeats', 0) or 0)}",
-                            )
-                    elif service_error or service_stderr.strip():
-                        st.session_state["service_status_cache"] = "error"
-                        st.session_state["service_health_cache"] = []
-                        _render_service_health_table()
-
-                    st.session_state["service_log_cache"] = "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:])
-                    _render_logs()
-
-                    if service_error or service_stderr.strip():
-                        st.error(f"Service action '{action_name}' failed.")
-                    else:
-                        if isinstance(result_payload, dict):
-                            restarted_workers = result_payload.get("restarted_workers") or []
-                            if restarted_workers:
-                                st.warning(
-                                    "Service auto-restarted worker loops: "
-                                    + ", ".join(str(worker) for worker in restarted_workers)
-                                )
-                        st.success(
-                            f"Service action '{action_name}' completed with status "
-                            f"'{st.session_state.get('service_status_cache', 'unknown')}'."
-                        )
-                    if isinstance(result_payload, dict):
-                        return result_payload
-                    return None
-
-                if start_service_clicked:
-                    await _execute_service_action("start")
-                elif status_service_clicked:
-                    await _execute_service_action("status")
-                elif health_gate_clicked:
-                    health_payload = await _execute_service_action("health")
-                    if isinstance(health_payload, dict):
-                        gate_code, gate_reason, gate_details = _evaluate_service_health_gate(
-                            health_payload,
-                            allow_idle=bool(service_health_allow_idle),
-                            max_unhealthy=int(service_health_max_unhealthy),
-                            max_restart_rate=float(service_health_max_restart_rate),
-                        )
-                        restart_rate = float(gate_details.get("restart_rate", 0.0) or 0.0)
-                        st.caption(
-                            f"Health gate metrics: status={gate_details.get('status')}, "
-                            f"unhealthy={gate_details.get('workers_unhealthy_count')}, "
-                            f"restarted={gate_details.get('workers_restarted_count')}, "
-                            f"running={gate_details.get('workers_running_count')}, "
-                            f"restart_rate={restart_rate:.3f}"
-                        )
-                        if gate_code == 0:
-                            st.success("HEALTH gate passed.")
-                        else:
-                            st.error(f"HEALTH gate failed (code {gate_code}): {gate_reason}")
-                    else:
-                        st.error("HEALTH gate failed: unable to parse service health payload.")
-                elif stop_service_clicked:
-                    await _execute_service_action("stop")
+            service_deps = OrchestrateServiceDeps(
+                reset_traceback_skip=_reset_traceback_skip,
+                append_log_lines=_append_log_lines,
+                extract_result_dict_from_output=_extract_result_dict_from_output,
+                evaluate_service_health_gate=_evaluate_service_health_gate,
+                coerce_bool_setting=_coerce_bool_setting,
+                coerce_int_setting=_coerce_int_setting,
+                coerce_float_setting=_coerce_float_setting,
+                write_app_settings_toml=_write_app_settings_toml,
+                clear_load_toml_cache=load_toml_file.clear,
+                log_display_max_lines=LOG_DISPLAY_MAX_LINES,
+                install_log_height=INSTALL_LOG_HEIGHT,
+            )
+            await render_service_panel(
+                env=env,
+                project_path=project_path,
+                cluster_params=cluster_params,
+                verbose=verbose,
+                scheduler=scheduler,
+                workers=workers,
+                deps=service_deps,
+            )
 
     execute_deps = OrchestrateExecuteDeps(
         clear_log=clear_log,
