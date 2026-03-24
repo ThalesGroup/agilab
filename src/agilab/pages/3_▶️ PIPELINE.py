@@ -32,6 +32,7 @@ import streamlit.components.v1 as components
 from agi_env.pagelib import (
     activate_mlflow,
     activate_gpt_oss,
+    background_services_enabled,
     find_files,
     run_agi,
     run_lab,
@@ -51,6 +52,26 @@ from agi_env.pagelib import (
 )
 from agi_env import AgiEnv, normalize_path
 from agi_env.defaults import get_default_openai_model
+try:
+    from agilab.pipeline_openai import (
+        ensure_cached_api_key,
+        is_placeholder_api_key,
+        make_openai_client_and_model,
+        persist_env_var,
+        prompt_for_openai_api_key,
+    )
+except ModuleNotFoundError:
+    _pipeline_openai_path = Path(__file__).resolve().parents[1] / "pipeline_openai.py"
+    _pipeline_openai_spec = importlib.util.spec_from_file_location("agilab_pipeline_openai_fallback", _pipeline_openai_path)
+    if _pipeline_openai_spec is None or _pipeline_openai_spec.loader is None:
+        raise
+    _pipeline_openai_module = importlib.util.module_from_spec(_pipeline_openai_spec)
+    _pipeline_openai_spec.loader.exec_module(_pipeline_openai_module)
+    ensure_cached_api_key = _pipeline_openai_module.ensure_cached_api_key
+    is_placeholder_api_key = _pipeline_openai_module.is_placeholder_api_key
+    make_openai_client_and_model = _pipeline_openai_module.make_openai_client_and_model
+    persist_env_var = _pipeline_openai_module.persist_env_var
+    prompt_for_openai_api_key = _pipeline_openai_module.prompt_for_openai_api_key
 try:
     from agilab.pipeline_views import load_pipeline_conceptual_dot, render_pipeline_view
 except ModuleNotFoundError:
@@ -1049,188 +1070,6 @@ def _bump_history_revision() -> None:
     st.session_state["history_rev"] = st.session_state.get("history_rev", 0) + 1
 
 
-def _persist_env_var(name: str, value: str) -> None:
-    """Persist a key/value pair under ~/.agilab/.env, replacing prior entries."""
-    from pathlib import Path
-
-    env_dir = Path.home() / ".agilab"
-    env_dir.mkdir(parents=True, exist_ok=True)
-    env_file = env_dir / ".env"
-    lines: List[str] = []
-    if env_file.exists():
-        lines = [
-            line
-            for line in env_file.read_text(encoding="utf-8").splitlines()
-            if not line.strip().startswith(f"{name}=")
-        ]
-    lines.append(f'{name}="{value}"')
-    env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _prompt_for_openai_api_key(message: str) -> None:
-    """Prompt for a missing OpenAI API key and optionally persist it."""
-    st.warning(message)
-    default_val = st.session_state.get("openai_api_key", "")
-    with st.form("experiment_missing_openai_api_key"):
-        new_key = st.text_input(
-            "OpenAI API key",
-            value=default_val,
-            type="password",
-            help="Paste a valid OpenAI API token.",
-        )
-        save_profile = st.checkbox("Save to ~/.agilab/.env", value=True)
-        submitted = st.form_submit_button("Update key")
-
-    if submitted:
-        cleaned = new_key.strip()
-        if not cleaned:
-            st.error("API key cannot be empty.")
-        else:
-            try:
-                from agi_env import AgiEnv
-
-                AgiEnv.set_env_var("OPENAI_API_KEY", cleaned)
-            except Exception:
-                pass
-            env_obj = st.session_state.get("env")
-            if isinstance(env_obj, AgiEnv) and env_obj.envars is not None:
-                env_obj.envars["OPENAI_API_KEY"] = cleaned
-            st.session_state["openai_api_key"] = cleaned
-            if save_profile:
-                try:
-                    _persist_env_var("OPENAI_API_KEY", cleaned)
-                    st.success("API key saved to ~/.agilab/.env")
-                except Exception as exc:
-                    st.warning(f"Could not persist API key: {exc}")
-            else:
-                st.success("API key updated for this session.")
-            st.rerun()
-
-    st.stop()
-
-
-def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
-    """
-    Returns (client, model_name, is_azure). Supports:
-      - OpenAI (api.openai.com)
-      - Azure OpenAI (AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / AZURE_OPENAI_API_VERSION)
-      - Proxies/gateways via OPENAI_BASE_URL
-    """
-    import os
-    from typing import Tuple
-
-    # Inputs from env or envars
-    base_url = (
-        envars.get("OPENAI_BASE_URL")
-        or os.getenv("OPENAI_BASE_URL")               # common proxy var
-        or os.getenv("OPENAI_API_BASE")               # legacy
-        or ""
-    )
-
-    azure_endpoint = (
-        envars.get("AZURE_OPENAI_ENDPOINT")
-        or os.getenv("AZURE_OPENAI_ENDPOINT")
-        or ""
-    )
-    azure_version = (
-        envars.get("AZURE_OPENAI_API_VERSION")
-        or os.getenv("AZURE_OPENAI_API_VERSION")
-        or "2024-06-01"  # safe default as of 2025
-    )
-    # Model/deployment name
-    model_name = (
-        envars.get("OPENAI_MODEL")
-        or os.getenv("OPENAI_MODEL")
-        or os.getenv("AZURE_OPENAI_DEPLOYMENT")  # for Azure deployments
-        or get_default_openai_model()
-    )
-
-    # Detect Azure vs OpenAI
-    is_azure = bool(azure_endpoint) or bool(os.getenv("OPENAI_API_TYPE") == "azure") or bool(os.getenv("AZURE_OPENAI_API_KEY"))
-
-    # Build client
-    try:
-        import openai
-        # Prefer new SDK “OpenAI/AzureOpenAI” if present
-        try:
-            from openai import OpenAI as OpenAIClient
-        except Exception:
-            OpenAIClient = getattr(openai, "OpenAI", None)
-
-        # Azure path
-        if is_azure:
-            try:
-                from openai import AzureOpenAI
-            except Exception:
-                AzureOpenAI = None
-
-            if AzureOpenAI is not None:
-                client = AzureOpenAI(
-                    api_key=api_key,
-                    azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
-                    api_version=azure_version,
-                )
-                # For Azure, `model_name` must be the DEPLOYMENT name
-                model_name = (
-                    os.getenv("AZURE_OPENAI_DEPLOYMENT")
-                    or envars.get("AZURE_OPENAI_DEPLOYMENT")
-                    or model_name
-                )
-                return client, model_name, True
-            else:
-                # Fallback with base_url if azure client symbol isn’t available
-                # Many gateways expose OpenAI-compatible endpoints at a base_url.
-                endpoint = azure_endpoint.rstrip("/") + "/openai/deployments"
-                # If no direct compat layer, still attempt with base_url if provided
-                client = OpenAIClient(api_key=api_key, base_url=base_url or None) if OpenAIClient else None
-                return client, model_name, True
-
-        # Non-Azure path (OpenAI or proxy)
-        if OpenAIClient:
-            client_kwargs = {"api_key": api_key}
-            if base_url:
-                client_kwargs["base_url"] = base_url
-            client = OpenAIClient(**client_kwargs)
-            return client, model_name, False
-
-        # Old SDK fallback
-        openai.api_key = api_key
-        if base_url:
-            # Old SDK uses `openai.api_base`
-            openai.api_base = base_url
-        return openai, model_name, False
-
-    except Exception as e:
-        # Bubble up; caller handles a graceful error message.
-        raise
-
-
-def _ensure_cached_api_key(envars: Dict[str, str]) -> str:
-    """Seed from session, secrets, env, and Azure if present."""
-    cached = st.session_state.get("openai_api_key")
-    if cached and not _is_placeholder_api_key(cached):
-        return cached
-
-    secret = ""
-    try:
-        secret = st.secrets.get("OPENAI_API_KEY", "")
-    except Exception:
-        pass
-
-    candidate = (
-        secret
-        or envars.get("OPENAI_API_KEY")
-        or os.environ.get("OPENAI_API_KEY", "")
-        or os.environ.get("AZURE_OPENAI_API_KEY", "")  # Azure fallback
-    )
-    if candidate and not _is_placeholder_api_key(candidate):
-        st.session_state["openai_api_key"] = candidate
-        return candidate
-
-    st.session_state["openai_api_key"] = ""
-    return ""
-
-
 @st.cache_data(show_spinner=False)
 def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
     """Read steps for a specific module key from a TOML file.
@@ -1834,30 +1673,6 @@ def _redact_sensitive(text: str) -> str:
     return redacted
 
 
-def _is_placeholder_api_key(key: Optional[str]) -> bool:
-    """True only when clearly missing or visibly redacted."""
-    if not key:
-        return True
-    v = str(key).strip()
-    if not v:
-        return True
-
-    # Only reject obvious redactions/placeholders
-    # Keep this extremely conservative to avoid false positives.
-    U = v.upper()
-    if "***" in v or "…" in v:
-        return True
-    if "YOUR-API-KEY" in U or "YOUR_API_KEY" in U:
-        return True
-    if v in {"your-key", "sk-your-key", "sk-XXXX"}:
-        return True
-    if len(v) < 12:
-        return True
-
-    # Do NOT check prefixes or length; accept Azure / proxy / org-scoped formats.
-    return False
-
-
 def _normalize_gpt_oss_endpoint(raw_endpoint: Optional[str]) -> str:
     endpoint = (raw_endpoint or "").strip()
     if not endpoint:
@@ -2321,9 +2136,9 @@ def chat_online(
     if env_file_map:
         envars.update(env_file_map)
 
-    api_key = _ensure_cached_api_key(envars)
-    if not api_key or _is_placeholder_api_key(api_key):
-        _prompt_for_openai_api_key(
+    api_key = ensure_cached_api_key(envars)
+    if not api_key or is_placeholder_api_key(api_key):
+        prompt_for_openai_api_key(
             "OpenAI API key appears missing or redacted. Supply a valid key to continue."
         )
         raise JumpToMain(ValueError("OpenAI API key unavailable"))
@@ -2350,7 +2165,7 @@ def chat_online(
 
     # Create client (supports OpenAI/Azure/proxy)
     try:
-        client, model_name, is_azure = _make_openai_client_and_model(envars, api_key)
+        client, model_name, is_azure = make_openai_client_and_model(envars, api_key)
     except Exception as e:
         st.error("Failed to initialise OpenAI/Azure client. Check your SDK install and environment variables.")
         logger.error(f"Client init error: {_redact_sensitive(str(e))}")
@@ -5696,7 +5511,7 @@ def main() -> None:
         else:
             render_logo()
 
-        if not st.session_state.get("server_started", False):
+        if background_services_enabled() and not st.session_state.get("server_started", False):
             activate_mlflow(env)
 
         # Initialize session defaults

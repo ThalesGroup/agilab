@@ -231,3 +231,10 @@ addopts = [
 [tool.coverage.run]
 branch = true
 source = ["agi_core", "agi_env", "agi_cluster", "agi_node"]
+
+[tool.coverage.report]
+omit = [
+    "src/agilab/About_agilab.py",
+    "src/agilab/lab_run.py",
+    "src/agilab/pages/*.py",
+]

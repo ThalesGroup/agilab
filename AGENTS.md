@@ -41,9 +41,10 @@ Use this runbook whenever you:
 - **Missing dependency triage**: Whenever an app run fails because a module cannot be imported, check *both*
   `src/agilab/apps/<app>/pyproject.toml` (manager environment) and
   `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the dependency is declared in the correct scope.
-- **Installer flags**: For automation, use `./install.sh --non-interactive`/`-y` with required flags
-  (`--cluster-ssh-credentials`, `--openai-api-key`). Optional flags: `--apps-repository`,
-  `--install-path`, `--install-apps [all|builtin|comma list]`, `--test-apps`.
+- **Installer flags**: For automation, set `CLUSTER_CREDENTIALS` / `OPENAI_API_KEY` in the
+  environment, then use `./install.sh --non-interactive`/`-y`. Optional flags:
+  `--apps-repository`, `--install-path`, `--install-apps [all|builtin|comma list]`,
+  `--test-apps`.
 - **Apps repository symlinks**: Set `APPS_REPOSITORY` (or `AGILAB_APPS_REPOSITORY`) in
   `~/.local/share/agilab/.env` to the path of your apps repository checkout. The installer can
   create symlinks so optional apps/pages resolve without manual action.
@@ -157,8 +158,8 @@ Use this runbook whenever you:
 
 | Group | Config name | Entry | Args | Workdir | Env | How to run | Interpreter |
 |---|---|---|---|---|---|---|---|
-| agilab | agilab run (dev) | streamlit | run $ProjectFileDir$/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-path $ProjectFileDir$/src/agilab/apps | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1 | cd $ProjectFileDir$ && uv run streamlit run $ProjectFileDir$/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-path $ProjectFileDir$/src/agilab/apps |  |
-| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key" | $ProjectFileDir$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key" | uv (agi-space) |
+| agilab | agilab run (dev) | streamlit | run $ProjectFileDir$/src/agilab/About_agilab.py -- --apps-path $ProjectFileDir$/src/agilab/apps | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1;OPENAI_API_KEY=your-key | cd $ProjectFileDir$ && export OPENAI_API_KEY="your-key" && uv run streamlit run $ProjectFileDir$/src/agilab/About_agilab.py -- --apps-path $ProjectFileDir$/src/agilab/apps |  |
+| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/About_agilab.py | $ProjectFileDir$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;OPENAI_API_KEY=your-key | cd $ProjectFileDir$/../agi-space && export OPENAI_API_KEY="your-key" && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py | uv (agi-space) |
 | agilab | app_script gen | $ProjectFileDir$/pycharm/gen_app_script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/pycharm/gen_app_script.py $Prompt:Enter app manager name:flight$ |  |
 | agilab | apps-pages launcher | $ProjectFileDir$/tools/apps_pages_launcher.py | --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/apps_pages_launcher.py --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project | uv (agilab) |
 | agilab | apps-pages smoke | $ProjectFileDir$/tools/smoke_preinit.py | --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project --timeout 20 | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/smoke_preinit.py --active-app $ProjectFileDir$/src/agilab/apps/builtin/flight_project --timeout 20 | uv (agilab) |
@@ -166,7 +167,7 @@ Use this runbook whenever you:
 | agilab | builtin/flight install | $USER_HOME$/log/execute/flight/AGI_install_flight.py |  | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $USER_HOME$/log/execute/flight/AGI_install_flight.py |  |
 | agilab | builtin/mycode get_distrib | $USER_HOME$/log/execute/mycode/AGI_get_mycode.py |  | $USER_HOME$/log/execute/builtin/mycode | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/log/execute/builtin/mycode && uv run python $USER_HOME$/log/execute/mycode/AGI_get_mycode.py |  |
 | agilab | builtin/mycode install | $USER_HOME$/log/execute/mycode/AGI_install_mycode.py |  | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $USER_HOME$/log/execute/mycode/AGI_install_mycode.py |  |
-| agilab | lab_run test | $PROJECT_DIR$/src/agilab/lab_run.py | --openai-api-key "your-key" | $USER_HOME$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$ && uv run python $PROJECT_DIR$/src/agilab/lab_run.py --openai-api-key "your-key" | uv (agilab) |
+| agilab | lab_run test | $PROJECT_DIR$/src/agilab/lab_run.py |  | $USER_HOME$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;OPENAI_API_KEY=your-key | cd $USER_HOME$ && export OPENAI_API_KEY="your-key" && uv run python $PROJECT_DIR$/src/agilab/lab_run.py | uv (agilab) |
 | agilab | publish dry-run (testpypi) | $ProjectFileDir$/tools/pypi_publish.py | --repo testpypi --dry-run --leave-most-recent --verbose | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/pypi_publish.py --repo testpypi --dry-run --leave-most-recent --verbose | uv (agilab) |
 | agilab | pypi publish | $ProjectFileDir$/tools/pypi_publish.py | --repo pypi --leave-most-recent --verbose --cleanup $Prompt:Cleanup credentials$ | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/pypi_publish.py --repo pypi --leave-most-recent --verbose --cleanup $Prompt:Cleanup credentials$ | uv (agilab) |
 | agilab | run ssh cmd | $ProjectFileDir$/src/agilab/core/agi-env/test/_test_ssh_cmd.py |  |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/src/agilab/core/agi-env/test/_test_ssh_cmd.py |  |
@@ -239,7 +240,7 @@ Use this runbook whenever you:
 ## Progressive test plan
 
 ### Tier A — Quick checks (fast sanity)
-- UI smoke: `cd $ProjectFileDir$ && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-path src/agilab/apps` (agilab run dev)
+- UI smoke: `cd $ProjectFileDir$ && export OPENAI_API_KEY="your-key" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --apps-path src/agilab/apps` (agilab run dev)
 - Dependencies: `cd $ProjectFileDir$ && uv --preview-features extra-build-dependencies run python tools/show_dependencies.py --repo testpypi`
 - App skeleton: `uv --preview-features extra-build-dependencies run python src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app_test.py`
 
@@ -272,7 +273,7 @@ Use this runbook whenever you:
 - `▶️ EXECUTE` page tips:
   - Use the sidebar `Verbosity level` select to choose AgiEnv verbosity (0–3). The value propagates to the generated install/distribute/run snippets and appears in the install log header.
   - Install output now streams inside the dedicated **Install logs** expander. Keep it open to watch live progress even if the snippet expander is collapsed.
-- End-user mode: `cd ../agi-space && uv --preview-features extra-build-dependencies run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key"`
+- End-user mode: `cd ../agi-space && export OPENAI_API_KEY="your-key" && uv --preview-features extra-build-dependencies run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py`
 
 For each tier, capture: command, expected output, and pitfalls (CWD, env vars, interpreter).
 

@@ -31,7 +31,7 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_env.pagelib import inject_theme, load_last_active_app, store_last_active_app
+from agi_env.pagelib import background_services_enabled, inject_theme, load_last_active_app, store_last_active_app
 
 def _render_env_editor(env, help_file: Path):
     feedback = st.session_state.pop("env_editor_feedback", None)
@@ -718,18 +718,6 @@ def main():
             from agi_env.pagelib import activate_mlflow
             from agi_env import AgiEnv
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
-            parser.add_argument(
-                "--cluster-ssh-credentials",
-                type=str,
-                help=argparse.SUPPRESS,
-                default=None,
-            )
-            parser.add_argument(
-                "--openai-api-key",
-                type=str,
-                help=argparse.SUPPRESS,
-                default=None,
-            )
             parser.add_argument("--apps-path", type=str, help="Where you store your apps (default is ./)",
                                 default=None)
             parser.add_argument(
@@ -789,7 +777,7 @@ def main():
             st.session_state["IS_SOURCE_ENV"] = env.is_source_env
             st.session_state["IS_WORKER_ENV"] = env.is_worker_env
 
-            if not st.session_state.get("server_started"):
+            if background_services_enabled() and not st.session_state.get("server_started"):
                 activate_mlflow(env)
                 st.session_state["server_started"] = True
 
@@ -803,20 +791,11 @@ def main():
             except Exception:
                 pass
 
-            if args.openai_api_key:
-                st.warning(
-                    "Passing OPENAI_API_KEY via CLI is deprecated. Prefer OPENAI_API_KEY in the environment or ~/.agilab/.env."
-                )
-            if args.cluster_ssh_credentials:
-                st.warning(
-                    "Passing CLUSTER_CREDENTIALS via CLI is deprecated. Prefer CLUSTER_CREDENTIALS in the environment or ~/.agilab/.env."
-                )
-
-            openai_api_key = _clean_openai_key(env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key)
+            openai_api_key = _clean_openai_key(env.OPENAI_API_KEY)
             if not openai_api_key:
                 st.warning("OPENAI_API_KEY not set. OpenAI-powered features will be disabled.")
 
-            cluster_credentials = env.CLUSTER_CREDENTIALS if env.CLUSTER_CREDENTIALS else args.cluster_ssh_credentials or ""
+            cluster_credentials = env.CLUSTER_CREDENTIALS or ""
 
             # Only persist defaults for keys NOT already saved in the user's
             # .env file so that values edited via the UI survive page reloads.
@@ -832,8 +811,8 @@ def main():
                     AgiEnv.set_env_var(key, value)
 
             if openai_api_key:
-                _init_env_var("OPENAI_API_KEY", openai_api_key, force=bool(args.openai_api_key))
-            _init_env_var("CLUSTER_CREDENTIALS", cluster_credentials, force=bool(args.cluster_ssh_credentials))
+                _init_env_var("OPENAI_API_KEY", openai_api_key)
+            _init_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
             _init_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
             _init_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
             _init_env_var("APPS_PATH", str(apps_path), force=bool(args.apps_path))
@@ -843,8 +822,9 @@ def main():
                 st.query_params["active_app"] = env.app
             except Exception:
                 pass
-            st.rerun()
-        return  # Don't continue
+            if background_services_enabled():
+                st.rerun()
+                return
 
     # ---- After init, always show banner+intro and then main UI ----
     env = st.session_state['env']
