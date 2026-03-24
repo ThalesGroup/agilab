@@ -65,6 +65,15 @@ _GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.to
 _LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
 
 
+def background_services_enabled() -> bool:
+    """Return False under automated UI tests or when explicitly disabled."""
+    disable_flag = os.getenv("AGILAB_DISABLE_BACKGROUND_SERVICES", "").strip().lower()
+    if disable_flag in {"1", "true", "yes", "on"}:
+        return False
+    testing_state = st.session_state.get("$$STREAMLIT_INTERNAL_KEY_TESTING")
+    return not bool(testing_state)
+
+
 def _load_global_state() -> Dict[str, str]:
     try:
         if _GLOBAL_STATE_FILE.exists():

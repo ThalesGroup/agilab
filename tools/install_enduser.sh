@@ -22,6 +22,11 @@ AGI_SPACE="${HOME}/agi-space"
 mkdir -p "$AGI_SPACE"
 echo "Using AGI_SPACE: ${AGI_SPACE}"
 
+# This installer must target its own end-user virtual environment, even when
+# launched from a developer shell already inside another venv.
+unset VIRTUAL_ENV
+unset CONDA_PREFIX
+
 APPS_ROOT="${AGI_SPACE}/apps"
 mkdir -p "${APPS_ROOT}"
 
@@ -132,6 +137,7 @@ if [[ "$SOURCE" == "local" ]]; then
     AGI_INSTALL_PATH="${REPO_SRC_DIR}"
   fi
 
+  mkdir -p "$(dirname "${AGI_PATH_FILE}")"
   printf '%s\n' "${AGI_INSTALL_PATH}" > "${AGI_PATH_FILE}"
 
   if [[ "${AGI_INSTALL_PATH}" == "${REPO_SRC_DIR}" ]]; then
@@ -304,9 +310,9 @@ case "${SOURCE}" in
     done
     INSTALL_PATHS+=("${AGI_INSTALL_ROOT}")
 
-    # Install all at once instead of one-by-one
+    # Install all at once instead of one-by-one, including runtime dependencies.
     if [[ ${#INSTALL_PATHS[@]} -gt 0 ]]; then
-      ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${INSTALL_PATHS[@]}"
+      ${UV_PREVIEW[@]} pip install --upgrade --reinstall --refresh --no-cache "${INSTALL_PATHS[@]}"
     fi
     ;;
 

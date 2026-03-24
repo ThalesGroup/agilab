@@ -42,9 +42,48 @@ import pandas as pd
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
+try:
+    from agilab.orchestrate_support import (
+        coerce_bool_setting as _coerce_bool_setting,
+        coerce_float_setting as _coerce_float_setting,
+        coerce_int_setting as _coerce_int_setting,
+        evaluate_service_health_gate as _evaluate_service_health_gate,
+        extract_result_dict_from_output as _extract_result_dict_from_output,
+        looks_like_shared_path as _looks_like_shared_path_impl,
+        macos_autofs_hint as _macos_autofs_hint,
+        parse_and_validate_scheduler as _parse_and_validate_scheduler_impl,
+        parse_and_validate_workers as _parse_and_validate_workers_impl,
+        parse_benchmark,
+        sanitize_for_toml as _sanitize_for_toml,
+        safe_eval as _safe_eval_impl,
+        write_app_settings_toml as _write_app_settings_toml,
+    )
+except ModuleNotFoundError:
+    _orchestrate_support_path = Path(__file__).resolve().parents[1] / "orchestrate_support.py"
+    _orchestrate_support_spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_support_fallback",
+        _orchestrate_support_path,
+    )
+    if _orchestrate_support_spec is None or _orchestrate_support_spec.loader is None:
+        raise
+    _orchestrate_support_module = importlib.util.module_from_spec(_orchestrate_support_spec)
+    _orchestrate_support_spec.loader.exec_module(_orchestrate_support_module)
+    _coerce_bool_setting = _orchestrate_support_module.coerce_bool_setting
+    _coerce_float_setting = _orchestrate_support_module.coerce_float_setting
+    _coerce_int_setting = _orchestrate_support_module.coerce_int_setting
+    _evaluate_service_health_gate = _orchestrate_support_module.evaluate_service_health_gate
+    _extract_result_dict_from_output = _orchestrate_support_module.extract_result_dict_from_output
+    _looks_like_shared_path_impl = _orchestrate_support_module.looks_like_shared_path
+    _macos_autofs_hint = _orchestrate_support_module.macos_autofs_hint
+    _parse_and_validate_scheduler_impl = _orchestrate_support_module.parse_and_validate_scheduler
+    _parse_and_validate_workers_impl = _orchestrate_support_module.parse_and_validate_workers
+    parse_benchmark = _orchestrate_support_module.parse_benchmark
+    _sanitize_for_toml = _orchestrate_support_module.sanitize_for_toml
+    _safe_eval_impl = _orchestrate_support_module.safe_eval
+    _write_app_settings_toml = _orchestrate_support_module.write_app_settings_toml
 # Project Libraries:
 from agi_env.pagelib import (
-    get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
+    background_services_enabled, get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
     cached_load_df, inject_theme, is_valid_ip, find_files, resolve_active_app, store_last_active_app
 )
 
@@ -142,46 +181,6 @@ def strip_ansi(text: str) -> str:
         return ""
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
     return ansi_escape.sub('', text)
-
-
-def _sanitize_for_toml(obj):
-    """Recursively convert values into TOML-safe structures.
-
-    TOML has no null value, so ``None`` entries are dropped.
-    """
-    if isinstance(obj, dict):
-        sanitized = {}
-        for key, value in obj.items():
-            if value is None:
-                continue
-            sanitized_value = _sanitize_for_toml(value)
-            if sanitized_value is None:
-                continue
-            sanitized[key] = sanitized_value
-        return sanitized
-    if isinstance(obj, list):
-        sanitized_items = []
-        for item in obj:
-            if item is None:
-                continue
-            sanitized_item = _sanitize_for_toml(item)
-            if sanitized_item is None:
-                continue
-            sanitized_items.append(sanitized_item)
-        return sanitized_items
-    if isinstance(obj, tuple):
-        return _sanitize_for_toml(list(obj))
-    if isinstance(obj, Path):
-        return str(obj)
-    return obj
-
-
-def _write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
-    """Persist ``payload`` after converting it to a TOML-serializable object."""
-    sanitized = _sanitize_for_toml(payload)
-    with open(settings_path, "wb") as file:
-        tomli_w.dump(sanitized, file)
-    return sanitized
 
 
 def _is_dask_shutdown_noise(line: str) -> bool:
@@ -300,176 +299,9 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
     return False
 
 
-_SHARED_FILESYSTEM_TYPES: set[str] = {
-    # Networked filesystems
-    "nfs",
-    "nfs4",
-    "cifs",
-    "smbfs",
-    "sshfs",
-    "afpfs",
-    "webdav",
-    # Common shared/cluster filesystems
-    "lustre",
-    "gpfs",
-    "panfs",
-    "beegfs",
-    "ceph",
-    "glusterfs",
-    "gfs2",
-    # Automounter (often backing NFS/SMB shares)
-    "autofs",
-}
-
-
-@lru_cache(maxsize=1)
-def _mount_table() -> list[tuple[str, str]]:
-    entries: list[tuple[str, str]] = []
-    try:
-        if sys.platform.startswith("linux"):
-            mounts = Path("/proc/mounts")
-            if mounts.exists():
-                for line in mounts.read_text(encoding="utf-8", errors="replace").splitlines():
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        mountpoint = parts[1].replace("\\040", " ")
-                        fstype = parts[2]
-                        entries.append((mountpoint, fstype))
-        elif sys.platform == "darwin":
-            proc = subprocess.run(["mount"], capture_output=True, text=True, check=False)
-            for line in (proc.stdout or "").splitlines():
-                match = re.match(r".+ on (?P<mountpoint>.+?) \((?P<fstype>[^,\)]+)", line)
-                if match:
-                    entries.append((match.group("mountpoint").strip(), match.group("fstype").strip()))
-    except Exception:
-        entries = []
-
-    entries.sort(key=lambda item: len(item[0]), reverse=True)
-    return entries
-
-
-def _fstype_for_path(path: Path) -> Optional[str]:
-    path_str = str(path)
-    for mountpoint, fstype in _mount_table():
-        mp = mountpoint.rstrip("/") or "/"
-        if mp == "/":
-            return fstype.lower()
-        if path_str == mp or path_str.startswith(mp + "/"):
-            return fstype.lower()
-    return None
-
-
 def _looks_like_shared_path(path: Path) -> bool:
-    """
-    Best-effort heuristic: try to detect whether ``path`` is on a filesystem that
-    remote workers can also see (e.g., NFS/SMB/Lustre).
-
-    This is intentionally conservative and only used to emit a UI warning; it
-    cannot guarantee that *remote* nodes mount the same path.
-    """
-    raw = path.expanduser()
-    try:
-        resolved = raw.resolve()
-    except Exception:
-        resolved = raw
-
-    for candidate in (raw, resolved):
-        fstype = _fstype_for_path(candidate)
-        if fstype and fstype in _SHARED_FILESYSTEM_TYPES:
-            return True
-
-    home_raw = Path.home().expanduser()
-    home = Path.home().resolve()
-    try:
-        resolved.relative_to(home)
-        # If the path is inside the home directory, default to "local" unless it
-        # lives on a known shared filesystem (handled above) or is a mountpoint
-        # under home. (Mount detection is platform-dependent and not always
-        # reliable, but helps as a fallback.)
-        for current, stop in ((raw, home_raw), (resolved, home)):
-            node = current
-            while True:
-                try:
-                    if os.path.ismount(node):
-                        return True
-                except Exception:
-                    break
-                if node == stop:
-                    break
-                parent = node.parent
-                if parent == node:
-                    break
-                node = parent
-        return False
-    except ValueError:
-        pass
-
     project_root = Path(__file__).resolve().parents[2]
-    try:
-        resolved.relative_to(project_root)
-        return False
-    except ValueError:
-        pass
-
-    return resolved.is_absolute()
-
-
-def _macos_autofs_hint(share_candidate: Path) -> Optional[str]:
-    """Return a short, actionable hint when a macOS autofs map seems misconfigured."""
-    if sys.platform != "darwin":
-        return None
-
-    auto_master = Path("/etc/auto_master")
-    auto_nfs = Path("/etc/auto_nfs")
-    if not auto_master.exists() or not auto_nfs.exists():
-        return None
-
-    try:
-        candidate_str = str(share_candidate.expanduser())
-    except Exception:
-        candidate_str = str(share_candidate)
-
-    try:
-        auto_nfs_lines = auto_nfs.read_text(encoding="utf-8", errors="replace").splitlines()
-    except Exception:
-        return None
-
-    has_mapping = False
-    for raw in auto_nfs_lines:
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = line.split()
-        if parts and parts[0] == candidate_str:
-            has_mapping = True
-            break
-
-    if not has_mapping:
-        return None
-
-    try:
-        master_text = auto_master.read_text(encoding="utf-8", errors="replace")
-    except Exception:
-        return None
-
-    has_direct_ref = re.search(r"^\s*/-\s+auto_nfs(\s|$)", master_text, flags=re.MULTILINE) is not None
-    if not has_direct_ref:
-        has_static = re.search(r"^\s*/-\s+-static(\s|$)", master_text, flags=re.MULTILINE) is not None
-        if has_static:
-            return (
-                "macOS autofs: `/etc/auto_nfs` contains a mapping for this path, but `/etc/auto_master` is using the built-in `/- -static` map. "
-                "macOS only honors the first `/-` entry (duplicates are ignored), so replace `/- -static` with `/- auto_nfs` "
-                "(or add the mount to `/etc/fstab`), then run `sudo automount -vc`."
-            )
-        return (
-            "macOS autofs: `/etc/auto_nfs` contains a mapping for this path, but `/etc/auto_master` does not reference it. "
-            "Set the `/-` entry to `auto_nfs` (e.g. replace `/- -static` with `/- auto_nfs`) and run `sudo automount -vc`."
-        )
-
-    return (
-        "macOS autofs: this path is present in `/etc/auto_nfs`. If the mount is on-demand, it may only appear after first access; "
-        "try `ls <share_dir>` or `sudo automount -vc`."
-    )
+    return _looks_like_shared_path_impl(path, project_root=project_root)
 
 
 LOG_DISPLAY_MAX_LINES = 250
@@ -516,166 +348,30 @@ def display_log(stdout, stderr):
         st.code(_format_log_block(clean_stdout, newest_first=False) or "No logs available", language="python", height=400)
 
 
-def parse_benchmark(benchmark_str):
-    """
-    Parse a benchmark string into a dictionary.
-
-    This function converts a benchmark string that may have unquoted numeric keys and
-    single quotes into a valid JSON string and then parses it into a dictionary.
-    Numeric keys are converted to integers.
-    """
-    if not isinstance(benchmark_str, str):
-        raise ValueError("Input must be a string.")
-    if len(benchmark_str) < 3:
-        return None
-
-    try:
-        # Replace unquoted numeric keys with quoted keys
-        json_str = re.sub(r'([{,]\s*)(\d+):', r'\1"\2":', benchmark_str)
-        # Replace single quotes with double quotes
-        json_str = json_str.replace("'", '"')
-        # Parse the JSON string
-        data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        raise ValueError("Invalid benchmark string. Failed to decode JSON.") from e
-
-    def try_int(key):
-        return int(key) if key.isdigit() else key
-
-    return {try_int(k): v for k, v in data.items()}
-
-
-def _extract_result_dict_from_output(raw_output: str) -> Optional[dict]:
-    """Best-effort parse of the printed AGI result dictionary."""
-    if not raw_output:
-        return None
-
-    for line in reversed(raw_output.splitlines()):
-        candidate = line.strip()
-        if not candidate or not candidate.startswith("{") or not candidate.endswith("}"):
-            continue
-        try:
-            parsed = ast.literal_eval(candidate)
-        except Exception:
-            continue
-        if isinstance(parsed, dict):
-            return parsed
-    return None
-
-
-def _coerce_bool_setting(raw_value, default: bool) -> bool:
-    if isinstance(raw_value, bool):
-        return raw_value
-    if isinstance(raw_value, (int, float)):
-        return bool(raw_value)
-    if isinstance(raw_value, str):
-        normalized = raw_value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    return default
-
-
-def _coerce_int_setting(raw_value, default: int, *, minimum: int = 0) -> int:
-    try:
-        value = int(raw_value)
-    except (TypeError, ValueError):
-        return default
-    return max(value, minimum)
-
-
-def _coerce_float_setting(
-        raw_value,
-        default: float,
-        *,
-        minimum: float = 0.0,
-        maximum: float = 1.0,
-) -> float:
-    try:
-        value = float(raw_value)
-    except (TypeError, ValueError):
-        return default
-    if value < minimum:
-        return minimum
-    if value > maximum:
-        return maximum
-    return value
-
-
-def _evaluate_service_health_gate(
-        payload: dict,
-        *,
-        allow_idle: bool,
-        max_unhealthy: int,
-        max_restart_rate: float,
-) -> tuple[int, str, dict]:
-    status = str(payload.get("status", "unknown") or "unknown").lower()
-    unhealthy = _coerce_int_setting(payload.get("workers_unhealthy_count"), 0, minimum=0)
-    running = _coerce_int_setting(payload.get("workers_running_count"), 0, minimum=0)
-    restarted = _coerce_int_setting(payload.get("workers_restarted_count"), 0, minimum=0)
-    restart_rate = (float(restarted) / float(running)) if running > 0 else 0.0
-    details = {
-        "status": status,
-        "workers_unhealthy_count": unhealthy,
-        "workers_running_count": running,
-        "workers_restarted_count": restarted,
-        "restart_rate": restart_rate,
-    }
-    if unhealthy > max_unhealthy:
-        return 2, f"unhealthy workers {unhealthy} exceeds limit {max_unhealthy}", details
-    if status in {"error", "degraded"}:
-        return 3, f"service status is {status}", details
-    if status == "idle" and not allow_idle:
-        return 4, "service status is idle (set 'Allow idle status' to accept)", details
-    if restart_rate > max_restart_rate:
-        return 5, f"restart rate {restart_rate:.3f} exceeds limit {max_restart_rate:.3f}", details
-    return 0, "ok", details
-
-
 def safe_eval(expression, expected_type, error_message):
-    try:
-        result = ast.literal_eval(expression)
-        if not isinstance(result, expected_type):
-            st.error(error_message)
-            return None
-        return result
-    except (SyntaxError, ValueError):
-        st.error(error_message)
-        return None
+    return _safe_eval_impl(
+        expression,
+        expected_type,
+        error_message,
+        on_error=st.error,
+    )
+
 
 def parse_and_validate_scheduler(scheduler):
-    """
-    Accept IP or IP:PORT. Validate IP via is_valid_ip(host) and optional numeric port.
-    """
+    return _parse_and_validate_scheduler_impl(
+        scheduler,
+        is_valid_ip=is_valid_ip,
+        on_error=st.error,
+    )
 
-    host, sep, port = scheduler.partition(":")
-    if not is_valid_ip(host):
-        st.error(f"The scheduler host '{scheduler}' is invalid. Expect IP or IP:PORT.")
-        return None
-    if sep and (not port.isdigit() or not (0 < int(port) < 65536)):
-        st.error(f"The scheduler port in '{scheduler}' is invalid.")
-        return None
-    return scheduler
 
 def parse_and_validate_workers(workers_input):
-    env = st.session_state["env"]
-    workers = safe_eval(
-        expression=workers_input,
-        expected_type=dict,
-        error_message="Workers must be provided as a dictionary of IP addresses and capacities (e.g., {'192.168.0.1': 2})."
+    return _parse_and_validate_workers_impl(
+        workers_input,
+        is_valid_ip=is_valid_ip,
+        on_error=st.error,
+        default_workers={"127.0.0.1": 1},
     )
-    if workers is not None:
-        invalid_ips = [ip for ip in workers.keys() if not is_valid_ip(ip)]
-        if invalid_ips:
-            st.error(f"The following worker IPs are invalid: {', '.join(invalid_ips)}")
-            return {"127.0.0.1": 1}
-        invalid_values = {ip: num for ip, num in workers.items() if not isinstance(num, int) or num <= 0}
-        if invalid_values:
-            error_details = ", ".join([f"{ip}: {num}" for ip, num in invalid_values.items()])
-            st.error(f"All worker capacities must be positive integers. Invalid entries: {error_details}")
-            return {"127.0.0.1": 1}
-    return workers or {"127.0.0.1": 1}
 
 def initialize_app_settings(args_override=None):
     env = st.session_state["env"]
@@ -1484,7 +1180,7 @@ async def page():
     inject_theme(env.st_resources)
     render_logo()
 
-    if not st.session_state.get("server_started"):
+    if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
         st.session_state["server_started"] = True
 

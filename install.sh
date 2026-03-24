@@ -840,7 +840,6 @@ install_pycharm_script() {
 
 usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test]"
-  echo "Legacy secret flags are still accepted for compatibility but are deprecated because they expose secrets in shell history and process listings."
     exit 1
 }
 
@@ -851,8 +850,6 @@ usage() {
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --cluster-ssh-credentials) echo -e "${YELLOW}Deprecated: prefer CLUSTER_CREDENTIALS env var or ~/.agilab/.env over CLI secrets.${NC}"; cluster_credentials="$2"; shift 2;;
-        --openai-api-key)      echo -e "${YELLOW}Deprecated: prefer OPENAI_API_KEY env var or ~/.agilab/.env over CLI secrets.${NC}"; openai_api_key="$2";      shift 2;;
         --agi-share-dir)       AGI_SHARE_DIR="$2"; shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
