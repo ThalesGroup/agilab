@@ -13,7 +13,6 @@ import json
 import numbers
 import logging
 import subprocess
-import shutil
 from functools import lru_cache
 from pathlib import Path
 import importlib
@@ -22,7 +21,6 @@ from datetime import datetime
 
 # Third-Party imports
 import networkx as nx
-from networkx.readwrite import json_graph
 import textwrap
 
 try:
@@ -42,6 +40,24 @@ import pandas as pd
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
+try:
+    from agilab.orchestrate_execute import (
+        OrchestrateExecuteDeps,
+        render_execute_section,
+    )
+except ModuleNotFoundError:
+    _orchestrate_execute_path = Path(__file__).resolve().parents[1] / "orchestrate_execute.py"
+    _orchestrate_execute_spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_execute_fallback",
+        _orchestrate_execute_path,
+    )
+    if _orchestrate_execute_spec is None or _orchestrate_execute_spec.loader is None:
+        raise
+    _orchestrate_execute_module = importlib.util.module_from_spec(_orchestrate_execute_spec)
+    _orchestrate_execute_spec.loader.exec_module(_orchestrate_execute_module)
+    OrchestrateExecuteDeps = _orchestrate_execute_module.OrchestrateExecuteDeps
+    render_execute_section = _orchestrate_execute_module.render_execute_section
+
 try:
     from agilab.orchestrate_support import (
         coerce_bool_setting as _coerce_bool_setting,
@@ -83,8 +99,8 @@ except ModuleNotFoundError:
     _write_app_settings_toml = _orchestrate_support_module.write_app_settings_toml
 # Project Libraries:
 from agi_env.pagelib import (
-    background_services_enabled, get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
-    cached_load_df, inject_theme, is_valid_ip, find_files, resolve_active_app, store_last_active_app
+    background_services_enabled, get_about_content, render_logo, activate_mlflow, init_custom_ui, select_project,
+    inject_theme, is_valid_ip, resolve_active_app, store_last_active_app
 )
 
 from agi_env import AgiEnv
@@ -1630,15 +1646,10 @@ if __name__ == "__main__":
     # ------------------
     # RUN Section
     # ------------------
-    run_clicked = False
     show_run_panel = False
     show_submit_panel = False
-    existing_run_log = st.session_state.get("run_log_cache", "").strip()
-    run_log_expander = None
-    log_container = None
     cmd = None
     if show_run:
-        # Reset run log state when switching between projects so the expander starts closed
         prev_app_key = "execute_prev_app"
         if st.session_state.get(prev_app_key) != env.app:
             st.session_state[prev_app_key] = env.app
@@ -1647,7 +1658,6 @@ if __name__ == "__main__":
             st.session_state.pop("_benchmark_expand", None)
             st.session_state.pop("_force_export_open", None)
         st.session_state.setdefault("run_log_cache", "")
-        cmd = None
 
         execution_view_key = f"orchestrate_execution_view__{env.app}"
         if execution_view_key not in st.session_state:
@@ -1671,11 +1681,10 @@ if __name__ == "__main__":
 
         if show_run_panel:
             with st.expander("Optimize execution"):
-                # Benchmark toggle
                 st.session_state.setdefault("benchmark", False)
                 if st.session_state.pop("benchmark_reset_pending", False):
                     st.session_state["benchmark"] = False
-                # ---- Compute run_mode exactly once (single source of truth)
+
                 cluster_params = st.session_state.app_settings["cluster"]
                 cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
 
@@ -1696,12 +1705,9 @@ if __name__ == "__main__":
                     benchmark_enabled = requested_benchmark
                 else:
                     benchmark_enabled = False
-                    st.warning(
-                        "Benchmark requires Cluster, Pool, and Cython to be enabled together."
-                    )
+                    st.warning("Benchmark requires Cluster, Pool, and Cython to be enabled together.")
 
                 def _compute_mode():
-                    # 0/1 pool + 0/2 cython + 0/4 dask + 0/8 rapids
                     return (
                         int(cluster_params.get("pool", False))
                         + int(cluster_params.get("cython", False)) * 2
@@ -1719,15 +1725,14 @@ if __name__ == "__main__":
                         "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
                         "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
                         "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
-                        "15: rapids and dask and pool and cython"
+                        "15: rapids and dask and pool and cython",
                     ]
                     info_label = f"Run mode {run_mode_label[run_mode]}"
 
-                # Keep session_state in sync (for any other code that reads it)
                 st.session_state["mode"] = run_mode
                 st.info(info_label)
 
-                verbose = cluster_params.get('verbose', 1)
+                verbose = cluster_params.get("verbose", 1)
                 enabled = cluster_enabled
                 scheduler = f'"{cluster_params.get("scheduler")}"' if enabled and cluster_params.get("scheduler") else "None"
                 workers = str(cluster_params.get("workers")) if enabled and cluster_params.get("workers") else "None"
@@ -1761,12 +1766,10 @@ if __name__ == "__main__":
                             with open(env.benchmark, "r") as f:
                                 raw = json.load(f) or {}
 
-                            # Pull out a date if present, so it doesn't break the DF shape
                             date_value = str(raw.pop("date", "") or "").strip()
+                            benchmark_df = pd.DataFrame.from_dict(raw, orient="index")
 
-                            benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
-
-                            df_nonempty = benchmark_df.dropna(how='all')
+                            df_nonempty = benchmark_df.dropna(how="all")
                             if not df_nonempty.empty:
                                 df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
                             if not df_nonempty.empty and df_nonempty.shape[1] > 0:
@@ -1785,7 +1788,6 @@ if __name__ == "__main__":
                                 st.info("Benchmark file is present but empty. Run the benchmark to collect data.")
                         else:
                             st.info("No benchmark results yet. Enable 'Benchmark all modes' and run EXECUTE to gather data.")
-
                     except json.JSONDecodeError as e:
                         st.warning(f"Error decoding JSON: {e}")
 
@@ -2261,543 +2263,31 @@ if __name__ == "__main__":
                 elif stop_service_clicked:
                     await _execute_service_action("stop")
 
-        existing_run_log = st.session_state.get("run_log_cache", "").strip()
-        run_log_expander = None
-        log_container = None
-
-        def _ensure_run_log_expander(*, expanded: bool):
-            nonlocal run_log_expander, log_container
-            if run_log_expander is None:
-                if log_container is None:
-                    log_container = st.container()
-                with log_container:
-                    run_log_expander = st.expander("Run logs", expanded=expanded)
-            return run_log_expander
-
-        async def _execute_with_logging(current_expander, label: str):
-            """Run the configured AGI command and surface logs inside an expander."""
-            clear_log()
-            st.session_state["run_log_cache"] = ""
-            target_expander = current_expander or _ensure_run_log_expander(expanded=True)
-            with target_expander:
-                log_placeholder = st.empty()
-            _reset_traceback_skip()
-            log_dir = Path(env.runenv or (Path.home() / "log" / "execute" / env.app))
-            log_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file_path = log_dir / f"run_{timestamp}.log"
-            st.session_state["last_run_log_path"] = str(log_file_path)
-
-            async def _run_and_stream():
-                nonlocal log_file_path
-                with log_file_path.open("w", encoding="utf-8") as log_file:
-                    def _fanout(message: str) -> None:
-                        clean = strip_ansi(message or "").rstrip()
-                        if clean:
-                            log_file.write(clean + "\n")
-                            log_file.flush()
-                        update_log(log_placeholder, message)
-
-                    _, stderr_text = await env.run_agi(
-                        cmd.replace("asyncio.run(main())", env.snippet_tail),
-                        log_callback=_fanout,
-                        venv=project_path,
-                    )
-                    return stderr_text
-
-            with st.spinner("Running AGI..."):
-                stderr = await _run_and_stream()
-                st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
-            with target_expander:
-                log_placeholder.empty()
-                display_log(st.session_state["run_log_cache"], stderr)
-                st.caption(f"Logs saved to {log_file_path}")
-            st.session_state["dataframe_deleted"] = False
-            return target_expander
-
-        delete_confirm_key = "delete_data_main_confirm"
-        delete_undo_key = "delete_data_main_undo_payload"
-
-        @st.fragment
-        def _render_run_panel_controls() -> tuple[bool, bool, bool, bool]:
-            local_run_clicked = False
-            local_load_clicked = False
-            local_delete_clicked = False
-            local_combo_clicked = False
-
-            if show_run_panel:
-                run_col, load_col, delete_col = st.columns(3)
-                run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
-                if cmd:
-                    local_run_clicked = run_col.button(
-                        run_label,
-                        key="run_btn",
-                        type="primary",
-                        use_container_width=True,
-                    )
-                else:
-                    run_col.button(
-                        run_label,
-                        key="run_btn_disabled",
-                        type="primary",
-                        disabled=True,
-                        help="Configure the run snippet to enable execution",
-                        use_container_width=True,
-                    )
-
-                local_load_clicked = load_col.button(
-                    "LOAD dataframe",
-                    key="load_data_main",
-                    type="primary",
-                    use_container_width=True,
-                    help="Fetch the latest dataframe preview for export",
-                )
-                if st.session_state.pop("_combo_load_trigger", False):
-                    local_load_clicked = True
-
-                delete_armed_clicked = False
-                delete_cancel_clicked = False
-                if st.session_state.get(delete_confirm_key, False):
-                    local_delete_clicked = delete_col.button(
-                        "Confirm delete",
-                        key="delete_data_main_confirm_btn",
-                        type="primary",
-                        use_container_width=True,
-                        help="Confirm deletion of the loaded dataframe/export file.",
-                    )
-                    delete_cancel_clicked = delete_col.button(
-                        "Cancel",
-                        key="delete_data_main_cancel_btn",
-                        type="secondary",
-                        use_container_width=True,
-                    )
-                else:
-                    delete_armed_clicked = delete_col.button(
-                        "DELETE dataframe",
-                        key="delete_data_main",
-                        type="secondary",
-                        use_container_width=True,
-                        help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
-                    )
-
-                if _update_delete_confirm_state(
-                    delete_confirm_key,
-                    delete_armed_clicked=delete_armed_clicked,
-                    delete_cancel_clicked=delete_cancel_clicked,
-                ):
-                    _rerun_fragment_or_app()
-
-                undo_delete_clicked = False
-                undo_payload = st.session_state.get(delete_undo_key)
-                if isinstance(undo_payload, dict):
-                    undo_delete_clicked = st.button(
-                        "UNDO last delete dataframe",
-                        key="delete_data_main_undo_btn",
-                        type="secondary",
-                        use_container_width=True,
-                        help="Restore the most recently deleted dataframe preview and file.",
-                    )
-
-                if undo_delete_clicked and isinstance(undo_payload, dict):
-                    restored_file = False
-                    backup_file = undo_payload.get("backup_file")
-                    source_file = undo_payload.get("source_file")
-                    if backup_file and source_file:
-                        backup_path = Path(backup_file)
-                        source_path = Path(source_file)
-                        try:
-                            if backup_path.exists():
-                                source_path.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.move(str(backup_path), str(source_path))
-                                restored_file = True
-                            elif not source_path.exists():
-                                st.warning("Undo could not restore file from disk backup (backup not found).")
-                        except Exception as exc:
-                            st.error(f"Failed to restore deleted file: {exc}")
-
-                    _restore_dataframe_preview_state(undo_payload)
-                    st.session_state["dataframe_deleted"] = False
-                    st.session_state.pop(delete_undo_key, None)
-                    st.session_state.pop(delete_confirm_key, None)
-                    try:
-                        cached_load_df.clear()
-                    except Exception:
-                        pass
-                    try:
-                        find_files.clear()
-                    except Exception:
-                        pass
-                    if restored_file:
-                        st.success("Dataframe delete undone and file restored.")
-                    else:
-                        st.success("Dataframe preview restore completed.")
-                    _rerun_fragment_or_app()
-
-                if cmd:
-                    local_combo_clicked = st.button(
-                        "EXECUTE → LOAD → EXPORT",
-                        key="combo_exec_load_export",
-                        type="primary",
-                        help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
-                        use_container_width=True,
-                    )
-            else:
-                st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
-                st.session_state.pop("_combo_load_trigger", None)
-                st.session_state.pop("_combo_export_trigger", None)
-                st.session_state.pop(delete_confirm_key, None)
-
-            return local_run_clicked, local_load_clicked, local_delete_clicked, local_combo_clicked
-
-        run_clicked, load_clicked, delete_clicked, combo_clicked = _render_run_panel_controls()
-
-        if show_run_panel and load_clicked:
-            if st.session_state.get("dataframe_deleted"):
-                st.info("Dataframe preview was deleted. Run EXECUTE again before loading a new export.")
-            else:
-                candidate_roots: list[Path] = []
-
-                def _attach_root(raw_path: Optional[Path | str]) -> None:
-                    if not raw_path:
-                        return
-                    path = Path(raw_path).expanduser()
-                    if not path.is_absolute():
-                        path = Path.home() / path
-                    candidate_roots.append(path)
-
-                _attach_root(env.dataframe_path)
-                _attach_root(env.app_data_rel)
-
-                active_args = st.session_state.app_settings.get("args", {})
-                _attach_root(active_args.get("data_in"))
-                _attach_root(active_args.get("data_out"))
-
-                # Remove duplicates while preserving order
-                unique_roots: list[Path] = []
-                seen_roots = set()
-                for root in candidate_roots:
-                    key = str(root.resolve()) if root.exists() else str(root)
-                    if key not in seen_roots:
-                        seen_roots.add(key)
-                        unique_roots.append(root)
-
-                target_file: Optional[Path] = None
-                search_files: list[Path] = []
-                for root in unique_roots:
-                    if root.is_dir():
-                        search_files.extend(
-                            list(root.rglob("*.parquet"))
-                            + list(root.rglob("*.csv"))
-                            + list(root.rglob("*.json"))
-                            + list(root.rglob("*.gml"))
-                        )
-                    elif root.is_file():
-                        search_files.append(root)
-
-                if search_files:
-                    try:
-                        target_file = max(search_files, key=lambda file: file.stat().st_mtime)
-                    except FileNotFoundError:
-                        target_file = None
-                # Filter out metadata stubs like `._file.csv` and empty artefacts before loading.
-                search_files = [
-                    file_path
-                    for file_path in search_files
-                    if file_path.is_file()
-                    and not file_path.name.startswith("._")
-                    and file_path.stat().st_size > 0
-                ]
-                if target_file and target_file not in search_files:
-                    target_file = max(search_files, key=lambda file: file.stat().st_mtime) if search_files else None
-
-                if not target_file:
-                    st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
-                else:
-                    st.session_state["loaded_source_path"] = target_file
-                    suffix = target_file.suffix.lower()
-                    try:
-                        if suffix in {".csv", ".parquet"}:
-                            # Gather the most recent batch of files so multi-flight runs remain intact.
-                            latest_mtime = target_file.stat().st_mtime
-                            batch_window = st.session_state.get("export_batch_window_seconds", 600)
-                            try:
-                                batch_window = int(batch_window)
-                            except (TypeError, ValueError):
-                                batch_window = 600
-
-                            candidate_batch = sorted(
-                                {
-                                    file_path
-                                    for file_path in search_files
-                                    if file_path.suffix.lower() == suffix
-                                    and file_path.parent == target_file.parent
-                                    and abs(latest_mtime - file_path.stat().st_mtime) <= batch_window
-                                },
-                                key=lambda p: p.stat().st_mtime,
-                            )
-
-                            if not candidate_batch:
-                                candidate_batch = [target_file]
-
-                            frames = []
-                            for file_path in candidate_batch:
-                                df_piece = cached_load_df(file_path, with_index=False, nrows=0)
-                                if isinstance(df_piece, pd.DataFrame) and not df_piece.empty:
-                                    df_piece = df_piece.copy()
-                                    df_piece["__source__"] = file_path.name
-                                    frames.append(df_piece)
-
-                            loaded_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
-                            if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-                                st.session_state["loaded_df"] = loaded_df
-                                st.session_state["_force_export_open"] = True
-                                st.session_state.pop("loaded_graph", None)
-                                if len(candidate_batch) > 1:
-                                    st.success(f"Loaded dataframe preview from {len(candidate_batch)} files (latest: {target_file.name}).")
-                                else:
-                                    st.success(f"Loaded dataframe preview from {target_file.name}.")
-                            else:
-                                st.warning(f"{target_file.name} is empty; nothing to preview.")
-                        elif suffix == ".json":
-                            payload = json.loads(target_file.read_text())
-                            if isinstance(payload, dict) and "nodes" in payload and "links" in payload:
-                                graph = json_graph.node_link_graph(payload, directed=payload.get("directed", True))
-                                st.session_state["loaded_df"] = None
-                                st.session_state["_force_export_open"] = False
-                                st.session_state["loaded_graph"] = graph
-                                st.success(f"Loaded network graph from {target_file.name}.")
-                            else:
-                                loaded_df = pd.json_normalize(payload)
-                                st.session_state["loaded_df"] = loaded_df
-                                st.session_state["_force_export_open"] = True
-                                st.session_state.pop("loaded_graph", None)
-                                st.info(f"Parsed JSON payload as tabular data from {target_file.name}.")
-                        elif suffix == ".gml":
-                            graph = nx.read_gml(target_file)
-                            edge_df = nx.to_pandas_edgelist(graph)
-                            if not edge_df.empty:
-                                st.session_state["loaded_df"] = edge_df
-                                st.session_state["_force_export_open"] = True
-                                st.session_state["loaded_graph"] = graph
-                                st.success(f"Loaded topology edges from {target_file.name}.")
-                            else:
-                                node_df = pd.DataFrame(
-                                    [(node, data) for node, data in graph.nodes(data=True)],
-                                    columns=["node", "attributes"],
-                                )
-                                if node_df.empty:
-                                    st.warning(f"{target_file.name} did not contain edges or node attributes to display.")
-                                else:
-                                    st.session_state["loaded_df"] = node_df
-                                    st.session_state["_force_export_open"] = True
-                                    st.session_state["loaded_graph"] = graph
-                                    st.info(f"Showing node metadata from {target_file.name}.")
-                        else:
-                            st.warning(f"Unsupported file format: {target_file.suffix}")
-                    except json.JSONDecodeError as exc:
-                        st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
-                    except Exception as exc:
-                        st.error(f"Unable to load {target_file.name}: {exc}")
-
-        if show_run_panel and delete_clicked:
-            st.session_state.pop(delete_confirm_key, None)
-            undo_payload = _capture_dataframe_preview_state()
-            undo_payload["deleted_at"] = datetime.now().isoformat(timespec="seconds")
-            st.session_state["dataframe_deleted"] = True
-            source_path = st.session_state.get("loaded_source_path")
-            undo_payload["source_file"] = str(source_path) if source_path else ""
-            undo_payload["backup_file"] = ""
-            st.session_state.pop("loaded_source_path", None)
-            st.session_state["loaded_df"] = None
-            st.session_state.pop("df_cols", None)
-            st.session_state.pop("selected_cols", None)
-            st.session_state["check_all"] = False
-            st.session_state["_force_export_open"] = False
-            st.session_state.pop("loaded_graph", None)
-
-            deleted = False
-            if source_path:
-                file_path = Path(source_path)
-                try:
-                    if file_path.exists():
-                        trash_dir = file_path.parent / ".agilab-trash"
-                        trash_dir.mkdir(parents=True, exist_ok=True)
-                        backup_name = (
-                            f"{file_path.name}.{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.bak"
-                        )
-                        backup_path = trash_dir / backup_name
-                        shutil.move(str(file_path), str(backup_path))
-                        undo_payload["backup_file"] = str(backup_path)
-                        try:
-                            cached_load_df.clear()
-                        except Exception:
-                            pass
-                        try:
-                            find_files.clear()
-                        except Exception:
-                            pass
-                        st.success(f"Deleted {file_path.name} from disk.")
-                        deleted = True
-                    else:
-                        st.info("Loaded file already removed from disk.")
-                except Exception as exc:
-                    st.error(f"Failed to delete {file_path}: {exc}")
-
-            if not deleted:
-                st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
-            st.session_state[delete_undo_key] = undo_payload
-
-
-    if show_run_panel and run_clicked and cmd:
-        run_log_expander = await _execute_with_logging(run_log_expander, "Run logs")
-        if st.session_state.get("benchmark"):
-            st.session_state["_benchmark_expand"] = True
-            st.rerun()
-
-    if show_run_panel and combo_clicked:
-        if cmd:
-            run_log_expander = await _execute_with_logging(run_log_expander, "Run logs")
-        else:
-            st.error("No EXECUTE command configured; please configure it first.")
-
-        st.session_state["_combo_load_trigger"] = True
-        st.session_state["_combo_export_trigger"] = True
-        st.rerun()
-
-    if show_run_panel and existing_run_log and run_log_expander is None:
-        expander = _ensure_run_log_expander(expanded=False)
-        with expander:
-            st.code(existing_run_log, language="python")
-
-    df_preview = st.session_state.get("loaded_df")
-    graph_preview = st.session_state.get("loaded_graph")
-    source_preview_path = st.session_state.get("loaded_source_path")
-    source_preview_name = None
-    if source_preview_path:
-        try:
-            source_preview_name = Path(source_preview_path).name
-        except Exception:
-            source_preview_name = str(source_preview_path)
-    if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
-        st.dataframe(df_preview)
-        if source_preview_name:
-            st.caption(f"Previewing {source_preview_name}")
-    elif isinstance(graph_preview, nx.Graph):
-        st.caption("Graph preview generated from JSON output")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        pos = nx.spring_layout(graph_preview, seed=42)
-        node_colors = "skyblue"
-        nx.draw_networkx_nodes(graph_preview, pos, node_color=node_colors, ax=ax)
-        nx.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
-        nx.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
-        ax.axis("off")
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
-        if source_preview_name:
-            st.caption(f"Source: {source_preview_name}")
-
-    export_expanded = st.session_state.pop("_force_export_open", False)
-    loaded_df = st.session_state.get("loaded_df")
-
-    if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-        expander = st.expander("Prepare data for experiment and exploration", expanded=export_expanded)
-        with expander:
-            loaded_df.columns = [
-                col if col.strip() != "" else f"Unnamed Column {idx}"
-                for idx, col in enumerate(loaded_df.columns)
-            ]
-
-            if ("export_tab_previous_project" not in st.session_state or
-                    st.session_state.export_tab_previous_project != app_state_name or
-                    st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
-
-                st.session_state.export_tab_previous_project = app_state_name
-                st.session_state.df_cols = loaded_df.columns.tolist()
-                st.session_state.selected_cols = loaded_df.columns.tolist()
-                st.session_state.check_all = True
-
-            if st.session_state.pop("_reset_export_checkboxes", False):
-                st.session_state.selected_cols = st.session_state.df_cols.copy()
-                st.session_state.check_all = True
-                for idx in range(len(st.session_state.df_cols)):
-                    st.session_state[f"export_col_{idx}"] = True
-                st.session_state["_force_export_open"] = True
-
-            def on_select_all_changed():
-                st.session_state.selected_cols = st.session_state.df_cols.copy() if st.session_state.check_all else []
-                for idx in range(len(st.session_state.df_cols)):
-                    st.session_state[f"export_col_{idx}"] = st.session_state.check_all
-                st.session_state["_force_export_open"] = True
-
-            st.checkbox("Select All", key="check_all", on_change=on_select_all_changed)
-
-            def on_individual_checkbox_change(col_name, state_key):
-                if st.session_state.get(state_key):
-                    if col_name not in st.session_state.selected_cols:
-                        st.session_state.selected_cols.append(col_name)
-                else:
-                    if col_name in st.session_state.selected_cols:
-                        st.session_state.selected_cols.remove(col_name)
-                st.session_state.check_all = len(st.session_state.selected_cols) == len(st.session_state.df_cols)
-                st.session_state["_force_export_open"] = True
-
-            cols_layout = st.columns(5)
-            for idx, col in enumerate(st.session_state.df_cols):
-                label = col if col.strip() != "" else f"Unnamed Column {idx}"
-                state_key = f"export_col_{idx}"
-                st.session_state.setdefault(state_key, col in st.session_state.selected_cols)
-                with cols_layout[idx % 5]:
-                    st.checkbox(
-                        label,
-                        key=state_key,
-                        on_change=on_individual_checkbox_change,
-                        args=(col, state_key)
-                    )
-
-            export_file_input = st.text_input(
-                "Export to filename:",
-                value=st.session_state.df_export_file,
-                key="input_df_export_file_main"
-            )
-            st.session_state.df_export_file = export_file_input.strip()
-
-            action_col_stats, action_col_export = st.columns([1, 1])
-            with action_col_stats:
-                stats_clicked = st.button("STATS report", key="stats_report_main", type="primary", use_container_width=True)
-            with action_col_export:
-                export_clicked_manual = st.button("EXPORT dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
-            combo_export_trigger = st.session_state.pop("_combo_export_trigger", False)
-            export_clicked = export_clicked_manual or combo_export_trigger
-
-            if stats_clicked:
-                profile_file = st.session_state.profile_report_file
-                if not profile_file.exists():
-                    profile = generate_profile_report(loaded_df)
-                    with st.spinner("Generating profile report..."):
-                        profile.to_file(profile_file, silent=False)
-                open_new_tab(profile_file.as_uri())
-
-            if export_clicked:
-                target_path = st.session_state.df_export_file
-                if not st.session_state.selected_cols:
-                    st.warning("No columns selected for export.")
-                elif not target_path:
-                    st.warning("Please provide a filename for the export.")
-                else:
-                    exported_df = loaded_df[st.session_state.selected_cols]
-                    if save_csv(exported_df, target_path):
-                        st.success(f"Dataframe exported successfully to {target_path}.")
-                        st.session_state["_reset_export_checkboxes"] = True
-                        st.session_state["_experiment_reload_required"] = True
-
-                if st.session_state.profile_report_file.exists():
-                    os.remove(st.session_state.profile_report_file)
-    else:
-        st.session_state.df_cols = []
-        st.session_state.selected_cols = []
-        st.session_state.check_all = False
-        st.info("No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.")
+    execute_deps = OrchestrateExecuteDeps(
+        clear_log=clear_log,
+        update_log=update_log,
+        strip_ansi=strip_ansi,
+        reset_traceback_skip=_reset_traceback_skip,
+        append_log_lines=_append_log_lines,
+        display_log=display_log,
+        rerun_fragment_or_app=_rerun_fragment_or_app,
+        update_delete_confirm_state=_update_delete_confirm_state,
+        capture_dataframe_preview_state=_capture_dataframe_preview_state,
+        restore_dataframe_preview_state=_restore_dataframe_preview_state,
+        generate_profile_report=generate_profile_report,
+        log_display_max_lines=LOG_DISPLAY_MAX_LINES,
+        live_log_min_height=LIVE_LOG_MIN_HEIGHT,
+        install_log_height=INSTALL_LOG_HEIGHT,
+    )
+    await render_execute_section(
+        env=env,
+        project_path=project_path,
+        app_state_name=app_state_name,
+        controls_visible=show_run,
+        show_run_panel=show_run_panel,
+        cmd=cmd,
+        deps=execute_deps,
+    )
 
 # ===========================
 # Main Entry Point
