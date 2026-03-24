@@ -1,0 +1,55 @@
+name: Ensure roadmap label
+
+on:
+  push:
+    paths:
+      - ".github/ISSUE_TEMPLATE/roadmap-vote.yml"
+      - ".github/workflows/ensure-roadmap-label.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ensure-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure roadmap label exists
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const name = "roadmap";
+            const color = "0E8A16";
+            const description = "Roadmap votes and roadmap-planning issues";
+
+            const { data: labels } = await github.rest.issues.listLabelsForRepo({
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            const existing = labels.find((label) => label.name === name);
+
+            if (existing) {
+              await github.rest.issues.updateLabel({
+                owner,
+                repo,
+                name,
+                new_name: name,
+                color,
+                description,
+              });
+              core.info(`Updated label '${name}'.`);
+            } else {
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name,
+                color,
+                description,
+              });
+              core.info(`Created label '${name}'.`);
+            }
