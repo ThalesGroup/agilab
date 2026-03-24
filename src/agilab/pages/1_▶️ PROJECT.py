@@ -27,6 +27,7 @@ os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().pare
 import streamlit as st
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
+    background_services_enabled,
     get_classes_name,
     get_fcts_and_attrs_name,
     get_templates,
@@ -1682,7 +1683,7 @@ def page():
 
     render_logo()
 
-    if not st.session_state.get("server_started"):
+    if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
         st.session_state["server_started"] = True
 

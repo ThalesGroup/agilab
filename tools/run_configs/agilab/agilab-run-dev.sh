@@ -9,4 +9,5 @@ cd "$REPO_ROOT"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
 export IS_SOURCE_ENV="1"
-uv run streamlit run $REPO_ROOT/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-path $REPO_ROOT/src/agilab/apps
+export OPENAI_API_KEY="your-key"
+uv run streamlit run $REPO_ROOT/src/agilab/About_agilab.py -- --apps-path $REPO_ROOT/src/agilab/apps

@@ -137,7 +137,7 @@ install_apps() {
 }
 
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
+    echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--install-path <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
     exit 1
 }
 
@@ -147,8 +147,6 @@ usage() {
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --cluster-ssh-credentials) CLUSTER_CREDENTIALS="$2"; shift 2;;
-        --openai-api-key)      OPENAI_API_KEY="$2";      shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;

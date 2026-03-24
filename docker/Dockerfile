@@ -65,12 +65,9 @@ RUN mkdir -p /root/.agilab \
 
 
 RUN chmod +x ./install.sh && \
-    ./install.sh \
-        --cluster-ssh-credentials "$CLUSTER_CREDENTIALS" \
-        --openai-api-key "$OPENAI_API_KEY" \
-        --install-path /app \
-        --source local \
-        --install-apps
+    CLUSTER_CREDENTIALS="$CLUSTER_CREDENTIALS" \
+    OPENAI_API_KEY="$OPENAI_API_KEY" \
+    ./install.sh --install-path /app --source local --install-apps
 
 # Expose Streamlit port
 EXPOSE 8501
