@@ -65,6 +65,12 @@ simultaneous multiple virtual environments, with one venv per cell/snippet.
 
    agilab-github
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Roadmap
+
+   roadmap/index
+
 Indices and tables
 ==================
 
