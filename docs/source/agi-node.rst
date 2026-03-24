@@ -131,6 +131,7 @@ pandas_worker
 .. automodule:: agi_node.pandas_worker.pandas_worker
    :members:
    :undoc-members:
+   :exclude-members: verbose
    :show-inheritance:
 
 polars_worker
@@ -144,4 +145,5 @@ polars_worker
 .. automodule:: agi_node.polars_worker.polars_worker
    :members:
    :undoc-members:
+   :exclude-members: verbose
    :show-inheritance:
