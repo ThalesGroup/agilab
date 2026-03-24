@@ -7,7 +7,8 @@ discussions:
 - Backend observability and audit architecture
 - Connectors and integration
 
-The goal is to make the next high-value choices explicit and easy to rank.
+The goal is not to freeze a roadmap prematurely. The goal is to make the next
+high-value choices explicit and easy to rank.
 
 ## Streamlit-inspired AGILab views
 
@@ -157,6 +158,76 @@ Why it matters:
 - reduces friction across apps
 - makes automation more reusable
 - lowers the gap between conceptual workflows and executable steps
+
+#### Connector integration change request
+
+The concrete change request behind this roadmap item is to replace repeated raw
+path settings in `app_settings.toml` with references to reusable connector
+definition files.
+
+Current problem:
+
+- pages such as `view_maps_network` rely on many low-level path keys
+- the same path logic is repeated across settings files
+- defaults are more machine-specific than they should be
+- page code must interpret too many raw path parameters directly
+
+Proposed direction:
+
+- introduce a declarative `Connector` model
+- store connector definitions in plain-text TOML files
+- let `app_settings.toml` reference those connector files instead of embedding
+  all path details inline
+
+First connector model:
+
+- `id`
+- `kind`
+- `label`
+- `description`
+- `base`
+- `subpath`
+- `globs`
+- `preferred_file_ext`
+- `metadata`
+
+Recommended file placement:
+
+- next to the app settings
+- for example `src/connectors/*.toml`
+
+Recommended resolution rule:
+
+1. explicit query parameters
+2. current session-state widget values
+3. explicit page-level overrides in `app_settings.toml`
+4. connector references in `app_settings.toml`
+5. legacy raw path keys
+6. code-level defaults
+
+Compatibility rule:
+
+- keep legacy raw path keys working in phase 1
+- let connector references win when both are defined
+
+Expected impact:
+
+- `view_maps_network` is the primary beneficiary
+- `PROJECT` must expose connector references clearly enough to stay debuggable
+- `PIPELINE` should remain unchanged in phase 1
+
+Suggested implementation phases:
+
+1. core connector model, parser, resolver, and validation
+2. connector-aware default resolution in apps-pages
+3. connector preview and navigation support in `PROJECT`
+4. optional connector references in `PIPELINE` only if needed later
+
+Acceptance target:
+
+- connectors can replace path groups in `app_settings.toml`
+- existing apps still work without migration
+- connector definitions remain plain-text and git-friendly
 
 ### 2. External system connectors
 
