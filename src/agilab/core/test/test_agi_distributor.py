@@ -3058,6 +3058,56 @@ def test_exec_bg_raises_when_background_job_fails():
         AGI._exec_bg("echo test", "/tmp")
 
 
+def test_exec_bg_uses_launched_job_id():
+    seen = {}
+
+    class _Job:
+        def __init__(self, num):
+            self.num = num
+
+    class _Jobs:
+        def new(self, cmd, cwd=None):
+            seen["new"] = (cmd, cwd)
+            return _Job(7)
+
+        def result(self, index):
+            seen["result"] = index
+            return True
+
+    AGI._jobs = _Jobs()
+    AGI._exec_bg("echo test", "/tmp")
+
+    assert seen["new"] == ("echo test", "/tmp")
+    assert seen["result"] == 7
+
+
+def test_background_job_manager_uses_subprocess_and_real_directories_only(monkeypatch, tmp_path):
+    calls = []
+
+    class _Proc:
+        def poll(self):
+            return None
+
+    def _fake_popen(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return _Proc()
+
+    monkeypatch.setattr(agi_distributor_module.subprocess, "Popen", _fake_popen)
+    jobs = agi_distributor_module.bg.BackgroundJobManager()
+
+    first = jobs.new("echo test", cwd="flight_trajectory_project")
+    second = jobs.new("echo test 2", cwd=tmp_path)
+
+    assert first.num == 0
+    assert second.num == 1
+    assert calls[0][0] == "echo test"
+    assert calls[0][1]["shell"] is True
+    assert calls[0][1]["cwd"] is None
+    assert calls[0][1]["start_new_session"] is True
+    assert calls[1][1]["cwd"] == str(tmp_path)
+    assert jobs.result(second.num) is second.result
+
+
 @pytest.mark.asyncio
 async def test_get_ssh_connection_reuses_cached_connection(monkeypatch):
     class _Conn:

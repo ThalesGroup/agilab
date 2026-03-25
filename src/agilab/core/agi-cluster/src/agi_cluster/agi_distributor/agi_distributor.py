@@ -13,7 +13,6 @@
 """Cluster workplan utilities for distributing AGILab workloads."""
 import traceback
 from typing import List, Optional, Tuple, Set  # Ajoute Tuple et Set
-from IPython.lib import backgroundjobs as bg
 import asyncio
 import inspect
 import getpass
@@ -35,6 +34,7 @@ from datetime import timedelta
 from ipaddress import ip_address as is_ip
 from pathlib import Path, PurePosixPath
 from tempfile import gettempdir
+from types import SimpleNamespace
 
 from agi_cluster.agi_distributor import cli as distributor_cli
 
@@ -321,6 +321,81 @@ from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
 
+
+class _BackgroundProcessJob:
+    """Minimal job record for detached subprocess launches."""
+
+    def __init__(self, process: subprocess.Popen[str]):
+        self.process = process
+        self.result = process
+        self.num: int | None = None
+
+
+class _BackgroundProcessManager:
+    """Host-neutral replacement for IPython BackgroundJobManager."""
+
+    def __init__(self):
+        self._current_job_id = 0
+        self.all: dict[int, _BackgroundProcessJob] = {}
+        self.running: list[_BackgroundProcessJob] = []
+        self.completed: list[_BackgroundProcessJob] = []
+        self.dead: list[_BackgroundProcessJob] = []
+
+    @staticmethod
+    def _normalize_cwd(cwd: str | Path | None) -> str | None:
+        if cwd in (None, ""):
+            return None
+        try:
+            candidate = Path(cwd).expanduser()
+        except Exception:
+            return None
+        return str(candidate) if candidate.is_dir() else None
+
+    def _refresh(self) -> None:
+        active: list[_BackgroundProcessJob] = []
+        for job in self.running:
+            status = job.process.poll()
+            if status is None:
+                active.append(job)
+            elif status == 0:
+                self.completed.append(job)
+            else:
+                self.dead.append(job)
+        self.running = active
+
+    def new(self, cmd: str, cwd: str | Path | None = None) -> _BackgroundProcessJob:
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            cwd=self._normalize_cwd(cwd),
+            start_new_session=True,
+        )
+        job = _BackgroundProcessJob(proc)
+        job.num = self._current_job_id
+        self._current_job_id += 1
+        self.running.append(job)
+        self.all[job.num] = job
+        return job
+
+    def result(self, num: int):
+        self._refresh()
+        job = self.all.get(num)
+        if job is None:
+            return None
+        if job in self.dead:
+            return None
+        return job.result
+
+    def flush(self) -> None:
+        self._refresh()
+        for job in self.completed + self.dead:
+            self.all.pop(job.num, None)
+        self.completed.clear()
+        self.dead.clear()
+
+
+bg = SimpleNamespace(BackgroundJobManager=_BackgroundProcessManager)
+
 class AGI:
     """Coordinate installation, scheduling, and execution of AGILab workloads."""
 
@@ -343,7 +418,7 @@ class AGI:
     _dask_client: Optional[Client] = None
     _dask_scheduler: Optional[Any] = None
     _dask_workers: Optional[List[str]] = None
-    _jobs: Optional[bg.BackgroundJobManager] = None
+    _jobs: Optional[Any] = None
     _local_ip: List[str] = []
     _install_done_local: bool = False
     _mode: Optional[int] = None
@@ -4552,9 +4627,9 @@ class AGI:
 
         Returns:
             """
-        AGI._jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
-
-        if not AGI._jobs.result(0):
+        job = AGI._jobs.new(cmd, cwd=cwd)
+        job_id = getattr(job, "num", 0)
+        if not AGI._jobs.result(job_id):
             raise RuntimeError(f"running {cmd} at {cwd}")
 
     @asynccontextmanager
