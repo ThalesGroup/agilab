@@ -44,7 +44,7 @@ import traceback
 import warnings
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, Iterable, List, Optional, Union
 
 # External Libraries:
 import numpy as np
@@ -304,6 +304,110 @@ class BaseWorker(abc.ABC):
                 except Exception:
                     pass
         return {alias for alias in aliases if alias}
+
+    @staticmethod
+    def _iter_input_files(
+        folder: Path,
+        *,
+        patterns: Iterable[str] | None = None,
+    ) -> list[Path]:
+        file_patterns = tuple(patterns or ("*.csv", "*.parquet", "*.pq", "*.parq"))
+        files: list[Path] = []
+        for pattern in file_patterns:
+            files.extend(sorted(folder.glob(pattern)))
+        return [path for path in files if path.is_file() and not path.name.startswith("._")]
+
+    @classmethod
+    def _has_min_input_files(
+        cls,
+        folder: Path,
+        *,
+        min_files: int = 1,
+        patterns: Iterable[str] | None = None,
+    ) -> bool:
+        if not folder.exists() or not folder.is_dir():
+            return False
+        return len(cls._iter_input_files(folder, patterns=patterns)) >= min_files
+
+    @classmethod
+    def _candidate_named_dataset_roots(
+        cls,
+        env: AgiEnv | None,
+        dataset_root: Path | str,
+        *,
+        namespace: str | None = None,
+        parent_levels: int = 4,
+    ) -> list[Path]:
+        root = cls._normalized_path(dataset_root)
+        candidates: list[Path] = [root]
+
+        if namespace:
+            dataset_name = root.name
+            for ancestor in list(root.parents)[:parent_levels]:
+                candidates.append(ancestor / namespace / dataset_name)
+                candidates.append(ancestor / namespace)
+
+            share_root = cls._share_root_path(env)
+            if share_root:
+                candidates.append(share_root / namespace / dataset_name)
+                candidates.append(share_root / namespace)
+
+        unique_roots: list[Path] = []
+        seen_roots: set[str] = set()
+        for candidate in candidates:
+            try:
+                normalized = cls._normalized_path(candidate).resolve(strict=False)
+            except Exception:
+                normalized = cls._normalized_path(candidate)
+            key = str(normalized)
+            if key not in seen_roots:
+                seen_roots.add(key)
+                unique_roots.append(normalized)
+        return unique_roots
+
+    @classmethod
+    def resolve_input_folder(
+        cls,
+        env: AgiEnv | None,
+        dataset_root: Path | str,
+        relative_dir: Path | str,
+        *,
+        descriptor: str,
+        fallback_subdirs: Iterable[str] = (),
+        dataset_namespace: str | None = None,
+        min_files: int = 1,
+        patterns: Iterable[str] | None = None,
+        required_label: str = "data files",
+    ) -> Path:
+        dataset_root_path = cls._normalized_path(dataset_root)
+        target = Path(relative_dir).expanduser()
+        if not target.is_absolute():
+            target = dataset_root_path / target
+        target = cls._normalized_path(target)
+
+        if cls._has_min_input_files(target, min_files=min_files, patterns=patterns):
+            return target.resolve(strict=False)
+
+        for root in cls._candidate_named_dataset_roots(
+            env,
+            dataset_root_path,
+            namespace=dataset_namespace,
+        ):
+            for fallback_subdir in fallback_subdirs:
+                fallback = cls._normalized_path(root / fallback_subdir)
+                if cls._has_min_input_files(fallback, min_files=min_files, patterns=patterns):
+                    logger.warning(
+                        "Needed %s data under '%s' but none found; using fallback '%s' instead.",
+                        descriptor,
+                        target,
+                        fallback,
+                    )
+                    return fallback.resolve(strict=False)
+
+        raise FileNotFoundError(
+            f"Need at least {min_files} {required_label} under '{target}'. "
+            f"Run {descriptor} to generate inputs before executing."
+        )
 
 
     def prepare_output_dir(
