@@ -84,6 +84,13 @@ class DemoArgs(BaseModel):
     list_field: list[int] = [1, 2]
 
 
+class EdgeCaseArgs(BaseModel):
+    none_only: type(None) = None
+    unconstrained_int: int = 7
+    unconstrained_float: float = 1.5
+    maybe_timestamp: dt.datetime | None = None
+
+
 def test_render_form_handles_various_field_types(dummy_streamlit):
     model = DemoArgs()
     values = streamlit_args.render_form(model)
@@ -101,6 +108,25 @@ def test_render_form_handles_various_field_types(dummy_streamlit):
     assert dummy_streamlit.number_inputs[0][1]["min_value"] == 0
     assert dummy_streamlit.number_inputs[0][1]["max_value"] == 10
     assert dummy_streamlit.number_inputs[1][1]["step"] == pytest.approx(0.25)
+
+
+def test_render_form_handles_none_only_and_unconstrained_numeric_fields(dummy_streamlit):
+    model = EdgeCaseArgs()
+
+    values = streamlit_args.render_form(model)
+
+    assert values["none_only"] == "text:None Only"
+    assert values["unconstrained_int"] == model.unconstrained_int + 1
+    assert values["unconstrained_float"] == pytest.approx(model.unconstrained_float + 0.5)
+    assert values["maybe_timestamp"] == "text:Maybe Timestamp"
+
+    int_kwargs = next(kwargs for label, kwargs in dummy_streamlit.number_inputs if label == "Unconstrained Int")
+    float_kwargs = next(kwargs for label, kwargs in dummy_streamlit.number_inputs if label == "Unconstrained Float")
+    assert "min_value" not in int_kwargs
+    assert "max_value" not in int_kwargs
+    assert "min_value" not in float_kwargs
+    assert "max_value" not in float_kwargs
+    assert float_kwargs["step"] == pytest.approx(0.1)
 
 
 def test_constraint_value_returns_none_when_constraint_absent():
@@ -252,6 +278,24 @@ def test_ensure_shared_directory_create_and_no_create_paths(tmp_path, monkeypatc
     assert created is False
     assert "payload path" in error
     assert "not a directory" in error
+
+
+def test_ensure_shared_directory_preserves_diagnosis_without_generic_fallback(tmp_path, monkeypatch):
+    share_root = tmp_path / "share"
+    env = SimpleNamespace(share_root_path=lambda: share_root)
+
+    monkeypatch.setattr(streamlit_args, "diagnose_data_directory", lambda _path: "custom diagnosis")
+
+    target, created, error = streamlit_args.ensure_shared_directory(
+        env,
+        "missing/folder",
+        description="payload path",
+        create_missing=False,
+    )
+
+    assert target == share_root / "missing/folder"
+    assert created is False
+    assert error == "custom diagnosis"
 
 
 def test_ensure_shared_directory_reports_mkdir_failure(tmp_path, monkeypatch):
