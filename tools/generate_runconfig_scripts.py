@@ -83,7 +83,10 @@ def tracked_runconfigs(repo_root: Path, runconfig_dir: Path) -> list[Path]:
     paths = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
     if not paths:
         return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
-    return [repo_root / p for p in sorted(paths)]
+    existing = [repo_root / p for p in sorted(paths) if (repo_root / p).exists()]
+    if existing:
+        return existing
+    return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
 
 
 def generate_scripts(runconfig_dir: Path, out_dir: Path, project_root: Path) -> None:
