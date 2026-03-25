@@ -14,6 +14,7 @@ declare -a BUILTIN_APPS=(
   flight_project
 )
 declare -a REPOSITORY_APPS=()
+declare -a INVALID_REPOSITORY_APPS=()
 
 declare -a DEFAULT_APPS_ORDER=(
   flight_project
@@ -157,6 +158,21 @@ app_dir_on_disk() {
   else
     printf '%s/%s' "$base" "$rel"
   fi
+}
+
+app_has_required_sources() {
+  local app_dir="$1"
+  local app_name manager_name
+  local pyproject manager worker
+
+  app_name="$(basename -- "$app_dir")"
+  manager_name="${app_name%_project}"
+
+  pyproject="$app_dir/pyproject.toml"
+  manager="$app_dir/src/$manager_name/$manager_name.py"
+  worker="$app_dir/src/${manager_name}_worker/${manager_name}_worker.py"
+
+  [[ -f "$pyproject" && -f "$manager" && -f "$worker" ]]
 }
 
 check_data_mount() {
@@ -397,7 +413,7 @@ if [[ -n "${BUILTIN_APPS_OVERRIDE-}" && -n "${BUILTIN_APPS_OVERRIDE//[[:space:]]
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
     FORCE_ALL_APPS=1
-    echo -e "${BLUE}(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every available app.${NC}"
+    echo -e "${BLUE}(Apps) Full install requested via BUILTIN_APPS_OVERRIDE; installing every installable app.${NC}"
   elif [[ "${BUILTIN_APPS_OVERRIDE}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
@@ -417,7 +433,7 @@ elif [[ -n "${BUILTIN_APPS_FROM_ENV}" && -n "${BUILTIN_APPS_FROM_ENV//[[:space:]
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
     FORCE_ALL_APPS=1
-    echo -e "${BLUE}(Apps) Full install requested (--install-apps all); installing every available app.${NC}"
+    echo -e "${BLUE}(Apps) Full install requested (--install-apps all); installing every installable app.${NC}"
   elif [[ "${BUILTIN_APPS_FROM_ENV}" == "$BUILTIN_ONLY_SENTINEL" ]]; then
     PROMPT_FOR_APPS=0
     NEED_APP_DISCOVERY=1
@@ -449,7 +465,11 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
 
   if [[ -d "$APPS_TARGET_BASE" ]]; then
     while IFS= read -r -d '' dir; do
-      repository_apps_found+=("$(basename -- "$dir")")
+      if app_has_required_sources "$dir"; then
+        repository_apps_found+=("$(basename -- "$dir")")
+      else
+        INVALID_REPOSITORY_APPS+=("$(basename -- "$dir")")
+      fi
     done < <(find "$APPS_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
   fi
 
@@ -501,6 +521,10 @@ fi
 if (( FILTER_BUILTINS_BY_DEFAULT )) && (( ${#BUILTIN_SKIPPED_BY_DEFAULT[@]} )); then
   echo -e "${YELLOW}(Apps) Skipping built-ins by default:${NC} ${BUILTIN_SKIPPED_BY_DEFAULT[*]}"
   echo -e "${YELLOW}Tip:${NC} Pass --install-apps <name|all> or select them from the picker to include them."
+fi
+
+if (( ${#INVALID_REPOSITORY_APPS[@]} )); then
+  echo -e "${YELLOW}(Apps) Skipping incomplete repository apps:${NC} ${INVALID_REPOSITORY_APPS[*]}"
 fi
 
 if (( FORCE_APP_SELECTION )); then
@@ -922,7 +946,19 @@ fi
 # --- Final Message -----------------------------------------------------------
 if (( status == 0 )); then
     if [[ -n "$APPS_REPOSITORY" ]]; then
-        ln -s "examples" "${APPS_REPOSITORY}/docs/source"
+        repo_examples_dir="${APPS_REPOSITORY}/examples"
+        docs_examples_dir="${APPS_REPOSITORY}/docs/source/examples"
+        if [[ -d "$repo_examples_dir" ]]; then
+            if [[ -L "$docs_examples_dir" ]]; then
+                current_examples_target="$(readlink "$docs_examples_dir")"
+                if [[ "$current_examples_target" != "$repo_examples_dir" ]]; then
+                    rm -f -- "$docs_examples_dir"
+                    ln -s -- "$repo_examples_dir" "$docs_examples_dir"
+                fi
+            elif [[ ! -e "$docs_examples_dir" ]]; then
+                ln -s -- "$repo_examples_dir" "$docs_examples_dir"
+            fi
+        fi
     fi
     echo -e "${GREEN}Installation of apps complete!${NC}"
 else

@@ -2554,7 +2554,13 @@ class AGI:
                         standalone_uv,
                     )
             else:
-                await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+                try:
+                    await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+                except RuntimeError as exc:
+                    logger.warning(
+                        "Failed to update uv (skipping self update): %s",
+                        exc,
+                    )
 
             try:
                 await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
@@ -2624,10 +2630,6 @@ class AGI:
             agi_internet_on = 1 if _envar_truthy(env.envars, "AGI_INTERNET_ON") else 0
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
-                if agi_internet_on == 1:
-                    await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
-                else:
-                    logger.warning("You appears to be on a local network. Please be sure to have uv latest release.")
             except ConnectionError:
                 raise
             except Exception:
@@ -2655,6 +2657,20 @@ class AGI:
             if not uv_is_installed:
                 logger.error("Failed to install uv")
                 raise EnvironmentError("Failed to install uv")
+
+            if agi_internet_on == 1:
+                try:
+                    await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+                except ConnectionError:
+                    raise
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to update uv on %s (skipping self update): %s",
+                        ip,
+                        exc,
+                    )
+            else:
+                logger.warning("You appears to be on a local network. Please be sure to have uv latest release.")
 
             # 3) Install Python
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")

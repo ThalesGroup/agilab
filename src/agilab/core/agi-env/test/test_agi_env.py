@@ -1,3 +1,7 @@
+import asyncio
+import shlex
+import sys
+
 import pytest
 from pathlib import Path
 from unittest import mock
@@ -277,3 +281,45 @@ def test_active_app_override_uses_builtin_path_even_when_env_apps_path_is_set(tm
     assert env.active_app == builtin_app.resolve()
     assert env.manager_path == (builtin_app / "src" / "flight" / "flight.py").resolve()
     assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+
+
+def test_run_nonzero_command_does_not_log_traceback_for_runtime_error(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    cmd = f"{shlex.quote(sys.executable)} -c \"import sys; sys.exit(3)\""
+    with pytest.raises(RuntimeError, match="Command failed with exit code 3"):
+        asyncio.run(AgiEnv.run(cmd, tmp_path))
+
+    assert any(
+        call.args
+        and call.args[0] == "Command failed with exit code %s: %s"
+        and call.args[1] == 3
+        for call in mock_logger.error.call_args_list
+    )
+    error_messages = [
+        " ".join(str(part) for part in call.args)
+        for call in mock_logger.error.call_args_list
+    ]
+    assert not any("Traceback (most recent call last)" in msg for msg in error_messages)
+
+
+def test_run_unexpected_exception_logs_traceback(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    async def _raise_value_error(*args, **kwargs):
+        raise ValueError("broken exec")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_value_error)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _raise_value_error)
+
+    cmd = f"{shlex.quote(sys.executable)} -c \"print('hello')\""
+    with pytest.raises(RuntimeError, match="Command execution error: broken exec"):
+        asyncio.run(AgiEnv.run(cmd, tmp_path))
+
+    error_messages = [
+        " ".join(str(part) for part in call.args)
+        for call in mock_logger.error.call_args_list
+    ]
+    assert any("Traceback (most recent call last)" in msg for msg in error_messages)

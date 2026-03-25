@@ -37,6 +37,12 @@ INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
 INSTALL_BUILTIN_SENTINEL="__AGILAB_BUILTIN_APPS__"
 INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE:-$HOME/.local/share/agilab/installed_apps.txt}"
 NON_INTERACTIVE=0
+SKIP_OFFLINE_RAW="${SKIP_OFFLINE:-0}"
+SKIP_OFFLINE_NORMALIZED="$(printf '%s' "$SKIP_OFFLINE_RAW" | tr '[:upper:]' '[:lower:]')"
+case "$SKIP_OFFLINE_NORMALIZED" in
+    1|true|yes|on) SKIP_OFFLINE=1 ;;
+    *) SKIP_OFFLINE=0 ;;
+esac
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
 
 read_env_var() {
@@ -773,7 +779,8 @@ run_repository_tests_with_coverage() {
 
 install_apps() {
   dir="$AGI_INSTALL_PATH/src/agilab"
-  pushd $dir > /dev/null
+  local rc=0
+  pushd "$dir" > /dev/null
   chmod +x "install_apps.sh"
   local agilab_public
   agilab_public="$(cat "$HOME/.local/share/agilab/.agilab-path")"
@@ -786,13 +793,16 @@ install_apps() {
     INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE}" \
     BUILTIN_APPS="$CUSTOM_INSTALL_APPS" \
       ./install_apps.sh "${install_args[@]}"
+    rc=$?
   else
     APPS_DEST_BASE="${agilab_public}/apps" \
     PAGES_DEST_BASE="${agilab_public}/apps-pages" \
     INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE}" \
       ./install_apps.sh "${install_args[@]}"
+    rc=$?
   fi
   popd > /dev/null
+  return $rc
 }
 
 install_enduser() {
@@ -840,6 +850,7 @@ install_pycharm_script() {
 
 usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test]"
+  echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
     exit 1
 }
 
@@ -851,7 +862,7 @@ usage() {
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --agi-share-dir)       AGI_SHARE_DIR="$2"; shift 2;;
-        --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
+        --install-path)        mkdir -p "$2"; AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;
         --install-apps)
@@ -889,6 +900,7 @@ while [[ "$#" -gt 0 ]]; do
             INSTALL_APPS_FLAG=1
             shift
             ;;
+        --skip-offline)       SKIP_OFFLINE=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
         --help|-h) usage && exit;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
@@ -898,14 +910,14 @@ export CLUSTER_CREDENTIALS
 export APPS_REPOSITORY
 
 # Confirm or override AGI_SHARE_DIR when interactive (relative paths are resolved under \$HOME)
-if [[ -t 0 ]]; then
+if [[ -t 0 ]] && (( ! NON_INTERACTIVE )); then
     read -rp "AGI_SHARE_DIR is '$AGI_SHARE_DIR' (relative paths resolve under \$HOME). Press Enter to accept or type a new path: " share_input
     if [[ -n "$share_input" ]]; then
         AGI_SHARE_DIR="$share_input"
     fi
 fi
 
-if [[ -t 0 ]]; then
+if [[ -t 0 ]] && (( ! NON_INTERACTIVE )); then
     local_default="${AGI_LOCAL_DIR:-$DEFAULT_LOCAL_SHARE}"
     read -rp "AGI_LOCAL_DIR fallback is '${local_default}'. Press Enter to accept or type a new path: " local_input
     if [[ -n "$local_input" ]]; then
@@ -991,9 +1003,13 @@ refresh_launch_matrix
 install_enduser
 
 if $run_extras; then
-  install_offline_extra
-  seed_mistral_pdfs
-  setup_mistral_offline
+  if (( SKIP_OFFLINE )); then
+    echo -e "${BLUE}[info] Skipping offline assistant installation (--skip-offline flag set)${NC}"
+  else
+    install_offline_extra
+    seed_mistral_pdfs
+    setup_mistral_offline
+  fi
 fi
 
 END_TIME=$(date +%s)
