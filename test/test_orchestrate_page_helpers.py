@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -42,3 +43,32 @@ def test_update_delete_confirm_state_sets_and_clears_flag(monkeypatch):
     )
     assert rerun_needed is False
 
+
+def test_is_app_installed_requires_manager_and_worker_venvs():
+    module = _load_orchestrate_module()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        active_app = root / "flight_trajectory_project"
+        worker_root = root / "wenv" / "flight_trajectory_worker"
+        active_app.mkdir(parents=True)
+        worker_root.mkdir(parents=True)
+
+        env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+        status = module._app_install_status(env)
+        assert status["manager_ready"] is False
+        assert status["worker_ready"] is False
+        assert module._is_app_installed(env) is False
+
+        (active_app / ".venv").mkdir()
+        status = module._app_install_status(env)
+        assert status["manager_ready"] is True
+        assert status["worker_ready"] is False
+        assert module._is_app_installed(env) is False
+
+        (worker_root / ".venv").mkdir()
+        status = module._app_install_status(env)
+        assert status["manager_ready"] is True
+        assert status["worker_ready"] is True
+        assert module._is_app_installed(env) is True
