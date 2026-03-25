@@ -14,15 +14,29 @@ reset_target = false
 
 [cluster]
 verbose = 1
-cython = false
-pool = false
-rapids = false
+cython = true
+pool = true
+rapids = true
 cluster_enabled = false
 
 [cluster.service_health]
 allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
+
+[view_maps]
+datadir = "/home/agi/export/flight"
+file_ext_choice = "all"
+df_select_mode = "Multi-select"
+df_file_regex = ""
+df_file = "export.csv"
+df_files_selected = [
+    "export.csv",
+]
+discrete = "time_s"
+lat = "latitude"
+long = "longitude"
+coltype = "discrete"
 
 [pages]
 view_module = [

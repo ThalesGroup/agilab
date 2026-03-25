@@ -36,6 +36,10 @@ Use this runbook whenever you:
   `data_out` from `data_in` when the stored value is actually missing. Do not silently replace
   an explicit saved value with a recomputed default on render; if a field is intentionally derived,
   make that dependency explicit in the UI instead of presenting it as a normal independent input.
+- **Bug-class sweep**: When fixing a bug, check whether the same class of bug exists elsewhere in
+  the codebase, especially in sibling apps, mirrored forms, shared helpers, or duplicated logic.
+  If it does, either fix the related instances in the same change or clearly document why they are
+  being left out.
 - **No silent fallbacks**: Do not introduce automatic API client fallbacks
   (`chat.completions` ↔ `responses`, runtime parameter rewrites, etc.). Detect missing
   capabilities up-front and fail with a clear, actionable error.
