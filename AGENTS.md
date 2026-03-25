@@ -31,6 +31,11 @@ Use this runbook whenever you:
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
+- **Streamlit form state**: In custom `app_args_form.py` pages, initialize editable widgets
+  from persisted values (`defaults_model` / stored args). Only derive companion paths such as
+  `data_out` from `data_in` when the stored value is actually missing. Do not silently replace
+  an explicit saved value with a recomputed default on render; if a field is intentionally derived,
+  make that dependency explicit in the UI instead of presenting it as a normal independent input.
 - **No silent fallbacks**: Do not introduce automatic API client fallbacks
   (`chat.completions` ↔ `responses`, runtime parameter rewrites, etc.). Detect missing
   capabilities up-front and fail with a clear, actionable error.
