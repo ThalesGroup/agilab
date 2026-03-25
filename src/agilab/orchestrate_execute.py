@@ -480,16 +480,41 @@ async def render_execute_section(
         st.session_state[delete_undo_key] = undo_payload
 
     if show_run_panel and run_clicked and cmd:
-        run_log_expander = await _execute_with_logging(run_log_expander)
-        if st.session_state.get("benchmark"):
-            st.session_state["_benchmark_expand"] = True
-            st.rerun()
+        manager_venv = project_path / ".venv"
+        worker_venv = env.wenv_abs / ".venv"
+        if not manager_venv.exists() or not worker_venv.exists():
+            missing = []
+            if not manager_venv.exists():
+                missing.append(f"manager venv `{manager_venv}`")
+            if not worker_venv.exists():
+                missing.append(f"worker venv `{worker_venv}`")
+            st.error(
+                "EXECUTE is unavailable because the installation is incomplete. "
+                "Run INSTALL first to create: " + ", ".join(missing)
+            )
+        else:
+            run_log_expander = await _execute_with_logging(run_log_expander)
+            if st.session_state.get("benchmark"):
+                st.session_state["_benchmark_expand"] = True
+                st.rerun()
 
     if show_run_panel and combo_clicked:
-        if cmd:
+        manager_venv = project_path / ".venv"
+        worker_venv = env.wenv_abs / ".venv"
+        if cmd and manager_venv.exists() and worker_venv.exists():
             run_log_expander = await _execute_with_logging(run_log_expander)
-        else:
+        elif not cmd:
             st.error("No EXECUTE command configured; please configure it first.")
+        else:
+            missing = []
+            if not manager_venv.exists():
+                missing.append(f"manager venv `{manager_venv}`")
+            if not worker_venv.exists():
+                missing.append(f"worker venv `{worker_venv}`")
+            st.error(
+                "EXECUTE → LOAD → EXPORT is unavailable because the installation is incomplete. "
+                "Run INSTALL first to create: " + ", ".join(missing)
+            )
 
         st.session_state["_combo_load_trigger"] = True
         st.session_state["_combo_export_trigger"] = True

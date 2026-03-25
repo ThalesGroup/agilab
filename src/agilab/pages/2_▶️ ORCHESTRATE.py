@@ -707,8 +707,20 @@ def _restore_dataframe_preview_state(payload: dict) -> None:
         st.session_state[f"export_col_{idx}"] = col in selected_cols
 
 def _is_app_installed(env):
-    venv_root = env.active_app / ".venv"
-    return venv_root.exists()
+    manager_venv = env.active_app / ".venv"
+    worker_venv = env.wenv_abs / ".venv"
+    return manager_venv.exists() and worker_venv.exists()
+
+
+def _app_install_status(env):
+    manager_venv = env.active_app / ".venv"
+    worker_venv = env.wenv_abs / ".venv"
+    return {
+        "manager_ready": manager_venv.exists(),
+        "worker_ready": worker_venv.exists(),
+        "manager_venv": manager_venv,
+        "worker_venv": worker_venv,
+    }
 
 # ===========================
 # Main Application UI
@@ -847,6 +859,7 @@ async def page():
     show_install = st.session_state["show_install"]
     show_distribute = st.session_state["show_distribute"]
     show_run = st.session_state["show_run"] if _is_app_installed(env) else False
+    install_status = _app_install_status(env)
 
     show_export = True
 
@@ -890,6 +903,18 @@ async def page():
 
     verbose = cluster_params.get('verbose', 1)
     with st.expander("Do deployment", expanded=True):
+        if install_status["manager_ready"] and not install_status["worker_ready"]:
+            st.warning(
+                "Manager environment detected, but the worker environment is missing. "
+                f"Run INSTALL to rebuild the worker venv at `{install_status['worker_venv']}` "
+                f"before using RUN for `{env.app}`."
+            )
+        elif install_status["worker_ready"] and not install_status["manager_ready"]:
+            st.warning(
+                "Worker environment detected, but the manager environment is missing. "
+                f"Run INSTALL to rebuild the app venv at `{install_status['manager_venv']}` "
+                f"before using RUN for `{env.app}`."
+            )
         cluster_deps = OrchestrateClusterDeps(
             parse_and_validate_scheduler=parse_and_validate_scheduler,
             parse_and_validate_workers=parse_and_validate_workers,
