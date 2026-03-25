@@ -2648,6 +2648,43 @@ async def test_prepare_local_env_online_handles_python_download_warning(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_prepare_local_env_online_ignores_uv_self_update_failure(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "wenv_local"
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        verbose=1,
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        is_worker_env=False,
+        hw_rapids_capable=None,
+    )
+    AGI._rapids_enabled = True
+    run_calls = []
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_run(cmd, _cwd):
+        run_calls.append(cmd)
+        if "self update" in cmd:
+            raise RuntimeError("Self-update is only available for standalone installs")
+        return ""
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: True))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(agi_distributor_module.distributor_cli, "python_version", lambda: "3.13.12")
+    monkeypatch.setattr(agi_distributor_module.os, "name", "posix", raising=False)
+
+    await AGI._prepare_local_env()
+
+    assert any("self update" in cmd for cmd in run_calls)
+    assert any("python install 3.13" in cmd for cmd in run_calls)
+
+
+@pytest.mark.asyncio
 async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path):
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
@@ -2707,6 +2744,70 @@ async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path)
     assert any("self update" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any("cli.py" in names for _, names, _ in sent)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_ignores_uv_self_update_failure(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='demo-manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        target_worker="demo_worker",
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    sent = []
+    remote_cmds = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        if "self update" in cmd:
+            raise RuntimeError("Self-update is only available for standalone installs")
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _fake_noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_noop))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    assert any("self update" in cmd for _, cmd in remote_cmds)
+    assert any("python install 3.13" in cmd for _, cmd in remote_cmds)
+    assert any(item[2] == "wenv" for item in sent)
 
 
 @pytest.mark.asyncio
