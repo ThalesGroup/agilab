@@ -22,6 +22,8 @@ else:
 from agi_env import AgiEnv
 from agi_env.pagelib import cached_load_df, find_files, open_new_tab, save_csv
 
+PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+
 
 @dataclass(frozen=True)
 class OrchestrateExecuteDeps:
@@ -97,6 +99,14 @@ def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], li
     except FileNotFoundError:
         return None, filtered_files
     return target_file, filtered_files
+
+
+def queue_pending_execute_action(session_state, action: str) -> None:
+    session_state[PENDING_EXECUTE_ACTION_KEY] = action
+
+
+def consume_pending_execute_action(session_state) -> Optional[str]:
+    return session_state.pop(PENDING_EXECUTE_ACTION_KEY, None)
 
 
 def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
@@ -196,24 +206,23 @@ async def render_execute_section(
 
     delete_confirm_key = "delete_data_main_confirm"
     delete_undo_key = "delete_data_main_undo_payload"
+    def _queue_execute_action(action: str) -> None:
+        queue_pending_execute_action(st.session_state, action)
+        st.rerun()
 
     @st.fragment
-    def _render_run_panel_controls() -> tuple[bool, bool, bool, bool]:
-        local_run_clicked = False
-        local_load_clicked = False
-        local_delete_clicked = False
-        local_combo_clicked = False
-
+    def _render_run_panel_controls() -> None:
         if show_run_panel:
             run_col, load_col, delete_col = st.columns(3)
             run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
             if cmd:
-                local_run_clicked = run_col.button(
+                if run_col.button(
                     run_label,
                     key="run_btn",
                     type="primary",
                     use_container_width=True,
-                )
+                ):
+                    _queue_execute_action("run")
             else:
                 run_col.button(
                     run_label,
@@ -224,26 +233,26 @@ async def render_execute_section(
                     use_container_width=True,
                 )
 
-            local_load_clicked = load_col.button(
+            if load_col.button(
                 "LOAD dataframe",
                 key="load_data_main",
                 type="primary",
                 use_container_width=True,
                 help="Fetch the latest dataframe preview for export",
-            )
-            if st.session_state.pop("_combo_load_trigger", False):
-                local_load_clicked = True
+            ):
+                _queue_execute_action("load")
 
             delete_armed_clicked = False
             delete_cancel_clicked = False
             if st.session_state.get(delete_confirm_key, False):
-                local_delete_clicked = delete_col.button(
+                if delete_col.button(
                     "Confirm delete",
                     key="delete_data_main_confirm_btn",
                     type="primary",
                     use_container_width=True,
                     help="Confirm deletion of the loaded dataframe/export file.",
-                )
+                ):
+                    _queue_execute_action("delete")
                 delete_cancel_clicked = delete_col.button(
                     "Cancel",
                     key="delete_data_main_cancel_btn",
@@ -313,25 +322,30 @@ async def render_execute_section(
                 _rerun_fragment_or_app()
 
             if cmd:
-                local_combo_clicked = st.button(
+                if st.button(
                     "EXECUTE → LOAD → EXPORT",
                     key="combo_exec_load_export",
                     type="primary",
                     help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
                     use_container_width=True,
-                )
+                ):
+                    _queue_execute_action("combo")
         else:
             st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
             st.session_state.pop("_combo_load_trigger", None)
             st.session_state.pop("_combo_export_trigger", None)
             st.session_state.pop(delete_confirm_key, None)
 
-        return local_run_clicked, local_load_clicked, local_delete_clicked, local_combo_clicked
-
     if controls_visible:
-        run_clicked, load_clicked, delete_clicked, combo_clicked = _render_run_panel_controls()
+        _render_run_panel_controls()
     else:
-        run_clicked = load_clicked = delete_clicked = combo_clicked = False
+        consume_pending_execute_action(st.session_state)
+
+    pending_action = consume_pending_execute_action(st.session_state)
+    run_clicked = pending_action == "run"
+    load_clicked = pending_action == "load" or st.session_state.pop("_combo_load_trigger", False)
+    delete_clicked = pending_action == "delete"
+    combo_clicked = pending_action == "combo"
 
     if show_run_panel and load_clicked:
         if st.session_state.get("dataframe_deleted"):

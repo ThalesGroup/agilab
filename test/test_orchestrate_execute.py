@@ -52,3 +52,15 @@ def test_find_preview_target_ignores_empty_and_metadata_files(tmp_path):
 
     assert target == valid_csv
     assert files == [valid_csv]
+
+
+def test_pending_execute_action_round_trip():
+    module = _load_module()
+    session_state = {}
+
+    assert module.consume_pending_execute_action(session_state) is None
+
+    module.queue_pending_execute_action(session_state, "run")
+    assert session_state[module.PENDING_EXECUTE_ACTION_KEY] == "run"
+    assert module.consume_pending_execute_action(session_state) == "run"
+    assert module.consume_pending_execute_action(session_state) is None
