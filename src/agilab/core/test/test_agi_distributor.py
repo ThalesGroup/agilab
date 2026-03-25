@@ -2685,6 +2685,90 @@ async def test_prepare_local_env_online_ignores_uv_self_update_failure(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_missing(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "wenv_local"
+    fake_home = tmp_path / "home"
+    fake_home.mkdir(parents=True, exist_ok=True)
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        verbose=1,
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv --quiet",
+        is_worker_env=False,
+        hw_rapids_capable=None,
+    )
+    AGI._rapids_enabled = True
+    run_calls = []
+    warnings = []
+
+    async def _fake_detect(_ip):
+        return "set PATH=%USERPROFILE%\\\\.local\\\\bin;%PATH% && "
+
+    async def _fake_run(cmd, _cwd):
+        run_calls.append(cmd)
+        return ""
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: True))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(agi_distributor_module.distributor_cli, "python_version", lambda: "3.13.12")
+    monkeypatch.setattr(agi_distributor_module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(agi_distributor_module.Path, "home", classmethod(lambda cls: fake_home))
+    monkeypatch.setattr(agi_distributor_module.logger, "warning", lambda *args, **kwargs: warnings.append(args))
+
+    await AGI._prepare_local_env()
+
+    standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
+    assert not any("self update" in cmd for cmd in run_calls)
+    assert any("python install 3.13" in cmd for cmd in run_calls)
+    assert any(str(standalone_uv) in str(entry[1]) for entry in warnings if len(entry) > 1)
+
+
+@pytest.mark.asyncio
+async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "wenv_local"
+    fake_home = tmp_path / "home"
+    standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
+    standalone_uv.parent.mkdir(parents=True, exist_ok=True)
+    standalone_uv.write_text("", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        verbose=1,
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv --quiet",
+        is_worker_env=False,
+        hw_rapids_capable=None,
+    )
+    AGI._rapids_enabled = True
+    run_calls = []
+
+    async def _fake_detect(_ip):
+        return "set PATH=%USERPROFILE%\\\\.local\\\\bin;%PATH% && "
+
+    async def _fake_run(cmd, _cwd):
+        run_calls.append(cmd)
+        return ""
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: True))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(agi_distributor_module.distributor_cli, "python_version", lambda: "3.13.12")
+    monkeypatch.setattr(agi_distributor_module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(agi_distributor_module.Path, "home", classmethod(lambda cls: fake_home))
+
+    await AGI._prepare_local_env()
+
+    assert any(str(standalone_uv) in cmd and "self update" in cmd for cmd in run_calls)
+    assert any("uv --quiet python install 3.13" in cmd for cmd in run_calls)
+
+
+@pytest.mark.asyncio
 async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path):
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
