@@ -30,7 +30,6 @@ from pathlib import Path
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 import streamlit.components.v1 as components
-from IPython.lib import backgroundjobs as bg
 import logging
 import subprocess
 
@@ -352,9 +351,6 @@ def _page_pythonpath(*paths: Path) -> str:
         seen.add(value)
         ordered_unique.append(value)
     return os.pathsep.join(ordered_unique)
-
-jobs = bg.BackgroundJobManager()
-
 
 def _default_app_path(apps_path: Path | None) -> Path | None:
     """Return the first *_project directory found under apps_path."""
