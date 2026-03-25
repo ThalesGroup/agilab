@@ -75,7 +75,16 @@ if FormattedTB is not None:
     # Get constructor parameters of FormattedTB
     _sig = inspect.signature(FormattedTB.__init__).parameters
 
-    _tb_kwargs = dict(mode='Verbose', call_pdb=True)
+    _call_pdb = bool(getattr(sys.stdin, "isatty", lambda: False)())
+    if "AGILAB_CALL_PDB" in os.environ:
+        _call_pdb = os.environ["AGILAB_CALL_PDB"].strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    _tb_kwargs = dict(mode='Verbose', call_pdb=_call_pdb)
     if 'color_scheme' in _sig:
         _tb_kwargs['color_scheme'] = 'NoColor'
     else:
@@ -2244,7 +2253,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
                 logger = AgiEnv.logger
-                if logger:
+                if logger and not isinstance(e, RuntimeError):
                     logger.error(traceback.format_exc())
                 if isinstance(e, RuntimeError):
                     raise
@@ -2431,7 +2440,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
                 logger = AgiEnv.logger
-                if logger:
+                if logger and not isinstance(e, RuntimeError):
                     logger.error(traceback.format_exc())
                 if isinstance(e, RuntimeError):
                     raise
