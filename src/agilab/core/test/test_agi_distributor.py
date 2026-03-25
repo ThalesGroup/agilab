@@ -2810,7 +2810,13 @@ async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path)
         return "ok"
 
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
-        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+        sent.append(
+            (
+                ip,
+                [{"name": Path(f).name, "content": Path(f).read_text(encoding="utf-8")} for f in files],
+                str(remote_path),
+            )
+        )
 
     async def _fake_noop(*_args, **_kwargs):
         return None
@@ -2827,7 +2833,7 @@ async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path)
 
     assert any("self update" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
-    assert any("cli.py" in names for _, names, _ in sent)
+    assert any(any(item["name"] == "cli.py" for item in items) for _, items, _ in sent)
 
 
 @pytest.mark.asyncio
@@ -2874,7 +2880,13 @@ async def test_prepare_cluster_env_ignores_uv_self_update_failure(monkeypatch, t
         return "ok"
 
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
-        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+        sent.append(
+            (
+                ip,
+                [{"name": Path(f).name, "content": Path(f).read_text(encoding="utf-8")} for f in files],
+                str(remote_path),
+            )
+        )
 
     async def _fake_noop(*_args, **_kwargs):
         return None
@@ -2892,6 +2904,141 @@ async def test_prepare_cluster_env_ignores_uv_self_update_failure(monkeypatch, t
     assert any("self update" in cmd for _, cmd in remote_cmds)
     assert any("python install 3.13" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_uses_manager_pyproject_when_worker_missing(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='demo-manager'\n", encoding="utf-8")
+    worker_pyproject = tmp_path / "missing_worker.toml"
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        target_worker="demo_worker",
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    sent = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append(
+            (
+                ip,
+                [{"name": Path(f).name, "content": Path(f).read_text(encoding="utf-8")} for f in files],
+                str(remote_path),
+            )
+        )
+
+    async def _fake_noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_noop))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    sent_to_wenv = [items for _ip, items, remote_path in sent if remote_path == "wenv"]
+    assert sent_to_wenv
+    assert any(
+        any(item["name"] == "pyproject.toml" and "demo-manager" in item["content"] for item in items)
+        for items in sent_to_wenv
+    )
+    assert any(any(item["name"] == "uv.toml" for item in items) for items in sent_to_wenv)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_falls_back_to_original_pyproject_when_extra_seed_fails(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='demo-manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        target_worker="demo_worker",
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    sent = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _fake_noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_noop))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(
+        agi_distributor_module,
+        "_ensure_optional_extras",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    sent_to_wenv = [names for _ip, names, remote_path in sent if remote_path == "wenv"]
+    assert sent_to_wenv
+    assert any("worker_pyproject.toml" in names for names in sent_to_wenv)
+    assert not any("pyproject.toml" in names and "worker_pyproject.toml" not in names for names in sent_to_wenv)
 
 
 @pytest.mark.asyncio
