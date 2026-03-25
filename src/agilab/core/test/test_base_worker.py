@@ -108,6 +108,67 @@ def test_apply_managed_pc_path_overrides():
     assert str(result.payload).startswith(str(Path.home() / OverrideWorker.managed_pc_home_suffix))
 
 
+def test_resolve_input_folder_uses_dataset_fallback(tmp_path):
+    dataset_root = tmp_path / "link_sim" / "dataset"
+    flights_dir = dataset_root / "flights"
+    flights_dir.mkdir(parents=True)
+    (flights_dir / "plane0.csv").write_text("plane_id,time_s\n0,0\n")
+    (flights_dir / "plane1.csv").write_text("plane_id,time_s\n1,1\n")
+
+    env = SimpleNamespace(
+        share_root_path=lambda: tmp_path,
+        agi_share_path_abs=tmp_path,
+        agi_share_path=tmp_path,
+        home_abs=Path.home(),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+
+    resolved = BaseWorker.resolve_input_folder(
+        env,
+        dataset_root,
+        "flight_trajectory/pipeline",
+        descriptor="flight_trajectory",
+        fallback_subdirs=("flights",),
+        dataset_namespace="link_sim",
+        min_files=2,
+        required_label="plane trajectory files",
+    )
+
+    assert resolved == flights_dir
+
+
+def test_resolve_input_folder_uses_share_root_namespace_fallback(tmp_path):
+    share_root = tmp_path / "share"
+    dataset_root = tmp_path / "runtime" / "dataset"
+    flights_dir = share_root / "link_sim" / "dataset" / "flights"
+    flights_dir.mkdir(parents=True)
+    (flights_dir / "plane0.csv").write_text("plane_id,time_s\n0,0\n")
+    (flights_dir / "plane1.csv").write_text("plane_id,time_s\n1,1\n")
+
+    env = SimpleNamespace(
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=share_root,
+        home_abs=Path.home(),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+
+    resolved = BaseWorker.resolve_input_folder(
+        env,
+        dataset_root,
+        "flight_trajectory/pipeline",
+        descriptor="flight_trajectory",
+        fallback_subdirs=("flights",),
+        dataset_namespace="link_sim",
+        min_files=2,
+        required_label="plane trajectory files",
+    )
+
+    assert resolved == flights_dir
+
+
 def test_service_loop_without_worker_override_stops_cleanly():
     worker = DummyWorker()
     result: dict[str, object] = {}
