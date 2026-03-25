@@ -48,6 +48,16 @@ def load_args_state(
     return defaults_model, payload, settings_path
 
 
+def prefer_persisted_value(persisted_value: Any, fallback_value: Any) -> Any:
+    """Keep an explicit stored value; use ``fallback_value`` only when it is absent."""
+
+    if persisted_value is None or persisted_value is False:
+        return fallback_value
+    if isinstance(persisted_value, str) and persisted_value == "":
+        return fallback_value
+    return persisted_value
+
+
 def _constraint_value(field, constraint_type, attr: str) -> Any | None:
     for meta in getattr(field, "metadata", ()):  # Pydantic v2 stores constraints here
         if isinstance(meta, constraint_type):

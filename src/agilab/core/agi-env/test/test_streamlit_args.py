@@ -177,6 +177,15 @@ def test_load_args_state_handles_missing_settings_file(tmp_path, dummy_streamlit
     assert payload["name"] == "Alice"
 
 
+def test_prefer_persisted_value_only_falls_back_for_missing_values():
+    assert streamlit_args.prefer_persisted_value("saved", "derived") == "saved"
+    assert streamlit_args.prefer_persisted_value(Path("saved"), Path("derived")) == Path("saved")
+    assert streamlit_args.prefer_persisted_value(None, "derived") == "derived"
+    assert streamlit_args.prefer_persisted_value("", "derived") == "derived"
+    assert streamlit_args.prefer_persisted_value(False, "derived") == "derived"
+    assert streamlit_args.prefer_persisted_value(0, 1) == 0
+
+
 def test_load_args_state_warns_on_validation_error(tmp_path, dummy_streamlit):
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
