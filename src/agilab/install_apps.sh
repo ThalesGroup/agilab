@@ -175,6 +175,15 @@ app_has_required_sources() {
   [[ -f "$pyproject" && -f "$manager" && -f "$worker" ]]
 }
 
+app_has_collectable_pytests() {
+  local app_dir="${1:-.}"
+
+  find "$app_dir/test" "$app_dir/tests" \
+    -type f \
+    \( -name 'test_*.py' -o -name '*_test.py' \) \
+    -print -quit 2>/dev/null | grep -q .
+}
+
 check_data_mount() {
   local app="$1"
   local app_path
@@ -867,14 +876,14 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
           "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
           ran_app_test=1
         else
-            if [[ -d test ]]; then
+            if app_has_collectable_pytests .; then
               if (( DO_TEST_APPS )); then
                 echo -e "${BLUE}No app_test.py in $app_name; pytest suite under test/ will run via --test-apps pass.${NC}"
               else
                 echo -e "${BLUE}No app_test.py in $app_name; pytest suite detected under test/ (run with --test-apps to execute).${NC}"
               fi
             else
-              echo -e "${BLUE}No app_test.py in $app_name, skipping tests.${NC}"
+              echo -e "${BLUE}No app_test.py or collectable pytest files in $app_name, skipping tests.${NC}"
             fi
         fi
         popd >/dev/null
@@ -919,8 +928,9 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
   echo -e "${BLUE}[pytest] $app_name${NC}"
   if pushd -- "$app_dir_rel" >/dev/null; then
-    if [[ ! -d "test" && ! -d "tests" ]]; then
-      echo -e "${YELLOW} no tests found, skipping. ${NC}"
+    if ! app_has_collectable_pytests .; then
+      echo -e "${YELLOW}No collectable pytest files found for '$app_name', skipping.${NC}"
+      popd >/dev/null
       continue
     fi
     if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . --with pytest --with pytest-cov pytest; then
@@ -928,9 +938,9 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       else
         rc=$?
         if (( rc == 5 )); then
-          echo -e "${YELLOW}No tests collected for '$app'.${NC}"
+          echo -e "${YELLOW}No tests collected for '$app_name'.${NC}"
         else
-          echo -e "${RED}✗ pytest failed for '$app' (exit code $rc).${NC}"
+          echo -e "${RED}✗ pytest failed for '$app_name' (exit code $rc).${NC}"
           status=1
         fi
       fi
