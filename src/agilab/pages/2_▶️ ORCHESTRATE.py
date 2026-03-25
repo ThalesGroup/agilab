@@ -108,8 +108,10 @@ try:
         coerce_int_setting as _coerce_int_setting,
         evaluate_service_health_gate as _evaluate_service_health_gate,
         extract_result_dict_from_output as _extract_result_dict_from_output,
+        fstype_for_path as _fstype_for_path,
         looks_like_shared_path as _looks_like_shared_path_impl,
         macos_autofs_hint as _macos_autofs_hint,
+        mount_table as _mount_table,
         parse_and_validate_scheduler as _parse_and_validate_scheduler_impl,
         parse_and_validate_workers as _parse_and_validate_workers_impl,
         parse_benchmark,
@@ -132,8 +134,10 @@ except ModuleNotFoundError:
     _coerce_int_setting = _orchestrate_support_module.coerce_int_setting
     _evaluate_service_health_gate = _orchestrate_support_module.evaluate_service_health_gate
     _extract_result_dict_from_output = _orchestrate_support_module.extract_result_dict_from_output
+    _fstype_for_path = _orchestrate_support_module.fstype_for_path
     _looks_like_shared_path_impl = _orchestrate_support_module.looks_like_shared_path
     _macos_autofs_hint = _orchestrate_support_module.macos_autofs_hint
+    _mount_table = _orchestrate_support_module.mount_table
     _parse_and_validate_scheduler_impl = _orchestrate_support_module.parse_and_validate_scheduler
     _parse_and_validate_workers_impl = _orchestrate_support_module.parse_and_validate_workers
     parse_benchmark = _orchestrate_support_module.parse_benchmark
@@ -805,6 +809,7 @@ async def page():
 
     module = env.target
     project_path = env.active_app
+    app_state_name = Path(str(env.app)).name if env.app else ""
     export_abs_module = env.AGILAB_EXPORT_ABS / module
     export_abs_module.mkdir(parents=True, exist_ok=True)
     pyproject_file = env.active_app / "pyproject.toml"
