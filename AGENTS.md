@@ -50,6 +50,9 @@ Use this runbook whenever you:
 - **Missing dependency triage**: Whenever an app run fails because a module cannot be imported, check *both*
   `src/agilab/apps/<app>/pyproject.toml` (manager environment) and
   `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the dependency is declared in the correct scope.
+- **Dependency removal audit**: When removing a dependency from code, check the impact on the corresponding
+  `pyproject.toml` files as part of the same change. Remove stale declarations when they are no longer needed,
+  or keep them only when there is a clear runtime, packaging, or optional-feature reason.
 - **Installer flags**: For automation, set `CLUSTER_CREDENTIALS` / `OPENAI_API_KEY` in the
   environment, then use `./install.sh --non-interactive`/`-y`. Optional flags:
   `--apps-repository`, `--install-path`, `--install-apps [all|builtin|comma list]`,
