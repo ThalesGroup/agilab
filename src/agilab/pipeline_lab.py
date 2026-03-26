@@ -1212,8 +1212,6 @@ def display_lab_tab(
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
-    st.subheader("Run")
-    st.caption("Choose the step order and run the pipeline. MLflow stays separate in the sidebar.")
     if total_steps > 0:
         sequence_options = list(range(total_steps))
         summary_labels = {}
@@ -1259,8 +1257,6 @@ def display_lab_tab(
     )
 
     st.divider()
-    st.subheader("Manage")
-    st.caption("Delete or restore the saved pipeline definition without touching tracked runs.")
 
     delete_all_col, cancel_col = st.columns(2)
     delete_all_clicked = False
