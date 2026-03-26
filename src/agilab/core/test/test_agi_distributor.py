@@ -3076,7 +3076,8 @@ async def test_prepare_cluster_env_raises_when_uv_missing_offline(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_deploy_application_calls_local_and_remote_workers(monkeypatch):
-    AGI._mode = AGI.DASK_MODE
+    AGI._mode = AGI._INSTALL_MODE | AGI.DASK_MODE
+    AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
     AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
     AGI.install_worker_group = ["pandas-worker"]
     AGI.env = SimpleNamespace(
@@ -3107,6 +3108,43 @@ async def test_deploy_application_calls_local_and_remote_workers(monkeypatch):
 
     assert calls["local"]
     assert calls["remote"] == [("10.0.0.2", "wenv", " --extra pandas-worker")]
+    assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
+
+
+@pytest.mark.asyncio
+async def test_deploy_application_local_mode_skips_remote_workers(monkeypatch):
+    AGI._mode = AGI._INSTALL_MODE | AGI.PYTHON_MODE
+    AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI.install_worker_group = ["pandas-worker"]
+    AGI.env = SimpleNamespace(
+        active_app=Path("/tmp/demo_app"),
+        wenv_rel=Path("wenv"),
+        base_worker_cls="PandasWorker",
+        verbose=0,
+        is_local=lambda ip: ip == "127.0.0.1",
+    )
+    calls = {"local": [], "remote": [], "todo": []}
+
+    async def _fake_local(src, wenv_rel, options):
+        calls["local"].append((str(src), str(wenv_rel), options))
+
+    async def _fake_remote(ip, _env, wenv_rel, options):
+        calls["remote"].append((ip, str(wenv_rel), options))
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(
+        AGI,
+        "_venv_todo",
+        staticmethod(lambda node_ips: calls["todo"].append(set(node_ips))),
+    )
+    monkeypatch.setattr(AGI, "_deploy_local_worker", staticmethod(_fake_local))
+    monkeypatch.setattr(AGI, "_deploy_remote_worker", staticmethod(_fake_remote))
+
+    await AGI._deploy_application("127.0.0.1")
+
+    assert calls["local"] == [("/tmp/demo_app", "wenv", " --extra pandas-worker")]
+    assert calls["remote"] == []
     assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
 
 
@@ -3591,6 +3629,112 @@ async def test_deploy_local_worker_non_source_flow(monkeypatch, tmp_path):
     assert any(" add agi-env" in cmd for cmd, _ in commands)
     assert any(" add agi-node" in cmd for cmd, _ in commands)
     assert any("threaded" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localhost_ssh(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    existing_cli = wenv_abs.parent / "cli.py"
+    existing_cli.write_text("print('existing cli')", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user="another-user",
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    AGI._run_type = "sync --dev"
+    AGI._rapids_enabled = True
+    AGI._module_to_clean = []
+    commands = []
+    ssh_calls = []
+    env_vars = []
+    copied_cli = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    async def _fake_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        raise ConnectionError("localhost ssh denied")
+
+    def _fake_copy(src, dst):
+        copied_cli.append((str(src), str(dst)))
+        raise AssertionError("existing cli.py should be reused")
+
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: True))
+    monkeypatch.setattr(AGI, "_build_lib_local", staticmethod(_fake_build))
+    monkeypatch.setattr(AGI, "_uninstall_modules", staticmethod(_fake_uninstall))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_ssh))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(
+        agi_distributor_module.AgiEnv,
+        "set_env_var",
+        staticmethod(lambda *args: env_vars.append(args)),
+    )
+    monkeypatch.setattr(agi_distributor_module.shutil, "copy", _fake_copy)
+
+    await AGI._deploy_local_worker(app_path, Path("worker_env"), " --extra pandas-worker")
+
+    assert AGI._install_done_local is True
+    assert ("127.0.0.1", "hw_rapids_capable") in env_vars
+    assert ssh_calls and any("demo.post_install" in cmd for cmd in ssh_calls)
+    assert any("demo.post_install" in cmd for cmd, _ in commands)
+    assert any(
+        "uv sync --config-file uv_config.toml --project" in cmd and str(app_path) in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        "uv sync --python 3.13 --config-file uv_config.toml --project" in cmd
+        and str(wenv_abs) in cmd
+        for cmd, _ in commands
+    )
+    assert not any(
+        "uv sync" in cmd and str(wenv_abs) in cmd and "--extra pandas-worker" in cmd
+        for cmd, _ in commands
+    )
+    assert copied_cli == []
+    assert any(f'python "{existing_cli}" threaded' in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio
