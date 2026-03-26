@@ -1085,9 +1085,14 @@ def sidebar_controls() -> None:
 
 def mlflow_controls() -> None:
     """Display MLflow UI controls in sidebar."""
+    st.sidebar.divider()
+    st.sidebar.subheader("Tracking")
+    st.sidebar.caption("Inspect experiment runs and metrics separately from pipeline execution.")
+
     if st.session_state.get("server_started"):
         mlflow_port = st.session_state.get("mlflow_port", 5000)
         mlflow_url = f"http://localhost:{mlflow_port}"
+        st.sidebar.caption(f"Experiment tracker is running on port `{mlflow_port}`.")
         if not st.session_state.get("mlflow_button_css"):
             st.sidebar.markdown(
                 """
@@ -1116,13 +1121,16 @@ def mlflow_controls() -> None:
             )
             st.session_state["mlflow_button_css"] = True
 
-        if st.sidebar.button(f"Open MLflow UI (port {mlflow_port})"):
+        if st.sidebar.button(
+            f"Open experiment tracker (MLflow, port {mlflow_port})",
+            help="Open the MLflow UI in a new tab to inspect the runs created by your pipeline steps.",
+        ):
             components.html(
                 f"<script>window.open('{mlflow_url}', '_blank');</script>",
                 height=0,
             )
     elif not st.session_state.get("server_started"):
-        st.sidebar.error("MLflow UI server is not running. Please start it from Edit.")
+        st.sidebar.error("Experiment tracker is not running. Start it from Edit.")
 
 
 def page() -> None:
