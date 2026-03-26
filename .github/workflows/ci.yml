@@ -248,3 +248,81 @@ jobs:
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
+
+  clean-install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "0.10.7"
+
+      - name: Run clean-home installer smoke
+        env:
+          CLEAN_ROOT: ${{ runner.temp }}/agilab-clean-home
+        run: |
+          set -euo pipefail
+          rm -rf "$CLEAN_ROOT"
+          mkdir -p "$CLEAN_ROOT/home"
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.venv' \
+            --exclude '.pytest_cache' \
+            --exclude '.mypy_cache' \
+            --exclude '.ruff_cache' \
+            --exclude 'test-results' \
+            --exclude '.coverage*' \
+            --exclude 'docs/html' \
+            "$GITHUB_WORKSPACE/" "$CLEAN_ROOT/agilab-src/"
+
+          export HOME="$CLEAN_ROOT/home"
+          export AGI_LOCAL_DIR="$HOME/localshare"
+          export AGI_SHARE_DIR="$HOME/clustershare"
+          # Keep the smoke job lightweight by avoiding TensorFlow-heavy optional pages.
+          export BUILTIN_PAGES_OVERRIDE="view_maps"
+          export OPENAI_API_KEY="dummy"
+          export SKIP_OFFLINE=1
+          export UV_NO_SYNC=1
+          unset CLUSTER_CREDENTIALS
+
+          cd "$CLEAN_ROOT/agilab-src"
+          ./install.sh \
+            --non-interactive \
+            --source local \
+            --install-path "$HOME/agi-space" \
+            --install-apps builtin \
+            --test-apps
+
+          latest_log="$(ls -1t "$HOME/log/install_logs"/*.log | head -1)"
+          test -n "$latest_log"
+          grep -F "Installation of apps complete!" "$latest_log"
+          grep -F "All done: Installation complete." "$latest_log"
+
+          test -x "$HOME/agi-space/.venv/bin/python"
+          "$HOME/agi-space/.venv/bin/python" - <<'PY'
+          import agilab
+          import agi_cluster
+          import agi_env
+          import agi_node
+
+          print("installed-imports-ok")
+          print(agilab.__file__)
+          PY
+
+      - name: Upload clean-home installer logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-home-install-logs
+          path: |
+            ${{ runner.temp }}/agilab-clean-home/home/log/install_logs
+            ${{ runner.temp }}/agilab-clean-home/replay.out
+          if-no-files-found: ignore
