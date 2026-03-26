@@ -1212,8 +1212,8 @@ def display_lab_tab(
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
-    st.subheader("Execution")
-    st.caption("Choose the step order and run the pipeline. Experiment tracking is available separately from the sidebar.")
+    st.subheader("Run")
+    st.caption("Choose the step order and run the pipeline. MLflow stays separate in the sidebar.")
     if total_steps > 0:
         sequence_options = list(range(total_steps))
         summary_labels = {}
@@ -1251,7 +1251,7 @@ def display_lab_tab(
             _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
     run_all_clicked = st.button(
-        "Run pipeline steps",
+        "Run pipeline",
         key=f"{index_page_str}_run_all",
         help="Execute every step sequentially using its saved virtual environment.",
         type="secondary",
@@ -1259,8 +1259,8 @@ def display_lab_tab(
     )
 
     st.divider()
-    st.subheader("Pipeline management")
-    st.caption("Delete or restore the saved pipeline definition without affecting experiment tracking.")
+    st.subheader("Manage")
+    st.caption("Delete or restore the saved pipeline definition without touching tracked runs.")
 
     delete_all_col, cancel_col = st.columns(2)
     delete_all_clicked = False
@@ -1270,7 +1270,7 @@ def display_lab_tab(
     with delete_all_col:
         if st.session_state.get(delete_all_confirm_key, False):
             delete_all_clicked = st.button(
-                "Confirm delete all",
+                "Confirm delete",
                 key=f"{index_page_str}_delete_all_confirm",
                 help="Permanently remove every step in this lab.",
                 type="primary",
@@ -1278,7 +1278,7 @@ def display_lab_tab(
             )
         else:
             arm_delete_all_clicked = st.button(
-                "Delete pipeline",
+                "Delete all",
                 key=f"{index_page_str}_delete_all",
                 help="Remove every step in this lab.",
                 type="secondary",
@@ -1305,9 +1305,9 @@ def display_lab_tab(
     if isinstance(undo_payload, dict) and isinstance(undo_payload.get("steps"), list):
         undo_label = str(undo_payload.get("label", "last delete"))
         undo_delete_clicked = st.button(
-            f"Undo {undo_label}",
+            "Undo delete",
             key=f"{index_page_str}_undo_delete",
-            help="Restore the pipeline state before the latest delete action.",
+            help=f"Restore the pipeline state before the latest delete action ({undo_label}).",
             type="secondary",
             use_container_width=True,
         )

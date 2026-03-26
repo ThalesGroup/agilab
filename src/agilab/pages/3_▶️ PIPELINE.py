@@ -21,7 +21,6 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
-import streamlit.components.v1 as components
 from agi_env.pagelib import (
     activate_mlflow,
     background_services_enabled,
@@ -1086,51 +1085,22 @@ def sidebar_controls() -> None:
 def mlflow_controls() -> None:
     """Display MLflow UI controls in sidebar."""
     st.sidebar.divider()
-    st.sidebar.subheader("Tracking")
-    st.sidebar.caption("Inspect experiment runs and metrics separately from pipeline execution.")
+    st.sidebar.subheader("MLflow")
+    st.sidebar.caption("Inspect experiment runs separately from pipeline execution.")
 
     if st.session_state.get("server_started"):
         mlflow_port = st.session_state.get("mlflow_port", 5000)
         mlflow_url = f"http://localhost:{mlflow_port}"
-        st.sidebar.caption(f"Experiment tracker is running on port `{mlflow_port}`.")
-        if not st.session_state.get("mlflow_button_css"):
-            st.sidebar.markdown(
-                """
-                <style>
-                .mlflow-anchor-btn {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 100%;
-                    padding: 0.45rem 0.75rem;
-                    border-radius: 0.5rem;
-                    border: 1px solid var(--primary-color);
-                    background: var(--primary-color);
-                    color: var(--secondary-background-color);
-                    font-weight: 600;
-                    text-decoration: none;
-                    transition: filter 0.15s ease-in-out;
-                }
-                .mlflow-anchor-btn:hover {
-                    filter: brightness(0.9);
-                    text-decoration: none;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.session_state["mlflow_button_css"] = True
-
-        if st.sidebar.button(
-            f"Open experiment tracker (MLflow, port {mlflow_port})",
-            help="Open the MLflow UI in a new tab to inspect the runs created by your pipeline steps.",
-        ):
-            components.html(
-                f"<script>window.open('{mlflow_url}', '_blank');</script>",
-                height=0,
-            )
+        st.sidebar.markdown(f"**Status:** running  \n**Port:** `{mlflow_port}`")
+        st.sidebar.link_button(
+            "Open UI",
+            mlflow_url,
+            help=f"Open the MLflow UI in a new tab on port {mlflow_port}.",
+            use_container_width=True,
+        )
     elif not st.session_state.get("server_started"):
-        st.sidebar.error("Experiment tracker is not running. Start it from Edit.")
+        st.sidebar.markdown("**Status:** stopped")
+        st.sidebar.caption("Start it from Edit.")
 
 
 def page() -> None:
