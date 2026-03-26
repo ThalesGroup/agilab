@@ -1212,6 +1212,8 @@ def display_lab_tab(
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
+    st.subheader("Execution")
+    st.caption("Choose the step order and run the pipeline. Experiment tracking is available separately from the sidebar.")
     if total_steps > 0:
         sequence_options = list(range(total_steps))
         summary_labels = {}
@@ -1248,19 +1250,23 @@ def display_lab_tab(
             st.session_state[sequence_state_key] = final_sequence
             _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
-    run_all_col, delete_all_col = st.columns(2)
+    run_all_clicked = st.button(
+        "Run pipeline steps",
+        key=f"{index_page_str}_run_all",
+        help="Execute every step sequentially using its saved virtual environment.",
+        type="secondary",
+        use_container_width=True,
+    )
+
+    st.divider()
+    st.subheader("Pipeline management")
+    st.caption("Delete or restore the saved pipeline definition without affecting experiment tracking.")
+
+    delete_all_col, cancel_col = st.columns(2)
     delete_all_clicked = False
     arm_delete_all_clicked = False
     cancel_delete_all_clicked = False
     delete_all_confirm_key = f"{index_page_str}_confirm_delete_all"
-    with run_all_col:
-        run_all_clicked = st.button(
-            "Run pipeline",
-            key=f"{index_page_str}_run_all",
-            help="Execute every step sequentially using its saved virtual environment.",
-            type="secondary",
-            use_container_width=True,
-        )
     with delete_all_col:
         if st.session_state.get(delete_all_confirm_key, False):
             delete_all_clicked = st.button(
@@ -1270,17 +1276,19 @@ def display_lab_tab(
                 type="primary",
                 use_container_width=True,
             )
-            cancel_delete_all_clicked = st.button(
-                "Cancel",
-                key=f"{index_page_str}_delete_all_cancel",
-                type="secondary",
-                use_container_width=True,
-            )
         else:
             arm_delete_all_clicked = st.button(
                 "Delete pipeline",
                 key=f"{index_page_str}_delete_all",
                 help="Remove every step in this lab.",
+                type="secondary",
+                use_container_width=True,
+            )
+    with cancel_col:
+        if st.session_state.get(delete_all_confirm_key, False):
+            cancel_delete_all_clicked = st.button(
+                "Cancel",
+                key=f"{index_page_str}_delete_all_cancel",
                 type="secondary",
                 use_container_width=True,
             )
