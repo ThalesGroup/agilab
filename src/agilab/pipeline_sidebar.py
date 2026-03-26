@@ -42,6 +42,8 @@ def on_lab_change(new_index_page: str) -> None:
     key = str(st.session_state.get("index_page", "")) + "df"
     st.session_state.pop(key, None)
     st.session_state["lab_dir"] = new_index_page
+    st.session_state["project_changed"] = True
+    st.session_state["_experiment_reload_required"] = True
     st.session_state.page_broken = True
     env = st.session_state.get("env")
     try:
