@@ -1370,6 +1370,7 @@ def display_lab_tab(
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
+        st.rerun()
 
     if "loaded_df" not in st.session_state:
         df_source = st.session_state.get("df_file")

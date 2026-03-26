@@ -940,6 +940,7 @@ def sidebar_controls() -> None:
             "_experiment_reload_required",
         ):
             st.session_state.pop(key, None)
+        st.session_state["_experiment_reload_required"] = True
 
     modules = [m for m in modules if m != "apps"]
     if not modules:
