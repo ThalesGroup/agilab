@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -201,6 +202,12 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
             self[name] = value
 
     class FakeMlflow:
+        def get_experiment_by_name(self, value):
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            calls["created"] = (name, artifact_location)
+
         def set_tracking_uri(self, value):
             calls["tracking_uri"] = value
 
@@ -212,6 +219,11 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
 
     launched = {}
     monkeypatch.setattr(
@@ -224,11 +236,71 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     pagelib.activate_mlflow(env)
 
     expected_dir = (tmp_path / ".mlflow").resolve()
+    expected_db = expected_dir / "mlflow.db"
+    expected_artifacts = expected_dir / "artifacts"
     assert expected_dir.exists()
-    assert calls["tracking_uri"] == expected_dir.as_uri()
+    assert calls["tracking_uri"] == pagelib._sqlite_uri_for_path(expected_db)
     assert calls["experiment"] == pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME
+    assert calls["created"] == (
+        pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME,
+        expected_artifacts.resolve().as_uri(),
+    )
     assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
-    assert expected_dir.as_uri() in launched["call"][0]
+    assert "mlflow server" in launched["call"][0]
+    assert pagelib._sqlite_uri_for_path(expected_db) in launched["call"][0]
+    assert expected_artifacts.resolve().as_uri() in launched["call"][0]
     assert "--port 50123" in launched["call"][0]
+    assert "--host 127.0.0.1" in launched["call"][0]
     assert fake_st.session_state["server_started"] is True
     assert fake_st.session_state["mlflow_port"] == 50123
+
+
+def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
+    tracking_dir = (tmp_path / ".mlflow").resolve()
+    (tracking_dir / "0").mkdir(parents=True)
+    (tracking_dir / "meta.yaml").write_text("legacy", encoding="utf-8")
+    migrate = {}
+
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    class FakeMlflow:
+        def get_experiment_by_name(self, value):
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            return None
+
+        def set_tracking_uri(self, value):
+            return None
+
+        def set_experiment(self, value):
+            return None
+
+    def fake_run(cmd, check, capture_output, text):
+        migrate["cmd"] = cmd
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(session_state=FakeSessionState(), error=lambda *_args, **_kwargs: None),
+    )
+    monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
+
+    pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
+
+    assert migrate["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
+    assert migrate["cmd"][5] == str(tracking_dir)
+    assert migrate["cmd"][7] == pagelib._sqlite_uri_for_path(tracking_dir / "mlflow.db")

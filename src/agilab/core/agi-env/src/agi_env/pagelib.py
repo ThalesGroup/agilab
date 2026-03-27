@@ -65,6 +65,8 @@ from sqlalchemy import false
 _GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
 _LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
 DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
+DEFAULT_MLFLOW_DB_NAME = "mlflow.db"
+DEFAULT_MLFLOW_ARTIFACT_DIR = "artifacts"
 
 
 def background_services_enabled() -> bool:
@@ -96,12 +98,86 @@ def _resolve_mlflow_tracking_dir(env) -> Path:
     return tracking_dir.resolve()
 
 
-def _ensure_default_mlflow_experiment(tracking_dir: Path) -> None:
+def _resolve_mlflow_backend_db(tracking_dir: Path) -> Path:
+    return tracking_dir / DEFAULT_MLFLOW_DB_NAME
+
+
+def _resolve_mlflow_artifact_dir(tracking_dir: Path) -> Path:
+    artifact_dir = tracking_dir / DEFAULT_MLFLOW_ARTIFACT_DIR
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    return artifact_dir.resolve()
+
+
+def _sqlite_uri_for_path(db_path: Path) -> str:
+    resolved = Path(db_path).expanduser().resolve()
+    posix_path = resolved.as_posix()
+    if os.name == "nt":
+        return f"sqlite:///{posix_path}"
+    return f"sqlite:////{posix_path.lstrip('/')}"
+
+
+def _legacy_mlflow_filestore_present(tracking_dir: Path) -> bool:
+    if not tracking_dir.exists():
+        return False
+    for child in tracking_dir.iterdir():
+        if child.name in {DEFAULT_MLFLOW_DB_NAME, DEFAULT_MLFLOW_ARTIFACT_DIR}:
+            continue
+        if child.name == ".trash" or child.name == "meta.yaml":
+            return True
+        if child.is_dir() and child.name.isdigit():
+            return True
+    return False
+
+
+def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
+    db_path = _resolve_mlflow_backend_db(tracking_dir)
+    if not db_path.exists() and _legacy_mlflow_filestore_present(tracking_dir):
+        target_uri = _sqlite_uri_for_path(db_path)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "mlflow",
+                "migrate-filestore",
+                "--source",
+                str(tracking_dir),
+                "--target",
+                target_uri,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            details = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                "Failed to migrate the legacy MLflow file store to SQLite. "
+                f"Source: {tracking_dir}. {details}"
+            )
+    _resolve_mlflow_artifact_dir(tracking_dir)
+    return _sqlite_uri_for_path(db_path)
+
+
+def _ensure_default_mlflow_experiment(tracking_dir: Path) -> str | None:
     mlflow = _get_mlflow_module()
     if mlflow is None:
-        return
-    mlflow.set_tracking_uri(tracking_dir.as_uri())
+        return None
+    backend_uri = _ensure_mlflow_backend_ready(tracking_dir)
+    mlflow.set_tracking_uri(backend_uri)
+    experiment = None
+    get_experiment = getattr(mlflow, "get_experiment_by_name", None)
+    if callable(get_experiment):
+        experiment = get_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+    if experiment is None:
+        create_experiment = getattr(mlflow, "create_experiment", None)
+        if callable(create_experiment):
+            artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
+            try:
+                create_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME, artifact_location=artifact_uri)
+            except Exception:
+                pass
     mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+    return backend_uri
 
 
 def _load_global_state() -> Dict[str, str]:
@@ -1930,9 +2006,16 @@ def activate_mlflow(env=None):
     while is_port_in_use(port):
         port = get_random_port()
 
-    cmd = f"uv -q run mlflow ui --backend-store-uri {tracking_dir.as_uri()} --port {port}"
     try:
-        _ensure_default_mlflow_experiment(tracking_dir)
+        backend_uri = _ensure_default_mlflow_experiment(tracking_dir) or _ensure_mlflow_backend_ready(tracking_dir)
+        artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
+        cmd = (
+            "uv -q run mlflow server "
+            f"--backend-store-uri {shlex.quote(backend_uri)} "
+            f"--default-artifact-root {shlex.quote(artifact_uri)} "
+            "--host 127.0.0.1 "
+            f"--port {port}"
+        )
         subproc(cmd, os.getcwd())
         st.session_state.server_started = True
         st.session_state["mlflow_port"] = port
