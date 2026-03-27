@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shlex
 import sys
 
@@ -7,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from agi_env import AgiEnv
+import agi_env.agi_env as agi_env_module
 
 from agi_env.agi_logger import AgiLogger
 
@@ -318,8 +320,60 @@ def test_run_unexpected_exception_logs_traceback(tmp_path: Path, monkeypatch):
     with pytest.raises(RuntimeError, match="Command execution error: broken exec"):
         asyncio.run(AgiEnv.run(cmd, tmp_path))
 
-    error_messages = [
-        " ".join(str(part) for part in call.args)
-        for call in mock_logger.error.call_args_list
+
+def test_parse_level_recognizes_common_patterns():
+    assert agi_env_module.parse_level("12:34:56 INFO booting", logging.WARNING) == logging.INFO
+    assert agi_env_module.parse_level("level=error details", logging.INFO) == logging.ERROR
+    assert agi_env_module.parse_level("level=debug details", logging.INFO) == logging.DEBUG
+    assert agi_env_module.parse_level("plain text", logging.WARNING) == logging.WARNING
+
+
+def test_strip_time_level_prefix_and_packaging_detection():
+    assert agi_env_module.strip_time_level_prefix("12:34:56 INFO started") == "started"
+    assert agi_env_module.strip_time_level_prefix("12:34:56,123 WARNING: be careful") == "be careful"
+    assert agi_env_module.is_packaging_cmd("uv pip install agilab") is True
+    assert agi_env_module.is_packaging_cmd("python -m pytest") is False
+
+
+def test_ensure_dir_logs_only_on_first_creation(tmp_path: Path, monkeypatch):
+    target = tmp_path / "new-dir"
+    mock_logger = mock.Mock()
+    monkeypatch.setattr("agi_env.agi_env.logger", mock_logger)
+
+    created = agi_env_module._ensure_dir(target)
+    reused = agi_env_module._ensure_dir(target)
+
+    assert created == target
+    assert reused == target
+    assert target.is_dir()
+    mkdir_logs = [
+        call.args[0]
+        for call in mock_logger.info.call_args_list
+        if call.args and isinstance(call.args[0], str)
     ]
-    assert any("Traceback (most recent call last)" in msg for msg in error_messages)
+    assert mkdir_logs == [f"mkdir {target}"]
+
+
+def test_select_hook_prefers_local_candidate_and_fallback(tmp_path: Path, monkeypatch):
+    local_hook = tmp_path / "pre_install.py"
+    local_hook.write_text("print('local')\n", encoding="utf-8")
+
+    selected, shared = agi_env_module._select_hook(local_hook, "pre_install.py", "pre_install")
+    assert selected == local_hook
+    assert shared is False
+
+    fallback = tmp_path / "shared.py"
+    fallback.write_text("print('shared')\n", encoding="utf-8")
+    missing = tmp_path / "missing.py"
+    monkeypatch.setattr("agi_env.agi_env._resolve_worker_hook", lambda _name: fallback)
+    selected, shared = agi_env_module._select_hook(missing, "pre_install.py", "pre_install")
+    assert selected == fallback
+    assert shared is True
+
+
+def test_select_hook_raises_when_no_candidate_found(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("agi_env.agi_env._resolve_worker_hook", lambda _name: None)
+    missing = tmp_path / "missing.py"
+
+    with pytest.raises(FileNotFoundError, match="Unable to resolve pre_install script"):
+        agi_env_module._select_hook(missing, "pre_install.py", "pre_install")
