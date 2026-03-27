@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import os
 from pathlib import Path
+import sqlite3
 import sys
 from types import SimpleNamespace
 
@@ -304,3 +305,64 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     assert migrate["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
     assert migrate["cmd"][5] == str(tracking_dir)
     assert migrate["cmd"][7] == pagelib._sqlite_uri_for_path(tracking_dir / "mlflow.db")
+
+
+def test_ensure_mlflow_backend_ready_repairs_default_experiment_id_zero(tmp_path):
+    tracking_dir = (tmp_path / ".mlflow").resolve()
+    tracking_dir.mkdir(parents=True)
+    db_path = tracking_dir / "mlflow.db"
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE experiments (
+                experiment_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                artifact_location TEXT,
+                lifecycle_stage TEXT,
+                creation_time INTEGER,
+                last_update_time INTEGER,
+                workspace TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE runs (
+                run_uuid TEXT PRIMARY KEY,
+                experiment_id INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO experiments (
+                experiment_id,
+                name,
+                artifact_location,
+                lifecycle_stage,
+                creation_time,
+                last_update_time,
+                workspace
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (3, pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME, "file:///legacy/mlruns/3", "active", 0, 0, "default"),
+        )
+        conn.execute("INSERT INTO runs (run_uuid, experiment_id) VALUES (?, ?)", ("run-1", 3))
+        conn.commit()
+
+    uri = pagelib._ensure_mlflow_backend_ready(tracking_dir)
+
+    assert uri == pagelib._sqlite_uri_for_path(db_path)
+    with sqlite3.connect(db_path) as conn:
+        experiment = conn.execute(
+            "SELECT experiment_id, artifact_location FROM experiments WHERE name = ?",
+            (pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME,),
+        ).fetchone()
+        run = conn.execute("SELECT experiment_id FROM runs WHERE run_uuid = ?", ("run-1",)).fetchone()
+
+    assert experiment == (
+        0,
+        (tracking_dir / "artifacts").resolve().as_uri(),
+    )
+    assert run == (0,)
