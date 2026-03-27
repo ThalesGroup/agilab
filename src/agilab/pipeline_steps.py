@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
@@ -92,6 +93,84 @@ def step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str,
     if summary:
         return f"{display_idx + 1}. {summary}"
     return f"{display_idx + 1}. Step {step_idx + 1}"
+
+
+def upgrade_legacy_step_code(code: Any) -> Any:
+    """Rewrite known legacy AGI app snippets to the current active_app form."""
+    if not isinstance(code, str) or not code:
+        return code
+
+    updated = code
+    if "import agilab" not in updated and "APPS_DIR" not in updated and "apps_dir=APPS_DIR" not in updated:
+        return updated
+
+    updated = re.sub(r"(?m)^\s*import agilab\s*\n?", "", updated)
+    updated = re.sub(
+        r"(?m)^(?P<indent>\s*)APPS_DIR\s*=\s*Path\(agilab\.__file__\)\.resolve\(\).*$",
+        r"\g<indent>APPS_ROOT = Path.cwd().resolve().parent\n\g<indent>APP_ROOT = APPS_ROOT / APP",
+        updated,
+    )
+    updated = updated.replace('PROJECT_SRC = APPS_DIR / APP / "src"', 'PROJECT_SRC = APP_ROOT / "src"')
+    updated = updated.replace("PROJECT_SRC = APPS_DIR / APP / 'src'", "PROJECT_SRC = APP_ROOT / 'src'")
+    updated = updated.replace("APPS_DIR / APP /", "APP_ROOT /")
+    updated = updated.replace("APPS_DIR / APP", "APP_ROOT")
+    updated = re.sub(
+        r"AgiEnv\(\s*apps_(?:dir|path)\s*=\s*APPS_DIR\s*,\s*app\s*=\s*APP\s*,\s*",
+        "AgiEnv(active_app=APP_ROOT, ",
+        updated,
+    )
+    updated = re.sub(
+        r"AgiEnv\(\s*apps_(?:dir|path)\s*=\s*APPS_DIR\s*,\s*app\s*=\s*APP\s*\)",
+        "AgiEnv(active_app=APP_ROOT)",
+        updated,
+    )
+    return updated
+
+
+def upgrade_exported_steps(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> bool:
+    """Persist known step-code migrations directly in the exported lab steps file."""
+    if not steps_file.exists():
+        return False
+
+    module_path = Path(module)
+    ensure_primary_module_key(module_path, steps_file, env=env)
+
+    try:
+        with steps_file.open("rb") as handle:
+            data = tomllib.load(handle)
+    except Exception:
+        return False
+
+    entries: Optional[List[Any]] = None
+    for key in module_keys(module_path, env=env):
+        candidate = data.get(key)
+        if isinstance(candidate, list):
+            entries = candidate
+            break
+    if entries is None:
+        return False
+
+    changed = False
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        original = entry.get("C")
+        upgraded = upgrade_legacy_step_code(original)
+        if upgraded != original:
+            entry["C"] = upgraded
+            changed = True
+
+    if not changed:
+        return False
+
+    try:
+        steps_file.parent.mkdir(parents=True, exist_ok=True)
+        with steps_file.open("wb") as handle:
+            tomli_w.dump(_convert_paths_to_strings(data), handle)
+    except Exception as exc:
+        logger.warning("Failed to persist upgraded exported steps to %s: %s", steps_file, exc)
+        return False
+    return True
 
 
 def pipeline_export_root(env: Optional[AgiEnv]) -> Path:

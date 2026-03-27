@@ -35,6 +35,7 @@ try:
         normalize_runtime_path,
         persist_sequence_preferences as _persist_sequence_preferences,
         prune_invalid_entries as _prune_invalid_entries,
+        upgrade_exported_steps as _upgrade_exported_steps,
     )
 except ModuleNotFoundError:
     _pipeline_steps_path = Path(__file__).resolve().parent / "pipeline_steps.py"
@@ -52,6 +53,7 @@ except ModuleNotFoundError:
     normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
     _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
     _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
+    _upgrade_exported_steps = _pipeline_steps_module.upgrade_exported_steps
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,7 @@ def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
     """Get the list of steps for a module from a TOML file."""
     module_path = Path(module)
     _ensure_primary_module_key(module_path, steps_file)
+    _upgrade_exported_steps(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
             steps = tomllib.load(f)
@@ -92,6 +95,7 @@ def get_steps_dict(module: Path, steps_file: Path) -> Dict[str, Any]:
     """Get the steps dictionary from a TOML file."""
     module_path = Path(module)
     _ensure_primary_module_key(module_path, steps_file)
+    _upgrade_exported_steps(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
             steps = tomllib.load(f)
