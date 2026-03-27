@@ -1075,6 +1075,8 @@ def sidebar_controls() -> None:
     if target_name and target_name not in modules:
         modules = [target_name] + modules
 
+    requested_lab = _normalize_lab_choice(st.session_state.get("_requested_lab_dir"), modules)
+
     # If no explicit project was known, prefer the configured environment target.
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed:
@@ -1113,7 +1115,7 @@ def sidebar_controls() -> None:
     last_active = _load_last_active_app_name(modules)
     normalized_target = _normalize_lab_choice(env.target, modules)
     if project_changed:
-        persisted_lab = normalized_target or env.target
+        persisted_lab = requested_lab or normalized_target or env.target
     else:
         persisted_lab = (
             _normalize_lab_choice(_qp_first("lab_dir_selectbox"), modules)
@@ -1138,6 +1140,8 @@ def sidebar_controls() -> None:
         on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
         key="lab_dir_selectbox",
     )
+    if requested_lab and st.session_state.get("lab_dir_selectbox") == requested_lab:
+        st.session_state.pop("_requested_lab_dir", None)
 
     steps_file_name = st.session_state["steps_file_name"]
     export_root = _pipeline_export_root(env)
