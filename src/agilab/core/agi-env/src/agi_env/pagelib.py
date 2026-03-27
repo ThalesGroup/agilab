@@ -64,6 +64,7 @@ from sqlalchemy import false
 # Shared last-active-app helpers (persisted in a single TOML state file)
 _GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
 _LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
+DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
 
 
 def background_services_enabled() -> bool:
@@ -73,6 +74,34 @@ def background_services_enabled() -> bool:
         return False
     testing_state = st.session_state.get("$$STREAMLIT_INTERNAL_KEY_TESTING")
     return not bool(testing_state)
+
+
+def _get_mlflow_module():
+    try:
+        import mlflow  # type: ignore
+    except Exception:
+        return None
+    return mlflow
+
+
+def _resolve_mlflow_tracking_dir(env) -> Path:
+    home_abs = Path(getattr(env, "home_abs", Path.home())).expanduser()
+    tracking_value = getattr(env, "MLFLOW_TRACKING_DIR", None)
+    if tracking_value:
+        tracking_dir = Path(tracking_value).expanduser()
+        if not tracking_dir.is_absolute():
+            tracking_dir = home_abs / tracking_dir
+    else:
+        tracking_dir = home_abs / ".mlflow"
+    return tracking_dir.resolve()
+
+
+def _ensure_default_mlflow_experiment(tracking_dir: Path) -> None:
+    mlflow = _get_mlflow_module()
+    if mlflow is None:
+        return
+    mlflow.set_tracking_uri(tracking_dir.as_uri())
+    mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
 
 
 def _load_global_state() -> Dict[str, str]:
@@ -1891,7 +1920,7 @@ def activate_mlflow(env=None):
         return
 
     st.session_state["rapids_default"] = True
-    tracking_dir = Path(env.MLFLOW_TRACKING_DIR)
+    tracking_dir = _resolve_mlflow_tracking_dir(env)
     if not tracking_dir.exists():
         logger.info(f"mkdir {tracking_dir}")
     tracking_dir.mkdir(parents=True, exist_ok=True)
@@ -1901,12 +1930,13 @@ def activate_mlflow(env=None):
     while is_port_in_use(port):
         port = get_random_port()
 
-    cmd = f"uv -q run mlflow ui --backend-store-uri file://{env.MLFLOW_TRACKING_DIR} --port {port}"
+    cmd = f"uv -q run mlflow ui --backend-store-uri {tracking_dir.as_uri()} --port {port}"
     try:
-        res = subproc(cmd, os.getcwd())
+        _ensure_default_mlflow_experiment(tracking_dir)
+        subproc(cmd, os.getcwd())
         st.session_state.server_started = True
         st.session_state["mlflow_port"] = port
-    except RuntimeError as e:
+    except Exception as e:
         st.error(f"Failed to start the server: {e}")
 
 
