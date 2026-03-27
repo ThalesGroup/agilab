@@ -1,7 +1,22 @@
 flags:
   agilab:
+    # App-layer surface only: Streamlit pages plus orchestration/pipeline helpers.
+    # Core packages publish under their own dedicated flags below.
     paths:
-      - src/agilab
+      - src/agilab/pages
+      - src/agilab/orchestrate_cluster.py
+      - src/agilab/orchestrate_distribution.py
+      - src/agilab/orchestrate_execute.py
+      - src/agilab/orchestrate_services.py
+      - src/agilab/orchestrate_support.py
+      - src/agilab/pipeline_ai.py
+      - src/agilab/pipeline_editor.py
+      - src/agilab/pipeline_lab.py
+      - src/agilab/pipeline_openai.py
+      - src/agilab/pipeline_runtime.py
+      - src/agilab/pipeline_sidebar.py
+      - src/agilab/pipeline_steps.py
+      - src/agilab/pipeline_views.py
   agi-env:
     paths:
       - src/agilab/core/agi-env
