@@ -101,19 +101,66 @@ def upgrade_legacy_step_code(code: Any) -> Any:
         return code
 
     updated = code
-    if "import agilab" not in updated and "APPS_DIR" not in updated and "apps_dir=APPS_DIR" not in updated:
+    if (
+        "import agilab" not in updated
+        and "APPS_DIR" not in updated
+        and "apps_dir=APPS_DIR" not in updated
+        and "APP_ROOT = APPS_ROOT / APP" not in updated
+        and "APPS_ROOT = Path.cwd().resolve().parent" not in updated
+        and "agilab.__file__" not in updated
+        and "Path(sys.executable).resolve().parents[2]" not in updated
+        and "Path(sys.prefix).resolve().parent" not in updated
+    ):
         return updated
 
     updated = re.sub(r"(?m)^\s*import agilab\s*\n?", "", updated)
     updated = re.sub(
-        r"(?m)^(?P<indent>\s*)APPS_DIR\s*=\s*Path\(agilab\.__file__\)\.resolve\(\).*$",
-        r"\g<indent>APPS_ROOT = Path.cwd().resolve().parent\n\g<indent>APP_ROOT = APPS_ROOT / APP",
+        r"(?m)^(?P<indent>\s*)APPS_DIR\s*=\s*.*agilab\.__file__.*$",
+        "",
         updated,
     )
+    updated = re.sub(r"(?m)^\s*APPS_ROOT\s*=\s*Path\.cwd\(\)\.resolve\(\)\.parent\s*\n?", "", updated)
     updated = updated.replace('PROJECT_SRC = APPS_DIR / APP / "src"', 'PROJECT_SRC = APP_ROOT / "src"')
     updated = updated.replace("PROJECT_SRC = APPS_DIR / APP / 'src'", "PROJECT_SRC = APP_ROOT / 'src'")
     updated = updated.replace("APPS_DIR / APP /", "APP_ROOT /")
     updated = updated.replace("APPS_DIR / APP", "APP_ROOT")
+    updated = re.sub(r"(?m)^\s*APP_ROOT\s*=\s*APPS_ROOT\s*/\s*APP\s*\n?", "", updated)
+    updated = re.sub(
+        r"(?m)^\s*APP_ROOT\s*=\s*Path\(sys\.executable\)\.resolve\(\)\.parents\[2\]\s*\n?",
+        "",
+        updated,
+    )
+    updated = re.sub(
+        r"(?m)^\s*APP_ROOT\s*=\s*Path\(sys\.prefix\)\.resolve\(\)\.parent\s*\n?",
+        "",
+        updated,
+    )
+
+    if (
+        "Path(sys.executable).resolve().parents[2]" in updated
+        or "Path(sys.prefix).resolve().parent" in updated
+    ) and "import sys" not in updated:
+        if "from pathlib import Path\n" in updated:
+            updated = updated.replace("from pathlib import Path\n", "from pathlib import Path\nimport sys\n", 1)
+        else:
+            updated = f"import sys\n{updated}"
+
+    def _insert_app_root(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        app_value = match.group("app")
+        return f'{indent}APP = {app_value}\n{indent}APP_ROOT = Path(sys.prefix).resolve().parent'
+
+    updated = re.sub(
+        r'(?m)^(?P<indent>\s*)APP\s*=\s*(?P<app>["\'][^"\']+["\'])\s*$',
+        _insert_app_root,
+        updated,
+        count=1,
+    )
+    if "APP_ROOT = Path(sys.prefix).resolve().parent" in updated and "import sys" not in updated:
+        if "from pathlib import Path\n" in updated:
+            updated = updated.replace("from pathlib import Path\n", "from pathlib import Path\nimport sys\n", 1)
+        else:
+            updated = f"import sys\n{updated}"
     updated = re.sub(
         r"AgiEnv\(\s*apps_(?:dir|path)\s*=\s*APPS_DIR\s*,\s*app\s*=\s*APP\s*,\s*",
         "AgiEnv(active_app=APP_ROOT, ",
@@ -125,6 +172,69 @@ def upgrade_legacy_step_code(code: Any) -> Any:
         updated,
     )
     return updated
+
+
+def extract_step_app_name(code: Any) -> str:
+    """Extract the app/project name referenced by a saved AGI snippet."""
+    if not isinstance(code, str) or not code:
+        return ""
+    match = re.search(r'(?m)^\s*APP\s*=\s*["\']([^"\']+)["\']\s*$', code)
+    return str(match.group(1)).strip() if match else ""
+
+
+def looks_like_runtime_reference(raw: Any) -> bool:
+    """Return True when a runtime value looks like a real path/app reference."""
+    text = str(raw or "").strip()
+    if not text:
+        return False
+    if Path(text).expanduser().is_absolute():
+        return True
+    if re.match(r"^[A-Za-z]:[\\/]", text):
+        return True
+    if " " in text:
+        return False
+    if any(sep in text for sep in ("/", "\\")):
+        return True
+    if text.endswith(".venv"):
+        return True
+    if text.endswith("_project") and " " not in text:
+        return True
+    return False
+
+
+def upgrade_legacy_step_runtime(raw_runtime: Any, *, engine: Any, app_name: str) -> Any:
+    """Replace descriptive legacy runtime text with the actual app runtime key."""
+    if not app_name or not str(engine or "").startswith("agi."):
+        return raw_runtime
+    if looks_like_runtime_reference(raw_runtime):
+        return raw_runtime
+    return app_name
+
+
+def upgrade_legacy_step_entry(entry: Any) -> bool:
+    """Upgrade one saved step entry in place."""
+    if not isinstance(entry, dict):
+        return False
+
+    changed = False
+    original_code = entry.get("C")
+    upgraded_code = upgrade_legacy_step_code(original_code)
+    if upgraded_code != original_code:
+        entry["C"] = upgraded_code
+        changed = True
+
+    app_name = extract_step_app_name(entry.get("C"))
+    original_runtime = entry.get("E")
+    upgraded_runtime = upgrade_legacy_step_runtime(
+        original_runtime,
+        engine=entry.get("R"),
+        app_name=app_name,
+    )
+    if upgraded_runtime != original_runtime:
+        entry["E"] = upgraded_runtime
+        changed = True
+
+    return changed
 
 
 def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int]:
@@ -148,10 +258,7 @@ def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int
             if not isinstance(entry, dict):
                 continue
             scanned_steps += 1
-            original = entry.get("C")
-            upgraded = upgrade_legacy_step_code(original)
-            if upgraded != original:
-                entry["C"] = upgraded
+            if upgrade_legacy_step_entry(entry):
                 changed = True
                 changed_steps += 1
 
