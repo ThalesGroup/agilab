@@ -189,12 +189,17 @@ except ModuleNotFoundError:
 
 try:
     from agilab.pipeline_runtime import (
+        build_mlflow_process_env,
+        log_mlflow_artifacts,
+        mlflow_tracking_uri,
         ensure_safe_service_template as _ensure_safe_service_template,
         is_valid_runtime_root as _is_valid_runtime_root,
         python_for_venv as _python_for_venv,
         run_locked_step as _run_locked_step,
+        start_mlflow_run,
         stream_run_command as _stream_run_command,
         to_bool_flag as _to_bool_flag,
+        wrap_code_with_mlflow_resume,
     )
 except ModuleNotFoundError:
     _pipeline_runtime_path = Path(__file__).resolve().parents[1] / "pipeline_runtime.py"
@@ -204,11 +209,16 @@ except ModuleNotFoundError:
     _pipeline_runtime_module = importlib.util.module_from_spec(_pipeline_runtime_spec)
     _pipeline_runtime_spec.loader.exec_module(_pipeline_runtime_module)
     _ensure_safe_service_template = _pipeline_runtime_module.ensure_safe_service_template
+    build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
+    log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
+    mlflow_tracking_uri = _pipeline_runtime_module.mlflow_tracking_uri
     _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
     _python_for_venv = _pipeline_runtime_module.python_for_venv
     _run_locked_step = _pipeline_runtime_module.run_locked_step
+    start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
     _stream_run_command = _pipeline_runtime_module.stream_run_command
     _to_bool_flag = _pipeline_runtime_module.to_bool_flag
+    wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 try:
     from agilab.pipeline_sidebar import (
         available_lab_modules as _available_lab_modules,
@@ -252,6 +262,80 @@ class JumpToMain(Exception):
 
 
 _pipeline_ai_module.JumpToMain = JumpToMain
+
+
+def _mlflow_parent_payload(
+    env: AgiEnv,
+    lab_dir: Path,
+    steps_file: Path,
+    sequence: List[int],
+) -> tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, str]]:
+    run_name = f"{env.app or 'agilab'}:{lab_dir.name}:pipeline"
+    tags = {
+        "agilab.component": "pipeline",
+        "agilab.app": str(getattr(env, "app", "") or ""),
+        "agilab.lab": lab_dir.name,
+        "agilab.steps_file": str(steps_file),
+        "agilab.tracking_uri": mlflow_tracking_uri(env),
+    }
+    params = {
+        "sequence": ",".join(str(idx + 1) for idx in sequence),
+        "step_count": len(sequence),
+    }
+    text_artifacts = {
+        "pipeline_metadata/sequence.json": json.dumps(
+            {
+                "app": str(getattr(env, "app", "") or ""),
+                "lab_dir": str(lab_dir),
+                "steps_file": str(steps_file),
+                "sequence": [idx + 1 for idx in sequence],
+            },
+            indent=2,
+        )
+    }
+    return run_name, tags, params, text_artifacts
+
+
+def _mlflow_step_payload(
+    env: AgiEnv,
+    lab_dir: Path,
+    steps_file: Path,
+    *,
+    step_index: int,
+    entry: Dict[str, Any],
+    engine: str,
+    runtime_root: str,
+) -> tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, str]]:
+    summary = _step_summary(entry, width=80)
+    run_name = f"{env.app or 'agilab'}:{lab_dir.name}:step_{step_index + 1}"
+    tags = {
+        "agilab.component": "pipeline-step",
+        "agilab.app": str(getattr(env, "app", "") or ""),
+        "agilab.lab": lab_dir.name,
+        "agilab.steps_file": str(steps_file),
+        "agilab.step_index": step_index + 1,
+        "agilab.engine": engine,
+        "agilab.runtime": runtime_root or "",
+        "agilab.summary": summary,
+    }
+    params = {
+        "description": entry.get("D", ""),
+        "question": entry.get("Q", ""),
+        "model": entry.get("M", ""),
+        "runtime": runtime_root or "",
+        "engine": engine,
+    }
+    text_artifacts = {
+        f"step_{step_index + 1}/step_entry.json": json.dumps(
+            {
+                "step_index": step_index + 1,
+                "summary": summary,
+                "entry": entry,
+            },
+            indent=2,
+        )
+    }
+    return run_name, tags, params, text_artifacts
 
 
 def _append_run_log(index_page: str, message: str) -> None:
@@ -741,113 +825,179 @@ def run_all_steps(
 
     executed = 0
     try:
-        with st.spinner("Running all steps…"):
-            for idx in sequence:
-                _refresh_pipeline_run_lock(lock_handle)
-                entry = steps[idx]
-                code = entry.get("C", "")
-                if not _is_runnable_step(entry):
-                    continue
-                _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
+        parent_run_name, parent_tags, parent_params, parent_text_artifacts = _mlflow_parent_payload(
+            env,
+            lab_dir,
+            steps_file,
+            sequence,
+        )
+        pipeline_log_artifact = st.session_state.get(f"{index_page_str}__run_log_file")
+        with start_mlflow_run(
+            env,
+            run_name=parent_run_name,
+            tags=parent_tags,
+            params=parent_params,
+        ) as pipeline_tracking:
+            if pipeline_tracking:
+                log_mlflow_artifacts(
+                    pipeline_tracking,
+                    text_artifacts=parent_text_artifacts,
+                    file_artifacts=[steps_file],
+                )
+            with st.spinner("Running all steps…"):
+                for idx in sequence:
+                    _refresh_pipeline_run_lock(lock_handle)
+                    entry = steps[idx]
+                    code = entry.get("C", "")
+                    if not _is_runnable_step(entry):
+                        continue
+                    _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
 
-                raw_runtime = normalize_runtime_path(entry.get("E", ""))
-                venv_path = raw_runtime if _is_valid_runtime_root(raw_runtime) else ""
-                if venv_path:
-                    selected_map[idx] = venv_path
-                    st.session_state["lab_selected_venv"] = venv_path
-                else:
-                    selected_map.pop(idx, None)
-                runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
+                    raw_runtime = normalize_runtime_path(entry.get("E", ""))
+                    venv_path = raw_runtime if _is_valid_runtime_root(raw_runtime) else ""
+                    if venv_path:
+                        selected_map[idx] = venv_path
+                        st.session_state["lab_selected_venv"] = venv_path
+                    else:
+                        selected_map.pop(idx, None)
+                    runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
 
-                st.session_state[index_page_str][0] = idx
-                st.session_state[index_page_str][1] = entry.get("D", "")
-                st.session_state[index_page_str][2] = entry.get("Q", "")
-                st.session_state[index_page_str][3] = entry.get("M", "")
-                st.session_state[index_page_str][4] = code
-                st.session_state[index_page_str][5] = details_store.get(idx, "")
+                    st.session_state[index_page_str][0] = idx
+                    st.session_state[index_page_str][1] = entry.get("D", "")
+                    st.session_state[index_page_str][2] = entry.get("Q", "")
+                    st.session_state[index_page_str][3] = entry.get("M", "")
+                    st.session_state[index_page_str][4] = code
+                    st.session_state[index_page_str][5] = details_store.get(idx, "")
 
-                venv_root = runtime_root
-                entry_engine = str(entry.get("R", "") or "")
-                ui_engine = str(engine_map.get(idx) or "")
-                if ui_engine and ui_engine != entry_engine:
-                    if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                    venv_root = runtime_root
+                    entry_engine = str(entry.get("R", "") or "")
+                    ui_engine = str(engine_map.get(idx) or "")
+                    if ui_engine and ui_engine != entry_engine:
+                        if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                            engine = entry_engine
+                        else:
+                            engine = ui_engine
+                    elif entry_engine:
                         engine = entry_engine
                     else:
-                        engine = ui_engine
-                elif entry_engine:
-                    engine = entry_engine
-                else:
-                    engine = "agi.run" if venv_root else "runpy"
-                if venv_root and engine == "runpy":
-                    engine = "agi.run"
-                if engine.startswith("agi.") and not venv_root:
-                    fallback_runtime = normalize_runtime_path(getattr(env, "active_app", "") or "")
-                    if _is_valid_runtime_root(fallback_runtime):
-                        venv_root = fallback_runtime
-                        st.session_state["lab_selected_venv"] = venv_root
-                target_base = Path(steps_file).parent.resolve()
-                # Collapse duplicated tail (e.g., export/<app>/export/<app>)
-                if target_base.name == target_base.parent.name:
-                    target_base = target_base.parent
-                target_base.mkdir(parents=True, exist_ok=True)
-                if engine == "runpy":
-                    output = run_lab(
-                        [entry.get("D", ""), entry.get("Q", ""), code],
-                        snippet_file,
-                        env.copilot_file,
-                    )
-                else:
-                    script_path = (target_base / "AGI_run.py").resolve()
-                    script_path.write_text(code)
-                    python_cmd = _python_for_venv(venv_root)
-                    output = _stream_run_command(
-                        env,
-                        index_page_str,
-                        f"{python_cmd} {script_path}",
-                        cwd=target_base,
-                        push_run_log=_push_run_log,
-                        ansi_escape_re=ANSI_ESCAPE_RE,
-                        jump_exception_cls=JumpToMain,
-                        placeholder=log_placeholder,
-                    )
-                _refresh_pipeline_run_lock(lock_handle)
+                        engine = "agi.run" if venv_root else "runpy"
+                    if venv_root and engine == "runpy":
+                        engine = "agi.run"
+                    if engine.startswith("agi.") and not venv_root:
+                        fallback_runtime = normalize_runtime_path(getattr(env, "active_app", "") or "")
+                        if _is_valid_runtime_root(fallback_runtime):
+                            venv_root = fallback_runtime
+                            st.session_state["lab_selected_venv"] = venv_root
 
-                # Append execution output to logs for better visibility
-                if output:
-                    preview = output.strip()
-                    if preview:
-                        _push_run_log(
-                            index_page_str,
-                            f"Output (step {idx + 1}):\n{preview}",
-                            log_placeholder,
+                    step_run_name, step_tags, step_params, step_text_artifacts = _mlflow_step_payload(
+                        env,
+                        lab_dir,
+                        steps_file,
+                        step_index=idx,
+                        entry=entry,
+                        engine=engine,
+                        runtime_root=venv_root,
+                    )
+                    target_base = Path(steps_file).parent.resolve()
+                    if target_base.name == target_base.parent.name:
+                        target_base = target_base.parent
+                    target_base.mkdir(parents=True, exist_ok=True)
+                    script_artifact: Optional[Path] = None
+                    export_target = st.session_state.get("df_file_out", "")
+                    with start_mlflow_run(
+                        env,
+                        run_name=step_run_name,
+                        tags=step_tags,
+                        params=step_params,
+                        nested=bool(pipeline_tracking),
+                    ) as step_tracking:
+                        step_env = build_mlflow_process_env(
+                            env,
+                            run_id=step_tracking["run"].info.run_id if step_tracking else None,
                         )
-                        if "No such file or directory" in preview:
+                        if step_tracking:
+                            log_mlflow_artifacts(step_tracking, text_artifacts=step_text_artifacts)
+                        if engine == "runpy":
+                            output = run_lab(
+                                [entry.get("D", ""), entry.get("Q", ""), code],
+                                snippet_file,
+                                env.copilot_file,
+                                env_overrides=step_env,
+                            )
+                            script_artifact = Path(snippet_file)
+                        else:
+                            script_path = (target_base / "AGI_run.py").resolve()
+                            script_path.write_text(wrap_code_with_mlflow_resume(code))
+                            script_artifact = script_path
+                            python_cmd = _python_for_venv(venv_root)
+                            output = _stream_run_command(
+                                env,
+                                index_page_str,
+                                f"{python_cmd} {script_path}",
+                                cwd=target_base,
+                                push_run_log=_push_run_log,
+                                ansi_escape_re=ANSI_ESCAPE_RE,
+                                jump_exception_cls=JumpToMain,
+                                placeholder=log_placeholder,
+                                extra_env=step_env,
+                            )
+                        _refresh_pipeline_run_lock(lock_handle)
+
+                        preview = (output or "").strip()
+                        if preview:
                             _push_run_log(
                                 index_page_str,
-                                "Hint: the code tried to call a file that is not present in the export environment. "
-                                "Adjust the step to use a path that exists under the export/lab directory.",
+                                f"Output (step {idx + 1}):\n{preview}",
                                 log_placeholder,
                             )
-                else:
-                    _push_run_log(
-                        index_page_str,
-                        f"Output (step {idx + 1}): {engine} executed (no captured stdout)",
-                        log_placeholder,
-                    )
+                            if "No such file or directory" in preview:
+                                _push_run_log(
+                                    index_page_str,
+                                    "Hint: the code tried to call a file that is not present in the export environment. "
+                                    "Adjust the step to use a path that exists under the export/lab directory.",
+                                    log_placeholder,
+                                )
+                        else:
+                            _push_run_log(
+                                index_page_str,
+                                f"Output (step {idx + 1}): {engine} executed (no captured stdout)",
+                                log_placeholder,
+                            )
 
-                if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                    export_target = st.session_state.get("df_file_out", "")
-                    if save_csv(st.session_state["data"], export_target):
-                        st.session_state["df_file_in"] = export_target
-                        st.session_state["step_checked"] = True
-                summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
-                env_label = Path(venv_root).name if venv_root else "default env"
-                _push_run_log(
-                    index_page_str,
-                    f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                    log_placeholder,
+                        if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
+                            if save_csv(st.session_state["data"], export_target):
+                                st.session_state["df_file_in"] = export_target
+                                st.session_state["step_checked"] = True
+                        summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
+                        env_label = Path(venv_root).name if venv_root else "default env"
+                        _push_run_log(
+                            index_page_str,
+                            f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                            log_placeholder,
+                        )
+                        if step_tracking:
+                            step_files = [script_artifact]
+                            if export_target:
+                                step_files.append(export_target)
+                            log_mlflow_artifacts(
+                                step_tracking,
+                                text_artifacts={
+                                    f"step_{idx + 1}/stdout.txt": preview or "",
+                                },
+                                file_artifacts=step_files,
+                                tags={
+                                    "agilab.status": "completed",
+                                    "agilab.output_present": bool(preview),
+                                },
+                            )
+                        executed += 1
+            if pipeline_tracking:
+                log_mlflow_artifacts(
+                    pipeline_tracking,
+                    file_artifacts=[pipeline_log_artifact] if pipeline_log_artifact else [],
+                    tags={"agilab.status": "completed"},
+                    metrics={"executed_steps": executed},
                 )
-                executed += 1
 
         if executed:
             st.success(f"Executed {executed} step{'s' if executed != 1 else ''}.")
