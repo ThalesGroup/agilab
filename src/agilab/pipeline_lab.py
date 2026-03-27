@@ -49,7 +49,13 @@ except ModuleNotFoundError:
     _step_summary = _pipeline_steps_module.step_summary
 
 try:
-    from agilab.pipeline_runtime import is_valid_runtime_root as _is_valid_runtime_root
+    from agilab.pipeline_runtime import (
+        build_mlflow_process_env,
+        is_valid_runtime_root as _is_valid_runtime_root,
+        log_mlflow_artifacts,
+        start_mlflow_run,
+        wrap_code_with_mlflow_resume,
+    )
 except ModuleNotFoundError:
     _pipeline_runtime_path = Path(__file__).resolve().parent / "pipeline_runtime.py"
     _pipeline_runtime_spec = importlib.util.spec_from_file_location("agilab_pipeline_runtime_fallback", _pipeline_runtime_path)
@@ -57,7 +63,11 @@ except ModuleNotFoundError:
         raise
     _pipeline_runtime_module = importlib.util.module_from_spec(_pipeline_runtime_spec)
     _pipeline_runtime_spec.loader.exec_module(_pipeline_runtime_module)
+    build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
     _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
+    log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
+    start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
+    wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 
 logger = logging.getLogger(__name__)
 
@@ -896,32 +906,62 @@ def display_lab_tab(
                         target_base = Path(steps_file).parent.resolve()
                         target_base.mkdir(parents=True, exist_ok=True)
                         run_output = ""
-                        if engine == "runpy":
-                            run_output = run_lab(
-                                [entry.get("D", ""), st.session_state.get(q_key, ""), code_to_run],
-                                snippet_file,
-                                env.copilot_file,
-                            )
-                        else:
-                            script_path = (target_base / "AGI_run.py").resolve()
-                            script_path.write_text(code_to_run)
-                            python_cmd = _python_for_venv(venv_root)
-                            run_output = _stream_run_command(
-                                env,
-                                index_page_str,
-                                f"{python_cmd} {script_path}",
-                                cwd=target_base,
-                                placeholder=stored_placeholder,
-                            )
-                        env_label = Path(venv_root).name if venv_root else "default env"
                         summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
-                        _push_run_log(
-                            index_page_str,
-                            f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                            stored_placeholder,
-                        )
-                        if run_output:
-                            preview = run_output.strip()
+                        step_tags = {
+                            "agilab.component": "pipeline-step",
+                            "agilab.app": str(getattr(env, "app", "") or ""),
+                            "agilab.lab": Path(steps_file).parent.name,
+                            "agilab.step_index": step + 1,
+                            "agilab.engine": engine,
+                            "agilab.runtime": venv_root or "",
+                            "agilab.summary": summary,
+                        }
+                        step_params = {
+                            "description": entry.get("D", ""),
+                            "question": st.session_state.get(q_key, ""),
+                            "model": entry.get("M", ""),
+                            "runtime": venv_root or "",
+                            "engine": engine,
+                        }
+                        step_files: List[Any] = []
+                        with start_mlflow_run(
+                            env,
+                            run_name=f"{getattr(env, 'app', 'agilab')}:{Path(steps_file).parent.name}:step_{step + 1}",
+                            tags=step_tags,
+                            params=step_params,
+                        ) as step_tracking:
+                            step_env = build_mlflow_process_env(
+                                env,
+                                run_id=step_tracking["run"].info.run_id if step_tracking else None,
+                            )
+                            if engine == "runpy":
+                                run_output = run_lab(
+                                    [entry.get("D", ""), st.session_state.get(q_key, ""), code_to_run],
+                                    snippet_file,
+                                    env.copilot_file,
+                                    env_overrides=step_env,
+                                )
+                                step_files.append(Path(snippet_file))
+                            else:
+                                script_path = (target_base / "AGI_run.py").resolve()
+                                script_path.write_text(wrap_code_with_mlflow_resume(code_to_run))
+                                step_files.append(script_path)
+                                python_cmd = _python_for_venv(venv_root)
+                                run_output = _stream_run_command(
+                                    env,
+                                    index_page_str,
+                                    f"{python_cmd} {script_path}",
+                                    cwd=target_base,
+                                    placeholder=stored_placeholder,
+                                    extra_env=step_env,
+                                )
+                            env_label = Path(venv_root).name if venv_root else "default env"
+                            _push_run_log(
+                                index_page_str,
+                                f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                                stored_placeholder,
+                            )
+                            preview = (run_output or "").strip()
                             if preview:
                                 _push_run_log(
                                     index_page_str,
@@ -935,12 +975,24 @@ def display_lab_tab(
                                         "Adjust the step to use a path that exists under the export/lab directory.",
                                         stored_placeholder,
                                     )
-                        elif engine == "runpy":
-                            _push_run_log(
-                                index_page_str,
-                                f"Output (step {step + 1}): runpy executed (no captured stdout)",
-                                stored_placeholder,
-                            )
+                            elif engine == "runpy":
+                                _push_run_log(
+                                    index_page_str,
+                                    f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                                    stored_placeholder,
+                                )
+                            export_target = st.session_state.get("df_file_out", "")
+                            if export_target:
+                                step_files.append(export_target)
+                            if step_tracking:
+                                log_mlflow_artifacts(
+                                    step_tracking,
+                                    text_artifacts={
+                                        f"step_{step + 1}/stdout.txt": preview or "",
+                                    },
+                                    file_artifacts=step_files,
+                                    tags={"agilab.status": "completed"},
+                                )
                     finally:
                         st.session_state.pop(f"{index_page_str}__run_log_file", None)
 

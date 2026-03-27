@@ -15,6 +15,7 @@
 import re
 import json
 import glob
+import io
 from pathlib import Path
 from functools import lru_cache
 import pandas as pd
@@ -1176,7 +1177,7 @@ def run_agi(code, path="."):
     st.stop()
 
 
-def run_lab(query, snippet, codex):
+def run_lab(query, snippet, codex, *, env_overrides=None):
     """
     Run gui code.
 
@@ -1189,10 +1190,36 @@ def run_lab(query, snippet, codex):
         return
     with open(snippet, "w") as file:
         file.write(query[2])
+    output = io.StringIO()
+    sentinel = object()
+    previous_env = {
+        key: os.environ.get(key, sentinel)
+        for key in (env_overrides or {})
+    }
     try:
-        runpy.run_path(codex)
+        for key, value in (env_overrides or {}).items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[str(key)] = str(value)
+        stdout, stderr = sys.stdout, sys.stderr
+        sys.stdout = output
+        sys.stderr = output
+        try:
+            runpy.run_path(codex)
+        finally:
+            sys.stdout = stdout
+            sys.stderr = stderr
     except Exception as e:
         st.warning(f"Error: {e}")
+        print(f"Error: {e}", file=output)
+    finally:
+        for key, value in previous_env.items():
+            if value is sentinel:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = str(value)
+    return output.getvalue().strip()
 
 
 @st.cache_data

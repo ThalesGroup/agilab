@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -152,3 +153,27 @@ def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
 
     with pytest.raises(FileNotFoundError):
         pagelib.open_local_docs(env, html_file="missing.html")
+
+
+def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
+    snippet = tmp_path / "snippet.py"
+    codex = tmp_path / "codex.py"
+    codex.write_text("print('tracking=' + os.environ.get('MLFLOW_TRACKING_URI', ''))\n", encoding="utf-8")
+
+    def fake_run_path(_path):
+        exec("import os\nprint('tracking=' + os.environ.get('MLFLOW_TRACKING_URI', ''))\n", {})
+
+    monkeypatch.setattr(pagelib.runpy, "run_path", fake_run_path)
+    monkeypatch.setattr(pagelib.st, "warning", lambda *_args, **_kwargs: None)
+    os.environ.pop("MLFLOW_TRACKING_URI", None)
+
+    output = pagelib.run_lab(
+        ["D", "Q", "print('hello')"],
+        snippet,
+        codex,
+        env_overrides={"MLFLOW_TRACKING_URI": "file:///tmp/mlflow"},
+    )
+
+    assert snippet.read_text(encoding="utf-8") == "print('hello')"
+    assert "tracking=file:///tmp/mlflow" in output
+    assert "MLFLOW_TRACKING_URI" not in os.environ

@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, List, Optional, Pattern, Type
 
 from agi_env import AgiEnv
 from agi_env.pagelib import run_lab
+
+MLFLOW_STEP_RUN_ID_ENV = "AGILAB_PIPELINE_MLFLOW_RUN_ID"
+MLFLOW_TEXT_LIMIT = 500
 
 
 def to_bool_flag(value: Any, default: bool = False) -> bool:
@@ -113,6 +119,196 @@ if __name__ == "__main__":
 """
 
 
+def get_mlflow_module():
+    """Import MLflow lazily so callers can degrade gracefully when unavailable."""
+    try:
+        import mlflow  # type: ignore
+    except Exception:
+        return None
+    return mlflow
+
+
+def truncate_mlflow_text(value: Any, limit: int = MLFLOW_TEXT_LIMIT) -> str:
+    """Convert arbitrary values into bounded MLflow-safe strings."""
+    text = "" if value is None else str(value)
+    if limit <= 0 or len(text) <= limit:
+        return text
+    if limit == 1:
+        return text[:1]
+    return text[: limit - 1] + "…"
+
+
+def mlflow_tracking_uri(env: AgiEnv) -> str:
+    """Return the shared MLflow tracking URI used by the AGILab sidebar service."""
+    tracking_dir = Path(getattr(env, "MLFLOW_TRACKING_DIR", Path.home() / ".mlflow")).expanduser()
+    tracking_dir.mkdir(parents=True, exist_ok=True)
+    return tracking_dir.resolve().as_uri()
+
+
+def build_mlflow_process_env(
+    env: AgiEnv,
+    *,
+    run_id: str | None = None,
+    base_env: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """Inject the shared tracking URI into a child process environment."""
+    process_env = dict(base_env or os.environ.copy())
+    process_env["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri(env)
+    if run_id:
+        process_env[MLFLOW_STEP_RUN_ID_ENV] = str(run_id)
+        # Standard env name so explicit mlflow clients in child code can reuse the step run.
+        process_env["MLFLOW_RUN_ID"] = str(run_id)
+    else:
+        process_env.pop(MLFLOW_STEP_RUN_ID_ENV, None)
+        process_env.pop("MLFLOW_RUN_ID", None)
+    return process_env
+
+
+@contextmanager
+def temporary_env_overrides(overrides: Optional[Dict[str, Any]]):
+    """Temporarily apply environment overrides for in-process step execution."""
+    if not overrides:
+        yield
+        return
+
+    sentinel = object()
+    previous = {key: os.environ.get(key, sentinel) for key in overrides}
+    try:
+        for key, value in overrides.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = str(value)
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is sentinel:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = str(value)
+
+
+@contextmanager
+def start_mlflow_run(
+    env: AgiEnv,
+    *,
+    run_name: str,
+    tags: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    nested: bool = False,
+):
+    """Open an MLflow run against the sidebar tracking store when MLflow is available."""
+    mlflow = get_mlflow_module()
+    if mlflow is None:
+        yield None
+        return
+
+    tracking_uri = mlflow_tracking_uri(env)
+    mlflow.set_tracking_uri(tracking_uri)
+    clean_tags = {
+        str(key): truncate_mlflow_text(value, 5000)
+        for key, value in (tags or {}).items()
+        if value is not None
+    }
+    clean_params = {
+        str(key): truncate_mlflow_text(value, MLFLOW_TEXT_LIMIT)
+        for key, value in (params or {}).items()
+        if value is not None
+    }
+    run_kwargs: Dict[str, Any] = {"run_name": run_name}
+    if nested:
+        run_kwargs["nested"] = True
+
+    with mlflow.start_run(**run_kwargs) as run:
+        if clean_tags:
+            mlflow.set_tags(clean_tags)
+        if clean_params:
+            mlflow.log_params(clean_params)
+        yield {"mlflow": mlflow, "run": run, "tracking_uri": tracking_uri}
+
+
+def log_mlflow_artifacts(
+    tracking: Optional[Dict[str, Any]],
+    *,
+    text_artifacts: Optional[Dict[str, Any]] = None,
+    file_artifacts: Optional[List[str | Path]] = None,
+    tags: Optional[Dict[str, Any]] = None,
+    metrics: Optional[Dict[str, float]] = None,
+) -> None:
+    """Log text/file artifacts plus final tags/metrics to an active MLflow run."""
+    if not tracking:
+        return
+
+    mlflow = tracking["mlflow"]
+    if tags:
+        mlflow.set_tags(
+            {
+                str(key): truncate_mlflow_text(value, 5000)
+                for key, value in tags.items()
+                if value is not None
+            }
+        )
+    if metrics:
+        for key, value in metrics.items():
+            if value is None:
+                continue
+            try:
+                mlflow.log_metric(str(key), float(value))
+            except Exception:
+                continue
+    for artifact_name, text in (text_artifacts or {}).items():
+        if text is None:
+            continue
+        payload = str(text)
+        if hasattr(mlflow, "log_text"):
+            mlflow.log_text(payload, artifact_name)
+        else:
+            with NamedTemporaryFile("w", encoding="utf-8", suffix=Path(artifact_name).suffix or ".txt", delete=False) as tmp:
+                tmp.write(payload)
+                tmp_path = Path(tmp.name)
+            try:
+                mlflow.log_artifact(str(tmp_path), artifact_path=str(Path(artifact_name).parent))
+            finally:
+                tmp_path.unlink(missing_ok=True)
+    for artifact in file_artifacts or []:
+        if not artifact:
+            continue
+        artifact_path = Path(artifact).expanduser()
+        if artifact_path.exists():
+            mlflow.log_artifact(str(artifact_path))
+
+
+def wrap_code_with_mlflow_resume(code: str) -> str:
+    """Resume a controller-created MLflow run inside subprocess-executed user code."""
+    body = code if code.endswith("\n") else code + "\n"
+    indented = "".join(f"    {line}\n" for line in body.splitlines()) if body.strip() else "    pass\n"
+    return (
+        "import os\n"
+        "_agilab_mlflow = None\n"
+        "_agilab_active_run = None\n"
+        "try:\n"
+        "    import mlflow as _agilab_mlflow\n"
+        "    _agilab_tracking_uri = os.environ.get('MLFLOW_TRACKING_URI')\n"
+        "    if _agilab_tracking_uri:\n"
+        "        _agilab_mlflow.set_tracking_uri(_agilab_tracking_uri)\n"
+        f"    _agilab_run_id = os.environ.get('{MLFLOW_STEP_RUN_ID_ENV}') or os.environ.get('MLFLOW_RUN_ID')\n"
+        "    if _agilab_run_id:\n"
+        "        _agilab_active_run = _agilab_mlflow.start_run(run_id=_agilab_run_id)\n"
+        "except Exception:\n"
+        "    _agilab_mlflow = None\n"
+        "    _agilab_active_run = None\n"
+        "\n"
+        "try:\n"
+        f"{indented}"
+        "finally:\n"
+        "    if _agilab_active_run is not None and _agilab_mlflow is not None:\n"
+        "        try:\n"
+        "            _agilab_mlflow.end_run()\n"
+        "        except Exception:\n"
+        "            pass\n"
+    )
+
+
 def ensure_safe_service_template(
     env: AgiEnv,
     steps_file: Path,
@@ -197,6 +393,7 @@ def stream_run_command(
     ansi_escape_re: Pattern[str],
     jump_exception_cls: Type[BaseException],
     placeholder: Optional[Any] = None,
+    extra_env: Optional[Dict[str, str]] = None,
     timeout: Optional[int] = None,
 ) -> str:
     """Run a shell command and stream its output into the run log."""
@@ -216,6 +413,8 @@ def stream_run_command(
         existing = process_env.get("PYTHONPATH")
         joined = os.pathsep.join(extra_python_paths + ([existing] if existing else []))
         process_env["PYTHONPATH"] = joined
+    if extra_env:
+        process_env.update({str(key): str(value) for key, value in extra_env.items() if value is not None})
 
     lines: List[str] = []
     with subprocess.Popen(
@@ -334,45 +533,85 @@ def run_locked_step(
             refresh_pipeline_run_lock(lock_handle)
             target_base = Path(steps_file).parent.resolve()
             target_base.mkdir(parents=True, exist_ok=True)
-            if engine == "runpy":
-                run_output = run_lab(
-                    [entry.get("D", ""), entry.get("Q", ""), code_to_run],
-                    snippet_file,
-                    env.copilot_file,
-                )
-            else:
-                script_path = (target_base / "AGI_run.py").resolve()
-                script_path.write_text(code_to_run)
-                python_cmd = python_for_venv(venv_root)
-                run_output = stream_run_command(
-                    env,
-                    index_page_str,
-                    f"{python_cmd} {script_path}",
-                    cwd=target_base,
-                    placeholder=stored_placeholder,
-                )
-            refresh_pipeline_run_lock(lock_handle)
             env_label = Path(venv_root).name if venv_root else "default env"
             summary = step_summary({"Q": entry.get("Q", ""), "C": code_to_run}, 60)
-            push_run_log(
-                index_page_str,
-                f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                stored_placeholder,
-            )
-            if run_output:
-                preview = run_output.strip()
+            step_tags = {
+                "agilab.component": "pipeline-step",
+                "agilab.app": str(getattr(env, "app", "") or ""),
+                "agilab.lab": Path(steps_file).parent.name,
+                "agilab.step_index": step + 1,
+                "agilab.engine": engine,
+                "agilab.runtime": venv_root or "",
+                "agilab.summary": summary,
+            }
+            step_params = {
+                "description": entry.get("D", ""),
+                "question": entry.get("Q", ""),
+                "model": entry.get("M", ""),
+                "runtime": venv_root or "",
+                "engine": engine,
+            }
+            with start_mlflow_run(
+                env,
+                run_name=f"{getattr(env, 'app', 'agilab')}:{Path(steps_file).parent.name}:step_{step + 1}",
+                tags=step_tags,
+                params=step_params,
+            ) as step_tracking:
+                step_env = build_mlflow_process_env(
+                    env,
+                    run_id=step_tracking["run"].info.run_id if step_tracking else None,
+                )
+                step_files: List[Any] = []
+                if engine == "runpy":
+                    run_output = run_lab(
+                        [entry.get("D", ""), entry.get("Q", ""), code_to_run],
+                        snippet_file,
+                        env.copilot_file,
+                        env_overrides=step_env,
+                    )
+                    step_files.append(Path(snippet_file))
+                else:
+                    script_path = (target_base / "AGI_run.py").resolve()
+                    script_path.write_text(wrap_code_with_mlflow_resume(code_to_run))
+                    step_files.append(script_path)
+                    python_cmd = python_for_venv(venv_root)
+                    run_output = stream_run_command(
+                        env,
+                        index_page_str,
+                        f"{python_cmd} {script_path}",
+                        cwd=target_base,
+                        placeholder=stored_placeholder,
+                        extra_env=step_env,
+                    )
+                refresh_pipeline_run_lock(lock_handle)
+                push_run_log(
+                    index_page_str,
+                    f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                    stored_placeholder,
+                )
+                preview = run_output.strip() if run_output else ""
                 if preview:
                     push_run_log(
                         index_page_str,
                         f"Output (step {step + 1}):\n{preview}",
                         stored_placeholder,
                     )
-            elif engine == "runpy":
-                push_run_log(
-                    index_page_str,
-                    f"Output (step {step + 1}): runpy executed (no captured stdout)",
-                    stored_placeholder,
-                )
+                elif engine == "runpy":
+                    push_run_log(
+                        index_page_str,
+                        f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                        stored_placeholder,
+                    )
+                export_target = st.session_state.get("df_file_out", "")
+                if export_target:
+                    step_files.append(export_target)
+                if step_tracking:
+                    log_mlflow_artifacts(
+                        step_tracking,
+                        text_artifacts={f"step_{step + 1}/stdout.txt": preview or ""},
+                        file_artifacts=step_files,
+                        tags={"agilab.status": "completed"},
+                    )
         finally:
             st.session_state.pop(f"{index_page_str}__run_log_file", None)
     finally:
