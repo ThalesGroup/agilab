@@ -16,6 +16,8 @@ from agi_env.pagelib import run_lab
 MLFLOW_STEP_RUN_ID_ENV = "AGILAB_PIPELINE_MLFLOW_RUN_ID"
 MLFLOW_TEXT_LIMIT = 500
 DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
+DEFAULT_MLFLOW_DB_NAME = "mlflow.db"
+DEFAULT_MLFLOW_ARTIFACT_DIR = "artifacts"
 
 
 def to_bool_flag(value: Any, default: bool = False) -> bool:
@@ -140,7 +142,7 @@ def truncate_mlflow_text(value: Any, limit: int = MLFLOW_TEXT_LIMIT) -> str:
 
 
 def resolve_mlflow_tracking_dir(env: AgiEnv) -> Path:
-    """Resolve the shared MLflow store, falling back to HOME when unset."""
+    """Resolve the shared MLflow root, falling back to HOME when unset."""
     home_abs = Path(getattr(env, "home_abs", Path.home())).expanduser()
     tracking_value = getattr(env, "MLFLOW_TRACKING_DIR", None)
     if tracking_value:
@@ -153,9 +155,75 @@ def resolve_mlflow_tracking_dir(env: AgiEnv) -> Path:
     return tracking_dir.resolve()
 
 
+def resolve_mlflow_backend_db(env: AgiEnv) -> Path:
+    """Return the SQLite backend file used for local MLflow tracking."""
+    return resolve_mlflow_tracking_dir(env) / DEFAULT_MLFLOW_DB_NAME
+
+
+def resolve_mlflow_artifact_dir(env: AgiEnv) -> Path:
+    """Return the local artifact root shared by MLflow runs."""
+    artifact_dir = resolve_mlflow_tracking_dir(env) / DEFAULT_MLFLOW_ARTIFACT_DIR
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    return artifact_dir.resolve()
+
+
+def sqlite_uri_for_path(db_path: Path) -> str:
+    """Return a SQLAlchemy SQLite URI for an absolute database path."""
+    resolved = Path(db_path).expanduser().resolve()
+    posix_path = resolved.as_posix()
+    if os.name == "nt":
+        return f"sqlite:///{posix_path}"
+    return f"sqlite:////{posix_path.lstrip('/')}"
+
+
+def legacy_mlflow_filestore_present(tracking_dir: Path) -> bool:
+    """Detect an old MLflow file store that should be migrated to SQLite."""
+    if not tracking_dir.exists():
+        return False
+    for child in tracking_dir.iterdir():
+        if child.name in {DEFAULT_MLFLOW_DB_NAME, DEFAULT_MLFLOW_ARTIFACT_DIR}:
+            continue
+        if child.name == ".trash" or child.name == "meta.yaml":
+            return True
+        if child.is_dir() and child.name.isdigit():
+            return True
+    return False
+
+
+def ensure_mlflow_backend_ready(env: AgiEnv) -> str:
+    """Ensure the local MLflow backend is SQLite, migrating legacy file stores when needed."""
+    tracking_dir = resolve_mlflow_tracking_dir(env)
+    db_path = tracking_dir / DEFAULT_MLFLOW_DB_NAME
+    if not db_path.exists() and legacy_mlflow_filestore_present(tracking_dir):
+        target_uri = sqlite_uri_for_path(db_path)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "mlflow",
+                "migrate-filestore",
+                "--source",
+                str(tracking_dir),
+                "--target",
+                target_uri,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            details = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                "Failed to migrate the legacy MLflow file store to SQLite. "
+                f"Source: {tracking_dir}. {details}"
+            )
+    resolve_mlflow_artifact_dir(env)
+    return sqlite_uri_for_path(db_path)
+
+
 def mlflow_tracking_uri(env: AgiEnv) -> str:
-    """Return the shared MLflow tracking URI used by the AGILab sidebar service."""
-    return resolve_mlflow_tracking_dir(env).as_uri()
+    """Return the shared MLflow tracking URI used by AGILab pipeline tracking."""
+    return ensure_mlflow_backend_ready(env)
 
 
 def ensure_default_mlflow_experiment(env: AgiEnv, mlflow: Any | None = None) -> str | None:
@@ -165,6 +233,18 @@ def ensure_default_mlflow_experiment(env: AgiEnv, mlflow: Any | None = None) -> 
         return None
     tracking_uri = mlflow_tracking_uri(env)
     mlflow.set_tracking_uri(tracking_uri)
+    experiment = None
+    get_experiment = getattr(mlflow, "get_experiment_by_name", None)
+    if callable(get_experiment):
+        experiment = get_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+    if experiment is None:
+        create_experiment = getattr(mlflow, "create_experiment", None)
+        if callable(create_experiment):
+            artifact_uri = resolve_mlflow_artifact_dir(env).as_uri()
+            try:
+                create_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME, artifact_location=artifact_uri)
+            except Exception:
+                pass
     mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
     return tracking_uri
 

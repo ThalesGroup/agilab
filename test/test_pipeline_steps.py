@@ -151,3 +151,24 @@ def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, t
     assert 'APP_ROOT = APPS_ROOT / APP' in code
     assert 'PROJECT_SRC = APP_ROOT / "src"' in code
     assert "AgiEnv(active_app=APP_ROOT, verbose=1)" in code
+
+
+def test_upgrade_steps_file_rewrites_all_modules(tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        '[[alpha]]\n'
+        'C = """from pathlib import Path\nimport agilab\nAPP = "alpha"\nAPPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\n"""\n'
+        '[[beta]]\n'
+        'C = """print(1)"""\n'
+        '[[gamma]]\n'
+        'C = """from pathlib import Path\nimport agilab\nfrom agi_env import AgiEnv\nAPP = "gamma"\nAPPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\nenv = AgiEnv(apps_dir=APPS_DIR, app=APP)\n"""\n',
+        encoding="utf-8",
+    )
+
+    result = pipeline_steps.upgrade_steps_file(steps_file)
+
+    assert result == {"files": 1, "changed_steps": 2, "scanned_steps": 3}
+    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert "import agilab" not in data["alpha"][0]["C"]
+    assert "apps_dir=APPS_DIR" not in data["gamma"][0]["C"]
+    assert data["beta"][0]["C"] == "print(1)"

@@ -127,6 +127,45 @@ def upgrade_legacy_step_code(code: Any) -> Any:
     return updated
 
 
+def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int]:
+    """Upgrade every recognized legacy step snippet in a lab steps file."""
+    if not steps_file.exists():
+        return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
+
+    try:
+        with steps_file.open("rb") as handle:
+            data = tomllib.load(handle)
+    except Exception:
+        return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
+
+    changed = False
+    changed_steps = 0
+    scanned_steps = 0
+    for key, entries in data.items():
+        if key == "__meta__" or not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            scanned_steps += 1
+            original = entry.get("C")
+            upgraded = upgrade_legacy_step_code(original)
+            if upgraded != original:
+                entry["C"] = upgraded
+                changed = True
+                changed_steps += 1
+
+    if changed and write:
+        try:
+            steps_file.parent.mkdir(parents=True, exist_ok=True)
+            with steps_file.open("wb") as handle:
+                tomli_w.dump(_convert_paths_to_strings(data), handle)
+        except Exception as exc:
+            logger.warning("Failed to persist upgraded exported steps to %s: %s", steps_file, exc)
+            return {"files": 0, "changed_steps": 0, "scanned_steps": scanned_steps}
+    return {"files": 1, "changed_steps": changed_steps, "scanned_steps": scanned_steps}
+
+
 def upgrade_exported_steps(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> bool:
     """Persist known step-code migrations directly in the exported lab steps file."""
     if not steps_file.exists():
@@ -134,43 +173,7 @@ def upgrade_exported_steps(module: Union[str, Path], steps_file: Path, env: Opti
 
     module_path = Path(module)
     ensure_primary_module_key(module_path, steps_file, env=env)
-
-    try:
-        with steps_file.open("rb") as handle:
-            data = tomllib.load(handle)
-    except Exception:
-        return False
-
-    entries: Optional[List[Any]] = None
-    for key in module_keys(module_path, env=env):
-        candidate = data.get(key)
-        if isinstance(candidate, list):
-            entries = candidate
-            break
-    if entries is None:
-        return False
-
-    changed = False
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        original = entry.get("C")
-        upgraded = upgrade_legacy_step_code(original)
-        if upgraded != original:
-            entry["C"] = upgraded
-            changed = True
-
-    if not changed:
-        return False
-
-    try:
-        steps_file.parent.mkdir(parents=True, exist_ok=True)
-        with steps_file.open("wb") as handle:
-            tomli_w.dump(_convert_paths_to_strings(data), handle)
-    except Exception as exc:
-        logger.warning("Failed to persist upgraded exported steps to %s: %s", steps_file, exc)
-        return False
-    return True
+    return bool(upgrade_steps_file(steps_file)["changed_steps"])
 
 
 def pipeline_export_root(env: Optional[AgiEnv]) -> Path:
