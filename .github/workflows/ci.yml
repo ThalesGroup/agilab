@@ -51,7 +51,7 @@ jobs:
       - name: Run agilab tests with coverage
         run: |
           set -e
-          rm -f .coverage.agilab coverage-agilab.xml
+          rm -f .coverage.agilab coverage-agilab-base.xml
           export PYTHONPATH="src"
           COVERAGE_FILE=.coverage.agilab uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
@@ -74,7 +74,7 @@ jobs:
             --with packaging \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             -m "not integration" \
-            --cov=agilab --cov-report=xml:coverage-agilab.xml \
+            --cov=agilab --cov-report=xml:coverage-agilab-base.xml \
             --junitxml=test-results/junit.xml \
             --ignore=src/agilab/test/test_model_returns_code.py \
             src/agilab/test \
@@ -237,39 +237,11 @@ jobs:
           verbose: true
           fail_ci_if_error: true
 
-      - name: Combine coverage data
-        if: matrix.python-version == '3.13'
-        run: |
-          set -e
-          shopt -s nullglob
-          coverage_files=()
-          if [ -f .coverage ]; then
-            coverage_files+=(.coverage)
-          fi
-          coverage_files+=(.coverage.*)
-          if [ ${#coverage_files[@]} -eq 0 ]; then
-            echo "No coverage data files produced."
-            exit 1
-          fi
-          COVERAGE_FILE=.coverage uv run --no-project --with coverage --with pytest-cov python -m coverage combine "${coverage_files[@]}"
-          shopt -u nullglob
-
-      - name: Build combined agilab coverage report
-        if: matrix.python-version == '3.13'
-        run: |
-          set -e
-          # Publish a unified runtime report for the `agilab` flag.
-          # Exclude tests plus heavy UI/bootstrap wrappers that are integration-driven.
-          COVERAGE_OMIT='*/test/*,*/tests/*,*/sitecustomize.py,*/About_agilab.py,*/agi_codex.py,*/apps/install.py,*/lab_run.py,*/apps/__init__.py,*/agi_cluster/build.py,*/agi-cluster/build.py,*/core/gen_app_script.py,*/core/tools/test_kill.py,*/agi_env/pagelib.py,*/agi_distributor/agi_distributor.py,*/agi_distributor/cli.py,*/agi_dispatcher/*.py,*/agi_env/agi_env.py,*/dag_worker/dag_worker.py,*/pandas_worker/pandas_worker.py'
-          COVERAGE_FILE=.coverage uv run --no-project --with coverage --with pytest-cov python -m coverage xml \
-            -o coverage-agilab.xml \
-            --omit="${COVERAGE_OMIT}"
-
       - name: Upload agilab coverage to Codecov
-        if: always() && matrix.python-version == '3.13' && hashFiles('coverage-agilab.xml') != ''
+        if: always() && matrix.python-version == '3.13' && hashFiles('coverage-agilab-base.xml') != ''
         uses: codecov/codecov-action@v5
         with:
-          files: ./coverage-agilab.xml
+          files: ./coverage-agilab-base.xml
           flags: agilab
           use_oidc: true
           verbose: true
