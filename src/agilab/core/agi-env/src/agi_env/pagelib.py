@@ -20,6 +20,7 @@ from pathlib import Path
 from functools import lru_cache
 import pandas as pd
 import os
+import sqlite3
 import subprocess
 import streamlit as st
 import random
@@ -129,6 +130,83 @@ def _legacy_mlflow_filestore_present(tracking_dir: Path) -> bool:
     return False
 
 
+def _sqlite_identifier(name: str) -> str:
+    return '"' + str(name).replace('"', '""') + '"'
+
+
+def _repair_mlflow_default_experiment_db(db_path: Path, artifact_uri: str | None = None) -> bool:
+    if not db_path.exists():
+        return False
+
+    try:
+        with sqlite3.connect(str(db_path)) as conn:
+            table_names = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "experiments" not in table_names:
+                return False
+
+            experiment_cols = {
+                row[1] for row in conn.execute("PRAGMA table_info(experiments)").fetchall()
+            }
+            if {"experiment_id", "name"} - experiment_cols:
+                return False
+
+            where_clause = "name = ?"
+            params = [DEFAULT_MLFLOW_EXPERIMENT_NAME]
+            if "workspace" in experiment_cols:
+                where_clause += " AND workspace = ?"
+                params.append("default")
+
+            default_row = conn.execute(
+                f"SELECT experiment_id FROM experiments WHERE {where_clause} ORDER BY experiment_id LIMIT 1",
+                params,
+            ).fetchone()
+            if default_row is None:
+                return False
+
+            current_id = int(default_row[0])
+            zero_row = conn.execute(
+                "SELECT experiment_id, name FROM experiments WHERE experiment_id = 0"
+            ).fetchone()
+
+            repaired = False
+            if current_id != 0 and zero_row is None:
+                conn.execute("PRAGMA foreign_keys=OFF")
+                for table_name in table_names:
+                    if table_name.startswith("sqlite_"):
+                        continue
+                    cols = {
+                        row[1]
+                        for row in conn.execute(
+                            f"PRAGMA table_info({_sqlite_identifier(table_name)})"
+                        ).fetchall()
+                    }
+                    if "experiment_id" not in cols:
+                        continue
+                    conn.execute(
+                        f"UPDATE {_sqlite_identifier(table_name)} SET experiment_id = 0 WHERE experiment_id = ?",
+                        (current_id,),
+                    )
+                repaired = True
+
+            if artifact_uri and "artifact_location" in experiment_cols:
+                conn.execute(
+                    "UPDATE experiments SET artifact_location = ? WHERE experiment_id = 0",
+                    (artifact_uri,),
+                )
+                repaired = True
+
+            if repaired:
+                conn.commit()
+            return repaired
+    except sqlite3.Error:
+        return False
+
+
 def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
     db_path = _resolve_mlflow_backend_db(tracking_dir)
     if not db_path.exists() and _legacy_mlflow_filestore_present(tracking_dir):
@@ -154,7 +232,8 @@ def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
                 "Failed to migrate the legacy MLflow file store to SQLite. "
                 f"Source: {tracking_dir}. {details}"
             )
-    _resolve_mlflow_artifact_dir(tracking_dir)
+    artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
+    _repair_mlflow_default_experiment_db(db_path, artifact_uri)
     return _sqlite_uri_for_path(db_path)
 
 

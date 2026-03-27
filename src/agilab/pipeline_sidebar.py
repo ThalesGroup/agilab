@@ -41,6 +41,7 @@ def on_lab_change(new_index_page: str) -> None:
     st.session_state.pop("df_file", None)
     key = str(st.session_state.get("index_page", "")) + "df"
     st.session_state.pop(key, None)
+    st.session_state["_requested_lab_dir"] = new_index_page
     st.session_state["lab_dir"] = new_index_page
     st.session_state["project_changed"] = True
     st.session_state["_experiment_reload_required"] = True
