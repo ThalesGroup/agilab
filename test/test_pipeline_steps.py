@@ -146,11 +146,64 @@ def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, t
     code = data["sb3_trainer_project"][0]["C"]
     assert "import agilab" not in code
     assert "APPS_DIR" not in code
+    assert "APPS_ROOT" not in code
     assert "apps_dir=APPS_DIR" not in code
-    assert 'APPS_ROOT = Path.cwd().resolve().parent' in code
-    assert 'APP_ROOT = APPS_ROOT / APP' in code
+    assert "import sys" in code
+    assert 'APP_ROOT = Path(sys.prefix).resolve().parent' in code
     assert 'PROJECT_SRC = APP_ROOT / "src"' in code
     assert "AgiEnv(active_app=APP_ROOT, verbose=1)" in code
+
+
+def test_upgrade_exported_steps_rewrites_parenthesized_apps_dir_and_runtime(monkeypatch, tmp_path):
+    export_root = tmp_path / "export"
+    module_dir = export_root / "sb3_trainer_project"
+    module_dir.mkdir(parents=True)
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        '[[sb3_trainer_project]]\n'
+        'R = "agi.install"\n'
+        'E = "Refresh worker before running."\n'
+        'C = """import asyncio\n'
+        'from pathlib import Path\n'
+        'from agi_cluster.agi_distributor import AGI\n'
+        'from agi_env import AgiEnv\n'
+        '\n'
+        'APP = "flight_trajectory_project"\n'
+        'APPS_DIR = (Path(agilab.__file__).resolve().parent / "apps").resolve()\n'
+        '\n'
+        'async def main():\n'
+        '    env = AgiEnv(active_app=APP_ROOT, verbose=1)\n'
+        '    return await AGI.install(env)\n'
+        '"""\n',
+        encoding="utf-8",
+    )
+
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
+
+    changed = pipeline_steps.upgrade_exported_steps(module_dir, steps_file, env=env)
+
+    assert changed is True
+    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    entry = data["sb3_trainer_project"][0]
+    assert entry["E"] == "flight_trajectory_project"
+    assert "agilab.__file__" not in entry["C"]
+    assert "import sys" in entry["C"]
+    assert 'APP_ROOT = Path(sys.prefix).resolve().parent' in entry["C"]
+    assert entry["C"].index('APP = "flight_trajectory_project"') < entry["C"].index(
+        "APP_ROOT = Path(sys.prefix).resolve().parent"
+    )
+
+
+def test_upgrade_legacy_step_runtime_treats_prose_with_slash_as_non_runtime():
+    upgraded = pipeline_steps.upgrade_legacy_step_runtime(
+        "Refresh network_sim worker before building topology/demands.",
+        engine="agi.install",
+        app_name="network_sim_project",
+    )
+
+    assert upgraded == "network_sim_project"
 
 
 def test_upgrade_steps_file_rewrites_all_modules(tmp_path):
