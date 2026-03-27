@@ -1993,7 +1993,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.AGILAB_EXPORT_ABS = _ensure_dir(AGILAB_EXPORT_ABS)
         self.export_apps = self.AGILAB_EXPORT_ABS / "apps-zip"
         _ensure_dir(self.export_apps)
-        self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
+        mlflow_tracking_override = envars.get("MLFLOW_TRACKING_DIR")
+        if mlflow_tracking_override:
+            mlflow_tracking_dir = Path(mlflow_tracking_override).expanduser()
+            if not mlflow_tracking_dir.is_absolute():
+                mlflow_tracking_dir = self.home_abs / mlflow_tracking_dir
+            self.MLFLOW_TRACKING_DIR = mlflow_tracking_dir
+        else:
+            self.MLFLOW_TRACKING_DIR = self.home_abs / ".mlflow"
         pages_override = envars.get("AGI_PAGES_DIR")
         if pages_override:
             pages_root = Path(pages_override).expanduser()

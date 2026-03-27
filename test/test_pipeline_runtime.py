@@ -66,6 +66,24 @@ def test_mlflow_tracking_uri_creates_shared_store(tmp_path):
     assert (tmp_path / "mlflow-store").exists()
 
 
+def test_mlflow_tracking_uri_falls_back_to_home_when_unset(tmp_path):
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+
+    uri = pipeline_runtime.mlflow_tracking_uri(env)
+
+    assert uri == (tmp_path / ".mlflow").resolve().as_uri()
+    assert (tmp_path / ".mlflow").exists()
+
+
+def test_mlflow_tracking_uri_resolves_relative_path_from_home(tmp_path):
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR="mlflow-store", home_abs=tmp_path)
+
+    uri = pipeline_runtime.mlflow_tracking_uri(env)
+
+    assert uri == (tmp_path / "mlflow-store").resolve().as_uri()
+    assert (tmp_path / "mlflow-store").exists()
+
+
 def test_build_mlflow_process_env_injects_tracking_and_run_id(tmp_path):
     env = SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path / "mlflow-store")
 
@@ -110,12 +128,16 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
     class FakeMlflow:
         def __init__(self):
             self.tracking_uri = None
+            self.experiment_name = None
             self.tags = {}
             self.params = {}
             self.run_requests = []
 
         def set_tracking_uri(self, value):
             self.tracking_uri = value
+
+        def set_experiment(self, value):
+            self.experiment_name = value
 
         def start_run(self, **kwargs):
             self.run_requests.append(kwargs)
@@ -151,6 +173,7 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
         assert tracking["run"].info.run_id == "run-1"
 
     assert fake_mlflow.tracking_uri == (tmp_path / "mlflow-store").resolve().as_uri()
+    assert fake_mlflow.experiment_name == pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME
     assert fake_mlflow.tags["k"] == "v"
     assert fake_mlflow.params["step_count"] == "2"
     assert fake_mlflow.run_requests == [{"run_name": "pipeline", "nested": True}]

@@ -177,3 +177,58 @@ def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
     assert snippet.read_text(encoding="utf-8") == "print('hello')"
     assert "tracking=file:///tmp/mlflow" in output
     assert "MLFLOW_TRACKING_URI" not in os.environ
+
+
+def test_resolve_mlflow_tracking_dir_falls_back_to_home(tmp_path):
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+
+    tracking_dir = pagelib._resolve_mlflow_tracking_dir(env)
+
+    assert tracking_dir == (tmp_path / ".mlflow").resolve()
+
+
+def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
+    calls = {}
+
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    class FakeMlflow:
+        def set_tracking_uri(self, value):
+            calls["tracking_uri"] = value
+
+        def set_experiment(self, value):
+            calls["experiment"] = value
+
+    fake_st = SimpleNamespace(session_state=FakeSessionState(), error=lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+
+    launched = {}
+    monkeypatch.setattr(
+        pagelib,
+        "subproc",
+        lambda command, cwd: launched.setdefault("call", (command, cwd)),
+    )
+
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+    pagelib.activate_mlflow(env)
+
+    expected_dir = (tmp_path / ".mlflow").resolve()
+    assert expected_dir.exists()
+    assert calls["tracking_uri"] == expected_dir.as_uri()
+    assert calls["experiment"] == pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME
+    assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
+    assert expected_dir.as_uri() in launched["call"][0]
+    assert "--port 50123" in launched["call"][0]
+    assert fake_st.session_state["server_started"] is True
+    assert fake_st.session_state["mlflow_port"] == 50123
