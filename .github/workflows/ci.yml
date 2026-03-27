@@ -62,6 +62,7 @@ jobs:
             --with pytest-cov \
             --with pytest-asyncio \
             --with streamlit \
+            --with streamlit_code_editor \
             --with mlflow \
             --with openai \
             --with watchdog \
@@ -69,6 +70,7 @@ jobs:
             --with py7zr \
             --with astor \
             --with tomlkit \
+            --with tomli_w \
             --with parso \
             --with toml \
             --with packaging \
