@@ -62,8 +62,9 @@ def test_mlflow_tracking_uri_creates_shared_store(tmp_path):
 
     uri = pipeline_runtime.mlflow_tracking_uri(env)
 
-    assert uri == (tmp_path / "mlflow-store").resolve().as_uri()
+    assert uri == pipeline_runtime.sqlite_uri_for_path((tmp_path / "mlflow-store" / "mlflow.db").resolve())
     assert (tmp_path / "mlflow-store").exists()
+    assert (tmp_path / "mlflow-store" / "artifacts").exists()
 
 
 def test_mlflow_tracking_uri_falls_back_to_home_when_unset(tmp_path):
@@ -71,7 +72,7 @@ def test_mlflow_tracking_uri_falls_back_to_home_when_unset(tmp_path):
 
     uri = pipeline_runtime.mlflow_tracking_uri(env)
 
-    assert uri == (tmp_path / ".mlflow").resolve().as_uri()
+    assert uri == pipeline_runtime.sqlite_uri_for_path((tmp_path / ".mlflow" / "mlflow.db").resolve())
     assert (tmp_path / ".mlflow").exists()
 
 
@@ -80,7 +81,7 @@ def test_mlflow_tracking_uri_resolves_relative_path_from_home(tmp_path):
 
     uri = pipeline_runtime.mlflow_tracking_uri(env)
 
-    assert uri == (tmp_path / "mlflow-store").resolve().as_uri()
+    assert uri == pipeline_runtime.sqlite_uri_for_path((tmp_path / "mlflow-store" / "mlflow.db").resolve())
     assert (tmp_path / "mlflow-store").exists()
 
 
@@ -94,7 +95,9 @@ def test_build_mlflow_process_env_injects_tracking_and_run_id(tmp_path):
     )
 
     assert process_env["A"] == "1"
-    assert process_env["MLFLOW_TRACKING_URI"] == (tmp_path / "mlflow-store").resolve().as_uri()
+    assert process_env["MLFLOW_TRACKING_URI"] == pipeline_runtime.sqlite_uri_for_path(
+        (tmp_path / "mlflow-store" / "mlflow.db").resolve()
+    )
     assert process_env[pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV] == "run-123"
     assert process_env["MLFLOW_RUN_ID"] == "run-123"
 
@@ -132,9 +135,16 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
             self.tags = {}
             self.params = {}
             self.run_requests = []
+            self.created = []
 
         def set_tracking_uri(self, value):
             self.tracking_uri = value
+
+        def get_experiment_by_name(self, value):
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            self.created.append((name, artifact_location))
 
         def set_experiment(self, value):
             self.experiment_name = value
@@ -172,8 +182,38 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
     ) as tracking:
         assert tracking["run"].info.run_id == "run-1"
 
-    assert fake_mlflow.tracking_uri == (tmp_path / "mlflow-store").resolve().as_uri()
+    assert fake_mlflow.tracking_uri == pipeline_runtime.sqlite_uri_for_path(
+        (tmp_path / "mlflow-store" / "mlflow.db").resolve()
+    )
     assert fake_mlflow.experiment_name == pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME
+    assert fake_mlflow.created == [
+        (
+            pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME,
+            (tmp_path / "mlflow-store" / "artifacts").resolve().as_uri(),
+        )
+    ]
     assert fake_mlflow.tags["k"] == "v"
     assert fake_mlflow.params["step_count"] == "2"
     assert fake_mlflow.run_requests == [{"run_name": "pipeline", "nested": True}]
+
+
+def test_mlflow_tracking_uri_migrates_legacy_filestore(tmp_path, monkeypatch):
+    tracking_root = tmp_path / "mlflow-store"
+    (tracking_root / "0").mkdir(parents=True)
+    (tracking_root / "meta.yaml").write_text("legacy", encoding="utf-8")
+    calls = {}
+
+    def fake_run(cmd, check, capture_output, text):
+        calls["cmd"] = cmd
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(pipeline_runtime.subprocess, "run", fake_run)
+
+    uri = pipeline_runtime.mlflow_tracking_uri(SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root))
+
+    assert calls["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
+    assert calls["cmd"][4] == "--source"
+    assert calls["cmd"][5] == str(tracking_root)
+    assert calls["cmd"][6] == "--target"
+    assert calls["cmd"][7] == pipeline_runtime.sqlite_uri_for_path(tracking_root / "mlflow.db")
+    assert uri == pipeline_runtime.sqlite_uri_for_path(tracking_root / "mlflow.db")
