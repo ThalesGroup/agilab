@@ -175,6 +175,87 @@ def test_build_keep_lflag(tmp_path):
     assert build_mod._keep_lflag("-L/definitely/missing/path") is False
 
 
+def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path, monkeypatch):
+    src_abs = tmp_path / "app-src" / "demo_worker"
+    src_abs.mkdir(parents=True, exist_ok=True)
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi-node",
+        agi_env=tmp_path / "agi-env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app-src",
+    )
+
+    created = []
+    monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "create_symlink", lambda src, dest: created.append((Path(src), Path(dest))))
+    monkeypatch.setattr(build_mod.os, "link", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("hard link should not be used")))
+
+    links = build_mod.create_symlink_for_module(env, "demo_worker")
+
+    assert len(links) == 1
+    assert created[0][0] == src_abs
+    assert created[0][1] == links[0]
+    assert links[0].name == "demo_worker"
+
+
+def test_build_create_symlink_for_module_falls_back_to_hard_link(tmp_path, monkeypatch):
+    src_abs = tmp_path / "agi-env" / "agi_env" / "pkg"
+    src_abs.mkdir(parents=True, exist_ok=True)
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi-node",
+        agi_env=tmp_path / "agi-env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app-src",
+    )
+
+    created_hard_links = []
+    build_mod.AgiEnv.logger = SimpleNamespace(
+        info=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        debug=lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(
+        build_mod.AgiEnv,
+        "create_symlink",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("no symlink")),
+    )
+    monkeypatch.setattr(build_mod.os, "link", lambda src, dest: created_hard_links.append((Path(src), Path(dest))))
+
+    links = build_mod.create_symlink_for_module(env, "agi_env.pkg")
+
+    assert len(links) == 1
+    assert created_hard_links[0][0] == src_abs
+    assert created_hard_links[0][1] == links[0]
+    assert links[0].name == "pkg"
+
+
+def test_build_cleanup_links_removes_empty_parent_tree(tmp_path):
+    link = tmp_path / "src" / "agi_node" / "demo_worker"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.write_text("x", encoding="utf-8")
+
+    build_mod.cleanup_links([link])
+
+    assert not link.exists()
+    assert not link.parent.exists()
+
+
+def test_build_cleanup_links_stops_when_parent_not_empty(tmp_path):
+    link = tmp_path / "src" / "agi_node" / "demo_worker"
+    sibling = tmp_path / "src" / "agi_node" / "keep.txt"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.write_text("x", encoding="utf-8")
+    sibling.write_text("keep", encoding="utf-8")
+
+    build_mod.cleanup_links([link])
+
+    assert not link.exists()
+    assert sibling.exists()
+    assert link.parent.exists()
+
+
 def test_post_main_invalid_args_returns_usage_code():
     assert post_mod.main([]) == 1
     assert post_mod.main(["a", "b"]) == 1
