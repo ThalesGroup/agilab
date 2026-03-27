@@ -113,3 +113,41 @@ def test_prune_invalid_entries_keeps_requested_index():
     pruned = pipeline_steps.prune_invalid_entries(entries, keep_index=1)
 
     assert pruned == entries
+
+
+def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, tmp_path):
+    export_root = tmp_path / "export"
+    module_dir = export_root / "sb3_trainer_project"
+    module_dir.mkdir(parents=True)
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        '[[sb3_trainer_project]]\n'
+        'Q = "Legacy step"\n'
+        'C = """from pathlib import Path\n'
+        'import agilab\n'
+        'from agi_env import AgiEnv\n'
+        '\n'
+        'APP = "sb3_trainer_project"\n'
+        'APPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\n'
+        'PROJECT_SRC = APPS_DIR / APP / "src"\n'
+        'env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)\n'
+        '"""\n',
+        encoding="utf-8",
+    )
+
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
+
+    changed = pipeline_steps.upgrade_exported_steps(module_dir, steps_file, env=env)
+
+    assert changed is True
+    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    code = data["sb3_trainer_project"][0]["C"]
+    assert "import agilab" not in code
+    assert "APPS_DIR" not in code
+    assert "apps_dir=APPS_DIR" not in code
+    assert 'APPS_ROOT = Path.cwd().resolve().parent' in code
+    assert 'APP_ROOT = APPS_ROOT / APP' in code
+    assert 'PROJECT_SRC = APP_ROOT / "src"' in code
+    assert "AgiEnv(active_app=APP_ROOT, verbose=1)" in code
