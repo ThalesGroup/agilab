@@ -15,6 +15,7 @@ from agi_env.pagelib import run_lab
 
 MLFLOW_STEP_RUN_ID_ENV = "AGILAB_PIPELINE_MLFLOW_RUN_ID"
 MLFLOW_TEXT_LIMIT = 500
+DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
 
 
 def to_bool_flag(value: Any, default: bool = False) -> bool:
@@ -138,11 +139,34 @@ def truncate_mlflow_text(value: Any, limit: int = MLFLOW_TEXT_LIMIT) -> str:
     return text[: limit - 1] + "…"
 
 
+def resolve_mlflow_tracking_dir(env: AgiEnv) -> Path:
+    """Resolve the shared MLflow store, falling back to HOME when unset."""
+    home_abs = Path(getattr(env, "home_abs", Path.home())).expanduser()
+    tracking_value = getattr(env, "MLFLOW_TRACKING_DIR", None)
+    if tracking_value:
+        tracking_dir = Path(tracking_value).expanduser()
+        if not tracking_dir.is_absolute():
+            tracking_dir = home_abs / tracking_dir
+    else:
+        tracking_dir = home_abs / ".mlflow"
+    tracking_dir.mkdir(parents=True, exist_ok=True)
+    return tracking_dir.resolve()
+
+
 def mlflow_tracking_uri(env: AgiEnv) -> str:
     """Return the shared MLflow tracking URI used by the AGILab sidebar service."""
-    tracking_dir = Path(getattr(env, "MLFLOW_TRACKING_DIR", Path.home() / ".mlflow")).expanduser()
-    tracking_dir.mkdir(parents=True, exist_ok=True)
-    return tracking_dir.resolve().as_uri()
+    return resolve_mlflow_tracking_dir(env).as_uri()
+
+
+def ensure_default_mlflow_experiment(env: AgiEnv, mlflow: Any | None = None) -> str | None:
+    """Create the default experiment when the backend store is still empty."""
+    mlflow = mlflow or get_mlflow_module()
+    if mlflow is None:
+        return None
+    tracking_uri = mlflow_tracking_uri(env)
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+    return tracking_uri
 
 
 def build_mlflow_process_env(
@@ -203,8 +227,7 @@ def start_mlflow_run(
         yield None
         return
 
-    tracking_uri = mlflow_tracking_uri(env)
-    mlflow.set_tracking_uri(tracking_uri)
+    tracking_uri = ensure_default_mlflow_experiment(env, mlflow)
     clean_tags = {
         str(key): truncate_mlflow_text(value, 5000)
         for key, value in (tags or {}).items()
