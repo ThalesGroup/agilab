@@ -272,6 +272,25 @@ jobs:
           set -euo pipefail
           rm -rf "$CLEAN_ROOT"
           mkdir -p "$CLEAN_ROOT/home"
+          replay_log="$CLEAN_ROOT/replay.out"
+          mkdir -p "$(dirname "$replay_log")"
+          exec > >(tee -a "$replay_log") 2>&1
+
+          on_error() {
+            status=$?
+            echo "clean-install-smoke failed with status $status"
+            if [ -d "$HOME/log/install_logs" ]; then
+              latest_log="$(ls -1t "$HOME/log/install_logs"/*.log 2>/dev/null | head -1 || true)"
+              if [ -n "${latest_log:-}" ] && [ -f "$latest_log" ]; then
+                echo "Latest installer log: $latest_log"
+                echo "---- tail $latest_log ----"
+                tail -n 200 "$latest_log" || true
+              fi
+            fi
+            exit "$status"
+          }
+          trap on_error ERR
+
           rsync -a \
             --exclude '.git' \
             --exclude '.venv' \
@@ -316,6 +335,8 @@ jobs:
           print("installed-imports-ok")
           print(agilab.__file__)
           PY
+
+          echo "clean-install-smoke completed successfully"
 
       - name: Upload clean-home installer logs
         if: always()
