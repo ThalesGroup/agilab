@@ -27,6 +27,14 @@ flags:
     paths:
       - src/agilab/core/agi-cluster
   agi-core:
+    # Umbrella core stack: env + node + cluster + the thin meta-package.
+    paths:
+      - src/agilab/core/agi-env
+      - src/agilab/core/agi-node
+      - src/agilab/core/agi-cluster
+      - src/agilab/core/agi-core
+  agi-meta:
+    # Thin meta-package only.
     paths:
       - src/agilab/core/agi-core
 ignore:

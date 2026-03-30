@@ -1,26 +1,35 @@
 from __future__ import annotations
 
 import importlib
-import importlib.util
-import sys
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import tomllib
+import types
 
 
-def _load_module(module_name: str, relative_path: str):
-    module_path = Path(relative_path)
+def _import_agilab_module(module_name: str):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root_str]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root_str not in package_path:
+            pkg.__path__ = [package_root_str, *package_path]
     importlib.invalidate_caches()
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    return importlib.import_module(module_name)
 
 
-pipeline_steps = _load_module("agilab.pipeline_steps", "src/agilab/pipeline_steps.py")
+pipeline_steps = _import_agilab_module("agilab.pipeline_steps")
 
 
 def test_normalize_runtime_path_prefers_existing_app(monkeypatch, tmp_path):

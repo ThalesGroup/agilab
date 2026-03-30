@@ -1,22 +1,36 @@
 from __future__ import annotations
 
-import importlib.util
+import importlib
 from pathlib import Path
+import sys
+import types
 
 
-def _load_module():
-    module_path = Path("src/agilab/orchestrate_cluster.py")
-    spec = importlib.util.spec_from_file_location("agilab_orchestrate_cluster_tests", module_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _import_agilab_module(module_name: str):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root_str]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root_str not in package_path:
+            pkg.__path__ = [package_root_str, *package_path]
+    importlib.invalidate_caches()
+    return importlib.import_module(module_name)
+
+
+orchestrate_cluster = _import_agilab_module("agilab.orchestrate_cluster")
 
 
 def test_compute_cluster_mode_uses_expected_bitmask():
-    module = _load_module()
-
-    result = module.compute_cluster_mode(
+    result = orchestrate_cluster.compute_cluster_mode(
         {"pool": True, "cython": True, "rapids": True},
         cluster_enabled=True,
     )
@@ -25,10 +39,9 @@ def test_compute_cluster_mode_uses_expected_bitmask():
 
 
 def test_persist_env_var_if_changed_ignores_same_value():
-    module = _load_module()
     calls: list[tuple[str, str]] = []
 
-    module.persist_env_var_if_changed(
+    orchestrate_cluster.persist_env_var_if_changed(
         key="CLUSTER_CREDENTIALS",
         value="user",
         set_env_var=lambda key, value: calls.append((key, value)),
@@ -39,10 +52,9 @@ def test_persist_env_var_if_changed_ignores_same_value():
 
 
 def test_persist_env_var_if_changed_updates_changed_value():
-    module = _load_module()
     calls: list[tuple[str, str]] = []
 
-    module.persist_env_var_if_changed(
+    orchestrate_cluster.persist_env_var_if_changed(
         key="AGI_SSH_KEY_PATH",
         value="~/.ssh/id_rsa",
         set_env_var=lambda key, value: calls.append((key, value)),

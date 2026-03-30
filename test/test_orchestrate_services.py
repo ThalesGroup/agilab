@@ -1,21 +1,38 @@
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
+import importlib
 from types import SimpleNamespace
 
-
-def _load_module():
-    module_path = Path("src/agilab/orchestrate_services.py")
-    spec = importlib.util.spec_from_file_location("agilab_orchestrate_services_tests", module_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from pathlib import Path
+import sys
+import types
 
 
-def _deps(module):
-    return module.OrchestrateServiceDeps(
+def _import_agilab_module(module_name: str):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root_str]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root_str not in package_path:
+            pkg.__path__ = [package_root_str, *package_path]
+    importlib.invalidate_caches()
+    return importlib.import_module(module_name)
+
+
+orchestrate_services = _import_agilab_module("agilab.orchestrate_services")
+
+
+def _deps():
+    return orchestrate_services.OrchestrateServiceDeps(
         reset_traceback_skip=lambda: None,
         append_log_lines=lambda lines, payload: lines.append(payload),
         extract_result_dict_from_output=lambda raw: None,
@@ -34,10 +51,9 @@ def _deps(module):
 
 
 def test_ensure_service_session_defaults_preserves_existing_values():
-    module = _load_module()
     session_state = {"service_poll_interval": 2.5}
 
-    module.ensure_service_session_defaults(session_state)
+    orchestrate_services.ensure_service_session_defaults(session_state)
 
     assert session_state["service_poll_interval"] == 2.5
     assert session_state["service_status_cache"] == "idle"
@@ -45,9 +61,7 @@ def test_ensure_service_session_defaults_preserves_existing_values():
 
 
 def test_compute_service_mode_uses_expected_bitmask():
-    module = _load_module()
-
-    result = module.compute_service_mode(
+    result = orchestrate_services.compute_service_mode(
         {"pool": True, "cython": True, "rapids": True},
         service_enabled=True,
     )
@@ -56,10 +70,9 @@ def test_compute_service_mode_uses_expected_bitmask():
 
 
 def test_resolve_service_health_defaults_uses_coercers():
-    module = _load_module()
-    deps = _deps(module)
+    deps = _deps()
 
-    resolved = module.resolve_service_health_defaults(
+    resolved = orchestrate_services.resolve_service_health_defaults(
         {"service_health": {"allow_idle": 1, "max_unhealthy": "-3", "max_restart_rate": "3.0"}},
         deps,
     )
@@ -72,9 +85,7 @@ def test_resolve_service_health_defaults_uses_coercers():
 
 
 def test_build_service_snippet_embeds_core_parameters():
-    module = _load_module()
-
-    snippet = module.build_service_snippet(
+    snippet = orchestrate_services.build_service_snippet(
         env=SimpleNamespace(apps_path="/tmp/apps", app="demo"),
         verbose=2,
         service_action="status",
