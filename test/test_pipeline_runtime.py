@@ -327,3 +327,31 @@ def test_mlflow_tracking_uri_upgrades_sqlite_schema_once(tmp_path, monkeypatch):
             pipeline_runtime.sqlite_uri_for_path(db_path.resolve()),
         ]
     ]
+
+
+def test_mlflow_tracking_uri_resets_unknown_alembic_revision(tmp_path, monkeypatch):
+    tracking_root = tmp_path / "mlflow-store"
+    tracking_root.mkdir(parents=True)
+    db_path = tracking_root / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("1b5f0d9ad7c1",))
+        conn.commit()
+
+    def fake_run(cmd, check, capture_output, text):
+        return SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="alembic.util.exc.CommandError: Can't locate revision identified by '1b5f0d9ad7c1'",
+        )
+
+    monkeypatch.setattr(pipeline_runtime.subprocess, "run", fake_run)
+    monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root)
+
+    uri = pipeline_runtime.mlflow_tracking_uri(env)
+
+    assert uri == pipeline_runtime.sqlite_uri_for_path(db_path.resolve())
+    assert not db_path.exists()
+    assert len(list(tracking_root.glob("mlflow.schema-reset-*.db"))) == 1
