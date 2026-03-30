@@ -140,7 +140,7 @@ uv --preview-features extra-build-dependencies run python tools/service_health_c
 - 📦 **PyPI:** https://pypi.org/project/agilab
 - 🧩 **Core package index:** https://pypi.org/search/?q=agi-
 - 🧪 **Test matrix:** refer to `.github/workflows/ci.yml`
-- ✅ **Coverage snapshot:** see badges above (auto-updated after the dedicated coverage workflows)
+- ✅ **Coverage snapshot:** see badges above (auto-updated after the dedicated `coverage` workflow)
 - 🧾 **Runbook:** [AGENTS.md](AGENTS.md)
 - 🛠️ **Developer tools:** scripts in `tools/` and application templates in `src/agilab/apps`
 

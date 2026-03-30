@@ -74,6 +74,14 @@ jobs:
           verbose: true
           fail_ci_if_error: true
 
+      - name: Archive agi-env coverage XML
+        if: always() && hashFiles('coverage-agi-env.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-agi-env-xml
+          path: coverage-agi-env.xml
+          if-no-files-found: error
+
   agi-node:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -137,6 +145,14 @@ jobs:
           verbose: true
           fail_ci_if_error: true
 
+      - name: Archive agi-node coverage XML
+        if: always() && hashFiles('coverage-agi-node.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-agi-node-xml
+          path: coverage-agi-node.xml
+          if-no-files-found: error
+
   agi-cluster:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -196,6 +212,165 @@ jobs:
         with:
           files: ./coverage-agi-cluster.xml
           flags: agi-cluster,agi-core
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
+
+      - name: Archive agi-cluster coverage XML
+        if: always() && hashFiles('coverage-agi-cluster.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-agi-cluster-xml
+          path: coverage-agi-cluster.xml
+          if-no-files-found: error
+
+  agi-gui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "0.10.7"
+
+      - name: Prepare artifacts
+        run: mkdir -p test-results
+
+      - name: Define heartbeat helper
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/coverage-heartbeat.sh" <<'EOF'
+          start_coverage_heartbeat() {
+            local label="$1"
+            while true; do
+              sleep 20
+              printf '[heartbeat] %s %s still running\n' "$(date -u +%H:%M:%S)" "$label"
+            done
+          }
+          EOF
+
+      - name: Run agi-gui coverage
+        run: |
+          set -e
+          source "$RUNNER_TEMP/coverage-heartbeat.sh"
+          start_coverage_heartbeat "agi-gui coverage" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
+          rm -f .coverage.agi-gui coverage-agi-gui.xml
+          export PYTHONPATH="src"
+          COVERAGE_FILE=.coverage.agi-gui uv run --no-project \
+            --with-editable ./src/agilab/core/agi-env \
+            --with-editable ./src/agilab/core/agi-node \
+            --with-editable ./src/agilab/core/agi-cluster \
+            --with-editable ./src/agilab/core/agi-core \
+            --with pytest \
+            --with pytest-cov \
+            --with pytest-asyncio \
+            --with streamlit \
+            --with streamlit-modal \
+            --with streamlit_code_editor \
+            --with mlflow \
+            --with openai \
+            --with watchdog \
+            --with pathspec \
+            --with py7zr \
+            --with astor \
+            --with networkx \
+            --with plotly \
+            --with tomlkit \
+            --with tomli_w \
+            --with parso \
+            --with toml \
+            --with packaging \
+            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
+            -m "not integration" \
+            --cov=agilab --cov-report=xml:coverage-agi-gui.xml \
+            --junitxml=test-results/junit.xml \
+            --ignore=src/agilab/test/test_model_returns_code.py \
+            src/agilab/test \
+            test/test_orchestrate_cluster.py \
+            test/test_orchestrate_distribution.py \
+            test/test_orchestrate_execute.py \
+            test/test_orchestrate_page_helpers.py \
+            test/test_orchestrate_services.py \
+            test/test_orchestrate_support.py \
+            test/test_pipeline_ai.py \
+            test/test_pipeline_editor.py \
+            test/test_pipeline_lab.py \
+            test/test_pipeline_openai.py \
+            test/test_pipeline_runtime.py \
+            test/test_pipeline_service_guard.py \
+            test/test_pipeline_sidebar.py \
+            test/test_pipeline_steps.py \
+            test/test_pipeline_views.py \
+            test/test_ui_pages.py
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-gui-junit
+          path: test-results/junit.xml
+          if-no-files-found: ignore
+
+      - name: Upload agi-gui coverage to Codecov
+        if: always() && hashFiles('coverage-agi-gui.xml') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage-agi-gui.xml
+          flags: agi-gui
+          use_oidc: true
+          verbose: true
+          fail_ci_if_error: true
+
+      - name: Archive agi-gui coverage XML
+        if: always() && hashFiles('coverage-agi-gui.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-agi-gui-xml
+          path: coverage-agi-gui.xml
+          if-no-files-found: error
+
+  agilab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - agi-env
+      - agi-node
+      - agi-cluster
+      - agi-gui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage XML artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*-xml
+          path: merged-coverage
+          merge-multiple: true
+
+      - name: Show merged coverage inputs
+        run: ls -R merged-coverage
+
+      - name: Upload repo-wide agilab coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: >-
+            ./merged-coverage/coverage-agi-env.xml,
+            ./merged-coverage/coverage-agi-node.xml,
+            ./merged-coverage/coverage-agi-cluster.xml,
+            ./merged-coverage/coverage-agi-gui.xml
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
