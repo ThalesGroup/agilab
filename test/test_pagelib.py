@@ -426,3 +426,41 @@ def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, m
     assert uri == pagelib._sqlite_uri_for_path(db_path)
     assert not db_path.exists()
     assert len(list(tracking_dir.glob("mlflow.schema-reset-*.db"))) == 1
+
+
+def test_ensure_default_mlflow_experiment_resets_store_after_schema_error(tmp_path, monkeypatch):
+    tracking_dir = (tmp_path / ".mlflow").resolve()
+    tracking_dir.mkdir(parents=True)
+    calls: dict[str, object] = {"tracking": [], "reset": 0, "create": []}
+
+    class FakeMlflow:
+        def set_tracking_uri(self, uri):
+            calls["tracking"].append(uri)
+
+        def get_experiment_by_name(self, name):
+            count = int(calls.get("lookup", 0)) + 1
+            calls["lookup"] = count
+            if count == 1:
+                raise RuntimeError("Detected out-of-date database schema")
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            calls["create"].append((name, artifact_location))
+
+        def set_experiment(self, name):
+            calls["set_experiment"] = name
+
+    monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
+    monkeypatch.setattr(pagelib, "_ensure_mlflow_backend_ready", lambda _: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(
+        pagelib,
+        "_reset_mlflow_sqlite_backend",
+        lambda path: calls.__setitem__("reset", int(calls["reset"]) + 1) or path,
+    )
+
+    uri = pagelib._ensure_default_mlflow_experiment(tracking_dir)
+
+    assert uri == "sqlite:///tmp/mlflow.db"
+    assert calls["reset"] == 1
+    assert calls["tracking"] == ["sqlite:///tmp/mlflow.db", "sqlite:///tmp/mlflow.db"]
+    assert calls["set_experiment"] == pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME
