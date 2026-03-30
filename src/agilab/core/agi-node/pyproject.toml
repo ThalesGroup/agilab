@@ -51,7 +51,6 @@ dependencies = [
     "typing-inspection>=0.4.1",
     "polars",
     "pandas",
-    "cmake>=3.29",
 ]
 
 [project.urls]
