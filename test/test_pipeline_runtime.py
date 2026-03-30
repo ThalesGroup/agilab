@@ -291,3 +291,39 @@ def test_mlflow_tracking_uri_repairs_default_experiment_id_zero(tmp_path):
         (tracking_root / "artifacts").resolve().as_uri(),
     )
     assert run == (0,)
+
+
+def test_mlflow_tracking_uri_upgrades_sqlite_schema_once(tmp_path, monkeypatch):
+    tracking_root = tmp_path / "mlflow-store"
+    tracking_root.mkdir(parents=True)
+    db_path = tracking_root / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("1b5f0d9ad7c1",))
+        conn.commit()
+    calls = []
+
+    def fake_run(cmd, check, capture_output, text):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(pipeline_runtime.subprocess, "run", fake_run)
+    monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root)
+
+    first_uri = pipeline_runtime.mlflow_tracking_uri(env)
+    second_uri = pipeline_runtime.mlflow_tracking_uri(env)
+
+    assert first_uri == pipeline_runtime.sqlite_uri_for_path(db_path.resolve())
+    assert second_uri == first_uri
+    assert calls == [
+        [
+            sys.executable,
+            "-m",
+            "mlflow",
+            "db",
+            "upgrade",
+            pipeline_runtime.sqlite_uri_for_path(db_path.resolve()),
+        ]
+    ]
