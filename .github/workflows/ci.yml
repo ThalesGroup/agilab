@@ -80,13 +80,22 @@ jobs:
             --junitxml=test-results/junit.xml \
             --ignore=src/agilab/test/test_model_returns_code.py \
             src/agilab/test \
+            test/test_orchestrate_cluster.py \
+            test/test_orchestrate_distribution.py \
+            test/test_orchestrate_execute.py \
+            test/test_orchestrate_page_helpers.py \
+            test/test_orchestrate_services.py \
             test/test_orchestrate_support.py \
             test/test_pipeline_ai.py \
             test/test_pipeline_editor.py \
+            test/test_pipeline_lab.py \
+            test/test_pipeline_openai.py \
             test/test_pipeline_runtime.py \
+            test/test_pipeline_service_guard.py \
             test/test_pipeline_sidebar.py \
             test/test_pipeline_steps.py \
-            test/test_pipeline_views.py
+            test/test_pipeline_views.py \
+            test/test_ui_pages.py
 
       - name: Run agi-env tests with coverage
         run: |
@@ -204,7 +213,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-env.xml
-          flags: agi-env
+          flags: agi-env,agi-core
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
@@ -214,7 +223,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-node.xml
-          flags: agi-node
+          flags: agi-node,agi-core
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
@@ -224,17 +233,17 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-cluster.xml
-          flags: agi-cluster
+          flags: agi-cluster,agi-core
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
 
-      - name: Upload agi-core coverage to Codecov
+      - name: Upload agi-meta coverage to Codecov
         if: always() && hashFiles('coverage-agi-core.xml') != ''
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage-agi-core.xml
-          flags: agi-core
+          flags: agi-meta,agi-core
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
