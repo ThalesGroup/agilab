@@ -388,6 +388,17 @@ class BaseWorker(abc.ABC):
         if cls._has_min_input_files(target, min_files=min_files, patterns=patterns):
             return target.resolve(strict=False)
 
+        for fallback_subdir in fallback_subdirs:
+            nested_target = cls._normalized_path(target / fallback_subdir)
+            if cls._has_min_input_files(nested_target, min_files=min_files, patterns=patterns):
+                logger.warning(
+                    "Needed %s data under '%s' but none found; using nested fallback '%s' instead.",
+                    descriptor,
+                    target,
+                    nested_target,
+                )
+                return nested_target.resolve(strict=False)
+
         for root in cls._candidate_named_dataset_roots(
             env,
             dataset_root_path,
