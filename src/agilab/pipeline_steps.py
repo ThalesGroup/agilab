@@ -72,7 +72,7 @@ def normalize_imported_orchestrate_snippet(
             "                    \"data_in\": \"network_sim/pipeline\",\n"
             "                    \"data_out\": \"sb3_trainer/dataframe\",\n"
             "                    \"time_horizon\": 16,\n"
-            "                    \"trajectories_glob\": \"flight_trajectory/pipeline/*.parquet\",\n"
+            "                    \"trajectories_glob\": \"flight_trajectory/pipeline/*\",\n"
             "                    \"sat_trajectories_glob\": \"sat_trajectory/pipeline/Trajectory/*.csv\",\n"
             "                },\n"
             "            },\n"
@@ -226,6 +226,18 @@ def upgrade_legacy_step_code(code: Any) -> Any:
     updated = updated.replace(
         '"sat_trajectories_glob": "sat_trajectory/pipeline/*.parquet"',
         '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"',
+    )
+    updated = updated.replace(
+        '"trajectories_glob": "flight_trajectory/pipeline/*.parquet"',
+        '"trajectories_glob": "flight_trajectory/pipeline/*"',
+    )
+    updated = updated.replace(
+        '"trajectories_glob": "flight_trajectory/dataframe/*.csv"',
+        '"trajectories_glob": "flight_trajectory/pipeline/*"',
+    )
+    updated = updated.replace(
+        '"trajectories_glob": "flight_trajectory/dataframe/flight_simulation/*.parquet"',
+        '"trajectories_glob": "flight_trajectory/pipeline/*"',
     )
 
     if (
