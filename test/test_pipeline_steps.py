@@ -344,6 +344,21 @@ def test_upgrade_legacy_step_code_rewrites_sb3_satellite_glob():
     assert '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"' in upgraded
 
 
+def test_upgrade_legacy_step_code_rewrites_sb3_flight_globs():
+    code = (
+        'args = {"trajectories_glob": "flight_trajectory/pipeline/*.parquet"}\n'
+        'args = {"trajectories_glob": "flight_trajectory/dataframe/*.csv"}\n'
+        'args = {"trajectories_glob": "flight_trajectory/dataframe/flight_simulation/*.parquet"}\n'
+    )
+
+    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
+
+    assert 'flight_trajectory/pipeline/*.parquet' not in upgraded
+    assert 'flight_trajectory/dataframe/*.csv' not in upgraded
+    assert 'flight_trajectory/dataframe/flight_simulation/*.parquet' not in upgraded
+    assert upgraded.count('"trajectories_glob": "flight_trajectory/pipeline/*"') == 3
+
+
 def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
     code = (
         "import os\n"
@@ -374,6 +389,7 @@ def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
     assert runtime == "sb3_trainer_project"
     assert 'from agi_cluster.agi_distributor import AGI' in normalized
     assert '"name": "ilp_stepper"' in normalized
+    assert '"trajectories_glob": "flight_trajectory/pipeline/*"' in normalized
     assert '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"' in normalized
     assert "Sb3TrainerWorker" not in normalized
 
