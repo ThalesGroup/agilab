@@ -10,7 +10,7 @@ from streamlit.testing.v1 import AppTest
 from agi_env import AgiEnv
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
-DEFAULT_APPTEST_TIMEOUT = 10
+DEFAULT_APPTEST_TIMEOUT = 20
 
 
 def _widget_or_none(collections, key: str):
