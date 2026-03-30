@@ -14,3 +14,7 @@ dependencies = [
     "sqlalchemy>=2.0.43",
     "scipy==1.15.2",
 ]
+
+[tool.uv.sources]
+agi-env = { path = "../../core/agi-env", editable = true }
+agi-node = { path = "../../core/agi-node", editable = true }
