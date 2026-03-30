@@ -100,6 +100,9 @@ class InvokeDagWorker(DagWorker):
     def boom(self, args, prev_result):
         raise RuntimeError("boom")
 
+    def missing_artifact(self, payload):
+        raise FileNotFoundError(f"missing {payload}")
+
 
 # -------------------- Core ordering tests --------------------
 
@@ -266,6 +269,12 @@ def test_invoke_exception_falls_back_to_positional_call(monkeypatch):
     monkeypatch.setattr(dag_module.inspect, "signature", _raise_signature)
     w = _cfg(InvokeDagWorker(), 0, 0, 0)
     assert w._invoke("fallback_pair", args="x", prev_result="y") == ("x", "y")
+
+
+def test_invoke_propagates_method_exceptions_without_positional_retry():
+    w = _cfg(InvokeDagWorker(), 0, 0, 0)
+    with pytest.raises(FileNotFoundError, match="missing dataset"):
+        w._invoke("missing_artifact", args="dataset", prev_result={"dep": 1})
 
 
 def test_exec_mono_process_delegates_to_multi(monkeypatch):

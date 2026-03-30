@@ -93,8 +93,10 @@ class DagWorker(BaseWorker):
                 # Pass both positionally
                 return method(args, prev_result)
 
-        except Exception:
-            # Preserve legacy behavior as a final fallback
+        except (TypeError, ValueError):
+            # Preserve legacy behavior only when the method signature itself
+            # cannot be inspected reliably. Runtime failures from the method
+            # body must propagate unchanged so the caller sees the real cause.
             logging.exception(f"_invoke: error calling {fn_name}; falling back to (args, prev_result)")
             return method(args, prev_result)
 

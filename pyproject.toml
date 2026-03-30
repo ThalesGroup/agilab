@@ -98,7 +98,6 @@ offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-cha
 dev = [
     "agi-core",
     "build",
-    "cmake>=3.29",
     "pip",
     "pytest",
     "pytest-cov",
