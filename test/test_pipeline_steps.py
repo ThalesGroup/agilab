@@ -157,10 +157,12 @@ def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, t
     assert "APPS_DIR" not in code
     assert "APPS_ROOT" not in code
     assert "apps_dir=APPS_DIR" not in code
-    assert "import sys" in code
-    assert 'APP_ROOT = Path(sys.prefix).resolve().parent' in code
+    assert "import os" in code
+    assert 'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()' in code
+    assert 'APPS_PATH = Path(APPS_PATH_RAW).expanduser()' in code
+    assert 'APP_ROOT = APPS_PATH / APP' in code
     assert 'PROJECT_SRC = APP_ROOT / "src"' in code
-    assert "AgiEnv(active_app=APP_ROOT, verbose=1)" in code
+    assert "AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)" in code
 
 
 def test_upgrade_exported_steps_rewrites_parenthesized_apps_dir_and_runtime(monkeypatch, tmp_path):
@@ -181,7 +183,7 @@ def test_upgrade_exported_steps_rewrites_parenthesized_apps_dir_and_runtime(monk
         'APPS_DIR = (Path(agilab.__file__).resolve().parent / "apps").resolve()\n'
         '\n'
         'async def main():\n'
-        '    env = AgiEnv(active_app=APP_ROOT, verbose=1)\n'
+        '    env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n'
         '    return await AGI.install(env)\n'
         '"""\n',
         encoding="utf-8",
@@ -198,10 +200,11 @@ def test_upgrade_exported_steps_rewrites_parenthesized_apps_dir_and_runtime(monk
     entry = data["sb3_trainer_project"][0]
     assert entry["E"] == "flight_trajectory_project"
     assert "agilab.__file__" not in entry["C"]
-    assert "import sys" in entry["C"]
-    assert 'APP_ROOT = Path(sys.prefix).resolve().parent' in entry["C"]
+    assert "import os" in entry["C"]
+    assert 'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()' in entry["C"]
+    assert 'APP_ROOT = APPS_PATH / APP' in entry["C"]
     assert entry["C"].index('APP = "flight_trajectory_project"') < entry["C"].index(
-        "APP_ROOT = Path(sys.prefix).resolve().parent"
+        "APP_ROOT = APPS_PATH / APP"
     )
 
 
@@ -234,3 +237,55 @@ def test_upgrade_steps_file_rewrites_all_modules(tmp_path):
     assert "import agilab" not in data["alpha"][0]["C"]
     assert "apps_dir=APPS_DIR" not in data["gamma"][0]["C"]
     assert data["beta"][0]["C"] == "print(1)"
+
+
+def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
+    code = (
+        "import os\n"
+        "from pathlib import Path\n"
+        "import sys\n\n"
+        "from agi_env import AgiEnv\n\n"
+        'APP = "sb3_trainer_project"\n\n'
+        'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n\n'
+        "APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n\n"
+        "APP_ROOT = APPS_PATH / APP\n"
+        'PROJECT_SRC = APP_ROOT / "src"\n'
+        "if str(PROJECT_SRC) not in sys.path:\n"
+        "    sys.path.insert(0, str(PROJECT_SRC))\n\n"
+        "from sb3_trainer_worker.sb3_trainer_worker import Sb3TrainerWorker\n\n"
+        "env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n"
+        "worker = Sb3TrainerWorker()\n"
+        "worker.env = env\n"
+        "res = worker.trainer_ilp_stepper({}, None)\n"
+        "print(res)\n"
+    )
+
+    normalized, engine, runtime = pipeline_steps.normalize_imported_orchestrate_snippet(
+        code,
+        default_runtime="sb3_trainer_project",
+    )
+
+    assert engine == "agi.run"
+    assert runtime == "sb3_trainer_project"
+    assert 'from agi_cluster.agi_distributor import AGI' in normalized
+    assert '"name": "ilp_stepper"' in normalized
+    assert "Sb3TrainerWorker" not in normalized
+
+
+def test_normalize_imported_orchestrate_snippet_marks_network_summary_runpy():
+    code = (
+        "import os\n"
+        "import pandas as pd\n"
+        "from agi_env import AgiEnv\n"
+        'SUMMARY_PARQUET = DATA_ROOT / "link_level_summary.parquet"\n'
+        "df = pd.read_parquet(path)\n"
+    )
+
+    normalized, engine, runtime = pipeline_steps.normalize_imported_orchestrate_snippet(
+        code,
+        default_runtime="network_sim_project",
+    )
+
+    assert normalized == code
+    assert engine == "runpy"
+    assert runtime == ""

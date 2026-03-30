@@ -192,10 +192,12 @@ except ModuleNotFoundError:
 try:
     from agilab.pipeline_runtime import (
         build_mlflow_process_env,
+        label_for_step_runtime as _label_for_step_runtime,
         log_mlflow_artifacts,
         mlflow_tracking_uri,
         ensure_safe_service_template as _ensure_safe_service_template,
         is_valid_runtime_root as _is_valid_runtime_root,
+        python_for_step as _python_for_step,
         python_for_venv as _python_for_venv,
         run_locked_step as _run_locked_step,
         start_mlflow_run,
@@ -212,9 +214,11 @@ except ModuleNotFoundError:
     _pipeline_runtime_spec.loader.exec_module(_pipeline_runtime_module)
     _ensure_safe_service_template = _pipeline_runtime_module.ensure_safe_service_template
     build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
+    _label_for_step_runtime = _pipeline_runtime_module.label_for_step_runtime
     log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
     mlflow_tracking_uri = _pipeline_runtime_module.mlflow_tracking_uri
     _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
+    _python_for_step = _pipeline_runtime_module.python_for_step
     _python_for_venv = _pipeline_runtime_module.python_for_venv
     _run_locked_step = _pipeline_runtime_module.run_locked_step
     start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
@@ -932,7 +936,7 @@ def run_all_steps(
                             script_path = (target_base / "AGI_run.py").resolve()
                             script_path.write_text(wrap_code_with_mlflow_resume(code))
                             script_artifact = script_path
-                            python_cmd = _python_for_venv(venv_root)
+                            python_cmd = _python_for_step(venv_root, engine=engine, code=code)
                             output = _stream_run_command(
                                 env,
                                 index_page_str,
@@ -972,7 +976,7 @@ def run_all_steps(
                                 st.session_state["df_file_in"] = export_target
                                 st.session_state["step_checked"] = True
                         summary = _step_summary({"Q": entry.get("Q", ""), "C": code})
-                        env_label = Path(venv_root).name if venv_root else "default env"
+                        env_label = _label_for_step_runtime(venv_root, engine=engine, code=code)
                         _push_run_log(
                             index_page_str,
                             f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
@@ -1353,6 +1357,8 @@ def page() -> None:
         refresh_pipeline_run_lock=_refresh_pipeline_run_lock,
         acquire_pipeline_run_lock=_acquire_pipeline_run_lock,
         release_pipeline_run_lock=_release_pipeline_run_lock,
+        label_for_step_runtime=_label_for_step_runtime,
+        python_for_step=_python_for_step,
         python_for_venv=_python_for_venv,
         stream_run_command=lambda *args, **kwargs: _stream_run_command(
             *args,

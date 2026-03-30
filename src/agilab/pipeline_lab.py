@@ -22,6 +22,7 @@ try:
         is_orchestrate_locked_step as _is_orchestrate_locked_step,
         load_sequence_preferences as _load_sequence_preferences,
         module_keys as _module_keys,
+        normalize_imported_orchestrate_snippet as _normalize_imported_orchestrate_snippet,
         normalize_runtime_path,
         orchestrate_snippet_source as _orchestrate_snippet_source,
         persist_sequence_preferences as _persist_sequence_preferences,
@@ -42,6 +43,7 @@ except ModuleNotFoundError:
     _is_orchestrate_locked_step = _pipeline_steps_module.is_orchestrate_locked_step
     _load_sequence_preferences = _pipeline_steps_module.load_sequence_preferences
     _module_keys = _pipeline_steps_module.module_keys
+    _normalize_imported_orchestrate_snippet = _pipeline_steps_module.normalize_imported_orchestrate_snippet
     normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
     _orchestrate_snippet_source = _pipeline_steps_module.orchestrate_snippet_source
     _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
@@ -52,7 +54,9 @@ try:
     from agilab.pipeline_runtime import (
         build_mlflow_process_env,
         is_valid_runtime_root as _is_valid_runtime_root,
+        label_for_step_runtime as _label_for_step_runtime,
         log_mlflow_artifacts,
+        python_for_step as _python_for_step,
         start_mlflow_run,
         wrap_code_with_mlflow_resume,
     )
@@ -65,7 +69,9 @@ except ModuleNotFoundError:
     _pipeline_runtime_spec.loader.exec_module(_pipeline_runtime_module)
     build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
     _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
+    _label_for_step_runtime = _pipeline_runtime_module.label_for_step_runtime
     log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
+    _python_for_step = _pipeline_runtime_module.python_for_step
     start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
     wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 
@@ -93,6 +99,8 @@ class PipelineLabDeps:
     refresh_pipeline_run_lock: Callable[..., Any]
     acquire_pipeline_run_lock: Callable[..., Any]
     release_pipeline_run_lock: Callable[..., Any]
+    label_for_step_runtime: Callable[..., Any]
+    python_for_step: Callable[..., Any]
     python_for_venv: Callable[..., Any]
     stream_run_command: Callable[..., Any]
     run_locked_step: Callable[..., Any]
@@ -207,6 +215,8 @@ def display_lab_tab(
     _refresh_pipeline_run_lock = deps.refresh_pipeline_run_lock
     _acquire_pipeline_run_lock = deps.acquire_pipeline_run_lock
     _release_pipeline_run_lock = deps.release_pipeline_run_lock
+    _label_for_step_runtime = deps.label_for_step_runtime
+    _python_for_step = deps.python_for_step
     _python_for_venv = deps.python_for_venv
     _stream_run_command = deps.stream_run_command
     _run_locked_step = deps.run_locked_step
@@ -387,12 +397,16 @@ def display_lab_tab(
                     if not snippet_code.strip():
                         st.warning("Selected snippet is empty.")
                     else:
+                        normalized_code, import_engine, import_runtime = _normalize_imported_orchestrate_snippet(
+                            snippet_code,
+                            default_runtime=manager_runtime or "",
+                        )
                         df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
                         question = f"Imported snippet: {snippet_path.name if snippet_path else step_source}"
                         detail = f"Imported from {snippet_path}" if snippet_path else ""
-                        answer = [df_path, question, "snippet", snippet_code, detail]
-                        venv_map = {0: manager_runtime} if manager_runtime else {}
-                        eng_map = {0: "agi.run"}
+                        answer = [df_path, question, "snippet", normalized_code, detail]
+                        venv_map = {0: import_runtime} if import_runtime else {}
+                        eng_map = {0: import_engine}
                         extra_fields = {
                             ORCHESTRATE_LOCKED_STEP_KEY: True,
                             ORCHESTRATE_LOCKED_SOURCE_KEY: str(snippet_path) if snippet_path else "",
@@ -946,7 +960,7 @@ def display_lab_tab(
                                 script_path = (target_base / "AGI_run.py").resolve()
                                 script_path.write_text(wrap_code_with_mlflow_resume(code_to_run))
                                 step_files.append(script_path)
-                                python_cmd = _python_for_venv(venv_root)
+                                python_cmd = _python_for_step(venv_root, engine=engine, code=code_to_run)
                                 run_output = _stream_run_command(
                                     env,
                                     index_page_str,
@@ -955,7 +969,7 @@ def display_lab_tab(
                                     placeholder=stored_placeholder,
                                     extra_env=step_env,
                                 )
-                            env_label = Path(venv_root).name if venv_root else "default env"
+                            env_label = _label_for_step_runtime(venv_root, engine=engine, code=code_to_run)
                             _push_run_log(
                                 index_page_str,
                                 f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
@@ -1230,18 +1244,22 @@ def display_lab_tab(
                 if not snippet_code.strip():
                     st.warning("Selected snippet is empty.")
                 else:
+                    normalized_code, import_engine, import_runtime = _normalize_imported_orchestrate_snippet(
+                        snippet_code,
+                        default_runtime=manager_runtime or "",
+                    )
                     df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
                     new_idx = len(persisted_steps)
                     question = f"Imported snippet: {snippet_path.name if snippet_path else step_source}"
                     detail = f"Imported from {snippet_path}" if snippet_path else ""
-                    answer = [df_path, question, "snippet", snippet_code, detail]
+                    answer = [df_path, question, "snippet", normalized_code, detail]
                     venv_map = selected_map.copy()
                     engine_map_local = engine_map.copy()
-                    if manager_runtime:
-                        venv_map[new_idx] = manager_runtime
+                    if import_runtime:
+                        venv_map[new_idx] = import_runtime
                     else:
                         venv_map.pop(new_idx, None)
-                    engine_map_local[new_idx] = "agi.run"
+                    engine_map_local[new_idx] = import_engine
                     extra_fields = {
                         ORCHESTRATE_LOCKED_STEP_KEY: True,
                         ORCHESTRATE_LOCKED_SOURCE_KEY: str(snippet_path) if snippet_path else "",

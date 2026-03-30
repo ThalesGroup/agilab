@@ -97,7 +97,7 @@ def test_mlflow_tracking_uri_resolves_relative_path_from_home(tmp_path):
 
 
 def test_build_mlflow_process_env_injects_tracking_and_run_id(tmp_path):
-    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path / "mlflow-store")
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path / "mlflow-store", apps_path=tmp_path / "apps")
 
     process_env = pipeline_runtime.build_mlflow_process_env(
         env,
@@ -106,11 +106,42 @@ def test_build_mlflow_process_env_injects_tracking_and_run_id(tmp_path):
     )
 
     assert process_env["A"] == "1"
+    assert process_env["APPS_PATH"] == str(tmp_path / "apps")
     assert process_env["MLFLOW_TRACKING_URI"] == pipeline_runtime.sqlite_uri_for_path(
         (tmp_path / "mlflow-store" / "mlflow.db").resolve()
     )
     assert process_env[pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV] == "run-123"
     assert process_env["MLFLOW_RUN_ID"] == "run-123"
+
+
+def test_uses_controller_python_detects_agi_cluster_snippet():
+    code = (
+        "from agi_cluster.agi_distributor import AGI\n"
+        "from agi_env import AgiEnv\n"
+        "async def main():\n"
+        "    return await AGI.install(None)\n"
+    )
+
+    assert pipeline_runtime.uses_controller_python("agi.install", code) is True
+    assert pipeline_runtime.uses_controller_python("agi.run", code) is True
+    assert pipeline_runtime.uses_controller_python("runpy", code) is False
+
+
+def test_python_for_step_keeps_app_env_for_non_controller_snippet(tmp_path, monkeypatch):
+    runtime_root = tmp_path / "runtime_root"
+    nested_python = runtime_root / ".venv" / "bin" / "python"
+    nested_python.parent.mkdir(parents=True)
+    nested_python.write_text("", encoding="utf-8")
+    controller_python = tmp_path / "controller" / "python"
+    controller_python.parent.mkdir(parents=True)
+    controller_python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(pipeline_runtime.sys, "executable", str(controller_python))
+
+    agi_code = "from agi_cluster.agi_distributor import AGI\nprint('x')\n"
+    direct_code = "from agi_env import AgiEnv\nprint('x')\n"
+
+    assert pipeline_runtime.python_for_step(runtime_root, engine="agi.run", code=agi_code) == controller_python
+    assert pipeline_runtime.python_for_step(runtime_root, engine="agi.run", code=direct_code) == nested_python
 
 
 def test_temporary_env_overrides_restores_previous_values(monkeypatch):
