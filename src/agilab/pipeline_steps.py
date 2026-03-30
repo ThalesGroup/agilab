@@ -181,6 +181,22 @@ def upgrade_legacy_step_code(code: Any) -> Any:
 
     updated = code
     if (
+        'APP = "link_sim_project"' in updated
+        and 'dataset_root = share / "link_sim/dataset"' in updated
+        and 'data_flight="flights"' in updated
+        and 'data_sat="sat"' in updated
+        and 'data_out=str(share / "link_sim/pipeline")' in updated
+    ):
+        updated = updated.replace(
+            'data_flight="flights"',
+            'data_flight=str(share / "flight_trajectory/pipeline")',
+        )
+        updated = updated.replace(
+            'data_sat="sat"',
+            'data_sat=str(share / "sat_trajectory/pipeline")',
+        )
+
+    if (
         "import agilab" not in updated
         and "APPS_DIR" not in updated
         and "apps_dir=APPS_DIR" not in updated

@@ -960,8 +960,9 @@ def run_all_steps(
                             if "No such file or directory" in preview:
                                 _push_run_log(
                                     index_page_str,
-                                    "Hint: the code tried to call a file that is not present in the export environment. "
-                                    "Adjust the step to use a path that exists under the export/lab directory.",
+                                    "Hint: for AGI app steps, input/output data is normally resolved under "
+                                    "agi_env.AGI_CLUSTER_SHARE. Check whether the upstream step created the "
+                                    "expected file there before this step ran.",
                                     log_placeholder,
                                 )
                         else:
