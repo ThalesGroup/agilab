@@ -1193,7 +1193,7 @@ def handle_project_selection():
     if st.sidebar.button(
         "Export",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         help=f"this will export your project under  {(env.export_apps / env.app).with_suffix('.zip')}",
     ):
         handle_export_project()
@@ -1421,7 +1421,7 @@ def handle_project_creation():
 
     raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
 
-    create_clicked = st.sidebar.button("Create", type="primary", use_container_width=True)
+    create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
     if create_clicked:
         if not raw:
             st.error("Project name must not be empty.")
@@ -1483,7 +1483,7 @@ def handle_project_rename():
         help="Enter the base name for your new project; '_project' will be appended if needed."
     ).strip()
 
-    rename_clicked = st.sidebar.button("Rename", type="primary", use_container_width=True)
+    rename_clicked = st.sidebar.button("Rename", type="primary", width="stretch")
     if rename_clicked:
         if not raw:
             st.error("Project name must not be empty.")
@@ -1538,7 +1538,7 @@ def handle_project_delete():
 
     cols = st.sidebar.columns(3)
     # Delete button
-    delete_clicked = st.sidebar.button("Delete", type="primary", use_container_width=True)
+    delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
     if delete_clicked:
         if not confirm_delete:
             st.error("Please confirm that you want to delete the project.")
@@ -1620,7 +1620,7 @@ def handle_project_import():
         overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
 
         import_clicked = st.sidebar.button(
-            "Import", type="primary", use_container_width=True
+            "Import", type="primary", width="stretch"
         )
         if import_clicked:
             if not target_dir.exists():
@@ -1634,7 +1634,7 @@ def handle_project_import():
                 st.write(f"Project '{import_target}' already exists. Overwrite it?")
                 cols = st.columns(2)
                 if cols[0].button(
-                        "Overwrite", type="primary", use_container_width=True
+                        "Overwrite", type="primary", width="stretch"
                 ):
                     try:
                         shutil.rmtree(target_dir)
@@ -1643,7 +1643,7 @@ def handle_project_import():
                         overwrite_modal.close()
                     except PermissionError:
                         st.error(f"Project '{import_target}' is not removable.")
-                if cols[1].button("Cancel", type="primary", use_container_width=True):
+                if cols[1].button("Cancel", type="primary", width="stretch"):
                     overwrite_modal.close()
 
         if st.session_state.get("project_imported"):
