@@ -427,3 +427,44 @@ def test_ensure_default_mlflow_experiment_resets_store_after_schema_error(tmp_pa
     assert calls["reset"] == 1
     assert calls["tracking"] == ["sqlite:///tmp/mlflow.db", "sqlite:///tmp/mlflow.db"]
     assert calls["set_experiment"] == pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME
+
+
+def test_ensure_default_mlflow_experiment_resets_store_after_duplicate_column_error(tmp_path, monkeypatch):
+    tracking_root = tmp_path / "mlflow-store"
+    tracking_root.mkdir(parents=True)
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root)
+    calls: dict[str, object] = {"tracking": [], "reset": 0}
+
+    class FakeMlflow:
+        def __init__(self):
+            self.calls = 0
+            self.tracking = SimpleNamespace(MlflowClient=None)
+
+        def set_tracking_uri(self, uri):
+            calls["tracking"].append(uri)
+
+        def get_experiment_by_name(self, name):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("sqlite3.OperationalError: duplicate column name: storage_location")
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            return None
+
+        def set_experiment(self, name):
+            calls["set_experiment"] = name
+
+    monkeypatch.setattr(pipeline_runtime, "mlflow_tracking_uri", lambda _: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(
+        pipeline_runtime,
+        "reset_mlflow_sqlite_backend",
+        lambda path: calls.__setitem__("reset", int(calls["reset"]) + 1) or path,
+    )
+
+    uri = pipeline_runtime.ensure_default_mlflow_experiment(env, FakeMlflow())
+
+    assert uri == "sqlite:///tmp/mlflow.db"
+    assert calls["reset"] == 1
+    assert calls["tracking"] == ["sqlite:///tmp/mlflow.db", "sqlite:///tmp/mlflow.db"]
+    assert calls["set_experiment"] == pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME
