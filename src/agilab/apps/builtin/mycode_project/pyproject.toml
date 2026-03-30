@@ -14,7 +14,6 @@ dependencies = [
   "pathspec",
   "ipython",
   "py7zr",
-  "cmake>=3.29",
   "numba>=0.61.0",
   "streamlit",
   "scikit-learn",
@@ -33,4 +32,3 @@ dependencies = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
-
