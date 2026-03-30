@@ -209,6 +209,20 @@ def upgrade_legacy_step_code(code: Any) -> Any:
             1,
         )
 
+    if (
+        'APP = "network_sim_project"' in updated
+        and 'data_source="file"' in updated
+        and 'link_results_dir=str(share / "link_sim/pipeline")' in updated
+        and 'data_out=str(share / "network_sim/pipeline")' in updated
+        and 'demand_source_mode="link_sim_synthetic"' not in updated
+    ):
+        updated = updated.replace(
+            'data_source="file",\n',
+            'data_source="file",\n'
+            '        demand_source_mode="link_sim_synthetic",\n',
+            1,
+        )
+
     updated = updated.replace(
         '"sat_trajectories_glob": "sat_trajectory/pipeline/*.parquet"',
         '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"',
