@@ -73,6 +73,7 @@ _MLFLOW_SQLITE_UPGRADE_CHECKED: set[str] = set()
 _MLFLOW_SCHEMA_RESET_MARKERS = (
     "Can't locate revision identified by",
     "No such revision or branch",
+    "duplicate column name:",
 )
 
 
