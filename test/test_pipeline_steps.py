@@ -239,6 +239,31 @@ def test_upgrade_steps_file_rewrites_all_modules(tmp_path):
     assert data["beta"][0]["C"] == "print(1)"
 
 
+def test_upgrade_legacy_step_code_injects_explicit_network_sim_mode():
+    legacy = (
+        "import asyncio\n"
+        "from pathlib import Path\n"
+        "from agi_cluster.agi_distributor import AGI\n"
+        "from agi_env import AgiEnv\n\n"
+        'APP = "network_sim_project"\n\n'
+        "async def main():\n"
+        "    share = Path('/tmp/share')\n"
+        "    res = await AGI.run(\n"
+        "        app_env,\n"
+        "        mode=4,\n"
+        '        data_source="file",\n'
+        '        data_in=str(share / "flight_trajectory/pipeline"),\n'
+        '        link_results_dir=str(share / "link_sim/pipeline"),\n'
+        '        data_out=str(share / "network_sim/pipeline"),\n'
+        '        topology_filename="ilp_topology.gml",\n'
+        "    )\n"
+    )
+
+    upgraded = pipeline_steps.upgrade_legacy_step_code(legacy)
+
+    assert 'demand_source_mode="link_sim_synthetic"' in upgraded
+
+
 def test_upgrade_legacy_step_code_rewrites_sb3_link_sim_share_inputs():
     code = (
         "import asyncio\n"
