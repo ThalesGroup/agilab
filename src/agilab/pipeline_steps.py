@@ -73,7 +73,7 @@ def normalize_imported_orchestrate_snippet(
             "                    \"data_out\": \"sb3_trainer/dataframe\",\n"
             "                    \"time_horizon\": 16,\n"
             "                    \"trajectories_glob\": \"flight_trajectory/pipeline/*.parquet\",\n"
-            "                    \"sat_trajectories_glob\": \"sat_trajectory/pipeline/*.parquet\",\n"
+            "                    \"sat_trajectories_glob\": \"sat_trajectory/pipeline/Trajectory/*.csv\",\n"
             "                },\n"
             "            },\n"
             "        ],\n"
@@ -193,8 +193,26 @@ def upgrade_legacy_step_code(code: Any) -> Any:
         )
         updated = updated.replace(
             'data_sat="sat"',
-            'data_sat=str(share / "sat_trajectory/pipeline")',
+            'data_sat=str(share / "sat_trajectory/pipeline/Trajectory")',
         )
+
+    if (
+        'APP = "sat_trajectory_project"' in updated
+        and 'data_in=str(share / "sat_trajectory/dataset")' in updated
+        and "number_of_sat=" in updated
+        and 'data_out=str(share / "sat_trajectory/pipeline")' not in updated
+    ):
+        updated = updated.replace(
+            'data_in=str(share / "sat_trajectory/dataset"),\n',
+            'data_in=str(share / "sat_trajectory/dataset"),\n'
+            '        data_out=str(share / "sat_trajectory/pipeline"),\n',
+            1,
+        )
+
+    updated = updated.replace(
+        '"sat_trajectories_glob": "sat_trajectory/pipeline/*.parquet"',
+        '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"',
+    )
 
     if (
         "import agilab" not in updated
