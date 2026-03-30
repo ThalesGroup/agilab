@@ -1,6 +1,6 @@
 [project]
 name = "mycode_project"
-version = "2026.03.27"
+version = "2026.03.30"
 description = "Built-in AGILab example app template (minimal manager + worker)"
 requires-python = ">=3.11"
 dependencies = [
