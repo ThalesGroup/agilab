@@ -1067,7 +1067,7 @@ async def main():
                 "Import",
                 type="secondary",
                 key=f"analysis_add_custom_view__{project or 'default'}",
-                use_container_width=True,
+                width="stretch",
             )
             if add_custom_view:
                 st.info("Import streamlit page is not implemented yet.")
@@ -1089,7 +1089,7 @@ async def main():
                 "Create",
                 type="primary",
                 key=f"analysis_create_template_view__{project or 'default'}",
-                use_container_width=True,
+                width="stretch",
             )
             if create_template_view:
                 if not template_name.strip():
@@ -1194,7 +1194,7 @@ async def main():
                 st.error(f"Page '{view_name}' not found.")
                 continue
             with cols[i % len(cols)]:
-                if st.button(view_name, type="primary", use_container_width=True):
+                if st.button(view_name, type="primary", width="stretch"):
                     view_str = str(view_path.resolve())
                     st.session_state["current_page"] = view_str
                     st.query_params["current_page"] = view_str

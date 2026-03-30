@@ -4259,7 +4259,7 @@ def page():
                     show_node_labels=bool(selected_node_set),
                     allowed_edge_pairs=upper_allowed_edge_pairs,
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             except Exception as exc:
                 st.error(f"Unable to render topology graph: {exc}")
 
@@ -4267,7 +4267,7 @@ def page():
         metric_cols = [c for c in [flight_col, time_col, "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
         if metric_cols:
             st.markdown("### Metrics snapshot")
-            st.dataframe(df_positions[metric_cols].sort_values(flight_col), use_container_width=True)
+            st.dataframe(df_positions[metric_cols].sort_values(flight_col), width="stretch")
 
     # Live allocations overlay (optional)
     st.markdown("### 📡 Live allocations")
@@ -4699,7 +4699,7 @@ def page():
                         timeline["bearer_path"] = ""
                     cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in timeline.columns]
                     st.caption("Allocations timeline")
-                    st.dataframe(timeline[cols], use_container_width=True)
+                    st.dataframe(timeline[cols], width="stretch")
                     sig = timeline["bearer_path"].fillna("")
                     sig_prev = sig.shift(1).fillna("")
                     changed = (sig != sig_prev) & sig.ne("") & sig_prev.ne("")
@@ -4717,7 +4717,7 @@ def page():
                         base_tl["bearer_path"] = ""
                     cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in base_tl.columns]
                     st.caption("Baseline timeline")
-                    st.dataframe(base_tl[cols], use_container_width=True)
+                    st.dataframe(base_tl[cols], width="stretch")
 
         if not alloc_step.empty and not baseline_step.empty:
             try:
@@ -4803,7 +4803,7 @@ def page():
             bearer_frames = [frame for frame in bearer_frames if not frame.empty]
             if bearer_frames:
                 bearer_timeline = pd.concat(bearer_frames, ignore_index=True)
-                st.plotly_chart(_plot_selected_pair_bearer_timeline(bearer_timeline), use_container_width=True)
+                st.plotly_chart(_plot_selected_pair_bearer_timeline(bearer_timeline), width="stretch")
             else:
                 st.info("No bearer selections found for the selected pair.")
 
@@ -4852,7 +4852,7 @@ def page():
                             "SAT",
                             decision_markers=time_samples,
                         ),
-                        use_container_width=True,
+                        width="stretch",
                     )
                 else:
                     st.info("No SAT cloud heatmap samples found for the selected planes.")

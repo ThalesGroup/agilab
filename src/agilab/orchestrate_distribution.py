@@ -72,7 +72,7 @@ def draw_distribution(graph, partition_key, show_leaf_list, title):
     plt.tight_layout()
     plt.title(title)
     plt.axis("off")
-    st.pyplot(plt, use_container_width=True)
+    st.pyplot(plt, width="stretch")
 
 
 def extract_chunk_info(chunk, partition_key, weights_key):
@@ -257,4 +257,4 @@ def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, w
     )
     for worker, total in totals_dict.items():
         fig.add_annotation(x=worker, y=total, text=f"<b>{total}</b>", showarrow=False, yshift=10)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")

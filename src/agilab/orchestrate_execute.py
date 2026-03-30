@@ -120,7 +120,7 @@ def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional
     nx.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
     nx.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
     ax.axis("off")
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width="stretch")
     plt.close(fig)
     if source_preview_name:
         st.caption(f"Source: {source_preview_name}")
@@ -220,7 +220,7 @@ async def render_execute_section(
                     run_label,
                     key="run_btn",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     _queue_execute_action("run")
             else:
@@ -230,14 +230,14 @@ async def render_execute_section(
                     type="primary",
                     disabled=True,
                     help="Configure the run snippet to enable execution",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             if load_col.button(
                 "LOAD dataframe",
                 key="load_data_main",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 help="Fetch the latest dataframe preview for export",
             ):
                 _queue_execute_action("load")
@@ -249,7 +249,7 @@ async def render_execute_section(
                     "Confirm delete",
                     key="delete_data_main_confirm_btn",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     help="Confirm deletion of the loaded dataframe/export file.",
                 ):
                     _queue_execute_action("delete")
@@ -257,14 +257,14 @@ async def render_execute_section(
                     "Cancel",
                     key="delete_data_main_cancel_btn",
                     type="secondary",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 delete_armed_clicked = delete_col.button(
                     "DELETE dataframe",
                     key="delete_data_main",
                     type="secondary",
-                    use_container_width=True,
+                    width="stretch",
                     help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
                 )
 
@@ -282,7 +282,7 @@ async def render_execute_section(
                     "UNDO last delete dataframe",
                     key="delete_data_main_undo_btn",
                     type="secondary",
-                    use_container_width=True,
+                    width="stretch",
                     help="Restore the most recently deleted dataframe preview and file.",
                 )
 
@@ -327,7 +327,7 @@ async def render_execute_section(
                     key="combo_exec_load_export",
                     type="primary",
                     help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     _queue_execute_action("combo")
         else:
@@ -633,14 +633,14 @@ async def render_execute_section(
                     "STATS report",
                     key="stats_report_main",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                 )
             with action_col_export:
                 export_clicked_manual = st.button(
                     "EXPORT dataframe",
                     key="export_df_main",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     help="Save the current run output to export/export.csv so Experiment/Explore can load it.",
                 )
             combo_export_trigger = st.session_state.pop("_combo_export_trigger", False)
