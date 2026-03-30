@@ -380,7 +380,7 @@ def render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Pi
                 f'  step_{edge["source"]} -> step_{edge["target"]} [color="#4f6fbf", penwidth=1.7, arrowhead=vee{label_clause}];'
             )
         graph_lines.append("}")
-        st.graphviz_chart("\n".join(graph_lines), use_container_width=False)
+        st.graphviz_chart("\n".join(graph_lines), width="content")
 
         rows = []
         for node in nodes:
@@ -395,7 +395,7 @@ def render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Pi
             )
         st.dataframe(
             pd.DataFrame(rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "step": st.column_config.TextColumn("step", width="small"),

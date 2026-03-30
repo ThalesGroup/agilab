@@ -1254,7 +1254,7 @@ def mlflow_controls() -> None:
             "Open UI",
             mlflow_url,
             help=f"Open the MLflow UI in a new tab on port {mlflow_port}.",
-            use_container_width=True,
+            width="stretch",
         )
     elif not st.session_state.get("server_started"):
         st.sidebar.markdown("**Status:** stopped")

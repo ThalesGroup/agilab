@@ -624,7 +624,7 @@ def page(env):
                 .rename(columns={"beam": "beam_id"})
                 .sort_values(by="beam_id")
             )
-            st.dataframe(summary_df, use_container_width=True)
+            st.dataframe(summary_df, width="stretch")
     else:
         st.sidebar.write("")
 
@@ -855,7 +855,7 @@ def page(env):
             fig.update_layout(mapbox_style="open-street-map")
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
 
-            st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+            st.plotly_chart(fig, width="stretch", theme="streamlit")
         else:
             st.warning("Please select a valid column for coloring.")
     else:

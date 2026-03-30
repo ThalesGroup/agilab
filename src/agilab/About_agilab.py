@@ -309,7 +309,7 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
 
     with st.form("agi_share_path_override_form"):
         st.text_input("New AGI_SHARE_DIR", key=key, help="Provide an absolute or home-relative path")
-        submitted = st.form_submit_button("Save and retry", use_container_width=True)
+        submitted = st.form_submit_button("Save and retry", width="stretch")
 
     if submitted:
         new_value = (st.session_state.get(key) or "").strip()
@@ -645,26 +645,17 @@ def page(env):
 
     with st.expander("System information", expanded=False):
         import platform
-        import subprocess
 
         st.write(f"OS: {platform.system()} {platform.release()}")
         cpu_name = platform.processor() or platform.machine()
         st.write(f"CPU: {cpu_name}")
-        try:
-            hw_info = subprocess.check_output(["system_profiler", "SPHardwareDataType"], text=True, timeout=2)
-            for line in hw_info.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("Chip:") or stripped.startswith("Model Identifier:") or stripped.startswith("Memory:"):
-                    st.write(stripped)
-        except Exception:
-            pass
 
     col_docs_remote, col_docs_local = st.columns(2)
     with col_docs_remote:
-        if st.button("Read Documentation", use_container_width=True, type="primary"):
+        if st.button("Read Documentation", width="stretch", type="primary"):
             open_docs(env, help_file, "project-editor")
     with col_docs_local:
-        if st.button("Open Local Documentation", use_container_width=True):
+        if st.button("Open Local Documentation", width="stretch"):
             try:
                 open_local_docs(env, help_file, "project-editor")
             except FileNotFoundError:

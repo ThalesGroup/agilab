@@ -331,7 +331,7 @@ def display_lab_tab(
                 run_new = st.button(
                     "Generate code",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{safe_prefix}_add_first_step_btn",
                 )
                 if run_new:
@@ -380,7 +380,7 @@ def display_lab_tab(
                 import_new = st.button(
                     "Add snippet",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{safe_prefix}_add_first_snippet_btn",
                 )
                 if import_new:
@@ -558,7 +558,7 @@ def display_lab_tab(
                 if st.button(
                     "Run imported step",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{safe_prefix}_run_locked_{step}",
                 ):
                     _run_locked_step(
@@ -586,13 +586,13 @@ def display_lab_tab(
                     delete_clicked = st.button(
                         "Confirm remove",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                         key=f"{safe_prefix}_delete_confirm_{step}",
                     )
                     cancel_delete_clicked = st.button(
                         "Cancel",
                         type="secondary",
-                        use_container_width=True,
+                        width="stretch",
                         key=f"{safe_prefix}_delete_cancel_{step}",
                     )
                     arm_delete_clicked = False
@@ -602,7 +602,7 @@ def display_lab_tab(
                     arm_delete_clicked = st.button(
                         "Remove",
                         type="secondary",
-                        use_container_width=True,
+                        width="stretch",
                         key=f"{safe_prefix}_delete_{step}",
                     )
 
@@ -641,21 +641,21 @@ def display_lab_tab(
                 save_pressed = st.button(
                     "Save",
                     type="secondary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{safe_prefix}_save_{step}",
                 )
             with btn_run:
                 run_pressed = st.button(
                     "Gen code",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{safe_prefix}_run_{step}",
                 )
             with btn_revert:
                 revert_pressed = st.button(
                     "Undo",
                     type="secondary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{safe_prefix}_revert_{step}",
                 )
             with btn_delete:
@@ -663,20 +663,20 @@ def display_lab_tab(
                     delete_clicked = st.button(
                         "Confirm remove",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                         key=f"{safe_prefix}_delete_confirm_{step}",
                     )
                     cancel_delete_clicked = st.button(
                         "Cancel",
                         type="secondary",
-                        use_container_width=True,
+                        width="stretch",
                         key=f"{safe_prefix}_delete_cancel_{step}",
                     )
                 else:
                     arm_delete_clicked = st.button(
                         "Remove",
                         type="secondary",
-                        use_container_width=True,
+                        width="stretch",
                         key=f"{safe_prefix}_delete_{step}",
                     )
 
@@ -1103,7 +1103,7 @@ def display_lab_tab(
     _conceptual_source, conceptual_dot = load_pipeline_conceptual_dot(env, lab_dir)
     if conceptual_dot:
         with st.expander("Conceptual view", expanded=False):
-            st.graphviz_chart(conceptual_dot, use_container_width=False)
+            st.graphviz_chart(conceptual_dot, width="content")
 
     render_pipeline_view(
         persisted_steps,
@@ -1141,7 +1141,7 @@ def display_lab_tab(
                 help="Choose which virtual environment should execute this step.",
             )
             selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
-            run_new = st.button("Generate code", type="primary", use_container_width=True, key=f"{safe_prefix}_add_step_btn")
+            run_new = st.button("Generate code", type="primary", width="stretch", key=f"{safe_prefix}_add_step_btn")
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
                 if prompt_text:
@@ -1223,7 +1223,7 @@ def display_lab_tab(
             import_new = st.button(
                 "Add snippet",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 key=f"{safe_prefix}_add_step_snippet_btn",
             )
             if import_new:
@@ -1305,7 +1305,7 @@ def display_lab_tab(
         key=f"{index_page_str}_run_all",
         help="Execute every step sequentially using its saved virtual environment.",
         type="secondary",
-        use_container_width=True,
+        width="stretch",
     )
 
     st.divider()
@@ -1322,7 +1322,7 @@ def display_lab_tab(
                 key=f"{index_page_str}_delete_all_confirm",
                 help="Permanently remove every step in this lab.",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
             )
         else:
             arm_delete_all_clicked = st.button(
@@ -1330,7 +1330,7 @@ def display_lab_tab(
                 key=f"{index_page_str}_delete_all",
                 help="Remove every step in this lab.",
                 type="secondary",
-                use_container_width=True,
+                width="stretch",
             )
     with cancel_col:
         if st.session_state.get(delete_all_confirm_key, False):
@@ -1338,7 +1338,7 @@ def display_lab_tab(
                 "Cancel",
                 key=f"{index_page_str}_delete_all_cancel",
                 type="secondary",
-                use_container_width=True,
+                width="stretch",
             )
 
     if arm_delete_all_clicked:
@@ -1357,7 +1357,7 @@ def display_lab_tab(
             key=f"{index_page_str}_undo_delete",
             help=f"Restore the pipeline state before the latest delete action ({undo_label}).",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
         )
 
     if undo_delete_clicked:
@@ -1442,7 +1442,7 @@ def display_lab_tab(
             "Clear logs",
             key=f"{index_page_str}__clear_logs_global",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
         )
         if clear_logs:
             st.session_state[run_logs_key] = []

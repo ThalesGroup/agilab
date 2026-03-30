@@ -331,28 +331,28 @@ async def render_service_panel(
             "START service",
             key="service_start_btn",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=not service_enabled,
         )
         status_service_clicked = status_col.button(
             "STATUS service",
             key="service_status_btn",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
             disabled=not service_enabled,
         )
         health_gate_clicked = health_col.button(
             "HEALTH gate",
             key="service_health_gate_btn",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
             disabled=not service_enabled,
         )
         stop_service_clicked = stop_col.button(
             "STOP service",
             key="service_stop_btn",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
             disabled=not service_enabled,
         )
 
@@ -380,7 +380,7 @@ async def render_service_panel(
             display_cols = [col for col in ordered_cols if col in health_df.columns]
             if display_cols:
                 health_df = health_df[display_cols]
-            service_health_placeholder.dataframe(health_df, use_container_width=True)
+            service_health_placeholder.dataframe(health_df, width="stretch")
 
         _render_service_health_table()
         cached_service_log = st.session_state.get("service_log_cache", "").strip()
