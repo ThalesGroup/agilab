@@ -239,6 +239,43 @@ def test_upgrade_steps_file_rewrites_all_modules(tmp_path):
     assert data["beta"][0]["C"] == "print(1)"
 
 
+def test_upgrade_legacy_step_code_rewrites_sb3_link_sim_share_inputs():
+    code = (
+        "import asyncio\n"
+        "import os\n"
+        "from pathlib import Path\n"
+        "import sys\n\n"
+        "from agi_cluster.agi_distributor import AGI\n"
+        "from agi_env import AgiEnv\n\n"
+        'APP = "link_sim_project"\n\n'
+        'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n\n'
+        "APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n\n"
+        "APP_ROOT = APPS_PATH / APP\n"
+        "async def main():\n"
+        "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n"
+        "    share = app_env.share_root_path()\n"
+        '    dataset_root = share / "link_sim/dataset"\n'
+        "    res = await AGI.run(\n"
+        "        app_env,\n"
+        "        mode=4,\n"
+        "        data_in=str(dataset_root),\n"
+        '        data_flight="flights",\n'
+        '        data_sat="sat",\n'
+        '        data_out=str(share / "link_sim/pipeline"),\n'
+        '        output_format="parquet",\n'
+        "    )\n"
+        "    print(res)\n"
+        "    return res\n"
+    )
+
+    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
+
+    assert 'data_flight=str(share / "flight_trajectory/pipeline")' in upgraded
+    assert 'data_sat=str(share / "sat_trajectory/pipeline")' in upgraded
+    assert 'data_flight="flights"' not in upgraded
+    assert 'data_sat="sat"' not in upgraded
+
+
 def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
     code = (
         "import os\n"
