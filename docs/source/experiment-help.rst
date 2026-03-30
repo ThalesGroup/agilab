@@ -58,6 +58,12 @@ When your lab step is based on app execution, use the **Pipeline** add flow:
 If you change values in Orchestrate arguments, regenerate or re-import the
 snippet in Pipeline before running the step.
 
+AGILab does not silently rewrite saved Python snippets when a lab is reopened.
+If a generated step becomes stale after an app or orchestration change, the
+saved code remains unchanged until you explicitly regenerate or replace it.
+This avoids hidden behaviour changes, but it also means stale generated steps
+must be refreshed deliberately.
+
 HISTORY
 ~~~~~~~
 Inspect or tweak the raw ``lab_steps.toml`` via the code editor. Saving the
@@ -86,3 +92,5 @@ See also
 - :doc:`agilab-help` for the overall page sequence.
 - :doc:`execute-help` for generating reliable snippets before running a step.
 - :doc:`apps-pages` for analysis-side visualisations after a successful run.
+- :doc:`roadmap/versioned-pipeline-steps` for the proposed structured successor
+  to raw generated snippets in ``lab_steps.toml``.
