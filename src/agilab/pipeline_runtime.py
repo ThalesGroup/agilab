@@ -416,6 +416,9 @@ def build_mlflow_process_env(
     """Inject the shared tracking URI into a child process environment."""
     process_env = dict(base_env or os.environ.copy())
     process_env["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri(env)
+    apps_path = getattr(env, "apps_path", None)
+    if apps_path:
+        process_env["APPS_PATH"] = str(apps_path)
     if run_id:
         process_env[MLFLOW_STEP_RUN_ID_ENV] = str(run_id)
         # Standard env name so explicit mlflow clients in child code can reuse the step run.
@@ -621,6 +624,36 @@ def python_for_venv(venv_root: str | Path | None) -> Path:
     return Path(sys.executable)
 
 
+def uses_controller_python(engine: str | None, code: str | None) -> bool:
+    """Return True when a step should execute in the current AGILab/controller env."""
+    if not str(engine or "").startswith("agi."):
+        return False
+    text = str(code or "")
+    return (
+        "from agi_cluster.agi_distributor import AGI" in text
+        or "import agi_cluster" in text
+        or "AGI.install(" in text
+        or "AGI.run(" in text
+        or "AGI.serve(" in text
+        or "AGI.get_distrib(" in text
+    )
+
+
+def python_for_step(venv_root: str | Path | None, *, engine: str | None, code: str | None) -> Path:
+    """Choose the python executable for one step."""
+    if uses_controller_python(engine, code):
+        return Path(sys.executable)
+    return python_for_venv(venv_root)
+
+
+def label_for_step_runtime(venv_root: str | Path | None, *, engine: str | None, code: str | None) -> str:
+    """Return a readable runtime label for the step log."""
+    if uses_controller_python(engine, code):
+        target = Path(venv_root).name if venv_root else str(getattr(Path(sys.executable), "name", "python"))
+        return f"controller env -> {target}"
+    return Path(venv_root).name if venv_root else "default env"
+
+
 def is_valid_runtime_root(venv_root: str | Path | None) -> bool:
     """Return True when the runtime root points at an existing project/venv."""
     if not venv_root:
@@ -794,7 +827,7 @@ def run_locked_step(
             refresh_pipeline_run_lock(lock_handle)
             target_base = Path(steps_file).parent.resolve()
             target_base.mkdir(parents=True, exist_ok=True)
-            env_label = Path(venv_root).name if venv_root else "default env"
+            env_label = label_for_step_runtime(venv_root, engine=engine, code=code_to_run)
             summary = step_summary({"Q": entry.get("Q", ""), "C": code_to_run}, 60)
             step_tags = {
                 "agilab.component": "pipeline-step",
@@ -835,7 +868,7 @@ def run_locked_step(
                     script_path = (target_base / "AGI_run.py").resolve()
                     script_path.write_text(wrap_code_with_mlflow_resume(code_to_run))
                     step_files.append(script_path)
-                    python_cmd = python_for_venv(venv_root)
+                    python_cmd = python_for_step(venv_root, engine=engine, code=code_to_run)
                     run_output = stream_run_command(
                         env,
                         index_page_str,
