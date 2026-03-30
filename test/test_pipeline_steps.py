@@ -271,9 +271,52 @@ def test_upgrade_legacy_step_code_rewrites_sb3_link_sim_share_inputs():
     upgraded = pipeline_steps.upgrade_legacy_step_code(code)
 
     assert 'data_flight=str(share / "flight_trajectory/pipeline")' in upgraded
-    assert 'data_sat=str(share / "sat_trajectory/pipeline")' in upgraded
+    assert 'data_sat=str(share / "sat_trajectory/pipeline/Trajectory")' in upgraded
     assert 'data_flight="flights"' not in upgraded
     assert 'data_sat="sat"' not in upgraded
+
+
+def test_upgrade_legacy_step_code_rewrites_sb3_sat_pipeline_targets():
+    code = (
+        "import asyncio\n"
+        "import os\n"
+        "from pathlib import Path\n"
+        "import sys\n\n"
+        "from agi_cluster.agi_distributor import AGI\n"
+        "from agi_env import AgiEnv\n\n"
+        'APP = "sat_trajectory_project"\n\n'
+        'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n\n'
+        "APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n\n"
+        "APP_ROOT = APPS_PATH / APP\n"
+        "async def main():\n"
+        "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n"
+        "    share = app_env.share_root_path()\n"
+        "    res = await AGI.run(\n"
+        "        app_env,\n"
+        "        mode=15,\n"
+        '        data_in=str(share / "sat_trajectory/dataset"),\n'
+        "        duration_s=86400,\n"
+        "        step_s=1,\n"
+        "        number_of_sat=4,\n"
+        '        input_TLE="TLE",\n'
+        '        input_antenna="antenna_conf.json",\n'
+        '        input_sat="sat.json",\n'
+        "    )\n"
+        "    print(res)\n"
+        "    return res\n"
+    )
+
+    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
+
+    assert 'data_out=str(share / "sat_trajectory/pipeline")' in upgraded
+
+
+def test_upgrade_legacy_step_code_rewrites_sb3_satellite_glob():
+    code = 'args = {"sat_trajectories_glob": "sat_trajectory/pipeline/*.parquet"}\n'
+
+    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
+
+    assert '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"' in upgraded
 
 
 def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
@@ -306,6 +349,7 @@ def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
     assert runtime == "sb3_trainer_project"
     assert 'from agi_cluster.agi_distributor import AGI' in normalized
     assert '"name": "ilp_stepper"' in normalized
+    assert '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"' in normalized
     assert "Sb3TrainerWorker" not in normalized
 
 
