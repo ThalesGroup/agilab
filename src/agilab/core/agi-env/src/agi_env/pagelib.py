@@ -68,6 +68,7 @@ _LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-act
 DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
 DEFAULT_MLFLOW_DB_NAME = "mlflow.db"
 DEFAULT_MLFLOW_ARTIFACT_DIR = "artifacts"
+_MLFLOW_SQLITE_UPGRADE_CHECKED: set[str] = set()
 
 
 def background_services_enabled() -> bool:
@@ -207,6 +208,39 @@ def _repair_mlflow_default_experiment_db(db_path: Path, artifact_uri: str | None
         return False
 
 
+def _ensure_mlflow_sqlite_schema_current(db_path: Path) -> None:
+    if not db_path.exists():
+        return
+
+    db_uri = _sqlite_uri_for_path(db_path)
+    if db_uri in _MLFLOW_SQLITE_UPGRADE_CHECKED:
+        return
+
+    try:
+        with sqlite3.connect(db_path) as conn:
+            has_alembic_version = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'alembic_version'"
+            ).fetchone()
+    except sqlite3.Error:
+        has_alembic_version = None
+    if not has_alembic_version:
+        return
+
+    result = subprocess.run(
+        [sys.executable, "-m", "mlflow", "db", "upgrade", db_uri],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(
+            "Failed to upgrade the local MLflow SQLite schema. "
+            f"Database: {db_path}. {details}"
+        )
+    _MLFLOW_SQLITE_UPGRADE_CHECKED.add(db_uri)
+
+
 def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
     db_path = _resolve_mlflow_backend_db(tracking_dir)
     if not db_path.exists() and _legacy_mlflow_filestore_present(tracking_dir):
@@ -232,6 +266,7 @@ def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
                 "Failed to migrate the legacy MLflow file store to SQLite. "
                 f"Source: {tracking_dir}. {details}"
             )
+    _ensure_mlflow_sqlite_schema_current(db_path)
     artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
     _repair_mlflow_default_experiment_db(db_path, artifact_uri)
     return _sqlite_uri_for_path(db_path)
