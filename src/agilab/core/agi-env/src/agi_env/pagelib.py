@@ -240,18 +240,29 @@ def _ensure_mlflow_sqlite_schema_current(db_path: Path) -> None:
     if result.returncode != 0:
         details = (result.stderr or result.stdout or "").strip()
         if any(marker in details for marker in _MLFLOW_SCHEMA_RESET_MARKERS):
-            timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
-            backup_path = db_path.with_name(f"{db_path.stem}.schema-reset-{timestamp}{db_path.suffix}")
-            for sidecar in ("", "-shm", "-wal", "-journal"):
-                candidate = Path(f"{db_path}{sidecar}")
-                if candidate.exists():
-                    candidate.replace(Path(f"{backup_path}{sidecar}"))
+            _reset_mlflow_sqlite_backend(db_path)
             return
         raise RuntimeError(
             "Failed to upgrade the local MLflow SQLite schema. "
             f"Database: {db_path}. {details}"
         )
     _MLFLOW_SQLITE_UPGRADE_CHECKED.add(db_uri)
+
+
+def _reset_mlflow_sqlite_backend(db_path: Path) -> Path | None:
+    db_path = Path(db_path).expanduser().resolve()
+    if not db_path.exists():
+        return None
+
+    db_uri = _sqlite_uri_for_path(db_path)
+    _MLFLOW_SQLITE_UPGRADE_CHECKED.discard(db_uri)
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+    backup_path = db_path.with_name(f"{db_path.stem}.schema-reset-{timestamp}{db_path.suffix}")
+    for sidecar in ("", "-shm", "-wal", "-journal"):
+        candidate = Path(f"{db_path}{sidecar}")
+        if candidate.exists():
+            candidate.replace(Path(f"{backup_path}{sidecar}"))
+    return backup_path
 
 
 def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
@@ -289,21 +300,36 @@ def _ensure_default_mlflow_experiment(tracking_dir: Path) -> str | None:
     mlflow = _get_mlflow_module()
     if mlflow is None:
         return None
-    backend_uri = _ensure_mlflow_backend_ready(tracking_dir)
-    mlflow.set_tracking_uri(backend_uri)
-    experiment = None
-    get_experiment = getattr(mlflow, "get_experiment_by_name", None)
-    if callable(get_experiment):
-        experiment = get_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
-    if experiment is None:
-        create_experiment = getattr(mlflow, "create_experiment", None)
-        if callable(create_experiment):
-            artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
-            try:
-                create_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME, artifact_location=artifact_uri)
-            except Exception:
-                pass
-    mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+    artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
+    db_path = _resolve_mlflow_backend_db(tracking_dir)
+
+    for attempt in range(2):
+        backend_uri = _ensure_mlflow_backend_ready(tracking_dir)
+        try:
+            mlflow.set_tracking_uri(backend_uri)
+            experiment = None
+            get_experiment = getattr(mlflow, "get_experiment_by_name", None)
+            if callable(get_experiment):
+                experiment = get_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+            if experiment is None:
+                create_experiment = getattr(mlflow, "create_experiment", None)
+                if callable(create_experiment):
+                    try:
+                        create_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME, artifact_location=artifact_uri)
+                    except Exception:
+                        pass
+            mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
+            return backend_uri
+        except Exception as exc:
+            details = str(exc)
+            if attempt == 0 and (
+                "Detected out-of-date database schema" in details
+                or any(marker in details for marker in _MLFLOW_SCHEMA_RESET_MARKERS)
+            ):
+                _reset_mlflow_sqlite_backend(db_path)
+                continue
+            raise
+
     return backend_uri
 
 
