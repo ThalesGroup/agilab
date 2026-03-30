@@ -241,16 +241,6 @@ jobs:
           verbose: true
           fail_ci_if_error: true
 
-      - name: Upload agi-meta coverage to Codecov
-        if: always() && hashFiles('coverage-agi-core.xml') != ''
-        uses: codecov/codecov-action@v5
-        with:
-          files: ./coverage-agi-core.xml
-          flags: agi-meta,agi-core
-          use_oidc: true
-          verbose: true
-          fail_ci_if_error: true
-
       - name: Upload agi-gui coverage to Codecov
         if: always() && matrix.python-version == '3.13' && hashFiles('coverage-agilab-base.xml') != ''
         uses: codecov/codecov-action@v5

@@ -33,10 +33,6 @@ flags:
       - src/agilab/core/agi-node
       - src/agilab/core/agi-cluster
       - src/agilab/core/agi-core
-  agi-meta:
-    # Thin meta-package only.
-    paths:
-      - src/agilab/core/agi-core
 ignore:
   - "**/test/**"
   - "**/tests/**"
