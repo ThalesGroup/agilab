@@ -35,7 +35,6 @@ try:
         normalize_runtime_path,
         persist_sequence_preferences as _persist_sequence_preferences,
         prune_invalid_entries as _prune_invalid_entries,
-        upgrade_exported_steps as _upgrade_exported_steps,
     )
 except ModuleNotFoundError:
     _pipeline_steps_path = Path(__file__).resolve().parent / "pipeline_steps.py"
@@ -53,7 +52,6 @@ except ModuleNotFoundError:
     normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
     _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
     _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
-    _upgrade_exported_steps = _pipeline_steps_module.upgrade_exported_steps
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +74,6 @@ def is_query_valid(query: Any) -> bool:
 def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
     """Get the list of steps for a module from a TOML file."""
     module_path = Path(module)
-    _ensure_primary_module_key(module_path, steps_file)
-    _upgrade_exported_steps(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
             steps = tomllib.load(f)
@@ -94,8 +90,6 @@ def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
 def get_steps_dict(module: Path, steps_file: Path) -> Dict[str, Any]:
     """Get the steps dictionary from a TOML file."""
     module_path = Path(module)
-    _ensure_primary_module_key(module_path, steps_file)
-    _upgrade_exported_steps(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
             steps = tomllib.load(f)
@@ -515,7 +509,6 @@ def save_step(
     """Save a step in the steps file."""
     st.session_state["_experiment_last_save_skipped"] = False
     module_path = Path(module)
-    _ensure_primary_module_key(module_path, steps_file)
     # Normalize types
     try:
         nsteps = int(nsteps)
@@ -693,7 +686,6 @@ def on_import_notebook(
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
     """Display the HISTORY tab with code editor for steps file."""
-    _ensure_primary_module_key(module_path, steps_file)
     if steps_file.exists():
         with open(steps_file, "rb") as f:
             raw_data = tomllib.load(f)
