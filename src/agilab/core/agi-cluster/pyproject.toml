@@ -60,7 +60,6 @@ dependencies = [
     "tomlkit",
     "typing-inspection>=0.4.1",
     "wheel",
-    "cmake>=3.29",
 ]
 
 [project.urls]

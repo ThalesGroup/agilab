@@ -23,6 +23,7 @@ import os
 import sqlite3
 import subprocess
 import streamlit as st
+import time
 import random
 import socket
 import base64
@@ -69,6 +70,10 @@ DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
 DEFAULT_MLFLOW_DB_NAME = "mlflow.db"
 DEFAULT_MLFLOW_ARTIFACT_DIR = "artifacts"
 _MLFLOW_SQLITE_UPGRADE_CHECKED: set[str] = set()
+_MLFLOW_SCHEMA_RESET_MARKERS = (
+    "Can't locate revision identified by",
+    "No such revision or branch",
+)
 
 
 def background_services_enabled() -> bool:
@@ -234,6 +239,14 @@ def _ensure_mlflow_sqlite_schema_current(db_path: Path) -> None:
     )
     if result.returncode != 0:
         details = (result.stderr or result.stdout or "").strip()
+        if any(marker in details for marker in _MLFLOW_SCHEMA_RESET_MARKERS):
+            timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+            backup_path = db_path.with_name(f"{db_path.stem}.schema-reset-{timestamp}{db_path.suffix}")
+            for sidecar in ("", "-shm", "-wal", "-journal"):
+                candidate = Path(f"{db_path}{sidecar}")
+                if candidate.exists():
+                    candidate.replace(Path(f"{backup_path}{sidecar}"))
+            return
         raise RuntimeError(
             "Failed to upgrade the local MLflow SQLite schema. "
             f"Database: {db_path}. {details}"
