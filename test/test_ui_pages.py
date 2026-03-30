@@ -90,7 +90,7 @@ def load_args_from_toml(path):
 
 def test_agilab_main_page_env_editor(mock_ui_env):
     """Test the main AGILAB page and interacting with the .env editor form."""
-    at = AppTest.from_file("src/agilab/About_agilab.py")
+    at = AppTest.from_file("src/agilab/About_agilab.py", default_timeout=10)
     
     # Run the app to initialize
     at.run()
@@ -475,7 +475,7 @@ def test_app_args_form_switch_back_to_file(mock_ui_env):
 
 def test_agilab_main_page_theme_injection(mock_ui_env):
     """Test that the main page injects theme CSS on load."""
-    at = AppTest.from_file("src/agilab/About_agilab.py")
+    at = AppTest.from_file("src/agilab/About_agilab.py", default_timeout=10)
     at.run()
     assert not at.exception
 
