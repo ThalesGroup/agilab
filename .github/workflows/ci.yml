@@ -48,9 +48,26 @@ jobs:
       - name: Prepare test artifacts
         run: mkdir -p test-results
 
+      - name: Define CI heartbeat helper
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/ci-heartbeat.sh" <<'EOF'
+          start_ci_heartbeat() {
+            local label="$1"
+            while true; do
+              sleep 20
+              printf '[heartbeat] %s %s still running\n' "$(date -u +%H:%M:%S)" "$label"
+            done
+          }
+          EOF
+
       - name: Run agilab tests with coverage
         run: |
           set -e
+          source "$RUNNER_TEMP/ci-heartbeat.sh"
+          start_ci_heartbeat "agilab tests (py${{ matrix.python-version }})" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agilab coverage-agilab-base.xml
           export PYTHONPATH="src"
           COVERAGE_FILE=.coverage.agilab uv run --no-project \
@@ -99,10 +116,16 @@ jobs:
             test/test_pipeline_steps.py \
             test/test_pipeline_views.py \
             test/test_ui_pages.py
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Run agi-env tests with coverage
         run: |
           set -e
+          source "$RUNNER_TEMP/ci-heartbeat.sh"
+          start_ci_heartbeat "agi-env tests (py${{ matrix.python-version }})" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agi-env coverage-agi-env.xml
           COVERAGE_FILE=.coverage.agi-env uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
@@ -113,10 +136,16 @@ jobs:
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_env --cov-report=xml:coverage-agi-env.xml \
             src/agilab/core/agi-env/test
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Run agi-node tests with coverage
         run: |
           set -e
+          source "$RUNNER_TEMP/ci-heartbeat.sh"
+          start_ci_heartbeat "agi-node tests (py${{ matrix.python-version }})" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agi-node coverage-agi-node.xml
           COVERAGE_FILE=.coverage.agi-node uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
@@ -130,10 +159,16 @@ jobs:
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_node --cov-report=xml:coverage-agi-node.xml \
             src/agilab/core/test
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Run agi-cluster tests with coverage
         run: |
           set -e
+          source "$RUNNER_TEMP/ci-heartbeat.sh"
+          start_ci_heartbeat "agi-cluster tests (py${{ matrix.python-version }})" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agi-cluster coverage-agi-cluster.xml
           COVERAGE_FILE=.coverage.agi-cluster uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
@@ -147,10 +182,16 @@ jobs:
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_cluster --cov-report=xml:coverage-agi-cluster.xml \
             src/agilab/core/test
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Run agi-core tests with coverage
         run: |
           set -e
+          source "$RUNNER_TEMP/ci-heartbeat.sh"
+          start_ci_heartbeat "agi-core tests (py${{ matrix.python-version }})" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agi-core coverage-agi-core.xml
           COVERAGE_FILE=.coverage.agi-core uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
@@ -164,11 +205,17 @@ jobs:
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_core --cov-report=xml:coverage-agi-core.xml \
             src/agilab/core/test
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Run service health smoke tests
         if: matrix.python-version == '3.13'
         run: |
           set -e
+          source "$RUNNER_TEMP/ci-heartbeat.sh"
+          start_ci_heartbeat "service health tests (py${{ matrix.python-version }})" &
+          HEARTBEAT_PID=$!
+          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.service-health coverage-service-health.xml
           COVERAGE_FILE=.coverage.service-health uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
@@ -183,6 +230,8 @@ jobs:
             --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml \
             src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json \
             test/test_service_health_check.py
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Validate coverage artifacts
         if: matrix.python-version == '3.13'
