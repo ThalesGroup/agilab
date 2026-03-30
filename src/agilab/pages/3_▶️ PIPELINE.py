@@ -72,7 +72,6 @@ try:
         step_button_label as _step_button_label,
         step_label_for_multiselect as _step_label_for_multiselect,
         step_summary as _step_summary,
-        upgrade_exported_steps as _upgrade_exported_steps,
     )
 except ModuleNotFoundError:
     _pipeline_steps_path = Path(__file__).resolve().parents[1] / "pipeline_steps.py"
@@ -101,7 +100,6 @@ except ModuleNotFoundError:
     _step_button_label = _pipeline_steps_module.step_button_label
     _step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
     _step_summary = _pipeline_steps_module.step_summary
-    _upgrade_exported_steps = _pipeline_steps_module.upgrade_exported_steps
 try:
     from agilab.pipeline_ai import (
         CODE_STRICT_INSTRUCTIONS,
@@ -691,8 +689,6 @@ def load_all_steps(
 
     Uses a small cache keyed by file mtime to avoid re-parsing on every rerun.
     """
-    _ensure_primary_module_key(module_path, steps_file)
-    _upgrade_exported_steps(module_path, steps_file)
     try:
         module_key = _module_keys(module_path)[0]
         mtime_ns = steps_file.stat().st_mtime_ns

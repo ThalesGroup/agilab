@@ -18,84 +18,22 @@ ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
 
 logger = logging.getLogger(__name__)
 
-
-def _apps_path_bootstrap(app_name: str) -> str:
-    return (
-        f'APP = "{app_name}"\n\n'
-        'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n\n'
-        'if not APPS_PATH_RAW:\n\n'
-        '    raise RuntimeError(\n\n'
-        '        "APPS_PATH is not set. Run this snippet from AGILab PIPELINE/ORCHESTRATE, "\n\n'
-        '        "or export APPS_PATH before executing it."\n\n'
-        '    )\n\n'
-        'APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n\n'
-        'APP_ROOT = APPS_PATH / APP\n'
-    )
-
-
 def normalize_imported_orchestrate_snippet(
     code: Any,
     *,
     default_runtime: str = "",
 ) -> tuple[Any, str, str]:
-    """Normalize an imported ORCHESTRATE snippet and infer its execution mode."""
+    """Infer the execution mode for an imported ORCHESTRATE snippet without rewriting it."""
     if not isinstance(code, str):
         return code, "agi.run" if default_runtime else "runpy", default_runtime
 
-    updated = upgrade_legacy_step_code(code)
-    app_name = extract_step_app_name(updated)
+    app_name = extract_step_app_name(code)
     runtime = app_name or default_runtime
 
-    if (
-        "from sb3_trainer_worker.sb3_trainer_worker import Sb3TrainerWorker" in updated
-        and "trainer_ilp_stepper" in updated
-    ):
-        updated = (
-            "import asyncio\n"
-            "import os\n"
-            "from pathlib import Path\n\n"
-            "from agi_cluster.agi_distributor import AGI\n"
-            "from agi_env import AgiEnv\n\n"
-            f"{_apps_path_bootstrap(app_name or 'sb3_trainer_project')}"
-            "async def main():\n"
-            "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n"
-            "    share = app_env.share_root_path()\n"
-            "    res = await AGI.run(\n"
-            "        app_env,\n"
-            "        mode=4,\n"
-            "        data_in=str(share / \"network_sim/pipeline\"),\n"
-            "        data_out=str(share / \"sb3_trainer/dataframe\"),\n"
-            "        args=[\n"
-            "            {\n"
-            "                \"name\": \"ilp_stepper\",\n"
-            "                \"args\": {\n"
-            "                    \"data_in\": \"network_sim/pipeline\",\n"
-            "                    \"data_out\": \"sb3_trainer/dataframe\",\n"
-            "                    \"time_horizon\": 16,\n"
-            "                    \"trajectories_glob\": \"flight_trajectory/pipeline/*\",\n"
-            "                    \"sat_trajectories_glob\": \"sat_trajectory/pipeline/Trajectory/*.csv\",\n"
-            "                },\n"
-            "            },\n"
-            "        ],\n"
-            "    )\n"
-            "    print(res)\n"
-            "    return res\n\n\n"
-            "if __name__ == \"__main__\":\n"
-            "    asyncio.run(main())\n"
-        )
-        return updated, "agi.run", runtime
+    if "from agi_cluster.agi_distributor import AGI" in code or "AGI." in code:
+        return code, "agi.run", runtime
 
-    if (
-        "link_level_summary.parquet" in updated
-        and "pd.read_parquet" in updated
-        and "from agi_env import AgiEnv" in updated
-    ):
-        return updated, "runpy", ""
-
-    if "from agi_cluster.agi_distributor import AGI" in updated or "AGI." in updated:
-        return updated, "agi.run", runtime
-
-    return updated, "runpy", ""
+    return code, "runpy", runtime
 
 
 def _convert_paths_to_strings(obj: Any) -> Any:
@@ -175,162 +113,8 @@ def step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str,
 
 
 def upgrade_legacy_step_code(code: Any) -> Any:
-    """Rewrite known legacy AGI app snippets to the current APPS_PATH/app form."""
-    if not isinstance(code, str) or not code:
-        return code
-
-    updated = code
-    if (
-        'APP = "link_sim_project"' in updated
-        and 'dataset_root = share / "link_sim/dataset"' in updated
-        and 'data_flight="flights"' in updated
-        and 'data_sat="sat"' in updated
-        and 'data_out=str(share / "link_sim/pipeline")' in updated
-    ):
-        updated = updated.replace(
-            'data_flight="flights"',
-            'data_flight=str(share / "flight_trajectory/pipeline")',
-        )
-        updated = updated.replace(
-            'data_sat="sat"',
-            'data_sat=str(share / "sat_trajectory/pipeline/Trajectory")',
-        )
-
-    if (
-        'APP = "sat_trajectory_project"' in updated
-        and 'data_in=str(share / "sat_trajectory/dataset")' in updated
-        and "number_of_sat=" in updated
-        and 'data_out=str(share / "sat_trajectory/pipeline")' not in updated
-    ):
-        updated = updated.replace(
-            'data_in=str(share / "sat_trajectory/dataset"),\n',
-            'data_in=str(share / "sat_trajectory/dataset"),\n'
-            '        data_out=str(share / "sat_trajectory/pipeline"),\n',
-            1,
-        )
-
-    if (
-        'APP = "network_sim_project"' in updated
-        and 'data_source="file"' in updated
-        and 'link_results_dir=str(share / "link_sim/pipeline")' in updated
-        and 'data_out=str(share / "network_sim/pipeline")' in updated
-        and 'demand_source_mode="link_sim_synthetic"' not in updated
-    ):
-        updated = updated.replace(
-            'data_source="file",\n',
-            'data_source="file",\n'
-            '        demand_source_mode="link_sim_synthetic",\n',
-            1,
-        )
-
-    updated = updated.replace(
-        '"sat_trajectories_glob": "sat_trajectory/pipeline/*.parquet"',
-        '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"',
-    )
-    updated = updated.replace(
-        '"trajectories_glob": "flight_trajectory/pipeline/*.parquet"',
-        '"trajectories_glob": "flight_trajectory/pipeline/*"',
-    )
-    updated = updated.replace(
-        '"trajectories_glob": "flight_trajectory/dataframe/*.csv"',
-        '"trajectories_glob": "flight_trajectory/pipeline/*"',
-    )
-    updated = updated.replace(
-        '"trajectories_glob": "flight_trajectory/dataframe/flight_simulation/*.parquet"',
-        '"trajectories_glob": "flight_trajectory/pipeline/*"',
-    )
-
-    if (
-        "import agilab" not in updated
-        and "APPS_DIR" not in updated
-        and "apps_dir=APPS_DIR" not in updated
-        and "APP_ROOT = APPS_ROOT / APP" not in updated
-        and "APPS_ROOT = Path.cwd().resolve().parent" not in updated
-        and "agilab.__file__" not in updated
-        and "Path(sys.executable).resolve().parents[2]" not in updated
-        and "Path(sys.prefix).resolve().parent" not in updated
-    ):
-        return updated
-
-    updated = re.sub(r"(?m)^\s*import agilab\s*\n?", "", updated)
-    updated = re.sub(
-        r"(?m)^(?P<indent>\s*)APPS_DIR\s*=\s*.*agilab\.__file__.*$",
-        "",
-        updated,
-    )
-    updated = re.sub(r"(?m)^\s*APPS_ROOT\s*=\s*Path\.cwd\(\)\.resolve\(\)\.parent\s*\n?", "", updated)
-    updated = updated.replace('PROJECT_SRC = APPS_DIR / APP / "src"', 'PROJECT_SRC = APP_ROOT / "src"')
-    updated = updated.replace("PROJECT_SRC = APPS_DIR / APP / 'src'", "PROJECT_SRC = APP_ROOT / 'src'")
-    updated = updated.replace("APPS_DIR / APP /", "APP_ROOT /")
-    updated = updated.replace("APPS_DIR / APP", "APP_ROOT")
-    updated = re.sub(r"(?m)^\s*APP_ROOT\s*=\s*APPS_ROOT\s*/\s*APP\s*\n?", "", updated)
-    updated = re.sub(
-        r"(?m)^\s*APP_ROOT\s*=\s*Path\(sys\.executable\)\.resolve\(\)\.parents\[2\]\s*\n?",
-        "",
-        updated,
-    )
-    updated = re.sub(
-        r"(?m)^\s*APP_ROOT\s*=\s*Path\(sys\.prefix\)\.resolve\(\)\.parent\s*\n?",
-        "",
-        updated,
-    )
-
-    if (
-        "Path(sys.executable).resolve().parents[2]" in updated
-        or "Path(sys.prefix).resolve().parent" in updated
-    ) and "import sys" not in updated:
-        if "from pathlib import Path\n" in updated:
-            updated = updated.replace("from pathlib import Path\n", "from pathlib import Path\nimport sys\n", 1)
-        else:
-            updated = f"import sys\n{updated}"
-
-    def _insert_app_root(match: re.Match[str]) -> str:
-        indent = match.group("indent")
-        app_value = match.group("app")
-        return (
-            f'{indent}APP = {app_value}\n'
-            f'{indent}APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n'
-            f'{indent}if not APPS_PATH_RAW:\n'
-            f'{indent}    raise RuntimeError(\n'
-            f'{indent}        "APPS_PATH is not set. Run this snippet from AGILab PIPELINE/ORCHESTRATE, "\n'
-            f'{indent}        "or export APPS_PATH before executing it."\n'
-            f'{indent}    )\n'
-            f'{indent}APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n'
-            f'{indent}APP_ROOT = APPS_PATH / APP'
-        )
-
-    updated = re.sub(
-        r'(?m)^(?P<indent>\s*)APP\s*=\s*(?P<app>["\'][^"\']+["\'])\s*$',
-        _insert_app_root,
-        updated,
-        count=1,
-    )
-    if "APPS_PATH_RAW = os.environ.get(" in updated and "import os" not in updated:
-        if "from pathlib import Path\n" in updated:
-            updated = updated.replace("from pathlib import Path\n", "import os\nfrom pathlib import Path\n", 1)
-        else:
-            updated = f"import os\n{updated}"
-    updated = re.sub(
-        r"AgiEnv\(\s*apps_(?:dir|path)\s*=\s*APPS_DIR\s*,\s*app\s*=\s*APP\s*,\s*",
-        "AgiEnv(apps_path=APPS_PATH, app=APP, ",
-        updated,
-    )
-    updated = re.sub(
-        r"AgiEnv\(\s*apps_(?:dir|path)\s*=\s*APPS_DIR\s*,\s*app\s*=\s*APP\s*\)",
-        "AgiEnv(apps_path=APPS_PATH, app=APP)",
-        updated,
-    )
-    updated = re.sub(
-        r"AgiEnv\(\s*active_app\s*=\s*APP_ROOT\s*,\s*",
-        "AgiEnv(apps_path=APPS_PATH, app=APP, ",
-        updated,
-    )
-    updated = re.sub(
-        r"AgiEnv\(\s*active_app\s*=\s*APP_ROOT\s*\)",
-        "AgiEnv(apps_path=APPS_PATH, app=APP)",
-        updated,
-    )
-    return updated
+    """Legacy snippet migration has been removed; return code unchanged."""
+    return code
 
 
 def extract_step_app_name(code: Any) -> str:
@@ -362,42 +146,17 @@ def looks_like_runtime_reference(raw: Any) -> bool:
 
 
 def upgrade_legacy_step_runtime(raw_runtime: Any, *, engine: Any, app_name: str) -> Any:
-    """Replace descriptive legacy runtime text with the actual app runtime key."""
-    if not app_name or not str(engine or "").startswith("agi."):
-        return raw_runtime
-    if looks_like_runtime_reference(raw_runtime):
-        return raw_runtime
-    return app_name
+    """Legacy runtime migration has been removed; keep the stored runtime unchanged."""
+    return raw_runtime
 
 
 def upgrade_legacy_step_entry(entry: Any) -> bool:
-    """Upgrade one saved step entry in place."""
-    if not isinstance(entry, dict):
-        return False
-
-    changed = False
-    original_code = entry.get("C")
-    upgraded_code = upgrade_legacy_step_code(original_code)
-    if upgraded_code != original_code:
-        entry["C"] = upgraded_code
-        changed = True
-
-    app_name = extract_step_app_name(entry.get("C"))
-    original_runtime = entry.get("E")
-    upgraded_runtime = upgrade_legacy_step_runtime(
-        original_runtime,
-        engine=entry.get("R"),
-        app_name=app_name,
-    )
-    if upgraded_runtime != original_runtime:
-        entry["E"] = upgraded_runtime
-        changed = True
-
-    return changed
+    """Legacy step migration has been removed; do not mutate entries implicitly."""
+    return False
 
 
 def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int]:
-    """Upgrade every recognized legacy step snippet in a lab steps file."""
+    """Legacy lab-step migration has been removed; report scan counts only."""
     if not steps_file.exists():
         return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
 
@@ -407,8 +166,6 @@ def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int
     except Exception:
         return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
 
-    changed = False
-    changed_steps = 0
     scanned_steps = 0
     for key, entries in data.items():
         if key == "__meta__" or not isinstance(entries, list):
@@ -417,29 +174,12 @@ def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int
             if not isinstance(entry, dict):
                 continue
             scanned_steps += 1
-            if upgrade_legacy_step_entry(entry):
-                changed = True
-                changed_steps += 1
-
-    if changed and write:
-        try:
-            steps_file.parent.mkdir(parents=True, exist_ok=True)
-            with steps_file.open("wb") as handle:
-                tomli_w.dump(_convert_paths_to_strings(data), handle)
-        except Exception as exc:
-            logger.warning("Failed to persist upgraded exported steps to %s: %s", steps_file, exc)
-            return {"files": 0, "changed_steps": 0, "scanned_steps": scanned_steps}
-    return {"files": 1, "changed_steps": changed_steps, "scanned_steps": scanned_steps}
+    return {"files": 1, "changed_steps": 0, "scanned_steps": scanned_steps}
 
 
 def upgrade_exported_steps(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> bool:
-    """Persist known step-code migrations directly in the exported lab steps file."""
-    if not steps_file.exists():
-        return False
-
-    module_path = Path(module)
-    ensure_primary_module_key(module_path, steps_file, env=env)
-    return bool(upgrade_steps_file(steps_file)["changed_steps"])
+    """Legacy exported-step migration has been removed; this is now a no-op."""
+    return False
 
 
 def pipeline_export_root(env: Optional[AgiEnv]) -> Path:

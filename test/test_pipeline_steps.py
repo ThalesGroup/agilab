@@ -124,12 +124,12 @@ def test_prune_invalid_entries_keeps_requested_index():
     assert pruned == entries
 
 
-def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, tmp_path):
+def test_upgrade_exported_steps_is_noop_and_preserves_file(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
     module_dir = export_root / "sb3_trainer_project"
     module_dir.mkdir(parents=True)
     steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+    original = (
         '[[sb3_trainer_project]]\n'
         'Q = "Legacy step"\n'
         'C = """from pathlib import Path\n'
@@ -140,9 +140,9 @@ def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, t
         'APPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\n'
         'PROJECT_SRC = APPS_DIR / APP / "src"\n'
         'env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)\n'
-        '"""\n',
-        encoding="utf-8",
+        '"""\n'
     )
+    steps_file.write_text(original, encoding="utf-8")
 
     fake_st = SimpleNamespace(session_state={})
     monkeypatch.setattr(pipeline_steps, "st", fake_st)
@@ -150,216 +150,43 @@ def test_upgrade_exported_steps_rewrites_legacy_apps_dir_scaffold(monkeypatch, t
 
     changed = pipeline_steps.upgrade_exported_steps(module_dir, steps_file, env=env)
 
-    assert changed is True
-    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
-    code = data["sb3_trainer_project"][0]["C"]
-    assert "import agilab" not in code
-    assert "APPS_DIR" not in code
-    assert "APPS_ROOT" not in code
-    assert "apps_dir=APPS_DIR" not in code
-    assert "import os" in code
-    assert 'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()' in code
-    assert 'APPS_PATH = Path(APPS_PATH_RAW).expanduser()' in code
-    assert 'APP_ROOT = APPS_PATH / APP' in code
-    assert 'PROJECT_SRC = APP_ROOT / "src"' in code
-    assert "AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)" in code
+    assert changed is False
+    assert steps_file.read_text(encoding="utf-8") == original
 
 
-def test_upgrade_exported_steps_rewrites_parenthesized_apps_dir_and_runtime(monkeypatch, tmp_path):
-    export_root = tmp_path / "export"
-    module_dir = export_root / "sb3_trainer_project"
-    module_dir.mkdir(parents=True)
+def test_upgrade_steps_file_reports_scan_without_rewriting(tmp_path):
     steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
-        '[[sb3_trainer_project]]\n'
-        'R = "agi.install"\n'
-        'E = "Refresh worker before running."\n'
-        'C = """import asyncio\n'
-        'from pathlib import Path\n'
-        'from agi_cluster.agi_distributor import AGI\n'
-        'from agi_env import AgiEnv\n'
-        '\n'
-        'APP = "flight_trajectory_project"\n'
-        'APPS_DIR = (Path(agilab.__file__).resolve().parent / "apps").resolve()\n'
-        '\n'
-        'async def main():\n'
-        '    env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n'
-        '    return await AGI.install(env)\n'
-        '"""\n',
-        encoding="utf-8",
-    )
-
-    fake_st = SimpleNamespace(session_state={})
-    monkeypatch.setattr(pipeline_steps, "st", fake_st)
-    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
-
-    changed = pipeline_steps.upgrade_exported_steps(module_dir, steps_file, env=env)
-
-    assert changed is True
-    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
-    entry = data["sb3_trainer_project"][0]
-    assert entry["E"] == "flight_trajectory_project"
-    assert "agilab.__file__" not in entry["C"]
-    assert "import os" in entry["C"]
-    assert 'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()' in entry["C"]
-    assert 'APP_ROOT = APPS_PATH / APP' in entry["C"]
-    assert entry["C"].index('APP = "flight_trajectory_project"') < entry["C"].index(
-        "APP_ROOT = APPS_PATH / APP"
-    )
-
-
-def test_upgrade_legacy_step_runtime_treats_prose_with_slash_as_non_runtime():
-    upgraded = pipeline_steps.upgrade_legacy_step_runtime(
-        "Refresh network_sim worker before building topology/demands.",
-        engine="agi.install",
-        app_name="network_sim_project",
-    )
-
-    assert upgraded == "network_sim_project"
-
-
-def test_upgrade_steps_file_rewrites_all_modules(tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+    original = (
         '[[alpha]]\n'
         'C = """from pathlib import Path\nimport agilab\nAPP = "alpha"\nAPPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\n"""\n'
         '[[beta]]\n'
         'C = """print(1)"""\n'
-        '[[gamma]]\n'
-        'C = """from pathlib import Path\nimport agilab\nfrom agi_env import AgiEnv\nAPP = "gamma"\nAPPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\nenv = AgiEnv(apps_dir=APPS_DIR, app=APP)\n"""\n',
-        encoding="utf-8",
     )
+    steps_file.write_text(original, encoding="utf-8")
 
     result = pipeline_steps.upgrade_steps_file(steps_file)
 
-    assert result == {"files": 1, "changed_steps": 2, "scanned_steps": 3}
-    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
-    assert "import agilab" not in data["alpha"][0]["C"]
-    assert "apps_dir=APPS_DIR" not in data["gamma"][0]["C"]
-    assert data["beta"][0]["C"] == "print(1)"
+    assert result == {"files": 1, "changed_steps": 0, "scanned_steps": 2}
+    assert steps_file.read_text(encoding="utf-8") == original
 
 
-def test_upgrade_legacy_step_code_injects_explicit_network_sim_mode():
-    legacy = (
-        "import asyncio\n"
-        "from pathlib import Path\n"
-        "from agi_cluster.agi_distributor import AGI\n"
-        "from agi_env import AgiEnv\n\n"
-        'APP = "network_sim_project"\n\n'
-        "async def main():\n"
-        "    share = Path('/tmp/share')\n"
-        "    res = await AGI.run(\n"
-        "        app_env,\n"
-        "        mode=4,\n"
-        '        data_source="file",\n'
-        '        data_in=str(share / "flight_trajectory/pipeline"),\n'
-        '        link_results_dir=str(share / "link_sim/pipeline"),\n'
-        '        data_out=str(share / "network_sim/pipeline"),\n'
-        '        topology_filename="ilp_topology.gml",\n'
-        "    )\n"
-    )
-
-    upgraded = pipeline_steps.upgrade_legacy_step_code(legacy)
-
-    assert 'demand_source_mode="link_sim_synthetic"' in upgraded
-
-
-def test_upgrade_legacy_step_code_rewrites_sb3_link_sim_share_inputs():
+def test_upgrade_legacy_helpers_are_noop():
     code = (
-        "import asyncio\n"
-        "import os\n"
         "from pathlib import Path\n"
-        "import sys\n\n"
-        "from agi_cluster.agi_distributor import AGI\n"
-        "from agi_env import AgiEnv\n\n"
-        'APP = "link_sim_project"\n\n'
-        'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n\n'
-        "APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n\n"
-        "APP_ROOT = APPS_PATH / APP\n"
-        "async def main():\n"
-        "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n"
-        "    share = app_env.share_root_path()\n"
-        '    dataset_root = share / "link_sim/dataset"\n'
-        "    res = await AGI.run(\n"
-        "        app_env,\n"
-        "        mode=4,\n"
-        "        data_in=str(dataset_root),\n"
-        '        data_flight="flights",\n'
-        '        data_sat="sat",\n'
-        '        data_out=str(share / "link_sim/pipeline"),\n'
-        '        output_format="parquet",\n'
-        "    )\n"
-        "    print(res)\n"
-        "    return res\n"
+        "import agilab\n"
+        'APP = "network_sim_project"\n'
+        'APPS_DIR = Path(agilab.__file__).resolve().parent / "apps"\n'
     )
-
-    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
-
-    assert 'data_flight=str(share / "flight_trajectory/pipeline")' in upgraded
-    assert 'data_sat=str(share / "sat_trajectory/pipeline/Trajectory")' in upgraded
-    assert 'data_flight="flights"' not in upgraded
-    assert 'data_sat="sat"' not in upgraded
-
-
-def test_upgrade_legacy_step_code_rewrites_sb3_sat_pipeline_targets():
-    code = (
-        "import asyncio\n"
-        "import os\n"
-        "from pathlib import Path\n"
-        "import sys\n\n"
-        "from agi_cluster.agi_distributor import AGI\n"
-        "from agi_env import AgiEnv\n\n"
-        'APP = "sat_trajectory_project"\n\n'
-        'APPS_PATH_RAW = os.environ.get("APPS_PATH", "").strip()\n\n'
-        "APPS_PATH = Path(APPS_PATH_RAW).expanduser()\n\n"
-        "APP_ROOT = APPS_PATH / APP\n"
-        "async def main():\n"
-        "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\n"
-        "    share = app_env.share_root_path()\n"
-        "    res = await AGI.run(\n"
-        "        app_env,\n"
-        "        mode=15,\n"
-        '        data_in=str(share / "sat_trajectory/dataset"),\n'
-        "        duration_s=86400,\n"
-        "        step_s=1,\n"
-        "        number_of_sat=4,\n"
-        '        input_TLE="TLE",\n'
-        '        input_antenna="antenna_conf.json",\n'
-        '        input_sat="sat.json",\n'
-        "    )\n"
-        "    print(res)\n"
-        "    return res\n"
-    )
-
-    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
-
-    assert 'data_out=str(share / "sat_trajectory/pipeline")' in upgraded
+    assert pipeline_steps.upgrade_legacy_step_code(code) == code
+    assert pipeline_steps.upgrade_legacy_step_runtime(
+        "Refresh network_sim worker before building topology/demands.",
+        engine="agi.install",
+        app_name="network_sim_project",
+    ) == "Refresh network_sim worker before building topology/demands."
+    assert pipeline_steps.upgrade_legacy_step_entry({"C": code, "E": "legacy text", "R": "agi.run"}) is False
 
 
-def test_upgrade_legacy_step_code_rewrites_sb3_satellite_glob():
-    code = 'args = {"sat_trajectories_glob": "sat_trajectory/pipeline/*.parquet"}\n'
-
-    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
-
-    assert '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"' in upgraded
-
-
-def test_upgrade_legacy_step_code_rewrites_sb3_flight_globs():
-    code = (
-        'args = {"trajectories_glob": "flight_trajectory/pipeline/*.parquet"}\n'
-        'args = {"trajectories_glob": "flight_trajectory/dataframe/*.csv"}\n'
-        'args = {"trajectories_glob": "flight_trajectory/dataframe/flight_simulation/*.parquet"}\n'
-    )
-
-    upgraded = pipeline_steps.upgrade_legacy_step_code(code)
-
-    assert 'flight_trajectory/pipeline/*.parquet' not in upgraded
-    assert 'flight_trajectory/dataframe/*.csv' not in upgraded
-    assert 'flight_trajectory/dataframe/flight_simulation/*.parquet' not in upgraded
-    assert upgraded.count('"trajectories_glob": "flight_trajectory/pipeline/*"') == 3
-
-
-def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
+def test_normalize_imported_orchestrate_snippet_keeps_sb3_worker_snippet_unchanged():
     code = (
         "import os\n"
         "from pathlib import Path\n"
@@ -385,16 +212,30 @@ def test_normalize_imported_orchestrate_snippet_rewrites_sb3_ilp_stepper():
         default_runtime="sb3_trainer_project",
     )
 
-    assert engine == "agi.run"
+    assert normalized == code
+    assert engine == "runpy"
     assert runtime == "sb3_trainer_project"
-    assert 'from agi_cluster.agi_distributor import AGI' in normalized
-    assert '"name": "ilp_stepper"' in normalized
-    assert '"trajectories_glob": "flight_trajectory/pipeline/*"' in normalized
-    assert '"sat_trajectories_glob": "sat_trajectory/pipeline/Trajectory/*.csv"' in normalized
-    assert "Sb3TrainerWorker" not in normalized
 
 
-def test_normalize_imported_orchestrate_snippet_marks_network_summary_runpy():
+def test_normalize_imported_orchestrate_snippet_infers_agi_runtime_without_rewrite():
+    code = (
+        "import asyncio\n"
+        "from agi_cluster.agi_distributor import AGI\n"
+        "from agi_env import AgiEnv\n"
+        'APP = "flight_trajectory_project"\n'
+    )
+
+    normalized, engine, runtime = pipeline_steps.normalize_imported_orchestrate_snippet(
+        code,
+        default_runtime="network_sim_project",
+    )
+
+    assert normalized == code
+    assert engine == "agi.run"
+    assert runtime == "flight_trajectory_project"
+
+
+def test_normalize_imported_orchestrate_snippet_keeps_runpy_runtime():
     code = (
         "import os\n"
         "import pandas as pd\n"
@@ -410,4 +251,4 @@ def test_normalize_imported_orchestrate_snippet_marks_network_summary_runpy():
 
     assert normalized == code
     assert engine == "runpy"
-    assert runtime == ""
+    assert runtime == "network_sim_project"
