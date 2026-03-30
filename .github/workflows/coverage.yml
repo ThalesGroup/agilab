@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: coverage-${{ github.ref }}
+  group: coverage-v2-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -266,52 +266,54 @@ jobs:
           trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agi-gui coverage-agi-gui.xml
           export PYTHONPATH="src"
-          COVERAGE_FILE=.coverage.agi-gui uv run --no-project \
-            --with-editable ./src/agilab/core/agi-env \
-            --with-editable ./src/agilab/core/agi-node \
-            --with-editable ./src/agilab/core/agi-cluster \
-            --with-editable ./src/agilab/core/agi-core \
-            --with pytest \
-            --with pytest-cov \
-            --with pytest-asyncio \
-            --with streamlit \
-            --with streamlit-modal \
-            --with streamlit_code_editor \
-            --with mlflow \
-            --with openai \
-            --with watchdog \
-            --with pathspec \
-            --with py7zr \
-            --with astor \
-            --with networkx \
-            --with plotly \
-            --with tomlkit \
-            --with tomli_w \
-            --with parso \
-            --with toml \
-            --with packaging \
-            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
-            -m "not integration" \
-            --cov=agilab --cov-report=xml:coverage-agi-gui.xml \
-            --junitxml=test-results/junit.xml \
-            --ignore=src/agilab/test/test_model_returns_code.py \
-            src/agilab/test \
-            test/test_orchestrate_cluster.py \
-            test/test_orchestrate_distribution.py \
-            test/test_orchestrate_execute.py \
-            test/test_orchestrate_page_helpers.py \
-            test/test_orchestrate_services.py \
-            test/test_orchestrate_support.py \
-            test/test_pipeline_ai.py \
-            test/test_pipeline_editor.py \
-            test/test_pipeline_lab.py \
-            test/test_pipeline_openai.py \
-            test/test_pipeline_runtime.py \
-            test/test_pipeline_service_guard.py \
-            test/test_pipeline_sidebar.py \
-            test/test_pipeline_steps.py \
-            test/test_pipeline_views.py \
-            test/test_ui_pages.py
+          timeout 12m bash -lc '
+            COVERAGE_FILE=.coverage.agi-gui uv run --no-project \
+              --with-editable ./src/agilab/core/agi-env \
+              --with-editable ./src/agilab/core/agi-node \
+              --with-editable ./src/agilab/core/agi-cluster \
+              --with-editable ./src/agilab/core/agi-core \
+              --with pytest \
+              --with pytest-cov \
+              --with pytest-asyncio \
+              --with streamlit \
+              --with streamlit-modal \
+              --with streamlit_code_editor \
+              --with mlflow \
+              --with openai \
+              --with watchdog \
+              --with pathspec \
+              --with py7zr \
+              --with astor \
+              --with networkx \
+              --with plotly \
+              --with tomlkit \
+              --with tomli_w \
+              --with parso \
+              --with toml \
+              --with packaging \
+              python -m pytest -q --maxfail=1 --disable-warnings -o addopts="" \
+              -m "not integration" \
+              --cov=agilab --cov-report=xml:coverage-agi-gui.xml \
+              --junitxml=test-results/junit.xml \
+              --ignore=src/agilab/test/test_model_returns_code.py \
+              src/agilab/test \
+              test/test_orchestrate_cluster.py \
+              test/test_orchestrate_distribution.py \
+              test/test_orchestrate_execute.py \
+              test/test_orchestrate_page_helpers.py \
+              test/test_orchestrate_services.py \
+              test/test_orchestrate_support.py \
+              test/test_pipeline_ai.py \
+              test/test_pipeline_editor.py \
+              test/test_pipeline_lab.py \
+              test/test_pipeline_openai.py \
+              test/test_pipeline_runtime.py \
+              test/test_pipeline_service_guard.py \
+              test/test_pipeline_sidebar.py \
+              test/test_pipeline_steps.py \
+              test/test_pipeline_views.py \
+              test/test_ui_pages.py
+          '
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
