@@ -33,7 +33,10 @@ Main Content Area
     * ``<module> args``: edit the run arguments managed in ``app_args.py``. You
       can toggle between the generated form UI and the optional custom snippet
       saved in ``app_args_form.py``. Saved values update ``[args]`` in
-      ``app_settings.toml``.
+      ``app_settings.toml``. Custom forms may also surface derived preview
+      metrics computed from the current inputs and the latest generated summary
+      artefacts. When they do, the preview should match the metric written back
+      by the app after ``RUN`` so the UI and exported reports stay aligned.
     * ``Distribute details``: generates the ``AGI.get_distrib`` snippet and the
       ``CHECK DISTRIBUTE`` action. When the command succeeds the ``Distribution
       tree`` expander plots the resulting work plan (DAG or tree) and ``Workplan``
