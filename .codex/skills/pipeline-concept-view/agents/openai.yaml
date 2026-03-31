@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pipeline Concept View"
+  short_description: "Add conceptual views to pipeline UIs"
+  default_prompt: "Use $pipeline-concept-view to add a conceptual pipeline view beside the execution one."

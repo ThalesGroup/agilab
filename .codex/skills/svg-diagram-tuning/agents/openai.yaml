@@ -1,0 +1,4 @@
+interface:
+  display_name: "SVG Diagram Tuning"
+  short_description: "Tune SVG diagrams for readability"
+  default_prompt: "Use $svg-diagram-tuning to clean up this SVG diagram for report readability."

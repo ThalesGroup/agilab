@@ -1,0 +1,4 @@
+interface:
+  display_name: "AGILab Lab Steps Review"
+  short_description: "Review and simplify lab_steps.toml"
+  default_prompt: "Use $agilab-lab-steps-review to review this lab_steps.toml for clarity and flow."
