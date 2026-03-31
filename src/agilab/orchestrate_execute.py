@@ -20,7 +20,7 @@ else:
     _MATPLOTLIB_IMPORT_ERROR = None
 
 from agi_env import AgiEnv
-from agi_env.pagelib import cached_load_df, find_files, open_new_tab, save_csv
+from agi_env.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
 
@@ -550,7 +550,10 @@ async def render_execute_section(
             source_preview_name = str(source_preview_path)
 
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
-        st.dataframe(df_preview)
+        render_dataframe_preview(
+            df_preview,
+            truncation_label="Browser preview limited",
+        )
         if source_preview_name:
             st.caption(f"Previewing {source_preview_name}")
     elif isinstance(graph_preview, nx.Graph):
