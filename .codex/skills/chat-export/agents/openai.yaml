@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chat Export"
+  short_description: "Export chats into reusable artifacts"
+  default_prompt: "Use $chat-export to turn this conversation into a structured export."
