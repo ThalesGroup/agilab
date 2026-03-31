@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-03-20
+  updated: 2026-03-31
 ---
 
 # Testing Skill (AGILAB)
@@ -44,6 +44,16 @@ Use this skill when validating changes.
   - exit code `2`: often environment/tooling/collection failure
   - exit code `1`: often an actual test failure after collection
 - For AGILab monorepo coverage jobs, do not assume the root `uv run pytest ...` environment is the right reproduction target. Use the isolated no-project commands above first.
+
+## Preview / Report Alignment Regressions
+
+- When a custom form shows a derived metric and the runtime also writes that metric into a summary/report, prefer testing the shared backend helper first.
+- Add a targeted regression for the generated artifact fields as well, so the persisted report stays aligned with the preview contract.
+- Only add a full Streamlit `AppTest` when the bug is in widget wiring or session-state behavior. If the logic lives in a backend helper, test that helper directly and keep the UI test surface small.
+- Good alignment checks include:
+  - preview helper returns the expected metric/range
+  - generated summary contains the same field names
+  - the summary value is derived from the same scale/selection logic as the preview, not from a second implementation
 
 ## Adding Coverage (Easy Wins)
 
