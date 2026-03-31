@@ -58,7 +58,7 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_env.pagelib import find_files, load_df, render_logo, _dump_toml_payload
+from agi_env.pagelib import find_files, load_df, render_dataframe_preview, render_logo, _dump_toml_payload
 import tomllib as _toml
 
 
@@ -1161,7 +1161,10 @@ def page():
             st.markdown(legend_html, unsafe_allow_html=True)
     loaded_df = st.session_state.get("loaded_df")
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-        st.dataframe(loaded_df)
+        render_dataframe_preview(
+            loaded_df,
+            truncation_label="Table preview limited",
+        )
     else:
         st.info("No data loaded yet. Select one or more datasets from the sidebar.")
 
