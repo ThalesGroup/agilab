@@ -112,6 +112,7 @@ def test_pipeline_lock_rejects_parallel_and_recycles_stale(tmp_path, monkeypatch
     first = module._acquire_pipeline_run_lock(env, "idx")
     assert first is not None
     lock_path = Path(first["path"])
+    assert lock_path == tmp_path / ".control" / "pipeline" / "flight" / "pipeline_run.lock"
     assert lock_path.exists()
 
     blocked = module._acquire_pipeline_run_lock(env, "idx")
