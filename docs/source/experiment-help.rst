@@ -15,8 +15,8 @@ Sidebar
   resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
 - ``Import Notebook``: upload an ``.ipynb`` file to seed the conversation when
   working offline.
-- ``Open MLflow UI``: launches the MLflow dashboard in a new browser tab once
-  ``activate_mlflow`` has started the local tracking server.
+- ``MLflow``: shows whether the local tracking UI is running and exposes an
+  ``Open UI`` link. The UI is a tracker view, not another execution button.
 
 Main Content Area
 -----------------
@@ -64,6 +64,32 @@ saved code remains unchanged until you explicitly regenerate or replace it.
 This avoids hidden behaviour changes, but it also means stale generated steps
 must be refreshed deliberately.
 
+MLflow tracking
+~~~~~~~~~~~~~~~
+Pipeline execution and MLflow tracking now share the same runtime contract:
+
+.. figure:: diagrams/pipeline_mlflow_tracking.svg
+   :alt: Diagram showing one parent MLflow run for the whole pipeline and one nested run per executed step.
+   :align: center
+   :width: 90%
+
+   PIPELINE creates one parent MLflow run per execution, then one nested run per step, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
+
+* ``Run pipeline`` creates one parent MLflow run for the whole lab execution.
+* Every executed step becomes a nested MLflow run with its own metadata.
+* The tracked metadata comes from ``lab_steps.toml`` and includes the step
+  description, prompt/question, selected model, execution engine, and runtime.
+* Captured stdout, the executed snippet, the run log, and produced dataframe
+  artefacts are logged to the same tracking store when they exist.
+
+This means MLflow is no longer just a nearby dashboard. It is the execution
+trace for PIPELINE runs, while the sidebar remains the place where you inspect
+that trace.
+
+The tracking store is the directory configured by ``MLFLOW_TRACKING_DIR``.
+Subprocess-based steps receive the same ``MLFLOW_TRACKING_URI`` as in-process
+steps, so both execution paths are visible from the same MLflow UI.
+
 HISTORY
 ~~~~~~~
 Inspect or tweak the raw ``lab_steps.toml`` via the code editor. Saving the
@@ -83,6 +109,8 @@ Use these checks if Pipeline steps are confusing or fail to execute:
   are enabled for the selected execution environment.
 - If an imported notebook is not loaded, re-upload ``.ipynb`` and then reopen the
   step editor to force a refresh.
+- If MLflow stays empty after a run, confirm that the step completed and that
+  the tracking store under ``MLFLOW_TRACKING_DIR`` is writable.
 - If MLflow link fails to open, verify ``activate_mlflow`` completed and port
   forwarding is not blocked locally.
 
