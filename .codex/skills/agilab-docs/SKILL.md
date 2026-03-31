@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-02-26
+  updated: 2026-03-31
 ---
 
 # Docs Skill (AGILAB)
@@ -13,6 +13,9 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 ## Source Of Truth
 
 - Canonical editable docs source is `../thales_agilab/docs/source`.
+- The public Pages workflow in `agilab` currently builds from the mirrored
+  `docs/source` tree in this repo, so that mirror must be kept in sync with the
+  canonical source for published pages to stay correct.
 - `docs/html` in this repo is generated output only (including `docs/html/_sources`).
 - Never hand-edit files under `docs/html`.
 - Do not change visible page labels directly in `docs/html` without regenerating from
@@ -21,24 +24,31 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 ## Required Workflow (No Direct `docs/html` Edits)
 
 1. Edit the canonical source file under `../thales_agilab/docs/source`.
-2. Rebuild generated docs into this repo's `docs/html`.
-3. Verify the generated page renders the updated labels in:
+2. Sync the corresponding file into this repo's mirrored `docs/source` when the
+   published Pages site depends on it.
+3. Rebuild generated docs into this repo's `docs/html`.
+4. Verify the generated page renders the updated labels in:
    - `docs/html/<page>.html`
    - any sidebar or navigation fragments in the same HTML build
-4. Verify the change exists in both:
+5. Verify the change exists in both:
    - `../thales_agilab/docs/source/<file>`
+   - `docs/source/<file>` when it is part of the public mirror
    - `docs/html/<file>` (or `docs/html/_sources/<file>.txt`)
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.
 
 ## Source vs Published Pages
 
-- The Pages site (`thalesgroup.github.io/agilab`) is deployed from committed
-  `docs/html` artifacts in `agilab`, not from source.
+- The Pages workflow currently builds `docs/html` from `docs/source` in the
+  `agilab` repo.
+- That means updating only `../thales_agilab/docs/source` is not sufficient for
+  public publication; the mirrored `agilab/docs/source` copy must also be
+  refreshed when the page is public.
 - For a mismatch report (old labels still visible online), check:
   1. source in `../thales_agilab/docs/source` is updated,
-  2. `../agilab/docs/html` has been regenerated,
-  3. a publish/redeploy has been triggered after the commit (push to the branch path
+  2. the mirrored file in `../agilab/docs/source` was refreshed when needed,
+  3. `../agilab/docs/html` has been regenerated locally for validation,
+  4. a publish/redeploy has been triggered after the commit (push to the branch path
      watched by `docs-publish.yaml`).
 - Keep a habit of validating one canonical page after publish:
   - confirm `https://thalesgroup.github.io/agilab/agilab-help.html` and sibling pages
@@ -46,6 +56,8 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 
 ## Commit Guardrail
 
+- Do stage/commit mirrored `docs/source/**` updates in `agilab` when a public
+  page depends on the change.
 - Do not stage or commit `docs/html/**` changes unless:
   1. a corresponding source edit exists under `../thales_agilab/docs/source/**`, and
   2. `docs/html/**` was regenerated from that source.

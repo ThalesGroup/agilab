@@ -53,7 +53,9 @@ summarises the supported keys.
      - Target directory for exported artefacts.
    * - ``MLFLOW_TRACKING_DIR``
      - ``~/.mlflow``
-     - Where MLflow tracking data is stored when experiments are enabled.
+     - Where MLflow tracking data is stored. The PIPELINE page serves the local
+       MLflow UI from this directory and records parent/step run metadata and
+       artefacts there.
    * - ``AGI_PAGES_DIR``
      - ``agilab/apps-pages``
      - Location of web page bundles loaded by the Analysis page.
@@ -71,8 +73,9 @@ Additional host specific keys are supported for worker provisioning (for example
 Remember to restart the web interface session after changing ``$HOME/.agilab/.env`` so ``AgiEnv`` picks
 up the new values.
 
-.. note::
+Security note
+-------------
 
-   Prefer environment variables or ``$HOME/.agilab/.env`` for secrets such as
-   ``OPENAI_API_KEY`` and ``CLUSTER_CREDENTIALS``. Avoid passing them on the
-   command line because they can leak into shell history and process listings.
+Prefer environment variables or ``$HOME/.agilab/.env`` for secrets such as
+``OPENAI_API_KEY`` and ``CLUSTER_CREDENTIALS``. Avoid passing them on the
+command line because shell history and process listings can expose them.
