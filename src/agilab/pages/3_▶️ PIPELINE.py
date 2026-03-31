@@ -460,10 +460,92 @@ def _pipeline_lock_owner_text(payload: Dict[str, Any], age_sec: Optional[float])
     return f"host={owner_host}, pid={owner_pid}, app={owner_app}, age={age_txt}"
 
 
+def _pipeline_lock_owner_alive(payload: Dict[str, Any]) -> Optional[bool]:
+    """Return whether the lock owner PID appears alive on this host."""
+    owner_host = str(payload.get("host", "") or "")
+    if not owner_host or owner_host != socket.gethostname():
+        return None
+    try:
+        owner_pid = int(payload.get("pid"))
+    except Exception:
+        return None
+    if owner_pid <= 0:
+        return None
+    try:
+        os.kill(owner_pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return None
+
+
+def _inspect_pipeline_run_lock(env: AgiEnv) -> Optional[Dict[str, Any]]:
+    """Return current lock metadata for UI and stale-lock decisions."""
+    lock_path = _pipeline_lock_path(env)
+    if not lock_path.exists():
+        return None
+    payload = _read_pipeline_lock_payload(lock_path)
+    age_sec: Optional[float]
+    try:
+        age_sec = max(time.time() - lock_path.stat().st_mtime, 0.0)
+    except Exception:
+        age_sec = None
+    owner_alive = _pipeline_lock_owner_alive(payload)
+    ttl_sec = _pipeline_lock_ttl_seconds()
+    stale_reason: Optional[str] = None
+    if isinstance(age_sec, float) and age_sec > ttl_sec:
+        stale_reason = f"heartbeat expired ({age_sec:.0f}s > {ttl_sec:.0f}s)"
+    elif owner_alive is False:
+        stale_reason = "owner process is no longer running on this host"
+    return {
+        "path": lock_path,
+        "payload": payload,
+        "age_sec": age_sec,
+        "owner_alive": owner_alive,
+        "owner_text": _pipeline_lock_owner_text(payload, age_sec),
+        "stale_reason": stale_reason,
+        "is_stale": bool(stale_reason),
+    }
+
+
+def _clear_pipeline_run_lock(
+    env: AgiEnv,
+    index_page: str,
+    placeholder: Optional[Any] = None,
+    *,
+    reason: str,
+) -> bool:
+    """Remove the current pipeline lock, if any, and log why."""
+    lock_state = _inspect_pipeline_run_lock(env)
+    if not lock_state:
+        return True
+    lock_path = Path(lock_state["path"])
+    try:
+        lock_path.unlink()
+        _push_run_log(
+            index_page,
+            f"Removed pipeline lock ({reason}): {lock_path}",
+            placeholder,
+        )
+        return True
+    except FileNotFoundError:
+        return True
+    except Exception as exc:
+        msg = f"Unable to remove pipeline lock `{lock_path}`: {exc}"
+        st.error(msg)
+        _push_run_log(index_page, msg, placeholder)
+        return False
+
+
 def _acquire_pipeline_run_lock(
     env: AgiEnv,
     index_page: str,
     placeholder: Optional[Any] = None,
+    *,
+    force: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Acquire a cross-process pipeline lock with stale lock cleanup."""
     lock_path = _pipeline_lock_path(env)
@@ -479,7 +561,15 @@ def _acquire_pipeline_run_lock(
         "created_at": now,
         "heartbeat_at": now,
     }
-    ttl_sec = _pipeline_lock_ttl_seconds()
+
+    if force:
+        if not _clear_pipeline_run_lock(
+            env,
+            index_page,
+            placeholder,
+            reason="forced by user before starting a new run",
+        ):
+            return None
 
     for _ in range(2):
         try:
@@ -489,34 +579,30 @@ def _acquire_pipeline_run_lock(
             _push_run_log(index_page, f"Pipeline lock acquired: {lock_path}", placeholder)
             return {"path": lock_path, "token": token}
         except FileExistsError:
-            owner_payload = _read_pipeline_lock_payload(lock_path)
-            age_sec: Optional[float]
-            try:
-                age_sec = max(time.time() - lock_path.stat().st_mtime, 0.0)
-            except Exception:
-                age_sec = None
-
-            if isinstance(age_sec, float) and age_sec > ttl_sec:
-                try:
-                    lock_path.unlink()
-                    _push_run_log(
-                        index_page,
-                        f"Removed stale pipeline lock ({age_sec:.0f}s > {ttl_sec:.0f}s): {lock_path}",
-                        placeholder,
-                    )
+            lock_state = _inspect_pipeline_run_lock(env) or {
+                "path": lock_path,
+                "payload": {},
+                "age_sec": None,
+                "owner_text": _pipeline_lock_owner_text({}, None),
+                "stale_reason": None,
+                "is_stale": False,
+            }
+            if lock_state.get("is_stale"):
+                reason = str(lock_state.get("stale_reason") or "stale lock")
+                if _clear_pipeline_run_lock(
+                    env,
+                    index_page,
+                    placeholder,
+                    reason=reason,
+                ):
                     continue
-                except FileNotFoundError:
-                    continue
-                except Exception as exc:
-                    msg = f"Unable to remove stale pipeline lock `{lock_path}`: {exc}"
-                    st.warning(msg)
-                    _push_run_log(index_page, msg, placeholder)
-                    return None
+                return None
 
-            owner_txt = _pipeline_lock_owner_text(owner_payload, age_sec)
+            owner_txt = str(lock_state.get("owner_text") or "?")
             msg = (
                 "Another pipeline execution is already running. "
-                f"Owner: {owner_txt}. Current run cancelled."
+                f"Owner: {owner_txt}. Current run cancelled. "
+                "If that run was interrupted, use 'Force unlock and run'."
             )
             st.warning(msg)
             _push_run_log(index_page, msg, placeholder)
@@ -792,6 +878,7 @@ def run_all_steps(
     module_path: Path,
     env: AgiEnv,
     log_placeholder: Optional[Any] = None,
+    force_lock_clear: bool = False,
 ) -> None:
     """Execute all steps sequentially, honouring per-step virtual environments."""
     if log_placeholder is None:
@@ -822,7 +909,12 @@ def run_all_steps(
     if not sequence:
         sequence = list(range(len(steps)))
 
-    lock_handle = _acquire_pipeline_run_lock(env, index_page_str, log_placeholder)
+    lock_handle = _acquire_pipeline_run_lock(
+        env,
+        index_page_str,
+        log_placeholder,
+        force=force_lock_clear,
+    )
     if lock_handle is None:
         return
 
@@ -1351,6 +1443,7 @@ def page() -> None:
         maybe_autofix_generated_code=_maybe_autofix_generated_code,
         load_df_cached=load_df_cached,
         ensure_safe_service_template=_ensure_safe_service_template,
+        inspect_pipeline_run_lock=_inspect_pipeline_run_lock,
         refresh_pipeline_run_lock=_refresh_pipeline_run_lock,
         acquire_pipeline_run_lock=_acquire_pipeline_run_lock,
         release_pipeline_run_lock=_release_pipeline_run_lock,
