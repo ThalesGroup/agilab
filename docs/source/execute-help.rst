@@ -67,6 +67,9 @@ For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
    ``[args]`` then regenerate or re-import the matching snippet in Pipeline.
 
 This avoids running stale code that still references old app argument values.
+For example, ``sat_trajectory_project`` snippets now use
+``total_satellites_wanted``; older exports using ``number_of_sat`` or
+``number_of_tle_satellites`` will fail fast until you regenerate them.
 
 Service Mode Health
 -------------------
