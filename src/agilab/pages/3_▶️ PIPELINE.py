@@ -429,7 +429,7 @@ def _pipeline_lock_ttl_seconds() -> float:
 def _pipeline_lock_path(env: AgiEnv) -> Path:
     """Return shared lock path for one app pipeline execution."""
     target = str(getattr(env, "target", "") or getattr(env, "app", "") or "agilab").strip()
-    relative = Path("pipeline") / target / PIPELINE_LOCK_FILENAME
+    relative = Path(".control") / "pipeline" / target / PIPELINE_LOCK_FILENAME
     try:
         path = env.resolve_share_path(relative)
     except Exception:
