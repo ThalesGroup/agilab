@@ -96,6 +96,7 @@ class PipelineLabDeps:
     maybe_autofix_generated_code: Callable[..., Any]
     load_df_cached: Callable[..., Any]
     ensure_safe_service_template: Callable[..., Any]
+    inspect_pipeline_run_lock: Callable[..., Any]
     refresh_pipeline_run_lock: Callable[..., Any]
     acquire_pipeline_run_lock: Callable[..., Any]
     release_pipeline_run_lock: Callable[..., Any]
@@ -212,6 +213,7 @@ def display_lab_tab(
     ask_gpt = deps.ask_gpt
     _maybe_autofix_generated_code = deps.maybe_autofix_generated_code
     load_df_cached = deps.load_df_cached
+    _inspect_pipeline_run_lock = deps.inspect_pipeline_run_lock
     _refresh_pipeline_run_lock = deps.refresh_pipeline_run_lock
     _acquire_pipeline_run_lock = deps.acquire_pipeline_run_lock
     _release_pipeline_run_lock = deps.release_pipeline_run_lock
@@ -1319,13 +1321,75 @@ def display_lab_tab(
             st.session_state[sequence_state_key] = final_sequence
             _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
-    run_all_clicked = st.button(
-        "Run pipeline",
-        key=f"{index_page_str}_run_all",
-        help="Execute every step sequentially using its saved virtual environment.",
-        type="secondary",
-        width="stretch",
-    )
+    lock_state = _inspect_pipeline_run_lock(env)
+    if lock_state:
+        owner_text = str(lock_state.get("owner_text") or "unknown owner")
+        stale_reason = lock_state.get("stale_reason")
+        if stale_reason:
+            st.info(
+                f"Pipeline lock detected for this app, but it looks stale: {owner_text}. "
+                f"Reason: {stale_reason}."
+            )
+        else:
+            st.warning(
+                f"Pipeline lock detected for this app: {owner_text}. "
+                "Use force unlock only if the previous run was interrupted."
+            )
+
+    force_run_clicked = False
+    force_run_arm_clicked = False
+    force_run_cancel_clicked = False
+    force_run_confirm_key = f"{index_page_str}_confirm_force_run"
+    run_col, force_col = st.columns(2)
+    with run_col:
+        run_all_clicked = st.button(
+            "Run pipeline",
+            key=f"{index_page_str}_run_all",
+            help="Execute every step sequentially using its saved virtual environment.",
+            type="secondary",
+            width="stretch",
+        )
+    with force_col:
+        if lock_state:
+            if lock_state.get("is_stale"):
+                force_run_clicked = st.button(
+                    "Clear stale lock and run",
+                    key=f"{index_page_str}_force_run_stale",
+                    help="Remove the stale pipeline lock and start a new run.",
+                    type="primary",
+                    width="stretch",
+                )
+            elif st.session_state.get(force_run_confirm_key, False):
+                force_run_clicked = st.button(
+                    "Confirm force unlock",
+                    key=f"{index_page_str}_force_run_confirm",
+                    help="Remove the current lock and start a new run. Use this only if the previous run is gone.",
+                    type="primary",
+                    width="stretch",
+                )
+            else:
+                force_run_arm_clicked = st.button(
+                    "Force unlock and run",
+                    key=f"{index_page_str}_force_run_arm",
+                    help="Use only when a previous pipeline run was interrupted and left a lock behind.",
+                    type="secondary",
+                    width="stretch",
+                )
+
+    if force_run_arm_clicked:
+        st.session_state[force_run_confirm_key] = True
+        st.rerun()
+
+    if st.session_state.get(force_run_confirm_key, False) and not (force_run_clicked or force_run_arm_clicked):
+        force_run_cancel_clicked = st.button(
+            "Cancel force unlock",
+            key=f"{index_page_str}_force_run_cancel",
+            type="secondary",
+            width="stretch",
+        )
+    if force_run_cancel_clicked:
+        st.session_state.pop(force_run_confirm_key, None)
+        st.rerun()
 
     st.divider()
 
@@ -1394,7 +1458,8 @@ def display_lab_tab(
             st.success("Deleted steps restored.")
             st.rerun()
 
-    if run_all_clicked:
+    if run_all_clicked or force_run_clicked:
+        st.session_state.pop(force_run_confirm_key, None)
         run_placeholder = _get_run_placeholder(index_page_str)
         log_file_path, log_error = _prepare_run_log_file(index_page_str, env, prefix="pipeline")
         if log_file_path:
@@ -1412,7 +1477,15 @@ def display_lab_tab(
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
-            run_all_steps(lab_dir, index_page_str, steps_file, module_path, env, log_placeholder=run_placeholder)
+            run_all_steps(
+                lab_dir,
+                index_page_str,
+                steps_file,
+                module_path,
+                env,
+                log_placeholder=run_placeholder,
+                force_lock_clear=force_run_clicked,
+            )
         finally:
             st.session_state.pop(f"{index_page_str}__run_log_file", None)
         st.rerun()
