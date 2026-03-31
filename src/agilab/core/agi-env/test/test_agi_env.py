@@ -70,6 +70,25 @@ def test_humanize_validation_errors(env):
     errors = env.humanize_validation_errors(exc.value)
     assert any('name' in e for e in errors)
 
+
+def test_humanize_validation_errors_model_level(env):
+    from pydantic import BaseModel, ValidationError, model_validator
+
+    class TestModel(BaseModel):
+        value: int = 1
+
+        @model_validator(mode="before")
+        @classmethod
+        def fail(cls, data):
+            raise ValueError("rename hint")
+
+    with pytest.raises(ValidationError) as exc:
+        TestModel()
+
+    errors = env.humanize_validation_errors(exc.value)
+    assert any("(model)" in e for e in errors)
+    assert any("rename hint" in e for e in errors)
+
 def test_create_rename_map_basic(env, tmp_path: Path):
     src = tmp_path / 'alpha_project'
     dst = tmp_path / 'bravo_project'
