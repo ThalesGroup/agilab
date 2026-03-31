@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report QA DOCX"
+  short_description: "QA DOCX reports for layout and wording"
+  default_prompt: "Use $report-qa-docx to review this report for missing figures and consistency issues."
