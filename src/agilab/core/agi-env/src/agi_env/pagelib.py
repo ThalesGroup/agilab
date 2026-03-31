@@ -41,6 +41,9 @@ except Exception:  # pragma: no cover
     _importlib_metadata = None  # type: ignore
 import tomllib
 
+DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
+DEFAULT_DF_PREVIEW_MAX_COLS = 40
+
 try:  # pragma: no cover - optional dependency
     import tomli_w as _tomli_writer  # type: ignore[import-not-found]
 
@@ -1498,6 +1501,36 @@ def cached_load_df(path, with_index=True, nrows=None):
         df_max_rows = None
 
     return load_df(path, with_index=with_index, nrows=df_max_rows)
+
+
+def render_dataframe_preview(
+    df: pd.DataFrame,
+    *,
+    max_rows: int = DEFAULT_DF_PREVIEW_MAX_ROWS,
+    max_cols: int = DEFAULT_DF_PREVIEW_MAX_COLS,
+    width: str = "stretch",
+    hide_index: bool = False,
+    truncation_label: Optional[str] = None,
+    **dataframe_kwargs,
+) -> None:
+    """Render a bounded dataframe preview to avoid oversized Streamlit payloads."""
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("render_dataframe_preview expects a pandas DataFrame")
+
+    row_count, col_count = df.shape
+    preview = df.iloc[:max_rows, :max_cols]
+    st.dataframe(preview, width=width, hide_index=hide_index, **dataframe_kwargs)
+
+    truncated_rows = row_count > max_rows
+    truncated_cols = col_count > max_cols
+    if truncated_rows or truncated_cols:
+        label = truncation_label or "Preview truncated"
+        details: list[str] = []
+        if truncated_rows:
+            details.append(f"showing first {min(row_count, max_rows):,} of {row_count:,} rows")
+        if truncated_cols:
+            details.append(f"showing first {min(col_count, max_cols):,} of {col_count:,} columns")
+        st.caption(f"{label}: " + ", ".join(details) + ".")
 
 def get_first_match_and_keyword(string_list, keywords_to_find):
     """

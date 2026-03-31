@@ -11,7 +11,14 @@ import tomllib
 from code_editor import code_editor
 
 from agi_env import AgiEnv
-from agi_env.pagelib import get_css_text, get_custom_buttons, get_info_bar, run_lab, save_csv
+from agi_env.pagelib import (
+    get_css_text,
+    get_custom_buttons,
+    get_info_bar,
+    render_dataframe_preview,
+    run_lab,
+    save_csv,
+)
 
 try:
     from agilab.pipeline_steps import (
@@ -1523,7 +1530,10 @@ def display_lab_tab(
         )
     loaded_df = st.session_state["loaded_df"]
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-        st.dataframe(loaded_df)
+        render_dataframe_preview(
+            loaded_df,
+            truncation_label="PIPELINE preview limited",
+        )
     else:
         st.info(
             f"No data loaded yet. Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector."
