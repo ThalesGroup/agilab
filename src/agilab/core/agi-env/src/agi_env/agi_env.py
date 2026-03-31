@@ -1531,7 +1531,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         formatted_errors = []
         for err in error.errors():
-            field = ".".join(str(loc) for loc in err["loc"])
+            field = ".".join(str(loc) for loc in err["loc"]) or "(model)"
             message = err["msg"]
             error_type = err.get("type", "unknown_error")
             input_value = err.get("ctx", {}).get("input_value", None)
