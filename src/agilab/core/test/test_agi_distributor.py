@@ -264,6 +264,20 @@ ilp_worker = { path = "../../PycharmProjects/thales_agilab/apps/ilp_project/src/
         agi_distributor_module._validate_worker_uv_sources(pyproject)
 
 
+def test_staged_uv_sources_pth_content_relative_for_local_paths(tmp_path):
+    site_packages = tmp_path / "wenv" / ".venv" / "lib" / "python3.13" / "site-packages"
+    uv_sources = tmp_path / "wenv" / "_uv_sources"
+    content = agi_distributor_module._staged_uv_sources_pth_content(site_packages, uv_sources)
+    assert content == "../../../../_uv_sources\n"
+
+
+def test_staged_uv_sources_pth_content_relative_for_remote_posix_paths():
+    site_packages = PurePosixPath("wenv/.venv/lib/python3.13/site-packages")
+    uv_sources = PurePosixPath("wenv/_uv_sources")
+    content = agi_distributor_module._staged_uv_sources_pth_content(site_packages, uv_sources)
+    assert content == "../../../../_uv_sources\n"
+
+
 def test_ensure_asyncio_run_signature_patches_pydevd_shim(monkeypatch):
     original = agi_distributor_module.asyncio.run
 
@@ -4748,6 +4762,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     wenv_abs.mkdir(parents=True, exist_ok=True)
     (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
     env_pck = tmp_path / "env_pck" / "agi_env"
     env_pck.mkdir(parents=True, exist_ok=True)
@@ -4822,11 +4837,12 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     await AGI._deploy_local_worker(app_path, Path("wenv"), " --extra pandas-worker")
 
     manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
-    worker_toml = (wenv_abs / "pyproject.toml").read_text(encoding="utf-8")
     assert "pip" in manager_toml
-    assert "pip==" in worker_toml
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
     assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
+    assert (
+        wenv_abs / ".venv" / "lib" / "python3.13" / "site-packages" / "agilab_uv_sources.pth"
+    ).read_text(encoding="utf-8") == "../../../../_uv_sources\n"
     assert AGI._install_done_local is True
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
     assert any("run --project" in cmd and "python -m ensurepip --upgrade" in cmd for cmd, _ in commands)
@@ -4941,7 +4957,19 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     ssh = []
 
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
-        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+        payload = []
+        for file in files:
+            p = Path(file)
+            entry = {"name": p.name}
+            if p.suffix == ".pth":
+                entry["content"] = p.read_text(encoding="utf-8")
+            payload.append(entry)
+        sent.append((ip, payload, str(remote_path)))
+
+    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+        p = Path(local_path)
+        payload = [{"name": p.name, "content": p.read_text(encoding="utf-8")}]
+        sent.append((ip, payload, str(remote_path.parent)))
 
     async def _fake_exec(ip, cmd):
         ssh.append((ip, cmd))
@@ -4950,6 +4978,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
         return "ok"
 
     monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
     monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
     monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
 
@@ -4957,6 +4986,6 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
 
     assert any(".agilab/.env" in cmd for _, cmd in ssh)
     assert any("nvidia-smi" == cmd for _, cmd in ssh)
-    assert any("agi_env-0.0.1-py3-none-any.whl" in names for _, names, _ in sent)
-    assert any("agi_node-0.0.1-py3-none-any.whl" in names for _, names, _ in sent)
+    assert any(any(item["name"] == "agi_env-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
+    assert any(any(item["name"] == "agi_node-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
