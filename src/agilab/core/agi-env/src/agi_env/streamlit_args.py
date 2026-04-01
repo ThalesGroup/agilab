@@ -9,7 +9,7 @@ import streamlit as st
 from pydantic import BaseModel, ValidationError
 from annotated_types import Ge, Le, MultipleOf
 
-from agi_env.pagelib import diagnose_data_directory
+from agi_env.app_args import prefer_persisted_value
 
 
 def load_args_state(
@@ -48,14 +48,12 @@ def load_args_state(
     return defaults_model, payload, settings_path
 
 
-def prefer_persisted_value(persisted_value: Any, fallback_value: Any) -> Any:
-    """Keep an explicit stored value; use ``fallback_value`` only when it is absent."""
+def diagnose_data_directory(directory: Path) -> str | None:
+    """Proxy to the pagelib diagnosis helper without importing Streamlit UI code eagerly."""
 
-    if persisted_value is None or persisted_value is False:
-        return fallback_value
-    if isinstance(persisted_value, str) and persisted_value == "":
-        return fallback_value
-    return persisted_value
+    from agi_env.pagelib import diagnose_data_directory as _diagnose_data_directory
+
+    return _diagnose_data_directory(directory)
 
 
 def _constraint_value(field, constraint_type, attr: str) -> Any | None:

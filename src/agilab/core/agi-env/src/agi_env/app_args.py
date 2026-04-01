@@ -21,6 +21,16 @@ def model_to_payload(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json")
 
 
+def prefer_persisted_value(persisted_value: Any, fallback_value: Any) -> Any:
+    """Keep an explicit stored value; use ``fallback_value`` only when it is absent."""
+
+    if persisted_value is None or persisted_value is False:
+        return fallback_value
+    if isinstance(persisted_value, str) and persisted_value == "":
+        return fallback_value
+    return persisted_value
+
+
 def merge_model_data(model: BaseModel, overrides: Mapping[str, Any] | None = None) -> BaseModel:
     """Return a copy of ``model`` with ``overrides`` applied."""
 
