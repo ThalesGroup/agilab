@@ -2515,9 +2515,9 @@ class AGI:
             return
 
         if not user:
-            user = env.user
+            user = getattr(env, "user", None) or getpass.getuser()
         if not password:
-            password = env.password
+            password = getattr(env, "password", None)
 
         user_at_ip = f"{user}@{ip}" if user else ip
         remote = f"{user_at_ip}:{remote_path}"
@@ -2537,7 +2537,7 @@ class AGI:
         ]
         if local_path.is_dir():
             scp_cmd.append("-r")
-        ssh_key_path = env.ssh_key_path
+        ssh_key_path = getattr(env, "ssh_key_path", None)
         if ssh_key_path:
             scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
         scp_cmd.append(str(local_path))
@@ -3019,7 +3019,7 @@ class AGI:
                         src_pyproject=pyproject_src,
                         dest_pyproject=tmp_pyproject,
                         stage_root=tmp_dir,
-                        log_rewrites=bool(env.verbose),
+                        log_rewrites=bool(getattr(env, "verbose", 0)),
                     )
                     files_to_send.append(tmp_pyproject)
                     files_to_send.extend(staged_entries)
@@ -4352,7 +4352,7 @@ class AGI:
             src_pyproject=worker_pyproject_src,
             dest_pyproject=worker_pyproject_dest,
             stage_root=env.wenv_abs,
-            log_rewrites=bool(env.verbose),
+            log_rewrites=bool(getattr(env, "verbose", 0)),
         )
         _validate_worker_uv_sources(worker_pyproject_dest)
 
