@@ -98,10 +98,50 @@ def step_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
     return ""
 
 
-def step_label_for_multiselect(idx: int, entry: Optional[Dict[str, Any]]) -> str:
+def step_project_name(entry: Optional[Dict[str, Any]], env: Optional[AgiEnv] = None) -> str:
+    """Return the best available project/app name for a saved step."""
+    if not isinstance(entry, dict):
+        return ""
+
+    app_name = extract_step_app_name(entry.get("C", ""))
+    if app_name:
+        return app_name
+
+    runtime = normalize_runtime_path(entry.get("E", ""), env=env)
+    if not runtime:
+        return ""
+
+    try:
+        candidate = Path(runtime).expanduser()
+    except Exception:
+        candidate = Path(str(runtime))
+
+    name = candidate.name.strip()
+    if name == ".venv":
+        name = candidate.parent.name.strip()
+    if name:
+        return name
+
+    text = str(runtime).replace("\\", "/").rstrip("/")
+    return text.split("/")[-1].strip() if text else ""
+
+
+def step_label_for_multiselect(
+    idx: int,
+    entry: Optional[Dict[str, Any]],
+    *,
+    env: Optional[AgiEnv] = None,
+) -> str:
     """Label for the step-order multiselect widget."""
     summary = step_summary(entry)
-    return f"Step {idx + 1}: {summary}" if summary else f"Step {idx + 1}"
+    project = step_project_name(entry, env=env)
+    if summary and project:
+        return f"Step {idx + 1}: [{project}] {summary}"
+    if summary:
+        return f"Step {idx + 1}: {summary}"
+    if project:
+        return f"Step {idx + 1}: [{project}]"
+    return f"Step {idx + 1}"
 
 
 def step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str, Any]]) -> str:
