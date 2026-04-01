@@ -58,68 +58,72 @@ Positioning vs. other tools
 Framework comparison
 --------------------
 
-The table below is deliberately practical: it focuses on where teams usually
-start, what each tool is strongest at, and why AGILab is not simply a drop-in
-replacement for them.
+The comparison below stays deliberately practical and avoids a wide table so it
+renders cleanly on narrower viewports.
 
-.. list-table:: AGILab compared with adjacent workflow tools
-   :widths: 18 32 18 32
-   :header-rows: 1
+.. rubric:: AGILab
 
-   * - Tool
-     - Primary centre of gravity
-     - Best fit
-     - Positioning note
-   * - AGILab
-     - Integrated experimentation and execution workspace spanning managed
-       environments, distributed workers, pipeline replay, service health, and
-       analysis pages.
-     - Engineering or research teams that want one product to cover setup,
-       execution, validation, and operator-facing workflows during the
-       experimentation phase.
-     - Strongest when the problem is not only defining a pipeline, but also
-       operating reusable application workflows with managed runtimes and a
-       consistent UI/CLI control path.
-   * - Kedro
-     - Code-first data/ML pipeline engineering with modular pipelines, a data
-       catalog, hooks, runners, and Kedro-Viz.
-     - Teams that want a structured Python project for reproducible pipelines
-       and plan to plug orchestration and infrastructure in around it.
-     - AGILab is less about a pipeline framework in isolation and more about a
-       single operator-facing workspace: install, distribute, run, pipeline
-       replay, MLflow-traced execution, and analysis in one product.
-   * - Dagster
-     - Asset-centric orchestration with integrated lineage, observability,
-       automation, and testing.
-     - Data platform teams treating orchestration and asset health as the
-       backbone of the platform.
-     - AGILab is earlier-phase and more experiment-centric. It provides
-       managed runtimes, domain apps, and researcher/operator workflows rather
-       than a full asset-orchestration control plane.
-   * - Prefect
-     - Python-native orchestration of flows, tasks, deployments, and dynamic
-       execution patterns.
-     - Teams that want orchestration logic to stay close to normal Python code
-       with lightweight deployment options.
-     - AGILab wraps more of the surrounding lifecycle directly in the product:
-       environment bootstrapping, worker packaging, distribution planning,
-       service mode, and analysis pages.
-   * - Metaflow
-     - Human-friendly Python library for taking data science workflows from
-       local prototyping to scaled and production deployments.
-     - Data science teams that want a unified Python API across local,
-       scaled, and production-style execution.
-     - AGILab is more UI- and operations-oriented. It emphasizes guided
-       orchestration, explicit app packaging, and shared operator flows over a
-       single Python library abstraction.
-   * - Airflow
-     - Batch workflow scheduling, monitoring, and broad system integration via
-       DAGs, operators, hooks, and the web UI.
-     - Platform or data engineering teams running recurring, scheduled,
-       batch-oriented pipelines across many external systems.
-     - AGILab is not a general-purpose batch scheduler. It is stronger when
-       the problem is experiment packaging, managed execution environments,
-       distributed research workloads, and app-centric user workflows.
+- **Primary centre of gravity**: integrated experimentation and execution
+  workspace spanning managed environments, distributed workers, pipeline
+  replay, service health, and analysis pages.
+- **Best fit**: engineering or research teams that want one product to cover
+  setup, execution, validation, and operator-facing workflows during the
+  experimentation phase.
+- **Positioning note**: strongest when the problem is not only defining a
+  pipeline, but also operating reusable application workflows with managed
+  runtimes and a consistent UI/CLI control path.
+
+.. rubric:: Kedro
+
+- **Primary centre of gravity**: code-first data/ML pipeline engineering with
+  modular pipelines, a data catalog, hooks, runners, and Kedro-Viz.
+- **Best fit**: teams that want a structured Python project for reproducible
+  pipelines and plan to plug orchestration and infrastructure in around it.
+- **Positioning note**: AGILab is less about a pipeline framework in isolation
+  and more about a single operator-facing workspace: install, distribute, run,
+  pipeline replay, MLflow-traced execution, and analysis in one product.
+
+.. rubric:: Dagster
+
+- **Primary centre of gravity**: asset-centric orchestration with integrated
+  lineage, observability, automation, and testing.
+- **Best fit**: data platform teams treating orchestration and asset health as
+  the backbone of the platform.
+- **Positioning note**: AGILab is earlier-phase and more experiment-centric. It
+  provides managed runtimes, domain apps, and researcher/operator workflows
+  rather than a full asset-orchestration control plane.
+
+.. rubric:: Prefect
+
+- **Primary centre of gravity**: Python-native orchestration of flows, tasks,
+  deployments, and dynamic execution patterns.
+- **Best fit**: teams that want orchestration logic to stay close to normal
+  Python code with lightweight deployment options.
+- **Positioning note**: AGILab wraps more of the surrounding lifecycle directly
+  in the product: environment bootstrapping, worker packaging, distribution
+  planning, service mode, and analysis pages.
+
+.. rubric:: Metaflow
+
+- **Primary centre of gravity**: human-friendly Python library for taking data
+  science workflows from local prototyping to scaled and production
+  deployments.
+- **Best fit**: data science teams that want a unified Python API across local,
+  scaled, and production-style execution.
+- **Positioning note**: AGILab is more UI- and operations-oriented. It
+  emphasizes guided orchestration, explicit app packaging, and shared operator
+  flows over a single Python library abstraction.
+
+.. rubric:: Airflow
+
+- **Primary centre of gravity**: batch workflow scheduling, monitoring, and
+  broad system integration via DAGs, operators, hooks, and the web UI.
+- **Best fit**: platform or data engineering teams running recurring,
+  scheduled, batch-oriented pipelines across many external systems.
+- **Positioning note**: AGILab is not a general-purpose batch scheduler. It is
+  stronger when the problem is experiment packaging, managed execution
+  environments, distributed research workloads, and app-centric user
+  workflows.
 
 Selection guide
 ---------------
