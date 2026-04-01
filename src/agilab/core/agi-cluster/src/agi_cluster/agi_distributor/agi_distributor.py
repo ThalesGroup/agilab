@@ -300,6 +300,59 @@ def _stage_uv_sources_for_copied_pyproject(
 
     return [staged_root] if staged_any and staged_root.exists() else []
 
+
+def _missing_uv_source_paths(pyproject_path: Path) -> list[tuple[str, str]]:
+    """Return unresolved ``tool.uv.sources.*.path`` entries from a copied pyproject."""
+
+    try:
+        data = tomlkit.parse(pyproject_path.read_text())
+    except FileNotFoundError:
+        return []
+
+    sources = (
+        data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(data, dict)
+        else None
+    )
+    if not isinstance(sources, dict):
+        return []
+
+    missing: list[tuple[str, str]] = []
+    root = pyproject_path.parent
+    for name, meta in sources.items():
+        if not isinstance(meta, dict):
+            continue
+        path_value = meta.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            continue
+        candidate = Path(path_value).expanduser()
+        if not candidate.is_absolute():
+            candidate = (root / candidate).resolve(strict=False)
+        else:
+            candidate = candidate.resolve(strict=False)
+        if not candidate.exists():
+            missing.append((str(name), path_value))
+
+    return missing
+
+
+def _validate_worker_uv_sources(pyproject_path: Path) -> None:
+    """Fail fast when a copied worker pyproject still points at missing local sources."""
+
+    missing = _missing_uv_source_paths(pyproject_path)
+    if not missing:
+        return
+
+    details = ", ".join(f"{name} -> {path}" for name, path in missing[:4])
+    if len(missing) > 4:
+        details += f", +{len(missing) - 4} more"
+    raise RuntimeError(
+        "Worker environment is using unresolved local uv sources "
+        f"from {pyproject_path}: {details}. "
+        "This worker install is stale or incomplete. Rerun AGI.install for the app "
+        "after updating AGILab so worker dependencies are staged into _uv_sources."
+    )
+
 # ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
 # ---------------------------------------------------------------------------
@@ -4215,6 +4268,7 @@ class AGI:
             stage_root=env.wenv_abs,
             log_rewrites=bool(env.verbose),
         )
+        _validate_worker_uv_sources(worker_pyproject_dest)
 
         # install agi-env and agi-node
         cmd = f"{env.uv} --project {app_path_arg} pip install agi-env "
@@ -4307,6 +4361,7 @@ class AGI:
         if not (env.wenv_abs / ".venv").exists():
             logger.info("Worker installation not found")
             raise FileNotFoundError("Worker installation (.venv) not found")
+        _validate_worker_uv_sources(env.wenv_abs / "pyproject.toml")
 
         pid_file = "dask_worker_0.pid"
         current_pid = os.getpid()
