@@ -69,7 +69,17 @@ replacement for them.
    * - Tool
      - Primary centre of gravity
      - Best fit
-     - How AGILab differs
+     - Positioning note
+   * - AGILab
+     - Integrated experimentation and execution workspace spanning managed
+       environments, distributed workers, pipeline replay, service health, and
+       analysis pages.
+     - Engineering or research teams that want one product to cover setup,
+       execution, validation, and operator-facing workflows during the
+       experimentation phase.
+     - Strongest when the problem is not only defining a pipeline, but also
+       operating reusable application workflows with managed runtimes and a
+       consistent UI/CLI control path.
    * - Kedro
      - Code-first data/ML pipeline engineering with modular pipelines, a data
        catalog, hooks, runners, and Kedro-Viz.
