@@ -1,4 +1,5 @@
 import asyncio
+import getpass
 import logging
 import shlex
 import sys
@@ -11,6 +12,7 @@ from agi_env import AgiEnv
 import agi_env.agi_env as agi_env_module
 
 from agi_env.agi_logger import AgiLogger
+from agi_env.defaults import get_default_openai_model
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -155,6 +157,52 @@ def test_blank_log_and_export_dirs_do_not_mask_process_overrides(tmp_path: Path,
     assert env.runenv == fake_home / "process-log" / "execute" / "sb3_trainer"
     assert env.AGILAB_EXPORT_ABS == fake_home / "process-export"
     assert env.export_apps == fake_home / "process-export" / "apps-zip"
+
+
+def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, monkeypatch):
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True, exist_ok=True)
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
+    (fake_home / ".agilab" / ".env").write_text(
+        "\n".join(
+            [
+                "IS_SOURCE_ENV=1",
+                "OPENAI_MODEL=",
+                "APP_DEFAULT=",
+                "TABLE_MAX_ROWS=",
+                "AGI_LOG_DIR=",
+                "AGI_EXPORT_DIR=",
+                "MLFLOW_TRACKING_DIR=",
+                "AGI_PYTHON_VERSION=",
+                "CLUSTER_CREDENTIALS=",
+                "AGI_SCHEDULER_IP=",
+            ]
+        )
+        + "\n"
+    )
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.delenv("AGI_LOG_DIR", raising=False)
+    monkeypatch.delenv("AGI_EXPORT_DIR", raising=False)
+
+    env = AgiEnv(apps_path=agipath / "apps", app=None, verbose=1)
+
+    assert env.app == "flight_project"
+    assert env.OPENAI_MODEL == get_default_openai_model()
+    assert env.TABLE_MAX_ROWS == 1000000
+    assert env.AGILAB_LOG_ABS == fake_home / "log"
+    assert env.AGILAB_EXPORT_ABS == fake_home / "export"
+    assert env.MLFLOW_TRACKING_DIR == fake_home / ".mlflow"
+    assert env.python_version == "3.13"
+    assert env.user == getpass.getuser()
+    assert env.scheduler_ip == "127.0.0.1"
+    assert "OPENAI_MODEL" not in env.envars
+    assert "APP_DEFAULT" not in env.envars
+    assert "TABLE_MAX_ROWS" not in env.envars
+    assert "AGI_LOG_DIR" not in env.envars
 
 
 def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):

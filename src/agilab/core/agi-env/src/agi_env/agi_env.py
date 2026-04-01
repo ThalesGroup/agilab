@@ -138,6 +138,26 @@ def _clean_envar_value(
     return None
 
 
+def _load_dotenv_values(dotenv_path: Path, *, verbose: bool = False) -> dict[str, str]:
+    """Load ``dotenv`` values while treating blank assignments as unset.
+
+    ``dotenv_values`` keeps ``KEY=`` entries as empty strings. That makes
+    ``mapping.get("KEY", default)`` return ``""`` instead of the intended
+    fallback. Normalizing once at load time keeps downstream callers consistent
+    without requiring every access site to re-handle blank values.
+    """
+
+    loaded = dotenv_values(dotenv_path=dotenv_path, verbose=verbose)
+    normalized: dict[str, str] = {}
+    for key, value in loaded.items():
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        normalized[str(key)] = value
+    return normalized
+
+
 @lru_cache(maxsize=None)
 def _resolve_worker_hook(filename: str) -> Path | None:
     """Return the path to the shared worker hook.
@@ -541,7 +561,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.resources_path = home_abs / self._agi_resources.name
         env_path = self.resources_path / ".env"
         self.benchmark = self.resources_path / "benchmark.json"
-        self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
+        self.envars = _load_dotenv_values(env_path, verbose=verbose)
         logger.debug(f"env path: {env_path}")
         envars = self.envars
         repo_agilab_dir = Path(__file__).resolve().parents[4]
@@ -1646,7 +1666,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if getattr(cls, "envars", None) is None or not isinstance(cls.envars, dict):
             try:
                 env_path = cls.resources_path / ".env"
-                cls.envars = dict(dotenv_values(dotenv_path=env_path, verbose=False))
+                cls.envars = _load_dotenv_values(env_path, verbose=False)
             except Exception:
                 cls.envars = {}
 
