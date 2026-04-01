@@ -234,6 +234,36 @@ foo = { path = "../bad/foo" }
     assert any("Staged uv source" in str(entry[0]) for entry in logs if entry)
 
 
+def test_missing_uv_source_paths_reports_unresolved_entries(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    (tmp_path / "_uv_sources" / "ok").mkdir(parents=True, exist_ok=True)
+    pyproject.write_text(
+        """
+[tool.uv.sources]
+ok = { path = "_uv_sources/ok" }
+missing = { path = "_uv_sources/missing" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    missing = agi_distributor_module._missing_uv_source_paths(pyproject)
+    assert missing == [("missing", "_uv_sources/missing")]
+
+
+def test_validate_worker_uv_sources_raises_actionable_error(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[tool.uv.sources]
+ilp_worker = { path = "../../PycharmProjects/thales_agilab/apps/ilp_project/src/ilp_worker" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="stale or incomplete"):
+        agi_distributor_module._validate_worker_uv_sources(pyproject)
+
+
 def test_ensure_asyncio_run_signature_patches_pydevd_shim(monkeypatch):
     original = agi_distributor_module.asyncio.run
 
@@ -4063,6 +4093,34 @@ async def test_run_raises_when_worker_venv_is_missing(tmp_path, monkeypatch):
     AGI._args = {}
     monkeypatch.chdir(tmp_path)
     with pytest.raises(FileNotFoundError, match="Worker installation"):
+        await AGI._run()
+
+
+@pytest.mark.asyncio
+async def test_run_raises_when_worker_uv_sources_are_stale(tmp_path, monkeypatch):
+    wenv_abs = tmp_path / "wenv"
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text(
+        """
+[tool.uv.sources]
+ilp_worker = { path = "../../PycharmProjects/thales_agilab/apps/ilp_project/src/ilp_worker" }
+""".strip(),
+        encoding="utf-8",
+    )
+    AGI.env = SimpleNamespace(
+        envars={},
+        wenv_abs=wenv_abs,
+        debug=False,
+        verbose=0,
+        uv="uv",
+        target_worker="demo_worker",
+    )
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {}
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(RuntimeError, match="stale or incomplete"):
         await AGI._run()
 
 
