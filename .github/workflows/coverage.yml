@@ -282,7 +282,10 @@ jobs:
             test/test_pipeline_service_guard.py \
             test/test_pipeline_sidebar.py \
             test/test_pipeline_steps.py \
-            test/test_pipeline_views.py
+            test/test_pipeline_views.py \
+            test/test_ui_pages.py \
+            test/test_apps_pages_launcher.py \
+            test/test_view_maps_network.py
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
