@@ -112,6 +112,35 @@ def test_orchestrate_lock_helpers_cover_bool_and_question_forms():
     assert pipeline_steps.orchestrate_snippet_source(inferred) == "generated_step.py"
 
 
+def test_step_project_name_prefers_app_name_from_snippet():
+    entry = {
+        "C": (
+            "import asyncio\n"
+            'APP = "sb3_trainer_project"\n'
+            "print('run')\n"
+        ),
+        "E": "/tmp/other_project",
+    }
+
+    assert pipeline_steps.step_project_name(entry) == "sb3_trainer_project"
+
+
+def test_step_label_for_multiselect_includes_project_name_from_runtime(monkeypatch, tmp_path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    network_sim = apps_root / "network_sim_project"
+    network_sim.mkdir()
+
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(apps_path=apps_root)
+    entry = {"Q": "Build topology and demands", "E": "network_sim_project"}
+
+    label = pipeline_steps.step_label_for_multiselect(2, entry, env=env)
+
+    assert label == "Step 3: [network_sim_project] Build topology and demands"
+
+
 def test_prune_invalid_entries_keeps_requested_index():
     entries = [
         {"Q": "Visible"},

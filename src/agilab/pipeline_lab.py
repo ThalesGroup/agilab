@@ -34,6 +34,7 @@ try:
         orchestrate_snippet_source as _orchestrate_snippet_source,
         persist_sequence_preferences as _persist_sequence_preferences,
         snippet_source_guidance as _snippet_source_guidance,
+        step_label_for_multiselect as _step_label_for_multiselect,
         step_summary as _step_summary,
     )
 except ModuleNotFoundError:
@@ -55,6 +56,7 @@ except ModuleNotFoundError:
     _orchestrate_snippet_source = _pipeline_steps_module.orchestrate_snippet_source
     _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
     _snippet_source_guidance = _pipeline_steps_module.snippet_source_guidance
+    _step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
     _step_summary = _pipeline_steps_module.step_summary
 
 try:
@@ -1294,10 +1296,6 @@ def display_lab_tab(
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
     if total_steps > 0:
         sequence_options = list(range(total_steps))
-        summary_labels = {}
-        for idx in sequence_options:
-            label = _step_summary(persisted_steps[idx], width=80)
-            summary_labels[idx] = label if label else f"{idx + 1}"
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
         if not stored_sequence:
             stored_sequence = sequence_options
@@ -1312,8 +1310,7 @@ def display_lab_tab(
                 st.session_state[sequence_widget_key] = stored_sequence
 
         def _format_sequence_option(idx: int) -> str:
-            label = summary_labels.get(idx, f"{idx + 1}")
-            return f"{idx + 1} {label}"
+            return _step_label_for_multiselect(idx, persisted_steps[idx], env=env)
 
         selected_sequence = st.multiselect(
             "Execution sequence",
