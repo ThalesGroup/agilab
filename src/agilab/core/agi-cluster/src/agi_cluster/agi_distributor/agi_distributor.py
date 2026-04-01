@@ -29,6 +29,7 @@ import time
 import shlex
 import warnings
 import uuid
+import posixpath
 from copy import deepcopy
 from datetime import timedelta
 from ipaddress import ip_address as is_ip
@@ -352,6 +353,63 @@ def _validate_worker_uv_sources(pyproject_path: Path) -> None:
         "This worker install is stale or incomplete. Rerun AGI.install for the app "
         "after updating AGILab so worker dependencies are staged into _uv_sources."
     )
+
+
+def _worker_site_packages_dir(
+    wenv_root: Path | PurePosixPath,
+    pyvers: str,
+    *,
+    windows: bool = False,
+) -> Path | PurePosixPath:
+    """Return the worker venv site-packages path for the given Python version."""
+
+    if windows:
+        return wenv_root / ".venv" / "Lib" / "site-packages"
+
+    parts = str(pyvers).split(".")
+    major = parts[0] if parts else "3"
+    minor_raw = parts[1] if len(parts) > 1 else "13"
+    suffix = "t" if minor_raw.endswith("t") else ""
+    minor = minor_raw[:-1] if suffix else minor_raw
+    return wenv_root / ".venv" / "lib" / f"python{major}.{minor}{suffix}" / "site-packages"
+
+
+def _staged_uv_sources_pth_content(
+    site_packages_dir: Path | PurePosixPath,
+    uv_sources_root: Path | PurePosixPath,
+) -> str:
+    """Return a relative `.pth` entry that exposes staged uv sources."""
+
+    if isinstance(site_packages_dir, PurePosixPath) or isinstance(uv_sources_root, PurePosixPath):
+        rel = posixpath.relpath(
+            PurePosixPath(uv_sources_root).as_posix(),
+            start=PurePosixPath(site_packages_dir).as_posix(),
+        )
+    else:
+        rel = os.path.relpath(str(uv_sources_root), start=str(site_packages_dir))
+    return f"{rel}\n"
+
+
+def _write_staged_uv_sources_pth(
+    site_packages_dir: Path,
+    uv_sources_root: Path,
+) -> Optional[Path]:
+    """Write a `.pth` file so staged uv-source trees are importable at runtime."""
+
+    pth_path = site_packages_dir / "agilab_uv_sources.pth"
+    if not uv_sources_root.exists():
+        try:
+            pth_path.unlink()
+        except FileNotFoundError:
+            pass
+        return None
+
+    site_packages_dir.mkdir(parents=True, exist_ok=True)
+    pth_path.write_text(
+        _staged_uv_sources_pth_content(site_packages_dir, uv_sources_root),
+        encoding="utf-8",
+    )
+    return pth_path
 
 # ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
@@ -3444,6 +3502,11 @@ class AGI:
             logger.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
+        _write_staged_uv_sources_pth(
+            _worker_site_packages_dir(wenv_abs, env.pyvers_worker, windows=(os.name == "nt")),  # type: ignore[arg-type]
+            wenv_abs / "_uv_sources",
+        )
+
         #############
         # install env
         ##############
@@ -3724,6 +3787,29 @@ class AGI:
         # install node
         cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(node_pck)}"
         await AGI.exec_ssh(ip, cmd)
+
+        remote_site_packages = _worker_site_packages_dir(
+            PurePosixPath(wenv_rel.as_posix()),
+            pyvers,
+            windows=False,
+        )
+        remote_uv_sources = PurePosixPath(wenv_rel.as_posix()) / "_uv_sources"
+        pth_content = _staged_uv_sources_pth_content(remote_site_packages, remote_uv_sources)
+        tmp_pth = Path(gettempdir()) / f"agilab_uv_sources_{uuid.uuid4().hex}.pth"
+        tmp_pth.write_text(pth_content, encoding="utf-8")
+        try:
+            await AGI.exec_ssh(ip, f"mkdir -p '{remote_site_packages.as_posix()}'")
+            await AGI.send_file(
+                env,
+                ip,
+                tmp_pth,
+                remote_site_packages / "agilab_uv_sources.pth",
+            )
+        finally:
+            try:
+                tmp_pth.unlink()
+            except FileNotFoundError:
+                pass
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
