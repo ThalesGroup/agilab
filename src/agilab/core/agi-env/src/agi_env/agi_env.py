@@ -2073,13 +2073,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         dest = self.resources_path
         src = self.agilab_pck / "resources"
         if src.exists():
+            dest.mkdir(parents=True, exist_ok=True)
             for file in src.iterdir():
                 if not file.is_file():
                     continue
                 dest_file = dest / file.name
                 if dest_file.exists():
                     continue
-                shutil.copy2(file, dest_file)
+                shutil.copy(file, dest_file)
         # shutil.copytree(self.agilab_pck / "resources", dest, dirs_exist_ok=True)
 
 

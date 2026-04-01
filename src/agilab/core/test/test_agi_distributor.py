@@ -3974,8 +3974,12 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
         send_calls.append((ip, [Path(f).name for f in files], str(remote_path)))
 
+    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+        send_calls.append((ip, [Path(local_path).name], str(remote_path.parent)))
+
     monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec_ssh))
     monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
 
     await AGI._deploy_remote_worker("10.0.0.2", env, Path("worker_env"), " --extra pandas-worker")
 
