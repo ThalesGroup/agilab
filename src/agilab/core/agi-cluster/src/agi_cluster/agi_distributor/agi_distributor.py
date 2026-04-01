@@ -190,6 +190,116 @@ def _rewrite_uv_sources_paths_for_copied_pyproject(
         for name, old, new in rewrites:
             logger.info("Rewrote uv source '%s' path: %s -> %s", name, old or "<unset>", new)
 
+
+def _copy_uv_source_tree(src_path: Path, dest_path: Path) -> None:
+    """Copy a local uv source dependency into a self-contained staging area."""
+
+    if dest_path.exists():
+        if dest_path.is_dir():
+            shutil.rmtree(dest_path, ignore_errors=True)
+        else:
+            try:
+                dest_path.unlink()
+            except FileNotFoundError:
+                pass
+
+    if src_path.is_dir():
+        ignore = shutil.ignore_patterns(
+            ".venv",
+            "__pycache__",
+            ".pytest_cache",
+            ".mypy_cache",
+            "build",
+            "dist",
+        )
+        shutil.copytree(src_path, dest_path, ignore=ignore, dirs_exist_ok=True)
+    else:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_path, dest_path)
+
+
+def _stage_uv_sources_for_copied_pyproject(
+    *,
+    src_pyproject: Path,
+    dest_pyproject: Path,
+    stage_root: Path,
+    log_rewrites: bool = False,
+) -> list[Path]:
+    """Stage local ``tool.uv.sources.*.path`` entries next to the copied pyproject.
+
+    Rewriting a copied worker ``pyproject.toml`` to point back to the developer
+    checkout works only when that checkout is available from the worker host.
+    For local-source app dependencies such as ``ilp_worker``, we instead copy the
+    referenced source trees into ``stage_root/_uv_sources`` and rewrite the copied
+    pyproject to point at those staged copies. This makes the worker env payload
+    self-contained for both local and remote installs.
+    """
+
+    try:
+        src_data = tomlkit.parse(src_pyproject.read_text())
+        dest_data = tomlkit.parse(dest_pyproject.read_text())
+    except FileNotFoundError:
+        return []
+
+    src_sources = (
+        src_data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(src_data, dict)
+        else None
+    )
+    dest_sources = (
+        dest_data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(dest_data, dict)
+        else None
+    )
+    if not isinstance(src_sources, dict) or not isinstance(dest_sources, dict):
+        return []
+
+    dest_dir = dest_pyproject.parent
+    staged_root = stage_root / "_uv_sources"
+    rewrites: list[tuple[str, str, str]] = []
+    staged_any = False
+
+    for name, src_meta in src_sources.items():
+        if not isinstance(src_meta, dict):
+            continue
+        src_path_value = src_meta.get("path")
+        if not isinstance(src_path_value, str) or not src_path_value.strip():
+            continue
+
+        src_path = Path(src_path_value).expanduser()
+        if not src_path.is_absolute():
+            src_path = (src_pyproject.parent / src_path).resolve(strict=False)
+        else:
+            src_path = src_path.resolve(strict=False)
+        if not src_path.exists():
+            continue
+
+        dest_meta = dest_sources.get(name)
+        if not isinstance(dest_meta, dict):
+            continue
+
+        staged_target = staged_root / name
+        _copy_uv_source_tree(src_path, staged_target)
+        staged_any = True
+
+        try:
+            new_path_value = os.path.relpath(staged_target, start=dest_dir)
+        except Exception:
+            new_path_value = str(staged_target)
+
+        old_path_value = dest_meta.get("path")
+        if old_path_value != new_path_value:
+            dest_meta["path"] = new_path_value
+            rewrites.append((name, str(old_path_value or ""), new_path_value))
+
+    if rewrites:
+        dest_pyproject.write_text(tomlkit.dumps(dest_data))
+        if log_rewrites:
+            for name, old, new in rewrites:
+                logger.info("Staged uv source '%s' path: %s -> %s", name, old or "<unset>", new)
+
+    return [staged_root] if staged_any and staged_root.exists() else []
+
 # ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
 # ---------------------------------------------------------------------------
@@ -2287,7 +2397,10 @@ class AGI:
                 destination = Path(env.home_abs) / destination
             logger.info(f"mkdir {destination.parent}")
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(local_path, destination)
+            if local_path.is_dir():
+                shutil.copytree(local_path, destination, dirs_exist_ok=True)
+            else:
+                shutil.copyfile(local_path, destination)
             return
 
         if not user:
@@ -2311,6 +2424,8 @@ class AGI:
             "-o",
             "UserKnownHostsFile=/dev/null",
         ]
+        if local_path.is_dir():
+            scp_cmd.append("-r")
         ssh_key_path = env.ssh_key_path
         if ssh_key_path:
             scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
@@ -2783,11 +2898,20 @@ class AGI:
                 extras_to_seed = set(getattr(AGI, "agi_workers", {}).values())
                 try:
                     tmp_dir = Path(gettempdir()) / f"agilab_{env.target_worker}_pyproject"
+                    if tmp_dir.exists():
+                        shutil.rmtree(tmp_dir, ignore_errors=True)
                     tmp_dir.mkdir(parents=True, exist_ok=True)
                     tmp_pyproject = tmp_dir / "pyproject.toml"
                     shutil.copy(pyproject_src, tmp_pyproject)
                     _ensure_optional_extras(tmp_pyproject, extras_to_seed)
+                    staged_entries = _stage_uv_sources_for_copied_pyproject(
+                        src_pyproject=pyproject_src,
+                        dest_pyproject=tmp_pyproject,
+                        stage_root=tmp_dir,
+                        log_rewrites=bool(env.verbose),
+                    )
                     files_to_send.append(tmp_pyproject)
+                    files_to_send.extend(staged_entries)
                 except Exception:
                     # Fall back to the original file if anything goes wrong.
                     files_to_send.append(pyproject_src)
@@ -4085,9 +4209,10 @@ class AGI:
         _ensure_optional_extras(worker_pyproject_dest, set(getattr(AGI, "agi_workers", {}).values()))
         if env.uvproject.exists():
             shutil.copy(env.uvproject, env.wenv_abs)
-        _rewrite_uv_sources_paths_for_copied_pyproject(
+        _stage_uv_sources_for_copied_pyproject(
             src_pyproject=worker_pyproject_src,
             dest_pyproject=worker_pyproject_dest,
+            stage_root=env.wenv_abs,
             log_rewrites=bool(env.verbose),
         )
 

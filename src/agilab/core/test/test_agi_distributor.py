@@ -180,6 +180,60 @@ def test_rewrite_uv_sources_paths_ignores_missing_files(tmp_path):
     assert dst_pyproject.exists() is False
 
 
+def test_stage_uv_sources_for_copied_pyproject_stages_sources(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src" / "worker"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    src_deps = src_dir.parent / "deps"
+    (src_deps / "foo").mkdir(parents=True, exist_ok=True)
+    (src_deps / "foo" / "pyproject.toml").write_text("[project]\nname='foo'\n", encoding="utf-8")
+    (src_deps / "foo" / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (src_deps / "foo" / ".venv").mkdir(parents=True, exist_ok=True)
+    (src_deps / "foo" / ".venv" / "skip.txt").write_text("x", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dst_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../deps/foo" }
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../bad/foo" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    logs = []
+    monkeypatch.setattr(
+        agi_distributor_module.logger,
+        "info",
+        lambda *args, **kwargs: logs.append(args),
+    )
+
+    staged_entries = agi_distributor_module._stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+        stage_root=dst_dir,
+        log_rewrites=True,
+    )
+
+    staged_root = dst_dir / "_uv_sources"
+    staged_dep = staged_root / "foo"
+    assert staged_entries == [staged_root]
+    assert staged_dep.exists()
+    assert (staged_dep / "module.py").exists()
+    assert not (staged_dep / ".venv").exists()
+    assert 'foo = { path = "_uv_sources/foo" }' in dst_pyproject.read_text(encoding="utf-8")
+    assert any("Staged uv source" in str(entry[0]) for entry in logs if entry)
+
+
 def test_ensure_asyncio_run_signature_patches_pydevd_shim(monkeypatch):
     original = agi_distributor_module.asyncio.run
 
@@ -641,6 +695,23 @@ async def test_send_files_delegates_to_send_file(monkeypatch, tmp_path):
         ("10.0.0.2", "a.txt", "a.txt", "bob"),
         ("10.0.0.2", "b.txt", "b.txt", "bob"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_send_file_local_directory_copies_tree(tmp_path):
+    src_dir = tmp_path / "srcdir"
+    (src_dir / "nested").mkdir(parents=True, exist_ok=True)
+    (src_dir / "nested" / "data.txt").write_text("payload", encoding="utf-8")
+    env = SimpleNamespace(home_abs=tmp_path / "home")
+
+    await AGI.send_file(
+        env=env,
+        ip="127.0.0.1",
+        local_path=src_dir,
+        remote_path=Path("remote/srcdir"),
+    )
+
+    assert (env.home_abs / "remote" / "srcdir" / "nested" / "data.txt").read_text(encoding="utf-8") == "payload"
 
 
 def test_remove_dir_forcefully_retries_and_raises(monkeypatch, tmp_path):
@@ -2834,6 +2905,96 @@ async def test_prepare_cluster_env_happy_path_sends_files(monkeypatch, tmp_path)
     assert any("self update" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any(any(item["name"] == "cli.py" for item in items) for _, items, _ in sent)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_stages_uv_source_payload(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    deps_root = tmp_path / "deps" / "ilp_worker"
+    deps_root.mkdir(parents=True, exist_ok=True)
+    (deps_root / "pyproject.toml").write_text("[project]\nname='ilp_worker'\n", encoding="utf-8")
+    (deps_root / "milp.py").write_text("class MILP: pass\n", encoding="utf-8")
+
+    worker_dir = tmp_path / "worker_src"
+    worker_dir.mkdir(parents=True, exist_ok=True)
+    worker_pyproject = worker_dir / "pyproject.toml"
+    worker_pyproject.write_text(
+        """
+[project]
+name='demo-worker'
+[tool.uv.sources]
+ilp_worker = { path = "../deps/ilp_worker" }
+""".strip(),
+        encoding="utf-8",
+    )
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='demo-manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        target_worker="demo_worker",
+        verbose=1,
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"dag": "dag-worker"}
+    sent = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        items = []
+        for f in files:
+            p = Path(f)
+            item = {"name": p.name, "is_dir": p.is_dir()}
+            if p.is_file():
+                item["content"] = p.read_text(encoding="utf-8")
+            elif p.is_dir():
+                item["children"] = sorted(child.relative_to(p).as_posix() for child in p.rglob("*"))
+            items.append(item)
+        sent.append((ip, items, str(remote_path)))
+
+    async def _fake_noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_noop))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    sent_to_wenv = [items for _ip, items, remote_path in sent if remote_path == "wenv"]
+    assert sent_to_wenv
+    payload = sent_to_wenv[0]
+    pyproject_item = next(item for item in payload if item["name"] == "pyproject.toml")
+    assert '_uv_sources/ilp_worker' in pyproject_item["content"]
+    staged_item = next(item for item in payload if item["name"] == "_uv_sources")
+    assert staged_item["is_dir"] is True
+    assert "ilp_worker/milp.py" in staged_item["children"]
 
 
 @pytest.mark.asyncio
