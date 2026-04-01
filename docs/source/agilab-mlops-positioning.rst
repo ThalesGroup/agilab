@@ -55,6 +55,83 @@ Positioning vs. other tools
      - Out of scope
      - CI/CD, serving frameworks, APM, feature stores
 
+Framework comparison
+--------------------
+
+The table below is deliberately practical: it focuses on where teams usually
+start, what each tool is strongest at, and why AGILab is not simply a drop-in
+replacement for them.
+
+.. list-table:: AGILab compared with adjacent workflow tools
+   :widths: 18 32 18 32
+   :header-rows: 1
+
+   * - Tool
+     - Primary centre of gravity
+     - Best fit
+     - How AGILab differs
+   * - Kedro
+     - Code-first data/ML pipeline engineering with modular pipelines, a data
+       catalog, hooks, runners, and Kedro-Viz.
+     - Teams that want a structured Python project for reproducible pipelines
+       and plan to plug orchestration and infrastructure in around it.
+     - AGILab is less about a pipeline framework in isolation and more about a
+       single operator-facing workspace: install, distribute, run, pipeline
+       replay, MLflow-traced execution, and analysis in one product.
+   * - Dagster
+     - Asset-centric orchestration with integrated lineage, observability,
+       automation, and testing.
+     - Data platform teams treating orchestration and asset health as the
+       backbone of the platform.
+     - AGILab is earlier-phase and more experiment-centric. It provides
+       managed runtimes, domain apps, and researcher/operator workflows rather
+       than a full asset-orchestration control plane.
+   * - Prefect
+     - Python-native orchestration of flows, tasks, deployments, and dynamic
+       execution patterns.
+     - Teams that want orchestration logic to stay close to normal Python code
+       with lightweight deployment options.
+     - AGILab wraps more of the surrounding lifecycle directly in the product:
+       environment bootstrapping, worker packaging, distribution planning,
+       service mode, and analysis pages.
+   * - Metaflow
+     - Human-friendly Python library for taking data science workflows from
+       local prototyping to scaled and production deployments.
+     - Data science teams that want a unified Python API across local,
+       scaled, and production-style execution.
+     - AGILab is more UI- and operations-oriented. It emphasizes guided
+       orchestration, explicit app packaging, and shared operator flows over a
+       single Python library abstraction.
+   * - Airflow
+     - Batch workflow scheduling, monitoring, and broad system integration via
+       DAGs, operators, hooks, and the web UI.
+     - Platform or data engineering teams running recurring, scheduled,
+       batch-oriented pipelines across many external systems.
+     - AGILab is not a general-purpose batch scheduler. It is stronger when
+       the problem is experiment packaging, managed execution environments,
+       distributed research workloads, and app-centric user workflows.
+
+Selection guide
+---------------
+
+- Choose **AGILab** when you want one environment to cover setup, execution,
+  service health, pipeline replay, and analysis for engineering or research
+  applications.
+- Choose **Kedro** when the main need is a clean, code-first pipeline project
+  structure with modular reusable pipelines and a data catalog.
+- Choose **Dagster** when orchestration, lineage, observability, and asset
+  automation are the platform itself.
+- Choose **Prefect** when you want dynamic Python orchestration with lighter
+  ceremony around flows, tasks, and deployments.
+- Choose **Metaflow** when the team prefers a single Python library that grows
+  from notebook-era prototyping toward scaled and production execution.
+- Choose **Airflow** when the problem is recurring batch scheduling and broad
+  integration across external systems, not an experimentation workbench.
+
+In practice, AGILab often complements these tools rather than replacing them:
+teams can use AGILab during the experimentation and validation phase, then hand
+off stabilized assets to a broader orchestration or production platform.
+
 Suggested workflow
 ------------------
 
