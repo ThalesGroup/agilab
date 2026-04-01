@@ -106,6 +106,38 @@ def _ensure_dir(path: str | Path) -> Path:
     return target
 
 
+def _clean_envar_value(
+    envars: dict | None,
+    key: str,
+    *,
+    fallback_to_process: bool = False,
+) -> str | None:
+    """Return a stripped env value or ``None`` when unset/blank.
+
+    ``dotenv_values`` preserves blank assignments as empty strings. For path-like
+    settings, AGILab should treat those blank values as "unset" and fall back to
+    defaults instead of resolving ``Path('')`` to the current directory.
+    """
+
+    def _normalize(value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    raw = None
+    try:
+        raw = envars.get(key) if envars is not None else None
+    except Exception:
+        raw = None
+    value = _normalize(raw)
+    if value is not None:
+        return value
+    if fallback_to_process:
+        return _normalize(os.environ.get(key))
+    return None
+
+
 @lru_cache(maxsize=None)
 def _resolve_worker_hook(filename: str) -> Path | None:
     """Return the path to the shared worker hook.
@@ -980,15 +1012,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # `AGI_SHARE_DIR` is the user-facing knob (installer + Streamlit UI). Treat it
         # as an override for the cluster share root so updating it is immediately
         # reflected without having to also edit `AGI_CLUSTER_SHARE` manually.
-        share_dir_override = envars.get("AGI_SHARE_DIR") or os.environ.get("AGI_SHARE_DIR")
+        share_dir_override = _clean_envar_value(envars, "AGI_SHARE_DIR", fallback_to_process=True)
         if share_dir_override is not None:
-            share_dir_value = str(share_dir_override).strip()
-            if share_dir_value:
-                self.AGI_CLUSTER_SHARE = share_dir_value
-                try:
-                    envars["AGI_CLUSTER_SHARE"] = share_dir_value
-                except Exception:
-                    pass
+            self.AGI_CLUSTER_SHARE = share_dir_override
+            try:
+                envars["AGI_CLUSTER_SHARE"] = share_dir_override
+            except Exception:
+                pass
 
         def _cluster_enabled_from_settings() -> bool:
             """Best-effort read of the Streamlit 'Enable Cluster' toggle.
@@ -1093,7 +1123,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 if self.builtin_apps_path is not None:
                     app_roots.append(self.builtin_apps_path)
 
-                export_root = envars.get("AGI_EXPORT_DIR") or os.environ.get("AGI_EXPORT_DIR")
+                export_root = _clean_envar_value(envars, "AGI_EXPORT_DIR", fallback_to_process=True)
                 if export_root:
                     try:
                         expanded_export = Path(export_root).expanduser()
@@ -1979,7 +2009,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         self.OPENAI_MODEL = envars.get("OPENAI_MODEL") or get_default_openai_model()
-        AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log")).expanduser()
+        AGILAB_LOG_OVERRIDE = _clean_envar_value(envars, "AGI_LOG_DIR", fallback_to_process=True)
+        AGILAB_LOG_ABS = Path(AGILAB_LOG_OVERRIDE or (self.home_abs / "log")).expanduser()
         if not AGILAB_LOG_ABS.is_absolute():
             AGILAB_LOG_ABS = (self.home_abs / AGILAB_LOG_ABS).resolve()
         self.AGILAB_LOG_ABS = _ensure_dir(AGILAB_LOG_ABS)
@@ -1987,13 +2018,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         _ensure_dir(runenv_base)
         self.runenv = runenv_base / self.target
         _ensure_dir(self.runenv)
-        AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export")).expanduser()
+        AGILAB_EXPORT_OVERRIDE = _clean_envar_value(envars, "AGI_EXPORT_DIR", fallback_to_process=True)
+        AGILAB_EXPORT_ABS = Path(AGILAB_EXPORT_OVERRIDE or (self.home_abs / "export")).expanduser()
         if not AGILAB_EXPORT_ABS.is_absolute():
             AGILAB_EXPORT_ABS = (self.home_abs / AGILAB_EXPORT_ABS).resolve()
         self.AGILAB_EXPORT_ABS = _ensure_dir(AGILAB_EXPORT_ABS)
         self.export_apps = self.AGILAB_EXPORT_ABS / "apps-zip"
         _ensure_dir(self.export_apps)
-        mlflow_tracking_override = envars.get("MLFLOW_TRACKING_DIR")
+        mlflow_tracking_override = _clean_envar_value(envars, "MLFLOW_TRACKING_DIR")
         if mlflow_tracking_override:
             mlflow_tracking_dir = Path(mlflow_tracking_override).expanduser()
             if not mlflow_tracking_dir.is_absolute():
@@ -2001,7 +2033,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.MLFLOW_TRACKING_DIR = mlflow_tracking_dir
         else:
             self.MLFLOW_TRACKING_DIR = self.home_abs / ".mlflow"
-        pages_override = envars.get("AGI_PAGES_DIR")
+        pages_override = _clean_envar_value(envars, "AGI_PAGES_DIR")
         if pages_override:
             pages_root = Path(pages_override).expanduser()
         else:
