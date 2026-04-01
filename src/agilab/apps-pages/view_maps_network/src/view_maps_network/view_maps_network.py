@@ -1469,12 +1469,7 @@ def _allocation_routed_edge_pairs(
                 continue
 
             bearer_values = _coerce_list_cell(row.get("bearers"))
-            bearer_value = row.get("bearer")
-            has_bearer = bool(bearer_values) or (
-                bearer_value is not None
-                and not (isinstance(bearer_value, float) and np.isnan(bearer_value))
-                and str(bearer_value).strip() != ""
-            )
+            has_bearer = bool(bearer_values)
             if not has_bearer:
                 continue
             pair = _canonical_edge_pair(row.get("source"), row.get("destination"))
@@ -2304,7 +2299,7 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
         delivered = row.get("delivered_bandwidth", row.get("capacity_mbps", 0))
         bandwidth = row.get("bandwidth", 0)
         path_edges = _as_list(row.get("path"))
-        path_bearers = _as_list(row.get("bearers")) or _as_list(row.get("bearer"))
+        path_bearers = _as_list(row.get("bearers"))
 
         if path_edges:
             for i, hop in enumerate(path_edges):
@@ -2317,7 +2312,7 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
                 v_pos = _lookup_position(v)
                 if u_pos is None or v_pos is None:
                     continue
-                bearer = path_bearers[i] if i < len(path_bearers) else row.get("bearer")
+                bearer = path_bearers[i] if i < len(path_bearers) else None
                 edges.append(
                     {
                         "source": [u_pos["long"], u_pos["lat"], u_pos.get("alt", 0.0)],
@@ -2340,8 +2335,8 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
                     "target": [dst_pos["long"], dst_pos["lat"], dst_pos.get("alt", 0.0)],
                     "bandwidth": bandwidth,
                     "delivered": delivered,
-                    "bearer": row.get("bearer"),
-                    "color": _bearer_rgb(row.get("bearer")),
+                    "bearer": path_bearers[0] if path_bearers else None,
+                    "color": _bearer_rgb(path_bearers[0] if path_bearers else None),
                     "demand": f"{src}→{dst}",
                 }
             )
@@ -2436,8 +2431,6 @@ def _selected_node_bearer_timeline(
     dst_ids = _normalize_node_id_series(df_in["destination"]) if "destination" in df_in.columns else pd.Series("", index=df_in.index)
     if "bearers" in df_in.columns:
         bearer_raw_series = df_in["bearers"]
-    elif "bearer" in df_in.columns:
-        bearer_raw_series = df_in["bearer"]
     else:
         bearer_raw_series = pd.Series("", index=df_in.index)
     routed_series = (
@@ -2572,8 +2565,6 @@ def _selected_pair_bearer_timeline(
     )
     if "bearers" in df_in.columns:
         bearer_raw_series = df_in["bearers"]
-    elif "bearer" in df_in.columns:
-        bearer_raw_series = df_in["bearer"]
     else:
         bearer_raw_series = pd.Series("", index=df_in.index)
 
@@ -4693,8 +4684,6 @@ def page():
                     timeline = alloc_df_view.sort_values("time_index").copy()
                     if "bearers" in timeline.columns:
                         timeline["bearer_path"] = timeline["bearers"].apply(_bearer_path_label)
-                    elif "bearer" in timeline.columns:
-                        timeline["bearer_path"] = timeline["bearer"].apply(_bearer_path_label)
                     else:
                         timeline["bearer_path"] = ""
                     cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in timeline.columns]
@@ -4711,8 +4700,6 @@ def page():
                     base_tl = baseline_df_view.sort_values("time_index").copy()
                     if "bearers" in base_tl.columns:
                         base_tl["bearer_path"] = base_tl["bearers"].apply(_bearer_path_label)
-                    elif "bearer" in base_tl.columns:
-                        base_tl["bearer_path"] = base_tl["bearer"].apply(_bearer_path_label)
                     else:
                         base_tl["bearer_path"] = ""
                     cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in base_tl.columns]
