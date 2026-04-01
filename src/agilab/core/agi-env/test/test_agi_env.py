@@ -105,6 +105,58 @@ def test_locate_helper_exists():
     assert hasattr(AgiEnv, 'locate_agilab_installation')
 
 
+def test_blank_log_and_export_dirs_fall_back_to_home_defaults(tmp_path: Path, monkeypatch):
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.delenv("AGI_LOG_DIR", raising=False)
+    monkeypatch.delenv("AGI_EXPORT_DIR", raising=False)
+
+    env = object.__new__(AgiEnv)
+    env.home_abs = fake_home
+    env.target = "sb3_trainer"
+    env.agilab_pck = agipath
+    env.read_agilab_path = lambda: None
+
+    env.init_envars_app(
+        {
+            "AGI_LOG_DIR": "",
+            "AGI_EXPORT_DIR": "   ",
+        }
+    )
+
+    assert env.AGILAB_LOG_ABS == fake_home / "log"
+    assert env.runenv == fake_home / "log" / "execute" / "sb3_trainer"
+    assert env.AGILAB_EXPORT_ABS == fake_home / "export"
+    assert env.export_apps == fake_home / "export" / "apps-zip"
+
+
+def test_blank_log_and_export_dirs_do_not_mask_process_overrides(tmp_path: Path, monkeypatch):
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setenv("AGI_LOG_DIR", "process-log")
+    monkeypatch.setenv("AGI_EXPORT_DIR", "process-export")
+
+    env = object.__new__(AgiEnv)
+    env.home_abs = fake_home
+    env.target = "sb3_trainer"
+    env.agilab_pck = agipath
+    env.read_agilab_path = lambda: None
+
+    env.init_envars_app(
+        {
+            "AGI_LOG_DIR": "",
+            "AGI_EXPORT_DIR": "   ",
+        }
+    )
+
+    assert env.AGILAB_LOG_ABS == fake_home / "process-log"
+    assert env.runenv == fake_home / "process-log" / "execute" / "sb3_trainer"
+    assert env.AGILAB_EXPORT_ABS == fake_home / "process-export"
+    assert env.export_apps == fake_home / "process-export" / "apps-zip"
+
+
 def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
     """Only log the cluster-share fallback warning once per process."""
 
