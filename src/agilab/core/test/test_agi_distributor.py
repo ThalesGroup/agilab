@@ -180,6 +180,24 @@ def test_rewrite_uv_sources_paths_ignores_missing_files(tmp_path):
     assert dst_pyproject.exists() is False
 
 
+def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "config").write_text("Host remote\n  User agi\n", encoding="utf-8")
+    (ssh_dir / "known_hosts").write_text("remote ssh-ed25519 AAAA\n", encoding="utf-8")
+    (ssh_dir / "authorized_keys").write_text("ssh-ed25519 AAAA comment\n", encoding="utf-8")
+    (ssh_dir / "id_ed25519.pub").write_text("ssh-ed25519 AAAA comment\n", encoding="utf-8")
+    (ssh_dir / "id_ed25519").write_text(
+        "-----BEGIN OPENSSH PRIVATE KEY-----\nmock\n-----END OPENSSH PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    (ssh_dir / "id_rsa.old").write_text("stale backup", encoding="utf-8")
+
+    keys = agi_distributor_module._discover_private_ssh_keys(ssh_dir)
+
+    assert keys == [str(ssh_dir / "id_ed25519")]
+
+
 def test_stage_uv_sources_for_copied_pyproject_stages_sources(tmp_path, monkeypatch):
     src_dir = tmp_path / "src" / "worker"
     dst_dir = tmp_path / "dst"
