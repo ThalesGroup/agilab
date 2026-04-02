@@ -921,7 +921,7 @@ def test_get_df_index_list_views_read_lines_and_scan_dir(tmp_path):
     assert pagelib.get_df_index([], None) is None
     assert pagelib.list_views(str(tmp_path / "views")) == [str(tmp_path / "views" / "first.py")]
     assert list(pagelib.read_file_lines(file_path)) == ["a", "1"]
-    assert pagelib.scan_dir(tmp_path) == ["subdir", "views"]
+    assert sorted(pagelib.scan_dir(tmp_path)) == ["subdir", "views"]
 
 
 def test_resolve_active_app_prefers_query_param_and_fallback_last_app(tmp_path, monkeypatch):
