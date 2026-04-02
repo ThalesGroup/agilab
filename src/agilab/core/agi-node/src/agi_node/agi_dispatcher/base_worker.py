@@ -1314,6 +1314,8 @@ class BaseWorker(abc.ABC):
             # Instantiate the class with arguments
             worker_inst = worker_class()
             worker_inst._mode = mode
+            worker_inst.worker_id = worker_id
+            worker_inst._worker_id = worker_id
             args_namespace = ArgsNamespace(**(args or {}))
             worker_inst.args = args_namespace
             worker_inst.verbose = verbose
