@@ -103,6 +103,39 @@ def test_store_last_active_app_persists_state(tmp_path, monkeypatch):
     assert stored["last_active_app"] == str(app_dir)
 
 
+def test_store_last_active_app_skips_persist_when_unchanged(monkeypatch, tmp_path):
+    app_dir = tmp_path / "stored_app"
+    app_dir.mkdir()
+    monkeypatch.setattr(pagelib, "_load_global_state", lambda: {"last_active_app": str(app_dir)})
+    called: list[dict[str, str]] = []
+    monkeypatch.setattr(pagelib, "_persist_global_state", lambda data: called.append(data))
+
+    pagelib.store_last_active_app(app_dir)
+
+    assert called == []
+
+
+def test_persist_global_state_writes_toml(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+
+    pagelib._persist_global_state({"last_active_app": "/tmp/demo"})
+
+    stored = tomllib.loads(state_file.read_text(encoding="utf-8"))
+    assert stored == {"last_active_app": "/tmp/demo"}
+
+
+def test_load_last_active_app_returns_none_when_target_is_missing(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+    state_file.write_text('last_active_app = "/tmp/missing-app"\n', encoding="utf-8")
+
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
+
+    assert pagelib.load_last_active_app() is None
+
+
 def test_diagnose_data_directory_reports_missing_mount(tmp_path, monkeypatch):
     missing_mount = tmp_path / "missing_share"
     monkeypatch.setattr(pagelib, "_fstab_mount_points", lambda: (missing_mount,))
@@ -152,6 +185,57 @@ def test_run_success(monkeypatch):
     assert recorded == {"command": "echo 'ok'", "cwd": "/tmp"}
 
 
+def test_run_with_output_raises_jump_to_main_when_module_is_missing(tmp_path, monkeypatch):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+
+    class FakeProc:
+        returncode = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def communicate(self, timeout=None):
+            return "module not found: demo", None
+
+        def kill(self):
+            return None
+
+    monkeypatch.setattr(pagelib.subprocess, "Popen", lambda *args, **kwargs: FakeProc())
+
+    with pytest.raises(pagelib.JumpToMain, match="module not found: demo"):
+        pagelib.run_with_output(SimpleNamespace(apps_path=apps_root), "echo demo", cwd=tmp_path)
+
+
+def test_run_with_output_returns_clean_output_for_failed_command(tmp_path, monkeypatch):
+    apps_root = tmp_path / "apps"
+    (apps_root / ".venv").mkdir(parents=True)
+
+    class FakeProc:
+        returncode = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def communicate(self, timeout=None):
+            return "\x1b[31mFAILED\x1b[0m", None
+
+        def kill(self):
+            return None
+
+    monkeypatch.setattr(pagelib.subprocess, "Popen", lambda *args, **kwargs: FakeProc())
+
+    output = pagelib.run_with_output(SimpleNamespace(apps_path=apps_root), "echo demo", cwd=tmp_path)
+
+    assert output == "FAILED"
+
+
 def test_run_failure_exits(monkeypatch):
     logs: list[str] = []
 
@@ -183,6 +267,19 @@ def test_with_anchor_appends_hash():
     assert pagelib._with_anchor("http://example", "section") == "http://example#section"
     assert pagelib._with_anchor("http://example", "#section") == "http://example#section"
     assert pagelib._with_anchor("http://example", "") == "http://example"
+
+
+def test_is_valid_ip_accepts_ipv4_and_rejects_out_of_range():
+    assert pagelib.is_valid_ip("192.168.20.130") is True
+    assert pagelib.is_valid_ip("300.168.20.130") is False
+
+
+def test_get_first_match_and_keyword_handles_empty_inputs_and_first_match():
+    assert pagelib.get_first_match_and_keyword([], ["time"]) == (None, None)
+    assert pagelib.get_first_match_and_keyword(["alpha", "mission_time"], ["date", "time"]) == (
+        "mission_time",
+        "time",
+    )
 
 
 def test_open_docs_url_reuses_existing_tab(monkeypatch):
@@ -270,6 +367,21 @@ def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
     assert snippet.read_text(encoding="utf-8") == "print('hello')"
     assert "tracking=file:///tmp/mlflow" in output
     assert "MLFLOW_TRACKING_URI" not in os.environ
+
+
+def test_save_csv_rejects_empty_name_and_directory(tmp_path, monkeypatch):
+    errors: list[str] = []
+    monkeypatch.setattr(pagelib.st, "error", lambda message: errors.append(message))
+    df = SimpleNamespace(shape=(1, 1))
+
+    assert pagelib.save_csv(df, Path("   ")) is False
+    assert "filename" in errors[-1].lower()
+
+    errors.clear()
+    directory = tmp_path / "existing"
+    directory.mkdir()
+    assert pagelib.save_csv(df, directory) is False
+    assert "directory" in errors[-1].lower()
 
 
 def test_resolve_mlflow_tracking_dir_falls_back_to_home(tmp_path):
