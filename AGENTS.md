@@ -173,6 +173,59 @@ Use this runbook whenever you:
 4. Document fixes or new failure modes in this runbook so future agents can respond
   consistently.
 
+### 4. Cluster SSH recovery after node reinstall or host-key rotation
+
+Use this when a cluster node such as `192.168.20.130` was reinstalled, got a new SSH host key,
+or lost its `~/.ssh` state.
+
+1. Verify the new host key fingerprint out of band before trusting it.
+2. Remove the stale host key locally, then register the new one:
+   ```bash
+   ssh-keygen -R 192.168.20.130
+   ssh-keyscan -H -t ed25519 192.168.20.130 >> ~/.ssh/known_hosts
+   ssh-keygen -F 192.168.20.130 -f ~/.ssh/known_hosts
+   ```
+3. Re-bootstrap user auth on the remote node. Preferred path: copy the manager public key:
+   ```bash
+   ssh-copy-id agi@192.168.20.130
+   ```
+   If `ssh-copy-id` is unavailable, append the public key manually on the remote:
+   ```bash
+   mkdir -p ~/.ssh
+   chmod 700 ~/.ssh
+   printf '%s\n' '<contents of ~/.ssh/id_ed25519.pub>' >> ~/.ssh/authorized_keys
+   chmod 600 ~/.ssh/authorized_keys
+   ```
+4. If public-key auth still fails, confirm the remote SSH daemon allows it:
+   ```bash
+   grep -E '^(PubkeyAuthentication|PasswordAuthentication)' /etc/ssh/sshd_config
+   ```
+   Expected: `PubkeyAuthentication yes`. Password auth can stay enabled as a bootstrap fallback only.
+5. Verify access before rerunning AGILAB:
+   ```bash
+   ssh agi@192.168.20.130 'echo ok'
+   ```
+6. Recreate cluster-share prerequisites on the reinstalled Linux node:
+   ```bash
+   mkdir -p /home/agi/.agilab /home/agi/clustershare /home/agi/localshare
+   cat > /home/agi/.agilab/.env <<'EOF'
+   AGI_CLUSTER_SHARE=/home/agi/clustershare
+   AGI_LOCAL_SHARE=/home/agi/localshare
+   EOF
+   ```
+7. Remount shared cluster storage if this cluster uses SSHFS from `.111` to `.130`:
+   ```bash
+   sudo apt-get update && sudo apt-get install -y sshfs
+   mkdir -p /home/agi/clustershare
+   sshfs agi@192.168.20.111:/Users/agi/clustershare /home/agi/clustershare
+   mount | grep clustershare
+   ```
+8. Verify the node can still reach the scheduler/manager peer non-interactively:
+   ```bash
+   ssh agi@192.168.20.130 'ssh -o BatchMode=yes agi@192.168.20.111 hostname'
+   ```
+9. Only after these SSH and share checks pass, rerun `AGI.install(...)` / cluster pipelines.
+
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
 
