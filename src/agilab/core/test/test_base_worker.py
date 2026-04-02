@@ -192,6 +192,48 @@ def test_resolve_input_folder_uses_share_root_namespace_fallback(tmp_path):
     assert resolved == flights_dir
 
 
+def test_baseworker_path_helper_utilities_cover_share_and_home_cases(tmp_path):
+    env = SimpleNamespace(
+        share_root_path=lambda: tmp_path / "share",
+        agi_share_path_abs=tmp_path / "share",
+        agi_share_path=Path("clustershare"),
+        home_abs=Path.home(),
+        AGILAB_SHARE_HINT=Path("clustershare/link_sim"),
+        AGILAB_SHARE_REL="clustershare/link_sim",
+        _is_managed_pc=False,
+    )
+    (tmp_path / "share").mkdir()
+
+    resolved = BaseWorker._resolve_data_dir(env, Path("flight_trajectory/pipeline"))
+    assert resolved == (tmp_path / "share" / "flight_trajectory" / "pipeline").resolve()
+
+    home_path = Path("/Users/demo/data/file.csv")
+    assert BaseWorker._relative_to_user_home(home_path) == Path("data/file.csv")
+    assert BaseWorker._relative_to_user_home(Path("/tmp/data/file.csv")) is None
+    assert BaseWorker._remap_user_home(home_path, username="other") == Path("/Users/other/data/file.csv")
+    assert BaseWorker._remap_user_home(Path("/tmp/data/file.csv"), username="other") is None
+
+    assert BaseWorker._strip_share_prefix(Path("clustershare/demo/file.csv"), {"clustershare"}) == Path("demo/file.csv")
+    assert BaseWorker._strip_share_prefix(Path("demo/file.csv"), {"clustershare"}) == Path("demo/file.csv")
+
+    aliases = BaseWorker._collect_share_aliases(env, tmp_path / "share")
+    assert {"share", "clustershare", "link_sim"} <= aliases
+
+
+def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
+    folder = tmp_path / "dataset"
+    folder.mkdir()
+    (folder / "a.csv").write_text("x\n1\n", encoding="utf-8")
+    (folder / "b.parquet").write_text("pq", encoding="utf-8")
+    (folder / "._hidden.csv").write_text("hidden", encoding="utf-8")
+
+    files = BaseWorker._iter_input_files(folder)
+    assert [path.name for path in files] == ["a.csv", "b.parquet"]
+
+    writable_target = tmp_path / "output" / "data.csv"
+    assert BaseWorker._can_create_path(writable_target) is True
+
+
 def test_service_loop_without_worker_override_stops_cleanly():
     worker = DummyWorker()
     result: dict[str, object] = {}

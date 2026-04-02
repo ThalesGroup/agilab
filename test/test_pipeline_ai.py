@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+import urllib.error
 
 import pandas as pd
 import pytest
@@ -298,6 +300,20 @@ def test_default_ollama_model_prefers_code_model_and_fallbacks(monkeypatch):
     assert pipeline_ai._default_ollama_model("http://ollama", preferred="fallback-model") == "fallback-model"
 
 
+def test_prompt_to_plaintext_flattens_list_content_and_unknown_roles():
+    text = pipeline_ai._prompt_to_plaintext(
+        [
+            {"role": "system", "content": "rules"},
+            {"role": "critic", "content": ["alpha", "beta"]},
+        ],
+        "continue",
+    )
+
+    assert "System: rules" in text
+    assert "Critic: alpha\nbeta" in text
+    assert text.endswith("User: continue")
+
+
 def test_ollama_generate_success_and_error_paths(monkeypatch):
     captured = {}
 
@@ -357,6 +373,29 @@ def test_ollama_generate_success_and_error_paths(monkeypatch):
         lambda *_args, **_kwargs: (_ for _ in ()).throw(pipeline_ai.urllib.error.URLError("down")),
     )
     with pytest.raises(RuntimeError, match="Unable to reach Ollama"):
+        pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
+
+
+def test_ollama_generate_rejects_invalid_json_and_non_dict_payloads(monkeypatch):
+    class FakeResponse:
+        def __init__(self, body: str):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return self._body.encode("utf-8")
+
+    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse("not-json"))
+    with pytest.raises(RuntimeError, match="invalid JSON"):
+        pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
+
+    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse('["bad"]'))
+    with pytest.raises(RuntimeError, match="unexpected payload"):
         pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
 
 
@@ -439,6 +478,32 @@ def test_chat_offline_success_stub_and_request_error(monkeypatch):
     with pytest.raises(RuntimeError):
         pipeline_ai.chat_offline("question", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
     assert any("Failed to reach GPT-OSS" in msg for msg in errors)
+
+
+def test_chat_offline_handles_invalid_json_payload(monkeypatch):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    class FakeRequestException(Exception):
+        pass
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            raise ValueError("bad json")
+
+    fake_requests = SimpleNamespace(
+        exceptions=SimpleNamespace(RequestException=FakeRequestException),
+        post=lambda endpoint, json, timeout: FakeResponse(),
+    )
+    monkeypatch.setitem(sys.modules, "requests", fake_requests)
+
+    with pytest.raises(RuntimeError):
+        pipeline_ai.chat_offline("question", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
+    assert errors == ["GPT-OSS returned an invalid JSON payload."]
 
 
 def test_chat_universal_offline_formats_sources_and_raises(monkeypatch):
