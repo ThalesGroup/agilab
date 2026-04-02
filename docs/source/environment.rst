@@ -37,11 +37,11 @@ summarises the supported keys.
      - unset
      - API key surfaced to features that rely on OpenAI endpoints.
    * - ``AGI_SHARE_DIR``
-     - ``clustershare`` (resolved under ``$HOME`` if relative); falls back to ``AGI_LOCAL_SHARE`` or ``$HOME/localshare`` when unavailable.
-     - Base directory for shared datasets/outputs. For local runs, point this to a writable path; on clusters, mount it so all nodes can read/write.
+     - ``clustershare`` (resolved under ``$HOME`` if relative).
+     - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node.
    * - ``AGI_LOCAL_SHARE``
-     - ``$HOME/localshare`` (used only when ``AGI_SHARE_DIR`` is unavailable)
-     - Local fallback for datasets/outputs if the primary share is not mounted.
+     - ``$HOME/localshare``
+     - Local datasets/outputs root used when cluster mode is disabled. In cluster mode, AGILab no longer falls back to this path if the shared mount is missing.
    * - ``AGI_SCHEDULER_IP``
      - ``127.0.0.1``
      - Default scheduler host for distributed runs.
