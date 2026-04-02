@@ -1,4 +1,5 @@
 import asyncio
+import ast
 import getpass
 import logging
 import shlex
@@ -511,3 +512,114 @@ def test_select_hook_raises_when_no_candidate_found(tmp_path: Path, monkeypatch)
 
     with pytest.raises(FileNotFoundError, match="Unable to resolve pre_install script"):
         agi_env_module._select_hook(missing, "pre_install.py", "pre_install")
+
+
+def test_clean_envar_value_handles_blank_values_and_process_fallback(monkeypatch):
+    monkeypatch.setenv("AGI_DEMO", " from-process ")
+
+    assert agi_env_module._clean_envar_value({"AGI_DEMO": " value "}, "AGI_DEMO") == "value"
+    assert agi_env_module._clean_envar_value({"AGI_DEMO": "   "}, "AGI_DEMO") is None
+    assert (
+        agi_env_module._clean_envar_value(
+            {"AGI_DEMO": ""},
+            "AGI_DEMO",
+            fallback_to_process=True,
+        )
+        == "from-process"
+    )
+
+
+def test_load_dotenv_values_discards_blank_assignments(tmp_path: Path):
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text(
+        "OPENAI_MODEL=\n"
+        "APP_DEFAULT=   \n"
+        "AGI_LOG_DIR=/tmp/logs\n"
+        "TABLE_MAX_ROWS=1000\n",
+        encoding="utf-8",
+    )
+
+    values = agi_env_module._load_dotenv_values(dotenv_path)
+
+    assert values == {
+        "AGI_LOG_DIR": "/tmp/logs",
+        "TABLE_MAX_ROWS": "1000",
+    }
+
+
+def test_normalize_path_and_windows_drive_fix(monkeypatch):
+    assert agi_env_module.normalize_path("relative/path") == "relative/path"
+    assert agi_env_module.normalize_path("") == "."
+
+    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
+    assert agi_env_module._fix_windows_drive(r"C:Users\\agi") == r"C:\Users\\agi"
+    assert agi_env_module._fix_windows_drive(r"C:\\Users\\agi") == r"C:\\Users\\agi"
+
+
+def test_agienv_meta_prefers_instance_attributes_and_class_fallback():
+    class Dummy(metaclass=agi_env_module._AgiEnvMeta):
+        _instance = None
+        _lock = None
+        class_value = "class"
+
+        @classmethod
+        def current(cls):
+            return cls._instance
+
+        @classmethod
+        def reset(cls):
+            cls._instance = None
+
+    Dummy._instance = type("Instance", (), {"dynamic_value": "instance"})()
+
+    assert Dummy.dynamic_value == "instance"
+    assert Dummy.class_value == "class"
+    with pytest.raises(AttributeError):
+        _ = Dummy.missing_value
+
+
+def test_content_renamer_updates_ast_nodes(monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    source = ast.parse(
+        "import foo.mod\n"
+        "from foo.pkg import Foo, foo_helper\n"
+        "class Foo:\n"
+        "    def foo(self, foo_arg):\n"
+        "        global foo\n"
+        "        for foo in [foo_arg]:\n"
+        "            self.foo = foo\n"
+        "            return foo\n"
+    )
+    rename_map = {
+        "foo": "bar",
+        "Foo": "Baz",
+        "foo_helper": "bar_helper",
+        "foo_arg": "bar_arg",
+    }
+
+    transformed = agi_env_module.ContentRenamer(rename_map).visit(source)
+    rendered = ast.unparse(transformed)
+
+    assert "import bar.mod" in rendered
+    assert "from bar.pkg import Baz, bar_helper" in rendered
+    assert "class Baz" in rendered
+    assert "def bar(self, bar_arg)" in rendered
+    assert "global bar" in rendered
+    assert "for bar in [bar_arg]" in rendered
+    assert "self.bar = bar" in rendered
+
+    nonlocal_node = ast.Nonlocal(names=["foo", "other"])
+    updated_nonlocal = agi_env_module.ContentRenamer(rename_map).visit_nonlocal(nonlocal_node)
+    assert updated_nonlocal.names == ["bar", "other"]
+    assert mock_logger.info.call_count > 0
+
+
+def test_is_relative_to_returns_expected_result(tmp_path: Path):
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    child.mkdir(parents=True)
+
+    assert agi_env_module._is_relative_to(child, parent) is True
+    assert agi_env_module._is_relative_to(tmp_path / "other", parent) is False
