@@ -205,8 +205,8 @@ def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, mon
     assert "AGI_LOG_DIR" not in env.envars
 
 
-def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
-    """Only log the cluster-share fallback warning once per process."""
+def test_cluster_share_missing_raises_for_cluster_enabled_app(tmp_path: Path, monkeypatch):
+    """Cluster-enabled apps must fail fast when the configured cluster share is unavailable."""
 
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     fake_home = tmp_path / "fake_home"
@@ -239,21 +239,12 @@ def test_cluster_share_warning_deduplicated(tmp_path: Path, monkeypatch):
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger):
-        AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
-        AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
-
-    warning_calls = [
-        call
-        for call in mock_logger.warning.call_args_list
-        if call.args
-        and isinstance(call.args[0], str)
-        and "AGI_CLUSTER_SHARE is not mounted" in call.args[0]
-    ]
-    assert len(warning_calls) == 1
+        with pytest.raises(RuntimeError, match="Cluster mode requires AGI_CLUSTER_SHARE"):
+            AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
 
 
-def test_cluster_enabled_fallback_when_app_src_invalid(tmp_path: Path, monkeypatch):
-    """When app_src is not a valid directory, env should still derive cluster from settings fallback."""
+def test_cluster_enabled_raises_when_app_src_invalid(tmp_path: Path, monkeypatch):
+    """Even with a broken app src, cluster-enabled envs must not fall back to localshare."""
 
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     fake_home = tmp_path / "fake_home"
@@ -283,17 +274,8 @@ def test_cluster_enabled_fallback_when_app_src_invalid(tmp_path: Path, monkeypat
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
         AgiEnv, "_init_apps", lambda self: None
     ):
-        env = AgiEnv(apps_path=fake_apps, app="broken_project", verbose=1)
-
-    warning_calls = [
-        call
-        for call in mock_logger.warning.call_args_list
-        if call.args
-        and isinstance(call.args[0], str)
-        and "AGI_CLUSTER_SHARE is not mounted" in call.args[0]
-    ]
-    assert len(warning_calls) == 1
-    assert env.agi_share_path == env.AGI_LOCAL_SHARE
+        with pytest.raises(RuntimeError, match="Cluster mode requires AGI_CLUSTER_SHARE"):
+            AgiEnv(apps_path=fake_apps, app="broken_project", verbose=1)
 
 
 def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, monkeypatch):
@@ -325,6 +307,39 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
         env = AgiEnv(apps_path=fake_apps, app="broken_project", verbose=1)
 
     assert env.agi_share_path == env.AGI_CLUSTER_SHARE
+
+
+def test_cluster_share_same_as_local_share_raises(tmp_path: Path, monkeypatch):
+    """Cluster mode must reject a cluster-share setting that points to localshare."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True, exist_ok=True)
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
+    same_share = fake_home / "localshare"
+    same_share.mkdir()
+    (fake_home / ".agilab" / ".env").write_text(
+        f"AGI_CLUSTER_ENABLED=1\nAGI_CLUSTER_SHARE={same_share}\nAGI_LOCAL_SHARE={same_share}\n"
+    )
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
+
+    fake_apps = tmp_path / "apps"
+    fake_app = fake_apps / "mycode_project"
+    fake_app_src = fake_app / "src" / "mycode"
+    fake_app_src.mkdir(parents=True, exist_ok=True)
+    (fake_app / "src" / "app_settings.toml").write_text(
+        "[cluster]\ncluster_enabled = true\n"
+    )
+
+    AgiEnv.reset()
+
+    with pytest.raises(RuntimeError, match="AGI_CLUSTER_SHARE to be distinct from AGI_LOCAL_SHARE"):
+        AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
 
 
 def test_cluster_enabled_from_apps_repository_when_app_src_invalid(tmp_path: Path, monkeypatch):
