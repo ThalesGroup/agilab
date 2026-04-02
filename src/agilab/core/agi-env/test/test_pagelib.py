@@ -462,6 +462,7 @@ def test_load_df_supports_csv_json_directory_and_time_index(tmp_path):
     (folder / "a.csv").write_text("date,value\n2026-01-01,1\n", encoding="utf-8")
     (folder / "b.csv").write_text("date,value\n2026-01-02,2\n", encoding="utf-8")
     loaded_dir = getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)(folder)
+    loaded_dir = loaded_dir.sort_index()
     assert list(loaded_dir["value"]) == [1, 2]
 
     unsupported = tmp_path / "notes.txt"
