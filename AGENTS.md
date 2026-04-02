@@ -40,6 +40,10 @@ Use this runbook whenever you:
   the codebase, especially in sibling apps, mirrored forms, shared helpers, or duplicated logic.
   If it does, either fix the related instances in the same change or clearly document why they are
   being left out.
+- **Deterministic filesystem behavior**: Never rely on implicit filesystem iteration order
+  (`glob`, `rglob`, `iterdir`, `os.scandir`) in runtime code or tests. If order matters to users,
+  sort in the implementation. If order is not part of the contract, assert on sorted values or sets
+  in tests.
 - **Shared core approval gate**: Do not edit shared core technology without explicit user approval first.
   Shared core includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
   `src/agilab/core/agi-core`, shared installer/build/deploy tooling, and generic helpers reused across apps/pages.
@@ -82,6 +86,13 @@ Use this runbook whenever you:
 - **App settings workspace**: `src/.../app_settings.toml` is now a versioned seed only.
   Mutable per-user settings live under `~/.agilab/apps/<app>/app_settings.toml`, and
   the UI reads/writes that workspace copy.
+- **Test environment isolation**: Root tests under `test/` must not depend on the developer machine
+  or GitHub runner home state. Assume `HOME`, `~/.agilab/.env`, cluster env vars, and
+  `APPS_REPOSITORY` may be polluted; use shared fixtures or explicit monkeypatching to force a clean
+  environment.
+- **Cluster fail-fast contract**: If cluster mode is requested, require an explicit, usable cluster
+  share that is distinct from local share. Do not silently degrade to `localshare`, and keep
+  regressions for that fail-fast behavior.
 - **Config preservation**: Run `tools/preserve_app_configs.sh lock` to keep local edits
   to any `app_args_form.py` or `pre_prompt.json` under `src/agilab/apps/` out of
   commits and pushes. Invoke `unlock` when you intentionally want to share updates.
