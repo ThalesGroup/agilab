@@ -18,6 +18,26 @@ Use this skill when validating changes.
   `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
   `src/agilab/core/agi-core`, or shared deploy/build helpers, get explicit user approval.
   First explain why an app-local fix is insufficient and which regression will validate the shared change.
+- Prefer fixing the class of failure, not a single symptom. If a regression comes from filesystem
+  ordering, polluted `HOME`/`~/.agilab`, or stale cluster config leaking from the runner, harden the
+  shared helper or shared test fixture instead of patching just one assertion.
+
+## Regression Hygiene
+
+- Filesystem order:
+  - Do not assume `glob`, `rglob`, `iterdir`, or `os.scandir` order across macOS, Linux, and GitHub runners.
+  - If order is user-visible, sort in the runtime/helper.
+  - If order is not part of the contract, compare sorted values or sets in tests.
+- Root test isolation:
+  - Tests under `test/` must not depend on the real machine `HOME` or an existing `~/.agilab/.env`.
+  - Prefer the shared `test/conftest.py` fixtures for a clean fake home; add local monkeypatches only
+    when a test truly needs custom env overrides.
+- Cluster/share regressions:
+  - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
+    “no silent fallback to localshare”.
+- App settings split:
+  - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
+  - Tests should target the right layer and avoid asserting that runtime writes back into source files.
 
 ## Common Commands
 

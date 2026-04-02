@@ -20,13 +20,6 @@ def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
     module = importlib.util.module_from_spec(spec)
     active_app = Path("src/agilab/apps/builtin/flight_project").resolve()
     argv = [MODULE_PATH.name, "--active-app", str(active_app)]
-    fake_home = tmp_path / "fake_home"
-    fake_home.mkdir()
-    monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.delenv("AGI_CLUSTER_ENABLED", raising=False)
-    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
-    monkeypatch.delenv("APPS_REPOSITORY", raising=False)
     AgiEnv.reset()
     with patch("sys.argv", argv):
         spec.loader.exec_module(module)
