@@ -1584,7 +1584,9 @@ def load_df(path: Path, nrows=None, with_index=True, cache_buster=None):
 
     if path.is_dir():
         # Collect all CSV and Parquet files in the directory
-        files = list(path.rglob("*.parquet")) + list(path.rglob("*.csv")) + list(path.rglob("*.json"))
+        files = sorted(
+            list(path.rglob("*.parquet")) + list(path.rglob("*.csv")) + list(path.rglob("*.json"))
+        )
         if not files:
             return None
 
@@ -2057,7 +2059,7 @@ def scan_dir(path):
     Returns:
         list: List of subdirectory names.
     """
-    return (
+    return sorted(
         [entry.name for entry in os.scandir(path) if entry.is_dir()]
         if os.path.exists(path)
         else []
