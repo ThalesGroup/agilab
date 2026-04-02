@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 from agi_env import pagelib
@@ -312,6 +313,19 @@ def test_resolve_docs_path_prefers_build(tmp_path):
     assert resolved == target
 
 
+def test_resolve_docs_path_falls_back_to_recursive_search(tmp_path):
+    pkg_root = tmp_path / "pkg"
+    nested = pkg_root.parent / "docs" / "nested"
+    nested.mkdir(parents=True)
+    target = nested / "guide.html"
+    target.write_text("guide", encoding="utf-8")
+    env = SimpleNamespace(agilab_pck=pkg_root)
+
+    resolved = pagelib._resolve_docs_path(env, "guide.html")
+
+    assert resolved == target
+
+
 def test_open_docs_falls_back_to_online(monkeypatch):
     captured = {}
 
@@ -343,6 +357,51 @@ def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
 
     with pytest.raises(FileNotFoundError):
         pagelib.open_local_docs(env, html_file="missing.html")
+
+
+def test_cached_load_df_uses_session_max_rows_and_zero_means_all(monkeypatch):
+    fake_st = SimpleNamespace(session_state={"TABLE_MAX_ROWS": "7"})
+    calls: list[tuple[object, bool, object]] = []
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(
+        pagelib,
+        "load_df",
+        lambda path, with_index=True, nrows=None: calls.append((path, with_index, nrows)) or "loaded",
+    )
+
+    cached = getattr(pagelib.cached_load_df, "__wrapped__", pagelib.cached_load_df)
+    assert cached("demo.csv", with_index=False) == "loaded"
+    assert calls[-1] == ("demo.csv", False, 7)
+
+    fake_st.session_state["TABLE_MAX_ROWS"] = 0
+    assert cached("demo.csv", with_index=True) == "loaded"
+    assert calls[-1] == ("demo.csv", True, None)
+
+
+def test_render_dataframe_preview_renders_caption_when_truncated(monkeypatch):
+    rendered = {}
+    captions: list[str] = []
+    monkeypatch.setattr(pagelib.st, "dataframe", lambda df, **kwargs: rendered.setdefault("frame", (df.copy(), kwargs)))
+    monkeypatch.setattr(pagelib.st, "caption", lambda text: captions.append(text))
+
+    pagelib.render_dataframe_preview(
+        pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": [7, 8, 9]}),
+        max_rows=2,
+        max_cols=2,
+        hide_index=True,
+        truncation_label="Preview cut",
+    )
+
+    preview_df, kwargs = rendered["frame"]
+    assert list(preview_df.columns) == ["a", "b"]
+    assert len(preview_df) == 2
+    assert kwargs["hide_index"] is True
+    assert captions == ["Preview cut: showing first 2 of 3 rows, showing first 2 of 3 columns."]
+
+
+def test_render_dataframe_preview_requires_dataframe():
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        pagelib.render_dataframe_preview(["not", "a", "df"])
 
 
 def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
@@ -382,6 +441,32 @@ def test_save_csv_rejects_empty_name_and_directory(tmp_path, monkeypatch):
     directory.mkdir()
     assert pagelib.save_csv(df, directory) is False
     assert "directory" in errors[-1].lower()
+
+
+def test_load_df_supports_csv_json_directory_and_time_index(tmp_path):
+    csv_path = tmp_path / "times.csv"
+    csv_path.write_text("time,value,index\n1,10,drop\n2,20,drop\n", encoding="utf-8")
+
+    loaded_csv = getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)(csv_path)
+    assert list(loaded_csv["value"]) == [10, 20]
+    assert loaded_csv.index[0] == pd.to_timedelta(1, unit="s")
+    assert "index" not in loaded_csv.columns
+
+    json_path = tmp_path / "records.json"
+    json_path.write_text('[{"date": "2026-01-01", "value": 1}]', encoding="utf-8")
+    loaded_json = getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)(json_path)
+    assert str(loaded_json.index[0].date()) == "2026-01-01"
+
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    (folder / "a.csv").write_text("date,value\n2026-01-01,1\n", encoding="utf-8")
+    (folder / "b.csv").write_text("date,value\n2026-01-02,2\n", encoding="utf-8")
+    loaded_dir = getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)(folder)
+    assert list(loaded_dir["value"]) == [1, 2]
+
+    unsupported = tmp_path / "notes.txt"
+    unsupported.write_text("x", encoding="utf-8")
+    assert getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)(unsupported) is None
 
 
 def test_resolve_mlflow_tracking_dir_falls_back_to_home(tmp_path):
@@ -508,6 +593,39 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     assert migrate["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
     assert migrate["cmd"][5] == str(tracking_dir)
     assert migrate["cmd"][7] == pagelib._sqlite_uri_for_path(tracking_dir / "mlflow.db")
+
+
+def test_reset_mlflow_sqlite_backend_moves_sidecars(tmp_path, monkeypatch):
+    db_path = tmp_path / "mlflow.db"
+    for suffix in ("", "-shm", "-wal", "-journal"):
+        Path(f"{db_path}{suffix}").write_text("x", encoding="utf-8")
+
+    monkeypatch.setattr(pagelib.time, "strftime", lambda *_args, **_kwargs: "20260402_120000")
+
+    backup = pagelib._reset_mlflow_sqlite_backend(db_path)
+
+    assert backup == tmp_path / "mlflow.schema-reset-20260402_120000.db"
+    for suffix in ("", "-shm", "-wal", "-journal"):
+        assert not Path(f"{db_path}{suffix}").exists()
+        assert Path(f"{backup}{suffix}").exists()
+
+
+def test_ensure_mlflow_sqlite_schema_current_raises_without_reset_marker(tmp_path, monkeypatch):
+    db_path = tmp_path / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("head",))
+        conn.commit()
+
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="plain upgrade failure"),
+    )
+    monkeypatch.setattr(pagelib, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+
+    with pytest.raises(RuntimeError, match="Failed to upgrade the local MLflow SQLite schema"):
+        pagelib._ensure_mlflow_sqlite_schema_current(db_path)
 
 
 def test_ensure_mlflow_backend_ready_repairs_default_experiment_id_zero(tmp_path):
@@ -705,3 +823,218 @@ def test_ensure_default_mlflow_experiment_resets_store_after_duplicate_column_er
     assert calls["reset"] == 1
     assert calls["tracking"] == ["sqlite:///tmp/mlflow.db", "sqlite:///tmp/mlflow.db"]
     assert calls["set_experiment"] == pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME
+
+
+def test_get_projects_zip_templates_and_about_content(tmp_path, monkeypatch):
+    export_apps = tmp_path / "exports"
+    export_apps.mkdir()
+    (export_apps / "alpha.zip").write_text("x", encoding="utf-8")
+    (export_apps / "beta.zip").write_text("x", encoding="utf-8")
+    apps_root = tmp_path / "apps"
+    (apps_root / "templates" / "demo").mkdir(parents=True)
+    agilab_pkg = tmp_path / "pkg"
+    (agilab_pkg / "agilab" / "templates" / "builtin").mkdir(parents=True)
+
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(session_state={"env": SimpleNamespace(export_apps=export_apps, apps_path=apps_root, agilab_pck=agilab_pkg)}),
+    )
+
+    assert sorted(pagelib.get_projects_zip()) == ["alpha.zip", "beta.zip"]
+    assert pagelib.get_templates() == ["builtin", "demo"]
+    assert "AGILab" in pagelib.get_about_content()["About"]
+
+
+def test_init_custom_ui_clears_form_keys(monkeypatch):
+    fake_state = {
+        "toggle_edit_ui": True,
+        "x:app_args_form:field": "value",
+        "keep": "ok",
+    }
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=fake_state))
+
+    pagelib.init_custom_ui(Path("/tmp/form.py"))
+
+    assert fake_state["toggle_edit"] is False
+    assert "x:app_args_form:field" not in fake_state
+    assert fake_state["app_args_form_refresh_nonce"] == 1
+    assert fake_state["keep"] == "ok"
+
+
+def test_detect_agilab_version_prefers_source_pyproject_and_git_metadata(tmp_path, monkeypatch):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='agilab'\nversion='2026.4.2'\n", encoding="utf-8")
+
+    calls = []
+    def fake_run(cmd, check, stdout, stderr, text):
+        calls.append(cmd)
+        if "rev-parse" in cmd:
+            return SimpleNamespace(stdout="abc123\n")
+        return SimpleNamespace(stdout="dirty\n")
+
+    monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
+
+    version = pagelib._detect_agilab_version(SimpleNamespace(is_source_env=True, agilab_pck=tmp_path))
+
+    assert version == "2026.4.2+dev.abc123*"
+    assert len(calls) == 2
+
+
+def test_detect_agilab_version_falls_back_to_installed_metadata(monkeypatch):
+    monkeypatch.setattr(pagelib, "_importlib_metadata", SimpleNamespace(version=lambda _name: "9.9.9"))
+
+    version = pagelib._detect_agilab_version(SimpleNamespace(is_source_env=False, agilab_pck=None))
+
+    assert version == "9.9.9"
+
+
+def test_render_logo_shows_version_when_logo_exists(tmp_path, monkeypatch):
+    logo_path = tmp_path / "agilab_logo.png"
+    logo_path.write_text("png", encoding="utf-8")
+    sidebar = SimpleNamespace(
+        image=lambda path, width: setattr(sidebar, "image_call", (path, width)),
+        caption=lambda text: setattr(sidebar, "caption_text", text),
+        warning=lambda text: setattr(sidebar, "warning_text", text),
+    )
+    fake_st = SimpleNamespace(session_state={"env": SimpleNamespace(st_resources=tmp_path)}, sidebar=sidebar)
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_detect_agilab_version", lambda env: "2026.4.2")
+
+    pagelib.render_logo()
+
+    assert sidebar.image_call == (str(logo_path), 170)
+    assert sidebar.caption_text == "v2026.4.2"
+
+
+def test_get_df_index_list_views_read_lines_and_scan_dir(tmp_path):
+    file_path = tmp_path / "demo.csv"
+    file_path.write_text("a\n1\n", encoding="utf-8")
+    (tmp_path / "views").mkdir()
+    (tmp_path / "views" / "first.py").write_text("print('a')\n", encoding="utf-8")
+    (tmp_path / "views" / "__init__.py").write_text("", encoding="utf-8")
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+
+    assert pagelib.get_df_index([str(file_path)], file_path) == 0
+    assert pagelib.get_df_index([], None) is None
+    assert pagelib.list_views(str(tmp_path / "views")) == [str(tmp_path / "views" / "first.py")]
+    assert list(pagelib.read_file_lines(file_path)) == ["a", "1"]
+    assert pagelib.scan_dir(tmp_path) == ["subdir", "views"]
+
+
+def test_resolve_active_app_prefers_query_param_and_fallback_last_app(tmp_path, monkeypatch):
+    apps_root = tmp_path / "apps"
+    builtin_root = apps_root / "builtin"
+    target = builtin_root / "flight_project"
+    target.mkdir(parents=True)
+    changed_to: list[Path] = []
+    stored: list[Path] = []
+    fake_st = SimpleNamespace(query_params={"active_app": "flight"})
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "store_last_active_app", lambda path: stored.append(path))
+
+    env = SimpleNamespace(
+        apps_path=apps_root,
+        app="mycode_project",
+        projects=["flight_project"],
+        active_app=apps_root / "mycode_project",
+        change_app=lambda path: changed_to.append(path) or setattr(env, "active_app", path) or setattr(env, "app", path.name),
+    )
+
+    app_name, changed = pagelib.resolve_active_app(env)
+
+    assert changed is True
+    assert app_name == "flight_project"
+    assert changed_to == [target]
+    assert stored == [target]
+
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(query_params={}))
+    last_app = apps_root / "demo_project"
+    last_app.mkdir(parents=True)
+    monkeypatch.setattr(pagelib, "load_last_active_app", lambda: last_app)
+
+    env.app = "flight_project"
+    env.active_app = target
+    changed_to.clear()
+    app_name, changed = pagelib.resolve_active_app(env)
+
+    assert changed is True
+    assert app_name == "demo_project"
+    assert changed_to == [last_app]
+
+
+def test_activate_gpt_oss_handles_missing_package_and_success(monkeypatch):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    warnings: list[str] = []
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state=FakeSessionState(),
+        warning=lambda message: warnings.append(str(message)),
+        error=lambda message: errors.append(str(message)),
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setitem(sys.modules, "gpt_oss", None)
+
+    real_import = __import__
+    def fake_import(name, *args, **kwargs):
+        if name == "gpt_oss":
+            raise ImportError("missing gpt_oss")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+    env = SimpleNamespace(envars={})
+
+    assert pagelib.activate_gpt_oss(env) is False
+    assert any("Install `gpt-oss`" in msg for msg in warnings)
+    assert fake_st.session_state["gpt_oss_autostart_failed"] is True
+
+    monkeypatch.setattr("builtins.__import__", real_import)
+    sys.modules["gpt_oss"] = SimpleNamespace()
+    fake_st.session_state.clear()
+    warnings.clear()
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50124)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    launched = {}
+    monkeypatch.setattr(pagelib, "subproc", lambda command, cwd: launched.setdefault("call", (command, cwd)))
+
+    assert pagelib.activate_gpt_oss(env) is True
+    assert "gpt_oss.responses_api.serve" in launched["call"][0]
+    assert "--inference-backend stub" in launched["call"][0]
+    assert fake_st.session_state["gpt_oss_server_started"] is True
+    assert fake_st.session_state["gpt_oss_endpoint"] == "http://127.0.0.1:50124/v1/responses"
+    assert env.envars["GPT_OSS_ENDPOINT"] == "http://127.0.0.1:50124/v1/responses"
+
+
+def test_activate_gpt_oss_requires_checkpoint_for_transformers_backend(monkeypatch):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    warnings: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state=FakeSessionState({"gpt_oss_backend": "vllm"}),
+        warning=lambda message: warnings.append(str(message)),
+        error=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    sys.modules["gpt_oss"] = SimpleNamespace()
+
+    env = SimpleNamespace(envars={})
+    assert pagelib.activate_gpt_oss(env) is False
+    assert any("requires a checkpoint" in msg for msg in warnings)

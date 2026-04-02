@@ -7,6 +7,7 @@ import sys
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 
 def _load_module(module_name: str, relative_path: str):
@@ -249,3 +250,330 @@ def test_resolve_uoaic_path_raises_for_empty_input():
         assert "Path is empty" in str(exc)
     else:  # pragma: no cover - defensive
         raise AssertionError("Expected ValueError for empty input")
+
+
+def test_ollama_available_models_deduplicates_and_handles_invalid_payloads(monkeypatch):
+    class FakeResponse:
+        def __init__(self, body: str):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return self._body.encode("utf-8")
+
+    available = getattr(pipeline_ai._ollama_available_models, "__wrapped__", pipeline_ai._ollama_available_models)
+
+    monkeypatch.setattr(
+        pipeline_ai.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse(
+            '{"models":[{"name":"mistral:instruct"},{"name":"deepseek-coder"},{"name":"mistral:instruct"}]}'
+        ),
+    )
+    assert available("http://127.0.0.1:11434") == ["mistral:instruct", "deepseek-coder"]
+
+    monkeypatch.setattr(
+        pipeline_ai.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse("not-json"),
+    )
+    assert available("http://127.0.0.1:11434") == []
+
+
+def test_default_ollama_model_prefers_code_model_and_fallbacks(monkeypatch):
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_ollama_available_models",
+        lambda _endpoint: ["mistral:instruct", "codestral:latest"],
+    )
+    assert pipeline_ai._default_ollama_model("http://ollama", prefer_code=True) == "codestral:latest"
+    assert pipeline_ai._default_ollama_model("http://ollama", preferred="mistral:instruct") == "mistral:instruct"
+
+    monkeypatch.setattr(pipeline_ai, "_ollama_available_models", lambda _endpoint: [])
+    assert pipeline_ai._default_ollama_model("http://ollama", preferred="fallback-model") == "fallback-model"
+
+
+def test_ollama_generate_success_and_error_paths(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __init__(self, body: str):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return self._body.encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["payload"] = request.data.decode("utf-8")
+        return FakeResponse('{"response":"  print(42)  "}')
+
+    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", fake_urlopen)
+    text = pipeline_ai._ollama_generate(
+        endpoint="http://127.0.0.1:11434",
+        model="deepseek-coder",
+        prompt="hello",
+        num_ctx=4096,
+        num_predict=256,
+        seed=7,
+    )
+    assert text == "print(42)"
+    assert captured["url"].endswith("/api/generate")
+    assert '"num_ctx": 4096' in captured["payload"]
+    assert '"num_predict": 256' in captured["payload"]
+    assert '"seed": 7' in captured["payload"]
+
+    http_error = pipeline_ai.urllib.error.HTTPError(
+        url="http://127.0.0.1:11434/api/generate",
+        code=500,
+        msg="boom",
+        hdrs=None,
+        fp=None,
+    )
+    http_error.read = lambda: b"server exploded"  # type: ignore[attr-defined]
+    monkeypatch.setattr(
+        pipeline_ai.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(http_error),
+    )
+    with pytest.raises(RuntimeError, match="Ollama error 500: server exploded"):
+        pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
+
+    monkeypatch.setattr(
+        pipeline_ai.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(pipeline_ai.urllib.error.URLError("down")),
+    )
+    with pytest.raises(RuntimeError, match="Unable to reach Ollama"):
+        pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
+
+
+def test_chat_ollama_local_success_and_missing_model(monkeypatch):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_default_ollama_model", lambda *_args, **_kwargs: "fallback-model")
+    monkeypatch.setattr(pipeline_ai, "_ollama_generate", lambda **kwargs: kwargs["prompt"])
+
+    text, model = pipeline_ai.chat_ollama_local(
+        "show chart",
+        [{"role": "assistant", "content": "previous"}],
+        {
+            pipeline_ai.UOAIC_MODEL_ENV: "custom-model",
+            pipeline_ai.UOAIC_TEMPERATURE_ENV: "0.3",
+            pipeline_ai.UOAIC_NUM_CTX_ENV: "2048",
+        },
+    )
+
+    assert model == "custom-model"
+    assert "User: show chart" in text
+    assert pipeline_ai.CODE_STRICT_INSTRUCTIONS in text
+
+    monkeypatch.setattr(pipeline_ai, "_default_ollama_model", lambda *_args, **_kwargs: "")
+    with pytest.raises(RuntimeError, match="Missing Ollama model"):
+        pipeline_ai.chat_ollama_local("show chart", [], {})
+    assert any("Ollama model name" in msg for msg in errors)
+
+
+def test_chat_offline_success_stub_and_request_error(monkeypatch):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={"gpt_oss_backend_active": "real"},
+        error=lambda message: errors.append(str(message)),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    class FakeRequestException(Exception):
+        pass
+
+    class FakeResponse:
+        def __init__(self, data):
+            self._data = data
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._data
+
+    fake_requests = SimpleNamespace(
+        exceptions=SimpleNamespace(RequestException=FakeRequestException),
+        post=lambda endpoint, json, timeout: FakeResponse(
+            {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "text", "text": "print('ok')"}],
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "requests", fake_requests)
+
+    text, model = pipeline_ai.chat_offline("question", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
+    assert text == "print('ok')"
+    assert model == "gpt-oss-mini"
+
+    fake_st.session_state["gpt_oss_backend_active"] = "stub"
+    fake_requests.post = lambda endpoint, json, timeout: FakeResponse({"output": []})
+    text, _model = pipeline_ai.chat_offline("smooth column", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
+    assert "stub backend" in text
+
+    def failing_post(endpoint, json, timeout):
+        raise FakeRequestException("offline")
+
+    fake_requests.post = failing_post
+    with pytest.raises(RuntimeError):
+        pipeline_ai.chat_offline("question", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
+    assert any("Failed to reach GPT-OSS" in msg for msg in errors)
+
+
+def test_chat_universal_offline_formats_sources_and_raises(monkeypatch):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    class Doc:
+        def __init__(self, metadata):
+            self.metadata = metadata
+
+    class Chain:
+        def invoke(self, payload):
+            assert "User: where from?" in payload["query"]
+            return {
+                "result": "answer",
+                "source_documents": [
+                    Doc({"source": "doc1.pdf", "page": 2}),
+                    Doc({"path": "doc2.txt"}),
+                ],
+            }
+
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_ensure_uoaic_runtime",
+        lambda envars: {"chain": Chain(), "model_label": "uoaic"},
+    )
+
+    text, model = pipeline_ai.chat_universal_offline("where from?", [], {})
+    assert model == "uoaic"
+    assert "answer" in text
+    assert "doc1.pdf (page 2)" in text
+    assert "doc2.txt" in text
+
+    class BrokenChain:
+        def invoke(self, payload):
+            raise ValueError("broken rag")
+
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_ensure_uoaic_runtime",
+        lambda envars: {"chain": BrokenChain(), "model_label": "uoaic"},
+    )
+    with pytest.raises(RuntimeError):
+        pipeline_ai.chat_universal_offline("where from?", [], {})
+    assert any("Universal Offline AI Chatbot invocation failed" in msg for msg in errors)
+
+
+def test_ask_gpt_routes_to_selected_provider(monkeypatch):
+    fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "gpt-oss"})
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "chat_offline", lambda *args: ("```python\nprint(1)\n```", "gpt-oss"))
+    result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
+    assert result[2:] == ["gpt-oss", "print(1)", ""]
+
+    fake_st.session_state["lab_llm_provider"] = pipeline_ai.UOAIC_PROVIDER
+    fake_st.session_state[pipeline_ai.UOAIC_MODE_STATE_KEY] = pipeline_ai.UOAIC_MODE_RAG
+    monkeypatch.setattr(pipeline_ai, "chat_universal_offline", lambda *args: ("final answer.", "uoaic"))
+    result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
+    assert result[2:] == ["uoaic", "", "final answer."]
+
+    fake_st.session_state["lab_llm_provider"] = "openai"
+    monkeypatch.setattr(pipeline_ai, "chat_online", lambda *args: ("```python\nprint(2)\n```", "gpt-5"))
+    result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
+    assert result[2:] == ["gpt-5", "print(2)", ""]
+
+
+def test_maybe_autofix_generated_code_paths(monkeypatch):
+    logs: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_AUTOFIX_STATE_KEY: True,
+            pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY: 2,
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    push_run_log = lambda *_args: logs.append(_args[1])
+    get_run_placeholder = lambda _page: "placeholder"
+    env = SimpleNamespace(envars={})
+
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="q",
+        df_path=Path("df.csv"),
+        index_page="page",
+        env=env,
+        merged_code="df['y'] = df['x'] + 1",
+        model_label="m",
+        detail="",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=push_run_log,
+        get_run_placeholder=get_run_placeholder,
+    )
+    assert code == "df['y'] = df['x'] + 1"
+    assert any("validated successfully" in entry for entry in logs)
+
+    logs.clear()
+    monkeypatch.setattr(
+        pipeline_ai,
+        "ask_gpt",
+        lambda *args, **kwargs: [Path("df.csv"), "fix", "m2", "df['z'] = df['x'] * 2", "fixed"],
+    )
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="q",
+        df_path=Path("df.csv"),
+        index_page="page",
+        env=env,
+        merged_code="raise ValueError('boom')",
+        model_label="m",
+        detail="",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=push_run_log,
+        get_run_placeholder=get_run_placeholder,
+    )
+    assert code.startswith("# fixed\n")
+    assert "df['z'] = df['x'] * 2" in code
+    assert model == "m2"
+    assert detail == "fixed"
+    assert any("success on attempt 1" in entry for entry in logs)
+
+    logs.clear()
+    fake_st.session_state["loaded_df"] = pd.DataFrame()
+    fake_st.session_state["df_file"] = ""
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="q",
+        df_path=Path("df.csv"),
+        index_page="page",
+        env=env,
+        merged_code="raise ValueError('boom')",
+        model_label="m",
+        detail="",
+        load_df_cached=lambda path: pd.DataFrame(),
+        push_run_log=push_run_log,
+        get_run_placeholder=get_run_placeholder,
+    )
+    assert code == "raise ValueError('boom')"
+    assert any("no dataframe is loaded" in entry for entry in logs)

@@ -117,3 +117,99 @@ def test_notebook_to_toml_imports_code_cells(monkeypatch, tmp_path):
     assert count == 2
     assert stored["flight_project"][0]["C"] == "print('a')\n"
     assert stored["flight_project"][1]["C"] == "print('b')\n"
+
+
+def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(
+        session_state={
+            "idx__details": {0: "detail0", 1: "detail1", "bad": "skip"},
+            "idx__venv_map": {0: str(tmp_path / "venv0"), 1: "", 9: "/skip"},
+            "idx__engine_map": {0: "runpy", 1: "agi.run"},
+            "idx__run_sequence": [1, 0, 99, "bad"],
+            "idx": [1, "", "", "", "", "", 2],
+            "lab_selected_venv": str(tmp_path / "venv0"),
+            "lab_selected_engine": "agi.run",
+            "idx__clear_q": True,
+            "idx__force_blank_q": True,
+            "idx__q_rev": 2,
+            "idx_confirm_delete_all": True,
+            "idx_sequence_widget": [1, 0],
+        }
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
+
+    steps = [
+        {"D": "d0", "Q": "q0", "M": "m0", "C": "c0", "E": str(tmp_path / "venv0"), "R": "runpy"},
+        {"D": "d1", "Q": "q1", "M": "m1", "C": "c1", "E": str(tmp_path / "venv1"), "R": "agi.run"},
+    ]
+    snapshot = pipeline_editor._capture_pipeline_snapshot("idx", steps)
+
+    writes = {}
+    def _write_steps(module, steps_file, module_steps):
+        writes["steps"] = module_steps
+        return len(module_steps)
+
+    monkeypatch.setattr(
+        pipeline_editor,
+        "_write_steps_for_module",
+        _write_steps,
+    )
+    monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *args, **kwargs: writes.setdefault("sequence", args[2]))
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: writes.setdefault("bumped", True))
+    monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda path: path.endswith("venv0"))
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "idx_sequence_widget",
+        snapshot,
+    )
+
+    assert error is None
+    assert fake_st.session_state["idx__details"] == {0: "detail0", 1: "detail1"}
+    assert fake_st.session_state["idx__run_sequence"] == [1, 0]
+    assert fake_st.session_state["lab_selected_venv"].endswith("venv0")
+    assert fake_st.session_state["lab_selected_engine"] == "agi.run"
+    assert fake_st.session_state["idx"][0] == 1
+    assert fake_st.session_state["idx"][-1] == 2
+    assert "idx_sequence_widget" not in fake_st.session_state
+    assert writes["bumped"] is True
+
+
+def test_reset_pipeline_editor_state_clears_editor_widget_keys(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "demo_q_step_0": "q",
+            "demo_code_step_0": "c",
+            "demo_venv_0": "v",
+            "demo_keep": "ok",
+            "demoa": "drop",
+        }
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    pipeline_editor._reset_pipeline_editor_state("demo")
+
+    assert fake_st.session_state == {"demo_keep": "ok"}
+
+
+def test_get_steps_list_and_dict_handle_invalid_files_and_alias_keys(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[[flight_project]]\nQ = 'first'\n"
+        "[[flight]]\nQ = 'alias'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project", "flight"])
+
+    steps = pipeline_editor.get_steps_list(tmp_path / "flight_project", steps_file)
+    stored = pipeline_editor.get_steps_dict(tmp_path / "flight_project", steps_file)
+
+    assert steps[0]["Q"] == "first"
+    assert "flight" not in stored
+
+    invalid_file = tmp_path / "broken.toml"
+    invalid_file.write_text("[[flight_project]\n", encoding="utf-8")
+    assert pipeline_editor.get_steps_list(tmp_path / "flight_project", invalid_file) == []
