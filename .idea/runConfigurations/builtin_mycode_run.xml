@@ -10,7 +10,7 @@
         <env name="UV_NO_SYNC" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/apps/builtin/mycode_project" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/agilab/apps/builtin/mycode_project" />
     <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
