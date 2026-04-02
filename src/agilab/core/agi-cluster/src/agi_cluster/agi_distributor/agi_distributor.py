@@ -102,6 +102,54 @@ def _ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
     pyproject_file.write_text(tomlkit.dumps(doc))
 
 
+def _is_private_ssh_key_file(path: Path) -> bool:
+    """Return True when ``path`` looks like a usable private SSH key."""
+
+    if not path.is_file():
+        return False
+
+    name = path.name.lower()
+    if name == "config":
+        return False
+    if name.startswith("authorized_keys"):
+        return False
+    if name.startswith("known_hosts"):
+        return False
+    if name.endswith(".pub"):
+        return False
+
+    try:
+        header = path.read_text(errors="ignore")[:256]
+    except OSError:
+        return False
+
+    private_key_markers = (
+        "BEGIN OPENSSH PRIVATE KEY",
+        "BEGIN RSA PRIVATE KEY",
+        "BEGIN DSA PRIVATE KEY",
+        "BEGIN EC PRIVATE KEY",
+        "BEGIN PRIVATE KEY",
+        "BEGIN ENCRYPTED PRIVATE KEY",
+    )
+    if any(marker in header for marker in private_key_markers):
+        return True
+
+    return name.startswith("id_") and "." not in name
+
+
+def _discover_private_ssh_keys(ssh_dir: Path) -> List[str]:
+    """Return likely private SSH keys from ``ssh_dir``."""
+
+    if not ssh_dir.exists():
+        return []
+
+    keys = []
+    for file in ssh_dir.iterdir():
+        if _is_private_ssh_key_file(file):
+            keys.append(str(file))
+    return keys
+
+
 def _rewrite_uv_sources_paths_for_copied_pyproject(
     *,
     src_pyproject: Path,
@@ -4926,23 +4974,7 @@ class AGI:
                     agent_path = None
                 else:
                     ssh_dir = Path("~/.ssh").expanduser()
-                    keys = []
-
-                    if ssh_dir.exists():
-                        for file in ssh_dir.iterdir():
-                            if not file.is_file():
-                                continue
-
-                            name = file.name
-                            if name.startswith('authorized_keys'):
-                                continue
-                            if name.startswith('known_hosts'):
-                                continue
-                            if name.endswith('.pub'):
-                                continue
-
-                            keys.append(str(file))
-
+                    keys = _discover_private_ssh_keys(ssh_dir)
                     client_keys = keys if keys else None
 
             conn = await asyncio.wait_for(
