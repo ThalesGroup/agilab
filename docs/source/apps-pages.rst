@@ -38,15 +38,17 @@ Enabling bundles (per project)
 ------------------------------
 
 Bundles are enabled per project by writing their module names into
-``app_settings.toml``:
+the per-user workspace copy of ``app_settings.toml``:
 
 .. code-block:: toml
 
    [pages]
    view_module = ["view_maps_network", "view_barycentric"]
 
-You can edit this manually (PROJECT → APP-SETTINGS) or use Analysis → Configure,
-which writes the same list for you.
+The file lives at ``~/.agilab/apps/<project>/app_settings.toml`` and is seeded
+from ``src/<project>/src/app_settings.toml`` on first use. You can edit it
+manually (PROJECT → APP-SETTINGS) or use Analysis → Configure, which writes the
+same list for you.
 
 Included page bundles
 ---------------------
