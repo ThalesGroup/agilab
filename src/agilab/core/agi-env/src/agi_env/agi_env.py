@@ -1043,9 +1043,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         def _cluster_enabled_from_settings() -> bool:
             """Best-effort read of the Streamlit 'Enable Cluster' toggle.
 
-            The toggle is persisted under `[cluster].cluster_enabled` in each app's
+            The toggle is persisted under `[cluster].cluster_enabled` in the
+            per-user app settings file seeded from each app's source
             `app_settings.toml`. When the per-app setting is missing, fall back to
-            the global `.env` value `AGI_CLUSTER_ENABLED` if present.
+            the versioned source file, then to the global `.env` value
+            `AGI_CLUSTER_ENABLED` if present.
             """
 
             if self.is_worker_env:
@@ -1063,116 +1065,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     if normalized in {"0", "false", "no", "n", "off", ""}:
                         return False
                 return None
-
-            def _candidate_setting_path(base: object) -> Path | None:
-                """Return a safe candidate path for ``app_settings.toml`` or ``None``."""
-                try:
-                    base_path = Path(base)
-                except Exception:
-                    return None
-
-                candidates: list[Path] = []
-                try:
-                    # Standard app-root and source-root layouts:
-                    if base_path.name == "src":
-                        candidates.append(base_path / "app_settings.toml")
-                    else:
-                        candidates.append(base_path / "app_settings.toml")
-                        candidates.append(base_path / "src" / "app_settings.toml")
-                except Exception:
-                    return None
-
-                for candidate in candidates:
-                    try:
-                        if candidate.is_file():
-                            return candidate
-                    except Exception:
-                        continue
-                try:
-                    if base_path.is_dir() and (base_path / "src").exists():
-                        return base_path / "src" / "app_settings.toml"
-                except Exception:
-                    pass
-                return None
-
-            def _app_aliases(app_name: str) -> set[str]:
-                if app_name.endswith("_project_worker"):
-                    base_name = app_name[:-len("_project_worker")]
-                    return {base_name + "_project", base_name + "_project_worker"}
-                if app_name.endswith("_project"):
-                    base_name = app_name[:-len("_project")]
-                    return {app_name, base_name + "_worker"}
-                if app_name.endswith("_worker"):
-                    base_name = app_name[:-len("_worker")]
-                    if base_name.endswith("_project"):
-                        return {app_name, base_name}
-                    return {app_name, base_name + "_project"}
-                return {app_name}
-
-            def _expand_app_roots() -> list[Path]:
-                apps_repository_root = self.apps_repository_root or self._get_apps_repository_root()
-                app_roots: list[Path] = []
-                if self.app_src is not None:
-                    app_roots.append(self.app_src)
-                if self.active_app is not None:
-                    app_roots.append(self.active_app)
-                    app_roots.append(self.active_app / "src")
-                if self.apps_path is not None and self.app is not None:
-                    app_roots.append(self.apps_path / self.app)
-                    app_roots.append(self.apps_path / self.app / "src")
-                    for app_alias in _app_aliases(self.app):
-                        app_roots.append(self.apps_path / app_alias)
-                        app_roots.append(self.apps_path / app_alias / "src")
-
-                if self.agilab_pck is not None:
-                    app_roots.append(self.agilab_pck / "apps")
-                    app_roots.append(self.agilab_pck / "apps" / "builtin")
-                if self.apps_repository_root is not None:
-                    app_roots.append(self.apps_repository_root)
-                if apps_repository_root is not None:
-                    app_roots.append(apps_repository_root)
-                    if self.app is not None:
-                        for app_alias in _app_aliases(self.app):
-                            app_roots.append(apps_repository_root / app_alias)
-                            app_roots.append(apps_repository_root / app_alias / "src")
-                            app_roots.append(apps_repository_root / "src" / app_alias)
-                if self.app is not None:
-                    for app_alias in _app_aliases(self.app):
-                        app_roots.append(Path(self.home_abs) / "wenv" / app_alias)
-                        app_roots.append(Path(self.home_abs) / "wenv" / app_alias / "src")
-                if self.builtin_apps_path is not None:
-                    app_roots.append(self.builtin_apps_path)
-
-                export_root = _clean_envar_value(envars, "AGI_EXPORT_DIR", fallback_to_process=True)
-                if export_root:
-                    try:
-                        expanded_export = Path(export_root).expanduser()
-                        if not expanded_export.is_absolute():
-                            expanded_export = self.home_abs / expanded_export
-                        app_roots.append(expanded_export)
-                        if self.app is not None:
-                            app_roots.append(expanded_export / self.app)
-                    except Exception:
-                        pass
-
-                if self.app is not None:
-                    for app_alias in _app_aliases(self.app):
-                        app_roots.append(Path(self.home_abs) / "export" / app_alias)
-
-                normalized: list[Path] = []
-                seen: set[str] = set()
-                for root in app_roots:
-                    if root is None:
-                        continue
-                    try:
-                        norm = str(root)
-                        if norm in seen:
-                            continue
-                        seen.add(norm)
-                        normalized.append(root)
-                    except Exception:
-                        continue
-                return normalized
 
             def _read_cluster_setting(path: Path) -> bool | None:
                 """Read [cluster].cluster_enabled from a settings file."""
@@ -1193,14 +1085,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             parsed: bool | None = None
 
             try:
-                settings_roots = _expand_app_roots()
-                settings_candidates = [_candidate_setting_path(root) for root in settings_roots]
-                settings_candidates.extend(
-                    _candidate_setting_path(self.agilab_pck / "apps" / app_alias / "src")
-                    for app_alias in _app_aliases(self.app)
-                    if self.app is not None and self.agilab_pck is not None
-                )
-
+                settings_candidates = [
+                    self.resolve_user_app_settings_file(ensure_exists=False),
+                    self.find_source_app_settings_file(),
+                ]
                 for settings_path in settings_candidates:
                     if settings_path is None:
                         continue
@@ -1965,6 +1853,163 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)
         return True
 
+    @staticmethod
+    def _app_settings_aliases(app_name: str | None) -> set[str]:
+        """Return common project/worker aliases for ``app_name``."""
+
+        if not app_name:
+            return set()
+        if app_name.endswith("_project_worker"):
+            base_name = app_name[: -len("_project_worker")]
+            return {base_name + "_project", base_name + "_project_worker"}
+        if app_name.endswith("_project"):
+            base_name = app_name[: -len("_project")]
+            return {app_name, base_name + "_worker"}
+        if app_name.endswith("_worker"):
+            base_name = app_name[: -len("_worker")]
+            if base_name.endswith("_project"):
+                return {app_name, base_name}
+            return {app_name, base_name + "_project"}
+        return {app_name}
+
+    @staticmethod
+    def _candidate_app_settings_path(base: object) -> Path | None:
+        """Return a safe candidate path for ``app_settings.toml`` or ``None``."""
+
+        try:
+            base_path = Path(base)
+        except Exception:
+            return None
+
+        candidates: list[Path] = []
+        try:
+            if base_path.name == "src":
+                candidates.append(base_path / "app_settings.toml")
+            else:
+                candidates.append(base_path / "app_settings.toml")
+                candidates.append(base_path / "src" / "app_settings.toml")
+        except Exception:
+            return None
+
+        for candidate in candidates:
+            try:
+                if candidate.is_file():
+                    return candidate
+            except Exception:
+                continue
+
+        try:
+            src_dir = base_path / "src"
+            if base_path.is_dir() and src_dir.is_dir():
+                return src_dir / "app_settings.toml"
+        except Exception:
+            pass
+        return None
+
+    def _app_settings_source_roots(self, app_name: str | None = None) -> list[Path]:
+        """Collect source roots that may contain ``app_settings.toml`` for an app."""
+
+        target_app = app_name or self.app
+        aliases = self._app_settings_aliases(target_app)
+        current_aliases = self._app_settings_aliases(self.app)
+        apps_repository_root = self.apps_repository_root or self._get_apps_repository_root()
+
+        roots: list[Path] = []
+        if aliases and current_aliases and aliases & current_aliases:
+            if self.app_src is not None:
+                roots.append(self.app_src)
+            if self.active_app is not None:
+                roots.append(self.active_app)
+                roots.append(self.active_app / "src")
+
+        if self.apps_path is not None:
+            for alias in aliases:
+                roots.append(self.apps_path / alias)
+                roots.append(self.apps_path / alias / "src")
+
+        if self.builtin_apps_path is not None:
+            for alias in aliases:
+                roots.append(self.builtin_apps_path / alias)
+                roots.append(self.builtin_apps_path / alias / "src")
+
+        if apps_repository_root is not None:
+            roots.append(apps_repository_root)
+            for alias in aliases:
+                roots.append(apps_repository_root / alias)
+                roots.append(apps_repository_root / alias / "src")
+                roots.append(apps_repository_root / "src" / alias)
+
+        if target_app:
+            for alias in aliases:
+                roots.append(Path(self.home_abs) / "wenv" / alias)
+                roots.append(Path(self.home_abs) / "wenv" / alias / "src")
+
+        export_root = _clean_envar_value(self.envars, "AGI_EXPORT_DIR", fallback_to_process=True)
+        if export_root:
+            try:
+                expanded_export = Path(export_root).expanduser()
+                if not expanded_export.is_absolute():
+                    expanded_export = self.home_abs / expanded_export
+                roots.append(expanded_export)
+                for alias in aliases:
+                    roots.append(expanded_export / alias)
+                    roots.append(expanded_export / alias / "src")
+            except Exception:
+                pass
+
+        normalized: list[Path] = []
+        seen: set[str] = set()
+        for root in roots:
+            try:
+                norm = str(root)
+            except Exception:
+                continue
+            if norm in seen:
+                continue
+            seen.add(norm)
+            normalized.append(root)
+        return normalized
+
+    def find_source_app_settings_file(self, app_name: str | None = None) -> Path | None:
+        """Return the versioned/source ``app_settings.toml`` for an app when available."""
+
+        for root in self._app_settings_source_roots(app_name):
+            candidate = self._candidate_app_settings_path(root)
+            if candidate is not None:
+                return candidate
+        return None
+
+    def resolve_user_app_settings_file(
+        self,
+        app_name: str | None = None,
+        *,
+        ensure_exists: bool = True,
+    ) -> Path:
+        """Return the per-user mutable ``app_settings.toml`` path for an app.
+
+        The workspace copy lives under ``~/.agilab/apps/<app>/app_settings.toml`` and
+        is seeded from the versioned source file on first use.
+        """
+
+        target_app = app_name or self.app or self.target
+        if not target_app:
+            raise RuntimeError("Cannot resolve app settings without an app name")
+
+        workspace_file = self.resources_path / "apps" / target_app / "app_settings.toml"
+        if not ensure_exists:
+            return workspace_file
+
+        workspace_file.parent.mkdir(parents=True, exist_ok=True)
+        if workspace_file.exists():
+            return workspace_file
+
+        source_file = self.find_source_app_settings_file(target_app)
+        if source_file is not None and source_file.exists():
+            shutil.copy2(source_file, workspace_file)
+        else:
+            workspace_file.touch()
+        return workspace_file
+
     def extract_base_info(self, base, import_mapping):
         """Return the base-class name and originating module for ``base`` nodes."""
 
@@ -2113,9 +2158,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
 
     def _init_apps(self):
-        app_settings_file = self.app_src / "app_settings.toml"
-        app_settings_file.touch(exist_ok=True)
-        self.app_settings_file = app_settings_file
+        app_settings_source_file = self.find_source_app_settings_file() or (self.app_src / "app_settings.toml")
+        self.app_settings_source_file = app_settings_source_file
+        self.app_settings_file = self.resolve_user_app_settings_file()
 
         app_args_form = self.app_src / "app_args_form.py"
         app_args_form.touch(exist_ok=True)
