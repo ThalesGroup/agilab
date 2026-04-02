@@ -3,7 +3,10 @@ import ast
 import getpass
 import logging
 import shlex
+import shutil
 import sys
+from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 from pathlib import Path
@@ -682,3 +685,337 @@ def test_is_relative_to_returns_expected_result(tmp_path: Path):
 
     assert agi_env_module._is_relative_to(child, parent) is True
     assert agi_env_module._is_relative_to(tmp_path / "other", parent) is False
+
+
+def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
+    assert agi_env_module.AgiEnv._app_settings_aliases("demo_project") == {"demo_project", "demo_worker"}
+    assert agi_env_module.AgiEnv._app_settings_aliases("demo_worker") == {"demo_worker", "demo_project"}
+    assert agi_env_module.AgiEnv._app_settings_aliases("demo_project_worker") == {
+        "demo_project",
+        "demo_project_worker",
+    }
+    assert agi_env_module.AgiEnv._app_settings_aliases(None) == set()
+
+    src_dir = tmp_path / "demo_project" / "src"
+    src_dir.mkdir(parents=True)
+    src_settings = src_dir / "app_settings.toml"
+    src_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
+
+    assert agi_env_module.AgiEnv._candidate_app_settings_path(src_dir) == src_settings
+    assert agi_env_module.AgiEnv._candidate_app_settings_path(src_dir.parent) == src_settings
+    assert agi_env_module.AgiEnv._candidate_app_settings_path(object()) is None
+
+
+def test_find_source_and_user_app_settings_cover_workspace_seed_paths(tmp_path: Path):
+    env = object.__new__(AgiEnv)
+    env.app = "demo_project"
+    env.home_abs = tmp_path / "home"
+    env.home_abs.mkdir()
+    env.resources_path = env.home_abs / ".agilab"
+    env.resources_path.mkdir(parents=True)
+    env.envars = {}
+    env.apps_repository_root = None
+    env._get_apps_repository_root = lambda: None
+
+    active_app = tmp_path / "apps" / "demo_project"
+    active_src = active_app / "src"
+    active_src.mkdir(parents=True)
+    source_settings = active_src / "app_settings.toml"
+    source_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+
+    env.active_app = active_app
+    env.app_src = active_src
+    env.apps_path = tmp_path / "apps"
+    env.builtin_apps_path = None
+
+    found = env.find_source_app_settings_file("demo_worker")
+    assert found == source_settings
+
+    workspace_file = env.resolve_user_app_settings_file("demo_project")
+    assert workspace_file.exists()
+    assert workspace_file.read_text(encoding="utf-8") == source_settings.read_text(encoding="utf-8")
+
+    blank_env = object.__new__(AgiEnv)
+    blank_env.app = "blank_project"
+    blank_env.target = "blank_project"
+    blank_env.resources_path = tmp_path / "resources"
+    blank_env.resources_path.mkdir(parents=True)
+    blank_env.find_source_app_settings_file = lambda _app_name=None: None
+    touched = blank_env.resolve_user_app_settings_file(ensure_exists=True)
+    assert touched.exists()
+    assert touched.read_text(encoding="utf-8") == ""
+    unresolved = blank_env.resolve_user_app_settings_file(ensure_exists=False)
+    assert unresolved == blank_env.resources_path / "apps" / "blank_project" / "app_settings.toml"
+
+
+def test_get_import_mapping_and_base_info_support_ast_nodes(monkeypatch):
+    env = object.__new__(AgiEnv)
+
+    source = (
+        "import pkg.module as mod\n"
+        "from demo.worker import DemoWorker\n"
+        "from another.pkg import helper\n"
+    )
+    mapping = env.get_import_mapping(source)
+    assert mapping["mod"] == "pkg.module"
+    assert mapping["DemoWorker"] == "demo.worker"
+    assert mapping["helper"] == "another.pkg"
+
+    name_base = ast.parse("class Child(Base):\n    pass\n").body[0].bases[0]
+    attr_base = ast.parse("class Child(mod.DemoWorker):\n    pass\n").body[0].bases[0]
+    assert env.extract_base_info(name_base, mapping) == ("Base", None)
+    assert env.extract_base_info(attr_base, mapping) == ("DemoWorker", "pkg.module")
+    assert env.get_full_attribute_name(attr_base) == "mod.DemoWorker"
+
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+    with pytest.raises(SyntaxError):
+        env.get_import_mapping("def broken(:\n")
+    assert mock_logger.error.called
+
+
+def test_read_gitignore_and_check_internet_cover_success_and_failure(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    gitignore = tmp_path / ".gitignore"
+    gitignore.write_text("*.pyc\nbuild/\n", encoding="utf-8")
+
+    spec = env.read_gitignore(gitignore)
+    assert spec.match_file("module.pyc") is True
+    assert spec.match_file("build/output.txt") is True
+    assert spec.match_file("README.md") is False
+    assert env.is_valid_ip("192.168.0.10") is True
+    assert env.is_valid_ip("999.1.1.1") is False
+
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(agi_env_module.urllib.request, "urlopen", lambda *_a, **_k: _Resp())
+    assert env.check_internet() is True
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("offline")
+
+    monkeypatch.setattr(agi_env_module.urllib.request, "urlopen", _raise)
+    assert env.check_internet() is False
+    assert mock_logger.error.called
+
+
+def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.app_data_rel = "demo"
+    env.agi_share_path_abs = tmp_path / "share"
+    env.agi_share_path_abs.mkdir(parents=True)
+    env.user = Path.home().name
+    env.home_abs = Path.home()
+
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+    monkeypatch.setattr(AgiEnv, "verbose", 2, raising=False)
+
+    missing_archive = tmp_path / "missing.7z"
+    env.unzip_data(missing_archive, "dataset/demo")
+    assert mock_logger.warning.called
+
+    dest = env.agi_share_path_abs / "dataset" / "demo"
+    dataset = dest / "dataset"
+    dataset.mkdir(parents=True)
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+
+    env.unzip_data(archive, "dataset/demo")
+    stamp = dataset / ".agilab_dataset_stamp"
+    assert stamp.exists()
+    assert stamp.read_text(encoding="utf-8") == str(archive)
+
+    removed = []
+
+    original_rmtree = shutil.rmtree
+
+    def _fake_rmtree(path, onerror=None):
+        removed.append(Path(path))
+        original_rmtree(path)
+
+    class _FakeSevenZip:
+        def __init__(self, path, mode="r"):
+            assert Path(path) == archive
+            assert mode == "r"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            target = Path(path) / "dataset"
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "payload.txt").write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(agi_env_module.shutil, "rmtree", _fake_rmtree)
+    monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _FakeSevenZip)
+
+    env.unzip_data(archive, "dataset/demo", force_extract=True)
+    assert removed == [dataset]
+    assert (dataset / "payload.txt").exists()
+
+
+def test_clone_project_renames_sources_respects_gitignore_and_copies_data(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    apps_path = tmp_path / "apps"
+    source = apps_path / "flight_project"
+    (source / "src" / "flight").mkdir(parents=True)
+    (source / "src" / "flight_worker").mkdir(parents=True)
+    (source / ".venv").mkdir(parents=True)
+    (source / ".gitignore").write_text("ignored.txt\n", encoding="utf-8")
+    (source / "README.md").write_text("flight_project uses Flight and flight_worker.\n", encoding="utf-8")
+    (source / "ignored.txt").write_text("skip me\n", encoding="utf-8")
+    (source / "archive.7z").write_bytes(b"7z")
+    (source / "src" / "flight" / "flight.py").write_text(
+        "class Flight:\n    pass\n",
+        encoding="utf-8",
+    )
+    (source / "src" / "flight_worker" / "flight_worker.py").write_text(
+        "class FlightWorker:\n    pass\n",
+        encoding="utf-8",
+    )
+    (home / "data" / "flight").mkdir(parents=True)
+    (home / "data" / "flight" / "sample.csv").write_text("x\n1\n", encoding="utf-8")
+
+    env = object.__new__(AgiEnv)
+    env.apps_path = apps_path
+    env.home_abs = home
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock())
+
+    env.clone_project(Path("flight_project"), Path("demo_project"))
+
+    cloned = apps_path / "demo_project"
+    assert cloned.exists()
+    assert not (cloned / "ignored.txt").exists()
+    assert (cloned / ".venv").is_symlink()
+    assert (cloned / "archive.7z").read_bytes() == b"7z"
+    assert (cloned / "README.md").read_text(encoding="utf-8") == "demo_project uses Demo and demo_worker.\n"
+    assert (cloned / "src" / "demo" / "demo.py").exists()
+    assert (cloned / "src" / "demo_worker" / "demo_worker.py").exists()
+    assert "class Demo" in (cloned / "src" / "demo" / "demo.py").read_text(encoding="utf-8")
+    assert "class DemoWorker" in (cloned / "src" / "demo_worker" / "demo_worker.py").read_text(encoding="utf-8")
+    assert (home / "data" / "demo" / "sample.csv").exists()
+    assert Path("demo_project") in env.projects
+
+
+def test_clone_project_noops_when_source_missing_or_destination_exists(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.apps_path = tmp_path / "apps"
+    env.apps_path.mkdir()
+    env.home_abs = tmp_path / "home"
+    env.home_abs.mkdir()
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock())
+
+    env.clone_project(Path("missing_project"), Path("demo_project"))
+    assert not (env.apps_path / "demo_project").exists()
+
+    existing = env.apps_path / "flight_project"
+    existing.mkdir()
+    dest = env.apps_path / "demo_project"
+    dest.mkdir()
+    env.clone_project(Path("flight_project"), Path("demo_project"))
+    assert dest.exists()
+
+
+def test_run_supports_export_only_and_fire_and_forget(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+    monkeypatch.setattr(AgiEnv, "verbose", 1, raising=False)
+
+    noop = asyncio.run(AgiEnv.run('export PATH="~/.local/bin:$PATH";', tmp_path))
+    assert noop == ""
+
+    created = {}
+
+    async def _fake_shell(*args, **kwargs):
+        created["cmd"] = args[0]
+        return SimpleNamespace()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+    monkeypatch.setattr(asyncio, "create_task", lambda coro: created.setdefault("coro", coro))
+    result = asyncio.run(AgiEnv.run("echo hi", tmp_path, wait=False))
+    assert result == 0
+    assert created["coro"] is not None
+    created["coro"].close()
+
+
+def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    success_cmd = f"{shlex.quote(sys.executable)} -c \"import sys; print('out'); print('err', file=sys.stderr)\""
+    last_line = asyncio.run(AgiEnv.run_async(success_cmd, venv=tmp_path, cwd=tmp_path, timeout=10))
+    assert last_line == "err"
+
+    fail_cmd = f"{shlex.quote(sys.executable)} -c \"import sys; sys.exit(4)\""
+    with pytest.raises(RuntimeError, match="exit code 4"):
+        asyncio.run(AgiEnv.run_async(fail_cmd, venv=tmp_path, cwd=tmp_path, timeout=10))
+
+    streamed: list[str] = []
+    stdout, stderr = asyncio.run(
+        AgiEnv._run_bg(
+            success_cmd,
+            cwd=tmp_path,
+            venv=tmp_path,
+            timeout=10,
+            env_override={"AGI_DEMO_FLAG": "1"},
+            remove_env={"PYTHONHOME"},
+            log_callback=lambda message, **_kwargs: streamed.append(message),
+        )
+    )
+    assert "out" in streamed
+    assert "err" in streamed
+
+    with pytest.raises(RuntimeError, match="exit 4"):
+        asyncio.run(AgiEnv._run_bg(fail_cmd, cwd=tmp_path, venv=tmp_path, timeout=10))
+
+
+def test_run_agi_handles_missing_snippet_missing_venv_and_install_snippet(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.runenv = tmp_path / "runenv"
+    env.target = "demo_project"
+
+    logs: list[str] = []
+    result = asyncio.run(env.run_agi("print('hello')", log_callback=logs.append, venv=tmp_path))
+    assert result == ("", "")
+    assert logs == ["Could not determine snippet name from code."]
+
+    logs.clear()
+    code = "async def main():\n    await Agi.demo_run()\n"
+    stdout, stderr = asyncio.run(env.run_agi(code, log_callback=logs.append, venv=tmp_path))
+    assert stdout == ""
+    assert "Run INSTALL first" in stderr
+
+    project_root = tmp_path / "install_project"
+    project_root.mkdir()
+    captured = {}
+
+    async def _fake_run_bg(cmd, cwd=None, venv=None, remove_env=None, log_callback=None, **kwargs):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+        captured["venv"] = venv
+        captured["remove_env"] = remove_env
+        return "done", ""
+
+    monkeypatch.setattr(AgiEnv, "_run_bg", staticmethod(_fake_run_bg))
+    logs.clear()
+    install_code = "async def main():\n    await Agi.demo_install()\n"
+    result = asyncio.run(env.run_agi(install_code, log_callback=logs.append, venv=project_root))
+    assert result == ("done", "")
+    assert Path(captured["cwd"]) == project_root
+    assert Path(captured["venv"]) == Path(sys.prefix)
+    assert captured["remove_env"] == {"PYTHONPATH", "PYTHONHOME"}
+    assert logs[-1] == "Process finished"
