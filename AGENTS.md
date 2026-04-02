@@ -40,6 +40,14 @@ Use this runbook whenever you:
   the codebase, especially in sibling apps, mirrored forms, shared helpers, or duplicated logic.
   If it does, either fix the related instances in the same change or clearly document why they are
   being left out.
+- **Shared core approval gate**: Do not edit shared core technology without explicit user approval first.
+  Shared core includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
+  `src/agilab/core/agi-core`, shared installer/build/deploy tooling, and generic helpers reused across apps/pages.
+  Default to app-local fixes first. If you believe a core change is required, stop and explain:
+  - why an app-local fix is insufficient
+  - which shared files/modules need to change
+  - the expected blast radius across apps/workflows
+  - the test or regression plan you will use after approval
 - **No silent fallbacks**: Do not introduce automatic API client fallbacks
   (`chat.completions` ↔ `responses`, runtime parameter rewrites, etc.). Detect missing
   capabilities up-front and fail with a clear, actionable error.

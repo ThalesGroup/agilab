@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-01-09
+  updated: 2026-04-02
 ---
 
 # AGILAB Installer Skill
@@ -19,6 +19,9 @@ Use this skill when working on:
 - Use `uv --preview-features extra-build-dependencies …` for Python entrypoints.
 - Do not add silent fallbacks (detect missing capabilities and raise actionable errors).
 - Keep installs **idempotent**: rerunning should not wipe user data or re-download unnecessarily.
+- Treat installer/build/deploy changes as shared-core work. Before editing shared install plumbing,
+  `agi_dispatcher` install hooks, or generic cluster deployment code, get explicit user approval
+  and explain the expected cross-app impact first.
 
 ## Common Commands
 
@@ -48,4 +51,3 @@ Some apps depend on outputs of others (e.g. LinkSim needs satellite trajectories
 Preferred approach:
 - Install/seed the producing app first.
 - Reuse outputs via symlink/junction into the dependent dataset folder to avoid duplication.
-
