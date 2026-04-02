@@ -7,6 +7,9 @@ from pathlib import Path
 import sys
 import types
 
+import plotly.graph_objects as go
+import pytest
+
 
 def _import_agilab_module(module_name: str):
     src_root = Path(__file__).resolve().parents[1] / "src"
@@ -92,3 +95,123 @@ def test_workload_barchart_warns_when_no_data(monkeypatch):
     )
 
     assert warnings == ["No data available for workload distribution."]
+
+
+def test_draw_distribution_requires_matplotlib(monkeypatch):
+    monkeypatch.setattr(orchestrate_distribution, "plt", None)
+    monkeypatch.setattr(orchestrate_distribution, "Patch", None)
+    monkeypatch.setattr(orchestrate_distribution, "_MATPLOTLIB_IMPORT_ERROR", ModuleNotFoundError("missing"))
+
+    with pytest.raises(RuntimeError, match="matplotlib unavailable"):
+        orchestrate_distribution.draw_distribution(
+            orchestrate_distribution.nx.Graph(),
+            "partition",
+            False,
+            "Demo",
+        )
+
+
+def test_draw_distribution_renders_graph_and_legend(monkeypatch):
+    calls = {"legend": 0, "pyplot": 0}
+
+    class FakeAxis:
+        def text(self, *_args, **_kwargs):
+            return None
+
+    fake_plt = SimpleNamespace(
+        figure=lambda **_kwargs: None,
+        margins=lambda **_kwargs: None,
+        gca=lambda: FakeAxis(),
+        legend=lambda **_kwargs: calls.__setitem__("legend", calls["legend"] + 1),
+        tight_layout=lambda: None,
+        title=lambda *_args, **_kwargs: None,
+        axis=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(orchestrate_distribution, "plt", fake_plt)
+    monkeypatch.setattr(orchestrate_distribution, "Patch", lambda **kwargs: kwargs)
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(pyplot=lambda *_args, **_kwargs: calls.__setitem__("pyplot", calls["pyplot"] + 1)),
+    )
+    monkeypatch.setattr(orchestrate_distribution.nx, "draw_networkx_nodes", lambda *_a, **_k: None)
+    monkeypatch.setattr(orchestrate_distribution.nx, "draw_networkx_edges", lambda *_a, **_k: None)
+    monkeypatch.setattr(orchestrate_distribution.nx, "draw_networkx_labels", lambda *_a, **_k: None)
+    monkeypatch.setattr(orchestrate_distribution.nx, "draw_networkx_edge_labels", lambda *_a, **_k: None)
+
+    graph = orchestrate_distribution.nx.Graph()
+    graph.add_node("ip", level=0)
+    graph.add_node("worker", level=1)
+    graph.add_edge("ip", "worker", weight=2)
+
+    orchestrate_distribution.draw_distribution(graph, "partition", False, "Demo")
+
+    assert calls == {"legend": 1, "pyplot": 1}
+
+
+def test_show_graph_warns_for_empty_and_invalid_workers(monkeypatch):
+    warnings: list[str] = []
+    errors: list[str] = []
+    calls: list[str] = []
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(warning=warnings.append, error=errors.append),
+    )
+    monkeypatch.setattr(orchestrate_distribution, "draw_distribution", lambda *_args, **_kwargs: calls.append("drawn"))
+
+    orchestrate_distribution.show_graph([], [], [], "partition", "size")
+    assert warnings == ["No workers with assigned chunks found."]
+
+    orchestrate_distribution.show_graph(
+        workers=["bad-worker-id"],
+        work_plan_metadata=[[{"partition": "p1", "size": 3}]],
+        work_plan=[[("node", [])]],
+        partition_key="partition",
+        weights_key="size",
+    )
+    assert errors == ["Worker identifier 'bad-worker-id' is not in the expected 'ip-number' format."]
+    assert calls == ["drawn"]
+
+
+def test_workload_barchart_emits_plotly_figure(monkeypatch):
+    plotted = []
+
+    class FakeBar:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeFigure:
+        def __init__(self):
+            self.traces = []
+            self.annotations = []
+            self.layout = {}
+
+        def add_trace(self, trace):
+            self.traces.append(trace)
+
+        def update_layout(self, **kwargs):
+            self.layout.update(kwargs)
+
+        def add_annotation(self, **kwargs):
+            self.annotations.append(kwargs)
+
+    monkeypatch.setattr(go, "Figure", FakeFigure)
+    monkeypatch.setattr(go, "Bar", FakeBar)
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(plotly_chart=lambda fig, **_kwargs: plotted.append(fig), warning=lambda *_a, **_k: None),
+    )
+
+    orchestrate_distribution.workload_barchart(
+        workers=["127.0.0.1-1"],
+        work_plan_metadata=[[{"partition": "alpha", "size": 3}, {"partition": "beta", "size": 2}]],
+        partition_key="partition",
+        weights_key="size",
+        weights_unit="files",
+    )
+
+    assert len(plotted) == 1
+    assert len(plotted[0].traces) == 2
+    assert plotted[0].layout["legend_title"] == "Partition"
