@@ -9,6 +9,7 @@ import sys
 import os
 import shutil
 import re
+import stat
 from pathlib import Path
 from zipfile import ZipFile
 import argparse
@@ -218,6 +219,48 @@ def _keep_lflag(arg: str) -> bool:
     cand = arg[2:]
     return Path(cand).exists()
 
+
+def _force_remove_tree(path: Path) -> None:
+    if not path.exists():
+        return
+    try:
+        os.chmod(path, stat.S_IRWXU)
+    except Exception:
+        pass
+    if os.name != "nt":
+        subprocess.run(["chmod", "-R", "u+rwx", str(path)], check=False, capture_output=True)
+    shutil.rmtree(path)
+
+
+def _purge_worker_venv_artifacts(app_root: Path, worker_module: str) -> list[Path]:
+    """
+    Remove nested worker virtualenvs that should never be packaged.
+
+    A source-worker `pyproject.toml` makes `uv --project src/<worker>` create
+    `src/<worker>/.venv`. If left behind, setuptools can copy it into `build/lib`
+    and then repackage it into the worker egg, making step 9 appear frozen.
+    """
+    removed: list[Path] = []
+    candidates = [
+        app_root / "src" / worker_module / ".venv",
+        app_root / "build" / "lib" / worker_module / ".venv",
+    ]
+    build_root = app_root / "build"
+    if build_root.exists():
+        candidates.extend(build_root.glob(f"bdist*/egg/{worker_module}/.venv"))
+        candidates.extend(build_root.glob(f"bdist*/**/{worker_module}/.venv"))
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        candidate = candidate.resolve(strict=False)
+        if candidate in seen or not candidate.exists():
+            continue
+        seen.add(candidate)
+        logger.warning(f"Removing nested worker virtualenv before packaging: {candidate}")
+        _force_remove_tree(candidate)
+        removed.append(candidate)
+    return removed
+
 def _fix_windows_drive(path_str: str) -> str:
     """Insert a path separator after a Windows drive letter if missing.
 
@@ -322,6 +365,16 @@ def main(argv: list[str] | None = None) -> None:
     worker_module = target_module + "_worker"
     links_created: list[Path] = []
     ext_modules = []
+    purged_venvs: list[Path] = []
+
+    if not env.is_worker_env:
+        purged_venvs = _purge_worker_venv_artifacts(env.active_app, worker_module)
+        if purged_venvs:
+            logger.info(
+                "Purged nested worker virtualenv artifacts before %s: %s",
+                cmd,
+                ", ".join(str(path) for path in purged_venvs),
+            )
 
     # Change directory to build_dir BEFORE setup if build_ext
     if cmd == 'build_ext':
