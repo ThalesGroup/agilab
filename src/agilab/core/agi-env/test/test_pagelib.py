@@ -4,12 +4,103 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from agi_env import pagelib
+
+
+def test_background_services_enabled_respects_disable_flag(monkeypatch):
+    monkeypatch.setenv("AGILAB_DISABLE_BACKGROUND_SERVICES", "true")
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state={}))
+
+    assert pagelib.background_services_enabled() is False
+
+
+def test_background_services_enabled_respects_streamlit_testing_state(monkeypatch):
+    monkeypatch.delenv("AGILAB_DISABLE_BACKGROUND_SERVICES", raising=False)
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(session_state={"$$STREAMLIT_INTERNAL_KEY_TESTING": True}),
+    )
+
+    assert pagelib.background_services_enabled() is False
+
+
+def test_background_services_enabled_defaults_to_true(monkeypatch):
+    monkeypatch.delenv("AGILAB_DISABLE_BACKGROUND_SERVICES", raising=False)
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state={}))
+
+    assert pagelib.background_services_enabled() is True
+
+
+def test_resolve_mlflow_backend_and_artifact_paths(tmp_path):
+    tracking_dir = tmp_path / "mlflow"
+
+    backend = pagelib._resolve_mlflow_backend_db(tracking_dir)
+    artifact_dir = pagelib._resolve_mlflow_artifact_dir(tracking_dir)
+
+    assert backend == tracking_dir / pagelib.DEFAULT_MLFLOW_DB_NAME
+    assert artifact_dir == (tracking_dir / pagelib.DEFAULT_MLFLOW_ARTIFACT_DIR).resolve()
+    assert artifact_dir.is_dir()
+
+
+def test_legacy_mlflow_filestore_present_detects_legacy_layouts(tmp_path):
+    tracking_dir = tmp_path / "mlflow"
+    tracking_dir.mkdir()
+    (tracking_dir / pagelib.DEFAULT_MLFLOW_DB_NAME).write_text("", encoding="utf-8")
+    (tracking_dir / pagelib.DEFAULT_MLFLOW_ARTIFACT_DIR).mkdir()
+    assert pagelib._legacy_mlflow_filestore_present(tracking_dir) is False
+
+    (tracking_dir / ".trash").mkdir()
+    assert pagelib._legacy_mlflow_filestore_present(tracking_dir) is True
+
+
+def test_sqlite_identifier_escapes_quotes():
+    assert pagelib._sqlite_identifier('a"b') == '"a""b"'
+
+
+def test_load_last_active_app_prefers_global_state_file(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+    legacy_file = tmp_path / ".last-active-app"
+    app_dir = tmp_path / "demo_app"
+    app_dir.mkdir()
+    state_file.write_text(f'last_active_app = "{app_dir}"\n', encoding="utf-8")
+
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", legacy_file)
+
+    assert pagelib.load_last_active_app() == app_dir
+
+
+def test_load_global_state_falls_back_to_legacy_plaintext(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+    legacy_file = tmp_path / ".last-active-app"
+    legacy_file.write_text("/tmp/legacy-app\n", encoding="utf-8")
+
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", legacy_file)
+
+    assert pagelib._load_global_state() == {"last_active_app": "/tmp/legacy-app"}
+
+
+def test_store_last_active_app_persists_state(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+    legacy_file = tmp_path / ".last-active-app"
+    app_dir = tmp_path / "stored_app"
+    app_dir.mkdir()
+
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", legacy_file)
+
+    pagelib.store_last_active_app(app_dir)
+
+    stored = tomllib.loads(state_file.read_text(encoding="utf-8"))
+    assert stored["last_active_app"] == str(app_dir)
 
 
 def test_diagnose_data_directory_reports_missing_mount(tmp_path, monkeypatch):
