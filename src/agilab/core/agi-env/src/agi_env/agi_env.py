@@ -1312,8 +1312,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             # No bind rule found; directory is usable, so accept it.
             return True
         candidate = _abs_path(self.AGI_CLUSTER_SHARE)
+        local_candidate = _abs_path(self.AGI_LOCAL_SHARE)
 
         wants_cluster_share = bool(cluster_enabled)
+        if wants_cluster_share and os.path.normpath(candidate) == os.path.normpath(local_candidate):
+            raise RuntimeError(
+                "Cluster mode requires AGI_CLUSTER_SHARE to be distinct from AGI_LOCAL_SHARE. "
+                f"Both resolve to {candidate!r}; env={env_path}"
+            )
         mounted = is_mounted(candidate)
         if mounted and wants_cluster_share:
             self.agi_share_path = self.AGI_CLUSTER_SHARE
@@ -1321,18 +1327,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             #    f"self.agi_share_path = AGI_CLUSTER_SHARE = {candidate}"
             #)
         else:
-            self.agi_share_path = self.AGI_LOCAL_SHARE
             if wants_cluster_share and not mounted:
-                fallback = _abs_path(self.AGI_LOCAL_SHARE)
-                warning_key = (candidate, fallback)
-                if warning_key not in AgiEnv._share_mount_warning_keys:
-                    AgiEnv._share_mount_warning_keys.add(warning_key)
-                    AgiEnv.logger.warning(
-                        "Cluster is enabled but AGI_CLUSTER_SHARE is not mounted at %s; using AGI_LOCAL_SHARE=%s; using env=%s",
-                        candidate,
-                        fallback,
-                        env_path
-                    )
+                raise RuntimeError(
+                    "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
+                    f"Configured AGI_CLUSTER_SHARE={candidate!r} is not usable; env={env_path}"
+                )
+            self.agi_share_path = self.AGI_LOCAL_SHARE
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()
