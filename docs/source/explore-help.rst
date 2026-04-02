@@ -16,7 +16,8 @@ Sidebar
 - Project selector that keeps the current application in sync with the rest of
   the suite.
 - The currently selected project determines which views are stored inside its
-  ``src/app_settings.toml`` file under the ``[pages]`` section.
+  workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
+  in the ``[pages]`` section.
 
 Main Content Area
 -----------------
@@ -33,9 +34,11 @@ Main Content Area
 
       Use the multi-select control to choose which pages are shown as quick-access
       shortcuts for analyzing the selected project. The selection is written to
-      ``src/<project>/src/app_settings.toml`` in the ``[pages]`` section under
-      ``view_module``. Only the names you choose are persisted for the active
-      project; every project keeps its own list.
+      ``~/.agilab/apps/<project>/app_settings.toml`` in the ``[pages]`` section
+      under ``view_module``. Only the names you choose are persisted for the
+      active project; every project keeps its own list. The workspace file is
+      seeded from ``src/<project>/src/app_settings.toml`` the first time the
+      app is loaded.
 
       You can also create a complete starter bundle directly from this page using
       **Create** in the ``Create from template`` tab. It creates a minimal
@@ -81,7 +84,7 @@ If analysis view discovery is unexpected, use these checks:
 - If a launch opens a blank frame, confirm the web process starts on the expected port and
   that your browser blocks mixed local/remote content.
 - If the selected bundle list is not saved, check write permission on
-  ``src/<project>/src/app_settings.toml``.
+  ``~/.agilab/apps/<project>/app_settings.toml``.
 
 See also
 --------

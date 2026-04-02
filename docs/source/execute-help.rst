@@ -8,8 +8,10 @@ Introduction
 ------------
 Orchestrate walks through the lifecycle required to ship and operate an AGILab
 application. It generates ready-to-run snippets, streams logs back into the UI
-and keeps ``app_settings.toml`` synchronised so that installs, distribution
-checks and runs are reproducible.
+and keeps the per-user ``app_settings.toml`` workspace copy synchronised so
+that installs, distribution checks and runs are reproducible. The mutable file
+now lives under ``~/.agilab/apps/<app>/app_settings.toml`` and is seeded from
+the app's versioned ``src/app_settings.toml`` on first use.
 
 Sidebar
 -------
@@ -23,7 +25,7 @@ Main Content Area
   ``pool``, ``cython`` and ``rapids``, enable the Dask scheduler and provide IP
   definitions for workers. The calculated mode hint clarifies how the chosen
   combination will execute and the settings are written back to
-  ``app_settings.toml``.
+  ``~/.agilab/apps/<app>/app_settings.toml``.
 - ``Install`` renders the install snippet that provisions the project's virtual
   environments. ``INSTALL`` streams stdout/stderr into ``Install logs`` so you
   know when the worker is ready. A successful install automatically enables the
@@ -33,7 +35,7 @@ Main Content Area
     * ``<module> args``: edit the run arguments managed in ``app_args.py``. You
       can toggle between the generated form UI and the optional custom snippet
       saved in ``app_args_form.py``. Saved values update ``[args]`` in
-      ``app_settings.toml``. Custom forms may also surface derived preview
+      ``~/.agilab/apps/<app>/app_settings.toml``. Custom forms may also surface derived preview
       metrics computed from the current inputs and the latest generated summary
       artefacts. When they do, the preview should match the metric written back
       by the app after ``RUN`` so the UI and exported reports stay aligned.
@@ -66,8 +68,9 @@ For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
    pick ``Step source = gen step`` for a fresh generation, or ``Step source =``
    an existing snippet (for example ``AGI_run.py`` or ``lab_snippet.py``) to
    import it directly.
-3. For app updates, update ``<module> args`` in ``app_settings.toml`` /
-   ``[args]`` then regenerate or re-import the matching snippet in Pipeline.
+3. For app updates, update ``<module> args`` in the per-user workspace
+   ``app_settings.toml`` / ``[args]`` then regenerate or re-import the matching
+   snippet in Pipeline.
 
 This avoids running stale code that still references old app argument values.
 For example, ``sat_trajectory_project`` snippets now use
@@ -88,7 +91,8 @@ Use these defaults as a stable baseline for most projects:
 - ``Done/Failed max files``: ``2000`` each.
 - ``Heartbeat max files``: ``1000``.
 
-Health gate defaults are persisted per app in ``[cluster.service_health]``:
+Health gate defaults are persisted per app in the workspace
+``app_settings.toml`` under ``[cluster.service_health]``:
 
 - ``allow_idle`` (default ``false``).
 - ``max_unhealthy`` (default ``0``).
@@ -146,8 +150,9 @@ Use these checks if Orchestrate actions do not behave as expected:
 - If ``INSTALL`` stays stuck, check cluster host reachability, SSH credentials,
   and whether ``~/.agilab/.env`` still points to valid venv paths.
 - If the generated snippet looks wrong, compare ``[args]`` in
-  ``src/<project>/src/app_settings.toml`` with the values shown in
-  ``app_args_form.py``.
+  ``~/.agilab/apps/<project>/app_settings.toml`` with the values shown in
+  ``app_args_form.py``. If the workspace copy is missing, AGILab will reseed it
+  from ``src/<project>/src/app_settings.toml``.
 - If ``RUN`` returns import errors, verify the target virtual environment contains
   the same versions as ``src/<project>/pyproject.toml`` and re-run install.
 - If no logs appear, confirm the log expansion is expanded and that the runtime

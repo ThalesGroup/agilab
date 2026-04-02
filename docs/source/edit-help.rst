@@ -39,8 +39,11 @@ Main Content Area
     sections before saving.
   - ``EXPORT-APP-FILTER`` controls the ``.gitignore`` rules that the export flow
     applies when producing the archive.
-  - ``APP-SETTINGS`` opens ``app_settings.toml``. AGILab keeps the ``[args]`` and
-    ``[pages]`` sections in sync with the Orchestrate and Analysis pages.
+  - ``APP-SETTINGS`` opens the per-user workspace
+    ``~/.agilab/apps/<project>/app_settings.toml``. AGILab keeps the ``[args]``
+    and ``[pages]`` sections in sync with the Orchestrate and Analysis pages.
+    The file is seeded from the versioned ``src/app_settings.toml`` when the app
+    is first loaded.
   - ``README`` allows quick edits to the project ``README.md``.
   - ``APP-ARGS`` targets ``app_args.py`` in the app package. Use it to
     synchronise default arguments with the Orchestrate page.
