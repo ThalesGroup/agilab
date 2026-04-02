@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-03-20
+  updated: 2026-04-02
 ---
 
 # AGILab runbook (Agent Skill)
@@ -26,6 +26,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
+- **Shared core approval gate**: do not edit shared core technology without explicit user approval first.
+  This includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
+  `src/agilab/core/agi-core`, shared installer/build/deploy code, and generic helpers reused across apps/pages.
+  Prefer app-local fixes first. If a core edit looks necessary, stop and explain the required files,
+  blast radius, and validation plan before making the change.
 - **Docs source of truth**: edit docs in the sibling repo
   `../thales_agilab/docs/source` (machine path:
   `/Users/agi/PycharmProjects/thales_agilab/docs/source`).
