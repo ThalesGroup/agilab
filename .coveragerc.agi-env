@@ -1,0 +1,8 @@
+[run]
+branch = true
+source =
+    src/agilab/core/agi-env/src/agi_env
+
+[report]
+omit =
+    src/agilab/core/agi-env/src/agi_env/pagelib.py

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 from types import SimpleNamespace
 
@@ -110,3 +111,214 @@ def test_build_service_snippet_embeds_core_parameters():
     assert 'APP = "demo"' in snippet
     assert "cleanup_failed_max_files=22" in snippet
     assert "foo=1, bar=2" in snippet
+
+
+class _SessionState(dict):
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+
+class _Ctx:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _Placeholder:
+    def __init__(self):
+        self.last_code = None
+        self.last_df = None
+
+    def code(self, value, **kwargs):
+        self.last_code = value
+
+    def dataframe(self, value, **kwargs):
+        self.last_df = value
+
+    def empty(self):
+        self.last_code = None
+        self.last_df = None
+
+
+def _service_st(session_state, *, clicked: str | None = None):
+    info_messages = []
+    caption_messages = []
+    code_blocks = []
+    success_messages = []
+    warning_messages = []
+    error_messages = []
+    placeholders = []
+
+    def number_input(_label, **kwargs):
+        return kwargs["value"]
+
+    def toggle(_label, **kwargs):
+        return kwargs.get("value", session_state.get(kwargs.get("key"), False))
+
+    def selectbox(_label, options, index=0, **kwargs):
+        return options[index]
+
+    def columns(count):
+        keys = [
+            "service_start_btn",
+            "service_status_btn",
+            "service_health_gate_btn",
+            "service_stop_btn",
+        ]
+
+        def make_button(key):
+            return SimpleNamespace(button=lambda *_args, **_kwargs: clicked == key)
+
+        return [make_button(keys[idx]) for idx in range(count)]
+
+    def empty():
+        holder = _Placeholder()
+        placeholders.append(holder)
+        return holder
+
+    st = SimpleNamespace(
+        session_state=session_state,
+        expander=lambda *_args, **_kwargs: _Ctx(),
+        spinner=lambda *_args, **_kwargs: _Ctx(),
+        info=lambda message: info_messages.append(str(message)),
+        number_input=number_input,
+        toggle=toggle,
+        caption=lambda message: caption_messages.append(str(message)),
+        selectbox=selectbox,
+        code=lambda value, **kwargs: code_blocks.append(value),
+        columns=columns,
+        empty=empty,
+        success=lambda message: success_messages.append(str(message)),
+        warning=lambda message: warning_messages.append(str(message)),
+        error=lambda message: error_messages.append(str(message)),
+    )
+    st._info_messages = info_messages
+    st._caption_messages = caption_messages
+    st._code_blocks = code_blocks
+    st._success_messages = success_messages
+    st._warning_messages = warning_messages
+    st._error_messages = error_messages
+    st._placeholders = placeholders
+    return st
+
+
+def test_render_service_panel_renders_preview_without_actions(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state)
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    env = SimpleNamespace(app="demo", apps_path=tmp_path, app_settings_file=tmp_path / "app_settings.toml")
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": False},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=_deps(),
+        )
+    )
+
+    assert any("Enable Cluster" in msg for msg in fake_st._info_messages)
+    assert any("APP = \"demo\"" in block for block in fake_st._code_blocks)
+    assert session_state["service_status_cache"] == "idle"
+    assert session_state["service_health_allow_idle__demo"] is False
+
+
+def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_health_gate_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    health_payload = {
+        "status": "running",
+        "worker_health": [
+            {
+                "worker": "w1",
+                "healthy": False,
+                "reason": "timeout",
+                "heartbeat_state": "late",
+                "heartbeat_age_sec": 12.5,
+            }
+        ],
+        "restarted_workers": ["w1"],
+        "restart_reasons": {"w1": "late heartbeat"},
+        "cleanup": {"done": 1, "failed": 0, "heartbeats": 2},
+        "heartbeat_timeout_sec": 10.0,
+        "health_path": "/tmp/health.json",
+    }
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: health_payload,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {
+            "status": "running",
+            "workers_unhealthy_count": 1,
+            "workers_restarted_count": 1,
+            "workers_running_count": 1,
+            "restart_rate": 0.5,
+        }),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    async def fake_run_agi(*_args, **kwargs):
+        callback = kwargs["log_callback"]
+        callback("streamed line")
+        return ("{'status': 'running'}", "")
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert session_state["service_status_cache"] == "running"
+    assert session_state["service_health_cache"] == health_payload["worker_health"]
+    assert any("HEALTH gate passed." in msg for msg in fake_st._success_messages)
+    assert any("restart_rate=0.500" in msg for msg in fake_st._caption_messages)
+    assert fake_st._placeholders[0].last_code is not None
+    assert fake_st._placeholders[1].last_df is not None
