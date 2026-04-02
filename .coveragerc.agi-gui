@@ -1,0 +1,16 @@
+[run]
+branch = true
+source =
+    src/agilab
+
+[report]
+omit =
+    src/agilab/About_agilab.py
+    src/agilab/lab_run.py
+    src/agilab/pages/*.py
+    src/agilab/core/*
+    src/agilab/test/*
+    src/agilab/apps-pages/*
+    src/agilab/agi_codex.py
+    src/agilab/apps/__init__.py
+    src/agilab/apps/install.py

@@ -265,7 +265,7 @@ jobs:
           timeout 12m uv --preview-features extra-build-dependencies run --group dev \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             -m "not integration" \
-            --cov=agilab --cov-report=xml:coverage-agi-gui.xml \
+            --cov=src/agilab --cov-config=.coveragerc.agi-gui --cov-report=xml:coverage-agi-gui.xml \
             --junitxml=test-results/junit.xml \
             --ignore=src/agilab/test/test_model_returns_code.py \
             src/agilab/test \
