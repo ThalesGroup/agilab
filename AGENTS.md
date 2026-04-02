@@ -79,10 +79,12 @@ Use this runbook whenever you:
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
   `~/agilab` checkout is absent. Agents can only reference packaged assets inside the
   virtual environment—never repository-relative paths.
+- **App settings workspace**: `src/.../app_settings.toml` is now a versioned seed only.
+  Mutable per-user settings live under `~/.agilab/apps/<app>/app_settings.toml`, and
+  the UI reads/writes that workspace copy.
 - **Config preservation**: Run `tools/preserve_app_configs.sh lock` to keep local edits
-  to any `app_args_form.py`, `app_settings.toml`, or `pre_prompt.json` under
-  `src/agilab/apps/` out of commits and pushes. Invoke `unlock` when you intentionally
-  want to share updates.
+  to any `app_args_form.py` or `pre_prompt.json` under `src/agilab/apps/` out of
+  commits and pushes. Invoke `unlock` when you intentionally want to share updates.
 - **Model defaults**: `agi_env.defaults` centralises the fallback OpenAI model. Set
   `AGILAB_DEFAULT_OPENAI_MODEL` to override globally without editing code; individual
   runs can still pass `OPENAI_MODEL`.
