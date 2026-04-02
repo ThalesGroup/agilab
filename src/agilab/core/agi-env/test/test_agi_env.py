@@ -206,6 +206,65 @@ def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, mon
     assert "AGI_LOG_DIR" not in env.envars
 
 
+def test_app_settings_file_points_to_user_workspace_and_is_seeded(tmp_path: Path, monkeypatch):
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True, exist_ok=True)
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    AgiEnv.reset()
+    env = AgiEnv(apps_path=agipath / "apps", app="mycode_project", verbose=1)
+
+    expected_workspace = fake_home / ".agilab" / "apps" / "mycode_project" / "app_settings.toml"
+    assert env.app_settings_file == expected_workspace
+    assert env.app_settings_file.exists()
+    assert env.app_settings_source_file.exists()
+    assert env.app_settings_file.read_text(encoding="utf-8") == env.app_settings_source_file.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Path, monkeypatch):
+    """Persisted per-user settings must win over versioned source defaults."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True, exist_ok=True)
+    (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
+    (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
+    (fake_home / ".agilab" / ".env").write_text(
+        "AGI_CLUSTER_ENABLED=1\nAGI_CLUSTER_SHARE=/nonexistent_cluster_share\n"
+    )
+    workspace_settings = fake_home / ".agilab" / "apps" / "mycode_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
+    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
+
+    fake_apps = tmp_path / "apps"
+    fake_app = fake_apps / "mycode_project"
+    (fake_app / "src" / "mycode").mkdir(parents=True, exist_ok=True)
+    (fake_app / "src" / "app_settings.toml").write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+
+    AgiEnv.reset()
+    AgiEnv._share_mount_warning_keys.clear()
+
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
+        AgiEnv, "_init_apps", lambda self: None
+    ):
+        env = AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
+
+    assert env.agi_share_path == env.AGI_LOCAL_SHARE
+
+
 def test_cluster_share_missing_raises_for_cluster_enabled_app(tmp_path: Path, monkeypatch):
     """Cluster-enabled apps must fail fast when the configured cluster share is unavailable."""
 

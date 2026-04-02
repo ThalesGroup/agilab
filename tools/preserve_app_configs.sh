@@ -3,7 +3,7 @@
 # Prevent accidental pushes of local-only AGI app configuration changes.
 # The script toggles Git's skip-worktree flag for app config files so they stay
 # local until explicitly unlocked. It targets every tracked
-# `app_args_form.py`, `app_settings.toml`, and `pre_prompt.json` file under
+# `app_args_form.py` and `pre_prompt.json` file under
 # `src/agilab/apps/**`.
 
 set -euo pipefail
@@ -29,7 +29,7 @@ ensure_repo_root() {
 
 target_files() {
   git ls-files \
-    | awk '/^src\/agilab\/apps\/.*(app_args_form\.py|app_settings\.toml|pre_prompt\.json)$/'
+    | awk '/^src\/agilab\/apps\/.*(app_args_form\.py|pre_prompt\.json)$/'
 }
 
 lock_files() {

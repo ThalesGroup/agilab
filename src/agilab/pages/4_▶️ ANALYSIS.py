@@ -977,7 +977,7 @@ async def main():
 
     # Where to store selected pages per project
     project = env.app
-    app_settings = Path(env.apps_path) / project / "src" / "app_settings.toml"
+    app_settings = env.resolve_user_app_settings_file(project)
 
     # Discover pages dynamically under AGILAB_PAGES_ABS
     all_views = discover_views(Path(env.AGILAB_PAGES_ABS))
