@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-02
+  updated: 2026-04-03
 ---
 
 # AGILab runbook (Agent Skill)
@@ -87,3 +87,18 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 - Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
 - Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
+- For a reinstalled cluster node, separate host-key repair from auth repair:
+  - host key changed:
+    - `ssh-keygen -R <ip>`
+    - `ssh-keyscan -H -t ed25519 <ip> >> ~/.ssh/known_hosts`
+  - user key missing on remote:
+    - `ssh-copy-id agi@<ip>`
+    - or recreate `~/.ssh/authorized_keys` with `0700` / `0600` permissions
+- If cluster mode depends on shared storage, restore the node’s `.agilab/.env` and remount the share before blaming AGILAB:
+  - Linux node example:
+    - `AGI_CLUSTER_SHARE=/home/agi/clustershare`
+    - `AGI_LOCAL_SHARE=/home/agi/localshare`
+    - `sshfs agi@192.168.20.111:/Users/agi/clustershare /home/agi/clustershare`
+- After a reinstall, validate both directions explicitly before rerunning installs:
+  - `ssh agi@<ip> 'echo ok'`
+  - `ssh agi@<ip> 'ssh -o BatchMode=yes agi@<scheduler_ip> hostname'`
