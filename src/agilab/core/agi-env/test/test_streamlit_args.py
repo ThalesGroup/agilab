@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from typing import Annotated, Literal
 
@@ -132,6 +133,16 @@ def test_render_form_handles_none_only_and_unconstrained_numeric_fields(dummy_st
 def test_constraint_value_returns_none_when_constraint_absent():
     field = DemoArgs.model_fields["name"]
     assert streamlit_args._constraint_value(field, Ge, "ge") is None
+
+
+def test_diagnose_data_directory_uses_lazy_pagelib_import(tmp_path, monkeypatch):
+    target = tmp_path / "dataset"
+    fake_module = SimpleNamespace(
+        diagnose_data_directory=lambda directory: f"diagnosed:{Path(directory).name}"
+    )
+    monkeypatch.setitem(sys.modules, "agi_env.pagelib", fake_module)
+
+    assert streamlit_args.diagnose_data_directory(target) == "diagnosed:dataset"
 
 
 def test_load_args_state_reads_settings(tmp_path, dummy_streamlit):
