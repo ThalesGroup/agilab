@@ -227,6 +227,38 @@ Each command should print the remote ``hostname`` without asking for a password.
 prompts, re-run ``ssh-copy-id`` and make sure ``~/.ssh/authorized_keys`` on the target contains the
 public key content.
 
+Node reinstalled or host key changed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If a worker was reinstalled or its SSH host keys changed, fix the host-key
+trust first, then restore user-key authentication:
+
+1. Verify the new SSH host key fingerprint out of band.
+2. On the manager, remove the stale host key and register the new one::
+
+      ssh-keygen -R <worker_ip>
+      ssh-keyscan -H -t ed25519 <worker_ip> >> ~/.ssh/known_hosts
+      ssh-keygen -F <worker_ip> -f ~/.ssh/known_hosts
+
+3. Re-push the manager public key to the rebuilt worker::
+
+      ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker_ip>
+
+4. If ``ssh-copy-id`` is unavailable, recreate ``~/.ssh/authorized_keys`` on the
+   worker manually and keep strict permissions::
+
+      mkdir -p ~/.ssh
+      chmod 700 ~/.ssh
+      printf '%s\n' '<public key content>' >> ~/.ssh/authorized_keys
+      chmod 600 ~/.ssh/authorized_keys
+
+5. Verify passwordless access again before relaunching AGILAB::
+
+      ssh <remote account>@<worker_ip> hostname
+
+If the worker also lost its AGILAB cluster mount, restore ``~/.agilab/.env`` and
+remount the shared ``clustershare`` path before rerunning cluster installs or pipelines.
+
 Troubleshooting
 ~~~~~~~~~~~~~~~~~~
 
