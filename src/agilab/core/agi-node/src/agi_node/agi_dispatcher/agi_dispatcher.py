@@ -142,7 +142,11 @@ class WorkDispatcher:
         loaded_workers = {}
         workers_work_item_tree_iter = iter(workers_plan)
         for ip, nb_workers in workers.items():
-            for i, chunks in enumerate(workers_work_item_tree_iter):
+            for _ in range(nb_workers):
+                try:
+                    chunks = next(workers_work_item_tree_iter)
+                except StopIteration:
+                    break
                 if ip not in loaded_workers:
                     loaded_workers[ip] = 0
                 if chunks:

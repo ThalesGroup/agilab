@@ -40,6 +40,29 @@ def test_baseworker_do_works_executes_tasks():
     mocked.assert_called_once()
 
 
+def test_new_sets_worker_ids_on_instance(monkeypatch):
+    class SpawnedWorker(BaseWorker):
+        pass
+
+    captured = {}
+
+    monkeypatch.setattr(BaseWorker, "_ensure_managed_pc_share_dir", staticmethod(lambda env: None))
+    monkeypatch.setattr(BaseWorker, "_load_worker", staticmethod(lambda _mode: SpawnedWorker))
+
+    def _fake_start(worker_inst):
+        captured["worker_id"] = worker_inst.worker_id
+        captured["_worker_id"] = worker_inst._worker_id
+
+    monkeypatch.setattr(BaseWorker, "start", staticmethod(_fake_start))
+
+    env = SimpleNamespace()
+    BaseWorker._new(env=env, mode=4, worker_id=3, worker="tcp://192.168.20.130:1234")
+
+    assert captured == {"worker_id": 3, "_worker_id": 3}
+    assert BaseWorker._insts[3].worker_id == 3
+    assert BaseWorker._insts[3]._worker_id == 3
+
+
 def test_prepare_output_dir_creates_directory(tmp_path):
     worker = DummyWorker()
     target = worker.prepare_output_dir(tmp_path, subdir="payload", attribute="custom_attr", clean=True)

@@ -83,6 +83,42 @@ async def test_do_distrib_builds_and_caches_plan(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_do_distrib_preserves_multiple_worker_assignments(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    cluster_src = tmp_path / "cluster" / "src"
+    cluster_src.mkdir(parents=True)
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        agi_cluster=cluster_src.parent,
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    workers = {"192.168.20.111": 1, "192.168.20.130": 1}
+    args = {"alpha": 1}
+
+    class DemoWorker:
+        def __init__(self, env, **kwargs):
+            self.received_env = env
+            self.received_args = kwargs
+
+        def build_distribution(self, assigned_workers):
+            assert assigned_workers == workers
+            return [["chunk-a"], ["chunk-b"]], [{"meta": 1}, {"meta": 2}], "partition", 2, 1.0
+
+    module = SimpleNamespace(DemoWorker=DemoWorker)
+    monkeypatch.setattr(WorkDispatcher, "_load_module", AsyncMock(return_value=module))
+
+    loaded_workers, work_plan, metadata = await WorkDispatcher._do_distrib(env, workers, args)
+
+    assert loaded_workers == {"192.168.20.111": 1, "192.168.20.130": 1}
+    assert work_plan == [["chunk-a"], ["chunk-b"]]
+    assert metadata == [{"meta": 1}, {"meta": 2}]
+
+
+@pytest.mark.asyncio
 async def test_do_distrib_raises_when_module_cannot_be_loaded(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
     cluster_src = tmp_path / "cluster" / "src"
