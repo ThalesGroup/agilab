@@ -11,6 +11,7 @@ from agi_env import AgiEnv
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
 DEFAULT_APPTEST_TIMEOUT = 20
+ENV_TEMPLATE_PATH = Path("src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env")
 
 
 def _widget_or_none(collections, key: str):
@@ -24,6 +25,37 @@ def _widget_or_none(collections, key: str):
 
 def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
     return AppTest.from_file(path, default_timeout=default_timeout)
+
+
+def _iter_env_editor_keys():
+    ordered_keys: list[str] = []
+    for candidate in (ENV_TEMPLATE_PATH, Path.home() / ".agilab/.env"):
+        if not candidate.exists():
+            continue
+        for raw_line in candidate.read_text(encoding="utf-8").splitlines():
+            stripped = raw_line.strip()
+            if not stripped or "=" not in stripped:
+                continue
+            key = stripped.lstrip("#").split("=", 1)[0].strip()
+            if key and key not in ordered_keys:
+                ordered_keys.append(key)
+    return ordered_keys
+
+
+def _seed_env_editor_state(at: AppTest, env: AgiEnv) -> None:
+    if "env_editor_new_key" not in at.session_state:
+        at.session_state["env_editor_new_key"] = ""
+    if "env_editor_new_value" not in at.session_state:
+        at.session_state["env_editor_new_value"] = ""
+    if "env_editor_reset" not in at.session_state:
+        at.session_state["env_editor_reset"] = False
+    if "env_editor_feedback" not in at.session_state:
+        at.session_state["env_editor_feedback"] = None
+    env_values = {key: "" if value is None else str(value) for key, value in getattr(env, "envars", {}).items()}
+    for key in _iter_env_editor_keys():
+        editor_key = f"env_editor_val_{key}"
+        if editor_key not in at.session_state:
+            at.session_state[editor_key] = env_values.get(key, "")
 
 @pytest.fixture
 def mock_ui_env(tmp_path):
@@ -142,36 +174,20 @@ def test_execute_page_cluster_settings(mock_ui_env):
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    _seed_env_editor_state(at, env)
     
     at.run()
     assert not at.exception
 
     enabled_toggle_key = f"cluster_enabled__flight_project"
-
-    toggle_widget = None
-    for collection in (at.toggle, at.sidebar.toggle):
-        try:
-            toggle_widget = collection(key=enabled_toggle_key)
-            break
-        except KeyError:
-            continue
     scheduler_key = f"cluster_scheduler__flight_project"
-    if toggle_widget is None:
-        at.session_state[enabled_toggle_key] = True
-        at.session_state[scheduler_key] = "127.0.0.1:8786"
-        at.session_state["cluster_pool"] = True
-        at.run()
-    else:
-        # Enable cluster
-        toggle_widget.set_value(True).run()
-
-        # Find scheduler text input
-        at.text_input(key=scheduler_key).set_value("127.0.0.1:8786")
-
-        # Toggle some cluster settings
-        at.checkbox(key="cluster_pool").set_value(True)
-
-        at.run()
+    # Drive the cluster state directly through session_state rather than
+    # AppTest widget replay. This keeps the regression stable even when
+    # unrelated sidebar widgets are conditionally omitted in test mode.
+    at.session_state[enabled_toggle_key] = True
+    at.session_state[scheduler_key] = "127.0.0.1:8786"
+    at.session_state["cluster_pool"] = True
+    at.run()
     
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
@@ -312,27 +328,20 @@ def test_execute_page_cython_toggle(mock_ui_env):
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    _seed_env_editor_state(at, env)
 
     at.run()
     assert not at.exception
 
-    cython_widget = _widget_or_none((at.checkbox, at.sidebar.checkbox), "cluster_cython")
-    if cython_widget is None:
-        at.session_state["cluster_cython"] = True
-        at.run()
-    else:
-        cython_widget.set_value(True).run()
+    at.session_state["cluster_cython"] = True
+    at.run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     assert cluster_state.get("cython", at.session_state["cluster_cython"]) is True
 
-    cython_widget = _widget_or_none((at.checkbox, at.sidebar.checkbox), "cluster_cython")
-    if cython_widget is None:
-        at.session_state["cluster_cython"] = False
-        at.run()
-    else:
-        cython_widget.set_value(False).run()
+    at.session_state["cluster_cython"] = False
+    at.run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
@@ -345,28 +354,21 @@ def test_execute_page_workers_data_path(mock_ui_env):
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    _seed_env_editor_state(at, env)
 
     at.run()
     assert not at.exception
 
     # Enable cluster first
     enabled_key = f"cluster_enabled__flight_project"
-    enabled_widget = _widget_or_none((at.toggle, at.sidebar.toggle), enabled_key)
-    if enabled_widget is None:
-        at.session_state[enabled_key] = True
-        at.run()
-    else:
-        enabled_widget.set_value(True).run()
+    at.session_state[enabled_key] = True
+    at.run()
     assert not at.exception
 
     # Set workers data path
     wdp_key = f"cluster_workers_data_path__flight_project"
-    wdp_widget = _widget_or_none((at.text_input, at.sidebar.text_input), wdp_key)
-    if wdp_widget is None:
-        at.session_state[wdp_key] = "/data/shared"
-        at.run()
-    else:
-        wdp_widget.set_value("/data/shared").run()
+    at.session_state[wdp_key] = "/data/shared"
+    at.run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}

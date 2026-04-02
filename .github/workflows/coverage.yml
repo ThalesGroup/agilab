@@ -261,6 +261,7 @@ jobs:
           HEARTBEAT_PID=$!
           trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
           rm -f .coverage.agi-gui coverage-agi-gui.xml
+          AGILAB_DISABLE_BACKGROUND_SERVICES=1 \
           timeout 12m uv --preview-features extra-build-dependencies run --group dev \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             -m "not integration" \
