@@ -475,6 +475,7 @@ def test_active_app_override_uses_builtin_path_even_when_env_apps_path_is_set(tm
     (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
     (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
     (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "uv_config.toml").write_text("[tool.uv]\n", encoding="utf-8")
     (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
     (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
         "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
@@ -523,6 +524,7 @@ def test_missing_flattened_active_app_falls_back_to_builtin_copy(tmp_path: Path,
     assert env.active_app == builtin_app.resolve()
     assert env.manager_path == (builtin_app / "src" / "flight" / "flight.py").resolve()
     assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+    assert env.uvproject == (builtin_app / "uv_config.toml").resolve()
 
 
 def test_explicit_apps_root_prefers_builtin_copy_over_flattened_stub(tmp_path: Path, monkeypatch):
@@ -544,6 +546,7 @@ def test_explicit_apps_root_prefers_builtin_copy_over_flattened_stub(tmp_path: P
     (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
     (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
     (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "uv_config.toml").write_text("[tool.uv]\n", encoding="utf-8")
     (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
     (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
         "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
@@ -557,6 +560,7 @@ def test_explicit_apps_root_prefers_builtin_copy_over_flattened_stub(tmp_path: P
 
     assert env.active_app == builtin_app.resolve()
     assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+    assert env.uvproject == (builtin_app / "uv_config.toml").resolve()
 
 
 def test_run_nonzero_command_does_not_log_traceback_for_runtime_error(tmp_path: Path, monkeypatch):

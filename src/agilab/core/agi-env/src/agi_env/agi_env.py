@@ -927,6 +927,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         self.active_app = candidate_app
                     self.app_src = self.active_app / "src"
                     self.manager_pyproject = self.active_app / "pyproject.toml"
+                    self.uvproject = self.active_app / "uv_config.toml"
                     self.worker_path = candidate_worker
                     self.manager_path = self.app_src / target / f"{target}.py"
                     self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
