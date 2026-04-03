@@ -312,8 +312,7 @@ def main(argv: list[str] | None = None) -> None:
 
     verbose = 0 if quiet else 2
     env = AgiEnv(
-        apps_path=active_app.parent,
-        active_app=active_app.name,
+        active_app=active_app,
         verbose=verbose,
     )
 

@@ -40,7 +40,6 @@ dependencies = [
     "cython",
     "dask[distributed]",
     "humanize",
-    "ipython",
     "jupyter",
     "msgpack",
     "mypy",

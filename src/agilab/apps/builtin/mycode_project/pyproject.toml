@@ -12,7 +12,6 @@ dependencies = [
   "astor",
   "psutil",
   "pathspec",
-  "ipython",
   "py7zr",
   "numba>=0.61.0",
   "streamlit",
@@ -27,6 +26,7 @@ dependencies = [
   "typing-inspection>=0.4.1",
   "polars",
   "pandas",
+  "streamlit>=1.55.0",
 ]
 
 [build-system]
