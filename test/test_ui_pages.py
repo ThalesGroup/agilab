@@ -62,6 +62,14 @@ def mock_ui_env(tmp_path):
     # Set up temporary directories for apps and config
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
+    export_dir = tmp_path / "export"
+    export_dir.mkdir()
+    log_dir = tmp_path / "log"
+    log_dir.mkdir()
+    local_share_dir = tmp_path / "localshare"
+    local_share_dir.mkdir()
+    cluster_share_dir = tmp_path / "clustershare"
+    cluster_share_dir.mkdir()
     
     # Create a dummy project structure
     project_dir = apps_dir / "flight_project"
@@ -118,11 +126,22 @@ def load_args_from_toml(path):
         with patch.dict(os.environ, {
             "AGILAB_APP": "flight_project",
             "AGI_SHARE_DIR": str(tmp_path),
+            "AGI_EXPORT_DIR": str(export_dir),
+            "AGI_LOG_DIR": str(log_dir),
+            "AGI_LOCAL_SHARE": str(local_share_dir),
+            "AGI_CLUSTER_SHARE": str(cluster_share_dir),
+            "APPS_PATH": str(apps_dir),
             "AGILAB_PAGES_ABS": str(pages_dir),
             "OPENAI_API_KEY": "dummy",
             "IS_SOURCE_ENV": "1",
         }):
-            yield {"apps_dir": apps_dir, "project_dir": project_dir, "pages_dir": pages_dir}
+            yield {
+                "apps_dir": apps_dir,
+                "project_dir": project_dir,
+                "pages_dir": pages_dir,
+                "export_dir": export_dir,
+                "log_dir": log_dir,
+            }
 
 
 def test_agilab_main_page_env_editor(mock_ui_env):
