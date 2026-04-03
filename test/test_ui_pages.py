@@ -613,6 +613,90 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert at.text_area(key=f"{target_lab}_lab_steps.toml_q_step_0").value == expected_prompt
 
 
+def test_experiment_page_save_step_persists_prompt(mock_ui_env, tmp_path):
+    export_root = tmp_path / "export"
+    lab_dir = export_root / "flight_project"
+    lab_dir.mkdir(parents=True, exist_ok=True)
+    steps_file = lab_dir / "lab_steps.toml"
+    steps_file.write_text(
+        '[[flight_project]]\nD = ""\nQ = "original prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
+        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env.init_done = True
+        env.AGILAB_EXPORT_ABS = export_root
+        env.envars["AGI_EXPORT_DIR"] = str(export_root)
+        env.target = "flight_project"
+        env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+        env.get_projects = MagicMock(return_value=["flight_project"])
+
+        at.session_state["env"] = env
+        at.run()
+        assert not at.exception
+
+        updated_prompt = "updated prompt from AppTest"
+        at.session_state["flight_project_lab_steps.toml_q_step_0"] = updated_prompt
+        at.run()
+        at.button(key="flight_project_lab_steps.toml_save_0").click().run()
+
+        assert not at.exception
+        assert updated_prompt in steps_file.read_text(encoding="utf-8")
+        assert at.text_area(key="flight_project_lab_steps.toml_q_step_0").value == updated_prompt
+
+
+def test_experiment_page_confirm_remove_updates_steps_file(mock_ui_env, tmp_path):
+    export_root = tmp_path / "export"
+    lab_dir = export_root / "flight_project"
+    lab_dir.mkdir(parents=True, exist_ok=True)
+    steps_file = lab_dir / "lab_steps.toml"
+    steps_file.write_text(
+        """
+[[flight_project]]
+D = ""
+Q = "first prompt"
+M = "dummy-model"
+C = "print(1)"
+R = "runpy"
+[[flight_project]]
+D = ""
+Q = "second prompt"
+M = "dummy-model"
+C = "print(2)"
+R = "runpy"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
+        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env.init_done = True
+        env.AGILAB_EXPORT_ABS = export_root
+        env.envars["AGI_EXPORT_DIR"] = str(export_root)
+        env.target = "flight_project"
+        env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+        env.get_projects = MagicMock(return_value=["flight_project"])
+
+        at.session_state["env"] = env
+        at.run()
+        assert not at.exception
+
+        at.button(key="flight_project_lab_steps.toml_delete_0").click().run()
+        assert not at.exception
+        assert any(button.key == "flight_project_lab_steps.toml_delete_confirm_0" for button in at.button)
+
+        at.button(key="flight_project_lab_steps.toml_delete_confirm_0").click().run()
+        assert not at.exception
+
+        stored = steps_file.read_text(encoding="utf-8")
+        assert "first prompt" not in stored
+        assert "second prompt" in stored
+
+
 def test_edit_page_project_selectbox(mock_ui_env):
     """Test that the EDIT page has a project selectbox with available projects."""
     at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")

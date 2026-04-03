@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import tomllib
 
@@ -22,6 +23,17 @@ def _load_module(module_name: str, relative_path: str):
 
 
 pipeline_editor = _load_module("agilab.pipeline_editor", "src/agilab/pipeline_editor.py")
+
+
+class _State(dict):
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+    def __setattr__(self, name, value):
+        self[name] = value
 
 
 def test_save_step_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
@@ -213,3 +225,250 @@ def test_get_steps_list_and_dict_handle_invalid_files_and_alias_keys(monkeypatch
     invalid_file = tmp_path / "broken.toml"
     invalid_file.write_text("[[flight_project]\n", encoding="utf-8")
     assert pipeline_editor.get_steps_list(tmp_path / "flight_project", invalid_file) == []
+
+
+def test_convert_paths_to_strings_and_query_validation():
+    converted = pipeline_editor.convert_paths_to_strings({"paths": [Path("/tmp/demo"), {"nested": Path("rel")}]})
+    assert converted == {"paths": ["/tmp/demo", {"nested": "rel"}]}
+    assert pipeline_editor.is_query_valid([0, "desc", "question"]) is True
+    assert pipeline_editor.is_query_valid([0, "desc", ""]) is False
+    assert pipeline_editor.is_query_valid("not-a-query") is False
+
+
+def test_save_query_invalid_still_exports_dataframe(monkeypatch, tmp_path):
+    calls = {"exported": 0, "saved": 0}
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "export_df", lambda: calls.__setitem__("exported", calls["exported"] + 1))
+    monkeypatch.setattr(
+        pipeline_editor,
+        "save_step",
+        lambda *_args, **_kwargs: calls.__setitem__("saved", calls["saved"] + 1),
+    )
+
+    pipeline_editor.save_query(tmp_path / "flight_project", [0, "desc", ""], tmp_path / "lab_steps.toml", "idx")
+
+    assert calls == {"exported": 1, "saved": 0}
+
+
+def test_force_persist_step_merges_existing_content(tmp_path):
+    module_dir = tmp_path / "flight_project"
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[[flight_project]]\nQ = 'first'\nC = 'print(1)'\n",
+        encoding="utf-8",
+    )
+
+    with patch.object(pipeline_editor, "_module_keys", return_value=["flight_project"]):
+        pipeline_editor._force_persist_step(
+        module_dir,
+        steps_file,
+        0,
+        {"D": "detail", "E": Path("/tmp/runtime")},
+        )
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert stored["flight_project"][0]["Q"] == "first"
+    assert stored["flight_project"][0]["D"] == "detail"
+    assert stored["flight_project"][0]["E"] == "/tmp/runtime"
+
+
+def test_write_steps_for_module_normalizes_runtime_and_exports_notebook(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    notebook_calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(
+        pipeline_editor,
+        "normalize_runtime_path",
+        lambda value: f"normalized::{value}" if value else "",
+    )
+    monkeypatch.setattr(
+        pipeline_editor,
+        "toml_to_notebook",
+        lambda steps, path: notebook_calls.append({"steps": steps, "path": path}),
+    )
+
+    count = pipeline_editor._write_steps_for_module(
+        tmp_path / "flight_project",
+        steps_file,
+        [
+            {"D": "demo", "Q": "q1", "M": "m1", "C": "print(1)", "E": tmp_path / "venv", "R": "agi.run"},
+            {"D": "", "Q": "", "M": "", "C": ""},
+        ],
+    )
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert count == 1
+    assert stored["flight_project"] == [
+        {
+            "D": "demo",
+            "Q": "q1",
+            "M": "m1",
+            "C": "print(1)",
+            "E": f"normalized::{tmp_path / 'venv'}",
+            "R": "agi.run",
+        }
+    ]
+    assert notebook_calls == [{"steps": stored, "path": steps_file}]
+
+
+def test_save_step_preserves_existing_runtime_and_extra_fields(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        """
+[[flight_project]]
+Q = "first"
+M = "model-a"
+C = "print(1)"
+E = "/tmp/runtime"
+R = "agi.run"
+LOCKED = true
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    fake_st = SimpleNamespace(session_state={"_experiment_last_save_skipped": False}, error=lambda *args, **kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+
+    nsteps, entry = pipeline_editor.save_step(
+        tmp_path / "flight_project",
+        ["detail", "updated question", "updated-model", "print(2)"],
+        current_step=0,
+        nsteps=1,
+        steps_file=steps_file,
+        extra_fields={"LOCKED": None, "SOURCE": "copied"},
+    )
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert nsteps == 1
+    assert entry["E"] == "/tmp/runtime"
+    assert entry["R"] == "agi.run"
+    assert "LOCKED" not in entry
+    assert entry["SOURCE"] == "copied"
+    assert stored["flight_project"][0]["SOURCE"] == "copied"
+    assert stored["flight_project"][0]["E"] == "/tmp/runtime"
+    assert stored["flight_project"][0]["R"] == "agi.run"
+
+
+def test_save_query_valid_uses_runtime_and_engine_maps(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(
+        session_state={
+            "idx__venv_map": {0: "/tmp/runtime"},
+            "idx__engine_map": {0: "agi.run"},
+        }
+    )
+    calls: dict[str, object] = {}
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "save_step",
+        lambda module, query, current_step, nsteps, steps_file, venv_map=None, engine_map=None: (
+            calls.setdefault("query", query),
+            calls.setdefault("venv_map", venv_map),
+            calls.setdefault("engine_map", engine_map),
+            (4, {"Q": query[1]}),
+        )[-1],
+    )
+    monkeypatch.setattr(pipeline_editor, "export_df", lambda: calls.setdefault("exported", True))
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: calls.setdefault("bumped", True))
+
+    pipeline_editor.save_query(
+        tmp_path / "flight_project",
+        [0, "detail", "question", "model", "print(1)", 2],
+        tmp_path / "lab_steps.toml",
+        "idx",
+    )
+
+    assert calls["query"] == ["detail", "question", "model", "print(1)"]
+    assert calls["venv_map"] == {0: "/tmp/runtime"}
+    assert calls["engine_map"] == {0: "agi.run"}
+    assert calls["bumped"] is True
+    assert calls["exported"] is True
+
+
+def test_restore_pipeline_snapshot_reports_write_failure(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"idx": [0, "", "", "", "", "", 0]})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "_write_steps_for_module",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("write boom")),
+    )
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "sequence_widget",
+        {"steps": []},
+    )
+
+    assert error == "write boom"
+
+
+def test_on_import_notebook_ignores_non_ipynb(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"upload": SimpleNamespace(type="text/plain")})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+
+    assert "page_broken" not in fake_st.session_state
+
+
+def test_on_import_notebook_imports_ipynb_and_marks_page_broken(monkeypatch, tmp_path):
+    uploaded = SimpleNamespace(type="application/x-ipynb+json")
+    fake_st = SimpleNamespace(session_state=_State({"upload": uploaded, "idx": [0, "", "", "", "", "", 0]}))
+    calls: dict[str, object] = {}
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    def _fake_notebook_to_toml(uploaded_file, toml_name, module_dir):
+        calls["args"] = (uploaded_file, toml_name, module_dir)
+        return 3
+
+    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", _fake_notebook_to_toml)
+
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+
+    assert calls["args"][0] is uploaded
+    assert fake_st.session_state["idx"][-1] == 3
+    assert fake_st.session_state["page_broken"] is True
+
+
+def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[[demo_project]]\nQ = 'kept'\nC = 'print(1)'\n",
+        encoding="utf-8",
+    )
+
+    fake_st = SimpleNamespace(session_state={}, error=lambda *args, **kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_editor, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_editor, "get_css_text", lambda: "")
+    monkeypatch.setattr(
+        pipeline_editor,
+        "code_editor",
+        lambda *_args, **_kwargs: {
+            "type": "save",
+            "text": json.dumps(
+                {
+                    "demo_project": [
+                        {"Q": "visible", "C": "print(2)"},
+                        {"Q": "", "C": ""},
+                    ]
+                }
+            ),
+        },
+    )
+    revisions: list[bool] = []
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: revisions.append(True))
+
+    pipeline_editor.display_history_tab(steps_file, tmp_path / "demo_project")
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert stored["demo_project"] == [{"Q": "visible", "C": "print(2)"}]
+    assert revisions == [True]

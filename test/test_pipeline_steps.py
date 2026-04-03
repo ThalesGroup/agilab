@@ -264,6 +264,82 @@ def test_normalize_imported_orchestrate_snippet_infers_agi_runtime_without_rewri
     assert runtime == "flight_trajectory_project"
 
 
+def test_pipeline_steps_helper_utilities_cover_runtime_and_summary_branches(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"AGI_EXPORT_DIR": "relative-export"})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        AGILAB_EXPORT_ABS=tmp_path,
+        envars={"AGI_EXPORT_DIR": ""},
+    )
+
+    assert pipeline_steps.normalize_imported_orchestrate_snippet(None, default_runtime="demo") == (None, "agi.run", "demo")
+    assert pipeline_steps._convert_paths_to_strings({"path": Path("demo"), "items": [Path("/tmp/x")]}) == {
+        "path": "demo",
+        "items": ["/tmp/x"],
+    }
+    assert pipeline_steps.step_summary({"Q": "   long   question text   "}, width=20) == "long question text"
+    assert pipeline_steps.step_summary({"C": "print('hello world')\nprint('again')"}, width=18) == "print('hello…"
+    assert pipeline_steps.step_button_label(1, 7, {"Q": ""}) == "2. Step 8"
+    assert pipeline_steps.looks_like_runtime_reference("/tmp/demo") is True
+    assert pipeline_steps.looks_like_runtime_reference("demo_project") is True
+    assert pipeline_steps.looks_like_runtime_reference("not a runtime") is False
+    assert pipeline_steps.pipeline_export_root(env) == (tmp_path / "export")
+    assert pipeline_steps.pipeline_export_root(SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=None, envars={})) == (
+        tmp_path / "relative-export"
+    )
+
+
+def test_pipeline_steps_module_keys_and_sequence_error_branches(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
+    module_dir = export_root / "demo_project"
+    module_dir.mkdir()
+
+    keys = pipeline_steps.module_keys(module_dir, env=env)
+    assert keys[0] == "demo_project"
+    assert keys[1] == str(module_dir)
+
+    missing = pipeline_steps.load_sequence_preferences(module_dir, tmp_path / "missing.toml", env=env)
+    assert missing == []
+
+    broken_file = tmp_path / "broken.toml"
+    broken_file.write_text("[[broken]\n", encoding="utf-8")
+    assert pipeline_steps.load_sequence_preferences(module_dir, broken_file, env=env) == []
+
+    same_sequence_file = tmp_path / "same_sequence.toml"
+    same_sequence_file.write_text(
+        '[__meta__]\n"demo_project__sequence" = [0, 2]\n',
+        encoding="utf-8",
+    )
+    before = same_sequence_file.read_text(encoding="utf-8")
+    pipeline_steps.persist_sequence_preferences(module_dir, same_sequence_file, [0, 2], env=env)
+    assert same_sequence_file.read_text(encoding="utf-8") == before
+
+
+def test_pipeline_steps_virtualenv_helpers_and_guidance(tmp_path):
+    env_root = tmp_path / "env_a"
+    env_root.mkdir()
+    (env_root / "pyvenv.cfg").write_text("home=/tmp/python\n", encoding="utf-8")
+    child = tmp_path / "child"
+    child.mkdir()
+    (child / ".venv").mkdir()
+    ((child / ".venv") / "pyvenv.cfg").write_text("home=/tmp/python\n", encoding="utf-8")
+
+    roots = list(pipeline_steps._iter_venv_roots(tmp_path))
+
+    assert env_root.resolve() in roots
+    assert (child / ".venv").resolve() in roots
+    assert pipeline_steps._normalize_venv_root(tmp_path / "missing") is None
+    assert "Run INSTALL" in pipeline_steps.snippet_source_guidance(False, "flight_project")
+    assert "Snippets are refreshed" in pipeline_steps.snippet_source_guidance(True, "flight_project")
+
+
 def test_normalize_imported_orchestrate_snippet_keeps_runpy_runtime():
     code = (
         "import os\n"
@@ -281,3 +357,54 @@ def test_normalize_imported_orchestrate_snippet_keeps_runpy_runtime():
     assert normalized == code
     assert engine == "runpy"
     assert runtime == "network_sim_project"
+
+
+def test_pipeline_export_root_and_module_keys_handle_home_fallback(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"AGI_EXPORT_DIR": ""})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=tmp_path, envars={})
+
+    export_root = pipeline_steps.pipeline_export_root(env)
+    module_dir = export_root / "network_sim_project"
+
+    assert export_root == (tmp_path / "export")
+    assert pipeline_steps.module_keys(module_dir, env=env)[0] == "network_sim_project"
+
+
+def test_step_helper_labels_and_runtime_reference_flags():
+    entry = {"Q": "  Build topology   and   demands  ", "C": "print('fallback')", "R": "runpy"}
+
+    assert pipeline_steps.step_summary(entry, width=18) == "Build topology…"
+    assert pipeline_steps.step_button_label(2, 4, entry) == "3. Build topology and demands"
+    assert pipeline_steps.step_button_label(0, 2, {}) == "1. Step 3"
+    assert pipeline_steps.looks_like_runtime_reference("demo_project") is True
+    assert pipeline_steps.looks_like_runtime_reference("just words here") is False
+    assert pipeline_steps.is_displayable_step({"Q": "go"}) is True
+    assert pipeline_steps.is_displayable_step({"C": "print(1)"}) is True
+    assert pipeline_steps.is_displayable_step({"Q": "   ", "C": ""}) is False
+    assert pipeline_steps.is_runnable_step({"C": "print(1)"}) is True
+    assert pipeline_steps.is_runnable_step({"C": "  "}) is False
+    assert pipeline_steps.looks_like_step("4") is True
+    assert pipeline_steps.looks_like_step("-1") is False
+
+
+def test_sequence_preferences_and_guidance_ignore_invalid_metadata(tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[__meta__]\n"
+        'demo_project__sequence = [2, -1, "bad", 0]\n',
+        encoding="utf-8",
+    )
+
+    assert pipeline_steps.load_sequence_preferences("demo_project", steps_file) == [2, 0]
+    assert "latest ORCHESTRATE run" in pipeline_steps.snippet_source_guidance(True, "demo_project")
+    assert "No ORCHESTRATE-generated snippet" in pipeline_steps.snippet_source_guidance(False, "demo_project")
+
+
+def test_pipeline_steps_misc_helpers_cover_path_conversion_and_locked_source():
+    converted = pipeline_steps._convert_paths_to_strings({"items": [Path("/tmp/demo"), {"path": Path("x")}]})
+    assert converted == {"items": ["/tmp/demo", {"path": "x"}]}
+
+    assert pipeline_steps.extract_step_app_name('APP = "flight_project"\nprint(1)\n') == "flight_project"
+    assert pipeline_steps.extract_step_app_name("print(1)") == ""
+    assert pipeline_steps.orchestrate_snippet_source({"Q": "Imported snippet: AGI_run_demo.py"}) == "AGI_run_demo.py"

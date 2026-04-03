@@ -1,4 +1,5 @@
 import os
+import builtins
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -46,6 +47,81 @@ def test_pre_install_prepare_for_cython_writes_pyx(tmp_path, monkeypatch):
     pyx_path = worker_py.with_suffix(".pyx")
     assert pyx_path.exists()
     assert "prepared = 1" in pyx_path.read_text(encoding="utf-8")
+
+
+def test_pre_install_main_dispatches_prepare_for_cython(monkeypatch, tmp_path):
+    worker_py = tmp_path / "demo_worker.py"
+    calls = {}
+
+    monkeypatch.setattr(pre_mod, "prepare_for_cython", lambda args: calls.setdefault("worker_path", args.worker_path))
+    monkeypatch.setattr(
+        pre_mod.sys,
+        "argv",
+        [
+            "pre_install.py",
+            "remove_decorators",
+            "--worker_path",
+            str(worker_py),
+        ],
+    )
+
+    pre_mod.main()
+
+    assert calls["worker_path"] == str(worker_py)
+
+
+def test_pre_install_ensure_agi_env_finds_source_layout(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    candidate = workspace / "agilab" / "core" / "agi-env" / "src" / "agi_env"
+    candidate.mkdir(parents=True)
+    (candidate / "__init__.py").write_text("class AgiEnv:\n    pass\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        pre_mod,
+        "__file__",
+        str(workspace / "agilab" / "core" / "agi-node" / "src" / "agi_node" / "agi_dispatcher" / "pre_install.py"),
+        raising=False,
+    )
+    monkeypatch.setattr(pre_mod.sys, "path", list(pre_mod.sys.path), raising=False)
+
+    original_import = builtins.__import__
+    original_agi_env = pre_mod.sys.modules.pop("agi_env", None)
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agi_env" and str(candidate.parent) not in pre_mod.sys.path:
+            raise ModuleNotFoundError("agi_env")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _patched_import)
+    try:
+        pre_mod._ensure_agi_env()
+        assert str(candidate.parent) in pre_mod.sys.path
+    finally:
+        pre_mod.sys.modules.pop("agi_env", None)
+        if original_agi_env is not None:
+            pre_mod.sys.modules["agi_env"] = original_agi_env
+
+
+def test_pre_install_ensure_agi_env_raises_when_source_layout_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(pre_mod, "__file__", str(tmp_path / "x" / "y" / "pre_install.py"), raising=False)
+    monkeypatch.setattr(pre_mod.sys, "path", list(pre_mod.sys.path), raising=False)
+
+    original_import = builtins.__import__
+    original_agi_env = pre_mod.sys.modules.pop("agi_env", None)
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agi_env":
+            raise ModuleNotFoundError("agi_env")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _patched_import)
+    try:
+        with pytest.raises(ModuleNotFoundError, match="Unable to locate the agi_env package"):
+            pre_mod._ensure_agi_env()
+    finally:
+        pre_mod.sys.modules.pop("agi_env", None)
+        if original_agi_env is not None:
+            pre_mod.sys.modules["agi_env"] = original_agi_env
 
 
 def test_post_iter_data_files_and_has_samples(tmp_path):
@@ -99,6 +175,15 @@ def test_post_folder_looks_large_for_generated_or_many_files(tmp_path):
     assert post_mod._folder_looks_large(many) is True
 
 
+def test_post_folder_looks_large_for_big_file(tmp_path):
+    big = tmp_path / "big"
+    big.mkdir()
+    (big / "a.csv").write_bytes(b"x" * 1_100_000)
+    (big / "b.csv").write_text("small", encoding="utf-8")
+
+    assert post_mod._folder_looks_large(big) is True
+
+
 def test_post_try_link_dir_replaces_empty_dir(tmp_path):
     link_path = tmp_path / "dataset" / "sat"
     target_path = tmp_path / "trajectory"
@@ -113,6 +198,24 @@ def test_post_try_link_dir_replaces_empty_dir(tmp_path):
     assert link_path.resolve(strict=False) == target_path.resolve(strict=False)
 
 
+def test_post_try_link_dir_keeps_matching_symlink_and_rejects_sample_dir(tmp_path):
+    target_path = tmp_path / "trajectory"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+
+    symlink_path = tmp_path / "dataset" / "sat"
+    symlink_path.parent.mkdir(parents=True, exist_ok=True)
+    symlink_path.symlink_to(target_path, target_is_directory=True)
+    assert post_mod._try_link_dir(symlink_path, target_path) is True
+
+    occupied = tmp_path / "occupied"
+    occupied.mkdir()
+    (occupied / "a.csv").write_text("1", encoding="utf-8")
+    (occupied / "b.csv").write_text("2", encoding="utf-8")
+    assert post_mod._try_link_dir(occupied, target_path) is False
+
+
 def test_post_dataset_archive_candidates_deduplicates(tmp_path):
     class DummyEnv:
         share_target_name = "mycode"
@@ -125,6 +228,177 @@ def test_post_dataset_archive_candidates_deduplicates(tmp_path):
     assert candidates[0] == env.dataset_archive
     assert candidates[1].name == "dataset.7z"
     assert "apps" in candidates[1].as_posix()
+
+
+def test_post_build_env_uses_parent_directory_and_name(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyEnv:
+        def __init__(self, *, apps_path, active_app):
+            captured["apps_path"] = apps_path
+            captured["active_app"] = active_app
+
+    monkeypatch.setattr(post_mod, "AgiEnv", DummyEnv)
+
+    post_mod._build_env(tmp_path / "demo_project")
+
+    assert captured == {"apps_path": tmp_path, "active_app": "demo_project"}
+
+
+def test_post_extract_archive_uses_py7zr_extractall(monkeypatch, tmp_path):
+    archive = tmp_path / "dataset.7z"
+    archive.write_text("placeholder", encoding="utf-8")
+    extracted = {}
+
+    class _Archive:
+        def __init__(self, path, mode="r"):
+            extracted["path"] = Path(path)
+            extracted["mode"] = mode
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extractall(self, *, path):
+            extracted["dest"] = Path(path)
+
+    monkeypatch.setattr(post_mod.py7zr, "SevenZipFile", _Archive)
+    dest = tmp_path / "dataset"
+
+    post_mod._extract_archive(archive, dest)
+
+    assert extracted == {"path": archive, "mode": "r", "dest": dest}
+
+
+def test_post_extract_archive_missing_file_is_noop_and_large_folder_handles_stat_error(tmp_path, monkeypatch):
+    post_mod._extract_archive(tmp_path / "missing.7z", tmp_path / "dest")
+    assert not (tmp_path / "dest").exists()
+
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    a = folder / "a.csv"
+    b = folder / "b.csv"
+    a.write_text("1", encoding="utf-8")
+    b.write_text("2", encoding="utf-8")
+
+    original_stat = Path.stat
+
+    def _broken_stat(self, *args, **kwargs):
+        if self == a:
+            raise OSError("boom")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(post_mod.Path, "stat", _broken_stat, raising=False)
+    assert post_mod._folder_looks_large(folder) is False
+
+
+def test_post_try_link_dir_returns_false_on_setup_and_symlink_failures(tmp_path, monkeypatch):
+    link_path = tmp_path / "dataset" / "sat"
+    target_path = tmp_path / "trajectory"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+
+    monkeypatch.setattr(post_mod.Path, "mkdir", lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("mkdir denied")), raising=False)
+    assert post_mod._try_link_dir(link_path, target_path) is False
+
+    monkeypatch.undo()
+    existing = tmp_path / "existing"
+    existing.symlink_to(tmp_path / "wrong-target", target_is_directory=True)
+    monkeypatch.setattr(post_mod.os, "symlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("symlink denied")))
+    assert post_mod._try_link_dir(existing, target_path) is False
+
+
+def test_post_main_returns_usage_on_invalid_args(capsys):
+    assert post_mod.main([]) == 1
+    captured = capsys.readouterr()
+    assert "Usage: python post_install.py <app>" in captured.out
+
+
+def test_post_main_reports_missing_archive_and_returns_zero(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "missing.7z"
+    dest_arg = tmp_path / "share" / "demo"
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: tmp_path / "share",
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "dataset archive not found for 'demo'" in captured.out
+
+
+def test_post_main_relinks_duplicate_sat_folder_to_preferred_dataset(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("placeholder", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    dataset_root = dest_arg / "dataset"
+    sat_folder = dataset_root / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    (sat_folder / "a.csv").write_text("1", encoding="utf-8")
+    (sat_folder / "b.csv").write_text("2", encoding="utf-8")
+
+    share_root = tmp_path / "shared-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: share_root,
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    assert result == 0
+    assert sat_folder.is_symlink()
+    assert sat_folder.resolve(strict=False) == preferred.resolve(strict=False)
+    assert "deduplicated" in capsys.readouterr().out
+
+
+def test_post_main_copies_trajectory_files_when_linking_fails(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("placeholder", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    dataset_root = dest_arg / "dataset"
+    trajectory_folder = dataset_root / "Trajectory"
+    trajectory_folder.mkdir(parents=True, exist_ok=True)
+    (trajectory_folder / "a.csv").write_text("1", encoding="utf-8")
+    (trajectory_folder / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: tmp_path / "share-root",
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    sat_folder = dataset_root / "sat"
+    assert result == 0
+    assert (sat_folder / "a.csv").exists()
+    assert (sat_folder / "b.csv").exists()
+    assert "copied 2 trajectory file(s)" in capsys.readouterr().out
 
 
 def test_build_parse_custom_args_and_remaining():
@@ -393,6 +667,42 @@ def test_post_main_respects_preserve_existing_sat_flag(tmp_path, monkeypatch):
     assert called["link"] is False
 
 
+def test_post_main_keeps_existing_preferred_sat_symlink(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    share_root = tmp_path / "share"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    class DummyEnv:
+        def __init__(self):
+            self.share_target_name = "demo"
+            self.dataset_archive = dataset_archive
+            self.agilab_pck = tmp_path / "pkg"
+
+        def resolve_share_path(self, _target):
+            return tmp_path / "share-dest"
+
+        def unzip_data(self, _archive, dest):
+            dataset_root = Path(dest) / "dataset"
+            dataset_root.mkdir(parents=True, exist_ok=True)
+            (dataset_root / "sat").symlink_to(preferred, target_is_directory=True)
+
+        def share_root_path(self):
+            return share_root
+
+    called = {"link": False}
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: DummyEnv())
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: called.update(link=True))
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert called["link"] is False
+
+
 def test_post_main_extracts_then_copies_when_link_unavailable(tmp_path, monkeypatch):
     dataset_archive = tmp_path / "dataset.7z"
     dataset_archive.write_text("x", encoding="utf-8")
@@ -503,6 +813,14 @@ def test_build_cleanup_links_removes_file_and_empty_parents(tmp_path):
     target = tmp_path / "a" / "agi_node" / "demo" / "payload.txt"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("x", encoding="utf-8")
+    build_mod.AgiEnv.logger = type(
+        "Logger",
+        (),
+        {
+            "info": staticmethod(lambda *_args, **_kwargs: None),
+            "warning": staticmethod(lambda *_args, **_kwargs: None),
+        },
+    )()
 
     build_mod.cleanup_links([target])
     assert not target.exists()
