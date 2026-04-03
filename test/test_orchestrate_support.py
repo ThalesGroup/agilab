@@ -206,6 +206,33 @@ def test_mount_table_darwin_parses_and_sorts(monkeypatch):
     orchestrate_support.mount_table.cache_clear()
 
 
+def test_mount_table_linux_and_error_fallback(monkeypatch, tmp_path):
+    orchestrate_support.mount_table.cache_clear()
+    mounts = tmp_path / "mounts"
+    mounts.write_text(
+        "server:/share /mnt/share nfs rw 0 0\n/dev/disk1 / ext4 rw 0 0\n",
+        encoding="utf-8",
+    )
+    real_path = Path
+
+    def _fake_path(raw):
+        if str(raw) == "/proc/mounts":
+            return mounts
+        return real_path(raw)
+
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "linux")
+    monkeypatch.setattr(orchestrate_support, "Path", _fake_path)
+
+    entries = orchestrate_support.mount_table()
+    assert entries[0] == ("/mnt/share", "nfs")
+    assert orchestrate_support.fstype_for_path(Path("/mnt/share/demo/file.csv")) == "nfs"
+
+    orchestrate_support.mount_table.cache_clear()
+    monkeypatch.setattr(orchestrate_support, "Path", lambda _raw: (_ for _ in ()).throw(OSError("boom")))
+    assert orchestrate_support.mount_table() == []
+    orchestrate_support.mount_table.cache_clear()
+
+
 def test_macos_autofs_hint_covers_missing_map_and_static_directive(monkeypatch, tmp_path):
     monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
     real_path = Path
@@ -231,6 +258,25 @@ def test_macos_autofs_hint_covers_missing_map_and_static_directive(monkeypatch, 
     auto_nfs.write_text("/Volumes\t-fstype=nfs demo:/Volumes\n", encoding="utf-8")
     hint = orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share"))
     assert "does not mention `/mnt`" in hint
+
+
+def test_macos_autofs_hint_covers_non_darwin_and_missing_master(monkeypatch, tmp_path):
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "linux")
+    assert orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share")) is None
+
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
+    real_path = Path
+
+    def _fake_path(raw):
+        if str(raw) == "/etc/auto_master":
+            return tmp_path / "missing-auto-master"
+        if str(raw) == "/etc/auto_nfs":
+            return tmp_path / "missing-auto-nfs"
+        return real_path(raw)
+
+    monkeypatch.setattr(orchestrate_support, "Path", _fake_path)
+    hint = orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share"))
+    assert "/etc/auto_master" in hint
 
 
 def test_parse_benchmark_and_safe_eval_cover_error_paths():
