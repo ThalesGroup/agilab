@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate static component coverage badges from Cobertura XML reports."""
+"""Generate static coverage badges from Cobertura XML reports."""
 
 from __future__ import annotations
 
@@ -11,25 +11,39 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 COMPONENTS = {
-    "agi-core": {
-        "xml": REPO_ROOT / "coverage-agi-core.xml",
-        "prefix": "src/agilab/core/agi-core/",
-        "badge": REPO_ROOT / "badges" / "coverage-agi-core.svg",
-    },
     "agi-env": {
+        "label": "agi-env",
         "xml": REPO_ROOT / "coverage-agi-env.xml",
         "prefix": "src/agilab/core/agi-env/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-env.svg",
     },
     "agi-node": {
+        "label": "agi-node",
         "xml": REPO_ROOT / "coverage-agi-node.xml",
         "prefix": "src/agilab/core/agi-node/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-node.svg",
     },
     "agi-cluster": {
+        "label": "agi-cluster",
         "xml": REPO_ROOT / "coverage-agi-cluster.xml",
         "prefix": "src/agilab/core/agi-cluster/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-cluster.svg",
+    },
+    "agi-gui": {
+        "label": "agi-gui",
+        "xml": REPO_ROOT / "coverage-agi-gui.xml",
+        "prefix": "src/agilab/",
+        "badge": REPO_ROOT / "badges" / "coverage-agi-gui.svg",
+    },
+    "agi-core": {
+        "label": "agi-core",
+        "aggregate": ("agi-env", "agi-node", "agi-cluster"),
+        "badge": REPO_ROOT / "badges" / "coverage-agi-core.svg",
+    },
+    "agilab": {
+        "label": "agilab",
+        "aggregate": ("agi-env", "agi-node", "agi-cluster", "agi-gui"),
+        "badge": REPO_ROOT / "badges" / "coverage-agilab.svg",
     },
 }
 
@@ -45,9 +59,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def badge_color(percent: float) -> str:
-    if percent >= 90:
+    if percent >= 80:
         return "#2ea44f"
-    if percent >= 75:
+    if percent >= 65:
         return "#97ca00"
     if percent >= 60:
         return "#a4a61d"
@@ -63,7 +77,7 @@ def text_width(text: str) -> int:
 
 
 def format_percent(percent: float) -> str:
-    return f"{percent:.1f}%"
+    return f"{round(percent):d}%"
 
 
 def render_badge(label: str, value: str, color: str) -> str:
@@ -107,6 +121,17 @@ def compute_from_component_xml(path: Path) -> float | None:
     return float(line_rate) * 100.0
 
 
+def coverage_counts_from_xml(path: Path) -> tuple[int, int] | None:
+    if not path.exists():
+        return None
+    root = ET.parse(path).getroot()
+    covered = root.attrib.get("lines-covered")
+    total = root.attrib.get("lines-valid")
+    if covered is None or total is None:
+        return None
+    return int(covered), int(total)
+
+
 def compute_from_combined_xml(path: Path, prefix: str) -> float | None:
     if not path.exists():
         return None
@@ -126,17 +151,36 @@ def compute_from_combined_xml(path: Path, prefix: str) -> float | None:
     return covered * 100.0 / total
 
 
+def compute_aggregate_percent(components: tuple[str, ...]) -> float | None:
+    covered = 0
+    total = 0
+    for component in components:
+        counts = coverage_counts_from_xml(COMPONENTS[component]["xml"])
+        if counts is None:
+            return None
+        component_covered, component_total = counts
+        covered += component_covered
+        total += component_total
+    if total == 0:
+        return None
+    return covered * 100.0 / total
+
+
 def main() -> int:
     args = parse_args()
     combined_xml = Path(args.combined_xml)
     for name, config in COMPONENTS.items():
-        percent = compute_from_component_xml(config["xml"])
-        if percent is None:
-            percent = compute_from_combined_xml(combined_xml, config["prefix"])
+        percent = None
+        if "aggregate" in config:
+            percent = compute_aggregate_percent(config["aggregate"])
+        elif "xml" in config:
+            percent = compute_from_component_xml(config["xml"])
+            if percent is None:
+                percent = compute_from_combined_xml(combined_xml, config["prefix"])
         if percent is None:
             raise SystemExit(f"Missing coverage data for {name}")
         value = format_percent(percent)
-        svg = render_badge("coverage", value, badge_color(percent))
+        svg = render_badge(config["label"], value, badge_color(percent))
         badge_path = config["badge"]
         badge_path.parent.mkdir(parents=True, exist_ok=True)
         badge_path.write_text(svg, encoding="utf-8")
