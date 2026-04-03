@@ -77,7 +77,7 @@ def text_width(text: str) -> int:
 
 
 def format_percent(percent: float) -> str:
-    return f"{round(percent):d}%"
+    return f"{int(percent)}%"
 
 
 def render_badge(label: str, value: str, color: str) -> str:
