@@ -4,6 +4,7 @@ import importlib
 from pathlib import Path
 import sys
 import types
+import pytest
 
 
 def _import_agilab_module(module_name: str):
@@ -190,3 +191,109 @@ def test_ensure_cached_api_key_recovers_from_secret_lookup_error(monkeypatch):
 
     assert resolved == "azure-secret-value-123456"
     assert fake_st.session_state["openai_api_key"] == "azure-secret-value-123456"
+
+
+def test_prompt_for_openai_api_key_handles_empty_input(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeForm:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    fake_st = types.SimpleNamespace(
+        session_state={"openai_api_key": "cached"},
+        warning=lambda message: events.append(("warning", str(message))),
+        form=lambda _key: FakeForm(),
+        text_input=lambda *args, **kwargs: "",
+        checkbox=lambda *args, **kwargs: True,
+        form_submit_button=lambda *args, **kwargs: True,
+        error=lambda message: events.append(("error", str(message))),
+        success=lambda message: events.append(("success", str(message))),
+        rerun=lambda: events.append(("rerun", "")),
+        stop=lambda: (_ for _ in ()).throw(RuntimeError("stopped")),
+    )
+    monkeypatch.setattr(pipeline_openai, "st", fake_st)
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        pipeline_openai.prompt_for_openai_api_key("Missing key")
+
+    assert ("warning", "Missing key") in events
+    assert ("error", "API key cannot be empty.") in events
+    assert not any(kind == "success" for kind, _ in events)
+
+
+def test_prompt_for_openai_api_key_updates_session_and_persists(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeForm:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeAgiEnv:
+        def __init__(self):
+            self.envars = {}
+
+        @staticmethod
+        def set_env_var(name, value):
+            events.append(("set_env_var", f"{name}={value}"))
+
+    env_obj = FakeAgiEnv()
+    fake_st = types.SimpleNamespace(
+        session_state={"openai_api_key": "cached", "env": env_obj},
+        warning=lambda message: events.append(("warning", str(message))),
+        form=lambda _key: FakeForm(),
+        text_input=lambda *args, **kwargs: "sk-updated-value-123456",
+        checkbox=lambda *args, **kwargs: True,
+        form_submit_button=lambda *args, **kwargs: True,
+        error=lambda message: events.append(("error", str(message))),
+        success=lambda message: events.append(("success", str(message))),
+        rerun=lambda: events.append(("rerun", "")),
+        stop=lambda: (_ for _ in ()).throw(RuntimeError("stopped")),
+    )
+    monkeypatch.setattr(pipeline_openai, "st", fake_st)
+    monkeypatch.setitem(sys.modules, "agi_env", types.SimpleNamespace(AgiEnv=FakeAgiEnv))
+    monkeypatch.setattr(
+        pipeline_openai,
+        "persist_env_var",
+        lambda name, value: events.append(("persist", f"{name}={value}")),
+    )
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        pipeline_openai.prompt_for_openai_api_key("Missing key")
+
+    assert fake_st.session_state["openai_api_key"] == "sk-updated-value-123456"
+    assert env_obj.envars["OPENAI_API_KEY"] == "sk-updated-value-123456"
+    assert ("persist", "OPENAI_API_KEY=sk-updated-value-123456") in events
+    assert any(kind == "success" and "saved to ~/.agilab/.env" in message for kind, message in events)
+
+
+def test_make_openai_client_and_model_azure_falls_back_to_openai_client(monkeypatch):
+    captured = {}
+
+    class _OpenAIClient:
+        def __init__(self, **kwargs):
+            captured["openai"] = kwargs
+
+    fake_openai = types.ModuleType("openai")
+    fake_openai.OpenAI = _OpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-secret")
+
+    client, model_name, is_azure = pipeline_openai.make_openai_client_and_model(
+        {"OPENAI_BASE_URL": "https://proxy.example/v1", "OPENAI_MODEL": "azure-deploy"},
+        "azure-secret",
+    )
+
+    assert isinstance(client, _OpenAIClient)
+    assert model_name == "azure-deploy"
+    assert is_azure is True
+    assert captured["openai"] == {
+        "api_key": "azure-secret",
+        "base_url": "https://proxy.example/v1",
+    }

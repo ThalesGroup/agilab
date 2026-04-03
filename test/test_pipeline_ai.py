@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 import importlib
 import importlib.util
 import json
@@ -33,6 +34,12 @@ def test_extract_code_splits_detail_and_python_block():
 
     assert code == "print('ok')"
     assert detail == "Use this.\n\nDone."
+
+
+def test_extract_code_handles_plain_python_empty_and_non_python_text():
+    assert pipeline_ai.extract_code("value = 1\nprint(value)") == ("value = 1\nprint(value)", "")
+    assert pipeline_ai.extract_code("") == ("", "")
+    assert pipeline_ai.extract_code("not valid python!") == ("", "not valid python!")
 
 
 def test_normalize_gpt_oss_endpoint_appends_responses_path():
@@ -150,6 +157,15 @@ def test_response_to_text_prefers_output_text_then_structured_and_legacy_choices
 
     legacy = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=" legacy "))])
     assert pipeline_ai._response_to_text(legacy) == "legacy"
+
+
+def test_response_to_text_handles_text_chunks_and_empty_payloads():
+    chunked = SimpleNamespace(output=[SimpleNamespace(type="tool", text=SimpleNamespace(value="chunk"))])
+    assert pipeline_ai._response_to_text(chunked) == "chunk"
+
+    broken_legacy = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace())])
+    assert pipeline_ai._response_to_text(broken_legacy) == ""
+    assert pipeline_ai._response_to_text(None) == ""
 
 
 def test_load_env_file_map_reads_comments_and_missing_files(tmp_path):
@@ -504,6 +520,225 @@ def test_chat_offline_handles_invalid_json_payload(monkeypatch):
     with pytest.raises(RuntimeError):
         pipeline_ai.chat_offline("question", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
     assert errors == ["GPT-OSS returned an invalid JSON payload."]
+
+
+def test_load_uoaic_modules_reports_missing_package_and_dependency(monkeypatch, tmp_path):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    monkeypatch.setattr(
+        pipeline_ai.importlib_metadata,
+        "distribution",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(pipeline_ai.importlib_metadata.PackageNotFoundError()),
+    )
+    with pytest.raises(RuntimeError):
+        pipeline_ai._load_uoaic_modules()
+    assert any("universal-offline-ai-chatbot" in message for message in errors)
+
+    class FakeDist:
+        files = []
+
+        @staticmethod
+        def locate_file(path):
+            return tmp_path / "missing"
+
+        @staticmethod
+        def read_text(_name):
+            return ""
+
+    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
+    monkeypatch.setattr(
+        pipeline_ai.importlib,
+        "import_module",
+        lambda _name: (_ for _ in ()).throw(ImportError("missing dep", name="numpy")),
+    )
+    errors.clear()
+    with pytest.raises(RuntimeError):
+        pipeline_ai._load_uoaic_modules()
+    assert any("Missing dependency `numpy`" in message for message in errors)
+
+
+def test_ensure_uoaic_runtime_handles_missing_cached_and_build_paths(monkeypatch, tmp_path):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: errors.append(str(message)),
+        spinner=lambda *_args, **_kwargs: nullcontext(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_resolve_uoaic_path", lambda raw, env: Path(raw))
+
+    with pytest.raises(RuntimeError, match="Missing Universal Offline data directory"):
+        pipeline_ai._ensure_uoaic_runtime({})
+    assert any("Configure the Universal Offline data directory" in message for message in errors)
+
+    data_dir = tmp_path / "docs"
+    db_dir = tmp_path / "vectorstore" / "db"
+    data_dir.mkdir(parents=True)
+    cached_runtime = {
+        "data_path": pipeline_ai.normalize_path(data_dir),
+        "db_path": pipeline_ai.normalize_path(db_dir),
+        "chain": "cached-chain",
+    }
+    fake_st.session_state = {
+        "env": object(),
+        pipeline_ai.UOAIC_DATA_STATE_KEY: str(data_dir),
+        pipeline_ai.UOAIC_DB_STATE_KEY: str(db_dir),
+        pipeline_ai.UOAIC_RUNTIME_KEY: cached_runtime,
+    }
+    assert pipeline_ai._ensure_uoaic_runtime({}) is cached_runtime
+
+    built: dict[str, object] = {}
+    fake_st.session_state = {
+        "env": object(),
+        pipeline_ai.UOAIC_DATA_STATE_KEY: str(data_dir),
+        pipeline_ai.UOAIC_DB_STATE_KEY: str(db_dir),
+    }
+
+    chunker = SimpleNamespace(create_chunks=lambda docs: ["chunked"])
+    embedding = SimpleNamespace(get_embedding_model=lambda: "embedding-model")
+    loader = SimpleNamespace(load_pdf_files=lambda path: ["doc.pdf"])
+    model_loader = SimpleNamespace(load_llm=lambda: SimpleNamespace(model_name="ollama-mini"))
+    prompts = SimpleNamespace(
+        CUSTOM_PROMPT_TEMPLATE="template",
+        set_custom_prompt=lambda template: f"PROMPT::{template}",
+    )
+    qa_chain = SimpleNamespace(
+        setup_qa_chain=lambda llm, db, prompt: {"llm": llm, "db": db, "prompt": prompt}
+    )
+    vectorstore = SimpleNamespace(
+        build_vector_db=lambda chunks, embedding_model, path: built.update(
+            chunks=chunks,
+            embedding_model=embedding_model,
+            path=path,
+        ),
+        load_vector_db=lambda path, embedding_model: {"path": path, "embedding_model": embedding_model},
+    )
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_load_uoaic_modules",
+        lambda: (chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore),
+    )
+
+    runtime = pipeline_ai._ensure_uoaic_runtime({})
+    assert runtime["model_label"] == "ollama-mini"
+    assert runtime["prompt"] == "PROMPT::template"
+    assert runtime["vector_store"]["path"] == str(db_dir)
+    assert built["path"] == str(db_dir)
+    assert built["chunks"] == ["chunked"]
+
+
+def test_chat_online_handles_success_key_prompt_and_model_errors(monkeypatch):
+    infos: list[str] = []
+    errors: list[str] = []
+    prompts: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={},
+        info=lambda message: infos.append(str(message)),
+        error=lambda message: errors.append(str(message)),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_load_env_file_map", lambda _path: {})
+    monkeypatch.setattr(pipeline_ai, "prompt_for_openai_api_key", lambda message: prompts.append(str(message)))
+
+    class FakeOpenAIError(Exception):
+        def __init__(self, message, status_code=None):
+            super().__init__(message)
+            self.status_code = status_code
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAIError=FakeOpenAIError))
+
+    monkeypatch.setattr(pipeline_ai, "ensure_cached_api_key", lambda _envars: "")
+    monkeypatch.setattr(pipeline_ai, "is_placeholder_api_key", lambda key: not key)
+    with pytest.raises(RuntimeError, match="OpenAI API key unavailable"):
+        pipeline_ai.chat_online("question", [], {})
+    assert any("OpenAI API key appears missing" in message for message in prompts)
+
+    class SuccessClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(model, messages):
+                    return SimpleNamespace(
+                        choices=[SimpleNamespace(message=SimpleNamespace(content="```python\nprint(1)\n```"))]
+                    )
+
+    monkeypatch.setattr(pipeline_ai, "ensure_cached_api_key", lambda _envars: "sk-demo-1234567890")
+    monkeypatch.setattr(pipeline_ai, "is_placeholder_api_key", lambda _key: False)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "make_openai_client_and_model",
+        lambda envars, api_key: (SuccessClient(), "gpt-5", False),
+    )
+    text, model = pipeline_ai.chat_online("question", [], {})
+    assert "print(1)" in text
+    assert model == "gpt-5"
+
+    class FailingClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(model, messages):
+                    raise FakeOpenAIError("model_not_found", status_code=404)
+
+    monkeypatch.setattr(
+        pipeline_ai,
+        "make_openai_client_and_model",
+        lambda envars, api_key: (FailingClient(), "missing-model", False),
+    )
+    with pytest.raises(RuntimeError, match="model_not_found"):
+        pipeline_ai.chat_online("question", [], {})
+    assert any("requested model is unavailable" in message for message in infos)
+
+
+def test_configure_assistant_engine_and_gpt_oss_controls(monkeypatch):
+    messages: list[tuple[str, str]] = []
+
+    class FakeSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            if label == "Assistant engine":
+                return "GPT-OSS (local)"
+            if label == "GPT-OSS backend":
+                return "stub"
+            raise AssertionError(label)
+
+        def text_input(self, label, value="", help=None):
+            return value
+
+        def button(self, *args, **kwargs):
+            return False
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+        def info(self, message):
+            messages.append(("info", str(message)))
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "index_page": "page",
+            "page": [0, 0, 0, "stale-model"],
+            "gpt_oss_server_started": True,
+            "gpt_oss_backend_active": "stub",
+            "gpt_oss_endpoint": "http://127.0.0.1:8000",
+        },
+        sidebar=FakeSidebar(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    env = SimpleNamespace(envars={})
+
+    provider = pipeline_ai.configure_assistant_engine(env)
+    assert provider == "gpt-oss"
+    assert env.envars["LAB_LLM_PROVIDER"] == "gpt-oss"
+    assert fake_st.session_state["_experiment_reload_required"] is True
+    assert fake_st.session_state["page"][3] == ""
+
+    pipeline_ai.gpt_oss_controls(env)
+    assert any(kind == "success" and "GPT-OSS server running" in message for kind, message in messages)
 
 
 def test_chat_universal_offline_formats_sources_and_raises(monkeypatch):
