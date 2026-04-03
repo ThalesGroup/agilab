@@ -482,6 +482,40 @@ def test_active_app_override_uses_builtin_path_even_when_env_apps_path_is_set(tm
     assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
 
 
+def test_missing_flattened_active_app_falls_back_to_builtin_copy(tmp_path: Path, monkeypatch):
+    """When a stale flattened app root exists, prefer the valid builtin copy."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(agipath) + "\n", encoding="utf-8")
+
+    wrong_app = tmp_path / "apps" / "flight_project"
+    wrong_app.mkdir(parents=True, exist_ok=True)
+    (wrong_app / "pyproject.toml").write_text("[project]\nname='wrong-flight'\n", encoding="utf-8")
+
+    builtin_app = tmp_path / "apps" / "builtin" / "flight_project"
+    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    AgiEnv.reset()
+
+    env = AgiEnv(active_app=wrong_app, verbose=0)
+
+    assert env.active_app == builtin_app.resolve()
+    assert env.manager_path == (builtin_app / "src" / "flight" / "flight.py").resolve()
+    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+
+
 def test_run_nonzero_command_does_not_log_traceback_for_runtime_error(tmp_path: Path, monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)

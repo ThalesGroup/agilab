@@ -904,6 +904,43 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             sys.path.append(src_path)
 
         if not self.worker_path.exists():
+            if not self.is_worker_env:
+                builtin_roots = []
+                if self.builtin_apps_path is not None:
+                    builtin_roots.append(self.builtin_apps_path)
+                if apps_path is not None:
+                    builtin_roots.append(apps_path / "builtin")
+                builtin_roots.append(apps_root / "builtin")
+                builtin_roots.append(self.agilab_pck / "apps" / "builtin")
+
+                for builtin_root in builtin_roots:
+                    try:
+                        candidate_app = builtin_root / self.app
+                    except TypeError:
+                        continue
+                    candidate_worker = candidate_app / "src" / target_worker / f"{target_worker}.py"
+                    if not candidate_worker.exists():
+                        continue
+                    try:
+                        self.active_app = candidate_app.resolve(strict=False)
+                    except Exception:
+                        self.active_app = candidate_app
+                    self.app_src = self.active_app / "src"
+                    self.manager_pyproject = self.active_app / "pyproject.toml"
+                    self.worker_path = candidate_worker
+                    self.manager_path = self.app_src / target / f"{target}.py"
+                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                    self.builtin_apps_path = builtin_root
+                    AgiEnv.logger.info(
+                        "Resolved builtin app %s from %s after missing worker path in %s",
+                        self.app,
+                        candidate_app,
+                        active_app,
+                    )
+                    break
+
+        if not self.worker_path.exists():
             copied_packaged_worker = False
             # Prefer an installed worker tree inside wenv to avoid mutating the source checkout.
             wenv_worker_src = self.wenv_abs / "src" / target_worker / f"{target_worker}.py"
