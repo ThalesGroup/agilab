@@ -110,6 +110,43 @@ C = "print(2)"
     assert fake_st.session_state["idx__run_sequence"] == [0]
 
 
+def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[[flight_project]]\nQ = 'First'\nC = 'print(1)'\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={
+            "idx": [3, "", "", "", "", "", 1],
+            "idx__details": {0: "d0"},
+            "idx__venv_map": {0: "/tmp/a"},
+            "idx__engine_map": {0: "runpy"},
+            "idx__run_sequence": [0, 4],
+        },
+        error=lambda message, *args, **kwargs: errors.append(message),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(
+        pipeline_editor,
+        "tomli_w",
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom"))),
+    )
+
+    remaining = pipeline_editor.remove_step(tmp_path / "flight_project", "7", steps_file, "idx")
+
+    assert remaining == 1
+    assert fake_st.session_state["idx"][0] == 0
+    assert fake_st.session_state["idx__venv_map"] == {0: "/tmp/a"}
+    assert fake_st.session_state["idx__engine_map"] == {0: "runpy"}
+    assert fake_st.session_state["idx__run_sequence"] == [0]
+    assert errors == ["Failed to save steps file: boom"]
+
+
 def test_notebook_to_toml_imports_code_cells(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(error=lambda *args, **kwargs: None)
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
@@ -188,6 +225,33 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     assert fake_st.session_state["idx"][-1] == 2
     assert "idx_sequence_widget" not in fake_st.session_state
     assert writes["bumped"] is True
+
+
+def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_step(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(
+        session_state={
+            "idx__details": {"bad": "skip"},
+            "idx__venv_map": {"bad": str(tmp_path / "venv")},
+            "idx__engine_map": {"bad": "agi.run"},
+            "idx__run_sequence": ["bad", 99],
+            "idx": ["oops"],
+            "lab_selected_venv": "",
+            "lab_selected_engine": "",
+        }
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
+
+    snapshot = pipeline_editor._capture_pipeline_snapshot(
+        "idx",
+        [{"D": "", "Q": "", "M": "", "C": "print(1)"}],
+    )
+
+    assert snapshot["details"] == {}
+    assert snapshot["venv_map"] == {}
+    assert snapshot["engine_map"] == {}
+    assert snapshot["sequence"] == [0]
+    assert snapshot["active_step"] == 0
 
 
 def test_reset_pipeline_editor_state_clears_editor_widget_keys(monkeypatch):
@@ -354,6 +418,51 @@ LOCKED = true
     assert stored["flight_project"][0]["R"] == "agi.run"
 
 
+def test_save_step_merges_alias_entries_and_reports_dump_failure(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        """
+[[flight]]
+Q = "alias only"
+C = "print('alias')"
+[[flight]]
+Q = "alias second"
+C = "print('second')"
+[[flight_project]]
+Q = "short"
+C = "print('short')"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={"_experiment_last_save_skipped": False},
+        error=lambda message, *args, **kwargs: errors.append(message),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project", "flight"])
+    monkeypatch.setattr(
+        pipeline_editor,
+        "tomli_w",
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("save boom"))),
+    )
+
+    nsteps, entry = pipeline_editor.save_step(
+        tmp_path / "flight_project",
+        ["detail", "question", "model", "print(3)"],
+        current_step=1,
+        nsteps=2,
+        steps_file=steps_file,
+    )
+
+    assert nsteps == 2
+    assert entry["Q"] == "question"
+    assert fake_st.session_state["_experiment_last_save_skipped"] is True
+    assert errors == ["Failed to save steps file: save boom"]
+
+
 def test_save_query_valid_uses_runtime_and_engine_maps(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(
         session_state={
@@ -408,6 +517,27 @@ def test_restore_pipeline_snapshot_reports_write_failure(monkeypatch, tmp_path):
     )
 
     assert error == "write boom"
+
+
+def test_restore_pipeline_snapshot_resets_empty_state(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"idx": [4, "stale", "stale", "stale", "stale", "stale", 9]})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "sequence_widget",
+        {"steps": [], "sequence": []},
+    )
+
+    assert error is None
+    assert fake_st.session_state["idx"] == [0, "", "", "", "", "", 0]
+    assert fake_st.session_state["lab_selected_venv"] == ""
+    assert fake_st.session_state["lab_selected_engine"] == "runpy"
 
 
 def test_on_import_notebook_ignores_non_ipynb(monkeypatch, tmp_path):
@@ -472,3 +602,32 @@ def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_p
     stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
     assert stored["demo_project"] == [{"Q": "visible", "C": "print(2)"}]
     assert revisions == [True]
+
+
+def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message, *args, **kwargs: errors.append(message))
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    monkeypatch.setattr(
+        pipeline_editor.json,
+        "dump",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("nb boom")),
+    )
+    pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print(1)"}]}, tmp_path / "lab_steps.toml")
+
+    uploaded = SimpleNamespace(
+        read=lambda: json.dumps({"cells": [{"cell_type": "code", "source": ["print(2)"]}]}).encode("utf-8")
+    )
+    monkeypatch.setattr(
+        pipeline_editor,
+        "tomli_w",
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("toml boom"))),
+    )
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+
+    assert count == 1
+    assert errors == [
+        "Failed to save notebook: nb boom",
+        "Failed to save TOML file: toml boom",
+    ]

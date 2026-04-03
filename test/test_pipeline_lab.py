@@ -261,6 +261,199 @@ def test_get_existing_snippets_filters_stale_and_wrong_app_runenv_snippets(monke
     assert option_map == {"AGI_run_flight.py": fresh_run}
 
 
+def test_get_existing_snippets_handles_candidate_path_edge_cases(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+
+    snippet_dir = tmp_path / "snippets"
+    snippet_dir.mkdir()
+
+    class _BrokenCandidate:
+        suffix = ".py"
+
+        def __init__(self, path: Path):
+            self._path = path
+            self.name = path.name
+            self.parent = path.parent
+
+        def expanduser(self):
+            raise RuntimeError("boom")
+
+        def exists(self):
+            return True
+
+        def is_file(self):
+            return True
+
+        def resolve(self):
+            raise OSError("resolve failed")
+
+        def __str__(self):
+            return str(self._path)
+
+    snippet = snippet_dir / "AGI_run.py"
+    snippet.write_text("print('ok')\n", encoding="utf-8")
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: _BrokenCandidate(snippet),
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    option_map = pipeline_lab.get_existing_snippets(env, steps_file, deps)
+
+    assert list(option_map.keys()) == ["AGI_run.py"]
+    assert str(option_map["AGI_run.py"]) == str(snippet)
+
+
+def test_get_existing_snippets_disambiguates_multiple_duplicate_labels(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    root_a = tmp_path / "a"
+    root_b = tmp_path / "b"
+    root_c = tmp_path / "c"
+    root_a.mkdir()
+    root_b.mkdir()
+    root_c.mkdir()
+    for root in (root_a, root_b, root_c):
+        (root / "AGI_run.py").write_text(f"print('{root.name}')\n", encoding="utf-8")
+
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    safe_templates = iter([root_b / "AGI_run.py"])
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: next(safe_templates),
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    monkeypatch.setitem(fake_st.session_state, "snippet_file", str(root_c / "AGI_run.py"))
+    option_map = pipeline_lab.get_existing_snippets(env, root_a / "lab_steps.toml", deps)
+
+    assert list(option_map.keys()) == [
+        "AGI_run.py",
+        "AGI_run.py (b)",
+        "AGI_run.py (c)",
+    ]
+
+
+def test_get_existing_snippets_skips_exact_duplicate_paths(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    snippet = tmp_path / "AGI_run.py"
+    snippet.write_text("print('same')\n", encoding="utf-8")
+
+    fake_st = SimpleNamespace(session_state={"snippet_file": str(snippet)})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: snippet,
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    option_map = pipeline_lab.get_existing_snippets(env, steps_file, deps)
+
+    assert option_map == {"AGI_run.py": snippet}
+
+
+def test_get_existing_snippets_uses_incremented_label_for_same_parent_names(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+
+    shared_left = tmp_path / "left" / "common"
+    shared_right = tmp_path / "right" / "common"
+    shared_left.mkdir(parents=True)
+    shared_right.mkdir(parents=True)
+    (shared_left / "AGI_run.py").write_text("print('left')\n", encoding="utf-8")
+    (shared_right / "AGI_run.py").write_text("print('right')\n", encoding="utf-8")
+    run_script = tmp_path / "AGI_run.py"
+    run_script.write_text("print('root')\n", encoding="utf-8")
+
+    fake_st = SimpleNamespace(session_state={"snippet_file": str(shared_left / "AGI_run.py")})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: shared_right / "AGI_run.py",
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    option_map = pipeline_lab.get_existing_snippets(env, steps_file, deps)
+
+    assert list(option_map.keys()) == [
+        "AGI_run.py",
+        "AGI_run.py (common)",
+        "AGI_run.py (common #2)",
+    ]
+
+
+def test_get_existing_snippets_skips_runenv_files_with_unstatable_mtime(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    runenv_dir = tmp_path / "runenv"
+    runenv_dir.mkdir()
+    bad_run = runenv_dir / "AGI_run_flight.py"
+    bad_run.write_text("print('bad')\n", encoding="utf-8")
+
+    app_settings = tmp_path / "app_settings.toml"
+    app_settings.write_text("x=1\n", encoding="utf-8")
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    original_stat = Path.stat
+
+    def _patched_stat(self, *args, **kwargs):
+        if self == bad_run:
+            raise OSError("stat failed")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _patched_stat)
+
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: None,
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    assert pipeline_lab.get_existing_snippets(env, steps_file, deps) == {}
+
+
+def test_get_existing_snippets_ignores_runenv_glob_errors(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    runenv_dir = tmp_path / "runenv"
+    runenv_dir.mkdir()
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    original_glob = Path.glob
+
+    def _patched_glob(self, pattern, *args, **kwargs):
+        if self == runenv_dir:
+            raise OSError("glob failed")
+        return original_glob(self, pattern, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "glob", _patched_glob)
+
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=tmp_path / "missing.toml", app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: None,
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    assert pipeline_lab.get_existing_snippets(env, steps_file, deps) == {}
+
+
 def test_pipeline_lab_import_falls_back_when_pipeline_modules_are_unavailable():
     fallback = _load_pipeline_lab_with_missing("agilab.pipeline_steps", "agilab.pipeline_runtime")
 
@@ -284,6 +477,109 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
     assert fake_st.session_state["demo"][0] == 0
     assert fake_st.session_state["demo"][-1] == 0
     assert fake_st.session_state["demo_new_q"] == ""
+
+
+def test_display_lab_tab_recovers_steps_from_toml_when_loader_returns_empty(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo_run_sequence_widget": [0],
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+
+    module_path = tmp_path / "flight_project"
+    module_key = pipeline_lab._module_keys(module_path)[0]
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        f'"{module_key}" = [{{Q = "fallback", M = "demo", C = "print(\\"ok\\")", D = "", E = ""}}]\n',
+        encoding="utf-8",
+    )
+
+    env = SimpleNamespace(active_app=module_path, envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", steps_file, module_path, env, deps)
+
+    assert fake_st.session_state["demo"][-1] == 1
+    assert fake_st.session_state["demo__run_sequence"] == [0]
+
+
+def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_cannot_be_read(monkeypatch, tmp_path):
+    snippet_path = tmp_path / "AGI_run_demo.py"
+    snippet_path.write_text("print('snippet')\n", encoding="utf-8")
+
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo_new_step_source": snippet_path.name,
+        },
+        selectboxes={"demo_new_step_source": snippet_path.name},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+
+    original_read_text = Path.read_text
+
+    def _patched_read_text(self, *args, **kwargs):
+        if self == snippet_path:
+            raise OSError("cannot read")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _patched_read_text)
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        ensure_safe_service_template=lambda *_args, **_kwargs: snippet_path,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert any(
+        level == "warning" and "Unable to read snippet" in message
+        for level, message in fake_st.messages
+    )
+
+
+def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_is_empty(monkeypatch, tmp_path):
+    snippet_path = tmp_path / "AGI_run_demo.py"
+    snippet_path.write_text("", encoding="utf-8")
+
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo_new_step_source": snippet_path.name,
+        },
+        buttons={"demo_add_first_snippet_btn": True},
+        selectboxes={"demo_new_step_source": snippet_path.name},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        ensure_safe_service_template=lambda *_args, **_kwargs: snippet_path,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert ("warning", "Selected snippet is empty.") in fake_st.messages
 
 
 def test_display_lab_tab_empty_pipeline_warns_when_prompt_missing(monkeypatch, tmp_path):

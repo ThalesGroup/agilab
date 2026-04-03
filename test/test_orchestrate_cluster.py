@@ -4,6 +4,7 @@ import importlib
 from pathlib import Path
 import sys
 import types
+from types import SimpleNamespace
 
 
 def _import_agilab_module(module_name: str):
@@ -27,6 +28,84 @@ def _import_agilab_module(module_name: str):
 
 
 orchestrate_cluster = _import_agilab_module("agilab.orchestrate_cluster")
+
+
+class _State(dict):
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+
+class _Context:
+    def __init__(self, st):
+        self._st = st
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def checkbox(self, *args, **kwargs):
+        return self._st.checkbox(*args, **kwargs)
+
+    def columns(self, spec, **kwargs):
+        return self._st.columns(spec, **kwargs)
+
+
+class _FakeStreamlit:
+    def __init__(self, *, widget_values=None, session_state=None):
+        self.widget_values = widget_values or {}
+        self.session_state = _State(session_state or {})
+        self.markdowns: list[str] = []
+        self.infos: list[str] = []
+
+    def _value(self, key, default=""):
+        if key in self.widget_values:
+            return self.widget_values[key]
+        return self.session_state.get(key, default)
+
+    def columns(self, spec, **_kwargs):
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_Context(self) for _ in range(count)]
+
+    def container(self):
+        return _Context(self)
+
+    def checkbox(self, _label, value=False, *, key=None, **_kwargs):
+        result = self._value(key, value)
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
+    def toggle(self, _label, *, key=None, value=False, **_kwargs):
+        result = self._value(key, value)
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
+    def text_input(self, _label, *, key=None, value="", **_kwargs):
+        result = self._value(key, value)
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
+    def text_area(self, _label, *, key=None, value="", **_kwargs):
+        result = self._value(key, value)
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
+    def markdown(self, text):
+        self.markdowns.append(text)
+
+    def info(self, text):
+        self.infos.append(text)
 
 
 def test_compute_cluster_mode_uses_expected_bitmask():
@@ -62,3 +141,169 @@ def test_persist_env_var_if_changed_updates_changed_value():
     )
 
     assert calls == [("AGI_SSH_KEY_PATH", "~/.ssh/id_rsa")]
+
+
+def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_cython": True,
+            "cluster_pool": True,
+            "cluster_rapids": True,
+            "cluster_enabled__demo_project": False,
+        },
+        session_state={"benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    writes: dict[str, object] = {}
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda path, settings: writes.setdefault("write", (path, settings)) and settings,
+        clear_load_toml_cache=lambda: writes.setdefault("cleared", True),
+        set_env_var=lambda key, value: writes.setdefault("env_calls", []).append((key, value)),
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=None,
+        share_root_path=lambda: tmp_path / "share",
+        user="",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["cython"] is True
+    assert cluster["pool"] is True
+    assert cluster["rapids"] is True
+    assert cluster["cluster_enabled"] is False
+    assert fake_st.session_state.dask is False
+    assert fake_st.session_state["mode"] == 11
+    assert fake_st.infos[-1] == "Run mode 11: rapids and pool and cython"
+    assert writes["cleared"] is True
+    assert writes["write"][0] == env.app_settings_file
+
+
+def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeypatch, tmp_path):
+    share_real = tmp_path / "share_real"
+    share_real.mkdir()
+    share_link = tmp_path / "share_link"
+    share_link.symlink_to(share_real, target_is_directory=True)
+
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython": True,
+            "cluster_pool": False,
+            "cluster_scheduler__demo_project": "192.168.1.10",
+            "cluster_workers_data_path__demo_project": "/cluster/data",
+            "cluster_workers__demo_project": '{"192.168.1.11": 2}',
+            "cluster_use_key__demo_project": True,
+        },
+        session_state={
+            "app_settings": {"cluster": {"cluster_enabled": True, "ssh_key_path": "~/.ssh/id_demo"}},
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    env_calls: list[tuple[str, str]] = []
+    writes: dict[str, object] = {}
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: f"{raw}:8786",
+        parse_and_validate_workers=lambda raw: {"192.168.1.11": 2} if "192.168.1.11" in raw else None,
+        write_app_settings_toml=lambda path, settings: writes.setdefault("write", (path, settings)) and settings,
+        clear_load_toml_cache=lambda: writes.setdefault("cleared", True),
+        set_env_var=lambda key, value: env_calls.append((key, value)),
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=True,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share_link,
+        user="agi",
+        password="stale",
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["cluster_enabled"] is True
+    assert cluster["auth_method"] == "ssh_key"
+    assert cluster["ssh_key_path"] == "~/.ssh/id_demo"
+    assert cluster["scheduler"] == "192.168.1.10:8786"
+    assert cluster["workers"] == {"192.168.1.11": 2}
+    assert cluster["workers_data_path"] == "/cluster/data"
+    assert cluster["rapids"] is False
+    assert env.user == "agi"
+    assert env.password is None
+    assert env.ssh_key_path == "~/.ssh/id_demo"
+    assert ("CLUSTER_CREDENTIALS", "agi") in env_calls
+    assert ("AGI_SSH_KEY_PATH", "~/.ssh/id_demo") in env_calls
+    assert any("clustershare" in text and "→" in text for text in fake_st.markdowns)
+    assert fake_st.session_state["mode"] == 6
+    assert fake_st.infos[-1] == "Run mode 6: dask and cython"
+
+
+def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores_cache_errors(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython": False,
+            "cluster_pool": False,
+            "cluster_rapids": False,
+            "cluster_use_key__demo_project": False,
+            "cluster_user__demo_project": "",
+            "cluster_password__demo_project": "secret",
+            "cluster_scheduler__demo_project": "invalid",
+            "cluster_workers__demo_project": "{broken}",
+            "cluster_workers_data_path__demo_project": "/tmp/data",
+        },
+        session_state={
+            "app_settings": {"cluster": {}},
+            "benchmark": True,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    env_calls: list[tuple[str, str]] = []
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: (_ for _ in ()).throw(RuntimeError("cache boom")),
+        set_env_var=lambda key, value: env_calls.append((key, value)),
+        agi_env_envars={"CLUSTER_CREDENTIALS": "old:user", "AGI_SSH_KEY_PATH": "~/.ssh/old"},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: tmp_path / "share",
+        user="",
+        password=None,
+        ssh_key_path="~/.ssh/old",
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["auth_method"] == "password"
+    assert cluster["workers_data_path"] == "/tmp/data"
+    assert "scheduler" not in cluster
+    assert "workers" not in cluster
+    assert env.password == "secret"
+    assert env.ssh_key_path is None
+    assert ("CLUSTER_CREDENTIALS", "") in env_calls
+    assert ("AGI_SSH_KEY_PATH", "") in env_calls
+    assert fake_st.session_state["mode"] is None
+    assert fake_st.infos[-1] == "Run mode benchmark (all modes)"

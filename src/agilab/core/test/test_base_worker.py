@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import json
 import logging
 import os
 import pickle
@@ -82,6 +83,33 @@ def test_setup_args_requires_args():
     worker = DummyWorker()
     with pytest.raises(ValueError):
         worker.setup_args(None)
+
+
+def test_baseworker_helper_edge_cases(monkeypatch, tmp_path):
+    class MissingHelpersWorker(BaseWorker):
+        pass
+
+    with pytest.raises(AttributeError, match="args_loader"):
+        MissingHelpersWorker.from_toml(SimpleNamespace())
+
+    monkeypatch.setattr(
+        base_worker_mod,
+        "normalize_path",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert BaseWorker._normalized_path("~/demo") == Path("~/demo").expanduser()
+
+    env = SimpleNamespace(
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        agi_share_path_abs=None,
+        agi_share_path=Path("clustershare"),
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+    assert BaseWorker._share_root_path(env) == tmp_path / "clustershare"
+
+    with pytest.raises(ValueError, match="data_path must be provided"):
+        BaseWorker._resolve_data_dir(env, None)
 
 
 def test_setup_args_applies_defaults_and_creates_output(tmp_path):
@@ -263,6 +291,15 @@ def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
     assert BaseWorker._can_create_path(writable_target) is True
 
 
+def test_baseworker_can_create_path_returns_false_on_permission_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        Path,
+        "touch",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(PermissionError("denied")),
+    )
+    assert BaseWorker._can_create_path(tmp_path / "output" / "data.csv") is False
+
+
 def test_baseworker_expand_chunk_and_missing_input_folder(tmp_path):
     reconstructed, chunk_len, total = BaseWorker._expand_chunk(
         {
@@ -371,6 +408,56 @@ def test_baseworker_args_helpers_and_payload_round_trip(tmp_path):
     assert events["dump_mode"] == "json"
 
 
+def test_baseworker_prepare_output_dir_and_setup_args_parent_branch(monkeypatch, tmp_path):
+    worker = DummyWorker()
+    target = tmp_path / "root" / "payload"
+    target.mkdir(parents=True)
+    (target / "old.txt").write_text("stale", encoding="utf-8")
+
+    monkeypatch.setattr(
+        base_worker_mod.shutil,
+        "rmtree",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("cleanup failed")),
+    )
+    original_mkdir = Path.mkdir
+
+    def _patched_mkdir(self, *args, **kwargs):
+        if self == target:
+            raise OSError("mkdir failed")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _patched_mkdir)
+    prepared = worker.prepare_output_dir(tmp_path / "root", subdir="payload", attribute="payload_dir", clean=True)
+    assert prepared == target
+    assert worker.payload_dir == target
+
+    class ParentWorker(BaseWorker):
+        args_ensure_defaults = staticmethod(lambda args, env=None: args)
+
+    parent_worker = ParentWorker()
+    args = SimpleNamespace(data_path=tmp_path / "dataset" / "inputs" / "file.csv")
+    processed = parent_worker.setup_args(
+        args,
+        output_field="data_path",
+        output_subdir="frames",
+        output_attr="output_dir",
+        output_parents_up=1,
+    )
+
+    assert processed is args
+    assert parent_worker.output_dir == tmp_path / "dataset" / "inputs" / "frames"
+
+
+def test_baseworker_as_dict_without_args_uses_extend_payload():
+    class ExtendWorker(BaseWorker):
+        def _extend_payload(self, payload):
+            payload["extended"] = True
+            return payload
+
+    worker = ExtendWorker()
+    assert worker.as_dict() == {"extended": True}
+
+
 def test_baseworker_stop_and_break_loop_idle_paths(monkeypatch):
     worker = DummyWorker()
     BaseWorker._worker_id = 7
@@ -389,6 +476,29 @@ def test_baseworker_stop_and_break_loop_idle_paths(monkeypatch):
     BaseWorker._worker_id = 7
     BaseWorker._service_stop_events = {}
     assert BaseWorker.break_loop() is False
+
+
+def test_baseworker_start_error_and_inactive_stop(monkeypatch):
+    class PassiveWorker(BaseWorker):
+        pass
+
+    BaseWorker.start(PassiveWorker())
+
+    class BrokenWorker(BaseWorker):
+        def start(self):
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        BaseWorker.start(BrokenWorker())
+
+    worker = DummyWorker()
+    worker._worker_id = 3
+    worker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._service_active = {3: False}
+    calls: list[str] = []
+    monkeypatch.setattr(BaseWorker, "break_loop", staticmethod(lambda: calls.append("break") or True))
+    worker.stop()
+    assert calls == []
 
 
 def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
@@ -601,3 +711,46 @@ def test_service_loop_consumes_queued_tasks(tmp_path):
     payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
     assert payload_out.get("processed") == 1
+
+
+def test_service_loop_custom_worker_writes_heartbeat_and_calls_stop(tmp_path):
+    class LoopWorker(BaseWorker):
+        def __init__(self):
+            self.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "queue"))
+            self.stop_called = False
+
+        def loop(self, stop_event):
+            stop_event.set()
+            return False
+
+        def stop(self):
+            self.stop_called = True
+
+    worker = LoopWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._insts = {0: worker}
+
+    payload = BaseWorker.loop(poll_interval=0.0)
+
+    heartbeat_files = list((tmp_path / "queue" / "heartbeats").glob("*.json"))
+    assert payload["status"] == "stopped"
+    assert worker.stop_called is True
+    assert heartbeat_files
+    heartbeat_payload = json.loads(heartbeat_files[0].read_text(encoding="utf-8"))
+    assert heartbeat_payload["state"] == "stopped"
+
+
+def test_service_loop_supports_async_worker_override():
+    class AsyncLoopWorker(BaseWorker):
+        async def loop(self):
+            return False
+
+    worker = AsyncLoopWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._insts = {0: worker}
+
+    payload = BaseWorker.loop(poll_interval=0.0)
+
+    assert payload["status"] == "stopped"
