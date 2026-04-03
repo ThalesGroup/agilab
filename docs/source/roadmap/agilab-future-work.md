@@ -74,6 +74,51 @@ Why it matters:
 - strong demonstration value
 - good fit with existing AGILab map/network views
 
+### 4. Realtime Analytical and Geospatial Views
+
+Purpose:
+
+- inspect dense live data without degrading interaction quality
+- support higher-frequency analysis for KPI, maps, and network state
+
+Recommended direction:
+
+- use Plotly.js/WebGL first for analytical views such as KPI timelines, run
+  comparison, monitoring, and large point clouds
+- use deck.gl for dense geospatial and network overlays
+- use Three.js only for specialized 3D mission views where depth is part of the
+  meaning, such as orbital or spatial playback
+
+Why it matters:
+
+- gives AGILab a practical realtime analysis layer without committing to custom
+  low-level WebGL infrastructure
+- fits existing AGILab needs better than a generic “WebGL support” initiative
+- opens a clear path for performance gains in monitoring and playback views
+
+### 5. Run Diff / Counterfactual Analysis
+
+Purpose:
+
+- compare two runs and explain what changed in a way that is directly useful to
+  engineers and reviewers
+- turn raw deltas into defensible reasoning about outcomes
+
+Suggested scope:
+
+- input and configuration diff
+- topology and artefact diff
+- allocation and decision diff
+- KPI delta summary
+- candidate-vs-baseline narrative focused on the most material changes
+
+Why it matters:
+
+- high value for debugging, review, and evidence-driven engineering
+- fits AGILab better than generic BI dashboards because it stays tied to runs,
+  artefacts, and orchestration decisions
+- creates a strong bridge between experimentation and promotion workflows
+
 ## Backend observability and audit architecture
 
 AGILab should keep application-specific interaction inside the product and move
@@ -265,6 +310,31 @@ Why it matters:
 - makes integrations visible and debuggable
 - gives users confidence about what data came from where
 
+### 4. DeepWiki/Open-style repository knowledge layer
+
+Purpose:
+
+- make the AGILab codebase easier to explore, onboard, and explain
+- provide a generated code wiki and Q&A layer across repositories
+
+Recommended scope:
+
+- internal deployment first
+- index `agilab` and private app repositories separately
+- include code, docs source, runbooks, and `pyproject.toml`
+- exclude generated artefacts, virtualenvs, `build/`, `dist/`, and runtime shares
+
+Guardrail:
+
+- treat the generated wiki as an exploration aid, not as the source of truth
+- keep official product and operator documentation in versioned docs and runbooks
+
+Why it matters:
+
+- reduces time spent rediscovering cross-cutting implementation details
+- helps new contributors navigate AGILab's multi-repo, multi-app structure
+- complements agent workflows with repository-level context and diagrams
+
 ## Decision guidance
 
 Use this rule of thumb:
@@ -275,6 +345,10 @@ Use this rule of thumb:
   defensible evidence
 - choose **Scenario Playback View** if the next need is time-based explanation
   and demonstration
+- choose **Realtime Analytical and Geospatial Views** if the next need is
+  denser live analysis, faster interaction, and higher-volume visual playback
+- choose **Run Diff / Counterfactual Analysis** if the next need is faster
+  debugging, clearer run review, and defensible explanation of KPI changes
 - choose **Elastic/OpenSearch + Grafana** if the next need is operations and
   observability
 - choose **OpenSearch + OpenSearch Dashboards** if the next need is audit and
@@ -282,6 +356,9 @@ Use this rule of thumb:
 - choose **Postgres + Superset** if the next need is curated KPI analytics
 - choose **Connector framework hardening and external integrations** if the next
   need is portability, external system access, and reliable artefact flow
+- choose **DeepWiki/Open-style repository knowledge layer** if the next need is
+  faster codebase onboarding, architecture discovery, and repository Q&A without
+  turning generated content into official docs
 
 ## Final consolidated poll
 
@@ -311,7 +388,10 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - Experiment Cockpit
 - Evidence / Release View
 - Scenario Playback View
+- Realtime Analytical and Geospatial Views
+- Run Diff / Counterfactual Analysis
 - Connector framework hardening and external integrations
+- DeepWiki/Open-style repository knowledge layer
 - Elastic/OpenSearch + Grafana
 - OpenSearch + OpenSearch Dashboards
 - Postgres + Superset
