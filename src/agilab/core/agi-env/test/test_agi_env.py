@@ -516,6 +516,40 @@ def test_missing_flattened_active_app_falls_back_to_builtin_copy(tmp_path: Path,
     assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
 
 
+def test_explicit_apps_root_prefers_builtin_copy_over_flattened_stub(tmp_path: Path, monkeypatch):
+    """When apps_path points at the apps root, prefer apps/builtin/<app> over a stale flat stub."""
+
+    agipath = AgiEnv.locate_agilab_installation(verbose=False)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(agipath) + "\n", encoding="utf-8")
+
+    apps_root = tmp_path / "apps"
+    flat_app = apps_root / "flight_project"
+    (flat_app / "src").mkdir(parents=True, exist_ok=True)
+    (flat_app / "pyproject.toml").write_text("[project]\nname='wrong-flight'\n", encoding="utf-8")
+
+    builtin_app = apps_root / "builtin" / "flight_project"
+    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    AgiEnv.reset()
+
+    env = AgiEnv(apps_path=apps_root, active_app=flat_app, verbose=0)
+
+    assert env.active_app == builtin_app.resolve()
+    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+
+
 def test_run_nonzero_command_does_not_log_traceback_for_runtime_error(tmp_path: Path, monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
