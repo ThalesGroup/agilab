@@ -74,7 +74,7 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
 .. figure:: diagrams/pipeline_mlflow_tracking.svg
    :alt: Diagram showing one parent MLflow run for the whole pipeline and one nested run per executed step.
    :align: center
-   :width: 90%
+   :class: diagram-panel diagram-standard
 
    PIPELINE creates one parent MLflow run per execution, then one nested run per step, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
 

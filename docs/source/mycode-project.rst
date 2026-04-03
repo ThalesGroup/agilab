@@ -55,42 +55,39 @@ Assets & Tests
 API Reference
 -------------
 
-.. image:: diagrams/packages_mycode.svg
-   :width: 400
+.. figure:: diagrams/packages_mycode.svg
    :alt: mycode package diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: mycode.mycode
    :members:
-   :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_mycode.svg
-   :width: 400
+.. figure:: diagrams/classes_mycode.svg
    :alt: mycode class diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: mycode.app_args
    :members:
-   :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_mycode_args.svg
-   :width: 400
+.. figure:: diagrams/classes_mycode_args.svg
    :alt: mycode args class diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
-.. image:: diagrams/packages_mycode_worker.svg
-   :width: 400
+.. figure:: diagrams/packages_mycode_worker.svg
    :alt: mycode worker package diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: mycode_worker.mycode_worker
    :members:
-   :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_mycode_worker.svg
-   :width: 400
+.. figure:: diagrams/classes_mycode_worker.svg
    :alt: mycode worker class diagram
    :align: center
+   :class: diagram-panel diagram-standard
