@@ -3,8 +3,10 @@ from __future__ import annotations
 import importlib
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 
+import pytest
 import tomllib
 
 
@@ -178,3 +180,114 @@ def test_looks_like_shared_path_rejects_paths_under_project_root(monkeypatch, tm
     monkeypatch.setattr(orchestrate_support, "fstype_for_path", lambda path: None)
 
     assert orchestrate_support.looks_like_shared_path(candidate, project_root=project_root) is False
+
+
+def test_mount_table_darwin_parses_and_sorts(monkeypatch):
+    orchestrate_support.mount_table.cache_clear()
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        orchestrate_support.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="\n".join(
+                [
+                    "map -hosts on /net (autofs, nosuid, automounted, nobrowse)",
+                    "demo:/share on /Volumes/share (nfs, nodev, nosuid, mounted by agi)",
+                    "/dev/disk3s1 on / (apfs, local, read-only)",
+                ]
+            )
+        ),
+    )
+
+    entries = orchestrate_support.mount_table()
+
+    assert entries[0] == ("/Volumes/share", "nfs")
+    assert orchestrate_support.fstype_for_path(Path("/Volumes/share/demo/file.csv")) == "nfs"
+    orchestrate_support.mount_table.cache_clear()
+
+
+def test_macos_autofs_hint_covers_missing_map_and_static_directive(monkeypatch, tmp_path):
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
+    real_path = Path
+    auto_master = tmp_path / "auto_master"
+    auto_nfs = tmp_path / "auto_nfs"
+
+    def _fake_path(raw):
+        text = str(raw)
+        if text == "/etc/auto_master":
+            return auto_master
+        if text == "/etc/auto_nfs":
+            return auto_nfs
+        return real_path(raw)
+
+    monkeypatch.setattr(orchestrate_support, "Path", _fake_path)
+
+    auto_master.write_text("/- -static\n", encoding="utf-8")
+    auto_nfs.write_text("", encoding="utf-8")
+    hint = orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share"))
+    assert "replace `/- -static` with `/- auto_nfs`" in hint
+
+    auto_master.write_text("/mnt auto_nfs\n", encoding="utf-8")
+    auto_nfs.write_text("/Volumes\t-fstype=nfs demo:/Volumes\n", encoding="utf-8")
+    hint = orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share"))
+    assert "does not mention `/mnt`" in hint
+
+
+def test_parse_benchmark_and_safe_eval_cover_error_paths():
+    with pytest.raises(ValueError, match="Input must be a string"):
+        orchestrate_support.parse_benchmark(12)
+    with pytest.raises(ValueError, match="Failed to decode JSON"):
+        orchestrate_support.parse_benchmark("{bad json")
+
+    errors: list[str] = []
+    assert orchestrate_support.safe_eval("{", dict, "bad syntax", on_error=errors.append) is None
+    assert errors == ["bad syntax"]
+
+
+def test_parse_and_validate_scheduler_and_workers_cover_valid_and_fallback_paths():
+    errors: list[str] = []
+    assert (
+        orchestrate_support.parse_and_validate_scheduler(
+            "192.168.20.1:8786",
+            is_valid_ip=lambda ip: ip == "192.168.20.1",
+            on_error=errors.append,
+        )
+        == "192.168.20.1:8786"
+    )
+    assert (
+        orchestrate_support.parse_and_validate_scheduler(
+            "bad-host",
+            is_valid_ip=lambda ip: False,
+            on_error=errors.append,
+        )
+        is None
+    )
+    assert "invalid" in errors[-1]
+
+    errors.clear()
+    workers = orchestrate_support.parse_and_validate_workers(
+        "not-a-dict",
+        is_valid_ip=lambda ip: True,
+        on_error=errors.append,
+        default_workers={"127.0.0.1": 2},
+    )
+    assert workers == {"127.0.0.1": 2}
+    assert errors == [
+        "Workers must be provided as a dictionary of IP addresses and capacities (e.g., {'192.168.0.1': 2})."
+    ]
+
+
+def test_looks_like_shared_path_detects_mount_hint_under_home(monkeypatch, tmp_path):
+    fake_home = tmp_path / "home"
+    candidate = fake_home / "clustershare" / "demo"
+    candidate.mkdir(parents=True)
+
+    monkeypatch.setattr(orchestrate_support, "fstype_for_path", lambda _path: None)
+    monkeypatch.setattr(orchestrate_support.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(
+        orchestrate_support.os.path,
+        "ismount",
+        lambda path: Path(path) == fake_home / "clustershare",
+    )
+
+    assert orchestrate_support.looks_like_shared_path(candidate, project_root=tmp_path / "project") is True
