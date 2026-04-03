@@ -5,9 +5,10 @@ Overview
 --------
 Building robust models from data requires close collaboration between domain experts and data scientists. Once the algorithm is trained, the process becomes similar to standard engineering activities.
 
-.. image:: AI-Problematic.svg
+.. figure:: AI-Problematic.svg
    :alt: AI Problematic
    :align: center
+   :class: diagram-panel diagram-standard
 
 AGILab is a multi-project data science solution designed to manage projects using template-based frameworks. It also serves as a first step towards an experimental Python IDE for data science applied to engineering.
 
@@ -77,9 +78,10 @@ Example: Aircraft Radio Communication
 
 Today, a single algorithm is rarely enough to solve complex problems. Instead, a suite of algorithms is needed to address diverse use cases with intricate implementations. For example, consider telecom systems in an aircraft:
 
-.. image:: needs-algos-set.svg
+.. figure:: needs-algos-set.svg
    :alt: Needs for Algo Set
    :align: center
+   :class: diagram-panel diagram-standard
 
 This scenario requires reuse across organizations, infrastructure, and operating systems. While many consider virtualization and containerization (e.g., Docker) as the solution, AGILab offers an alternative.
 
@@ -89,9 +91,10 @@ AGILab is designed for modern development needs—reducing overhead, promoting c
 
 Since Artificial General Intelligence (AGI) has not yet been achieved with a single algorithm, a "model of models" is necessary. For instance, in aircraft radio communication, this approach is illustrated as follows:
 
-.. image:: model-of-models.svg
+.. figure:: model-of-models.svg
    :alt: Model Of Models
    :align: center
+   :class: diagram-panel diagram-standard
 
 AGILab provides a dynamic playground to experiment with various architectural solutions without reworking your code. This flexibility is achieved through two main mechanisms:
 
