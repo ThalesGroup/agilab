@@ -13,3 +13,68 @@
   letter-spacing: 0.03em;
   line-height: 1.2;
 }
+
+.rst-content div.figure.diagram-panel {
+  margin: 1.75rem auto 2rem;
+  padding: 1rem 1rem 0.9rem;
+  border: 1px solid #d8e3ef;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.rst-content div.figure.diagram-panel img {
+  display: block;
+  margin: 0 auto;
+  height: auto;
+}
+
+.rst-content div.figure.diagram-panel p.caption {
+  margin-top: 0.85rem;
+  color: #4c607b;
+}
+
+.rst-content div.figure.diagram-standard {
+  max-width: 980px;
+}
+
+.rst-content div.figure.diagram-hero {
+  max-width: 1180px;
+}
+
+.rst-content div.figure.diagram-standard img,
+.rst-content div.figure.diagram-hero img {
+  width: 100%;
+  max-width: 100%;
+}
+
+.rst-content div.figure.diagram-wide,
+.rst-content div.figure.diagram-xl {
+  overflow-x: auto;
+}
+
+.rst-content div.figure.diagram-wide img {
+  width: auto;
+  max-width: none;
+  min-width: 1400px;
+}
+
+.rst-content div.figure.diagram-xl img {
+  width: auto;
+  max-width: none;
+  min-width: 2000px;
+}
+
+@media (max-width: 900px) {
+  .rst-content div.figure.diagram-panel {
+    padding: 0.75rem 0.75rem 0.7rem;
+  }
+
+  .rst-content div.figure.diagram-wide img {
+    min-width: 1100px;
+  }
+
+  .rst-content div.figure.diagram-xl img {
+    min-width: 1400px;
+  }
+}

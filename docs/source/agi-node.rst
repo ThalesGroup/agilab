@@ -97,53 +97,47 @@ tooling rather than the main API surface extended by app authors.
 base_worker
 ~~~~~~~~~~~
 
-.. image:: diagrams/classes_agi_node.svg
-   :width: 400
+.. figure:: diagrams/classes_agi_node.svg
    :alt: Classes diagram for agi_node base worker layer
    :align: center
+   :class: diagram-panel diagram-xl
 
 .. automodule:: agi_node.agi_dispatcher.base_worker
    :members:
-   :undoc-members:
    :show-inheritance:
 
 dag_worker
 ~~~~~~~~~~
 
-.. image:: diagrams/classes_dag_worker.svg
-   :width: 400
+.. figure:: diagrams/classes_dag_worker.svg
    :alt: Classes diagram for dag_worker
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: agi_node.dag_worker.dag_worker
    :members:
-   :undoc-members:
    :show-inheritance:
 
 pandas_worker
 ~~~~~~~~~~~~~
 
-.. image:: diagrams/classes_pandas_worker.svg
-   :width: 400
+.. figure:: diagrams/classes_pandas_worker.svg
    :alt: Classes diagram for pandas_worker
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: agi_node.pandas_worker.pandas_worker
    :members:
-   :undoc-members:
-   :exclude-members: verbose
    :show-inheritance:
 
 polars_worker
 ~~~~~~~~~~~~~
 
-.. image:: diagrams/classes_polars_worker.svg
-   :width: 400
+.. figure:: diagrams/classes_polars_worker.svg
    :alt: Classes diagram for polars_worker
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: agi_node.polars_worker.polars_worker
    :members:
-   :undoc-members:
-   :exclude-members: verbose
    :show-inheritance:

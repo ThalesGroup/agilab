@@ -7,9 +7,10 @@ AGILab is the only notebook-like tool designed for simultaneous multiple virtual
 environments, with one runtime per cell/snippet. It combines interactive
 prototyping, managed execution, and reusable project packaging under one workflow.
 
-.. image:: Agilab-Overview.svg
+.. figure:: Agilab-Overview.svg
    :alt: AGILab Overview
    :align: center
+   :class: diagram-panel diagram-hero
 
 The web interface exposes a set of built-in pages plus optional app-specific
 dashboards ("page bundles", sometimes called ``apps-pages``).

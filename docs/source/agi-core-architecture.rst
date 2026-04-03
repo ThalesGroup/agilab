@@ -15,7 +15,7 @@ Modules at a glance
 
 .. figure:: diagrams/agi-core-overview.svg
    :alt: Visual summary of agi_core modules
-   :width: 90%
+   :class: diagram-panel diagram-standard
 
    web interface and CLI entry points call into agi_core before handing work to agi_env
    and agi_cluster.
@@ -42,14 +42,14 @@ Execution flow
 
 .. figure:: Agilab-Overview.svg
    :alt: High-level flow linking the web interface to agi-core
-   :width: 90%
+   :class: diagram-panel diagram-hero
 
    Web interface pages talk to ``agi_core`` services before dispatching work to
    ``agi_env``/``agi_cluster``.
 
 .. figure:: diagrams/packages_agi_env.svg
    :alt: Package-level view highlighting agi_core dependencies
-   :width: 90%
+   :class: diagram-panel diagram-wide
 
    Generated from ``pyreverse`` to show how ``agi_core`` orchestrates calls to
    ``agi_env`` helpers and dispatcher facades.

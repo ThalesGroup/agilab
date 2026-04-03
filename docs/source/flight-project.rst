@@ -66,43 +66,39 @@ Assets & Tests
 API Reference
 -------------
 
-.. image:: diagrams/packages_flight.svg
-   :width: 400
+.. figure:: diagrams/packages_flight.svg
    :alt: flight package dependencies
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: flight.flight
    :members:
-   :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_flight.svg
-   :width: 400
+.. figure:: diagrams/classes_flight.svg
    :alt: flight class diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: flight.flight_args
    :members:
-   :undoc-members:
-   :exclude-members: model_json_schema
    :show-inheritance:
 
-.. image:: diagrams/classes_flight_args.svg
-   :width: 400
+.. figure:: diagrams/classes_flight_args.svg
    :alt: flight args class diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
-.. image:: diagrams/packages_flight_worker.svg
-   :width: 400
+.. figure:: diagrams/packages_flight_worker.svg
    :alt: flight worker package diagram
    :align: center
+   :class: diagram-panel diagram-standard
 
 .. automodule:: flight_worker.flight_worker
    :members:
-   :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_flight_worker.svg
-   :width: 400
+.. figure:: diagrams/classes_flight_worker.svg
    :alt: flight worker class diagram
    :align: center
+   :class: diagram-panel diagram-standard

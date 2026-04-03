@@ -10,7 +10,7 @@ return here when you need the big picture of how the layers fit together.
 
 .. figure:: Agilab-Overview.svg
    :alt: High-level view of AGILab runtime
-   :width: 100%
+   :class: diagram-panel diagram-hero
 
    AGILab layers from the web interface down to worker clusters.
 
@@ -19,7 +19,7 @@ Component view
 
 .. figure:: diagrams/packages_agi_distributor.svg
    :alt: Package diagram generated from agi_cluster
-   :width: 90%
+   :class: diagram-panel diagram-standard
 
    Pyreverse snapshot of how the web interface entry points, ``agi_core`` façade,
    ``agi_env`` and ``agi_cluster`` exchange data before the workers are started.
@@ -29,7 +29,7 @@ Pipeline example
 
 .. figure:: diagrams/pipeline_example.svg
    :alt: Pipeline example from trajectories and environment maps to visualisation
-   :width: 100%
+   :class: diagram-panel diagram-hero
 
    Data flows from trajectory generators and environment maps into simulation
    stages, decision engines (learned and/or optimization baselines), and finally
