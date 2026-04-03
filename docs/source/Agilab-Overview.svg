@@ -1,46 +1,156 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
-  <title id="title">AGILab layered architecture</title>
-  <desc id="desc">High level diagram showing how user surfaces talk to agi_core, agi_env, agi_cluster and workers.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">AGILab runtime stack</title>
+  <desc id="desc">Layered AGILab diagram showing user surfaces, agi_core, agi_env, agi_cluster and agi_node, then workers and data artifacts connected by the execution path.</desc>
   <defs>
     <style>
-      text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; fill:#0f172a; }
-      .layer { stroke:#0f172a; stroke-width:2; rx:12; ry:12; }
-      .caption { font-size:16px; font-weight:600; }
-      .body { font-size:13px; }
+      text {
+        font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        fill: #10233f;
+      }
+      .title {
+        font-size: 32px;
+        font-weight: 700;
+      }
+      .subtitle {
+        font-size: 17px;
+        fill: #4f6483;
+      }
+      .lane-label {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        fill: #68809d;
+      }
+      .box {
+        stroke: #10233f;
+        stroke-width: 2.5;
+        rx: 24;
+        ry: 24;
+      }
+      .box-title {
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .box-body {
+        font-size: 17px;
+      }
+      .box-note {
+        font-size: 15px;
+        fill: #445a78;
+      }
+      .callout {
+        stroke: #d9e2ef;
+        stroke-width: 2;
+        rx: 18;
+        ry: 18;
+      }
+      .callout-title {
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .callout-body {
+        font-size: 15px;
+        fill: #445a78;
+      }
+      .arrow {
+        stroke: #10233f;
+        stroke-width: 3.5;
+        stroke-linecap: round;
+      }
+      .arrow-soft {
+        stroke: #6b7f99;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-dasharray: 8 8;
+      }
+      .badge {
+        fill: #10233f;
+      }
+      .badge-text {
+        font-size: 14px;
+        font-weight: 700;
+        fill: #f8fbff;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
     </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#10233f" />
+    </marker>
+    <marker id="arrowhead-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#6b7f99" />
+    </marker>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fbff" />
+      <stop offset="100%" stop-color="#eef4fb" />
+    </linearGradient>
   </defs>
-  <rect width="100%" height="100%" fill="#f8fafc" rx="24" ry="24" />
-  <text class="caption" x="450" y="36" text-anchor="middle">AGILab runtime stack</text>
 
-  <g transform="translate(130,60)">
-    <rect class="layer" width="640" height="70" fill="#e0f2fe" />
-    <text class="caption" x="320" y="28" text-anchor="middle">User Surfaces</text>
-    <text class="body" x="320" y="48" text-anchor="middle">Web interface pages · CLI scripts · PyCharm run configs</text>
+  <rect width="1200" height="760" fill="url(#bg)" rx="36" ry="36" />
+
+  <g transform="translate(72,56)">
+    <text class="title" x="0" y="0">AGILab runtime stack</text>
+    <text class="subtitle" x="0" y="34">From user-facing entry points to worker execution, staging, and exported artifacts.</text>
   </g>
 
-  <g transform="translate(130,150)">
-    <rect class="layer" width="640" height="90" fill="#c7d2fe" />
-    <text class="caption" x="320" y="28" text-anchor="middle">agi_core</text>
-    <text class="body" x="320" y="50" text-anchor="middle">apps · web widgets · telemetry · services</text>
-    <text class="body" x="320" y="70" text-anchor="middle">builds WorkDispatcher manifests & orchestrates AGI sessions</text>
+  <g transform="translate(74,128)">
+    <text class="lane-label" x="0" y="32">Entry</text>
+    <text class="lane-label" x="0" y="172">Control plane</text>
+    <text class="lane-label" x="0" y="392">Execution plane</text>
+    <text class="lane-label" x="0" y="592">Artifacts</text>
   </g>
 
-  <g transform="translate(130,260)">
-    <rect class="layer" width="640" height="80" fill="#fde68a" />
-    <text class="caption" x="320" y="28" text-anchor="middle">agi_env</text>
-    <text class="body" x="320" y="50" text-anchor="middle">resolves apps, datasets, credentials and stages ~/wenv bundles</text>
+  <g transform="translate(194,116)">
+    <rect class="box" width="760" height="88" fill="#d9f0ff" />
+    <text class="box-title" x="380" y="34" text-anchor="middle">User surfaces</text>
+    <text class="box-body" x="380" y="60" text-anchor="middle">Web interface pages, CLI mirrors, PyCharm run configurations</text>
   </g>
 
-  <g transform="translate(130,360)">
-    <rect class="layer" width="640" height="90" fill="#fecdd3" />
-    <text class="caption" x="320" y="28" text-anchor="middle">agi_cluster · agi_node</text>
-    <text class="body" x="320" y="50" text-anchor="middle">Dask scheduler · workers · SSH helpers · capacity balancer</text>
-    <text class="body" x="320" y="70" text-anchor="middle">executes WorkDispatcher plans locally or on remote hosts</text>
+  <g transform="translate(194,244)">
+    <rect class="box" width="760" height="116" fill="#dcdcff" />
+    <text class="box-title" x="380" y="34" text-anchor="middle">agi_core</text>
+    <text class="box-body" x="380" y="61" text-anchor="middle">App loaders, widgets, telemetry, history, reusable services</text>
+    <text class="box-note" x="380" y="87" text-anchor="middle">Builds WorkDispatcher manifests and orchestrates AGI sessions</text>
   </g>
 
-  <g transform="translate(130,470)">
-    <rect class="layer" width="640" height="70" fill="#bbf7d0" />
-    <text class="caption" x="320" y="28" text-anchor="middle">Workers & Data</text>
-    <text class="body" x="320" y="48" text-anchor="middle">~/wenv/&lt;app&gt;_worker · cluster storage · export artifacts · logs</text>
+  <g transform="translate(194,400)">
+    <rect class="box" width="760" height="100" fill="#ffe7a8" />
+    <text class="box-title" x="380" y="34" text-anchor="middle">agi_env</text>
+    <text class="box-body" x="380" y="61" text-anchor="middle">Resolves apps, datasets, credentials, workspace config and worker bundles</text>
+    <text class="box-note" x="380" y="84" text-anchor="middle">Prepares installed apps, localshare or clustershare, and <tspan font-style="italic">~/wenv</tspan> staging</text>
   </g>
+
+  <g transform="translate(194,540)">
+    <rect class="box" width="760" height="116" fill="#ffd8df" />
+    <text class="box-title" x="380" y="34" text-anchor="middle">agi_cluster and agi_node</text>
+    <text class="box-body" x="380" y="61" text-anchor="middle">Scheduler, workers, SSH helpers, packaging, balancer, health checks</text>
+    <text class="box-note" x="380" y="87" text-anchor="middle">Executes WorkDispatcher plans locally or on remote hosts</text>
+  </g>
+
+  <g transform="translate(974,182)">
+    <rect class="badge" width="150" height="34" rx="17" ry="17" />
+    <text class="badge-text" x="75" y="22" text-anchor="middle">Execution path</text>
+    <line class="arrow" x1="75" y1="46" x2="75" y2="434" marker-end="url(#arrowhead)" />
+  </g>
+
+  <g transform="translate(974,508)">
+    <rect class="callout" width="156" height="124" fill="#ffffff" />
+    <text class="callout-title" x="18" y="28">Workers and data</text>
+    <text class="callout-body" x="18" y="54">Packaged worker code</text>
+    <text class="callout-body" x="18" y="76">cluster storage</text>
+    <text class="callout-body" x="18" y="98">export artifacts</text>
+    <text class="callout-body" x="18" y="120">logs and run history</text>
+  </g>
+
+  <g transform="translate(56,676)">
+    <rect class="callout" width="640" height="54" fill="#ffffff" />
+    <text class="callout-title" x="22" y="32">Typical flow</text>
+    <text class="callout-body" x="160" y="32">User action → manifest build → environment resolution → worker execution → artifacts and visual feedback</text>
+  </g>
+
+  <line class="arrow" x1="574" y1="204" x2="574" y2="244" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="574" y1="360" x2="574" y2="400" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="574" y1="500" x2="574" y2="540" marker-end="url(#arrowhead)" />
+  <line class="arrow-soft" x1="954" y1="598" x2="974" y2="570" marker-end="url(#arrowhead-soft)" />
 </svg>
