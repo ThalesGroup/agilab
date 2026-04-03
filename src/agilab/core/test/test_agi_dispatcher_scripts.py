@@ -533,7 +533,14 @@ def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatc
         def create_junction_windows(_src, _dest):
             return None
 
-        def __init__(self, *, apps_path, active_app, verbose):
+        init_args = None
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            DummyAgiEnv.init_args = {
+                "apps_path": apps_path,
+                "active_app": active_app,
+                "verbose": verbose,
+            }
             self.home_abs = str(worker_home)
             self.worker_path = str(worker_file.relative_to(worker_home))
             self.pre_install = str(pre_script)
@@ -576,6 +583,9 @@ def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatc
         ]
     )
 
+    assert DummyAgiEnv.init_args is not None
+    assert DummyAgiEnv.init_args["apps_path"] is None
+    assert Path(DummyAgiEnv.init_args["active_app"]) == app_dir
     assert run_calls, "Expected pre_install subprocess to run when .pyx is missing"
     assert cythonize_calls, "Expected Cythonize to be invoked for build_ext"
     assert cythonize_calls[0][1] is True, "Expected quiet=True when --quiet is passed"
@@ -606,7 +616,14 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
         def create_junction_windows(_src, _dest):
             return None
 
-        def __init__(self, *, apps_path, active_app, verbose):
+        init_args = None
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            DummyAgiEnv.init_args = {
+                "apps_path": apps_path,
+                "active_app": active_app,
+                "verbose": verbose,
+            }
             self.home_abs = str(worker_home)
             self.worker_path = "workers/demo_worker.py"
             self.pre_install = None
@@ -645,6 +662,9 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
         ]
     )
 
+    assert DummyAgiEnv.init_args is not None
+    assert DummyAgiEnv.init_args["apps_path"] is None
+    assert Path(DummyAgiEnv.init_args["active_app"]) == app_dir
     extracted = out_dir / "src" / "demo_worker" / "__init__.py"
     assert extracted.exists()
     assert os_calls and "remove_decorators" in os_calls[0]

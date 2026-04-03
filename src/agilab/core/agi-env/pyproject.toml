@@ -43,7 +43,6 @@ dependencies = [
     "astor",
     "psutil",
     "pathspec",
-    "ipython",
     "py7zr",
     "numba>=0.61.0",
     "streamlit>=1.55.0"
