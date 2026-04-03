@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-03-31
+  updated: 2026-04-03
 ---
 
 # Docs Skill (AGILAB)
@@ -26,6 +26,8 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 1. Edit the canonical source file under `../thales_agilab/docs/source`.
 2. Sync the corresponding file into this repo's mirrored `docs/source` when the
    published Pages site depends on it.
+3. If the change touches an SVG diagram, validate the SVG as XML and confirm the
+   referencing `.rst` page still points to the intended file.
 3. Rebuild generated docs into this repo's `docs/html`.
 4. Verify the generated page renders the updated labels in:
    - `docs/html/<page>.html`
@@ -34,6 +36,8 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
    - `../thales_agilab/docs/source/<file>`
    - `docs/source/<file>` when it is part of the public mirror
    - `docs/html/<file>` (or `docs/html/_sources/<file>.txt`)
+6. Validate the rendered public page after publish. Prefer checking the HTML page
+   that embeds the figure, not a guessed raw asset URL.
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.
 
@@ -44,6 +48,9 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - That means updating only `../thales_agilab/docs/source` is not sufficient for
   public publication; the mirrored `agilab/docs/source` copy must also be
   refreshed when the page is public.
+- Figures referenced by Sphinx may be copied to `_images/` in the built site, so a
+  raw URL such as `/diagrams/foo.svg` can legitimately return `404` even when the
+  published page is correct.
 - For a mismatch report (old labels still visible online), check:
   1. source in `../thales_agilab/docs/source` is updated,
   2. the mirrored file in `../agilab/docs/source` was refreshed when needed,
@@ -73,6 +80,9 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 
 - Local Sphinx build (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
+- Publish workflow check (AGILAB public site):
+  - `gh workflow run docs-publish.yaml -R ThalesGroup/agilab --ref main`
+  - `gh run view <run-id> -R ThalesGroup/agilab --json status,conclusion,url`
 - Regenerate run-config wrappers after `.idea/runConfigurations` changes:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 
