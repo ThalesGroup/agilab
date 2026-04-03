@@ -1,162 +1,181 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="700" viewBox="0 0 1280 700" role="img" aria-labelledby="title desc">
   <title id="title">Pipeline example</title>
   <desc id="desc">Example analysis pipeline where air trajectories, space trajectories, and environment maps feed a simulation stage, then learned and optimization decision engines, then visualisation and KPI reporting.</desc>
   <defs>
     <style>
       text {
         font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-        fill: #10233f;
+        fill: #122745;
       }
       .title {
-        font-size: 28px;
+        font-size: 36px;
         font-weight: 700;
       }
       .subtitle {
-        font-size: 16px;
-        fill: #566b88;
+        font-size: 19px;
+        fill: #556c8c;
       }
       .lane {
-        font-size: 14px;
+        font-size: 18px;
         font-weight: 700;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        fill: #72859d;
+        fill: #6a80a0;
+      }
+      .lane-rule {
+        stroke: #d7e2ef;
+        stroke-width: 2;
       }
       .card {
-        stroke: #10233f;
-        stroke-width: 2.4;
-        rx: 24;
-        ry: 24;
+        stroke: #122745;
+        stroke-width: 3;
+        rx: 28;
+        ry: 28;
+        filter: url(#shadow);
       }
       .card-title {
-        font-size: 22px;
+        font-size: 25px;
         font-weight: 700;
       }
       .card-body {
-        font-size: 16px;
+        font-size: 17px;
       }
       .card-note {
-        font-size: 14px;
-        fill: #4d617b;
-      }
-      .arrow {
-        stroke: #10233f;
-        stroke-width: 3.2;
-        stroke-linecap: round;
-      }
-      .arrow-soft {
-        stroke: #627892;
-        stroke-width: 2.4;
-        stroke-linecap: round;
-        stroke-dasharray: 8 8;
+        font-size: 15px;
+        fill: #4a6080;
       }
       .label {
         font-size: 14px;
-        fill: #556a86;
+        fill: #607797;
       }
       .callout {
-        stroke: #d8e1ee;
-        stroke-width: 2;
-        rx: 18;
-        ry: 18;
+        stroke: #cfdae8;
+        stroke-width: 2.4;
+        rx: 22;
+        ry: 22;
+        filter: url(#shadow-soft);
       }
       .callout-title {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 700;
       }
       .callout-body {
-        font-size: 14px;
-        fill: #4d617b;
+        font-size: 15px;
+        fill: #4a6080;
+      }
+      .arrow {
+        stroke: #122745;
+        stroke-width: 4;
+        stroke-linecap: round;
+      }
+      .arrow-soft {
+        stroke: #7a8faa;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-dasharray: 9 8;
       }
     </style>
     <marker id="arrowhead-pipe" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#10233f" />
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#122745" />
     </marker>
     <marker id="arrowhead-pipe-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#627892" />
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#7a8faa" />
     </marker>
     <linearGradient id="pipe-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f8fbff" />
-      <stop offset="100%" stop-color="#edf3fb" />
+      <stop offset="0%" stop-color="#fbfdff" />
+      <stop offset="100%" stop-color="#eef4fb" />
     </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#90a5c1" flood-opacity="0.18" />
+    </filter>
+    <filter id="shadow-soft" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#90a5c1" flood-opacity="0.12" />
+    </filter>
   </defs>
 
-  <rect width="1280" height="560" fill="url(#pipe-bg)" rx="34" ry="34" />
+  <rect width="1280" height="700" fill="url(#pipe-bg)" rx="38" ry="38" />
 
-  <g transform="translate(64,52)">
+  <rect x="136" y="122" width="1002" height="120" fill="#f6fbff" rx="26" ry="26" />
+  <rect x="136" y="250" width="1002" height="258" fill="#f9fbff" rx="26" ry="26" />
+  <rect x="136" y="532" width="1002" height="112" fill="#fffaf0" rx="26" ry="26" />
+
+  <g transform="translate(64,62)">
     <text class="title" x="0" y="0">Pipeline example</text>
-    <text class="subtitle" x="0" y="30">Trajectory and environment inputs feed simulation, then learned and optimization baselines, then maps and KPI outputs.</text>
+    <text class="subtitle" x="0" y="38">Trajectory and environment inputs feed simulation, then learned and optimization baselines, then maps and KPI outputs.</text>
   </g>
 
-  <g transform="translate(60,118)">
+  <g transform="translate(58,132)">
     <text class="lane" x="0" y="30">Inputs</text>
-    <text class="lane" x="0" y="230">Processing and decisions</text>
-    <text class="lane" x="0" y="438">Outputs</text>
+    <line class="lane-rule" x1="84" y1="22" x2="150" y2="22" />
+    <text class="lane" x="0" y="252">Processing and decisions</text>
+    <line class="lane-rule" x1="226" y1="244" x2="150" y2="244" />
+    <text class="lane" x="0" y="504">Outputs</text>
+    <line class="lane-rule" x1="108" y1="496" x2="150" y2="496" />
   </g>
 
-  <g transform="translate(138,108)">
-    <rect class="card" width="236" height="96" fill="#d8ebff" />
-    <text class="card-title" x="118" y="34" text-anchor="middle">Trajectory generator</text>
-    <text class="card-body" x="118" y="62" text-anchor="middle">Air tracks</text>
+  <g transform="translate(138,146)">
+    <rect class="card" width="238" height="88" fill="#d6ecff" />
+    <text class="card-title" x="119" y="34" text-anchor="middle">Trajectory generator</text>
+    <text class="card-body" x="119" y="62" text-anchor="middle">Air tracks</text>
   </g>
 
-  <g transform="translate(138,228)">
-    <rect class="card" width="236" height="96" fill="#d8ebff" />
-    <text class="card-title" x="118" y="34" text-anchor="middle">Trajectory generator</text>
-    <text class="card-body" x="118" y="62" text-anchor="middle">Space tracks</text>
+  <g transform="translate(138,274)">
+    <rect class="card" width="238" height="88" fill="#d6ecff" />
+    <text class="card-title" x="119" y="34" text-anchor="middle">Trajectory generator</text>
+    <text class="card-body" x="119" y="62" text-anchor="middle">Space tracks</text>
   </g>
 
-  <g transform="translate(138,348)">
-    <rect class="card" width="236" height="96" fill="#dff6ff" />
-    <text class="card-title" x="118" y="34" text-anchor="middle">Environment maps</text>
-    <text class="card-body" x="118" y="62" text-anchor="middle">Weather and attenuation layers</text>
+  <g transform="translate(138,402)">
+    <rect class="card" width="238" height="88" fill="#def6ff" />
+    <text class="card-title" x="119" y="34" text-anchor="middle">Environment maps</text>
+    <text class="card-body" x="119" y="62" text-anchor="middle">Weather and attenuation layers</text>
   </g>
 
-  <g transform="translate(456,220)">
-    <rect class="card" width="264" height="112" fill="#d7f7dc" />
-    <text class="card-title" x="132" y="38" text-anchor="middle">Simulation</text>
-    <text class="card-body" x="132" y="68" text-anchor="middle">Link model and demand model</text>
-    <text class="card-note" x="132" y="92" text-anchor="middle">Shared state prepared for downstream decisions</text>
+  <g transform="translate(458,260)">
+    <rect class="card" width="282" height="128" fill="#d8f6de" />
+    <text class="card-title" x="141" y="40" text-anchor="middle">Simulation</text>
+    <text class="card-body" x="141" y="72" text-anchor="middle">Link model and demand model</text>
+    <text class="card-note" x="141" y="98" text-anchor="middle">Shared state prepared for downstream decisions</text>
   </g>
 
-  <g transform="translate(804,150)">
-    <rect class="card" width="258" height="104" fill="#ffe8a8" />
-    <text class="card-title" x="129" y="36" text-anchor="middle">Learned decision engine</text>
-    <text class="card-body" x="129" y="66" text-anchor="middle">ML and RL allocation policies</text>
+  <g transform="translate(816,176)">
+    <rect class="card" width="260" height="112" fill="#ffe3a1" />
+    <text class="card-title" x="130" y="40" text-anchor="middle">Learned decision engine</text>
+    <text class="card-body" x="130" y="74" text-anchor="middle">ML and RL allocation policies</text>
   </g>
 
-  <g transform="translate(804,300)">
-    <rect class="card" width="258" height="104" fill="#ffe8a8" />
-    <text class="card-title" x="129" y="36" text-anchor="middle">Optimization baseline</text>
-    <text class="card-body" x="129" y="66" text-anchor="middle">ILP and MILP allocation reference</text>
+  <g transform="translate(816,352)">
+    <rect class="card" width="260" height="112" fill="#ffe3a1" />
+    <text class="card-title" x="130" y="40" text-anchor="middle">Optimization baseline</text>
+    <text class="card-body" x="130" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
   </g>
 
-  <g transform="translate(1132,226)">
-    <rect class="card" width="112" height="112" fill="#ffd7ea" />
-    <text class="card-title" x="56" y="38" text-anchor="middle">Visualisation</text>
-    <text class="card-body" x="56" y="68" text-anchor="middle">Maps</text>
-    <text class="card-body" x="56" y="90" text-anchor="middle">Charts</text>
+  <g transform="translate(1120,262)">
+    <rect class="card" width="120" height="132" fill="#ffd7ea" />
+    <text class="card-title" x="60" y="42" text-anchor="middle">Visualisation</text>
+    <text class="card-body" x="60" y="78" text-anchor="middle">Maps</text>
+    <text class="card-body" x="60" y="102" text-anchor="middle">Charts</text>
   </g>
 
-  <g transform="translate(856,450)">
-    <rect class="callout" width="294" height="64" fill="#ffffff" />
-    <text class="callout-title" x="20" y="28">Decision output contract</text>
-    <text class="callout-body" x="20" y="50">Both engines emit allocations that feed the same KPI and visual analysis layer.</text>
+  <g transform="translate(812,548)">
+    <rect class="callout" width="362" height="68" fill="#ffffff" />
+    <text class="callout-title" x="20" y="30">Decision output contract</text>
+    <text class="callout-body" x="20" y="52">Both engines emit allocations that feed the same KPI and visual analysis layer.</text>
   </g>
 
-  <line class="arrow" x1="374" y1="156" x2="456" y2="246" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="374" y1="276" x2="456" y2="276" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="374" y1="396" x2="456" y2="306" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="376" y1="190" x2="458" y2="308" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="376" y1="318" x2="458" y2="324" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="376" y1="446" x2="458" y2="340" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="720" y1="256" x2="804" y2="202" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="720" y1="296" x2="804" y2="352" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="740" y1="316" x2="816" y2="232" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="740" y1="332" x2="816" y2="408" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="1062" y1="202" x2="1132" y2="254" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="1062" y1="352" x2="1132" y2="310" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1076" y1="232" x2="1120" y2="302" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1076" y1="408" x2="1120" y2="350" marker-end="url(#arrowhead-pipe)" />
 
-  <text class="label" x="406" y="340">attenuation inputs</text>
-  <text class="label" x="1080" y="186">allocations</text>
-  <text class="label" x="1080" y="394">allocations</text>
+  <text class="label" x="404" y="382">attenuation and map inputs</text>
+  <text class="label" x="1088" y="214">allocations</text>
+  <text class="label" x="1088" y="452">allocations</text>
 
-  <line class="arrow-soft" x1="1188" y1="338" x2="1188" y2="450" marker-end="url(#arrowhead-pipe-soft)" />
+  <line class="arrow-soft" x1="1180" y1="394" x2="1180" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
 </svg>
