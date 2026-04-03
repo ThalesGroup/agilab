@@ -341,6 +341,14 @@ jobs:
       - name: Show merged coverage inputs
         run: ls -R merged-coverage
 
+      - name: Refresh static coverage badges
+        run: |
+          cp merged-coverage/coverage-*.xml .
+          python tools/generate_component_coverage_badges.py
+
+      - name: Verify committed badges are up to date
+        run: git diff --exit-code -- badges/
+
       - name: Upload repo-wide agilab coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
