@@ -49,6 +49,21 @@ def test_extract_chunk_info_supports_dict_and_tuple_shapes():
     assert orchestrate_distribution.extract_chunk_info([], "partition_key", "weights_key") == ("unknown", 1)
 
 
+def test_extract_chunk_info_covers_fallback_keys_and_scalar_shape():
+    assert orchestrate_distribution.extract_chunk_info(
+        {"other": "value"},
+        "partition key",
+        "weights key",
+    ) == ("{'other': 'value'}", 1)
+    assert orchestrate_distribution.extract_chunk_info(
+        {"partition": "fallback", "weights_key": None, "size": 7},
+        "partition key",
+        "weights key",
+    ) == ("fallback", 7)
+    assert orchestrate_distribution.extract_chunk_info(([{"partition": "nested"}],), "partition_key", "weights_key") == ("nested", 1)
+    assert orchestrate_distribution.extract_chunk_info("standalone", "partition_key", "weights_key") == ("standalone", 1)
+
+
 def test_show_tree_warns_and_falls_back_for_non_numeric_sizes(monkeypatch):
     calls: list[tuple[str, str, bool, str]] = []
     warnings: list[str] = []
@@ -172,6 +187,42 @@ def test_show_graph_warns_for_empty_and_invalid_workers(monkeypatch):
     )
     assert errors == ["Worker identifier 'bad-worker-id' is not in the expected 'ip-number' format."]
     assert calls == ["drawn"]
+
+
+def test_show_graph_builds_leaf_graph_for_valid_workers(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(warning=lambda *_a, **_k: None, error=lambda *_a, **_k: None),
+    )
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "draw_distribution",
+        lambda graph, partition_key, show_leaf_list, title: captured.update(
+            graph=graph,
+            partition_key=partition_key,
+            show_leaf_list=show_leaf_list,
+            title=title,
+        ),
+    )
+
+    orchestrate_distribution.show_graph(
+        workers=["127.0.0.1-1"],
+        work_plan_metadata=[[{"partition": "p1", "size": "bad"}]],
+        work_plan=[[("node", ["leaf-a", "leaf-b"])]],
+        partition_key="partition",
+        weights_key="size",
+        show_leaf_list=True,
+    )
+
+    graph = captured["graph"]
+    assert isinstance(graph, orchestrate_distribution.nx.DiGraph)
+    assert captured["partition_key"] == "partition"
+    assert captured["show_leaf_list"] is True
+    assert captured["title"] == "Workplan"
+    assert "leaf-a" in graph.nodes
+    assert "leaf-b" in graph.nodes
 
 
 def test_workload_barchart_emits_plotly_figure(monkeypatch):
