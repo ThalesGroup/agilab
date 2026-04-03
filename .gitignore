@@ -35,6 +35,15 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 test-results/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+htmlcov/
+pip-wheel-metadata/
+.ipynb_checkpoints/
+*.orig
+*.rej
 
 # JetBrains IDE settings
 .idea/workspace.xml
