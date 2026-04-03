@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import builtins
+import logging
+import os
 import pickle
 from pathlib import Path
+import subprocess
 import threading
 import time
 from types import SimpleNamespace
+import types
 from unittest.mock import patch
 
 import pytest
 
 from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import base_worker as base_worker_mod
 
 from agi_env.agi_logger import AgiLogger
 
@@ -232,6 +238,229 @@ def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
 
     writable_target = tmp_path / "output" / "data.csv"
     assert BaseWorker._can_create_path(writable_target) is True
+
+
+def test_baseworker_args_helpers_and_payload_round_trip(tmp_path):
+    events: dict[str, object] = {}
+
+    class Payload:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+        def model_dump(self, mode=None):
+            events["dump_mode"] = mode
+            return dict(self.__dict__)
+
+    class ConfigWorker(BaseWorker):
+        default_settings_path = "worker_settings.toml"
+        default_settings_section = "worker"
+        args_loader = staticmethod(
+            lambda path, section=None: Payload(settings_path=str(path), section=section, value=1)
+        )
+        args_merger = staticmethod(
+            lambda base, overrides=None: Payload(**{**base.model_dump(), **(overrides or {})})
+        )
+        args_ensure_defaults = staticmethod(
+            lambda args, env=None: Payload(**{**args.model_dump(), "env_name": getattr(env, "name", None)})
+        )
+        args_dumper = staticmethod(
+            lambda args, path, section=None, create_missing=True: events.setdefault("dump_calls", []).append(
+                (args.model_dump(), Path(path), section, create_missing)
+            )
+        )
+
+        def __init__(self, env=None, args=None):
+            self.env = env
+            self.args = args
+
+        def _extend_payload(self, payload):
+            payload["extended"] = True
+            return payload
+
+    env = SimpleNamespace(name="demo-env", _is_managed_pc=False, agi_share_path=None)
+
+    worker = ConfigWorker.from_toml(env, value=3, extra="yes")
+    assert worker.args.value == 3
+    assert worker.args.extra == "yes"
+    assert worker.args.env_name == "demo-env"
+
+    settings_path = tmp_path / "settings.toml"
+    worker.to_toml(settings_path, section="override", create_missing=False)
+    dump_calls = events["dump_calls"]
+    assert dump_calls == [
+        (
+            {
+                "settings_path": "worker_settings.toml",
+                "section": "worker",
+                "value": 3,
+                "extra": "yes",
+                "env_name": "demo-env",
+            },
+            settings_path,
+            "override",
+            False,
+        )
+    ]
+
+    assert worker.as_dict() == {
+        "settings_path": "worker_settings.toml",
+        "section": "worker",
+        "value": 3,
+        "extra": "yes",
+        "env_name": "demo-env",
+        "extended": True,
+    }
+    assert events["dump_mode"] == "json"
+
+
+def test_baseworker_stop_and_break_loop_idle_paths(monkeypatch):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 7
+    worker._worker_id = 7
+    worker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._service_active = {7: True}
+
+    calls: list[str] = []
+    monkeypatch.setattr(BaseWorker, "break_loop", staticmethod(lambda: calls.append("break") or True))
+    worker.stop()
+    assert calls == ["break"]
+
+    monkeypatch.undo()
+    BaseWorker._worker_id = None
+    assert BaseWorker.break_loop() is False
+    BaseWorker._worker_id = 7
+    BaseWorker._service_stop_events = {}
+    assert BaseWorker.break_loop() is False
+
+
+def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
+    expanded = BaseWorker.expand("folder/demo.csv", base_directory=tmp_path)
+    assert expanded == str((tmp_path / "folder" / "demo.csv").resolve())
+    assert BaseWorker._join(str(tmp_path), "child.txt").endswith("/child.txt")
+
+    monkeypatch.setattr(BaseWorker, "expand", staticmethod(lambda value: str(tmp_path / value)))
+    assert BaseWorker.expand_and_join("base", "child.txt").endswith("/base/child.txt")
+
+    def _logged():
+        logging.getLogger().info("hello")
+        return 9
+
+    logs, result = BaseWorker._get_logs_and_result(_logged, verbosity=1)
+    assert result == 9
+    assert "hello" in logs
+
+    ok = SimpleNamespace(returncode=0, stderr="", stdout="done")
+    warning = SimpleNamespace(returncode=1, stderr="WARNING: notice", stdout="")
+    error = SimpleNamespace(returncode=1, stderr="fatal boom", stdout="")
+    responses = iter([ok, warning, error])
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: next(responses))
+
+    assert BaseWorker._exec("echo ok", tmp_path, "worker") is ok
+    assert BaseWorker._exec("echo warn", tmp_path, "worker") is warning
+    with pytest.raises(RuntimeError, match="fatal boom"):
+        BaseWorker._exec("echo fail", tmp_path, "worker")
+
+
+def test_baseworker_module_loading_and_chunks(monkeypatch):
+    fake_module = types.ModuleType("demo.module")
+    fake_module.Target = "loaded"
+
+    original_import = builtins.__import__
+
+    def fake_import(name, fromlist=(), *args, **kwargs):
+        if name in {"demo.module", "demo.demo", "demo_worker.demo_worker", "demo_worker_cy"}:
+            return fake_module
+        return original_import(name, fromlist, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    assert BaseWorker._load_module("demo.module", "Target") == "loaded"
+
+    BaseWorker.env = SimpleNamespace(
+        module="demo",
+        target_class="Target",
+        target_worker="demo_worker",
+        target_worker_class="Target",
+    )
+    assert BaseWorker._load_manager() == "loaded"
+    assert BaseWorker._load_worker(0) == "loaded"
+    assert BaseWorker._load_worker(2) == "loaded"
+    assert BaseWorker._is_cython_installed(BaseWorker.env) is True
+
+    monkeypatch.setattr(
+        builtins,
+        "__import__",
+        lambda name, fromlist=(), *args, **kwargs: (_ for _ in ()).throw(ModuleNotFoundError(name)),
+    )
+    assert BaseWorker._is_cython_installed(BaseWorker.env) is False
+    with pytest.raises(ModuleNotFoundError, match="module missing.module is not installed"):
+        BaseWorker._load_module("missing.module", "Target")
+
+    reconstructed, chunk_len, total_workers = BaseWorker._expand_chunk(
+        {"__agi_worker_chunk__": True, "chunk": ["a"], "total_workers": 3, "worker_idx": 1},
+        1,
+    )
+    assert reconstructed == [[], ["a"], []]
+    assert chunk_len == 1
+    assert total_workers == 3
+
+
+def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
+    worker = DummyWorker()
+    share_root = tmp_path / "share"
+    input_dir = share_root / "flight_trajectory" / "pipeline"
+    input_dir.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        AGI_LOCAL_SHARE=tmp_path / "localshare",
+        home_abs=tmp_path / "home",
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("clustershare"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    result = worker.setup_data_directories(
+        source_path=Path("flight_trajectory/pipeline"),
+        target_subdir="output",
+        reset_target=True,
+    )
+    assert result.input_path == input_dir.resolve()
+    assert result.output_path == input_dir.parent / "output"
+    assert worker.data_out.endswith("/output")
+
+    BaseWorker._share_path = tmp_path
+    BaseWorker._worker = "127.0.0.1:8787"
+    monkeypatch.setattr(base_worker_mod.psutil, "virtual_memory", lambda: SimpleNamespace(total=8_000_000_000, available=4_000_000_000))
+    monkeypatch.setattr(base_worker_mod.psutil, "cpu_count", lambda: 4)
+    monkeypatch.setattr(base_worker_mod.psutil, "cpu_freq", lambda: SimpleNamespace(current=3200))
+    time_values = iter([1.0, 2.0])
+    monkeypatch.setattr(base_worker_mod.time, "time", lambda: next(time_values))
+    monkeypatch.setattr(base_worker_mod.time, "sleep", lambda *_args, **_kwargs: None)
+
+    info = BaseWorker._get_worker_info(0)
+    assert info["cpu_count"] == [4]
+    assert info["cpu_frequency"] == [3.2]
+    assert info["ram_total"] == [8.0]
+    assert info["ram_available"] == [4.0]
+
+
+def test_baseworker_onerror_handles_permission_and_non_permission(tmp_path, monkeypatch):
+    target = tmp_path / "locked.txt"
+    target.write_text("x", encoding="utf-8")
+    calls: list[str] = []
+
+    monkeypatch.setattr(base_worker_mod.os, "access", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(base_worker_mod.os, "chmod", lambda *_args, **_kwargs: calls.append("chmod"))
+    BaseWorker._onerror(lambda _path: calls.append("func"), str(target), (PermissionError, PermissionError("denied"), None))
+    assert calls == ["chmod", "func"]
+
+    monkeypatch.setattr(base_worker_mod.os, "access", lambda *_args, **_kwargs: True)
+    with pytest.raises(RuntimeError, match="boom"):
+        BaseWorker._onerror(lambda _path: None, str(target), (RuntimeError, RuntimeError("boom"), None))
 
 
 def test_service_loop_without_worker_override_stops_cleanly():
