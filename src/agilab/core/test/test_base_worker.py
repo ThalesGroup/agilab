@@ -226,6 +226,29 @@ def test_baseworker_path_helper_utilities_cover_share_and_home_cases(tmp_path):
     assert {"share", "clustershare", "link_sim"} <= aliases
 
 
+def test_baseworker_candidate_roots_and_expand_helpers(tmp_path, monkeypatch):
+    share_root = tmp_path / "share"
+    dataset_root = tmp_path / "runtime" / "dataset"
+    env = SimpleNamespace(
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("clustershare"),
+        home_abs=Path.home(),
+        AGILAB_SHARE_HINT=Path("clustershare/link_sim"),
+        AGILAB_SHARE_REL="clustershare/link_sim",
+        _is_managed_pc=False,
+    )
+
+    candidates = BaseWorker._candidate_named_dataset_roots(env, dataset_root, namespace="link_sim")
+    assert share_root / "link_sim" in candidates
+    assert share_root / "link_sim" / "dataset" in candidates
+
+    monkeypatch.setattr(base_worker_mod.Path, "home", staticmethod(lambda: tmp_path))
+    assert BaseWorker.expand("demo/file.csv", base_directory=tmp_path / "base").endswith("base/demo/file.csv")
+    assert BaseWorker.expand_and_join("~/data", "nested/file.csv").endswith("data/nested/file.csv")
+    assert BaseWorker.normalize_dataset_path("relative/data").endswith("relative/data")
+
+
 def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
     folder = tmp_path / "dataset"
     folder.mkdir()
@@ -238,6 +261,41 @@ def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
 
     writable_target = tmp_path / "output" / "data.csv"
     assert BaseWorker._can_create_path(writable_target) is True
+
+
+def test_baseworker_expand_chunk_and_missing_input_folder(tmp_path):
+    reconstructed, chunk_len, total = BaseWorker._expand_chunk(
+        {
+            "__agi_worker_chunk__": True,
+            "chunk": {"step": 1},
+            "total_workers": 3,
+            "worker_idx": 1,
+        },
+        worker_id=1,
+    )
+    assert reconstructed == [{}, {"step": 1}, {}]
+    assert chunk_len == 1
+    assert total == 3
+
+    env = SimpleNamespace(
+        share_root_path=lambda: tmp_path / "share",
+        agi_share_path_abs=tmp_path / "share",
+        agi_share_path=tmp_path / "share",
+        home_abs=Path.home(),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    with pytest.raises(FileNotFoundError, match="Need at least 2 csv files"):
+        BaseWorker.resolve_input_folder(
+            env,
+            tmp_path / "dataset",
+            "missing",
+            descriptor="demo",
+            fallback_subdirs=("flights",),
+            min_files=2,
+            patterns=("*.csv",),
+            required_label="csv files",
+        )
 
 
 def test_baseworker_args_helpers_and_payload_round_trip(tmp_path):

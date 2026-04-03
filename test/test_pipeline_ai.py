@@ -741,6 +741,189 @@ def test_configure_assistant_engine_and_gpt_oss_controls(monkeypatch):
     assert any(kind == "success" and "GPT-OSS server running" in message for kind, message in messages)
 
 
+def test_configure_assistant_engine_switches_back_to_openai(monkeypatch):
+    fake_sidebar = SimpleNamespace(
+        selectbox=lambda label, options, index=0, help=None: "OpenAI (online)",
+        text_input=lambda *args, **kwargs: "",
+    )
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": "gpt-oss",
+            "index_page": "page",
+            "page": [0, 0, 0, "stale-model"],
+            "gpt_oss_endpoint": "http://127.0.0.1:8000",
+        },
+        sidebar=fake_sidebar,
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "get_default_openai_model", lambda: "gpt-5.4")
+    env = SimpleNamespace(envars={"LAB_LLM_PROVIDER": "gpt-oss"})
+
+    provider = pipeline_ai.configure_assistant_engine(env)
+
+    assert provider == "openai"
+    assert env.envars["LAB_LLM_PROVIDER"] == "openai"
+    assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
+    assert "gpt_oss_endpoint" not in fake_st.session_state
+    assert fake_st.session_state["page"][3] == ""
+
+
+def test_gpt_oss_controls_start_button_persists_backend_checkpoint_and_flags(monkeypatch):
+    messages: list[tuple[str, str]] = []
+
+    class FakeSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            assert label == "GPT-OSS backend"
+            return "transformers"
+
+        def text_input(self, label, value="", help=None):
+            if label == "GPT-OSS checkpoint / model":
+                return "gpt-oss-demo"
+            if label == "GPT-OSS extra flags":
+                return "--temperature 0.1"
+            return value
+
+        def button(self, label, key=None):
+            return key == "gpt_oss_start_btn"
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+        def info(self, message):
+            messages.append(("info", str(message)))
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": "gpt-oss",
+            "gpt_oss_endpoint": "http://127.0.0.1:8000",
+        },
+        sidebar=FakeSidebar(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "activate_gpt_oss",
+        lambda env: fake_st.session_state.update(
+            {
+                "gpt_oss_server_started": True,
+                "gpt_oss_backend_active": env.envars["GPT_OSS_BACKEND"],
+                "gpt_oss_endpoint": "http://127.0.0.1:8000",
+            }
+        )
+        or True,
+    )
+
+    env = SimpleNamespace(envars={})
+    pipeline_ai.gpt_oss_controls(env)
+
+    assert env.envars["GPT_OSS_BACKEND"] == "transformers"
+    assert env.envars["GPT_OSS_CHECKPOINT"] == "gpt-oss-demo"
+    assert env.envars["GPT_OSS_EXTRA_ARGS"] == "--temperature 0.1"
+    assert any(kind == "success" and "GPT-OSS server running (transformers)" in message for kind, message in messages)
+
+
+def test_universal_offline_controls_rag_mode_updates_env_and_rebuilds(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+
+    class FakeExpander:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            assert label == "Local assistant mode"
+            return "RAG (offline docs)"
+
+        def expander(self, label, expanded=True):
+            return FakeExpander()
+
+        def text_input(self, label, value="", help=None):
+            mapping = {
+                "Ollama endpoint": "http://127.0.0.1:11434/api/generate",
+                "Ollama model": "codegemma",
+                "Universal Offline data directory": str(tmp_path / "docs"),
+                "Universal Offline vector store directory": str(tmp_path / "vectorstore"),
+            }
+            return mapping.get(label, value)
+
+        def slider(self, label, min_value=None, max_value=None, value=None, step=None, help=None):
+            return 0.2 if label == "temperature" else 0.85
+
+        def number_input(self, label, min_value=None, max_value=None, value=None, step=None, help=None):
+            if label == "num_ctx (0 = default)":
+                return 4096
+            if label == "num_predict (0 = default)":
+                return 512
+            if label == "seed (0 = unset)":
+                return 7
+            if label == "Max fix attempts":
+                return 3
+            raise AssertionError(label)
+
+        def checkbox(self, label, value=False, help=None):
+            assert label == "Auto-run + auto-fix generated code"
+            return True
+
+        def button(self, label, key=None):
+            return key == "uoaic_rebuild_btn"
+
+        def caption(self, message):
+            messages.append(("caption", str(message)))
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+        def info(self, message):
+            messages.append(("info", str(message)))
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+        def error(self, message):
+            messages.append(("error", str(message)))
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_MODE_STATE_KEY: pipeline_ai.UOAIC_MODE_OLLAMA,
+        },
+        sidebar=FakeSidebar(),
+        spinner=lambda *_args, **_kwargs: nullcontext(),
+        text_input=lambda *args, **kwargs: FakeSidebar().text_input(*args, **kwargs),
+        slider=lambda *args, **kwargs: FakeSidebar().slider(*args, **kwargs),
+        number_input=lambda *args, **kwargs: FakeSidebar().number_input(*args, **kwargs),
+        checkbox=lambda *args, **kwargs: FakeSidebar().checkbox(*args, **kwargs),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_default_ollama_model", lambda *_args, **_kwargs: "fallback-model")
+    monkeypatch.setattr(pipeline_ai, "_ensure_uoaic_runtime", lambda envars: {"ok": True})
+    monkeypatch.setattr(pipeline_ai, "DEFAULT_UOAIC_BASE", tmp_path / "uoaic")
+
+    env = SimpleNamespace(envars={})
+    pipeline_ai.universal_offline_controls(env)
+
+    assert env.envars[pipeline_ai.UOAIC_MODE_ENV] == pipeline_ai.UOAIC_MODE_RAG
+    assert env.envars[pipeline_ai.UOAIC_OLLAMA_ENDPOINT_ENV] == "http://127.0.0.1:11434"
+    assert env.envars[pipeline_ai.UOAIC_MODEL_ENV] == "codegemma"
+    assert env.envars[pipeline_ai.UOAIC_TEMPERATURE_ENV] == "0.2"
+    assert env.envars[pipeline_ai.UOAIC_TOP_P_ENV] == "0.85"
+    assert env.envars[pipeline_ai.UOAIC_NUM_CTX_ENV] == "4096"
+    assert env.envars[pipeline_ai.UOAIC_NUM_PREDICT_ENV] == "512"
+    assert env.envars[pipeline_ai.UOAIC_SEED_ENV] == "7"
+    assert env.envars[pipeline_ai.UOAIC_AUTOFIX_ENV] == "1"
+    assert env.envars[pipeline_ai.UOAIC_AUTOFIX_MAX_ENV] == "3"
+    assert env.envars[pipeline_ai.UOAIC_DATA_ENV].endswith("/docs")
+    assert env.envars[pipeline_ai.UOAIC_DB_ENV].endswith("/vectorstore")
+    assert fake_st.session_state[pipeline_ai.UOAIC_REBUILD_FLAG_KEY] is True
+    assert any(kind == "success" and "knowledge base updated" in message for kind, message in messages)
+
+
 def test_chat_universal_offline_formats_sources_and_raises(monkeypatch):
     errors: list[str] = []
     fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))

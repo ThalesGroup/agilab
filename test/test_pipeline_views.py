@@ -86,3 +86,43 @@ def test_pipeline_format_io_items_hides_redundant_names():
     rendered = pipeline_views._pipeline_format_io_items(items, {"data_in"})
 
     assert rendered == "share / dataset, weights_in=weights.json"
+
+
+def test_pipeline_view_helper_functions_cover_text_group_and_labels():
+    assert pipeline_views._pipeline_role_from_question(" \nPlan route\nThen execute") == "Plan route"
+    assert pipeline_views._pipeline_role_from_question(None) == ""
+    assert pipeline_views._pipeline_step_kind({"R": "agi.install"}) == "install"
+    assert pipeline_views._pipeline_step_kind({"R": "runpy"}) == "python"
+    assert pipeline_views._pipeline_group_from_project("flight_trajectory_project") == "trajectory"
+    assert pipeline_views._pipeline_group_from_project("") == ""
+    assert "\n" in pipeline_views._pipeline_wrap_text("alpha beta gamma delta", width=8)
+    assert pipeline_views._pipeline_graphviz_escape('a"b\\c\nd') == 'a\\"b\\\\c\\nd'
+    assert pipeline_views._pipeline_edge_label("share / path / artefact") == "share / path / artefact"
+    assert pipeline_views._pipeline_format_io_items({"data_out": "demo.csv"}, {"data_out"}) == "demo.csv"
+
+
+def test_pipeline_expr_inference_and_candidate_discovery(tmp_path):
+    code = (
+        'APP = "demo_project"\n'
+        'AGI.install(data_in=str(root / "dataset"), data_out=share / "demo/output")\n'
+    )
+    inferred = pipeline_views._pipeline_infer_entry(1, {"Q": "Prepare demo", "R": "", "C": code})
+
+    assert inferred["project"] == "demo_project"
+    assert inferred["kind"] == "install"
+    assert inferred["consumes"] == {"data_in": "root / dataset"}
+    assert inferred["produces"] == {"data_out": "share / demo/output"}
+    assert "2. Prepare demo" in pipeline_views._pipeline_graphviz_label(inferred)
+
+    active_app = tmp_path / "active_app"
+    app_src = tmp_path / "app_src"
+    lab_dir = tmp_path / "lab"
+    for root in (active_app, app_src, lab_dir):
+        root.mkdir()
+    env = type("Env", (), {"active_app": active_app, "app_src": app_src})()
+
+    candidates = pipeline_views._pipeline_conceptual_view_candidates(env, lab_dir)
+
+    assert candidates[0] == active_app / "pipeline_view.dot"
+    assert candidates[1] == active_app / "pipeline_view.json"
+    assert lab_dir / "pipeline_view.dot" in candidates

@@ -43,6 +43,17 @@ def test_to_bool_flag_parses_common_truthy_values():
     assert pipeline_runtime.to_bool_flag("no") is False
 
 
+def test_mlflow_text_and_path_helpers_cover_edge_cases(tmp_path, monkeypatch):
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR="relative-store", home_abs=tmp_path)
+
+    assert pipeline_runtime.truncate_mlflow_text("abcdef", limit=4) == "abc…"
+    assert pipeline_runtime.truncate_mlflow_text("abcdef", limit=1) == "a"
+    assert pipeline_runtime.resolve_mlflow_backend_db(env) == (tmp_path / "relative-store" / "mlflow.db").resolve()
+    assert pipeline_runtime.resolve_mlflow_artifact_dir(env) == (tmp_path / "relative-store" / "artifacts").resolve()
+    assert pipeline_runtime.legacy_mlflow_filestore_present(tmp_path / "missing") is False
+    assert pipeline_runtime.sqlite_uri_for_path(tmp_path / "mlflow.db").startswith("sqlite:")
+
+
 def test_python_for_venv_prefers_nested_dot_venv(tmp_path):
     runtime_root = tmp_path / "runtime_root"
     direct_python = runtime_root / "bin" / "python"
@@ -156,6 +167,17 @@ def test_temporary_env_overrides_restores_previous_values(monkeypatch):
 
     assert os.environ["AGILAB_TEMP"] == "before"
     assert "AGILAB_NEW_TEMP" not in os.environ
+
+
+def test_temporary_env_overrides_handles_none_and_missing(monkeypatch):
+    monkeypatch.setenv("AGILAB_REMOVE_ME", "yes")
+
+    with pipeline_runtime.temporary_env_overrides({"AGILAB_REMOVE_ME": None, "AGILAB_CREATE_ME": "created"}):
+        assert "AGILAB_REMOVE_ME" not in os.environ
+        assert os.environ["AGILAB_CREATE_ME"] == "created"
+
+    assert os.environ["AGILAB_REMOVE_ME"] == "yes"
+    assert "AGILAB_CREATE_ME" not in os.environ
 
 
 def test_wrap_code_with_mlflow_resume_uses_env_run_id():
@@ -324,6 +346,15 @@ def test_mlflow_tracking_uri_repairs_default_experiment_id_zero(tmp_path):
         (tracking_root / "artifacts").resolve().as_uri(),
     )
     assert run == (0,)
+
+
+def test_repair_mlflow_default_experiment_db_returns_false_for_missing_tables(tmp_path):
+    db_path = tmp_path / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE runs (run_uuid TEXT PRIMARY KEY)")
+        conn.commit()
+
+    assert pipeline_runtime.repair_mlflow_default_experiment_db(db_path) is False
 
 
 def test_mlflow_tracking_uri_upgrades_sqlite_schema_once(tmp_path, monkeypatch):
@@ -553,6 +584,30 @@ def test_ensure_safe_service_template_writes_generated_content(tmp_path):
     assert resolved.read_text(encoding="utf-8").startswith("# AUTO")
 
 
+def test_ensure_safe_service_template_is_noop_when_content_matches(tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    template_path = tmp_path / "AGI_safe_service.py"
+    env = SimpleNamespace(
+        app_settings_file=tmp_path / "missing.toml",
+        apps_path=tmp_path / "apps",
+        app="demo",
+    )
+    expected = pipeline_runtime.safe_service_start_template(env, "# AUTO")
+    template_path.write_text(expected, encoding="utf-8")
+
+    resolved = pipeline_runtime.ensure_safe_service_template(
+        env,
+        steps_file,
+        template_filename="AGI_safe_service.py",
+        marker="# AUTO",
+        debug_log=lambda *_args, **_kwargs: None,
+    )
+
+    assert resolved == template_path
+    assert template_path.read_text(encoding="utf-8") == expected
+
+
 def test_label_for_step_runtime_describes_controller_and_runtime_env(tmp_path, monkeypatch):
     runtime_root = tmp_path / "worker_env"
     runtime_root.mkdir()
@@ -654,6 +709,76 @@ def test_stream_run_command_raises_for_missing_module_without_app_venv(tmp_path,
         )
 
 
+def test_stream_run_command_reports_timeout(tmp_path, monkeypatch):
+    env = SimpleNamespace(apps_path=tmp_path / "apps")
+    logs: list[str] = []
+
+    class FakeProc:
+        def __init__(self, *args, **kwargs):
+            self.stdout = iter(["line one\n"])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def wait(self, timeout=None):
+            raise pipeline_runtime.subprocess.TimeoutExpired("echo hi", timeout)
+
+        def kill(self):
+            logs.append("killed")
+
+    monkeypatch.setattr(pipeline_runtime.subprocess, "Popen", FakeProc)
+
+    output = pipeline_runtime.stream_run_command(
+        env,
+        "page",
+        "echo hi",
+        tmp_path,
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
+        jump_exception_cls=RuntimeError,
+        timeout=5,
+    )
+
+    assert output == "line one"
+    assert "Command timed out after 5 seconds." in logs
+    assert "killed" in logs
+
+
+def test_log_mlflow_artifacts_uses_temp_files_when_log_text_missing(tmp_path):
+    artifacts: list[tuple[str, str | None]] = []
+    tags: list[dict[str, str]] = []
+    metrics: list[tuple[str, float]] = []
+
+    artifact_file = tmp_path / "result.txt"
+    artifact_file.write_text("payload", encoding="utf-8")
+
+    class FakeMlflow:
+        def set_tags(self, payload):
+            tags.append(payload)
+
+        def log_metric(self, key, value):
+            metrics.append((key, value))
+
+        def log_artifact(self, path, artifact_path=None):
+            artifacts.append((Path(path).read_text(encoding="utf-8"), artifact_path))
+
+    pipeline_runtime.log_mlflow_artifacts(
+        {"mlflow": FakeMlflow()},
+        text_artifacts={"logs/stdout.txt": "demo"},
+        file_artifacts=[artifact_file],
+        tags={"status": "ok"},
+        metrics={"served": 1.5, "skip": None},
+    )
+
+    assert tags == [{"status": "ok"}]
+    assert metrics == [("served", 1.5)]
+    assert ("demo", "logs") in artifacts
+    assert ("payload", None) in artifacts
+
+
 def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     codex_file = tmp_path / "codex.py"
@@ -713,3 +838,77 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     assert any("Output (step 1):\nrunpy output" in line for line in logs)
     assert "ARTIFACTS" in logs
     assert released == ["lock"]
+
+
+def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch):
+    snippet_file = tmp_path / "snippet.py"
+    codex_file = tmp_path / "codex.py"
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    run_log = tmp_path / "step_1.log"
+    logs: list[str] = []
+    releases: list[str] = []
+    stream_calls: list[dict[str, object]] = []
+
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {
+        "snippet_file": str(snippet_file),
+        "lab_selected_venv": str(tmp_path / "runtime"),
+    }
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **_kwargs):
+        yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-456"))}
+
+    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+    monkeypatch.setattr(
+        pipeline_runtime,
+        "build_mlflow_process_env",
+        lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-456", "EXTRA": "1"},
+    )
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+    monkeypatch.setattr(pipeline_runtime, "log_mlflow_artifacts", lambda *_args, **_kwargs: logs.append("ARTIFACTS"))
+    monkeypatch.setattr(pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: f"# wrapped\n{code}")
+
+    env = SimpleNamespace(
+        app="demo",
+        active_app=str(tmp_path / "runtime"),
+        apps_path=tmp_path / "apps",
+        copilot_file=codex_file,
+    )
+    placeholder = SimpleNamespace(caption=lambda message: logs.append(f"CAPTION:{message}"))
+
+    pipeline_runtime.run_locked_step(
+        env,
+        "page",
+        steps_file,
+        0,
+        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": "agi.run"},
+        {0: str(tmp_path / "runtime")},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (run_log, None),
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda lock, *_args, **_kwargs: releases.append(lock),
+        get_run_placeholder=lambda *_args, **_kwargs: placeholder,
+        is_valid_runtime_root=lambda value: bool(value),
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "runtime" / ".venv" / "bin" / "python",
+        stream_run_command=lambda env, index_page, cmd, cwd, **kwargs: stream_calls.append(
+            {"cmd": cmd, "cwd": cwd, "extra_env": kwargs.get("extra_env")}
+        ) or "script output",
+        step_summary=lambda _entry, _limit: "summary",
+    )
+
+    script_path = steps_file.parent / "AGI_run.py"
+    assert script_path.read_text(encoding="utf-8").startswith("# wrapped")
+    assert stream_calls[0]["cmd"].endswith(f" {script_path}")
+    assert stream_calls[0]["cwd"] == steps_file.parent.resolve()
+    assert stream_calls[0]["extra_env"] == {"MLFLOW_RUN_ID": "run-456", "EXTRA": "1"}
+    assert any("engine=agi.run, env=runtime env" in line for line in logs)
+    assert any("Output (step 1):\nscript output" in line for line in logs)
+    assert "ARTIFACTS" in logs
+    assert releases == ["lock"]
