@@ -34,6 +34,7 @@ src/*_worker_*/
 
 # Pytest caches
 .pytest*
+test-results/
 
 # JetBrains IDE settings
 .idea/workspace.xml
