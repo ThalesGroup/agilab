@@ -92,30 +92,71 @@ def section(slide, title: str, subtitle: str) -> None:
 
 def slide_problem(prs: Presentation):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    section(slide, "1. Le vrai rôle du Prompt Engineering", "Il ne sert pas seulement à écrire une bonne consigne.")
-    panel(slide, Inches(0.95), Inches(2.02), Inches(11.4), Inches(3.9), fill=WHITE)
-    box(slide, Inches(1.25), Inches(2.42), Inches(10.8), Inches(0.62),
-        "Un agent de codage = un objectif + une boucle + un état + des outils.", size=25, color=DARK, bold=True, align=PP_ALIGN.CENTER)
-    box(slide, Inches(1.45), Inches(3.1), Inches(10.4), Inches(0.36),
-        "Ce n’est pas un modèle one-shot : il perçoit, décide, agit, puis observe.", size=18, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
-    blocks = [
-        ("OBJECTIF", "que doit-il réussir ?"),
-        ("BOUCLE", "raisonner, agir,\nobserver"),
-        ("ÉTAT", "mémoire, contexte,\nhistorique"),
-        ("OUTILS", "fichiers, scripts,\nAPIs"),
+    section(slide, "1. Le vrai rôle du Prompt Engineering", "Il cadre un coding harness : modèle, agent loop et runtime supports.")
+    box(slide, Inches(4.68), Inches(2.02), Inches(4.0), Inches(0.44),
+        "Coding harness", size=23, color=DARK, bold=True, align=PP_ALIGN.CENTER)
+
+    left_panel = panel(slide, Inches(0.7), Inches(2.48), Inches(2.8), Inches(3.28), fill=WHITE, line=DARK)
+    center_panel = panel(slide, Inches(4.08), Inches(2.48), Inches(4.72), Inches(3.28), fill=WHITE, line=DARK)
+    right_panel = panel(slide, Inches(9.38), Inches(2.48), Inches(3.25), Inches(3.28), fill=WHITE, line=DARK)
+    for shp in (left_panel, center_panel, right_panel):
+        shp.line.width = Pt(2.2)
+
+    box(slide, Inches(0.97), Inches(2.78), Inches(2.25), Inches(0.32), "Model family", size=22, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.12), Inches(3.46), Inches(1.98), Inches(0.94), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
+    box(slide, Inches(1.28), Inches(3.78), Inches(1.66), Inches(0.24), "Base LLM", size=21, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.93), Inches(4.46), Inches(0.34), Inches(0.34))
+    shape.rotation = 90
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = DARK
+    shape.line.fill.background()
+    panel(slide, Inches(1.12), Inches(4.88), Inches(1.98), Inches(0.94), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
+    box(slide, Inches(1.28), Inches(5.12), Inches(1.66), Inches(0.42), "Reasoning\nmodel", size=20, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+
+    box(slide, Inches(5.1), Inches(2.78), Inches(2.72), Inches(0.32), "Agent loop", size=22, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    loop_boxes = [
+        (Inches(4.56), Inches(3.84), "Inspect"),
+        (Inches(6.58), Inches(3.84), "Choose"),
+        (Inches(4.56), Inches(5.02), "Observe"),
+        (Inches(6.58), Inches(5.02), "Act"),
     ]
-    for i, (title, body) in enumerate(blocks):
-        left = Inches(1.12 + i * 2.88)
-        panel(slide, left, Inches(3.78), Inches(2.35), Inches(1.28), fill=RGBColor(255, 250, 244))
-        pill(slide, left + Inches(0.36), Inches(4.0), Inches(1.62), Inches(0.34), title, size=11)
-        box(slide, left + Inches(0.18), Inches(4.48), Inches(2.0), Inches(0.48), body, size=16, color=MUTED, align=PP_ALIGN.CENTER)
-    box(slide, Inches(1.35), Inches(5.28), Inches(10.6), Inches(0.22),
-        "Dans le paysage 2025, l’agent est aussi une couche entre le modèle et l’interface.", size=16, color=MUTED, align=PP_ALIGN.CENTER)
-    for i, title in enumerate(["MODÈLE", "FRAMEWORK", "AGENT", "UI / IDE"]):
-        left = Inches(2.1 + i * 2.25)
-        fill = RGBColor(245, 236, 225) if title != "AGENT" else RGBColor(239, 227, 214)
-        color = ACCENT_2 if title != "AGENT" else ACCENT
-        pill(slide, left, Inches(5.56), Inches(1.72), Inches(0.34), title, fill=fill, color=color, size=10)
+    for left, top, label in loop_boxes:
+        panel(slide, left, top, Inches(1.48), Inches(0.62), fill=RGBColor(197, 225, 245), line=RGBColor(197, 225, 245))
+        box(slide, left, top + Inches(0.17), Inches(1.48), Inches(0.2), label, size=19, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    arrows = [
+        (Inches(6.06), Inches(4.06), Inches(0.28), Inches(0.18), 0),
+        (Inches(7.16), Inches(4.48), Inches(0.18), Inches(0.28), 90),
+        (Inches(6.06), Inches(5.28), Inches(0.28), Inches(0.18), 180),
+        (Inches(5.16), Inches(4.46), Inches(0.18), Inches(0.28), 270),
+    ]
+    for left, top, width, height, rotation in arrows:
+        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, top, width, height)
+        shape.rotation = rotation
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = DARK
+        shape.line.fill.background()
+
+    box(slide, Inches(9.8), Inches(2.78), Inches(2.38), Inches(0.32), "Runtime supports", size=21, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    runtime = [
+        (Inches(9.68), Inches(3.8), "Repo context"),
+        (Inches(11.17), Inches(3.8), "Tools"),
+        (Inches(9.68), Inches(4.66), "Permissions"),
+        (Inches(11.17), Inches(4.66), "Memory"),
+        (Inches(9.68), Inches(5.52), "Cache"),
+        (Inches(11.17), Inches(5.52), "Execution"),
+    ]
+    for left, top, label in runtime:
+        panel(slide, left, top, Inches(1.24), Inches(0.54), fill=RGBColor(226, 208, 246), line=RGBColor(226, 208, 246))
+        box(slide, left, top + Inches(0.14), Inches(1.24), Inches(0.2), label, size=15, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+
+    for left in [Inches(3.56), Inches(8.94)]:
+        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(4.12), Inches(0.34), Inches(0.28))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = DARK
+        shape.line.fill.background()
+
+    box(slide, Inches(1.0), Inches(6.2), Inches(11.3), Inches(0.24),
+        "Le Prompt Engineering sert ici à cadrer la boucle, les outils, les règles et le bon niveau de contexte.", size=17, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
 
 
 def slide_landscape(prs: Presentation):
