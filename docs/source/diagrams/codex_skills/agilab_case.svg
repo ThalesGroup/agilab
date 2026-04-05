@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="78" y="112" width="324" height="212" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="438" y="112" width="324" height="212" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="798" y="112" width="324" height="212" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <text x="240" y="176" font-size="29" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Demande</text>
+  <text x="240" y="222" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">corriger une page</text>
+  <text x="240" y="254" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">ou un formulaire</text>
+  <text x="240" y="286" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">sans casser AGILab</text>
+  <text x="600" y="176" font-size="29" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Guidage</text>
+  <text x="600" y="222" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">AGENTS.md + skills</text>
+  <text x="600" y="254" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">+ runbook du repo</text>
+  <text x="600" y="286" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">uv, logs, tests, guardrails</text>
+  <text x="960" y="176" font-size="29" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Sortie</text>
+  <text x="960" y="222" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">patch local</text>
+  <text x="960" y="254" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">validation ciblee</text>
+  <text x="960" y="286" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">sans toucher le core</text>
+  <path d="M402 218 L438 218" stroke="#b85724" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M762 218 L798 218" stroke="#b85724" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <polygon points="426,206 451,218 426,230" fill="#b85724"/>
+  <polygon points="786,206 811,218 786,230" fill="#b85724"/>
+  <rect x="164" y="396" width="872" height="166" rx="30" fill="#efe2d1" stroke="none"/>
+  <text x="600" y="463" font-size="34" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">Exemple AGILab</text>
+  <text x="600" y="510" font-size="24" text-anchor="middle" fill="#212427" font-family="Aptos">Le skill ne code pas a la place du modele.</text>
+  <text x="600" y="545" font-size="24" text-anchor="middle" fill="#212427" font-family="Aptos">Il lui rappelle comment bien travailler dans ce repo.</text>
+</svg>
