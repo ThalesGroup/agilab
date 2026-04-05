@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="120" y="92" width="960" height="112" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="186" y="230" width="828" height="112" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="252" y="368" width="696" height="112" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="318" y="506" width="564" height="112" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <text x="600" y="160" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">AGENTS.md</text>
+  <text x="600" y="197" font-size="23" text-anchor="middle" fill="#212427" font-family="Aptos">regles durables du repo</text>
+  <text x="600" y="298" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Skill</text>
+  <text x="600" y="335" font-size="23" text-anchor="middle" fill="#212427" font-family="Aptos">workflow réutilisable</text>
+  <text x="600" y="436" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Plugin</text>
+  <text x="600" y="473" font-size="23" text-anchor="middle" fill="#212427" font-family="Aptos">distribution et partage</text>
+  <text x="600" y="574" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">MCP</text>
+  <text x="600" y="611" font-size="23" text-anchor="middle" fill="#212427" font-family="Aptos">outils et donnees externes</text>
+</svg>
