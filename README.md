@@ -12,36 +12,130 @@
 
 # AGILAB Open Source Project
 
-AGILAB is an integrated experimentation platform that helps data scientists and applied researchers prototype, validate,
-and deliver AI/ML applications quickly. The project bundles a curated suite of “agi-*” components (environment, node,
-cluster, core libraries, and reference applications) that work together to provide:
+AGILAB is an open-source platform for **reproducible AI/ML workflows** that takes you from local experimentation to
+distributed execution and long-lived services. It combines app scaffolding, environment isolation, workflow
+orchestration, and service health gates in one stack so teams can move from prototype to production-like operation
+without rebuilding their tooling at every stage.
 
-- **Reproducible experimentation** with managed virtual environments, dependency tracking, and application templates.
-- **Scalable execution** through local and distributed worker orchestration (agi-node / agi-cluster) that mirrors
-  production-like topologies.
-- **Persistent service orchestration** with `AGI.serve` (`start` / `status` / `health` / `stop`) and health gates for
-  long-lived cluster workers.
-- **Rich tooling** including Streamlit-powered apps, notebooks, workflow automation, and coverage-guided CI pipelines.
-- **Turn‑key examples** covering classical analytics and more advanced domains such as flight simulation, network traffic,
-  industrial IoT, and optimization workloads.
+AGILAB is maintained by the Thales Group and released under the
+[BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
 
-The project is licensed under the [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) and is
-maintained by the Thales Group with community contributions welcomed.
+## Why teams use AGILAB
 
-## Unique value proposition
+- **One control path** from Streamlit or CLI entrypoints to isolated local and distributed workers.
+- **Reproducible execution** through managed environments, explicit execution pipelines, and per-app settings.
+- **Persistent service mode** through `AGI.serve` (`start` / `status` / `health` / `stop`) with machine-readable health gates.
+- **Production-style orchestration** using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
+- **Ready-to-adapt examples** for applied AI/ML scenarios such as flight simulation, network traffic, industrial IoT,
+  and optimization workloads.
 
-AGILAB is unique because it combines three layers in one ecosystem:
+## Where AGILAB fits in production ML
 
-- **A single control path** from interactive workflows (Streamlit/CLI) to distributed worker execution.
-- **Built-in reproducibility** through managed environments, explicit execution pipelines, and **multiple venv support inside notebooks**
-  (a different venv can be selected per cell).
-- **A modular architecture** (`agi-env`, `agi-node`, `agi-cluster`) you can install as a full stack or component by component.
+AGILAB is best understood as a **workflow and orchestration layer** for applied machine learning:
 
-AGILAB is easiest to discover and adopt when users can:
+- **Model Training & Orchestration**: build and run multi-step workflows locally or over SSH-managed clusters.
+- **Deployment & Serving**: operate persistent workers with health snapshots and restart policies.
+- **Experiment Reproducibility**: keep environments, app settings, logs, and execution history aligned.
 
-- install from PyPI in one command,
-- launch a minimal scenario in less than one minute,
-- and find links to docs, source, issues, and changes in one place.
+If you are evaluating AGILAB for an MLOps stack, the core idea is simple: the same application can be driven from a
+developer-friendly UI, from CLI automation, or from distributed worker execution without inventing a different control
+plane for each stage.
+
+## Quick links
+
+- **Documentation:** https://thalesgroup.github.io/agilab
+- **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
+- **PyPI package:** https://pypi.org/project/agilab
+- **Discussions:** https://github.com/ThalesGroup/agilab/discussions
+- **Developer runbook:** [AGENTS.md](AGENTS.md)
+- **Demo capture workflow:** [docs/source/demo_capture_script.md](docs/source/demo_capture_script.md)
+
+## See the stack in one picture
+
+![AGILAB runtime stack](docs/source/Agilab-Overview.svg)
+
+## Quick start
+
+### Try the published package
+
+```bash
+pip install agilab
+agilab --help
+```
+
+### Run from source
+
+```bash
+git clone https://github.com/ThalesGroup/agilab.git
+cd agilab
+./install.sh --install-apps --test-apps
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+```
+
+The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, link
+bundled applications into the workspace, and validate the setup with tests and coverage-aware tooling.
+
+See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes and end-user
+deployment instructions.
+
+## Start here: 3-minute tour
+
+If you want to understand AGILAB quickly, use the built-in `flight_project` as the reference path:
+
+![AGILAB 3-minute tour](docs/source/diagrams/agilab_readme_tour.svg)
+
+Shareable visual:
+- [Social card SVG](docs/source/diagrams/agilab_social_card.svg)
+
+Local explainer generation:
+- [Demo capture workflow](docs/source/demo_capture_script.md)
+- `uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg python tools/build_demo_explainer.py`
+
+1. Launch the AGILAB UI from source:
+
+   ```bash
+   uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+   ```
+
+2. In **PROJECT**, select `src/agilab/apps/builtin/flight_project`.
+3. In **ORCHESTRATE**, run the install/distribute/run flow to package and execute the worker pipeline.
+4. In **PIPELINE**, inspect or replay the generated steps.
+5. In **ANALYSIS**, open one of the built-in Streamlit views over the exported data.
+
+What this shows in one pass:
+
+- one app definition
+- one environment bootstrap
+- one orchestration path from UI to workers
+- one analysis path over the produced artifacts
+
+Useful references:
+
+- [Flight project overview](docs/source/flight-project.rst)
+- [Apps-pages quick start](src/agilab/apps-pages/README.md)
+- [Service mode and paths](docs/source/service_mode_and_paths.md)
+
+## What makes AGILAB different
+
+| Capability | What AGILAB gives you |
+| --- | --- |
+| Unified control plane | Launch the same app from Streamlit, CLI wrappers, or distributed workers. |
+| Managed execution envs | Package worker dependencies into isolated environments instead of relying on one shared Python install. |
+| Persistent operation | Use `AGI.serve` with health gates and structured status snapshots for long-lived workloads. |
+| Modular adoption | Install the full stack or adopt `agi-env`, `agi-node`, `agi-cluster`, and `agi-core` separately. |
+
+## AGILAB vs manual orchestration
+
+| Workflow step | Manual approach | AGILAB approach |
+| --- | --- | --- |
+| Environment setup | Hand-build Python environments and keep them aligned across machines. | Use managed environments and packaged workers. |
+| Running an experiment | Glue together scripts, shell commands, and remote execution by hand. | Drive the same flow from Streamlit, CLI wrappers, or worker dispatch. |
+| Scaling out | Recreate dependencies and SSH conventions for each remote target. | Reuse `agi-node` / `agi-cluster` packaging and dispatch logic. |
+| Service continuity | Invent your own start/status/health/stop checks. | Use `AGI.serve` with health snapshots and gate thresholds. |
+| Artifact traceability | Logs and outputs end up scattered across scripts and machines. | Keep run history, logs, and app outputs on a documented control path. |
+
+The point is not that AGILAB replaces every production platform. The point is that it removes a large amount of
+hand-written orchestration during experimentation and validation, then makes the handoff to a broader stack cleaner.
 
 ## Repository layout
 
@@ -55,27 +149,10 @@ The monorepo hosts several tightly-coupled packages:
 | `agi-cluster` | `src/agilab/core/agi-cluster` | Multi-node coordination, distribution, and deployment helpers |
 | `agi-core` | `src/agilab/core/agi-core` | Meta-package bundling the environment/node/cluster components |
 
-Each package can be installed independently via `pip install <package-name>`, but the recommended path for development is
+Each package can be installed independently via `pip install <package-name>`, but the recommended development path is
 to clone this repository and use the provided scripts.
 
-## Quick start (developer mode)
-
-```bash
-git clone https://github.com/ThalesGroup/agilab.git
-cd agilab
-./install.sh --install-apps --test-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
-```
-
-To try the package quickly from PyPI:
-
-```bash
-pip install agilab
-agilab --help
-```
-
-The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, set up
-required credentials, run tests with coverage, and link bundled applications into the local workspace.
+## Developer workflow
 
 For development mode, the strongly recommended tools are:
 
@@ -93,9 +170,6 @@ For a professional Codex workflow, use the repo helper:
 - Configuration and usage details: `tools/codex_workflow.md`.
 
 Use macOS or Linux when you need to validate or reuse Linux-dependent code paths.
-
-See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes (PyPI/TestPyPI) and end
-user deployment instructions.
 
 ## Framework execution flow
 
