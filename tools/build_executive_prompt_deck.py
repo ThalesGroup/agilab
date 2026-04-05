@@ -75,24 +75,67 @@ def title_block(slide, title: str, subtitle: str):
 def slide_prompt(prs: Presentation):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     set_bg(slide)
-    title_block(slide, "1. Le vrai rôle du Prompt Engineering", "Il cadre un agent : objectif, boucle, état et outils.")
-    panel(slide, Inches(0.98), Inches(2.08), Inches(11.3), Inches(3.62), fill=WHITE)
-    textbox(slide, Inches(1.28), Inches(2.46), Inches(10.7), Inches(0.5),
-            "Un agent n’est pas un modèle one-shot.", size=25, color=DARK, bold=True, align=PP_ALIGN.CENTER)
-    textbox(slide, Inches(1.5), Inches(3.05), Inches(10.2), Inches(0.3),
-            "Il travaille en boucle, garde un état, et utilise des outils.", size=18, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
-    for i, (title, body) in enumerate([
-        ("OBJECTIF", "ce qu’il doit réussir"),
-        ("BOUCLE", "raisonner puis agir"),
-        ("ÉTAT", "contexte et mémoire"),
-        ("OUTILS", "scripts, fichiers, APIs"),
-    ]):
-        left = Inches(1.05 + i * 2.82)
-        panel(slide, left, Inches(3.7), Inches(2.25), Inches(1.18), fill=RGBColor(255, 250, 244))
-        pill(slide, left + Inches(0.31), Inches(3.9), Inches(1.63), Inches(0.32), title, size=10)
-        textbox(slide, left + Inches(0.14), Inches(4.36), Inches(1.98), Inches(0.28), body, size=14, color=MUTED, align=PP_ALIGN.CENTER)
-    textbox(slide, Inches(1.55), Inches(5.18), Inches(10.0), Inches(0.2),
-            "Le paysage open-source montre aussi une pile : modèle → framework → agent → UI.", size=15, color=MUTED, align=PP_ALIGN.CENTER)
+    title_block(slide, "1. Le vrai rôle du Prompt Engineering", "Il cadre un coding harness : modèle, agent loop et runtime supports.")
+    textbox(slide, Inches(4.7), Inches(2.02), Inches(3.9), Inches(0.36), "Coding harness", size=22, color=DARK, bold=True, align=PP_ALIGN.CENTER)
+
+    left_panel = panel(slide, Inches(0.74), Inches(2.42), Inches(2.72), Inches(3.1), fill=WHITE, line=DARK)
+    center_panel = panel(slide, Inches(4.02), Inches(2.42), Inches(4.82), Inches(3.1), fill=WHITE, line=DARK)
+    right_panel = panel(slide, Inches(9.4), Inches(2.42), Inches(3.18), Inches(3.1), fill=WHITE, line=DARK)
+    for shp in (left_panel, center_panel, right_panel):
+        shp.line.width = Pt(2.0)
+
+    textbox(slide, Inches(1.0), Inches(2.72), Inches(2.16), Inches(0.28), "Model family", size=21, color=DARK, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.14), Inches(3.34), Inches(1.92), Inches(0.88), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
+    textbox(slide, Inches(1.3), Inches(3.64), Inches(1.6), Inches(0.2), "Base LLM", size=19, color=DARK, align=PP_ALIGN.CENTER)
+    shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.95), Inches(4.28), Inches(0.28), Inches(0.28))
+    shape.rotation = 90
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = DARK
+    shape.line.fill.background()
+    panel(slide, Inches(1.14), Inches(4.62), Inches(1.92), Inches(0.88), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
+    textbox(slide, Inches(1.3), Inches(4.84), Inches(1.6), Inches(0.36), "Reasoning\nmodel", size=18, color=DARK, align=PP_ALIGN.CENTER)
+
+    textbox(slide, Inches(5.16), Inches(2.72), Inches(2.52), Inches(0.28), "Agent loop", size=21, color=DARK, align=PP_ALIGN.CENTER)
+    loop_boxes = [
+        (Inches(4.46), Inches(3.66), "Inspect"),
+        (Inches(6.58), Inches(3.66), "Choose"),
+        (Inches(4.46), Inches(4.76), "Observe"),
+        (Inches(6.58), Inches(4.76), "Act"),
+    ]
+    for left, top, label in loop_boxes:
+        panel(slide, left, top, Inches(1.55), Inches(0.56), fill=RGBColor(197, 225, 245), line=RGBColor(197, 225, 245))
+        textbox(slide, left, top + Inches(0.15), Inches(1.55), Inches(0.18), label, size=18, color=DARK, align=PP_ALIGN.CENTER)
+    arrows = [
+        (Inches(6.05), Inches(3.86), Inches(0.24), Inches(0.16), 0),
+        (Inches(7.13), Inches(4.26), Inches(0.16), Inches(0.24), 90),
+        (Inches(6.05), Inches(5.0), Inches(0.24), Inches(0.16), 180),
+        (Inches(5.13), Inches(4.22), Inches(0.16), Inches(0.24), 270),
+    ]
+    for left, top, width, height, rotation in arrows:
+        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, top, width, height)
+        shape.rotation = rotation
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = DARK
+        shape.line.fill.background()
+
+    textbox(slide, Inches(9.7), Inches(2.72), Inches(2.56), Inches(0.28), "Runtime supports", size=20, color=DARK, align=PP_ALIGN.CENTER)
+    runtime = [
+        (Inches(9.68), Inches(3.56), "Repo context"),
+        (Inches(11.1), Inches(3.56), "Tools"),
+        (Inches(9.68), Inches(4.34), "Permissions"),
+        (Inches(11.1), Inches(4.34), "Memory"),
+        (Inches(9.68), Inches(5.12), "Cache"),
+        (Inches(11.1), Inches(5.12), "Execution"),
+    ]
+    for left, top, label in runtime:
+        panel(slide, left, top, Inches(1.16), Inches(0.48), fill=RGBColor(226, 208, 246), line=RGBColor(226, 208, 246))
+        textbox(slide, left, top + Inches(0.12), Inches(1.16), Inches(0.18), label, size=14, color=DARK, align=PP_ALIGN.CENTER)
+
+    for left in [Inches(3.56), Inches(9.0)]:
+        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(4.02), Inches(0.3), Inches(0.24))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = DARK
+        shape.line.fill.background()
 
 
 def slide_landscape(prs: Presentation):
