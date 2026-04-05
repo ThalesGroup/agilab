@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="84" y="122" width="310" height="392" rx="30" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="445" y="122" width="310" height="392" rx="30" fill="#f9f4ed" stroke="#dccabf" stroke-width="3"/>
+  <rect x="806" y="122" width="310" height="392" rx="30" fill="#efe2d1" stroke="#dccabf" stroke-width="3"/>
+  <text x="239" y="168" font-size="16" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">BUILD / GATEWAY</text>
+  <text x="600" y="168" font-size="16" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">BUY / UI</text>
+  <text x="961" y="168" font-size="16" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">AGENT</text>
+  <text x="239" y="216" font-size="29" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">Portail multi-LLM</text>
+  <text x="239" y="265" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">OpenRouter</text>
+  <text x="239" y="297" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">Portkey</text>
+  <text x="239" y="329" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">LibreChat</text>
+  <text x="239" y="382" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">vite à lancer</text>
+  <text x="239" y="412" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">gateway pro</text>
+  <text x="239" y="442" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">UI interne</text>
+  <text x="600" y="216" font-size="29" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">TypingMind vs direct</text>
+  <text x="600" y="278" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">TypingMind = couche UI</text>
+  <text x="600" y="310" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">OpenAI / Anthropic = moteur</text>
+  <text x="600" y="368" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">bon pour usage humain rapide</text>
+  <text x="600" y="398" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">pas base produit idéale</text>
+  <text x="961" y="216" font-size="29" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">Agent de codage</text>
+  <text x="961" y="278" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">pas équivalent</text>
+  <text x="961" y="338" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">TypingMind : assistant UI</text>
+  <text x="961" y="368" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">Codex CLI : repo + fichiers</text>
+  <text x="961" y="398" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">tests + scripts + boucle</text>
+  <rect x="148" y="548" width="904" height="76" rx="24" fill="#fffaf5" stroke="none"/>
+  <text x="600" y="580" font-size="18" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">RECOMMANDATION</text>
+  <text x="600" y="613" font-size="24" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Pour AGILab : APIs directes + gateway + UI maison</text>
+</svg>
