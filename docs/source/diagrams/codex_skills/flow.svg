@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="58" y="144" width="238" height="154" rx="26" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="328" y="144" width="238" height="154" rx="26" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="598" y="144" width="238" height="154" rx="26" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="868" y="144" width="238" height="154" rx="26" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <text x="177" y="190" font-size="32" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">1</text>
+  <text x="447" y="190" font-size="32" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">2</text>
+  <text x="717" y="190" font-size="32" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">3</text>
+  <text x="987" y="190" font-size="32" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">4</text>
+  <text x="177" y="236" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">métadonnées</text>
+  <text x="447" y="236" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">SKILL.md</text>
+  <text x="717" y="236" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">scripts et références</text>
+  <text x="987" y="236" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">exécution</text>
+  <path d="M296 220 L328 220" stroke="#b85724" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M566 220 L598 220" stroke="#b85724" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M836 220 L868 220" stroke="#b85724" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <polygon points="318,208 343,220 318,232" fill="#b85724"/>
+  <polygon points="588,208 613,220 588,232" fill="#b85724"/>
+  <polygon points="858,208 883,220 858,232" fill="#b85724"/>
+  <rect x="136" y="404" width="928" height="156" rx="30" fill="#efe2d1" stroke="none"/>
+  <text x="600" y="470" font-size="42" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">Progressive disclosure</text>
+  <text x="600" y="520" font-size="28" text-anchor="middle" fill="#212427" font-family="Aptos">On ne charge que ce qui est utile, au moment utile.</text>
+</svg>
