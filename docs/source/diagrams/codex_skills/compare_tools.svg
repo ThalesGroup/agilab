@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="82" y="112" width="444" height="408" rx="32" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="674" y="112" width="444" height="408" rx="32" fill="#efe2d1" stroke="#dccabf" stroke-width="3"/>
+  <circle cx="176" cy="196" r="58" fill="#2d5c7a"/>
+  <rect x="148" y="172" width="56" height="48" rx="10" fill="#fffaf5"/>
+  <rect x="160" y="186" width="32" height="8" fill="#2d5c7a"/>
+  <rect x="160" y="200" width="24" height="8" fill="#2d5c7a"/>
+  <text x="304" y="180" font-size="32" fill="#2d5c7a" font-family="Aptos" font-weight="700">Code Companion V3</text>
+  <text x="304" y="222" font-size="23" fill="#212427" font-family="Aptos">assistant IDE sécurisé</text>
+  <text x="304" y="260" font-size="21" fill="#5b6268" font-family="Aptos">Azure entreprise • PyCharm • VS Code</text>
+  <circle cx="768" cy="196" r="58" fill="#b85724"/>
+  <path d="M742 215 L792 165 M742 165 L792 215" stroke="#fffaf5" stroke-width="10" stroke-linecap="round"/>
+  <text x="896" y="180" font-size="32" fill="#b85724" font-family="Aptos" font-weight="700">Codex CLI</text>
+  <text x="896" y="222" font-size="23" fill="#212427" font-family="Aptos">agent terminal orienté repo</text>
+  <text x="896" y="260" font-size="21" fill="#5b6268" font-family="Aptos">skills • AGENTS.md • scripts</text>
+  <rect x="122" y="312" width="364" height="154" rx="24" fill="#f8efe5" stroke="none"/>
+  <rect x="714" y="312" width="364" height="154" rx="24" fill="#fff7ef" stroke="none"/>
+  <text x="154" y="360" font-size="24" fill="#212427" font-family="Aptos">• édition locale rapide</text>
+  <text x="154" y="398" font-size="24" fill="#212427" font-family="Aptos">• bon pour itérer</text>
+  <text x="154" y="436" font-size="24" fill="#212427" font-family="Aptos">• l’humain orchestre encore</text>
+  <text x="746" y="360" font-size="24" fill="#212427" font-family="Aptos">• analyse plusieurs fichiers</text>
+  <text x="746" y="398" font-size="24" fill="#212427" font-family="Aptos">• lance scripts et vérifications</text>
+  <text x="746" y="436" font-size="24" fill="#212427" font-family="Aptos">• enchaîne le workflow</text>
+  <rect x="192" y="548" width="816" height="56" rx="22" fill="#fffaf5"/>
+  <text x="600" y="584" font-size="25" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Le plugin fait gagner du temps. L’agent fait gagner des étapes de travail.</text>
+</svg>
