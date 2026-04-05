@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="72" y="118" width="262" height="182" rx="30" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="469" y="118" width="262" height="182" rx="30" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="866" y="118" width="262" height="182" rx="30" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <circle cx="118" cy="92" r="26" fill="#b85724"/><text x="118" y="101" font-size="24" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">1</text>
+  <circle cx="515" cy="92" r="26" fill="#b85724"/><text x="515" y="101" font-size="24" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">2</text>
+  <circle cx="912" cy="92" r="26" fill="#b85724"/><text x="912" y="101" font-size="24" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">3</text>
+  <text x="203" y="185" font-size="32" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">AGILab</text>
+  <text x="203" y="228" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">pages, apps, runs</text>
+  <text x="203" y="260" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">beaucoup de chemins possibles</text>
+  <text x="600" y="185" font-size="32" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Codex</text>
+  <text x="600" y="228" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">sélectionne le bon workflow</text>
+  <text x="600" y="260" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">sans relire tout le repo</text>
+  <text x="997" y="185" font-size="32" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Resultat</text>
+  <text x="997" y="228" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">patch plus fiable</text>
+  <text x="997" y="260" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos">tests et conventions respectes</text>
+  <path d="M334 210 L469 210" stroke="#b85724" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M731 210 L866 210" stroke="#b85724" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <polygon points="455,198 480,210 455,222" fill="#b85724"/>
+  <polygon points="852,198 877,210 852,222" fill="#b85724"/>
+  <rect x="150" y="392" width="900" height="156" rx="30" fill="#efe2d1" stroke="none"/>
+  <text x="600" y="458" font-size="36" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">Message</text>
+  <text x="600" y="505" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">Les skills reduisent l'espace de recherche avant d'agir.</text>
+</svg>
