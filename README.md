@@ -45,6 +45,7 @@ plane for each stage.
 
 - **Documentation:** https://thalesgroup.github.io/agilab
 - **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
+- **Flight project guide:** https://thalesgroup.github.io/agilab/flight-project.html
 - **PyPI package:** https://pypi.org/project/agilab
 - **Discussions:** https://github.com/ThalesGroup/agilab/discussions
 - **Developer runbook:** [AGENTS.md](AGENTS.md)
@@ -77,6 +78,10 @@ bundled applications into the workspace, and validate the setup with tests and c
 
 See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes and end-user
 deployment instructions.
+
+The public repository is self-contained for the built-in apps and documentation. An external apps repository is
+optional and only needed when you want to add extra internal or private app templates on top of the public AGILAB
+stack.
 
 ## Start here: 3-minute tour
 
@@ -111,9 +116,9 @@ What this shows in one pass:
 
 Useful references:
 
-- [Flight project overview](docs/source/flight-project.rst)
+- [Flight project overview](https://thalesgroup.github.io/agilab/flight-project.html)
 - [Apps-pages quick start](src/agilab/apps-pages/README.md)
-- [Service mode and paths](docs/source/service_mode_and_paths.md)
+- [Service mode and paths](https://thalesgroup.github.io/agilab/service_mode_and_paths.html)
 
 ## What makes AGILAB different
 
@@ -217,13 +222,3 @@ uv --preview-features extra-build-dependencies run python tools/service_health_c
 - ✅ **Coverage snapshot:** see badges above (auto-updated after the dedicated `coverage` workflow)
 - 🧾 **Runbook:** [AGENTS.md](AGENTS.md)
 - 🛠️ **Developer tools:** scripts in `tools/` and application templates in `src/agilab/apps`
-
-## Contributing
-
-Contributions are encouraged! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues,
-submitting pull requests, and the review process. Security-related concerns should follow the instructions in
-[SECURITY.md](SECURITY.md).
-
-## License
-
-Distributed under the BSD 3-Clause License. See [LICENSE](LICENSE) for full text.
