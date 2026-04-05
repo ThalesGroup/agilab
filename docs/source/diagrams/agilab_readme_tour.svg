@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB quick tour</title>
+  <desc id="desc">Compact onboarding diagram for the AGILAB README showing the four main pages, the execution path, and the value of the flight project demo.</desc>
+  <defs>
+    <style>
+      text {
+        font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        fill: #122745;
+      }
+      .title {
+        font-size: 40px;
+        font-weight: 700;
+      }
+      .subtitle {
+        font-size: 20px;
+        fill: #516984;
+      }
+      .section {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        fill: #617a97;
+      }
+      .card {
+        stroke: #17324d;
+        stroke-width: 3;
+        rx: 28;
+        ry: 28;
+      }
+      .card-title {
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .card-body {
+        font-size: 17px;
+        fill: #3f5978;
+      }
+      .mini {
+        font-size: 15px;
+        fill: #5a7392;
+      }
+      .badge {
+        fill: #17324d;
+      }
+      .badge-text {
+        font-size: 14px;
+        font-weight: 700;
+        fill: #f8fbff;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .value-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .value-body {
+        font-size: 16px;
+        fill: #3f5978;
+      }
+      .arrow {
+        stroke: #17324d;
+        stroke-width: 4;
+        stroke-linecap: round;
+      }
+      .soft-arrow {
+        stroke: #8097b2;
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .line {
+        stroke: #d4deea;
+        stroke-width: 2;
+      }
+      .shadow {
+        filter: url(#shadow);
+      }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#17324d" />
+    </marker>
+    <marker id="arrowhead-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#8097b2" />
+    </marker>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbfdff" />
+      <stop offset="100%" stop-color="#eef4fb" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#90a5c1" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <rect width="1280" height="760" fill="url(#bg)" rx="36" ry="36" />
+
+  <g transform="translate(70,62)">
+    <text class="title" x="0" y="0">AGILAB in one quick tour</text>
+    <text class="subtitle" x="0" y="38">Use the built-in flight project to see one app, one execution path, and one analysis loop in a few minutes.</text>
+  </g>
+
+  <g transform="translate(70,112)">
+    <rect x="0" y="0" width="320" height="68" rx="24" ry="24" fill="#ffffff" stroke="#d5dfeb" stroke-width="2" class="shadow"/>
+    <rect x="18" y="16" width="104" height="34" rx="16" ry="16" class="badge" />
+    <text class="badge-text" x="70" y="38" text-anchor="middle">Demo path</text>
+    <text class="card-body" x="146" y="38">`flight_project` from PROJECT to ANALYSIS</text>
+  </g>
+
+  <g transform="translate(70,206)">
+    <text class="section" x="0" y="0">Main user path</text>
+  </g>
+
+  <g transform="translate(70,236)">
+    <rect class="card shadow" x="0" y="0" width="250" height="190" fill="#d9efff" />
+    <text class="card-title" x="28" y="42">PROJECT</text>
+    <text class="card-body" x="28" y="76">Pick the active app.</text>
+    <text class="card-body" x="28" y="104">Load settings and inspect the source.</text>
+    <text class="mini" x="28" y="150">Start with:</text>
+    <text class="mini" x="28" y="174">src/agilab/apps/builtin/flight_project</text>
+  </g>
+
+  <g transform="translate(350,236)">
+    <rect class="card shadow" x="0" y="0" width="250" height="190" fill="#dedcff" />
+    <text class="card-title" x="28" y="42">ORCHESTRATE</text>
+    <text class="card-body" x="28" y="76">Install, distribute, and run.</text>
+    <text class="card-body" x="28" y="104">Package workers and launch execution.</text>
+    <text class="mini" x="28" y="150">This is where AGILAB removes</text>
+    <text class="mini" x="28" y="174">most manual orchestration.</text>
+  </g>
+
+  <g transform="translate(630,236)">
+    <rect class="card shadow" x="0" y="0" width="250" height="190" fill="#fff4cc" />
+    <text class="card-title" x="28" y="42">PIPELINE</text>
+    <text class="card-body" x="28" y="76">Replay the generated steps.</text>
+    <text class="card-body" x="28" y="104">Inspect snippets and execution flow.</text>
+    <text class="mini" x="28" y="150">Useful for validation, debugging,</text>
+    <text class="mini" x="28" y="174">and repeatability.</text>
+  </g>
+
+  <g transform="translate(910,236)">
+    <rect class="card shadow" x="0" y="0" width="300" height="190" fill="#ffe0e7" />
+    <text class="card-title" x="28" y="42">ANALYSIS</text>
+    <text class="card-body" x="28" y="76">Open built-in Streamlit views.</text>
+    <text class="card-body" x="28" y="104">Explore exported artifacts and results.</text>
+    <text class="mini" x="28" y="150">The demo finishes with visible outputs,</text>
+    <text class="mini" x="28" y="174">not just logs and shell commands.</text>
+  </g>
+
+  <line class="arrow" x1="320" y1="330" x2="350" y2="330" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="600" y1="330" x2="630" y2="330" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="880" y1="330" x2="910" y2="330" marker-end="url(#arrowhead)" />
+
+  <g transform="translate(70,474)">
+    <text class="section" x="0" y="0">Why this matters</text>
+    <line class="line" x1="136" y1="-7" x2="1140" y2="-7" />
+  </g>
+
+  <g transform="translate(70,500)">
+    <rect class="card shadow" x="0" y="0" width="360" height="160" fill="#ffffff" />
+    <text class="value-title" x="28" y="42">Without AGILAB</text>
+    <text class="value-body" x="28" y="78">You hand-wire environments, scripts, SSH targets,</text>
+    <text class="value-body" x="28" y="104">logs, and analysis views for each experiment.</text>
+    <text class="value-body" x="28" y="130">The orchestration burden grows before the model work does.</text>
+  </g>
+
+  <g transform="translate(460,500)">
+    <rect class="card shadow" x="0" y="0" width="360" height="160" fill="#ffffff" />
+    <text class="value-title" x="28" y="42">With AGILAB</text>
+    <text class="value-body" x="28" y="78">The same app moves from UI to workers to results</text>
+    <text class="value-body" x="28" y="104">through one control path and one documented stack.</text>
+    <text class="value-body" x="28" y="130">That is the productivity gain to evaluate first.</text>
+  </g>
+
+  <g transform="translate(850,500)">
+    <rect class="card shadow" x="0" y="0" width="360" height="160" fill="#ffffff" />
+    <text class="value-title" x="28" y="42">Best fit</text>
+    <text class="value-body" x="28" y="78">Teams who need reproducible experimentation,</text>
+    <text class="value-body" x="28" y="104">distributed execution, and operator-facing flows</text>
+    <text class="value-body" x="28" y="130">before handing off to a larger production stack.</text>
+  </g>
+
+  <path class="soft-arrow" d="M 250 444 C 250 468 250 490 250 500" marker-end="url(#arrowhead-soft)" fill="none" />
+  <path class="soft-arrow" d="M 530 444 C 530 468 640 490 640 500" marker-end="url(#arrowhead-soft)" fill="none" />
+  <path class="soft-arrow" d="M 810 444 C 810 468 1030 490 1030 500" marker-end="url(#arrowhead-soft)" fill="none" />
+</svg>
