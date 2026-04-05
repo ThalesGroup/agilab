@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="84" y="118" width="304" height="304" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="448" y="118" width="304" height="304" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="812" y="118" width="304" height="304" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <text x="236" y="192" font-size="36" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">scripts/</text>
+  <text x="236" y="242" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">fait</text>
+  <text x="236" y="294" font-size="22" text-anchor="middle" fill="#5b6268" font-family="Aptos">CLI deterministe</text>
+  <text x="236" y="328" font-size="22" text-anchor="middle" fill="#5b6268" font-family="Aptos">run_eval.py</text>
+  <text x="600" y="192" font-size="36" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">references/</text>
+  <text x="600" y="242" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">cadre</text>
+  <text x="600" y="294" font-size="22" text-anchor="middle" fill="#5b6268" font-family="Aptos">protocoles</text>
+  <text x="600" y="328" font-size="22" text-anchor="middle" fill="#5b6268" font-family="Aptos">checklists</text>
+  <text x="964" y="192" font-size="36" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">assets/</text>
+  <text x="964" y="242" font-size="25" text-anchor="middle" fill="#212427" font-family="Aptos">fournit</text>
+  <text x="964" y="294" font-size="22" text-anchor="middle" fill="#5b6268" font-family="Aptos">templates</text>
+  <text x="964" y="328" font-size="22" text-anchor="middle" fill="#5b6268" font-family="Aptos">inputs exemples</text>
+  <rect x="150" y="462" width="900" height="132" rx="30" fill="#efe2d1" stroke="none"/>
+  <text x="600" y="540" font-size="40" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">scripts = fait, references = cadre, assets = fournit</text>
+</svg>
