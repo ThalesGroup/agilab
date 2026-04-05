@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="135" y="120" width="930" height="150" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="135" y="330" width="930" height="190" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <circle cx="220" cy="195" r="42" fill="#b85724"/>
+  <text x="220" y="207" font-size="30" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">1</text>
+  <text x="290" y="188" font-size="30" fill="#212427" font-family="Aptos" font-weight="700">Pas d auto-rewrite</text>
+  <text x="290" y="225" font-size="22" fill="#5b6268" font-family="Aptos">Sinon perte de stabilite, de tracabilite et de propriete.</text>
+  <circle cx="220" cy="425" r="42" fill="#2d5c7a"/>
+  <text x="220" y="437" font-size="30" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">2</text>
+  <text x="290" y="418" font-size="30" fill="#212427" font-family="Aptos" font-weight="700">Amelioration explicite</text>
+  <text x="290" y="455" font-size="22" fill="#5b6268" font-family="Aptos">On observe, on formalise, on corrige le skill, puis on relance.</text>
+  <path d="M820 270 L820 330" stroke="#b85724" stroke-width="8" fill="none"/>
+  <polygon points="808,320 820,345 832,320" fill="#b85724"/>
+</svg>
