@@ -2,11 +2,11 @@
 data_in = "execution_playground/dataset"
 data_out = "execution_pandas/results"
 files = "*.csv"
-nfile = 8
-n_partitions = 8
-rows_per_file = 25000
+nfile = 16
+n_partitions = 16
+rows_per_file = 100000
 n_groups = 32
-compute_passes = 3
+compute_passes = 8
 output_format = "csv"
 seed = 42
 reset_target = false

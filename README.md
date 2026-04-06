@@ -163,20 +163,20 @@ execution model wins for the same workload, then keeps the orchestration path re
 
 Measured local benchmark
 
-Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4`
-on macOS / Python `3.13.9`:
+Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4 --rows-per-file 100000 --compute-passes 8 --n-partitions 16`
+on macOS / Python `3.13.9` with a heavier default workload (`16` partitions, `100000` rows per file, `8` compute passes):
 
 | App | Worker path | Mode | 1 worker | 2 workers | 4 workers |
 | --- | --- | --- | ---: | ---: | ---: |
-| execution_pandas_project | pandas / process | mono | 1.087 | 1.220 | 1.317 |
-| execution_pandas_project | pandas / process | parallel | 4.146 | 2.795 | 2.241 |
-| execution_polars_project | polars / threads | mono | 1.100 | 1.155 | 1.317 |
-| execution_polars_project | polars / threads | parallel | 1.080 | 1.157 | 1.325 |
+| execution_pandas_project | pandas / process | mono | 1.607 | 1.416 | 1.457 |
+| execution_pandas_project | pandas / process | parallel | 7.411 | 4.563 | 3.301 |
+| execution_polars_project | polars / threads | mono | 1.225 | 1.287 | 1.381 |
+| execution_polars_project | polars / threads | parallel | 1.232 | 1.252 | 1.383 |
 
-This is the extra point the example now makes visible: results change with the number of workers.
+This is the extra point the example now makes visible: results change with the number of workers, and not in the same way for both execution models.
 
-- `pandas / process` gets better as worker count increases, but the process-heavy path still stays expensive on this workload.
-- `polars / threads` is already close to its best result with one worker and does not benefit from adding more workers here.
+- `pandas / process` benefits materially from more workers on this heavier workload: `7.411s` at `1` worker, `4.563s` at `2`, `3.301s` at `4`.
+- `polars / threads` is already near its steady-state result with `1` worker and remains almost flat as workers increase.
 - AGILAB therefore makes two things explicit at once: the execution model and the worker-count scaling behavior.
 
 Raw benchmark data:
