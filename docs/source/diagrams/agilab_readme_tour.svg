@@ -171,12 +171,12 @@
     <text class="mini" x="28" y="226">not only shell logs.</text>
   </g>
 
-  <line class="arrow" x1="342" y1="426" x2="358" y2="426" />
-  <polygon class="arrow-head" points="358,418 358,434 374,426" />
-  <line class="arrow" x1="652" y1="426" x2="668" y2="426" />
-  <polygon class="arrow-head" points="668,418 668,434 684,426" />
-  <line class="arrow" x1="962" y1="426" x2="978" y2="426" />
-  <polygon class="arrow-head" points="978,418 978,434 994,426" />
+  <line class="arrow" x1="336" y1="426" x2="354" y2="426" />
+  <polygon class="arrow-head" points="354,418 354,434 370,426" />
+  <line class="arrow" x1="646" y1="426" x2="664" y2="426" />
+  <polygon class="arrow-head" points="664,418 664,434 680,426" />
+  <line class="arrow" x1="956" y1="426" x2="974" y2="426" />
+  <polygon class="arrow-head" points="974,418 974,434 990,426" />
 
   <g transform="translate(80,562)">
     <text class="section" x="0" y="0">Why this matters</text>
@@ -212,10 +212,10 @@
     <text class="value-body" x="28" y="152">flows before a larger stack.</text>
   </g>
 
-  <line class="soft-arrow" x1="205" y1="528" x2="205" y2="580" />
-  <polygon points="197,580 213,580 205,596" fill="#8298b4" />
-  <line class="soft-arrow" x1="525" y1="528" x2="525" y2="580" />
-  <polygon points="517,580 533,580 525,596" fill="#8298b4" />
-  <line class="soft-arrow" x1="845" y1="528" x2="845" y2="580" />
-  <polygon points="837,580 853,580 845,596" fill="#8298b4" />
+  <line class="soft-arrow" x1="260" y1="528" x2="260" y2="580" />
+  <polygon points="252,580 268,580 260,596" fill="#8298b4" />
+  <line class="soft-arrow" x1="680" y1="528" x2="680" y2="580" />
+  <polygon points="672,580 688,580 680,596" fill="#8298b4" />
+  <line class="soft-arrow" x1="1100" y1="528" x2="1100" y2="580" />
+  <polygon points="1092,580 1108,580 1100,596" fill="#8298b4" />
 </svg>
