@@ -77,20 +77,20 @@ Median results from a local run on macOS / Python ``3.13.9`` with ``16`` partiti
 +----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
 | App                        | Worker path       | Mode      | 1 worker | 2 workers | 4 workers | 8 workers |
 +============================+===================+===========+==========+===========+===========+===========+
-| execution_pandas_project   | pandas / process  | mono      | 1.738    | 1.480     | 1.487     | 1.485     |
+| execution_pandas_project   | pandas / process  | mono      | 1.818    | 1.539     | 1.537     | 1.498     |
 +----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| execution_pandas_project   | pandas / process  | parallel  | 7.613    | 4.731     | 3.346     | 2.518     |
+| execution_pandas_project   | pandas / process  | parallel  | 1.772    | 1.892     | 2.057     | 2.157     |
 +----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| execution_polars_project   | polars / threads  | mono      | 1.789    | 1.539     | 1.568     | 1.579     |
+| execution_polars_project   | polars / threads  | mono      | 1.994    | 1.647     | 1.622     | 1.598     |
 +----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| execution_polars_project   | polars / threads  | parallel  | 1.789    | 1.561     | 1.563     | 1.582     |
+| execution_polars_project   | polars / threads  | parallel  | 1.520    | 1.436     | 1.517     | 1.564     |
 +----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
 
-These numbers are intentionally useful, even though they are not flattering to
-every path:
+These numbers are intentionally useful because the heavier mixed workload
+separates "more workers" from "better fit":
 
-- the pandas process-based path now shows a clear worker-count effect on the same workload: ``7.613s`` at ``1`` worker, ``4.731s`` at ``2``, ``3.346s`` at ``4``, and ``2.518s`` at ``8`` in parallel mode
-- the polars threaded path stays close to its steady-state result across ``1``, ``2``, ``4``, and ``8`` workers on the same workload
+- the pandas process-oriented path is only slightly ahead in local ``parallel`` mode at ``1`` worker (``1.772s`` vs ``1.818s``), then gets worse as worker count rises (``2.157s`` at ``8`` workers)
+- the polars threaded path improves at ``1-2`` workers (``1.520s``, ``1.436s``) and then converges back toward its steady state (``1.564s`` at ``8`` workers)
 - AGILAB therefore shows both *execution model* and *worker-count scaling* on the same reproducible workload
 
 Raw benchmark artifacts are versioned under:
@@ -152,7 +152,8 @@ matrix stays complete and the mode semantics remain visible.
 
 This second benchmark makes three extra points visible:
 
-- the best mode is not necessarily the same for the two worker designs
+- the heavier scalar tail now separates the plain local Python/Cython family, the local pool family, and the 2-node Dask family much more clearly
+- the best mode is not the same for the two worker designs: ``_d__`` for ``execution_pandas_project`` and ``_d_p`` for ``execution_polars_project``
 - a 2-node Dask topology can win for one execution model and not for another
 - requesting RAPIDS on hardware without NVIDIA tooling does not create a fake speedup: AGILAB still reports the run honestly as CPU-only
 
