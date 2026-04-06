@@ -45,7 +45,7 @@
   <rect x="84" y="488" width="460" height="66" rx="18" fill="#f6f9fd" stroke="#e3ebf4" stroke-width="2"/>
   <text x="108" y="517" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#496580">Family split</text>
   <text x="108" y="541" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#17324f">0.885 → 0.575 → 0.540</text>
-  <text x="382" y="541" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#6b829a">baseline → pool → Dask</text>
+  <text x="520" y="541" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#6b829a">baseline → pool → Dask</text>
 
   <rect x="708" y="204" width="166" height="34" rx="17" fill="#edf4fb"/>
   <text x="732" y="227" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#21476d">execution_polars_project</text>
@@ -71,7 +71,7 @@
   <rect x="708" y="488" width="460" height="66" rx="18" fill="#f6f9fd" stroke="#e3ebf4" stroke-width="2"/>
   <text x="732" y="517" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#496580">Family split</text>
   <text x="732" y="541" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#17324f">0.885 → 0.430 → 0.262</text>
-  <text x="1006" y="541" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#6b829a">baseline → pool → Dask</text>
+  <text x="1144" y="541" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#6b829a">baseline → pool → Dask</text>
 
   <rect x="52" y="602" width="18" height="18" rx="5" fill="#99a8b8"/>
   <text x="82" y="616" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#5b728b">Local Python/Cython baseline</text>
