@@ -16,7 +16,7 @@ from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker
 
 
-APPS_PATH = Path("src/agilab/apps/builtin")
+APPS_PATH = (Path(__file__).resolve().parents[1] / "src/agilab/apps/builtin").resolve()
 APPS = {
     "execution_pandas_project": {
         "manager_module": "execution_pandas.execution_pandas",
