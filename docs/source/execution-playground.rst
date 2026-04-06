@@ -74,22 +74,10 @@ The repository ships a reproducible benchmark helper:
 Median results from a local run on macOS / Python ``3.13.9`` with ``16`` partitions,
 ``100000`` rows per file, and ``32`` compute passes:
 
-+----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| App                        | Worker path       | Mode      | 1 worker | 2 workers | 4 workers | 8 workers |
-+============================+===================+===========+==========+===========+===========+===========+
-| execution_pandas_project   | pandas / process  | mono      | 1.818    | 1.539     | 1.537     | 1.498     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| execution_pandas_project   | pandas / process  | parallel  | 1.772    | 1.892     | 2.057     | 2.157     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| execution_polars_project   | polars / threads  | mono      | 1.994    | 1.647     | 1.622     | 1.598     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-| execution_polars_project   | polars / threads  | parallel  | 1.520    | 1.436     | 1.517     | 1.564     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
-
 These numbers are intentionally useful because the heavier mixed workload
 separates "more workers" from "better fit":
 
-- the pandas process-oriented path is only slightly ahead in local ``parallel`` mode at ``1`` worker (``1.772s`` vs ``1.818s``), then gets worse as worker count rises (``2.157s`` at ``8`` workers)
+- the pandas process-oriented path is only slightly ahead in local ``parallel`` mode at ``1`` worker (``1.772s``), then gets worse as worker count rises (``2.157s`` at ``8`` workers)
 - the polars threaded path improves at ``1-2`` workers (``1.520s``, ``1.436s``) and then converges back toward its steady state (``1.564s`` at ``8`` workers)
 - AGILAB therefore shows both *execution model* and *worker-count scaling* on the same reproducible workload
 
@@ -151,26 +139,6 @@ How to read the matrix quickly
 .. image:: diagrams/execution_mode_families.svg
    :alt: Visual summary of execution mode families for execution_pandas_project and execution_polars_project
    :width: 100%
-
-.. list-table:: 10-second summary
-   :header-rows: 1
-   :widths: 26 12 18 18 26
-
-   * - App
-     - Baseline ``____``
-     - Best local pool family
-     - Best 2-node Dask family
-     - Read
-   * - ``execution_pandas_project``
-     - ``0.885``
-     - ``0.575`` (``__cp``, ``-35%``)
-     - ``0.540`` (``_d__``, ``-39%``)
-     - Dask wins, but only slightly ahead of the local pool family.
-   * - ``execution_polars_project``
-     - ``0.885``
-     - ``0.430`` (``___p``, ``-51%``)
-     - ``0.262`` (``_d_p``, ``-70%``)
-     - The 2-node Dask family separates very clearly from the local baseline.
 
 .. rubric:: execution_pandas_project
 
