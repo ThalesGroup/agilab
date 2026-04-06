@@ -161,6 +161,24 @@ They run the same synthetic workload on the same generated dataset, but through 
 This makes the benchmark more useful than a simple "library A vs library B" comparison: AGILAB shows which
 execution model wins for the same workload, then keeps the orchestration path reproducible from UI to outputs.
 
+Measured local benchmark
+
+Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1`
+on macOS / Python `3.13.9`:
+
+| App | Worker path | Mono median (s) | Parallel median (s) | Parallel speedup |
+| --- | --- | ---: | ---: | ---: |
+| execution_pandas_project | pandas / process | 0.093 | 2.890 | 0.03x |
+| execution_polars_project | polars / threads | 0.038 | 0.039 | 0.98x |
+
+What this shows is exactly why the example matters: AGILAB makes the execution-model tradeoff explicit.
+On this laptop-sized workload, process startup dominates the pandas path, while the polars threaded path stays near
+break-even. The point is not that one library always wins; the point is that AGILAB shows when a worker model is a
+bad fit for the workload.
+
+Raw benchmark data:
+- [execution_playground_benchmark.json](docs/source/data/execution_playground_benchmark.json)
+
 ## Why star AGILAB
 
 Star AGILAB if you care about one or more of these:

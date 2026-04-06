@@ -1,0 +1,68 @@
+{
+  "apps": {
+    "execution_pandas_project": {
+      "engine": "pandas",
+      "execution_model": "process",
+      "modes": {
+        "0": {
+          "label": "mono",
+          "max_seconds": 0.09546613693237305,
+          "median_seconds": 0.09279584884643555,
+          "min_seconds": 0.09201407432556152,
+          "samples_seconds": [
+            0.09201407432556152,
+            0.09546613693237305,
+            0.09279584884643555
+          ]
+        },
+        "4": {
+          "label": "parallel",
+          "max_seconds": 3.126821994781494,
+          "median_seconds": 2.8903660774230957,
+          "min_seconds": 2.8187479972839355,
+          "samples_seconds": [
+            2.8187479972839355,
+            2.8903660774230957,
+            3.126821994781494
+          ]
+        }
+      },
+      "parallel_speedup_vs_mono": 0.032105223477147796
+    },
+    "execution_polars_project": {
+      "engine": "polars",
+      "execution_model": "threads",
+      "modes": {
+        "0": {
+          "label": "mono",
+          "max_seconds": 0.04042506217956543,
+          "median_seconds": 0.03811192512512207,
+          "min_seconds": 0.036570072174072266,
+          "samples_seconds": [
+            0.04042506217956543,
+            0.03811192512512207,
+            0.036570072174072266
+          ]
+        },
+        "4": {
+          "label": "parallel",
+          "max_seconds": 0.039196014404296875,
+          "median_seconds": 0.038703203201293945,
+          "min_seconds": 0.03819894790649414,
+          "samples_seconds": [
+            0.038703203201293945,
+            0.03819894790649414,
+            0.039196014404296875
+          ]
+        }
+      },
+      "parallel_speedup_vs_mono": 0.9847227612377027
+    }
+  },
+  "environment": {
+    "platform": "darwin",
+    "python": "3.13.9",
+    "repeats": 3,
+    "warmups": 1
+  }
+}

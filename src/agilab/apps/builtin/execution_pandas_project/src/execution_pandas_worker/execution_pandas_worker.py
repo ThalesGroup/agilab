@@ -48,6 +48,10 @@ class ExecutionPandasWorker(PandasWorker):
             return SimpleNamespace(**args)
         return args
 
+    def work_init(self) -> None:
+        """Keep parity with the PandasWorker execution contract."""
+        return None
+
     def work_pool(self, file_path):
         args = self._current_args()
         source = Path(str(file_path)).expanduser()
@@ -97,4 +101,3 @@ class ExecutionPandasWorker(PandasWorker):
             df.to_parquet(output_path.with_suffix(".parquet"))
         else:
             df.to_csv(output_path.with_suffix(".csv"), index=False)
-
