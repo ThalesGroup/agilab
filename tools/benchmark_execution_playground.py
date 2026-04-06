@@ -39,6 +39,9 @@ MODE_LABELS = {
     0: "mono",
     4: "parallel",
 }
+DEFAULT_ROWS_PER_FILE = 100_000
+DEFAULT_COMPUTE_PASSES = 8
+DEFAULT_PARTITIONS = 16
 
 
 def _load_classes(env: AgiEnv, app_name: str):
@@ -93,10 +96,30 @@ def _worker_output_root(env: AgiEnv, app_name: str, worker_count: int, mode: int
     )
 
 
-def _run_once(app_name: str, mode: int, worker_count: int, sample_idx: int) -> dict[str, Any]:
+def _run_once(
+    app_name: str,
+    mode: int,
+    worker_count: int,
+    sample_idx: int,
+    rows_per_file: int | None = DEFAULT_ROWS_PER_FILE,
+    compute_passes: int | None = DEFAULT_COMPUTE_PASSES,
+    n_partitions: int | None = DEFAULT_PARTITIONS,
+) -> dict[str, Any]:
     env = AgiEnv(apps_path=APPS_PATH, app=app_name, verbose=0)
     manager_cls, _, _ = _load_classes(env, app_name)
-    manager = manager_cls.from_toml(env, settings_path=env.app_settings_file)
+    overrides: dict[str, Any] = {}
+    if rows_per_file is not None:
+        overrides["rows_per_file"] = rows_per_file
+    if compute_passes is not None:
+        overrides["compute_passes"] = compute_passes
+    if n_partitions is not None:
+        overrides["n_partitions"] = n_partitions
+        overrides["nfile"] = n_partitions
+    manager = manager_cls.from_toml(
+        env,
+        settings_path=env.app_settings_file,
+        **overrides,
+    )
     manager.args.reset_target = True
 
     workers = {"127.0.0.1": worker_count}
@@ -163,7 +186,14 @@ def _run_once(app_name: str, mode: int, worker_count: int, sample_idx: int) -> d
     }
 
 
-def run_benchmarks(repeats: int, warmups: int, worker_counts: list[int]) -> dict[str, Any]:
+def run_benchmarks(
+    repeats: int,
+    warmups: int,
+    worker_counts: list[int],
+    rows_per_file: int | None = DEFAULT_ROWS_PER_FILE,
+    compute_passes: int | None = DEFAULT_COMPUTE_PASSES,
+    n_partitions: int | None = DEFAULT_PARTITIONS,
+) -> dict[str, Any]:
     results: dict[str, Any] = {"environment": {}, "apps": {}}
     results["environment"] = {
         "python": sys.version.split()[0],
@@ -171,6 +201,9 @@ def run_benchmarks(repeats: int, warmups: int, worker_counts: list[int]) -> dict
         "repeats": repeats,
         "warmups": warmups,
         "worker_counts": worker_counts,
+        "rows_per_file": rows_per_file,
+        "compute_passes": compute_passes,
+        "n_partitions": n_partitions,
     }
 
     for app_name, config in APPS.items():
@@ -190,6 +223,9 @@ def run_benchmarks(repeats: int, warmups: int, worker_counts: list[int]) -> dict
                         mode=mode,
                         worker_count=worker_count,
                         sample_idx=idx,
+                        rows_per_file=rows_per_file,
+                        compute_passes=compute_passes,
+                        n_partitions=n_partitions,
                     )
                     active_workers = sample["active_workers"]
                     if idx >= warmups:
@@ -243,6 +279,9 @@ def main() -> int:
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--warmups", type=int, default=1)
     parser.add_argument("--worker-counts", default="1,2,4")
+    parser.add_argument("--rows-per-file", type=int, default=DEFAULT_ROWS_PER_FILE)
+    parser.add_argument("--compute-passes", type=int, default=DEFAULT_COMPUTE_PASSES)
+    parser.add_argument("--n-partitions", type=int, default=DEFAULT_PARTITIONS)
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--md-out", type=Path)
     parser.add_argument("--child-run", type=Path, help=argparse.SUPPRESS)
@@ -254,7 +293,14 @@ def main() -> int:
         return _run_child(args.child_run)
 
     worker_counts = [int(item) for item in args.worker_counts.split(",") if item.strip()]
-    results = run_benchmarks(repeats=args.repeats, warmups=args.warmups, worker_counts=worker_counts)
+    results = run_benchmarks(
+        repeats=args.repeats,
+        warmups=args.warmups,
+        worker_counts=worker_counts,
+        rows_per_file=args.rows_per_file,
+        compute_passes=args.compute_passes,
+        n_partitions=args.n_partitions,
+    )
     payload = json.dumps(results, indent=2, sort_keys=True)
     table = _markdown_table(results)
 
