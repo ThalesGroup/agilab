@@ -68,6 +68,7 @@ plane for each stage.
 ## Quick links
 
 - **Documentation:** https://thalesgroup.github.io/agilab
+- **Execution Playground guide:** https://thalesgroup.github.io/agilab/execution-playground.html
 - **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
 - **Flight project guide:** https://thalesgroup.github.io/agilab/flight-project.html
 - **PyPI package:** https://pypi.org/project/agilab
@@ -140,9 +141,25 @@ What this shows in one pass:
 
 Useful references:
 
+- [Execution Playground guide](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Flight project overview](https://thalesgroup.github.io/agilab/flight-project.html)
 - [Apps-pages quick start](src/agilab/apps-pages/README.md)
 - [Service mode and paths](https://thalesgroup.github.io/agilab/service_mode_and_paths.html)
+
+## Killer example: Execution Playground
+
+If you want one example that shows why AGILAB is different, use the built-in execution playground:
+
+- `execution_pandas_project`
+- `execution_polars_project`
+
+They run the same synthetic workload on the same generated dataset, but through different worker paths:
+
+- `PandasWorker` highlights a process-based execution path
+- `PolarsWorker` highlights an in-process threaded execution path
+
+This makes the benchmark more useful than a simple "library A vs library B" comparison: AGILAB shows which
+execution model wins for the same workload, then keeps the orchestration path reproducible from UI to outputs.
 
 ## Why star AGILAB
 
