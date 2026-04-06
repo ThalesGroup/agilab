@@ -144,6 +144,27 @@ Useful references:
 - [Apps-pages quick start](src/agilab/apps-pages/README.md)
 - [Service mode and paths](https://thalesgroup.github.io/agilab/service_mode_and_paths.html)
 
+## Why star AGILAB
+
+Star AGILAB if you care about one or more of these:
+
+- **Reproducible AI/ML workflows** instead of hand-wired notebooks, shell scripts, and scattered env setup.
+- **Agent-friendly engineering** with repo-native guidance through `AGENTS.md`, `.codex/skills`, and documented Codex workflows.
+- **Free-threaded Python readiness** where environment and worker compatibility is explicit rather than accidental.
+- **One control path** from app selection to orchestration, pipeline inspection, analysis, and service mode.
+
+## Who this is for
+
+- Teams moving from local experimentation toward distributed or service-style execution.
+- Engineers who want a visible control path from UI or CLI to worker packaging and outputs.
+- Developers who want a repo that works well with coding agents, not just with humans.
+
+## Who this is not for
+
+- Teams looking only for experiment tracking without execution orchestration.
+- Users who want a notebook-only workflow with no packaging or deployment concerns.
+- Organizations expecting a finished all-in-one enterprise platform out of the box.
+
 ## What makes AGILAB different
 
 | Capability | What AGILAB gives you |
