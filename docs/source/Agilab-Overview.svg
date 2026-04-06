@@ -163,8 +163,8 @@
   <g transform="translate(1014,188)">
     <rect class="badge" width="212" height="38" rx="19" ry="19" />
     <text class="badge-text" x="106" y="24" text-anchor="middle">Execution path</text>
-    <line class="arrow" x1="106" y1="52" x2="106" y2="386" />
-    <polygon class="arrow-head" points="98,386 114,386 106,402" />
+    <line class="arrow" x1="194" y1="52" x2="194" y2="386" />
+    <polygon class="arrow-head" points="186,386 202,386 194,402" />
   </g>
 
   <g transform="translate(994,544)">
