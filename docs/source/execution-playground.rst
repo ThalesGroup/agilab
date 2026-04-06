@@ -69,28 +69,28 @@ The repository ships a reproducible benchmark helper:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4 --rows-per-file 100000 --compute-passes 8 --n-partitions 16
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4,8 --rows-per-file 100000 --compute-passes 32 --n-partitions 16
 
 Median results from a local run on macOS / Python ``3.13.9`` with ``16`` partitions,
-``100000`` rows per file, and ``8`` compute passes:
+``100000`` rows per file, and ``32`` compute passes:
 
-+----------------------------+-------------------+-----------+----------+-----------+-----------+
-| App                        | Worker path       | Mode      | 1 worker | 2 workers | 4 workers |
-+============================+===================+===========+==========+===========+===========+
-| execution_pandas_project   | pandas / process  | mono      | 1.607    | 1.416     | 1.457     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+
-| execution_pandas_project   | pandas / process  | parallel  | 7.411    | 4.563     | 3.301     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+
-| execution_polars_project   | polars / threads  | mono      | 1.225    | 1.287     | 1.381     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+
-| execution_polars_project   | polars / threads  | parallel  | 1.232    | 1.252     | 1.383     |
-+----------------------------+-------------------+-----------+----------+-----------+-----------+
++----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
+| App                        | Worker path       | Mode      | 1 worker | 2 workers | 4 workers | 8 workers |
++============================+===================+===========+==========+===========+===========+===========+
+| execution_pandas_project   | pandas / process  | mono      | 1.738    | 1.480     | 1.487     | 1.485     |
++----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
+| execution_pandas_project   | pandas / process  | parallel  | 7.613    | 4.731     | 3.346     | 2.518     |
++----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
+| execution_polars_project   | polars / threads  | mono      | 1.789    | 1.539     | 1.568     | 1.579     |
++----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
+| execution_polars_project   | polars / threads  | parallel  | 1.789    | 1.561     | 1.563     | 1.582     |
++----------------------------+-------------------+-----------+----------+-----------+-----------+-----------+
 
 These numbers are intentionally useful, even though they are not flattering to
 every path:
 
-- the pandas process-based path now shows a clear worker-count effect on the same workload: ``7.411s`` at ``1`` worker, ``4.563s`` at ``2``, and ``3.301s`` at ``4`` in parallel mode
-- the polars threaded path is already near its best result with ``1`` worker and stays almost flat when more workers are added here
+- the pandas process-based path now shows a clear worker-count effect on the same workload: ``7.613s`` at ``1`` worker, ``4.731s`` at ``2``, ``3.346s`` at ``4``, and ``2.518s`` at ``8`` in parallel mode
+- the polars threaded path stays close to its steady-state result across ``1``, ``2``, ``4``, and ``8`` workers on the same workload
 - AGILAB therefore shows both *execution model* and *worker-count scaling* on the same reproducible workload
 
 Raw benchmark artifacts are versioned under:

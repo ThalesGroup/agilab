@@ -22,7 +22,7 @@ class ExecutionPolarsArgs(BaseModel):
     n_partitions: int = 16
     rows_per_file: int = 100_000
     n_groups: int = 32
-    compute_passes: int = 8
+    compute_passes: int = 32
     output_format: Literal["csv", "parquet"] = "csv"
     seed: int = 42
     reset_target: bool = False
