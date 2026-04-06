@@ -166,6 +166,8 @@ Measured local benchmark
 Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4,8 --rows-per-file 100000 --compute-passes 32 --n-partitions 16`
 on macOS / Python `3.13.9` with a heavier default workload (`16` partitions, `100000` rows per file, `32` compute passes):
 
+The helper resolves its built-in app paths from the script location, so it does not require running from the repo root.
+
 This heavier mixed workload makes a more useful point than a raw library benchmark:
 adding workers only helps when the execution model actually fits the workload.
 
@@ -182,6 +184,8 @@ Generated with:
 
 `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_mode_matrix.py --remote-host <remote-macos-ip> --scheduler-host <local-macos-ip> --rows-per-file 100000 --compute-passes 32 --n-partitions 16 --repeats 2`
 
+`--remote-host` accepts either `host` or `user@host`. If you pass only a host or IP, the helper defaults to `agi@<host>` for both SSH and dataset sync.
+
 This second benchmark uses 2 macOS ARM nodes over SSH: the local scheduler/worker and a second Mac worker.
 It covers all 16 execution modes:
 
@@ -192,11 +196,11 @@ It covers all 16 execution modes:
 
 The mode code is a compact bitfield: `r d c p` = `rapids / dask / cython / pool`.
 
-On this hardware, the `r...` and `rd...` modes are still useful for coverage, but they are **CPU-only** runs because neither Mac exposes NVIDIA tooling.
+In the versioned benchmark artifacts committed today, the `r...` and `rd...` modes are still useful for coverage, but they are **CPU-only** runs because neither Mac exposed NVIDIA tooling on that capture.
 
 How to read it quickly
 
-1. Ignore rows `8-15` on these Macs for performance interpretation: they keep the RAPIDS bit visible, but they are still CPU-only here.
+1. Ignore rows `8-15` in the committed capture for performance interpretation: they keep the RAPIDS bit visible, but they are still CPU-only there.
 2. Read the matrix by **families**, not by isolated rows:
    - local Python/Cython baseline: `0-2`
    - local pool/process family: `1-3`
@@ -210,6 +214,7 @@ What the full 16-mode matrix shows:
 - `execution_pandas_project`: the plain local Python/Cython family sits around `0.885-0.910s`, the local pool family around `0.575-0.585s`, and the best non-RAPIDS result comes from the 2-node Dask path `_d__` at `0.540s`.
 - `execution_polars_project`: the plain local Python/Cython family sits around `0.875-0.900s`, the local pool family around `0.430-0.445s`, and the best non-RAPIDS result comes from the 2-node Dask+pool path `_d_p` at `0.262s`.
 - AGILAB therefore shows more than a library race: it separates execution-model families clearly and makes the winning execution topology explicit.
+- Local-only RAPIDS rows and 2-node RAPIDS rows are reported independently, so GPU availability follows the topology that actually ran.
 
 Full published artifacts:
 - [execution_mode_matrix_benchmark.json](docs/source/data/execution_mode_matrix_benchmark.json)
