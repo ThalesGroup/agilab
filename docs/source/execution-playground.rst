@@ -62,6 +62,37 @@ rest of AGILAB still shows:
 - generated snippets
 - exported outputs
 
+Measured local benchmark
+------------------------
+
+The repository ships a reproducible benchmark helper:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1
+
+Median results from a local run on macOS / Python ``3.13.9``:
+
++----------------------------+-------------------+------------------+----------------------+------------------+
+| App                        | Worker path       | Mono median (s)  | Parallel median (s)  | Parallel speedup |
++============================+===================+==================+======================+==================+
+| execution_pandas_project   | pandas / process  | 0.093            | 2.890                | 0.03x            |
++----------------------------+-------------------+------------------+----------------------+------------------+
+| execution_polars_project   | polars / threads  | 0.038            | 0.039                | 0.98x            |
++----------------------------+-------------------+------------------+----------------------+------------------+
+
+These numbers are intentionally useful, even though they are not flattering to
+every path:
+
+- the pandas process-based path pays heavy startup and IPC overhead on this workload
+- the polars threaded path stays close to mono on the same workload
+- AGILAB therefore shows *when* a parallel execution model is a poor fit, not
+  only when it helps
+
+Raw benchmark artifacts are versioned under:
+
+- ``docs/source/data/execution_playground_benchmark.json``
+
 How to run it
 -------------
 
@@ -75,7 +106,7 @@ How to run it
 3. In **ORCHESTRATE**, run **INSTALL** once, then **EXECUTE**.
 4. Enable **Benchmark all modes** when you want AGILAB to compare execution paths.
 5. Repeat with ``src/agilab/apps/builtin/execution_polars_project``.
-6. Compare the benchmark table and the generated outputs.
+6. Compare the benchmark table in **ORCHESTRATE > Benchmark results** and the generated outputs.
 
 What to look for
 ----------------

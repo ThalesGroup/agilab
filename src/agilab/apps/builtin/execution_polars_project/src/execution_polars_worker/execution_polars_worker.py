@@ -46,6 +46,10 @@ class ExecutionPolarsWorker(PolarsWorker):
             return SimpleNamespace(**args)
         return args
 
+    def work_init(self) -> None:
+        """Keep parity with the PolarsWorker execution contract."""
+        return None
+
     def work_pool(self, file_path):
         args = self._current_args()
         source = Path(str(file_path)).expanduser()
@@ -103,4 +107,3 @@ class ExecutionPolarsWorker(PolarsWorker):
             df.write_parquet(output_path.with_suffix(".parquet"))
         else:
             df.write_csv(output_path.with_suffix(".csv"))
-

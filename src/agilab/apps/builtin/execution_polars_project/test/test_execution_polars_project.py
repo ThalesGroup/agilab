@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import polars as pl
+
+from agi_node.agi_dispatcher import BaseWorker
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +56,7 @@ def test_execution_polars_generates_dataset_and_distribution(tmp_path: Path) -> 
     assert weights_key == "size_kb"
     assert unit == "KB"
     assert metadata[0][0][0].endswith(".csv")
+    assert "dir_path" not in manager.as_dict()
 
 
 def test_execution_polars_worker_processes_a_file(tmp_path: Path) -> None:
@@ -74,3 +78,26 @@ def test_execution_polars_worker_processes_a_file(tmp_path: Path) -> None:
     assert {"engine", "execution_model", "weighted_score", "source_file"} <= set(result.columns)
     assert set(result["engine"].to_list()) == {"polars"}
     assert set(result["execution_model"].to_list()) == {"threads"}
+
+
+def test_execution_polars_worker_runs_monoprocess_plan(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    args = ExecutionPolarsArgs(n_partitions=2, nfile=2, rows_per_file=24, n_groups=6, reset_target=True)
+    manager = ExecutionPolars(env, args=args)
+    workers = {"127.0.0.1": 1}
+    work_plan, metadata, *_ = manager.build_distribution(workers)
+
+    worker = ExecutionPolarsWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+    worker._mode = 0
+
+    BaseWorker._t0 = time.time()
+    worker.start()
+    seconds = worker.works(work_plan, metadata)
+
+    assert seconds >= 0.0
+    assert any(Path(worker.data_out).glob("*.csv"))
