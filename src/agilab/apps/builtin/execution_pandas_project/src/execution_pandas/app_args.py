@@ -18,11 +18,11 @@ class ExecutionPandasArgs(BaseModel):
     data_in: Path = Field(default_factory=lambda: Path("execution_playground/dataset"))
     data_out: Path = Field(default_factory=lambda: Path("execution_pandas/results"))
     files: str = "*.csv"
-    nfile: int = 8
-    n_partitions: int = 8
-    rows_per_file: int = 25_000
+    nfile: int = 16
+    n_partitions: int = 16
+    rows_per_file: int = 100_000
     n_groups: int = 32
-    compute_passes: int = 3
+    compute_passes: int = 8
     output_format: Literal["csv", "parquet"] = "csv"
     seed: int = 42
     reset_target: bool = False
