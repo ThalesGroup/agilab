@@ -1,183 +1,196 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840" role="img" aria-labelledby="title desc">
-  <title id="title">AGILab runtime stack</title>
-  <desc id="desc">Layered AGILab diagram showing user surfaces, agi_core, agi_env, agi_cluster and agi_node, then workers and data artifacts connected by the execution path.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB runtime stack</title>
+  <desc id="desc">Layered AGILAB diagram showing entry surfaces, control-plane components, execution services, and produced artifacts on one readable control path.</desc>
   <defs>
     <style>
       text {
         font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-        fill: #122745;
+        fill: #10263e;
       }
       .title {
-        font-size: 38px;
+        font-size: 44px;
         font-weight: 700;
       }
       .subtitle {
-        font-size: 19px;
-        fill: #536b8c;
+        font-size: 21px;
+        fill: #536c8a;
       }
       .lane-label {
         font-size: 18px;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
-        fill: #60799a;
+        fill: #657d99;
       }
       .lane-rule {
-        stroke: #d8e2ef;
-        stroke-width: 2;
+        stroke: #d5dfeb;
+        stroke-width: 2.2;
       }
       .box {
-        stroke: #122745;
-        stroke-width: 3;
-        rx: 28;
-        ry: 28;
+        stroke: #12304d;
+        stroke-width: 3.2;
+        rx: 30;
+        ry: 30;
         filter: url(#shadow);
       }
       .box-title {
-        font-size: 26px;
+        font-size: 30px;
         font-weight: 700;
       }
       .box-body {
-        font-size: 17px;
+        font-size: 19px;
+        fill: #314a67;
       }
       .box-note {
         font-size: 16px;
-        fill: #455d7f;
+        fill: #546c87;
       }
       .callout {
-        stroke: #cfdbea;
-        stroke-width: 2.4;
-        rx: 22;
-        ry: 22;
+        stroke: #cfd9e6;
+        stroke-width: 2.2;
+        rx: 24;
+        ry: 24;
         filter: url(#shadow-soft);
       }
       .callout-title {
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 700;
       }
       .callout-body {
-        font-size: 15px;
-        fill: #455d7f;
+        font-size: 16px;
+        fill: #415b77;
       }
       .arrow {
-        stroke: #122745;
-        stroke-width: 4;
+        stroke: #12304d;
+        stroke-width: 4.6;
         stroke-linecap: round;
       }
       .arrow-soft {
-        stroke: #7488a5;
-        stroke-width: 3;
+        stroke: #7d92ae;
+        stroke-width: 3.4;
         stroke-linecap: round;
       }
       .badge {
-        fill: #122745;
+        fill: #12304d;
       }
       .badge-text {
         font-size: 14px;
         font-weight: 700;
-        fill: #f8fbff;
+        fill: #f7fbff;
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
       .bullet {
-        fill: #7d97b7;
+        fill: #7f98b5;
       }
     </style>
-    <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#122745" />
+    <marker id="arrowhead" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#12304d" />
     </marker>
-    <marker id="arrowhead-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#7488a5" />
+    <marker id="arrowhead-soft" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d92ae" />
     </marker>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fbfdff" />
-      <stop offset="100%" stop-color="#eef3fb" />
+      <stop offset="100%" stop-color="#eef4fb" />
     </linearGradient>
     <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#90a5c1" flood-opacity="0.18" />
+      <feDropShadow dx="0" dy="7" stdDeviation="11" flood-color="#90a5c1" flood-opacity="0.18" />
     </filter>
     <filter id="shadow-soft" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#90a5c1" flood-opacity="0.12" />
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#90a5c1" flood-opacity="0.13" />
     </filter>
   </defs>
 
-  <rect width="1280" height="840" fill="url(#bg)" rx="40" ry="40" />
+  <rect width="1280" height="920" fill="url(#bg)" rx="40" ry="40" />
 
-  <rect x="154" y="132" width="962" height="108" fill="#f6fbff" rx="26" ry="26" />
-  <rect x="154" y="264" width="962" height="142" fill="#f7f5ff" rx="26" ry="26" />
-  <rect x="154" y="430" width="962" height="124" fill="#fff9e8" rx="26" ry="26" />
-  <rect x="154" y="580" width="962" height="138" fill="#fff4f7" rx="26" ry="26" />
-
-  <g transform="translate(72,66)">
-    <text class="title" x="0" y="0">AGILab runtime stack</text>
-    <text class="subtitle" x="0" y="38">From user-facing entry points to worker execution, staging, and exported artifacts.</text>
+  <g transform="translate(72,72)">
+    <text class="title" x="0" y="0">AGILAB runtime stack</text>
+    <text class="subtitle" x="0" y="40">One readable path from UI and CLI entrypoints to packaged workers, execution, and artifacts.</text>
   </g>
 
-  <g transform="translate(72,138)">
+  <rect x="160" y="144" width="952" height="112" fill="#f4fbff" rx="28" ry="28" />
+  <rect x="160" y="284" width="952" height="156" fill="#f6f2ff" rx="28" ry="28" />
+  <rect x="160" y="468" width="952" height="128" fill="#fff8e5" rx="28" ry="28" />
+  <rect x="160" y="624" width="952" height="152" fill="#fff3f6" rx="28" ry="28" />
+
+  <g transform="translate(72,154)">
     <text class="lane-label" x="0" y="34">Entry</text>
-    <line class="lane-rule" x1="84" y1="26" x2="184" y2="26" />
-    <text class="lane-label" x="0" y="170">Control plane</text>
-    <line class="lane-rule" x1="148" y1="162" x2="184" y2="162" />
-    <text class="lane-label" x="0" y="336">Execution plane</text>
-    <line class="lane-rule" x1="182" y1="328" x2="184" y2="328" />
-    <text class="lane-label" x="0" y="492">Artifacts</text>
-    <line class="lane-rule" x1="108" y1="484" x2="184" y2="484" />
+    <line class="lane-rule" x1="82" y1="25" x2="180" y2="25" />
+    <text class="lane-label" x="0" y="180">Control plane</text>
+    <line class="lane-rule" x1="144" y1="171" x2="180" y2="171" />
+    <text class="lane-label" x="0" y="366">Execution plane</text>
+    <line class="lane-rule" x1="178" y1="357" x2="180" y2="357" />
+    <text class="lane-label" x="0" y="526">Artifacts</text>
+    <line class="lane-rule" x1="104" y1="517" x2="180" y2="517" />
   </g>
 
-  <g transform="translate(194,144)">
-    <rect class="box" width="784" height="88" fill="#d6efff" />
-    <text class="box-title" x="392" y="36" text-anchor="middle">User surfaces</text>
-    <text class="box-body" x="392" y="64" text-anchor="middle">Web interface pages, CLI mirrors, PyCharm run configurations</text>
+  <g transform="translate(198,152)">
+    <rect class="box" width="808" height="96" fill="#d8efff" />
+    <text class="box-title" x="404" y="38" text-anchor="middle">User surfaces</text>
+    <text class="box-body" x="404" y="66" text-anchor="middle">
+      <tspan x="404" dy="0">Streamlit pages, CLI mirrors,</tspan>
+      <tspan x="404" dy="24">and PyCharm run configurations</tspan>
+    </text>
   </g>
 
-  <g transform="translate(194,282)">
-    <rect class="box" width="784" height="108" fill="#ddd9ff" />
-    <text class="box-title" x="392" y="36" text-anchor="middle">agi_core</text>
-    <text class="box-body" x="392" y="64" text-anchor="middle">App loaders, widgets, telemetry, history, reusable services</text>
-    <text class="box-note" x="392" y="90" text-anchor="middle">Builds WorkDispatcher manifests and orchestrates AGI sessions</text>
+  <g transform="translate(198,300)">
+    <rect class="box" width="808" height="124" fill="#dfdcff" />
+    <text class="box-title" x="404" y="38" text-anchor="middle">agi_core</text>
+    <text class="box-body" x="404" y="66" text-anchor="middle">
+      <tspan x="404" dy="0">App loaders, widgets, telemetry, history,</tspan>
+      <tspan x="404" dy="24">and reusable services for AGI sessions</tspan>
+    </text>
+    <text class="box-note" x="404" y="102" text-anchor="middle">Builds manifests, routes actions, and keeps the control plane coherent.</text>
   </g>
 
-  <g transform="translate(194,438)">
-    <rect class="box" width="784" height="96" fill="#ffe19a" />
-    <text class="box-title" x="392" y="35" text-anchor="middle">agi_env</text>
-    <text class="box-body" x="392" y="62" text-anchor="middle">Resolves apps, datasets, credentials, workspace config and worker bundles</text>
-    <text class="box-note" x="392" y="84" text-anchor="middle">Stages installed apps, localshare or clustershare, and <tspan font-style="italic">~/wenv</tspan> bundles</text>
+  <g transform="translate(198,484)">
+    <rect class="box" width="808" height="108" fill="#ffe39e" />
+    <text class="box-title" x="404" y="38" text-anchor="middle">agi_env</text>
+    <text class="box-body" x="404" y="66" text-anchor="middle">
+      <tspan x="404" dy="0">Resolves apps, datasets, credentials, workspaces,</tspan>
+      <tspan x="404" dy="24">and worker bundles for the selected run</tspan>
+    </text>
+    <text class="box-note" x="404" y="92" text-anchor="middle">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
   </g>
 
-  <g transform="translate(194,590)">
-    <rect class="box" width="784" height="112" fill="#ffd8e3" />
-    <text class="box-title" x="392" y="36" text-anchor="middle">agi_cluster and agi_node</text>
-    <text class="box-body" x="392" y="64" text-anchor="middle">Scheduler, workers, SSH helpers, packaging, balancer, health checks</text>
-    <text class="box-note" x="392" y="90" text-anchor="middle">Executes WorkDispatcher plans locally or on remote hosts</text>
+  <g transform="translate(198,640)">
+    <rect class="box" width="808" height="120" fill="#ffdbe5" />
+    <text class="box-title" x="404" y="38" text-anchor="middle">agi_cluster and agi_node</text>
+    <text class="box-body" x="404" y="66" text-anchor="middle">
+      <tspan x="404" dy="0">Scheduler, packaging, SSH helpers, health checks,</tspan>
+      <tspan x="404" dy="24">and local or remote worker execution</tspan>
+    </text>
+    <text class="box-note" x="404" y="102" text-anchor="middle">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
   </g>
 
-  <g transform="translate(1010,184)">
-    <rect class="badge" width="164" height="36" rx="18" ry="18" />
-    <text class="badge-text" x="82" y="23" text-anchor="middle">Execution path</text>
-    <line class="arrow" x1="82" y1="48" x2="82" y2="378" marker-end="url(#arrowhead)" />
+  <g transform="translate(1026,188)">
+    <rect class="badge" width="168" height="38" rx="19" ry="19" />
+    <text class="badge-text" x="84" y="24" text-anchor="middle">Execution path</text>
+    <line class="arrow" x1="84" y1="52" x2="84" y2="398" marker-end="url(#arrowhead)" />
   </g>
 
-  <g transform="translate(1000,504)">
-    <rect class="callout" width="180" height="164" fill="#ffffff" />
-    <text class="callout-title" x="20" y="30">Workers and data</text>
-    <circle class="bullet" cx="24" cy="58" r="4" />
-    <text class="callout-body" x="36" y="63">Packaged worker code</text>
-    <circle class="bullet" cx="24" cy="84" r="4" />
-    <text class="callout-body" x="36" y="89">cluster storage</text>
-    <circle class="bullet" cx="24" cy="110" r="4" />
-    <text class="callout-body" x="36" y="115">export artifacts</text>
-    <circle class="bullet" cx="24" cy="136" r="4" />
-    <text class="callout-body" x="36" y="141">logs and run history</text>
+  <g transform="translate(1012,544)">
+    <rect class="callout" width="186" height="182" fill="#ffffff" />
+    <text class="callout-title" x="20" y="32">Workers and data</text>
+    <circle class="bullet" cx="24" cy="64" r="4.5" />
+    <text class="callout-body" x="38" y="69">Packaged worker code</text>
+    <circle class="bullet" cx="24" cy="92" r="4.5" />
+    <text class="callout-body" x="38" y="97">Cluster and local storage</text>
+    <circle class="bullet" cx="24" cy="120" r="4.5" />
+    <text class="callout-body" x="38" y="125">Exported artifacts</text>
+    <circle class="bullet" cx="24" cy="148" r="4.5" />
+    <text class="callout-body" x="38" y="153">Logs and run history</text>
   </g>
 
-  <g transform="translate(60,742)">
-    <rect class="callout" width="704" height="60" fill="#ffffff" />
-    <text class="callout-title" x="22" y="38">Typical flow</text>
-    <text class="callout-body" x="170" y="38">User action → manifest build → environment resolution → worker execution → artifacts and visual feedback</text>
+  <g transform="translate(60,804)">
+    <rect class="callout" width="728" height="72" fill="#ffffff" />
+    <text class="callout-title" x="22" y="42">Typical flow</text>
+    <text class="callout-body" x="172" y="42">User action → manifest build → environment resolution → worker execution → artifacts and feedback</text>
   </g>
 
-  <line class="arrow" x1="586" y1="232" x2="586" y2="282" marker-end="url(#arrowhead)" />
-  <line class="arrow" x1="586" y1="390" x2="586" y2="438" marker-end="url(#arrowhead)" />
-  <line class="arrow" x1="586" y1="534" x2="586" y2="590" marker-end="url(#arrowhead)" />
-  <line class="arrow-soft" x1="978" y1="646" x2="1000" y2="586" marker-end="url(#arrowhead-soft)" />
+  <line class="arrow" x1="602" y1="258" x2="602" y2="288" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="602" y1="434" x2="602" y2="472" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="602" y1="602" x2="602" y2="628" marker-end="url(#arrowhead)" />
+  <line class="arrow-soft" x1="1000" y1="694" x2="1008" y2="652" marker-end="url(#arrowhead-soft)" />
 </svg>
