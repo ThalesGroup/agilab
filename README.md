@@ -166,18 +166,11 @@ Measured local benchmark
 Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4,8 --rows-per-file 100000 --compute-passes 32 --n-partitions 16`
 on macOS / Python `3.13.9` with a heavier default workload (`16` partitions, `100000` rows per file, `32` compute passes):
 
-| App | Worker path | Mode | 1 worker | 2 workers | 4 workers | 8 workers |
-| --- | --- | --- | ---: | ---: | ---: | ---: |
-| execution_pandas_project | pandas / process | mono | 1.818 | 1.539 | 1.537 | 1.498 |
-| execution_pandas_project | pandas / process | parallel | 1.772 | 1.892 | 2.057 | 2.157 |
-| execution_polars_project | polars / threads | mono | 1.994 | 1.647 | 1.622 | 1.598 |
-| execution_polars_project | polars / threads | parallel | 1.520 | 1.436 | 1.517 | 1.564 |
-
 This heavier mixed workload makes a more useful point than a raw library benchmark:
 adding workers only helps when the execution model actually fits the workload.
 
-- `pandas / process` is only slightly ahead in local `parallel` mode at `1` worker (`1.772s` vs `1.818s`), then gets worse as worker count rises (`2.157s` at `8` workers).
-- `polars / threads` improves at `1-2` workers (`1.520s`, `1.436s`) and then converges back toward its steady state (`1.564s` at `8` workers).
+- `pandas / process`: `1.772s` at `1` worker, then worse at `8` workers (`2.157s`)
+- `polars / threads`: improves at `1-2` workers (`1.520s`, `1.436s`), then converges back (`1.564s` at `8`)
 - AGILAB therefore makes the execution model and the worker-count scaling behavior explicit on the same reproducible workload.
 
 Raw benchmark data:
@@ -211,13 +204,6 @@ How to read it quickly
 3. Compare each family to mode `0` (`____`) to see whether the execution model is buying you anything.
 
 ![Execution mode families at a glance](docs/source/diagrams/execution_mode_families.svg)
-
-10-second summary
-
-| App | Baseline `____` | Best local pool family | Best 2-node Dask family | Read |
-| --- | ---: | ---: | ---: | --- |
-| execution_pandas_project | 0.885 | 0.575 (`__cp`, -35%) | 0.540 (`_d__`, -39%) | Dask wins, but only slightly ahead of the local pool family. |
-| execution_polars_project | 0.885 | 0.430 (`___p`, -51%) | 0.262 (`_d_p`, -70%) | The 2-node Dask family separates very clearly from the local baseline. |
 
 What the full 16-mode matrix shows:
 
