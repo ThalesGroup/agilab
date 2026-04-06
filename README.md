@@ -163,18 +163,21 @@ execution model wins for the same workload, then keeps the orchestration path re
 
 Measured local benchmark
 
-Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1`
+Generated with `uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4`
 on macOS / Python `3.13.9`:
 
-| App | Worker path | Mono median (s) | Parallel median (s) | Parallel speedup |
-| --- | --- | ---: | ---: | ---: |
-| execution_pandas_project | pandas / process | 0.093 | 2.890 | 0.03x |
-| execution_polars_project | polars / threads | 0.038 | 0.039 | 0.98x |
+| App | Worker path | Mode | 1 worker | 2 workers | 4 workers |
+| --- | --- | --- | ---: | ---: | ---: |
+| execution_pandas_project | pandas / process | mono | 1.087 | 1.220 | 1.317 |
+| execution_pandas_project | pandas / process | parallel | 4.146 | 2.795 | 2.241 |
+| execution_polars_project | polars / threads | mono | 1.100 | 1.155 | 1.317 |
+| execution_polars_project | polars / threads | parallel | 1.080 | 1.157 | 1.325 |
 
-What this shows is exactly why the example matters: AGILAB makes the execution-model tradeoff explicit.
-On this laptop-sized workload, process startup dominates the pandas path, while the polars threaded path stays near
-break-even. The point is not that one library always wins; the point is that AGILAB shows when a worker model is a
-bad fit for the workload.
+This is the extra point the example now makes visible: results change with the number of workers.
+
+- `pandas / process` gets better as worker count increases, but the process-heavy path still stays expensive on this workload.
+- `polars / threads` is already close to its best result with one worker and does not benefit from adding more workers here.
+- AGILAB therefore makes two things explicit at once: the execution model and the worker-count scaling behavior.
 
 Raw benchmark data:
 - [execution_playground_benchmark.json](docs/source/data/execution_playground_benchmark.json)
