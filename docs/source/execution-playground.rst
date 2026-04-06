@@ -148,6 +148,10 @@ How to read the matrix quickly
 3. Compare each family back to mode ``0`` (``____``) to see whether the
    execution model is buying you anything.
 
+.. image:: diagrams/execution_mode_families.svg
+   :alt: Visual summary of execution mode families for execution_pandas_project and execution_polars_project
+   :width: 100%
+
 .. list-table:: 10-second summary
    :header-rows: 1
    :widths: 26 12 18 18 26
