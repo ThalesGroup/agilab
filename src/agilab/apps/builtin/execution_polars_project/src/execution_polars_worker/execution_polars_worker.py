@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import time
 
 import polars as pl
 
@@ -49,6 +50,20 @@ class ExecutionPolarsWorker(PolarsWorker):
     def work_init(self) -> None:
         """Keep parity with the PolarsWorker execution contract."""
         return None
+
+    def works(self, workers_plan, workers_plan_metadata) -> float:
+        """Treat pool and dask bits as parallel paths for this benchmark worker."""
+        if workers_plan:
+            if self._mode & 0b0101:
+                self._exec_multi_process(workers_plan, workers_plan_metadata)
+            else:
+                self._exec_mono_process(workers_plan, workers_plan_metadata)
+
+        self.stop()
+
+        if getattr(PolarsWorker, "_t0", None) is None:
+            PolarsWorker._t0 = time.time()
+        return time.time() - PolarsWorker._t0
 
     def work_pool(self, file_path):
         args = self._current_args()

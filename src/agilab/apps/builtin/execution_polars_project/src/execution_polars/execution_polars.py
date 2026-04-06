@@ -165,8 +165,17 @@ class ExecutionPolars(BaseWorker):
         work_plan = []
         work_plan_metadata = []
         for chunk in worker_chunks:
-            work_plan.append([[file_path] for file_path, _ in chunk])
-            work_plan_metadata.append([(Path(file_path).name, size_kb) for file_path, size_kb in chunk])
+            file_batch = [file_path for file_path, _ in chunk]
+            total_size_kb = sum(size_kb for _, size_kb in chunk)
+            batch_label = (
+                Path(file_batch[0]).name
+                if len(file_batch) == 1
+                else f"{len(file_batch)} files"
+            )
+            work_plan.append([file_batch])
+            work_plan_metadata.append(
+                [{"file": batch_label, "size_kb": total_size_kb}]
+            )
 
         return work_plan, work_plan_metadata, "file", "size_kb", "KB"
 

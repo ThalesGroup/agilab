@@ -1,0 +1,522 @@
+{
+  "generated_at": "2026-04-06T14:44:33.794084+00:00",
+  "environment": {
+    "python": "3.13.9",
+    "platform": "darwin",
+    "rows_per_file": 100000,
+    "compute_passes": 32,
+    "n_partitions": 16,
+    "repeats": 2,
+    "scheduler_host": "local-macos-node",
+    "remote_worker_host": "remote-macos-node",
+    "topology": "1 local macOS scheduler/worker + 1 remote macOS worker over SSH",
+    "nodes": {
+      "local": {
+        "label": "local-macos-node",
+        "hostname": "m40",
+        "os": "Darwin arm64",
+        "nvidia_smi": false
+      },
+      "remote": {
+        "label": "remote-macos-node",
+        "hostname": "m41",
+        "os": "Darwin arm64",
+        "nvidia_smi": false
+      }
+    }
+  },
+  "apps": {
+    "execution_pandas_project": {
+      "engine": "pandas",
+      "execution_model": "process",
+      "modes": {
+        "0": {
+          "label": "python",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "____",
+          "samples_seconds": [
+            0.65,
+            0.64
+          ],
+          "median_seconds": 0.645,
+          "min_seconds": 0.64,
+          "max_seconds": 0.65
+        },
+        "1": {
+          "label": "pool of process",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "___p",
+          "samples_seconds": [
+            0.57,
+            0.56
+          ],
+          "median_seconds": 0.565,
+          "min_seconds": 0.56,
+          "max_seconds": 0.57
+        },
+        "2": {
+          "label": "cython",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "__c_",
+          "samples_seconds": [
+            0.66,
+            0.65
+          ],
+          "median_seconds": 0.655,
+          "min_seconds": 0.65,
+          "max_seconds": 0.66
+        },
+        "3": {
+          "label": "pool and cython",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "__cp",
+          "samples_seconds": [
+            0.56,
+            0.56
+          ],
+          "median_seconds": 0.56,
+          "min_seconds": 0.56,
+          "max_seconds": 0.56
+        },
+        "4": {
+          "label": "dask",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_d__",
+          "samples_seconds": [
+            0.6151461601257324,
+            0.6109218597412109
+          ],
+          "median_seconds": 0.6130340099334717,
+          "min_seconds": 0.6109218597412109,
+          "max_seconds": 0.6151461601257324
+        },
+        "5": {
+          "label": "dask and pool",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_d_p",
+          "samples_seconds": [
+            0.5721750259399414,
+            0.6156611442565918
+          ],
+          "median_seconds": 0.5939180850982666,
+          "min_seconds": 0.5721750259399414,
+          "max_seconds": 0.6156611442565918
+        },
+        "6": {
+          "label": "dask and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_dc_",
+          "samples_seconds": [
+            0.6107048988342285,
+            0.6145930290222168
+          ],
+          "median_seconds": 0.6126489639282227,
+          "min_seconds": 0.6107048988342285,
+          "max_seconds": 0.6145930290222168
+        },
+        "7": {
+          "label": "dask and pool and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_dcp",
+          "samples_seconds": [
+            0.6168580055236816,
+            0.6154100894927979
+          ],
+          "median_seconds": 0.6161340475082397,
+          "min_seconds": 0.6154100894927979,
+          "max_seconds": 0.6168580055236816
+        },
+        "8": {
+          "label": "rapids",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r___",
+          "samples_seconds": [
+            0.64,
+            0.65
+          ],
+          "median_seconds": 0.645,
+          "min_seconds": 0.64,
+          "max_seconds": 0.65
+        },
+        "9": {
+          "label": "rapids and pool",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r__p",
+          "samples_seconds": [
+            0.56,
+            0.57
+          ],
+          "median_seconds": 0.565,
+          "min_seconds": 0.56,
+          "max_seconds": 0.57
+        },
+        "10": {
+          "label": "rapids and cython",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r_c_",
+          "samples_seconds": [
+            0.65,
+            0.65
+          ],
+          "median_seconds": 0.65,
+          "min_seconds": 0.65,
+          "max_seconds": 0.65
+        },
+        "11": {
+          "label": "rapids and pool and cython",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r_cp",
+          "samples_seconds": [
+            0.56,
+            0.55
+          ],
+          "median_seconds": 0.555,
+          "min_seconds": 0.55,
+          "max_seconds": 0.56
+        },
+        "12": {
+          "label": "rapids and dask",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rd__",
+          "samples_seconds": [
+            0.6162521839141846,
+            0.5410091876983643
+          ],
+          "median_seconds": 0.5786306858062744,
+          "min_seconds": 0.5410091876983643,
+          "max_seconds": 0.6162521839141846
+        },
+        "13": {
+          "label": "rapids and dask and pool",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rd_p",
+          "samples_seconds": [
+            0.5413379669189453,
+            0.5401289463043213
+          ],
+          "median_seconds": 0.5407334566116333,
+          "min_seconds": 0.5401289463043213,
+          "max_seconds": 0.5413379669189453
+        },
+        "14": {
+          "label": "rapids and dask and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rdc_",
+          "samples_seconds": [
+            0.5311679840087891,
+            0.53851318359375
+          ],
+          "median_seconds": 0.5348405838012695,
+          "min_seconds": 0.5311679840087891,
+          "max_seconds": 0.53851318359375
+        },
+        "15": {
+          "label": "rapids and dask and pool and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rdcp",
+          "samples_seconds": [
+            0.6154308319091797,
+            0.6144070625305176
+          ],
+          "median_seconds": 0.6149189472198486,
+          "min_seconds": 0.6144070625305176,
+          "max_seconds": 0.6154308319091797
+        }
+      }
+    },
+    "execution_polars_project": {
+      "engine": "polars",
+      "execution_model": "threads",
+      "modes": {
+        "0": {
+          "label": "python",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "____",
+          "samples_seconds": [
+            0.66,
+            0.66
+          ],
+          "median_seconds": 0.66,
+          "min_seconds": 0.66,
+          "max_seconds": 0.66
+        },
+        "1": {
+          "label": "pool of process",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "___p",
+          "samples_seconds": [
+            0.21,
+            0.22
+          ],
+          "median_seconds": 0.215,
+          "min_seconds": 0.21,
+          "max_seconds": 0.22
+        },
+        "2": {
+          "label": "cython",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "__c_",
+          "samples_seconds": [
+            0.66,
+            0.66
+          ],
+          "median_seconds": 0.66,
+          "min_seconds": 0.66,
+          "max_seconds": 0.66
+        },
+        "3": {
+          "label": "pool and cython",
+          "topology": "local only",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "Local-only execution path.",
+          "mode_code": "__cp",
+          "samples_seconds": [
+            0.22,
+            0.21
+          ],
+          "median_seconds": 0.215,
+          "min_seconds": 0.21,
+          "max_seconds": 0.22
+        },
+        "4": {
+          "label": "dask",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_d__",
+          "samples_seconds": [
+            0.15799903869628906,
+            0.15581488609313965
+          ],
+          "median_seconds": 0.15690696239471436,
+          "min_seconds": 0.15581488609313965,
+          "max_seconds": 0.15799903869628906
+        },
+        "5": {
+          "label": "dask and pool",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_d_p",
+          "samples_seconds": [
+            0.15350890159606934,
+            0.15712213516235352
+          ],
+          "median_seconds": 0.15531551837921143,
+          "min_seconds": 0.15350890159606934,
+          "max_seconds": 0.15712213516235352
+        },
+        "6": {
+          "label": "dask and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_dc_",
+          "samples_seconds": [
+            0.1511211395263672,
+            0.1517500877380371
+          ],
+          "median_seconds": 0.15143561363220215,
+          "min_seconds": 0.1511211395263672,
+          "max_seconds": 0.1517500877380371
+        },
+        "7": {
+          "label": "dask and pool and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": false,
+          "gpu_accelerated": false,
+          "note": "1 local macOS worker + 1 remote macOS worker over SSH.",
+          "mode_code": "_dcp",
+          "samples_seconds": [
+            0.15569114685058594,
+            0.15709519386291504
+          ],
+          "median_seconds": 0.1563931703567505,
+          "min_seconds": 0.15569114685058594,
+          "max_seconds": 0.15709519386291504
+        },
+        "8": {
+          "label": "rapids",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r___",
+          "samples_seconds": [
+            0.66,
+            0.66
+          ],
+          "median_seconds": 0.66,
+          "min_seconds": 0.66,
+          "max_seconds": 0.66
+        },
+        "9": {
+          "label": "rapids and pool",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r__p",
+          "samples_seconds": [
+            0.21,
+            0.21
+          ],
+          "median_seconds": 0.21,
+          "min_seconds": 0.21,
+          "max_seconds": 0.21
+        },
+        "10": {
+          "label": "rapids and cython",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r_c_",
+          "samples_seconds": [
+            0.65,
+            0.66
+          ],
+          "median_seconds": 0.655,
+          "min_seconds": 0.65,
+          "max_seconds": 0.66
+        },
+        "11": {
+          "label": "rapids and pool and cython",
+          "topology": "local only",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but the local macOS node exposes no NVIDIA tooling; this remains a CPU-only local run.",
+          "mode_code": "r_cp",
+          "samples_seconds": [
+            0.2,
+            0.2
+          ],
+          "median_seconds": 0.2,
+          "min_seconds": 0.2,
+          "max_seconds": 0.2
+        },
+        "12": {
+          "label": "rapids and dask",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rd__",
+          "samples_seconds": [
+            0.1558239459991455,
+            0.1490640640258789
+          ],
+          "median_seconds": 0.1524440050125122,
+          "min_seconds": 0.1490640640258789,
+          "max_seconds": 0.1558239459991455
+        },
+        "13": {
+          "label": "rapids and dask and pool",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rd_p",
+          "samples_seconds": [
+            0.15004897117614746,
+            0.15375804901123047
+          ],
+          "median_seconds": 0.15190351009368896,
+          "min_seconds": 0.15004897117614746,
+          "max_seconds": 0.15375804901123047
+        },
+        "14": {
+          "label": "rapids and dask and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rdc_",
+          "samples_seconds": [
+            0.15684199333190918,
+            0.15392088890075684
+          ],
+          "median_seconds": 0.155381441116333,
+          "min_seconds": 0.15392088890075684,
+          "max_seconds": 0.15684199333190918
+        },
+        "15": {
+          "label": "rapids and dask and pool and cython",
+          "topology": "2-node cluster (1 local + 1 remote macOS worker)",
+          "rapids_requested": true,
+          "gpu_accelerated": false,
+          "note": "RAPIDS bit requested, but neither macOS node exposes NVIDIA tooling; this remains a CPU-only run over the 2-node SSH/Dask topology.",
+          "mode_code": "rdcp",
+          "samples_seconds": [
+            0.15125083923339844,
+            0.16286897659301758
+          ],
+          "median_seconds": 0.157059907913208,
+          "min_seconds": 0.15125083923339844,
+          "max_seconds": 0.16286897659301758
+        }
+      }
+    }
+  }
+}
