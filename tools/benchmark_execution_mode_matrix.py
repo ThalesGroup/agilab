@@ -54,6 +54,10 @@ class NodeInfo:
     has_nvidia_smi: bool
 
 
+def _ssh_target(host: str) -> str:
+    return host if "@" in host else f"agi@{host}"
+
+
 def _parse_runtime(run_output: Any) -> tuple[str, float]:
     if not isinstance(run_output, str):
         raise TypeError(f"Expected a timing string, got {type(run_output)!r}")
@@ -89,7 +93,7 @@ def _probe_remote_node(host: str) -> NodeInfo:
         " if command -v nvidia-smi >/dev/null 2>&1; then echo yes; else echo no; fi"
     )
     output = _run_shell(
-        ["ssh", "-o", "BatchMode=yes", f"agi@{host}", cmd]
+        ["ssh", "-o", "BatchMode=yes", _ssh_target(host), cmd]
     ).splitlines()
     if len(output) < 3:
         raise RuntimeError(f"Unexpected remote probe output from {host!r}: {output!r}")
@@ -105,11 +109,17 @@ def _probe_remote_node(host: str) -> NodeInfo:
 def _sync_dataset_to_remote(data_in: Path, remote_host: str) -> None:
     parent_cmd = f"mkdir -p {shlex.quote(str(data_in.parent))}"
     subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", f"agi@{remote_host}", parent_cmd],
+        ["ssh", "-o", "BatchMode=yes", _ssh_target(remote_host), parent_cmd],
         check=True,
     )
     subprocess.run(
-        ["rsync", "-az", "--delete", f"{data_in}/", f"{remote_host}:{data_in}/"],
+        [
+            "rsync",
+            "-az",
+            "--delete",
+            f"{data_in}/",
+            f"{_ssh_target(remote_host)}:{data_in}/",
+        ],
         check=True,
     )
 
@@ -124,9 +134,17 @@ def _prepare_output_root(local_output_root: Path, remote_host: str | None) -> No
             f" && mkdir -p {shlex.quote(str(local_output_root))}"
         )
         subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", f"agi@{remote_host}", remote_cmd],
+            ["ssh", "-o", "BatchMode=yes", _ssh_target(remote_host), remote_cmd],
             check=True,
         )
+
+
+def _gpu_accelerated(mode: int, local_node: NodeInfo, remote_node: NodeInfo | None) -> bool:
+    if mode < 8:
+        return False
+    if mode in CLUSTER_MODES:
+        return any(node.has_nvidia_smi for node in (local_node, remote_node) if node)
+    return local_node.has_nvidia_smi
 
 
 def _mode_note(mode: int, local_node: NodeInfo, remote_node: NodeInfo | None) -> str:
@@ -327,7 +345,7 @@ async def run_mode_matrix(
                 "label": MODE_NAMES[mode],
                 "topology": _topology_label(mode),
                 "rapids_requested": mode >= 8,
-                "gpu_accelerated": bool(mode >= 8 and local_node.has_nvidia_smi and remote_node.has_nvidia_smi),
+                "gpu_accelerated": _gpu_accelerated(mode, local_node, remote_node),
                 "note": _mode_note(mode, local_node, remote_node),
                 **sample_result,
             }
