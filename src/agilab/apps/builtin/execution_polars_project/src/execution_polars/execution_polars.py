@@ -84,9 +84,7 @@ class ExecutionPolars(BaseWorker):
         dump_args(self.args, settings_path, section=section, create_missing=create_missing)
 
     def as_dict(self) -> dict[str, Any]:
-        payload = self.args.model_dump(mode="json")
-        payload["dir_path"] = str(self.args.data_in)
-        return payload
+        return self.args.model_dump(mode="json")
 
     def _manifest_path(self, data_in: Path) -> Path:
         return data_in / "_execution_playground_manifest.json"
