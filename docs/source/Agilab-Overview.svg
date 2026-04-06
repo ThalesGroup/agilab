@@ -163,11 +163,11 @@
   <g transform="translate(1014,188)">
     <rect class="badge" width="212" height="38" rx="19" ry="19" />
     <text class="badge-text" x="106" y="24" text-anchor="middle">Execution path</text>
-    <line class="arrow" x1="194" y1="52" x2="194" y2="386" />
-    <polygon class="arrow-head" points="186,386 202,386 194,402" />
+    <line class="arrow" x1="106" y1="52" x2="106" y2="340" />
+    <polygon class="arrow-head" points="98,340 114,340 106,356" />
   </g>
 
-  <g transform="translate(994,544)">
+  <g transform="translate(1018,544)">
     <rect class="callout" width="204" height="182" fill="#ffffff" />
     <text class="callout-title" x="20" y="32">Workers and data</text>
     <circle class="bullet" cx="24" cy="64" r="4.5" />
