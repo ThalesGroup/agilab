@@ -71,6 +71,9 @@ The repository ships a reproducible benchmark helper:
 
    uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4,8 --rows-per-file 100000 --compute-passes 32 --n-partitions 16
 
+The helper now resolves its built-in app paths from the script location, so it
+can be launched from any working directory inside or outside the repo root.
+
 Median results from a local run on macOS / Python ``3.13.9`` with ``16`` partitions,
 ``100000`` rows per file, and ``32`` compute passes:
 
@@ -95,6 +98,10 @@ matrix on 2 Macs over SSH:
 
    uv --preview-features extra-build-dependencies run python tools/benchmark_execution_mode_matrix.py --remote-host <remote-macos-ip> --scheduler-host <local-macos-ip> --rows-per-file 100000 --compute-passes 32 --n-partitions 16 --repeats 2
 
+``--remote-host`` accepts either ``host`` or ``user@host``. If you pass only a
+host or IP, the helper defaults to ``agi@<host>`` for both the SSH probe/setup
+steps and the dataset ``rsync`` step.
+
 This run uses:
 
 - 1 local macOS ARM scheduler/worker
@@ -118,15 +125,17 @@ The compact ``code`` column uses the order ``r d c p``:
 - ``c`` = Cython requested
 - ``p`` = pool/process path requested
 
-On these 2 Macs, the ``r...`` and ``rd...`` modes are still **CPU-only**
-because neither node exposes NVIDIA tooling. They are benchmarked anyway so the
-matrix stays complete and the mode semantics remain visible.
+In the versioned benchmark artifacts shipped with the repository, the ``r...``
+and ``rd...`` modes are still **CPU-only** because neither node exposed NVIDIA
+tooling on that capture. The helper still reports RAPIDS requests explicitly,
+and on other hardware it can mark local-only RAPIDS rows as GPU-accelerated
+even if the remote node stays CPU-only.
 
 How to read the matrix quickly
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. Ignore rows ``8-15`` for performance interpretation on these Macs: they keep
-   the RAPIDS bit visible, but they are still CPU-only here.
+1. Ignore rows ``8-15`` for performance interpretation in the versioned capture
+   below: they keep the RAPIDS bit visible, but they are still CPU-only there.
 2. Read the matrix by **families**, not by isolated rows:
 
    - local Python/Cython baseline: ``0-2``
@@ -162,6 +171,7 @@ This second benchmark makes three extra points visible:
 - the best mode is not the same for the two worker designs: ``_d__`` for ``execution_pandas_project`` and ``_d_p`` for ``execution_polars_project``
 - a 2-node Dask topology can win for one execution model and not for another
 - requesting RAPIDS on hardware without NVIDIA tooling does not create a fake speedup: AGILAB still reports the run honestly as CPU-only
+- local-only RAPIDS rows and 2-node RAPIDS rows are reported independently, so GPU availability now follows the topology that actually ran
 
 Raw matrix artifacts are versioned under:
 
