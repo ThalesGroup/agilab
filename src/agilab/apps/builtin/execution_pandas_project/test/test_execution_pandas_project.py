@@ -77,7 +77,7 @@ def test_execution_pandas_worker_processes_a_file(tmp_path: Path) -> None:
     result = worker.work_pool(str(source))
 
     assert isinstance(result, pd.DataFrame)
-    assert {"engine", "execution_model", "weighted_score", "source_file"} <= set(result.columns)
+    assert {"engine", "execution_model", "weighted_score", "python_tail_checksum", "source_file"} <= set(result.columns)
     assert set(result["engine"]) == {"pandas"}
     assert set(result["execution_model"]) == {"process"}
 

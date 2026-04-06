@@ -53,6 +53,25 @@ class ExecutionPandasWorker(PandasWorker):
         """Keep parity with the PandasWorker execution contract."""
         return None
 
+    def _python_tail_checksum(self, df: pd.DataFrame) -> float:
+        """Add a small GIL-bound scalar tail so execution modes separate more clearly."""
+        args = self._current_args()
+        loop_passes = max(int(getattr(args, "compute_passes", 1)), 1) * 8
+        sample_stride = 64
+        checksum = 0.0
+        x_values = df["x"].to_list()
+        y_values = df["y"].to_list()
+        signal_values = df["signal"].to_list()
+        weight_values = df["weight"].to_list()
+        for idx in range(0, len(x_values), sample_stride):
+            value = float(x_values[idx]) + float(y_values[idx]) * 0.01
+            signal = float(signal_values[idx])
+            weight = float(weight_values[idx])
+            for _ in range(loop_passes):
+                value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
+            checksum += value
+        return checksum
+
     def works(self, workers_plan, workers_plan_metadata) -> float:
         """Treat pool and dask bits as parallel paths for this benchmark worker."""
         if workers_plan:
@@ -100,8 +119,10 @@ class ExecutionPandasWorker(PandasWorker):
                 "segment_weight": [1.00, 1.08, 1.14, 1.22],
             }
         )
+        python_tail_checksum = self._python_tail_checksum(df)
         agg = agg.merge(segment_weights, on="segment", how="left")
         agg["weighted_score"] = agg["score_mean"] * agg["segment_weight"] * agg["row_count"]
+        agg["python_tail_checksum"] = python_tail_checksum
         agg["source_file"] = source.name
         agg["engine"] = "pandas"
         agg["execution_model"] = "process"

@@ -168,16 +168,17 @@ on macOS / Python `3.13.9` with a heavier default workload (`16` partitions, `10
 
 | App | Worker path | Mode | 1 worker | 2 workers | 4 workers | 8 workers |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| execution_pandas_project | pandas / process | mono | 1.738 | 1.480 | 1.487 | 1.485 |
-| execution_pandas_project | pandas / process | parallel | 7.613 | 4.731 | 3.346 | 2.518 |
-| execution_polars_project | polars / threads | mono | 1.789 | 1.539 | 1.568 | 1.579 |
-| execution_polars_project | polars / threads | parallel | 1.789 | 1.561 | 1.563 | 1.582 |
+| execution_pandas_project | pandas / process | mono | 1.818 | 1.539 | 1.537 | 1.498 |
+| execution_pandas_project | pandas / process | parallel | 1.772 | 1.892 | 2.057 | 2.157 |
+| execution_polars_project | polars / threads | mono | 1.994 | 1.647 | 1.622 | 1.598 |
+| execution_polars_project | polars / threads | parallel | 1.520 | 1.436 | 1.517 | 1.564 |
 
-This is the extra point the example now makes visible: when the worker task is long enough, results change with the number of workers, and not in the same way for both execution models.
+This heavier mixed workload makes a more useful point than a raw library benchmark:
+adding workers only helps when the execution model actually fits the workload.
 
-- `pandas / process` now benefits materially from more workers on the heavier task: `7.613s` at `1` worker, `4.731s` at `2`, `3.346s` at `4`, and `2.518s` at `8`.
-- `polars / threads` stays near its steady-state result across `1/2/4/8` workers on the same workload.
-- AGILAB therefore makes two things explicit at once: the execution model and the worker-count scaling behavior.
+- `pandas / process` is only slightly ahead in local `parallel` mode at `1` worker (`1.772s` vs `1.818s`), then gets worse as worker count rises (`2.157s` at `8` workers).
+- `polars / threads` improves at `1-2` workers (`1.520s`, `1.436s`) and then converges back toward its steady state (`1.564s` at `8` workers).
+- AGILAB therefore makes the execution model and the worker-count scaling behavior explicit on the same reproducible workload.
 
 Raw benchmark data:
 - [execution_playground_benchmark.json](docs/source/data/execution_playground_benchmark.json)
@@ -202,9 +203,9 @@ On this hardware, the `r...` and `rd...` modes are still useful for coverage, bu
 
 What the full 16-mode matrix shows:
 
-- `execution_pandas_project`: the best non-RAPIDS result is the local pool+cython mode `__cp`, slightly ahead of the 2-node Dask variants on this workload.
-- `execution_polars_project`: the best non-RAPIDS result comes from the 2-node Dask+cython path `_dc_`, clearly ahead of plain local Python on the same workload.
-- AGILAB therefore shows more than a library race: it makes the winning execution topology explicit, including when cluster dispatch helps and when it does not.
+- `execution_pandas_project`: the plain local Python/Cython family sits around `0.885-0.910s`, the local pool family around `0.575-0.585s`, and the best non-RAPIDS result comes from the 2-node Dask path `_d__` at `0.540s`.
+- `execution_polars_project`: the plain local Python/Cython family sits around `0.875-0.900s`, the local pool family around `0.430-0.445s`, and the best non-RAPIDS result comes from the 2-node Dask+pool path `_d_p` at `0.262s`.
+- AGILAB therefore shows more than a library race: it separates execution-model families clearly and makes the winning execution topology explicit.
 
 Full published artifacts:
 - [execution_mode_matrix_benchmark.json](docs/source/data/execution_mode_matrix_benchmark.json)
