@@ -4,7 +4,7 @@
   <defs>
     <style>
       text {
-        font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
         fill: #10263e;
       }
       .title {
@@ -80,10 +80,10 @@
         fill: #12304d;
       }
       .badge-text {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 700;
         fill: #f7fbff;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
       }
       .bullet {
@@ -116,13 +116,13 @@
 
   <g transform="translate(72,154)">
     <text class="lane-label" x="0" y="34">Entry</text>
-    <line class="lane-rule" x1="82" y1="25" x2="180" y2="25" />
+    <line class="lane-rule" x1="94" y1="25" x2="180" y2="25" />
     <text class="lane-label" x="0" y="180">Control plane</text>
-    <line class="lane-rule" x1="144" y1="171" x2="180" y2="171" />
+    <line class="lane-rule" x1="168" y1="171" x2="212" y2="171" />
     <text class="lane-label" x="0" y="366">Execution plane</text>
-    <line class="lane-rule" x1="178" y1="357" x2="180" y2="357" />
+    <line class="lane-rule" x1="198" y1="357" x2="238" y2="357" />
     <text class="lane-label" x="0" y="526">Artifacts</text>
-    <line class="lane-rule" x1="104" y1="517" x2="180" y2="517" />
+    <line class="lane-rule" x1="116" y1="517" x2="180" y2="517" />
   </g>
 
   <g transform="translate(198,152)">
@@ -160,11 +160,11 @@
     <text class="box-note" x="36" y="102">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
   </g>
 
-  <g transform="translate(1026,188)">
-    <rect class="badge" width="188" height="38" rx="19" ry="19" />
-    <text class="badge-text" x="94" y="24" text-anchor="middle">Execution path</text>
-    <line class="arrow" x1="84" y1="52" x2="84" y2="386" />
-    <polygon class="arrow-head" points="76,386 92,386 84,402" />
+  <g transform="translate(1014,188)">
+    <rect class="badge" width="212" height="38" rx="19" ry="19" />
+    <text class="badge-text" x="106" y="24" text-anchor="middle">Execution path</text>
+    <line class="arrow" x1="106" y1="52" x2="106" y2="386" />
+    <polygon class="arrow-head" points="98,386 114,386 106,402" />
   </g>
 
   <g transform="translate(994,544)">
