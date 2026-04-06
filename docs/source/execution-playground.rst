@@ -134,6 +134,40 @@ On these 2 Macs, the ``r...`` and ``rd...`` modes are still **CPU-only**
 because neither node exposes NVIDIA tooling. They are benchmarked anyway so the
 matrix stays complete and the mode semantics remain visible.
 
+How to read the matrix quickly
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Ignore rows ``8-15`` for performance interpretation on these Macs: they keep
+   the RAPIDS bit visible, but they are still CPU-only here.
+2. Read the matrix by **families**, not by isolated rows:
+
+   - local Python/Cython baseline: ``0-2``
+   - local pool/process family: ``1-3``
+   - 2-node Dask family: ``4-7``
+
+3. Compare each family back to mode ``0`` (``____``) to see whether the
+   execution model is buying you anything.
+
+.. list-table:: 10-second summary
+   :header-rows: 1
+   :widths: 26 12 18 18 26
+
+   * - App
+     - Baseline ``____``
+     - Best local pool family
+     - Best 2-node Dask family
+     - Read
+   * - ``execution_pandas_project``
+     - ``0.885``
+     - ``0.575`` (``__cp``, ``-35%``)
+     - ``0.540`` (``_d__``, ``-39%``)
+     - Dask wins, but only slightly ahead of the local pool family.
+   * - ``execution_polars_project``
+     - ``0.885``
+     - ``0.430`` (``___p``, ``-51%``)
+     - ``0.262`` (``_d_p``, ``-70%``)
+     - The 2-node Dask family separates very clearly from the local baseline.
+
 .. rubric:: execution_pandas_project
 
 .. csv-table:: 16-mode matrix for ``execution_pandas_project``

@@ -201,6 +201,22 @@ The mode code is a compact bitfield: `r d c p` = `rapids / dask / cython / pool`
 
 On this hardware, the `r...` and `rd...` modes are still useful for coverage, but they are **CPU-only** runs because neither Mac exposes NVIDIA tooling.
 
+How to read it quickly
+
+1. Ignore rows `8-15` on these Macs for performance interpretation: they keep the RAPIDS bit visible, but they are still CPU-only here.
+2. Read the matrix by **families**, not by isolated rows:
+   - local Python/Cython baseline: `0-2`
+   - local pool/process family: `1-3`
+   - 2-node Dask family: `4-7`
+3. Compare each family to mode `0` (`____`) to see whether the execution model is buying you anything.
+
+10-second summary
+
+| App | Baseline `____` | Best local pool family | Best 2-node Dask family | Read |
+| --- | ---: | ---: | ---: | --- |
+| execution_pandas_project | 0.885 | 0.575 (`__cp`, -35%) | 0.540 (`_d__`, -39%) | Dask wins, but only slightly ahead of the local pool family. |
+| execution_polars_project | 0.885 | 0.430 (`___p`, -51%) | 0.262 (`_d_p`, -70%) | The 2-node Dask family separates very clearly from the local baseline. |
+
 What the full 16-mode matrix shows:
 
 - `execution_pandas_project`: the plain local Python/Cython family sits around `0.885-0.910s`, the local pool family around `0.575-0.585s`, and the best non-RAPIDS result comes from the 2-node Dask path `_d__` at `0.540s`.
