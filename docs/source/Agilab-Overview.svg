@@ -70,6 +70,12 @@
         stroke-width: 3.4;
         stroke-linecap: round;
       }
+      .arrow-head {
+        fill: #12304d;
+      }
+      .arrow-head-soft {
+        fill: #7d92ae;
+      }
       .badge {
         fill: #12304d;
       }
@@ -84,12 +90,6 @@
         fill: #7f98b5;
       }
     </style>
-    <marker id="arrowhead" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#12304d" />
-    </marker>
-    <marker id="arrowhead-soft" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d92ae" />
-    </marker>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fbfdff" />
       <stop offset="100%" stop-color="#eef4fb" />
@@ -127,51 +127,48 @@
 
   <g transform="translate(198,152)">
     <rect class="box" width="808" height="96" fill="#d8efff" />
-    <text class="box-title" x="404" y="38" text-anchor="middle">User surfaces</text>
-    <text class="box-body" x="404" y="66" text-anchor="middle">
-      <tspan x="404" dy="0">Streamlit pages, CLI mirrors,</tspan>
-      <tspan x="404" dy="24">and PyCharm run configurations</tspan>
+    <text class="box-title" x="36" y="40">User surfaces</text>
+    <text class="box-body" x="36" y="72">
+      <tspan x="36" dy="0">Streamlit pages, CLI mirrors, and PyCharm run configurations</tspan>
     </text>
   </g>
 
   <g transform="translate(198,300)">
     <rect class="box" width="808" height="124" fill="#dfdcff" />
-    <text class="box-title" x="404" y="38" text-anchor="middle">agi_core</text>
-    <text class="box-body" x="404" y="66" text-anchor="middle">
-      <tspan x="404" dy="0">App loaders, widgets, telemetry, history,</tspan>
-      <tspan x="404" dy="24">and reusable services for AGI sessions</tspan>
+    <text class="box-title" x="36" y="40">agi_core</text>
+    <text class="box-body" x="36" y="70">
+      <tspan x="36" dy="0">App loaders, widgets, telemetry, history, and reusable services for AGI sessions</tspan>
     </text>
-    <text class="box-note" x="404" y="102" text-anchor="middle">Builds manifests, routes actions, and keeps the control plane coherent.</text>
+    <text class="box-note" x="36" y="102">Builds manifests, routes actions, and keeps the control plane coherent.</text>
   </g>
 
   <g transform="translate(198,484)">
     <rect class="box" width="808" height="108" fill="#ffe39e" />
-    <text class="box-title" x="404" y="38" text-anchor="middle">agi_env</text>
-    <text class="box-body" x="404" y="66" text-anchor="middle">
-      <tspan x="404" dy="0">Resolves apps, datasets, credentials, workspaces,</tspan>
-      <tspan x="404" dy="24">and worker bundles for the selected run</tspan>
+    <text class="box-title" x="36" y="40">agi_env</text>
+    <text class="box-body" x="36" y="70">
+      <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces, and worker bundles for the selected run</tspan>
     </text>
-    <text class="box-note" x="404" y="92" text-anchor="middle">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
+    <text class="box-note" x="36" y="92">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
   </g>
 
   <g transform="translate(198,640)">
     <rect class="box" width="808" height="120" fill="#ffdbe5" />
-    <text class="box-title" x="404" y="38" text-anchor="middle">agi_cluster and agi_node</text>
-    <text class="box-body" x="404" y="66" text-anchor="middle">
-      <tspan x="404" dy="0">Scheduler, packaging, SSH helpers, health checks,</tspan>
-      <tspan x="404" dy="24">and local or remote worker execution</tspan>
+    <text class="box-title" x="36" y="40">agi_cluster and agi_node</text>
+    <text class="box-body" x="36" y="70">
+      <tspan x="36" dy="0">Scheduler, packaging, SSH helpers, health checks, and local or remote worker execution</tspan>
     </text>
-    <text class="box-note" x="404" y="102" text-anchor="middle">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
+    <text class="box-note" x="36" y="102">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
   </g>
 
   <g transform="translate(1026,188)">
     <rect class="badge" width="168" height="38" rx="19" ry="19" />
     <text class="badge-text" x="84" y="24" text-anchor="middle">Execution path</text>
-    <line class="arrow" x1="84" y1="52" x2="84" y2="398" marker-end="url(#arrowhead)" />
+    <line class="arrow" x1="84" y1="52" x2="84" y2="386" />
+    <polygon class="arrow-head" points="76,386 92,386 84,402" />
   </g>
 
-  <g transform="translate(1012,544)">
-    <rect class="callout" width="186" height="182" fill="#ffffff" />
+  <g transform="translate(994,544)">
+    <rect class="callout" width="204" height="182" fill="#ffffff" />
     <text class="callout-title" x="20" y="32">Workers and data</text>
     <circle class="bullet" cx="24" cy="64" r="4.5" />
     <text class="callout-body" x="38" y="69">Packaged worker code</text>
@@ -186,11 +183,13 @@
   <g transform="translate(60,804)">
     <rect class="callout" width="728" height="72" fill="#ffffff" />
     <text class="callout-title" x="22" y="42">Typical flow</text>
-    <text class="callout-body" x="172" y="42">User action → manifest build → environment resolution → worker execution → artifacts and feedback</text>
+    <text class="callout-body" x="168" y="42">User action → manifest build → environment resolution → worker execution → artifacts and feedback</text>
   </g>
 
-  <line class="arrow" x1="602" y1="258" x2="602" y2="288" marker-end="url(#arrowhead)" />
-  <line class="arrow" x1="602" y1="434" x2="602" y2="472" marker-end="url(#arrowhead)" />
-  <line class="arrow" x1="602" y1="602" x2="602" y2="628" marker-end="url(#arrowhead)" />
-  <line class="arrow-soft" x1="1000" y1="694" x2="1008" y2="652" marker-end="url(#arrowhead-soft)" />
+  <line class="arrow" x1="602" y1="256" x2="602" y2="276" />
+  <polygon class="arrow-head" points="594,276 610,276 602,292" />
+  <line class="arrow" x1="602" y1="424" x2="602" y2="460" />
+  <polygon class="arrow-head" points="594,460 610,460 602,476" />
+  <line class="arrow" x1="602" y1="592" x2="602" y2="616" />
+  <polygon class="arrow-head" points="594,616 610,616 602,632" />
 </svg>

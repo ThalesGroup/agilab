@@ -83,13 +83,10 @@
       .shadow {
         filter: url(#shadow);
       }
+      .arrow-head {
+        fill: #17324d;
+      }
     </style>
-    <marker id="arrowhead" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#17324d" />
-    </marker>
-    <marker id="arrowhead-soft" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8.4" refY="5" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8298b4" />
-    </marker>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fbfdff" />
       <stop offset="100%" stop-color="#eef4fb" />
@@ -163,9 +160,12 @@
     <text class="mini" x="28" y="200">not only shell logs.</text>
   </g>
 
-  <line class="arrow" x1="358" y1="367" x2="380" y2="367" marker-end="url(#arrowhead)" />
-  <line class="arrow" x1="668" y1="367" x2="690" y2="367" marker-end="url(#arrowhead)" />
-  <line class="arrow" x1="978" y1="367" x2="1000" y2="367" marker-end="url(#arrowhead)" />
+  <line class="arrow" x1="352" y1="367" x2="378" y2="367" />
+  <polygon class="arrow-head" points="378,359 378,375 394,367" />
+  <line class="arrow" x1="662" y1="367" x2="688" y2="367" />
+  <polygon class="arrow-head" points="688,359 688,375 704,367" />
+  <line class="arrow" x1="972" y1="367" x2="998" y2="367" />
+  <polygon class="arrow-head" points="998,359 998,375 1014,367" />
 
   <g transform="translate(80,534)">
     <text class="section" x="0" y="0">Why this matters</text>
@@ -196,7 +196,10 @@
     <text class="value-body" x="28" y="134">before handing off to a larger production stack.</text>
   </g>
 
-  <path class="soft-arrow" d="M 215 488 C 215 510 215 528 215 550" marker-end="url(#arrowhead-soft)" fill="none" />
-  <path class="soft-arrow" d="M 525 488 C 525 510 680 528 680 550" marker-end="url(#arrowhead-soft)" fill="none" />
-  <path class="soft-arrow" d="M 835 488 C 835 510 1090 528 1090 550" marker-end="url(#arrowhead-soft)" fill="none" />
+  <line class="soft-arrow" x1="215" y1="488" x2="215" y2="546" />
+  <polygon points="207,546 223,546 215,562" fill="#8298b4" />
+  <line class="soft-arrow" x1="525" y1="488" x2="525" y2="546" />
+  <polygon points="517,546 533,546 525,562" fill="#8298b4" />
+  <line class="soft-arrow" x1="835" y1="488" x2="835" y2="546" />
+  <polygon points="827,546 843,546 835,562" fill="#8298b4" />
 </svg>
