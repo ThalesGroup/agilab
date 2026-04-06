@@ -138,7 +138,7 @@
     <rect class="card shadow" width="270" height="230" fill="#e1dcff" />
     <circle class="step-circle" cx="34" cy="34" r="18" />
     <text class="step-text" x="34" y="40" text-anchor="middle">2</text>
-    <text class="card-title" x="48" y="42">ORCHESTRATE</text>
+    <text class="card-title" x="58" y="42">ORCHESTRATE</text>
     <text class="card-body" x="28" y="86">Install, distribute, and run.</text>
     <text class="card-body" x="28" y="112">Package workers</text>
     <text class="card-body" x="28" y="138">and launch execution.</text>
