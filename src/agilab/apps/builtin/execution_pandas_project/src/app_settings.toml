@@ -1,0 +1,24 @@
+[args]
+data_in = "execution_playground/dataset"
+data_out = "execution_pandas/results"
+files = "*.csv"
+nfile = 8
+n_partitions = 8
+rows_per_file = 25000
+n_groups = 32
+compute_passes = 3
+output_format = "csv"
+seed = 42
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25

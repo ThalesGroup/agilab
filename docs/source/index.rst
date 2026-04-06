@@ -55,6 +55,7 @@ simultaneous multiple virtual environments, with one venv per cell/snippet.
    :maxdepth: 2
    :caption: Examples
 
+   execution-playground
    mycode-project
 
    flight-project
