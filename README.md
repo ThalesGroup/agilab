@@ -9,12 +9,14 @@
 [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls)
-[![Codex skills](https://img.shields.io/badge/Codex-15%20skills-00A67E)](tools/codex_workflow.md)
+[![Agent-friendly](https://img.shields.io/badge/agent-friendly%20repo-00A67E)](tools/codex_workflow.md)
+[![Free-threaded aware](https://img.shields.io/badge/python-free--threaded%20aware-5B6CFF)](docs/source/environment.rst)
 
 <details>
 <summary>More project badges</summary>
 
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls)
+[![Codex skills](https://img.shields.io/badge/Codex-15%20skills-00A67E)](tools/codex_workflow.md)
 [![Coverage workflow](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml)
 [![agilab](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![agi-gui](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-gui.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-gui)
@@ -46,6 +48,8 @@ AGILAB is maintained by the Thales Group and released under the
 - **Reproducible execution** through managed environments, explicit execution pipelines, and per-app settings.
 - **Persistent service mode** through `AGI.serve` (`start` / `status` / `health` / `stop`) with machine-readable health gates.
 - **Production-style orchestration** using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
+- **Free-threaded Python aware** when both the selected environment and worker declare support.
+- **Agent-friendly developer workflow** through `AGENTS.md`, `.codex/skills`, run configs, and Codex helpers.
 - **Ready-to-adapt examples** for applied AI/ML scenarios such as flight simulation, network traffic, industrial IoT,
   and optimization workloads.
 
@@ -147,6 +151,8 @@ Useful references:
 | Unified control plane | Launch the same app from Streamlit, CLI wrappers, or distributed workers. |
 | Managed execution envs | Package worker dependencies into isolated environments instead of relying on one shared Python install. |
 | Persistent operation | Use `AGI.serve` with health gates and structured status snapshots for long-lived workloads. |
+| Free-threaded Python support | Opt into free-threaded Python when both the chosen environment and worker declare compatibility. |
+| Agentic development | Use repo-native guidance through `AGENTS.md`, `.codex/skills`, and Codex workflow helpers instead of ad hoc prompts. |
 | Modular adoption | Install the full stack or adopt `agi-env`, `agi-node`, `agi-cluster`, and `agi-core` separately. |
 
 ## AGILAB vs manual orchestration
