@@ -1,0 +1,17 @@
+mode,label,topology,median_seconds
+0,python,local only,0.645
+1,pool of process,local only,0.565
+2,cython,local only,0.655
+3,pool and cython,local only,0.560
+4,dask,2-node cluster (1 local + 1 remote macOS worker),0.613
+5,dask and pool,2-node cluster (1 local + 1 remote macOS worker),0.594
+6,dask and cython,2-node cluster (1 local + 1 remote macOS worker),0.613
+7,dask and pool and cython,2-node cluster (1 local + 1 remote macOS worker),0.616
+8,rapids,local only,0.645
+9,rapids and pool,local only,0.565
+10,rapids and cython,local only,0.650
+11,rapids and pool and cython,local only,0.555
+12,rapids and dask,2-node cluster (1 local + 1 remote macOS worker),0.579
+13,rapids and dask and pool,2-node cluster (1 local + 1 remote macOS worker),0.541
+14,rapids and dask and cython,2-node cluster (1 local + 1 remote macOS worker),0.535
+15,rapids and dask and pool and cython,2-node cluster (1 local + 1 remote macOS worker),0.615

@@ -97,6 +97,72 @@ Raw benchmark artifacts are versioned under:
 
 - ``docs/source/data/execution_playground_benchmark.json``
 
+2-node 16-mode matrix
+---------------------
+
+The repository also ships a second helper that benchmarks the full 16-mode
+matrix on 2 Macs over SSH:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_mode_matrix.py --remote-host <remote-macos-ip> --scheduler-host <local-macos-ip> --rows-per-file 100000 --compute-passes 32 --n-partitions 16 --repeats 2
+
+This run uses:
+
+- 1 local macOS ARM scheduler/worker
+- 1 remote macOS ARM worker over SSH
+- the same ``16`` partitions, ``100000`` rows per file, and ``32`` compute passes
+
+Mode families
+^^^^^^^^^^^^^
+
+The 16 modes split into 4 families:
+
+- ``0-3``: local CPU modes
+- ``4-7``: 2-node Dask modes
+- ``8-11``: local modes with the RAPIDS bit requested
+- ``12-15``: 2-node Dask modes with the RAPIDS bit requested
+
+The compact ``code`` column uses the order ``r d c p``:
+
+- ``r`` = RAPIDS requested
+- ``d`` = Dask / cluster topology
+- ``c`` = Cython requested
+- ``p`` = pool/process path requested
+
+On these 2 Macs, the ``r...`` and ``rd...`` modes are still **CPU-only**
+because neither node exposes NVIDIA tooling. They are benchmarked anyway so the
+matrix stays complete and the mode semantics remain visible.
+
+.. rubric:: execution_pandas_project
+
+.. csv-table:: 16-mode matrix for ``execution_pandas_project``
+   :file: data/execution_pandas_project_mode_matrix.csv
+   :header-rows: 1
+   :widths: 8, 28, 28, 12
+
+.. rubric:: execution_polars_project
+
+.. csv-table:: 16-mode matrix for ``execution_polars_project``
+   :file: data/execution_polars_project_mode_matrix.csv
+   :header-rows: 1
+   :widths: 8, 28, 28, 12
+
+.. rubric:: What the matrix adds
+
+This second benchmark makes three extra points visible:
+
+- the best mode is not necessarily the same for the two worker designs
+- a 2-node Dask topology can win for one execution model and not for another
+- requesting RAPIDS on hardware without NVIDIA tooling does not create a fake speedup: AGILAB still reports the run honestly as CPU-only
+
+Raw matrix artifacts are versioned under:
+
+- ``docs/source/data/execution_mode_matrix_benchmark.json``
+- ``docs/source/data/execution_mode_matrix_benchmark.csv``
+- ``docs/source/data/execution_pandas_project_mode_matrix.csv``
+- ``docs/source/data/execution_polars_project_mode_matrix.csv``
+
 How to run it
 -------------
 

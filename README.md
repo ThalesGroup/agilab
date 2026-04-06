@@ -182,6 +182,36 @@ This is the extra point the example now makes visible: when the worker task is l
 Raw benchmark data:
 - [execution_playground_benchmark.json](docs/source/data/execution_playground_benchmark.json)
 
+Measured 2-node 16-mode matrix
+
+Generated with:
+
+`uv --preview-features extra-build-dependencies run python tools/benchmark_execution_mode_matrix.py --remote-host <remote-macos-ip> --scheduler-host <local-macos-ip> --rows-per-file 100000 --compute-passes 32 --n-partitions 16 --repeats 2`
+
+This second benchmark uses 2 macOS ARM nodes over SSH: the local scheduler/worker and a second Mac worker.
+It covers all 16 execution modes:
+
+- `0-3`: local CPU modes
+- `4-7`: 2-node Dask modes
+- `8-11`: local modes with the RAPIDS bit requested
+- `12-15`: 2-node Dask modes with the RAPIDS bit requested
+
+The mode code is a compact bitfield: `r d c p` = `rapids / dask / cython / pool`.
+
+On this hardware, the `r...` and `rd...` modes are still useful for coverage, but they are **CPU-only** runs because neither Mac exposes NVIDIA tooling.
+
+What the full 16-mode matrix shows:
+
+- `execution_pandas_project`: the best non-RAPIDS result is the local pool+cython mode `__cp`, slightly ahead of the 2-node Dask variants on this workload.
+- `execution_polars_project`: the best non-RAPIDS result comes from the 2-node Dask+cython path `_dc_`, clearly ahead of plain local Python on the same workload.
+- AGILAB therefore shows more than a library race: it makes the winning execution topology explicit, including when cluster dispatch helps and when it does not.
+
+Full published artifacts:
+- [execution_mode_matrix_benchmark.json](docs/source/data/execution_mode_matrix_benchmark.json)
+- [execution_mode_matrix_benchmark.csv](docs/source/data/execution_mode_matrix_benchmark.csv)
+- [execution_pandas_project_mode_matrix.csv](docs/source/data/execution_pandas_project_mode_matrix.csv)
+- [execution_polars_project_mode_matrix.csv](docs/source/data/execution_polars_project_mode_matrix.csv)
+
 ## Why star AGILAB
 
 Star AGILAB if you care about one or more of these:

@@ -51,11 +51,13 @@ def test_execution_pandas_generates_dataset_and_distribution(tmp_path: Path) -> 
     work_plan, metadata, partition_key, weights_key, unit = manager.build_distribution(workers)
 
     assert len(work_plan) == 1
-    assert len(work_plan[0]) == 3
+    assert len(work_plan[0]) == 1
+    assert len(work_plan[0][0]) == 3
     assert partition_key == "file"
     assert weights_key == "size_kb"
     assert unit == "KB"
-    assert metadata[0][0][0].endswith(".csv")
+    assert metadata[0][0]["file"] == "3 files"
+    assert metadata[0][0]["size_kb"] >= 1
     assert "dir_path" not in manager.as_dict()
 
 
@@ -101,3 +103,33 @@ def test_execution_pandas_worker_runs_monoprocess_plan(tmp_path: Path) -> None:
 
     assert seconds >= 0.0
     assert any(Path(worker.data_out).glob("*.csv"))
+
+
+def test_execution_pandas_worker_uses_parallel_path_for_pool_mode(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    args = ExecutionPandasArgs(n_partitions=4, nfile=4, rows_per_file=24, n_groups=6, reset_target=True)
+    manager = ExecutionPandas(env, args=args)
+    workers = {"127.0.0.1": 1}
+    work_plan, metadata, *_ = manager.build_distribution(workers)
+
+    worker = ExecutionPandasWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+    worker._mode = 1
+
+    calls = {"parallel": 0}
+
+    def _fake_multi(plan, meta):
+        calls["parallel"] += 1
+
+    worker._exec_multi_process = _fake_multi
+
+    BaseWorker._t0 = time.time()
+    worker.start()
+    seconds = worker.works(work_plan, metadata)
+
+    assert seconds >= 0.0
+    assert calls["parallel"] == 1
