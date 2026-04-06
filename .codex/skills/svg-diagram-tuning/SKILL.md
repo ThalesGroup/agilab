@@ -25,6 +25,29 @@ Focus on readability first: text, spacing, arrows, and visual hierarchy.
 4. Keep one editable SVG as the source of truth.
 5. Re-render only after the SVG itself is clean.
 
+## GitHub-first guardrails
+
+Use these rules whenever the SVG will be viewed on GitHub, in a README, or in a
+blob/raw page:
+
+- Treat browser rendering as the target, not only one local SVG engine.
+- Prefer conservative geometry over tight packing; GitHub/browser rendering is less
+  forgiving than local slide or DOCX export.
+- Use browser-safe font stacks first (`Arial`, `Helvetica`, sans-serif) unless the
+  document already relies on a guaranteed embedded font.
+- Keep decorative rules, dividers, and arrows out of text corridors. If a line comes
+  near a label, move the line, not the label.
+- After moving or resizing blocks, recalculate arrow anchors from the final geometry.
+  Do not leave connector coordinates inherited from an older layout.
+- For repeated connectors, keep arrow placement symmetric across the row or column so
+  the figure reads as intentional rather than hand-adjusted.
+- Do not rely on implicit spacing between a numbered badge and the following title.
+  Reserve explicit horizontal gap in the geometry.
+- Do not keep long callouts on one line. Wrap them with `tspan` and increase the box
+  size before shrinking text.
+- Shorten labels like lane headers or section names before tightening letter spacing.
+- When two renderers disagree, prefer the layout with more whitespace.
+
 ## AGILAB Workflow
 
 1. Edit the canonical SVG under `../thales_agilab/docs/source`.
@@ -41,6 +64,11 @@ Focus on readability first: text, spacing, arrows, and visual hierarchy.
 - Confirm the figure is referenced from the expected `.rst` page.
 - For published docs, verify the embedding page such as `architecture.html` or
   `agi-core-architecture.html`; Sphinx may publish figure assets under `_images/`.
+- For GitHub-facing SVGs, validate with at least two renderers when possible:
+  `rsvg-convert` plus a browser-adjacent renderer such as Quick Look (`qlmanage`) or
+  an actual browser screenshot workflow.
+- If the user points to a GitHub blob/raw URL, treat that observed rendering issue as
+  real even if a local renderer looks acceptable.
 
 ## Priority order
 
@@ -49,6 +77,8 @@ Focus on readability first: text, spacing, arrows, and visual hierarchy.
 - widen crowded blocks
 - increase text size
 - simplify wording when layout alone is not enough
+- add whitespace before trusting typography tweaks
+- recompute connector geometry after every layout shift
 
 ## References
 

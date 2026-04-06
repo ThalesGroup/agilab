@@ -146,7 +146,7 @@
     <rect class="box" width="808" height="108" fill="#ffe39e" />
     <text class="box-title" x="36" y="40">agi_env</text>
     <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces, and worker bundles for the selected run</tspan>
+      <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces, and worker bundles.</tspan>
     </text>
     <text class="box-note" x="36" y="92">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
   </g>
