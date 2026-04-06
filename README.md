@@ -6,7 +6,7 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/agilab)](https://pypi.org/project/agilab/)
 
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
-[![Coverage](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml)
+[![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls)
@@ -15,6 +15,7 @@
 <details>
 <summary>More project badges</summary>
 
+[![Coverage workflow](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml)
 [![agilab](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![agi-gui](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-gui.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-gui)
 [![agi-env](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-env.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-env)
