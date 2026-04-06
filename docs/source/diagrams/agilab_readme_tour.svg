@@ -126,12 +126,10 @@
     <circle class="step-circle" cx="34" cy="34" r="18" />
     <text class="step-text" x="34" y="40" text-anchor="middle">1</text>
     <text class="card-title" x="58" y="42">PROJECT</text>
-    <text class="card-body" x="28" y="86">Pick the active app.</text>
-    <text class="card-body" x="28" y="112">Load settings and inspect</text>
-    <text class="card-body" x="28" y="138">the source.</text>
-    <text class="mini" x="28" y="178">Start with:</text>
-    <text class="mini" x="28" y="202">src/agilab/apps/builtin/</text>
-    <text class="mini" x="28" y="224">flight_project</text>
+    <text class="card-body" x="28" y="86">Choose the active app.</text>
+    <text class="card-body" x="28" y="112">Load settings and source.</text>
+    <text class="mini" x="28" y="188">Start with the built-in</text>
+    <text class="mini" x="28" y="210">flight_project demo.</text>
   </g>
 
   <g transform="translate(370,290)">
@@ -139,11 +137,11 @@
     <circle class="step-circle" cx="34" cy="34" r="18" />
     <text class="step-text" x="34" y="40" text-anchor="middle">2</text>
     <text class="card-title" x="58" y="42">ORCHESTRATE</text>
-    <text class="card-body" x="28" y="86">Install, distribute, and run.</text>
-    <text class="card-body" x="28" y="112">Package workers</text>
-    <text class="card-body" x="28" y="138">and launch execution.</text>
-    <text class="mini" x="28" y="188">AGILAB removes most of the</text>
-    <text class="mini" x="28" y="210">manual orchestration here.</text>
+    <text class="card-body" x="28" y="86">Install, package, and run.</text>
+    <text class="card-body" x="28" y="112">Launch one documented</text>
+    <text class="card-body" x="28" y="138">execution path.</text>
+    <text class="mini" x="28" y="188">This is where AGILAB removes</text>
+    <text class="mini" x="28" y="210">the most manual glue work.</text>
   </g>
 
   <g transform="translate(680,290)">
@@ -151,11 +149,11 @@
     <circle class="step-circle" cx="34" cy="34" r="18" />
     <text class="step-text" x="34" y="40" text-anchor="middle">3</text>
     <text class="card-title" x="58" y="42">PIPELINE</text>
-    <text class="card-body" x="28" y="86">Replay the generated steps.</text>
-    <text class="card-body" x="28" y="112">Inspect snippets</text>
-    <text class="card-body" x="28" y="138">and execution flow.</text>
-    <text class="mini" x="28" y="188">Useful for validation, debugging,</text>
-    <text class="mini" x="28" y="210">and repeatability.</text>
+    <text class="card-body" x="28" y="86">Inspect generated steps.</text>
+    <text class="card-body" x="28" y="112">Replay snippets and</text>
+    <text class="card-body" x="28" y="138">execution flow.</text>
+    <text class="mini" x="28" y="188">Useful for debugging,</text>
+    <text class="mini" x="28" y="210">validation, and repeatability.</text>
   </g>
 
   <g transform="translate(990,290)">
@@ -163,12 +161,11 @@
     <circle class="step-circle" cx="34" cy="34" r="18" />
     <text class="step-text" x="34" y="40" text-anchor="middle">4</text>
     <text class="card-title" x="58" y="42">ANALYSIS</text>
-    <text class="card-body" x="28" y="86">Open built-in Streamlit views.</text>
-    <text class="card-body" x="28" y="112">Explore exported artifacts</text>
-    <text class="card-body" x="28" y="138">and results.</text>
-    <text class="mini" x="28" y="182">The demo ends with</text>
-    <text class="mini" x="28" y="204">visible outputs,</text>
-    <text class="mini" x="28" y="226">not only shell logs.</text>
+    <text class="card-body" x="28" y="86">Open built-in views.</text>
+    <text class="card-body" x="28" y="112">Review artifacts</text>
+    <text class="card-body" x="28" y="138">and visible outputs.</text>
+    <text class="mini" x="28" y="188">The demo ends with evidence,</text>
+    <text class="mini" x="28" y="210">not only shell logs.</text>
   </g>
 
   <line class="arrow" x1="336" y1="426" x2="354" y2="426" />
@@ -179,43 +176,54 @@
   <polygon class="arrow-head" points="974,418 974,434 990,426" />
 
   <g transform="translate(80,562)">
-    <text class="section" x="0" y="0">Why this matters</text>
+    <text class="section" x="0" y="0">What AGILAB gives you</text>
     <line class="line" x1="210" y1="-8" x2="1200" y2="-8" />
   </g>
 
-  <g transform="translate(80,598)">
-    <rect class="card shadow" width="360" height="196" fill="#ffffff" />
-    <text class="value-title" x="28" y="44">Without AGILAB</text>
-    <text class="value-body" x="28" y="80">You hand-wire environments, scripts,</text>
-    <text class="value-body" x="28" y="104">SSH targets, logs, and analysis</text>
-    <text class="value-body" x="28" y="128">views for each experiment.</text>
-    <text class="value-body" x="28" y="152">The orchestration burden grows</text>
-    <text class="value-body" x="28" y="176">before the model work does.</text>
+  <g transform="translate(60,598)">
+    <rect class="card shadow" width="270" height="146" fill="#ffffff" />
+    <text class="value-title" x="24" y="40">One app path</text>
+    <text class="value-body" x="24" y="74">The demo starts from</text>
+    <text class="value-body" x="24" y="98">one concrete app,</text>
+    <text class="value-body" x="24" y="122">not a generic shell script.</text>
   </g>
 
-  <g transform="translate(500,598)">
-    <rect class="card shadow" width="360" height="196" fill="#ffffff" />
-    <text class="value-title" x="28" y="44">With AGILAB</text>
-    <text class="value-body" x="28" y="80">The same app moves from UI</text>
-    <text class="value-body" x="28" y="104">to workers to results through</text>
-    <text class="value-body" x="28" y="128">one control path and one</text>
-    <text class="value-body" x="28" y="152">documented stack.</text>
-    <text class="value-body" x="28" y="176">That is the productivity gain.</text>
+  <g transform="translate(370,598)">
+    <rect class="card shadow" width="270" height="146" fill="#ffffff" />
+    <text class="value-title" x="24" y="40">Less glue code</text>
+    <text class="value-body" x="24" y="74">AGILAB handles envs,</text>
+    <text class="value-body" x="24" y="98">packaging, and launch</text>
+    <text class="value-body" x="24" y="122">instead of ad hoc scripting.</text>
   </g>
 
-  <g transform="translate(920,598)">
-    <rect class="card shadow" width="360" height="196" fill="#ffffff" />
-    <text class="value-title" x="28" y="44">Best fit</text>
-    <text class="value-body" x="28" y="80">Teams who need reproducible</text>
-    <text class="value-body" x="28" y="104">experimentation, distributed</text>
-    <text class="value-body" x="28" y="128">execution, and operator-facing</text>
-    <text class="value-body" x="28" y="152">flows before a larger stack.</text>
+  <g transform="translate(680,598)">
+    <rect class="card shadow" width="270" height="146" fill="#ffffff" />
+    <text class="value-title" x="24" y="40">Visible trace</text>
+    <text class="value-body" x="24" y="74">Generated steps stay</text>
+    <text class="value-body" x="24" y="98">inspectable and replayable</text>
+    <text class="value-body" x="24" y="122">during debugging.</text>
   </g>
 
-  <line class="soft-arrow" x1="260" y1="528" x2="260" y2="580" />
-  <polygon points="252,580 268,580 260,596" fill="#8298b4" />
-  <line class="soft-arrow" x1="680" y1="528" x2="680" y2="580" />
-  <polygon points="672,580 688,580 680,596" fill="#8298b4" />
-  <line class="soft-arrow" x1="1100" y1="528" x2="1100" y2="580" />
-  <polygon points="1092,580 1108,580 1100,596" fill="#8298b4" />
+  <g transform="translate(990,598)">
+    <rect class="card shadow" width="270" height="146" fill="#ffffff" />
+    <text class="value-title" x="24" y="40">Evidence first</text>
+    <text class="value-body" x="24" y="74">The path ends in</text>
+    <text class="value-body" x="24" y="98">views and artifacts,</text>
+    <text class="value-body" x="24" y="122">not only terminal logs.</text>
+  </g>
+
+  <line class="soft-arrow" x1="195" y1="528" x2="195" y2="580" />
+  <polygon points="187,580 203,580 195,596" fill="#8298b4" />
+  <line class="soft-arrow" x1="505" y1="528" x2="505" y2="580" />
+  <polygon points="497,580 513,580 505,596" fill="#8298b4" />
+  <line class="soft-arrow" x1="815" y1="528" x2="815" y2="580" />
+  <polygon points="807,580 823,580 815,596" fill="#8298b4" />
+  <line class="soft-arrow" x1="1125" y1="528" x2="1125" y2="580" />
+  <polygon points="1117,580 1133,580 1125,596" fill="#8298b4" />
+
+  <g transform="translate(80,762)">
+    <rect x="0" y="0" width="1180" height="52" rx="22" ry="22" fill="#ffffff" stroke="#d6dfeb" stroke-width="2.2" class="shadow" />
+    <text class="value-title" x="28" y="34">Productivity gain</text>
+    <text class="value-body" x="232" y="34">Less orchestration work before the model work even starts.</text>
+  </g>
 </svg>
