@@ -50,7 +50,10 @@
   <text class="chip" x="147" y="84" text-anchor="middle" fill="#f8fbff">AGILAB</text>
 
   <text class="title" x="70" y="162">Reproducible AI/ML workflows</text>
-  <text class="subtitle" x="70" y="210">From UI and CLI entrypoints to distributed workers, service mode, and health gates.</text>
+  <text class="subtitle" x="70" y="210">
+    <tspan x="70" dy="0">From UI and CLI entrypoints to distributed workers,</tspan>
+    <tspan x="70" dy="34">service mode, and health gates.</tspan>
+  </text>
 
   <g filter="url(#shadow)">
     <rect x="70" y="282" width="320" height="186" rx="26" ry="26" fill="#d9efff" stroke="#17324d" stroke-width="3.2" />
@@ -77,6 +80,7 @@
   </g>
 
   <rect x="70" y="524" width="1060" height="96" rx="24" ry="24" fill="#fffaf4" stroke="#dfd6cc" stroke-width="2.2" />
-  <text class="footer" x="600" y="566" text-anchor="middle">Best fit: experimentation and validation teams who want less manual orchestration.</text>
-  <text class="card-body" x="600" y="598" text-anchor="middle">Good demo path: flight_project from PROJECT → ORCHESTRATE → PIPELINE → ANALYSIS.</text>
+  <text class="footer" x="600" y="560" text-anchor="middle">Best fit: experimentation and validation teams</text>
+  <text class="footer" x="600" y="588" text-anchor="middle">who want less manual orchestration.</text>
+  <text class="card-body" x="600" y="616" text-anchor="middle">Good demo path: flight_project from PROJECT → ORCHESTRATE → PIPELINE → ANALYSIS.</text>
 </svg>
