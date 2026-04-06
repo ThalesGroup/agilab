@@ -210,6 +210,8 @@ How to read it quickly
    - 2-node Dask family: `4-7`
 3. Compare each family to mode `0` (`____`) to see whether the execution model is buying you anything.
 
+![Execution mode families at a glance](docs/source/diagrams/execution_mode_families.svg)
+
 10-second summary
 
 | App | Baseline `____` | Best local pool family | Best 2-node Dask family | Read |
