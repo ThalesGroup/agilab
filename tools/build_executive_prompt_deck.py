@@ -179,6 +179,9 @@ def slide_agilab(prs: Presentation):
         shape.fill.solid()
         shape.fill.fore_color.rgb = ACCENT
         shape.line.fill.background()
+    panel(slide, Inches(1.05), Inches(5.25), Inches(11.1), Inches(0.72), fill=WHITE, line=ACCENT_3)
+    textbox(slide, Inches(1.35), Inches(5.5), Inches(10.5), Inches(0.22),
+            "Même workload, benchmark explicite : PandasWorker = process ; PolarsWorker = threads.", size=17, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
 
 
 def slide_codex(prs: Presentation):

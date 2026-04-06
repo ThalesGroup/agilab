@@ -238,6 +238,9 @@ def slide_agilab(prs: Presentation):
     panel(slide, Inches(1.0), Inches(5.15), Inches(11.0), Inches(0.72), fill=RGBColor(245, 236, 225), line=RGBColor(245, 236, 225))
     box(slide, Inches(1.25), Inches(5.38), Inches(10.5), Inches(0.24),
         "AGILab montre bien où un agent apporte de la valeur : il rappelle comment bien travailler dans ce repo.", size=18, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.0), Inches(6.02), Inches(11.0), Inches(0.78), fill=WHITE, line=ACCENT_3)
+    box(slide, Inches(1.3), Inches(6.18), Inches(10.4), Inches(0.3),
+        "Benchmark lisible : PandasWorker = process, PolarsWorker = threads, même workload, exécution rendue explicite.", size=16, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
 
 
 def slide_codex(prs: Presentation):

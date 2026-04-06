@@ -151,6 +151,7 @@ Star AGILAB if you care about one or more of these:
 - **Reproducible AI/ML workflows** instead of hand-wired notebooks, shell scripts, and scattered env setup.
 - **Agent-friendly engineering** with repo-native guidance through `AGENTS.md`, `.codex/skills`, and documented Codex workflows.
 - **Free-threaded Python readiness** where environment and worker compatibility is explicit rather than accidental.
+- **Execution model benchmarking** that shows whether the same workload wins with process-based or in-process/threaded execution paths.
 - **One control path** from app selection to orchestration, pipeline inspection, analysis, and service mode.
 
 ## Who this is for
@@ -173,6 +174,7 @@ Star AGILAB if you care about one or more of these:
 | Managed execution envs | Package worker dependencies into isolated environments instead of relying on one shared Python install. |
 | Persistent operation | Use `AGI.serve` with health gates and structured status snapshots for long-lived workloads. |
 | Free-threaded Python support | Opt into free-threaded Python when both the chosen environment and worker declare compatibility. |
+| Execution model visibility | Benchmark the same workload across worker/runtime paths and make the winning execution model explicit. |
 | Agentic development | Use repo-native guidance through `AGENTS.md`, `.codex/skills`, and Codex workflow helpers instead of ad hoc prompts. |
 | Modular adoption | Install the full stack or adopt `agi-env`, `agi-node`, `agi-cluster`, and `agi-core` separately. |
 
@@ -188,6 +190,10 @@ Star AGILAB if you care about one or more of these:
 
 The point is not that AGILAB replaces every production platform. The point is that it removes a large amount of
 hand-written orchestration during experimentation and validation, then makes the handoff to a broader stack cleaner.
+
+In practice, that also means AGILAB can show when a performance win comes from the execution model itself. For example,
+the same workload can be benchmarked through `PandasWorker` using a process-based path and through `PolarsWorker` using
+an in-process threaded path, so the benchmark explains more than "library A vs library B".
 
 ## Repository layout
 
