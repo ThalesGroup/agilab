@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB social card</title>
-  <desc id="desc">Shareable visual describing AGILAB as a platform for reproducible AI and ML workflows from UI to distributed workers and service health.</desc>
+  <desc id="desc">Shareable visual describing AGILAB as a platform for reproducible AI and ML workflows from UI and CLI entrypoints to distributed workers and health-gated services.</desc>
   <defs>
     <style>
       text {
@@ -8,11 +8,11 @@
         fill: #14283f;
       }
       .title {
-        font-size: 54px;
+        font-size: 58px;
         font-weight: 700;
       }
       .subtitle {
-        font-size: 27px;
+        font-size: 29px;
         fill: #536b84;
       }
       .chip {
@@ -22,61 +22,61 @@
         text-transform: uppercase;
       }
       .card-title {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 700;
       }
       .card-body {
-        font-size: 18px;
+        font-size: 19px;
         fill: #445d78;
       }
       .footer {
-        font-size: 20px;
+        font-size: 22px;
         font-weight: 700;
         fill: #bf5a24;
       }
     </style>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fbfdff"/>
-      <stop offset="100%" stop-color="#eef4fb"/>
+      <stop offset="0%" stop-color="#fbfdff" />
+      <stop offset="100%" stop-color="#eef4fb" />
     </linearGradient>
     <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#90a5c1" flood-opacity="0.18"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#90a5c1" flood-opacity="0.18" />
     </filter>
   </defs>
 
-  <rect width="1200" height="630" rx="32" ry="32" fill="url(#bg)"/>
+  <rect width="1200" height="680" rx="32" ry="32" fill="url(#bg)" />
 
-  <rect x="70" y="58" width="140" height="42" rx="18" ry="18" fill="#17324d"/>
-  <text class="chip" x="140" y="85" text-anchor="middle" fill="#f8fbff">AGILAB</text>
+  <rect x="70" y="56" width="154" height="44" rx="20" ry="20" fill="#17324d" />
+  <text class="chip" x="147" y="84" text-anchor="middle" fill="#f8fbff">AGILAB</text>
 
-  <text class="title" x="70" y="156">Reproducible AI/ML workflows</text>
-  <text class="subtitle" x="70" y="202">From UI and CLI entrypoints to distributed workers, service mode, and health gates.</text>
+  <text class="title" x="70" y="162">Reproducible AI/ML workflows</text>
+  <text class="subtitle" x="70" y="210">From UI and CLI entrypoints to distributed workers, service mode, and health gates.</text>
 
   <g filter="url(#shadow)">
-    <rect x="70" y="262" width="320" height="168" rx="26" ry="26" fill="#d9efff" stroke="#17324d" stroke-width="3"/>
-    <text class="card-title" x="98" y="314">One control path</text>
-    <text class="card-body" x="98" y="354">Run the same app from Streamlit,</text>
-    <text class="card-body" x="98" y="382">CLI wrappers, or worker dispatch</text>
-    <text class="card-body" x="98" y="410">instead of rebuilding the workflow.</text>
+    <rect x="70" y="282" width="320" height="186" rx="26" ry="26" fill="#d9efff" stroke="#17324d" stroke-width="3.2" />
+    <text class="card-title" x="98" y="336">One control path</text>
+    <text class="card-body" x="98" y="380">Run the same app from Streamlit,</text>
+    <text class="card-body" x="98" y="408">CLI wrappers, or worker dispatch</text>
+    <text class="card-body" x="98" y="436">instead of rebuilding the workflow.</text>
   </g>
 
   <g filter="url(#shadow)">
-    <rect x="440" y="262" width="320" height="168" rx="26" ry="26" fill="#efe9fb" stroke="#17324d" stroke-width="3"/>
-    <text class="card-title" x="468" y="314">Managed execution</text>
-    <text class="card-body" x="468" y="354">Package environments, isolate workers,</text>
-    <text class="card-body" x="468" y="382">and scale from local runs to remote</text>
-    <text class="card-body" x="468" y="410">execution with the same stack.</text>
+    <rect x="440" y="282" width="320" height="186" rx="26" ry="26" fill="#efe9fb" stroke="#17324d" stroke-width="3.2" />
+    <text class="card-title" x="468" y="336">Managed execution</text>
+    <text class="card-body" x="468" y="380">Package environments, isolate workers,</text>
+    <text class="card-body" x="468" y="408">and scale from local runs to remote</text>
+    <text class="card-body" x="468" y="436">execution with the same stack.</text>
   </g>
 
   <g filter="url(#shadow)">
-    <rect x="810" y="262" width="320" height="168" rx="26" ry="26" fill="#fff1e5" stroke="#17324d" stroke-width="3"/>
-    <text class="card-title" x="838" y="314">Operator-ready flows</text>
-    <text class="card-body" x="838" y="354">Use service mode, health snapshots,</text>
-    <text class="card-body" x="838" y="382">and analysis pages to move beyond</text>
-    <text class="card-body" x="838" y="410">one-off experiment scripts.</text>
+    <rect x="810" y="282" width="320" height="186" rx="26" ry="26" fill="#fff1e5" stroke="#17324d" stroke-width="3.2" />
+    <text class="card-title" x="838" y="336">Operator-ready flows</text>
+    <text class="card-body" x="838" y="380">Use service mode, health snapshots,</text>
+    <text class="card-body" x="838" y="408">and analysis pages to move beyond</text>
+    <text class="card-body" x="838" y="436">one-off experiment scripts.</text>
   </g>
 
-  <rect x="70" y="490" width="1060" height="86" rx="24" ry="24" fill="#fffaf4" stroke="#dfd6cc" stroke-width="2"/>
-  <text class="footer" x="600" y="528" text-anchor="middle">Best fit: experimentation and validation teams who want less manual orchestration.</text>
-  <text class="card-body" x="600" y="558" text-anchor="middle">Good demo path: flight_project from PROJECT → ORCHESTRATE → PIPELINE → ANALYSIS.</text>
+  <rect x="70" y="524" width="1060" height="96" rx="24" ry="24" fill="#fffaf4" stroke="#dfd6cc" stroke-width="2.2" />
+  <text class="footer" x="600" y="566" text-anchor="middle">Best fit: experimentation and validation teams who want less manual orchestration.</text>
+  <text class="card-body" x="600" y="598" text-anchor="middle">Good demo path: flight_project from PROJECT → ORCHESTRATE → PIPELINE → ANALYSIS.</text>
 </svg>
