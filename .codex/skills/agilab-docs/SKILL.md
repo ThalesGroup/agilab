@@ -38,6 +38,8 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
    - `docs/html/<file>` (or `docs/html/_sources/<file>.txt`)
 6. Validate the rendered public page after publish. Prefer checking the HTML page
    that embeds the figure, not a guessed raw asset URL.
+7. During an SVG tuning loop, do not publish every micro-retouch. Publish only after
+   the local region is stable and both canonical + mirror copies are committed.
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.
 
@@ -83,6 +85,9 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Publish workflow check (AGILAB public site):
   - `gh workflow run docs-publish.yaml -R ThalesGroup/agilab --ref main`
   - `gh run view <run-id> -R ThalesGroup/agilab --json status,conclusion,url`
+  - for a slow or opaque deploy, prefer:
+    - `gh run view <run-id> -R ThalesGroup/agilab --json status,conclusion,jobs,url`
+    instead of waiting blindly on a watcher
 - Regenerate run-config wrappers after `.idea/runConfigurations` changes:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 
