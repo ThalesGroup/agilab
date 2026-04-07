@@ -31,6 +31,8 @@ Focus on readability first: text, spacing, arrows, and visual hierarchy.
 Use these rules whenever the SVG will be viewed on GitHub, in a README, or in a
 blob/raw page:
 
+- Treat text overflow as a hard failure. If any title, label, body line, or callout
+  crosses a block edge in the target renderer, the SVG is not done.
 - Treat browser rendering as the target, not only one local SVG engine.
 - Prefer conservative geometry over tight packing; GitHub/browser rendering is less
   forgiving than local slide or DOCX export.
@@ -47,6 +49,12 @@ blob/raw page:
 - Prefer widening a badge, pill, or summary card before wrapping what is really one
   short label or one atomic message. Use wrapping only when the content is genuinely
   paragraph-like.
+- For multiline card copy, make the block tall enough for the wrapped text first.
+  Do not push a footer note, divider, or arrow closer just to preserve a fixed box
+  height.
+- If a block contains a title plus explanatory copy, reserve explicit top, middle,
+  and bottom zones. Do not hand-place each text line independently without a repeatable
+  vertical rhythm.
 - Do not rely on implicit spacing between a numbered badge and the following title.
   Reserve explicit horizontal gap in the geometry.
 - Do not keep long callouts on one line. Wrap them with `tspan` and increase the box
@@ -67,6 +75,8 @@ blob/raw page:
 ## AGILAB Validation
 
 - Parse the SVG locally with Python XML tooling if needed.
+- Re-render the SVG and visually inspect every text-bearing block for overflow,
+  collisions, and clipped whitespace before pushing.
 - Confirm the figure is referenced from the expected `.rst` page.
 - For published docs, verify the embedding page such as `architecture.html` or
   `agi-core-architecture.html`; Sphinx may publish figure assets under `_images/`.
@@ -78,6 +88,7 @@ blob/raw page:
 
 ## Priority order
 
+- eliminate overflow and collisions
 - remove overlap
 - clarify hierarchy
 - widen crowded blocks
