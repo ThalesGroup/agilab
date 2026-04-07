@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="980" viewBox="0 0 1360 980" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="940" viewBox="0 0 1360 940" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB 3-minute tour</title>
   <desc id="desc">Narrative README diagram showing the built-in flight project path across Project, Orchestrate, Pipeline, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
   <defs>
@@ -113,7 +113,7 @@
     </marker>
   </defs>
 
-  <rect x="0" y="0" width="1360" height="980" rx="34" ry="34" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1360" height="940" rx="34" ry="34" fill="url(#bg)"/>
 
   <g transform="translate(72,64)">
     <text class="eyebrow" x="0" y="0">Start here</text>
@@ -133,90 +133,93 @@
     <text class="body" x="22" y="77">flight_project from PROJECT to ANALYSIS</text>
   </g>
 
-  <g transform="translate(72,214)">
+  <g transform="translate(72,206)">
     <text class="section-label" x="0" y="0">One guided path</text>
     <line class="line" x1="188" y1="-8" x2="1210" y2="-8"/>
   </g>
 
-  <g transform="translate(72,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#dcefff" class="card-stroke"/>
+  <g transform="translate(72,252)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="286" rx="30" ry="30" fill="#dcefff" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">1</text>
     <text class="card-title" x="64" y="42">PROJECT</text>
     <text class="card-kicker" x="28" y="78">Choose the app</text>
     <text class="body" x="28" y="116">
       <tspan x="28" dy="0">Select the built-in</tspan>
-      <tspan x="28" dy="26">flight project and load</tspan>
-      <tspan x="28" dy="26">its settings and source.</tspan>
+      <tspan x="28" dy="24">flight project, load</tspan>
+      <tspan x="28" dy="24">its settings, and</tspan>
+      <tspan x="28" dy="24">inspect the source.</tspan>
     </text>
-    <text class="mini" x="28" y="242">
+    <text class="mini" x="28" y="230">
       <tspan x="28" dy="0">You start from one concrete app,</tspan>
       <tspan x="28" dy="22">not from a loose script folder.</tspan>
     </text>
   </g>
 
-  <g transform="translate(384,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#e7e1ff" class="card-stroke"/>
+  <g transform="translate(384,252)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="286" rx="30" ry="30" fill="#e7e1ff" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">2</text>
     <text class="card-title" x="64" y="42">ORCHESTRATE</text>
     <text class="card-kicker" x="28" y="78">Install and run</text>
     <text class="body" x="28" y="116">
-      <tspan x="28" dy="0">AGILAB installs, packages,</tspan>
-      <tspan x="28" dy="26">and launches the worker path</tspan>
-      <tspan x="28" dy="26">through one documented flow.</tspan>
+      <tspan x="28" dy="0">AGILAB installs and</tspan>
+      <tspan x="28" dy="24">packages the app, then</tspan>
+      <tspan x="28" dy="24">launches the worker path</tspan>
+      <tspan x="28" dy="24">through one documented flow.</tspan>
     </text>
-    <text class="mini" x="28" y="242">
+    <text class="mini" x="28" y="230">
       <tspan x="28" dy="0">This is where env bootstrap and</tspan>
       <tspan x="28" dy="22">glue code stop eating time.</tspan>
     </text>
   </g>
 
-  <g transform="translate(696,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#fff1bf" class="card-stroke"/>
+  <g transform="translate(696,252)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="286" rx="30" ry="30" fill="#fff1bf" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">3</text>
     <text class="card-title" x="64" y="42">PIPELINE</text>
     <text class="card-kicker" x="28" y="78">Inspect the trace</text>
     <text class="body" x="28" y="116">
-      <tspan x="28" dy="0">Generated steps stay visible,</tspan>
-      <tspan x="28" dy="26">replayable, and easy</tspan>
-      <tspan x="28" dy="26">to inspect when you</tspan>
-      <tspan x="28" dy="26">need to debug or iterate.</tspan>
+      <tspan x="28" dy="0">Generated steps stay</tspan>
+      <tspan x="28" dy="24">visible, replayable,</tspan>
+      <tspan x="28" dy="24">and easy to inspect</tspan>
+      <tspan x="28" dy="24">when you debug or iterate.</tspan>
     </text>
-    <text class="mini" x="28" y="252">
+    <text class="mini" x="28" y="230">
       <tspan x="28" dy="0">Execution becomes reviewable,</tspan>
       <tspan x="28" dy="22">not just “it ran once”.</tspan>
     </text>
   </g>
 
-  <g transform="translate(1008,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#ffe2e9" class="card-stroke"/>
+  <g transform="translate(1008,252)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="286" rx="30" ry="30" fill="#ffe2e9" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">4</text>
     <text class="card-title" x="64" y="42">ANALYSIS</text>
     <text class="card-kicker" x="28" y="78">End on evidence</text>
     <text class="body" x="28" y="116">
-      <tspan x="28" dy="0">Open built-in views over</tspan>
-      <tspan x="28" dy="26">the exported artifacts and</tspan>
-      <tspan x="28" dy="26">look at results, not only logs.</tspan>
+      <tspan x="28" dy="0">Open built-in views</tspan>
+      <tspan x="28" dy="24">over exported artifacts,</tspan>
+      <tspan x="28" dy="24">then inspect results</tspan>
+      <tspan x="28" dy="24">instead of only logs.</tspan>
     </text>
-    <text class="mini" x="28" y="242">
+    <text class="mini" x="28" y="230">
       <tspan x="28" dy="0">The demo closes the loop with</tspan>
       <tspan x="28" dy="22">visible outputs and context.</tspan>
     </text>
   </g>
 
-  <line class="arrow" x1="352" y1="416" x2="376" y2="416"/>
-  <line class="arrow" x1="664" y1="416" x2="688" y2="416"/>
-  <line class="arrow" x1="976" y1="416" x2="1000" y2="416"/>
+  <line class="arrow" x1="352" y1="395" x2="376" y2="395"/>
+  <line class="arrow" x1="664" y1="395" x2="688" y2="395"/>
+  <line class="arrow" x1="976" y1="395" x2="1000" y2="395"/>
 
-  <g transform="translate(72,646)">
+  <g transform="translate(72,604)">
     <text class="section-label" x="0" y="0">What you leave with</text>
     <line class="line" x1="230" y1="-8" x2="1210" y2="-8"/>
   </g>
 
-  <g transform="translate(72,688)" filter="url(#shadow)">
+  <g transform="translate(72,638)" filter="url(#shadow)">
     <rect x="0" y="0" width="386" height="172" rx="28" ry="28" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.4"/>
     <text class="benefit-title" x="28" y="46">One app, one control path</text>
     <text class="benefit-body" x="28" y="84">
@@ -226,7 +229,7 @@
     </text>
   </g>
 
-  <g transform="translate(486,688)" filter="url(#shadow)">
+  <g transform="translate(486,638)" filter="url(#shadow)">
     <rect x="0" y="0" width="386" height="172" rx="28" ry="28" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.4"/>
     <text class="benefit-title" x="28" y="46">Less manual glue</text>
     <text class="benefit-body" x="28" y="84">
@@ -236,7 +239,7 @@
     </text>
   </g>
 
-  <g transform="translate(900,688)" filter="url(#shadow)">
+  <g transform="translate(900,638)" filter="url(#shadow)">
     <rect x="0" y="0" width="370" height="172" rx="28" ry="28" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.4"/>
     <text class="benefit-title" x="28" y="46">Visible, repeatable evidence</text>
     <text class="benefit-body" x="28" y="84">
@@ -246,12 +249,12 @@
     </text>
   </g>
 
-  <line class="soft-arrow" x1="209" y1="570" x2="209" y2="672"/>
-  <line class="soft-arrow" x1="521" y1="570" x2="521" y2="672"/>
-  <line class="soft-arrow" x1="833" y1="570" x2="833" y2="672"/>
-  <line class="soft-arrow" x1="1145" y1="570" x2="1145" y2="672"/>
+  <line class="soft-arrow" x1="209" y1="546" x2="209" y2="622"/>
+  <line class="soft-arrow" x1="521" y1="546" x2="521" y2="622"/>
+  <line class="soft-arrow" x1="833" y1="546" x2="833" y2="622"/>
+  <line class="soft-arrow" x1="1145" y1="546" x2="1145" y2="622"/>
 
-  <g transform="translate(72,902)" filter="url(#shadow)">
+  <g transform="translate(72,850)" filter="url(#shadow)">
     <rect x="0" y="0" width="1198" height="54" rx="24" ry="24" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
     <text class="benefit-title" x="28" y="35">AGILAB promise</text>
     <text class="benefit-body" x="232" y="35">Move from app selection to visible evidence quickly, with far less orchestration overhead than ad hoc scripts.</text>
