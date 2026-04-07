@@ -153,11 +153,11 @@
     <text class="card-body" x="130" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
   </g>
 
-  <g transform="translate(1100,252)">
-    <rect class="card" width="140" height="148" fill="#ffd7ea" />
-    <text class="card-title" x="70" y="44" text-anchor="middle">Visualisation</text>
-    <text class="card-body" x="70" y="86" text-anchor="middle">Maps</text>
-    <text class="card-body" x="70" y="112" text-anchor="middle">Charts</text>
+  <g transform="translate(1080,252)">
+    <rect class="card" width="160" height="148" fill="#ffd7ea" />
+    <text class="card-title" x="80" y="44" text-anchor="middle">Visualisation</text>
+    <text class="card-body" x="80" y="86" text-anchor="middle">Maps</text>
+    <text class="card-body" x="80" y="112" text-anchor="middle">Charts</text>
   </g>
 
   <g transform="translate(772,548)">
@@ -176,8 +176,8 @@
   <line class="arrow" x1="740" y1="316" x2="806" y2="232" marker-end="url(#arrowhead-pipe)" />
   <line class="arrow" x1="740" y1="332" x2="806" y2="408" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="1066" y1="232" x2="1100" y2="302" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="1066" y1="408" x2="1100" y2="360" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1066" y1="232" x2="1080" y2="302" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1066" y1="408" x2="1080" y2="360" marker-end="url(#arrowhead-pipe)" />
 
   <text class="label" x="1078" y="212">allocations</text>
   <text class="label" x="1078" y="452">allocations</text>
