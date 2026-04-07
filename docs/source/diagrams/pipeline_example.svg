@@ -95,9 +95,10 @@
 
   <rect width="1280" height="700" fill="url(#pipe-bg)" rx="38" ry="38" />
 
-  <rect x="136" y="122" width="1002" height="120" fill="#f6fbff" rx="26" ry="26" />
-  <rect x="136" y="250" width="1002" height="258" fill="#f9fbff" rx="26" ry="26" />
-  <rect x="136" y="532" width="1002" height="112" fill="#fffaf0" rx="26" ry="26" />
+  <rect x="120" y="122" width="322" height="382" fill="#eef6ff" rx="26" ry="26" />
+  <rect x="452" y="156" width="660" height="352" fill="#e7effb" rx="26" ry="26" />
+  <rect x="1082" y="228" width="170" height="196" fill="#fff1f7" rx="26" ry="26" />
+  <rect x="740" y="532" width="460" height="112" fill="#fff7ea" rx="26" ry="26" />
 
   <g transform="translate(64,62)">
     <text class="title" x="0" y="0">Pipeline example</text>
@@ -169,15 +170,15 @@
     </text>
   </g>
 
-  <line class="arrow" x1="418" y1="190" x2="470" y2="308" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="418" y1="318" x2="470" y2="324" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="418" y1="446" x2="470" y2="340" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="418" y1="206" x2="470" y2="292" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="418" y1="318" x2="470" y2="318" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="418" y1="430" x2="470" y2="356" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="770" y1="316" x2="788" y2="232" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="770" y1="332" x2="788" y2="408" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="770" y1="292" x2="788" y2="260" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="770" y1="356" x2="788" y2="380" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="1068" y1="232" x2="1090" y2="302" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="1068" y1="408" x2="1090" y2="360" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1068" y1="260" x2="1090" y2="280" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1068" y1="380" x2="1090" y2="364" marker-end="url(#arrowhead-pipe)" />
 
   <text class="label" x="1068" y="212">allocations</text>
   <text class="label" x="1068" y="452">allocations</text>
