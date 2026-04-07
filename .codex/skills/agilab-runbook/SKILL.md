@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-03
+  updated: 2026-04-07
 ---
 
 # AGILab runbook (Agent Skill)
@@ -26,6 +26,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
+- **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
+  Reproduce with the narrowest local command first: targeted `pytest`, isolated coverage commands,
+  `py_compile`, Sphinx builds, badge generation, or publish dry-runs. Use CI only for GitHub-only
+  behavior such as runner differences, OS/Python matrix coverage, permissions/secrets, or the final
+  publish/deploy step.
 - **Shared core approval gate**: do not edit shared core technology without explicit user approval first.
   This includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
   `src/agilab/core/agi-core`, shared installer/build/deploy code, and generic helpers reused across apps/pages.
@@ -51,6 +56,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 ## CI and badge checks
 
+- Prefer local reproduction before rerunning workflows:
+  - if a failing step has a local command equivalent, run that first and fix locally
+  - only rerun a workflow after the local equivalent is green or when the issue is GitHub-specific
 - CI badge is pinned to `main`:
   - `https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main`
 - When checking recent workflow state, prefer the GitHub Actions runs API:

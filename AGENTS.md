@@ -25,6 +25,12 @@ Use this runbook whenever you:
   agilab`, run `uv --preview-features extra-build-dependencies tool upgrade agilab` to pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
   it from the source tree swaps in the published wheel and discards your local changes.
+- **Local-first validation**: Do not trigger GitHub workflows when the same failure can be
+  reproduced or validated locally. First run the narrowest local check that can prove the change:
+  targeted `pytest`, isolated coverage commands, `py_compile`, Sphinx builds, badge generation,
+  and release dry-runs. Reserve CI/workflow runs for GitHub-only behavior (runner differences,
+  OS/Python matrix coverage, permissions/secrets, Pages/PyPI publication, or final integration
+  confirmation after local validation).
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
   the results (`tools/run_configs/`).
