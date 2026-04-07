@@ -169,8 +169,8 @@
   <g transform="translate(1108,188)">
     <rect class="badge" width="224" height="38" rx="19" ry="19" />
     <text class="badge-text" x="112" y="24" text-anchor="middle">Execution path</text>
-    <line class="arrow" x1="106" y1="52" x2="106" y2="340" />
-    <polygon class="arrow-head" points="98,340 114,340 106,356" />
+    <line class="arrow" x1="112" y1="52" x2="112" y2="346" />
+    <polygon class="arrow-head" points="104,346 120,346 112,362" />
   </g>
 
   <g transform="translate(1108,586)">
@@ -198,10 +198,10 @@
     </text>
   </g>
 
-  <line class="arrow" x1="602" y1="256" x2="602" y2="284" />
-  <polygon class="arrow-head" points="594,284 610,284 602,300" />
-  <line class="arrow" x1="602" y1="432" x2="602" y2="468" />
-  <polygon class="arrow-head" points="594,468 610,468 602,484" />
-  <line class="arrow" x1="602" y1="620" x2="602" y2="656" />
-  <polygon class="arrow-head" points="594,656 610,656 602,672" />
+  <line class="arrow" x1="612" y1="256" x2="612" y2="284" />
+  <polygon class="arrow-head" points="604,284 620,284 612,300" />
+  <line class="arrow" x1="612" y1="440" x2="612" y2="468" />
+  <polygon class="arrow-head" points="604,468 620,468 612,484" />
+  <line class="arrow" x1="612" y1="628" x2="612" y2="656" />
+  <polygon class="arrow-head" points="604,656 620,656 612,672" />
 </svg>
