@@ -56,12 +56,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - When checking recent workflow state, prefer the GitHub Actions runs API:
   - `uv --preview-features extra-build-dependencies run python - <<'PY' ... https://api.github.com/repos/ThalesGroup/agilab/actions/workflows/ci.yml/runs?per_page=10 ... PY`
 - Public job logs may not be directly retrievable without auth. Use the runs/jobs API first to identify the failing step, then reproduce that exact command locally.
-- For AGILab specifically, the Shields dynamic JSON badge for PyPI can lag or serve stale data. Prefer the stable PyPI version badge endpoint:
-  - `https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300`
-- After a release, verify all three surfaces separately before trusting badge state:
+- For AGILAB specifically, the GitHub README now uses a static, versioned PyPI badge committed under `badges/`:
+  - `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+- The live PyPI page can still lag until a new package is actually published; do not infer package publication from the GitHub badge alone.
+- After a release, verify all three surfaces separately before trusting version state:
   - PyPI JSON: `https://pypi.org/pypi/agilab/json`
   - PyPI simple index: `https://pypi.org/simple/agilab/`
-  - Shields badge: `https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300`
+  - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+- If the version changes, update the static badge in the same commit series as the version bump so `main`, the README, and the release metadata stay aligned.
 
 ## CI workflow lessons
 
