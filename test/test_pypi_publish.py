@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,6 +71,32 @@ def test_update_badge_is_noop_when_badge_is_already_current(tmp_path, monkeypatc
     assert readme.read_text(encoding="utf-8") == current
 
 
+def test_render_static_badge_svg_expands_for_post_release() -> None:
+    module = _load_pypi_publish()
+
+    badge = module.render_static_badge_svg("2026.04.07.post1")
+
+    assert 'aria-label="pypi: v2026.04.07.post1"' in badge
+    assert 'width="158"' in badge
+    assert ">v2026.04.07.post1</text>" in badge
+
+
+def test_update_static_badge_rewrites_svg(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    badge = tmp_path / "badges" / "pypi-version-agilab.svg"
+    badge.parent.mkdir(parents=True)
+    badge.write_text(module.render_static_badge_svg("2026.04.07"), encoding="utf-8")
+
+    changed = module.update_static_badge(badge, "2026.04.07.post1")
+
+    assert changed is True
+    text = badge.read_text(encoding="utf-8")
+    assert 'aria-label="pypi: v2026.04.07.post1"' in text
+    assert 'width="158"' in text
+
+
 def test_compute_date_tag_without_collision(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -115,6 +142,9 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
     umbrella_toml.write_text("[project]\nname='agilab'\nversion='1.0.0'\n", encoding="utf-8")
     umbrella_readme = umbrella_dir / "README.md"
     umbrella_readme.write_text("umbrella\n", encoding="utf-8")
+    umbrella_badge = tmp_path / "badges" / "pypi-version-agilab.svg"
+    umbrella_badge.parent.mkdir(parents=True)
+    umbrella_badge.write_text("badge\n", encoding="utf-8")
 
     builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
     builtin_dir.mkdir(parents=True)
@@ -136,6 +166,7 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "pyproject.toml",
         "src/agilab/apps/builtin/flight_project/pyproject.toml",
         "README.md",
+        "badges/pypi-version-agilab.svg",
         "docs/html",
     ]
 
@@ -369,3 +400,157 @@ def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -
     module.main()
 
     assert order[:4] == ["badge", "build", "badge", "build"]
+
+
+def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
+    module = _load_pypi_publish()
+
+    files = ["first.whl", "second.whl"]
+    calls = {"count": 0}
+
+    def _fake_run(_cmd, cwd=None, text=None, capture_output=None, env=None):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return subprocess.CompletedProcess(_cmd, 0, stdout="ok", stderr="")
+        return subprocess.CompletedProcess(
+            _cmd,
+            1,
+            stdout="",
+            stderr="HTTPError: 400 Bad Request from already used filename",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+
+    module.twine_upload(files, "pypi", True, 1)
+
+    out = capsys.readouterr().out
+    assert "[upload] uploaded: first.whl" in out
+    assert "[upload] skipped existing (already on server): second.whl" in out
+    assert "[upload] summary: uploaded=1 skipped_existing=1 total=2 repo=pypi" in out
+    assert module.UPLOAD_SUCCESS_COUNT == 1
+    assert module.UPLOAD_SKIPPED_EXISTING_COUNT == 1
+
+
+def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    reset_calls: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "git_reset_pyprojects", lambda: reset_calls.append("reset"))
+
+    module.main()
+
+    assert reset_calls == []
+
+
+def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    reset_calls: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(
+        module,
+        "twine_upload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(subprocess.CalledProcessError(1, ["twine"])),
+    )
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "git_reset_pyprojects", lambda: reset_calls.append("reset"))
+
+    try:
+        module.main()
+    except subprocess.CalledProcessError:
+        pass
+    else:
+        raise AssertionError("main() should propagate upload failures")
+
+    assert reset_calls == ["reset"]
