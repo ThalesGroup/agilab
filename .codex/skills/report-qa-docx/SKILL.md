@@ -1,6 +1,7 @@
 ---
 name: report-qa-docx
 description: Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # Report QA DOCX

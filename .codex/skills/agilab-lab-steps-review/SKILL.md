@@ -1,6 +1,7 @@
 ---
 name: agilab-lab-steps-review
 description: Review AGILab lab_steps.toml files for readability, inferred IO flow, and step naming quality. Use this skill when a user wants a pipeline clarified, wants labels cleaned up without changing behavior, or needs the execution flow made easier to understand in the PIPELINE page.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # AGILab Lab Steps Review
