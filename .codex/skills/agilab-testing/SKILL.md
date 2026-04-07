@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-02
+  updated: 2026-04-07
 ---
 
 # Testing Skill (AGILAB)
@@ -13,6 +13,9 @@ Use this skill when validating changes.
 ## Philosophy
 
 - Start small and local: run only the tests that cover the files you changed.
+- Prefer local validation over CI reruns. If a coverage, test, docs, or badge failure has a local
+  command equivalent, run that first. Use GitHub workflows only when the issue is runner-specific,
+  matrix-specific, secret-dependent, or part of the final publish/deploy path.
 - Avoid “fixing the world”: do not chase unrelated test failures.
 - Do not turn a failing app regression into an unapproved shared-core edit. Before changing
   `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
