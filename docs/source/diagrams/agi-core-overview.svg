@@ -121,9 +121,12 @@
   </g>
 
   <g transform="translate(500,350)">
-    <rect class="card" width="296" height="92" fill="#ffe8ac" />
+    <rect class="card" width="296" height="104" fill="#ffe8ac" />
     <text class="card-title" x="24" y="36">agi_env</text>
-    <text class="card-body" x="24" y="64">Paths, configs, logging, credentials, share roots</text>
+    <text class="card-body" x="24" y="62">
+      <tspan x="24" dy="0">Paths, configs, logging, credentials</tspan>
+      <tspan x="24" dy="20">and share roots</tspan>
+    </text>
   </g>
 
   <g transform="translate(864,150)">
@@ -164,6 +167,14 @@
       <tspan x="136" dy="0">Inputs converge into agi_core, then flow through</tspan>
       <tspan x="136" dy="18">environment setup to cluster and worker execution.</tspan>
     </text>
+  </g>
+
+  <g transform="translate(610,478)">
+    <rect class="callout" width="274" height="58" fill="#ffffff" />
+    <line class="arrow" x1="18" y1="22" x2="72" y2="22" marker-end="url(#arrowhead-core)" />
+    <text class="callout-body" x="92" y="26">Primary execution flow</text>
+    <line class="arrow-soft" x1="18" y1="42" x2="72" y2="42" marker-end="url(#arrowhead-soft-core)" />
+    <text class="callout-body" x="92" y="46">Secondary support link</text>
   </g>
 
   <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
