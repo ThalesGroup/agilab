@@ -151,6 +151,8 @@ What this shows in one pass:
 Useful references:
 
 - [Execution Playground guide](https://thalesgroup.github.io/agilab/execution-playground.html)
+- [execution_pandas_project drill-down](https://thalesgroup.github.io/agilab/execution-playground.html#execution-pandas-project)
+- [execution_polars_project drill-down](https://thalesgroup.github.io/agilab/execution-playground.html#execution-polars-project)
 - [Flight project overview](https://thalesgroup.github.io/agilab/flight-project.html)
 - [Apps-pages quick start](src/agilab/apps-pages/README.md)
 - [Service mode and paths](https://thalesgroup.github.io/agilab/service_mode_and_paths.html)

@@ -26,6 +26,21 @@ The difference is the worker path:
 That lets AGILAB expose not only timing differences, but also the execution
 style behind them.
 
+Where you see it in the UI
+--------------------------
+
+The two apps are run through the normal AGILAB pages. The benchmark value comes
+from the fact that the same UI flow can drive two different worker families
+without changing the orchestration path.
+
+.. figure:: _static/page-shots/orchestrate-page.png
+   :alt: ORCHESTRATE page showing install, execute, and benchmark controls
+   :align: center
+   :class: page-shot
+
+   The benchmark appears in the normal PROJECT -> ORCHESTRATE flow rather than
+   in a separate one-off demo script.
+
 Why this example matters
 ------------------------
 
@@ -152,14 +167,40 @@ How to read the matrix quickly
 
    Compact map of the 16 execution modes grouped by topology and runtime family.
 
-.. rubric:: execution_pandas_project
+.. _execution-pandas-project:
+
+execution_pandas_project
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use this app when you want the benchmark to read as a process-oriented baseline.
+
+- Worker family: ``ExecutionPandasWorker`` over ``PandasWorker``
+- Story to tell: how far a process/pool/Dask path goes on the same workload
+- What to inspect in AGILAB: install/distribution state in **ORCHESTRATE**, then
+  the benchmark table and exported artifacts for the ``_d__`` family
+- Practical reading: this app is the easiest way to show that "more workers"
+  does not automatically beat the local path unless the execution model fits
 
 .. csv-table:: 16-mode matrix for ``execution_pandas_project``
    :file: data/execution_pandas_project_mode_matrix.csv
    :header-rows: 1
    :widths: 8, 28, 28, 12
 
-.. rubric:: execution_polars_project
+.. _execution-polars-project:
+
+execution_polars_project
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use this app when you want the benchmark to read as an in-process threaded path
+with a different scaling profile.
+
+- Worker family: ``ExecutionPolarsWorker`` over ``PolarsWorker``
+- Story to tell: the same workload can prefer a lighter in-process path over a
+  heavier process-oriented topology
+- What to inspect in AGILAB: the same **ORCHESTRATE > Benchmark results** table,
+  but with attention on the ``_d_p`` family and how it differs from the pandas app
+- Practical reading: this app is the clearest proof that AGILAB is benchmarking
+  execution models, not only dataframe libraries
 
 .. csv-table:: 16-mode matrix for ``execution_polars_project``
    :file: data/execution_polars_project_mode_matrix.csv
