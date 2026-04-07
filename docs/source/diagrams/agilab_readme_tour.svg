@@ -130,7 +130,10 @@
     <text class="chip-text" x="82" y="44" text-anchor="middle">Demo app</text>
     <rect x="154" y="22" width="96" height="34" rx="17" ry="17" class="pill-accent"/>
     <text class="chip-text" x="202" y="44" text-anchor="middle">3 minutes</text>
-    <text class="body" x="22" y="77">flight_project from PROJECT to ANALYSIS</text>
+    <text class="body" x="22" y="72">
+      <tspan x="22" dy="0">flight_project from</tspan>
+      <tspan x="22" dy="22">PROJECT to ANALYSIS</tspan>
+    </text>
   </g>
 
   <g transform="translate(72,224)">
