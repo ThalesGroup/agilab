@@ -134,30 +134,33 @@
   </g>
 
   <g transform="translate(198,300)">
-    <rect class="box" width="808" height="124" fill="#dfdcff" />
+    <rect class="box" width="808" height="132" fill="#dfdcff" />
     <text class="box-title" x="36" y="40">agi_core</text>
-    <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">App loaders, widgets, telemetry, history, and reusable services for AGI sessions</tspan>
+    <text class="box-body" x="36" y="68">
+      <tspan x="36" dy="0">App loaders, widgets, telemetry, history, and</tspan>
+      <tspan x="36" dy="24">reusable services for AGI sessions</tspan>
     </text>
-    <text class="box-note" x="36" y="102">Builds manifests, routes actions, and keeps the control plane coherent.</text>
+    <text class="box-note" x="36" y="112">Builds manifests, routes actions, and keeps the control plane coherent.</text>
   </g>
 
   <g transform="translate(198,484)">
-    <rect class="box" width="808" height="108" fill="#ffe39e" />
+    <rect class="box" width="808" height="120" fill="#ffe39e" />
     <text class="box-title" x="36" y="40">agi_env</text>
-    <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces, and worker bundles.</tspan>
+    <text class="box-body" x="36" y="68">
+      <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces,</tspan>
+      <tspan x="36" dy="24">and worker bundles.</tspan>
     </text>
-    <text class="box-note" x="36" y="92">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
+    <text class="box-note" x="36" y="104">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
   </g>
 
   <g transform="translate(198,640)">
-    <rect class="box" width="808" height="120" fill="#ffdbe5" />
+    <rect class="box" width="808" height="132" fill="#ffdbe5" />
     <text class="box-title" x="36" y="40">agi_cluster and agi_node</text>
-    <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">Scheduler, packaging, SSH helpers, health checks, and local or remote worker execution</tspan>
+    <text class="box-body" x="36" y="68">
+      <tspan x="36" dy="0">Scheduler, packaging, SSH helpers, health checks,</tspan>
+      <tspan x="36" dy="24">and local or remote worker execution</tspan>
     </text>
-    <text class="box-note" x="36" y="102">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
+    <text class="box-note" x="36" y="112">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
   </g>
 
   <g transform="translate(1014,188)">
@@ -167,11 +170,11 @@
     <polygon class="arrow-head" points="98,340 114,340 106,356" />
   </g>
 
-  <g transform="translate(1018,544)">
-    <rect class="callout" width="204" height="182" fill="#ffffff" />
+  <g transform="translate(1006,540)">
+    <rect class="callout" width="218" height="190" fill="#ffffff" />
     <text class="callout-title" x="20" y="32">Workers and data</text>
     <circle class="bullet" cx="24" cy="64" r="4.5" />
-    <text class="callout-body" x="38" y="69">Packaged worker code</text>
+    <text class="callout-body" x="38" y="69">Worker bundles</text>
     <circle class="bullet" cx="24" cy="92" r="4.5" />
     <text class="callout-body" x="38" y="97">Cluster and local storage</text>
     <circle class="bullet" cx="24" cy="120" r="4.5" />
@@ -186,10 +189,10 @@
     <text class="callout-body" x="168" y="36">User action → manifest build → environment resolution → worker execution → artifacts and feedback</text>
   </g>
 
-  <line class="arrow" x1="602" y1="256" x2="602" y2="276" />
+  <line class="arrow" x1="602" y1="256" x2="602" y2="284" />
   <polygon class="arrow-head" points="594,276 610,276 602,292" />
-  <line class="arrow" x1="602" y1="424" x2="602" y2="460" />
+  <line class="arrow" x1="602" y1="432" x2="602" y2="468" />
   <polygon class="arrow-head" points="594,460 610,460 602,476" />
-  <line class="arrow" x1="602" y1="592" x2="602" y2="616" />
+  <line class="arrow" x1="602" y1="604" x2="602" y2="628" />
   <polygon class="arrow-head" points="594,616 610,616 602,632" />
 </svg>
