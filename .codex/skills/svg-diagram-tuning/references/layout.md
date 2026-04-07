@@ -8,6 +8,8 @@
 - align arrows with intent
 - remove redundant labels
 - move decorative rules away from text corridors
+- enforce a visible gutter between body copy and footer notes
+- enforce a visible gutter between adjacent panels or side callouts
 - reserve explicit gaps between badges/numbers and titles
 - recompute arrow start/end points after any card move or resize
 - keep repeated arrows centered and symmetric

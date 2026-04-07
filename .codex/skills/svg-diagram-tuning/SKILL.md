@@ -61,6 +61,11 @@ blob/raw page:
 - If a block contains a title plus explanatory copy, reserve explicit top, middle,
   and bottom zones. Do not hand-place each text line independently without a repeatable
   vertical rhythm.
+- Reserve a real vertical gutter between body text and footer notes. If the last body
+  line visually touches the note below, the card height or note position is wrong even
+  if the text does not literally overlap.
+- Treat edge-touching as a defect class too. Adjacent cards, callouts, or side panels
+  should keep a visible gutter; “not overlapping” is not a sufficient quality bar.
 - Do not rely on implicit spacing between a numbered badge and the following title.
   Reserve explicit horizontal gap in the geometry.
 - Do not keep long callouts on one line. Wrap them with `tspan` and increase the box
@@ -91,6 +96,8 @@ blob/raw page:
   - all legends/callouts
   - all arrows and arrowheads
   - section labels and lane headers
+- Check body-to-note spacing inside every card, not only overflow at the card border.
+- Check gutters between neighboring panels and side callouts, not only strict overlap.
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
   collisions, and clipped whitespace before pushing.
 - If the user pointed out one concrete defect, verify the same defect does not remain
