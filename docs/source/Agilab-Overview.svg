@@ -128,48 +128,41 @@
   <g transform="translate(198,152)">
     <rect class="box" width="828" height="96" fill="#d8efff" />
     <text class="box-title" x="414" y="40" text-anchor="middle">User surfaces</text>
-    <text class="box-body" x="36" y="66">
-      <tspan x="36" dy="0">Streamlit pages and CLI mirrors</tspan>
-      <tspan x="36" dy="20">plus PyCharm run configurations</tspan>
+    <text class="box-body" x="36" y="72">
+      <tspan x="36" dy="0">Streamlit pages, CLI mirrors, and PyCharm run configurations</tspan>
     </text>
   </g>
 
   <g transform="translate(198,300)">
     <rect class="box" width="828" height="132" fill="#dfdcff" />
     <text class="box-title" x="414" y="40" text-anchor="middle">agi_core</text>
-    <text class="box-body" x="36" y="66">
-      <tspan x="36" dy="0">App loaders, widgets, telemetry,</tspan>
-      <tspan x="36" dy="20">history, and reusable AGI services</tspan>
+    <text class="box-body" x="36" y="70">
+      <tspan x="36" dy="0">App loaders, widgets, telemetry, history, and reusable AGI services</tspan>
     </text>
-    <text class="box-note" x="36" y="108">
-      <tspan x="36" dy="0">Builds manifests, routes actions,</tspan>
-      <tspan x="36" dy="18">and keeps the control plane coherent.</tspan>
+    <text class="box-note" x="36" y="106">
+      <tspan x="36" dy="0">Builds manifests, routes actions, and keeps the control plane coherent.</tspan>
     </text>
   </g>
 
   <g transform="translate(198,484)">
     <rect class="box" width="828" height="136" fill="#ffe39e" />
     <text class="box-title" x="414" y="40" text-anchor="middle">agi_env</text>
-    <text class="box-body" x="36" y="66">
-      <tspan x="36" dy="0">Resolves apps, datasets, credentials,</tspan>
-      <tspan x="36" dy="20">workspaces, and worker bundles.</tspan>
+    <text class="box-body" x="36" y="70">
+      <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces, and worker bundles.</tspan>
     </text>
-    <text class="box-note" x="36" y="110">
-      <tspan x="36" dy="0">Stages installs in localshare,</tspan>
-      <tspan x="36" dy="18">clustershare, and <tspan font-style="italic">~/wenv</tspan>.</tspan>
+    <text class="box-note" x="36" y="106">
+      <tspan x="36" dy="0">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</tspan>
     </text>
   </g>
 
   <g transform="translate(198,640)">
     <rect class="box" width="828" height="132" fill="#ffdbe5" />
     <text class="box-title" x="414" y="40" text-anchor="middle">agi_cluster and agi_node</text>
-    <text class="box-body" x="36" y="66">
-      <tspan x="36" dy="0">Scheduler, packaging, SSH helpers,</tspan>
-      <tspan x="36" dy="20">health checks, and worker execution</tspan>
+    <text class="box-body" x="36" y="70">
+      <tspan x="36" dy="0">Scheduler, packaging, SSH helpers, health checks, and worker execution</tspan>
     </text>
-    <text class="box-note" x="36" y="108">
-      <tspan x="36" dy="0">Executes the same WorkDispatcher plan</tspan>
-      <tspan x="36" dy="18">on one machine or across a cluster.</tspan>
+    <text class="box-note" x="36" y="106">
+      <tspan x="36" dy="0">Executes the same WorkDispatcher plan on one machine or across a cluster.</tspan>
     </text>
   </g>
 
