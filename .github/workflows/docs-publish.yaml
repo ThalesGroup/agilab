@@ -12,6 +12,9 @@ on:
       - '.github/workflows/docs-publish.yaml'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   actions: read
@@ -42,6 +45,11 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            src/uv.lock
+            pyproject.toml
+            src/pyproject.toml
       - name: Install Graphviz
         run: |
           set -euo pipefail
