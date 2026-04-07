@@ -62,6 +62,7 @@ from packaging.version import Version, InvalidVersion  # type: ignore
 # upload-state flags (set by twine_upload)
 UPLOAD_COLLISION_DETECTED: bool = False
 UPLOAD_SUCCESS_COUNT: int = 0
+UPLOAD_SKIPPED_EXISTING_COUNT: int = 0
 
 
 # ---------- CLI ----------
@@ -510,6 +511,49 @@ def shields_badge(_version: str, package_name: str) -> str:
     )
 
 
+def static_badge_path(package_name: str) -> pathlib.Path:
+    return REPO_ROOT / "badges" / f"pypi-version-{package_name}.svg"
+
+
+def render_static_badge_svg(version: str) -> str:
+    version_text = f"v{version}"
+    left_width = 38
+    right_width = max(87, int(round(len(version_text) * 6.2 + 15)))
+    total_width = left_width + right_width
+    value_x = left_width + right_width / 2
+
+    def _fmt(value: float) -> str:
+        return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+
+    return "\n".join(
+        [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="20" role="img" aria-label="pypi: {version_text}">',
+            '<linearGradient id="b" x2="0" y2="100%">',
+            '  <stop offset="0" stop-color="#fff" stop-opacity=".7"/>',
+            '  <stop offset=".1" stop-opacity=".1"/>',
+            '  <stop offset=".9" stop-opacity=".3"/>',
+            '  <stop offset="1" stop-opacity=".5"/>',
+            '</linearGradient>',
+            '<mask id="a">',
+            f'  <rect width="{total_width}" height="20" rx="3" fill="#fff"/>',
+            '</mask>',
+            '<g mask="url(#a)">',
+            f'  <rect width="{left_width}" height="20" fill="#555"/>',
+            f'  <rect x="{left_width}" width="{right_width}" height="20" fill="#0a7aca"/>',
+            f'  <rect width="{total_width}" height="20" fill="url(#b)"/>',
+            '</g>',
+            '<g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">',
+            '  <text x="19" y="15" fill="#010101" fill-opacity=".3">pypi</text>',
+            '  <text x="19" y="14">pypi</text>',
+            f'  <text x="{_fmt(value_x)}" y="15" fill="#010101" fill-opacity=".3">{version_text}</text>',
+            f'  <text x="{_fmt(value_x)}" y="14">{version_text}</text>',
+            '</g>',
+            '</svg>',
+            '',
+        ]
+    )
+
+
 def update_badge(readme_path: pathlib.Path, package_name: str, version: str) -> bool:
     if not readme_path.exists():
         return False
@@ -527,6 +571,19 @@ def update_badge(readme_path: pathlib.Path, package_name: str, version: str) -> 
     return True
 
 
+def update_static_badge(svg_path: pathlib.Path, version: str) -> bool:
+    if not svg_path.exists():
+        return False
+    rendered = render_static_badge_svg(version)
+    current = svg_path.read_text(encoding="utf-8")
+    if current == rendered:
+        return False
+    svg_path.write_text(rendered, encoding="utf-8")
+    rel = svg_path.relative_to(REPO_ROOT)
+    print(f"[badge] {rel}: set static PyPI badge to {version}")
+    return True
+
+
 def update_selected_badges(selected_core: List[Tuple[str, pathlib.Path, pathlib.Path]], include_umbrella: bool):
     touched = False
     for name, toml_path, project_dir in selected_core:
@@ -535,12 +592,14 @@ def update_selected_badges(selected_core: List[Tuple[str, pathlib.Path, pathlib.
             continue
         version = get_version_from_pyproject(toml_path)
         touched |= update_badge(readme, name, version)
+        touched |= update_static_badge(static_badge_path(name), version)
     if include_umbrella:
         umbrella_toml = UMBRELLA[1]
         if umbrella_toml.exists():
             version = get_version_from_pyproject(umbrella_toml)
             readme = UMBRELLA[2] / "README.md"
             touched |= update_badge(readme, UMBRELLA[0], version)
+            touched |= update_static_badge(static_badge_path(UMBRELLA[0]), version)
     return touched
 
 
@@ -588,9 +647,12 @@ def twine_check(files: List[str]):
 
 
 def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int):
-    global UPLOAD_COLLISION_DETECTED, UPLOAD_SUCCESS_COUNT
+    global UPLOAD_COLLISION_DETECTED, UPLOAD_SUCCESS_COUNT, UPLOAD_SKIPPED_EXISTING_COUNT
     if not files:
         raise SystemExit("No artifacts to upload")
+    UPLOAD_COLLISION_DETECTED = False
+    UPLOAD_SUCCESS_COUNT = 0
+    UPLOAD_SKIPPED_EXISTING_COUNT = 0
     print(f"+ twine upload -r {repo} ({len(files)} files)")
     base_cmd = [sys.executable, "-m", "twine", "upload", "--non-interactive", "-r", repo, "--verbose"]
     if skip_existing:
@@ -618,10 +680,12 @@ def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int)
             out = (proc.stdout or "") + (proc.stderr or "")
             if proc.returncode == 0:
                 UPLOAD_SUCCESS_COUNT += 1
+                print(f"[upload] uploaded: {fname}")
                 break
             # returncode != 0
             if skip_existing and _is_reuse_output(out):
                 UPLOAD_COLLISION_DETECTED = True
+                UPLOAD_SKIPPED_EXISTING_COUNT += 1
                 print(f"[upload] skipped existing (already on server): {fname}")
                 # continue with next file without failing
                 break
@@ -630,6 +694,10 @@ def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int)
                     print(out)
                 raise subprocess.CalledProcessError(proc.returncode, cmd, output=proc.stdout, stderr=proc.stderr)
             print(f"[upload] error on {fname} (attempt {attempt}/{retries}); retrying...")
+    print(
+        f"[upload] summary: uploaded={UPLOAD_SUCCESS_COUNT} "
+        f"skipped_existing={UPLOAD_SKIPPED_EXISTING_COUNT} total={len(files)} repo={repo}"
+    )
 
 # ---------- Cleanup/Purge (web login) ----------
 def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
@@ -874,6 +942,10 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
     umbrella_readme = UMBRELLA[2] / "README.md"
     if umbrella_readme.exists():
         paths.append(str(umbrella_readme.relative_to(REPO_ROOT)))
+    for package_name in [name for name, *_ in CORE] + [UMBRELLA[0]]:
+        badge_path = static_badge_path(package_name)
+        if badge_path.exists():
+            paths.append(str(badge_path.relative_to(REPO_ROOT)))
     if include_docs:
         docs_html = REPO_ROOT / "docs" / "html"
         if docs_html.exists():
@@ -919,6 +991,7 @@ def git_reset_pyprojects():
 def main():
     args = parse_args()
     cfg = make_cfg(args)
+    upload_completed = False
 
     print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
           f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
@@ -1087,6 +1160,7 @@ def main():
 
         if not cfg.dry_run:
             update_selected_badges(selected_core_entries, build_umbrella)
+            upload_completed = True
 
         # Yank (optional, PyPI only)
         if cfg.yank_previous:
@@ -1112,7 +1186,7 @@ def main():
     finally:
         if removed_symlinks:
             restore_symlinks(removed_symlinks)
-        if cfg.git_reset_on_failure and not cfg.dry_run:
+        if cfg.git_reset_on_failure and not cfg.dry_run and not upload_completed:
             git_reset_pyprojects()
 
 
