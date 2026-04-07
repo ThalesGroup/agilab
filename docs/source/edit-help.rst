@@ -4,6 +4,16 @@ PROJECT
 .. toctree::
    :hidden:
 
+Page snapshot
+-------------
+
+.. figure:: _static/page-shots/project-page.png
+   :alt: Screenshot of the PROJECT page with the project selector and source-file expanders.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   The PROJECT page keeps project selection in the sidebar and exposes the editable source/config sections in the main panel.
+
 Sidebar
 -------
 

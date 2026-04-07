@@ -13,6 +13,16 @@ that installs, distribution checks and runs are reproducible. The mutable file
 now lives under ``~/.agilab/apps/<app>/app_settings.toml`` and is seeded from
 the app's versioned ``src/app_settings.toml`` on first use.
 
+Page snapshot
+-------------
+
+.. figure:: _static/page-shots/orchestrate-page.png
+   :alt: Screenshot of the ORCHESTRATE page showing system settings, install snippet, and execution controls.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   ORCHESTRATE centralises deployment settings, generated snippets, install logs, and run controls in one operational page.
+
 Sidebar
 -------
 - Project selector that keeps the page in lockstep with the active app.

@@ -4,6 +4,16 @@ PIPELINE
 .. toctree::
    :hidden:
 
+Page snapshot
+-------------
+
+.. figure:: _static/page-shots/pipeline-page.png
+   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and MLflow status.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   PIPELINE combines lab-step editing, execution context, and MLflow tracking status in the same workspace.
+
 Sidebar
 -------
 - ``Lab Directory``: choose the module whose lab artefacts you want to work on.

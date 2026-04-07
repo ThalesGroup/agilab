@@ -11,6 +11,16 @@ AGILab installation. It lets you pick which views should appear on the main
 landing page and launch any of them in an isolated sidecar session for a richer
 interactive experience.
 
+Page snapshot
+-------------
+
+.. figure:: _static/page-shots/analysis-page.png
+   :alt: Screenshot of the ANALYSIS page showing discovered views and per-project selection.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   ANALYSIS exposes the available page bundles, stores the selected views per project, and launches them as sidecar dashboards.
+
 Sidebar
 -------
 - Project selector that keeps the current application in sync with the rest of
