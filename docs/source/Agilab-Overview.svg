@@ -116,13 +116,13 @@
 
   <g transform="translate(72,154)">
     <text class="lane-label" x="0" y="34">Entry</text>
-    <line class="lane-rule" x1="88" y1="25" x2="180" y2="25" />
+    <line class="lane-rule" x1="170" y1="25" x2="262" y2="25" />
     <text class="lane-label" x="0" y="180">Control</text>
-    <line class="lane-rule" x1="124" y1="171" x2="212" y2="171" />
+    <line class="lane-rule" x1="170" y1="171" x2="262" y2="171" />
     <text class="lane-label" x="0" y="366">Execution</text>
-    <line class="lane-rule" x1="148" y1="357" x2="238" y2="357" />
+    <line class="lane-rule" x1="170" y1="357" x2="262" y2="357" />
     <text class="lane-label" x="0" y="526">Artifacts</text>
-    <line class="lane-rule" x1="112" y1="517" x2="180" y2="517" />
+    <line class="lane-rule" x1="170" y1="517" x2="262" y2="517" />
   </g>
 
   <g transform="translate(198,152)">
