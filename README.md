@@ -42,6 +42,15 @@ without rebuilding their tooling at every stage.
 AGILAB is maintained by the Thales Group and released under the
 [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
 
+## Creator
+
+AGILAB was created by **Jean-Pierre Morard**.
+
+Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
+distributed execution, and operational experimentation. AGILAB reflects that
+vision: turning AI apps from isolated scripts into structured, testable,
+benchmarkable, and shareable workflows.
+
 ## Why teams use AGILAB
 
 - **One control path** from Streamlit or CLI entrypoints to isolated local and distributed workers.

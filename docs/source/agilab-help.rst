@@ -7,6 +7,16 @@ agilab.py is the main web interface entry point. It provides a single navigation
 - **Core pages** (Project, Orchestrate, Pipeline, Analysis), and
 - **Page bundles** (optional dashboards launched from Analysis).
 
+Creator
+-------
+
+AGILAB was created by **Jean-Pierre Morard**.
+
+Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
+distributed execution, and operational experimentation. AGILAB reflects that
+vision: turning AI applications from isolated scripts into structured,
+testable, benchmarkable, and shareable workflows.
+
 How pages are presented
 -----------------------
 
