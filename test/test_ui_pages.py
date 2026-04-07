@@ -57,6 +57,21 @@ def _seed_env_editor_state(at: AppTest, env: AgiEnv) -> None:
         if editor_key not in at.session_state:
             at.session_state[editor_key] = env_values.get(key, "")
 
+
+def _all_button_labels(at: AppTest) -> list[str]:
+    labels = [button.label for button in at.button]
+    try:
+        labels.extend(button.label for button in at.sidebar.button)
+    except Exception:
+        pass
+    return labels
+
+
+def _assert_docs_actions_present(at: AppTest) -> None:
+    labels = _all_button_labels(at)
+    assert "Read Documentation" in labels
+    assert "Open Local Documentation" in labels
+
 @pytest.fixture
 def mock_ui_env(tmp_path):
     # Set up temporary directories for apps and config
@@ -160,6 +175,7 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     # However AppTest runs the whole script. In AppTest, expander contents are accessible
     assert "env_editor_new_key" in [ti.key for ti in at.text_input]
     assert "env_editor_new_value" in [ti.key for ti in at.text_input]
+    _assert_docs_actions_present(at)
     
     # Set values in the text inputs
     at.text_input(key="env_editor_new_key").set_value("TEST_UI_VAR")
@@ -191,12 +207,15 @@ def test_execute_page_cluster_settings(mock_ui_env):
     
     # Pre-inject environment into session state
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     _seed_env_editor_state(at, env)
     
     at.run()
     assert not at.exception
+    _assert_docs_actions_present(at)
 
     enabled_toggle_key = f"cluster_enabled__flight_project"
     scheduler_key = f"cluster_scheduler__flight_project"
@@ -296,10 +315,14 @@ def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
     at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_project"]
+    env.get_projects = MagicMock(return_value=["flight_project"])
     at.session_state["env"] = env
     at.run()
     assert not at.exception
+    _assert_docs_actions_present(at)
     
     # Check that 'dummy_view' is an option in the multiselect
     selection_key = f"view_selection__flight_project"
@@ -319,7 +342,9 @@ def test_experiment_page_load(mock_ui_env):
     """Test that the EXPERIMENT page loads without exceptions."""
     at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.get_projects = MagicMock(return_value=["flight_project"])
     # We must ensure there is a lab_steps file to not throw exceptions, or handling it safely
     # In mock env we just pass env
     at.session_state["env"] = env
@@ -329,16 +354,21 @@ def test_experiment_page_load(mock_ui_env):
     
     at.run()
     assert not at.exception
+    _assert_docs_actions_present(at)
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
     at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_project"]
+    env.get_projects = MagicMock(return_value=["flight_project"])
     at.session_state["env"] = env
     
     at.run()
     assert not at.exception
+    _assert_docs_actions_present(at)
 
 
 def test_execute_page_cython_toggle(mock_ui_env):

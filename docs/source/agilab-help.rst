@@ -37,6 +37,10 @@ Core pages
 Core page tour
 --------------
 
+Every built-in page now exposes direct documentation access from the sidebar,
+so you can reopen the relevant guide without navigating back to the landing
+page first.
+
 .. figure:: _static/page-shots/core-pages-overview.png
    :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, PIPELINE, and ANALYSIS Streamlit pages.
    :align: center

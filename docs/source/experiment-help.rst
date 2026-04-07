@@ -16,6 +16,9 @@ Page snapshot
 
 Sidebar
 -------
+- ``Read Documentation`` opens this guide in the hosted public docs, and
+  ``Open Local Documentation`` uses the locally generated docs build when
+  available.
 - ``Lab Directory``: choose the module whose lab artefacts you want to work on.
   The selection points at ``${AGILAB_EXPORT_ABS}/<module>`` and initialises
   ``lab_steps.toml`` if it does not exist yet.

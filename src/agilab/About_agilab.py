@@ -7,6 +7,7 @@ import os
 import sys
 import argparse
 import importlib.resources as importlib_resources
+import importlib.util
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -17,6 +18,16 @@ logger = AgiLogger.get_logger(__name__)
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
 import streamlit as st
+try:
+    from agilab.page_docs import render_page_docs_access
+except ModuleNotFoundError:
+    _page_docs_path = Path(__file__).resolve().parent / "page_docs.py"
+    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
+    if _page_docs_spec is None or _page_docs_spec.loader is None:
+        raise
+    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
+    _page_docs_spec.loader.exec_module(_page_docs_module)
+    render_page_docs_access = _page_docs_module.render_page_docs_access
 
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset():
@@ -33,7 +44,7 @@ st.session_state.setdefault("env_editor_feedback", None)
 
 from agi_env.pagelib import background_services_enabled, inject_theme, load_last_active_app, store_last_active_app
 
-def _render_env_editor(env, help_file: Path):
+def _render_env_editor(env, help_file: Path | None = None):
     feedback = st.session_state.pop("env_editor_feedback", None)
     if feedback:
         st.success(feedback)
@@ -471,7 +482,7 @@ def _refresh_env_from_file(env: Any) -> None:
     st.session_state["env_file_mtime_ns"] = current_mtime
 
 
-def _render_env_editor(env, help_file: Path):
+def _render_env_editor(env, help_file: Path | None = None):
     feedback = st.session_state.pop("env_editor_feedback", None)
     if feedback:
         st.success(feedback)
@@ -610,14 +621,12 @@ def _render_env_editor(env, help_file: Path):
 def page(env):
     """Render the main landing page controls and footer for the lab."""
     cols = st.columns(1)
-    help_file = Path(env.help_path) / "index.html"
-    from agi_env.pagelib import open_docs, open_local_docs
 
     with st.expander("Introduction", expanded=True):
         display_landing_page(Path(env.st_resources))
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
-        _render_env_editor(env, help_file)
+        _render_env_editor(env)
 
     with st.expander("Installed package versions", expanded=False):
         try:
@@ -650,16 +659,13 @@ def page(env):
         cpu_name = platform.processor() or platform.machine()
         st.write(f"CPU: {cpu_name}")
 
-    col_docs_remote, col_docs_local = st.columns(2)
-    with col_docs_remote:
-        if st.button("Read Documentation", width="stretch", type="primary"):
-            open_docs(env, help_file, "project-editor")
-    with col_docs_local:
-        if st.button("Open Local Documentation", width="stretch"):
-            try:
-                open_local_docs(env, help_file, "project-editor")
-            except FileNotFoundError:
-                st.error("Local documentation not found. Regenerate via docs/gen-docs.sh.")
+    render_page_docs_access(
+        env,
+        html_file="agilab-help.html",
+        key_prefix="about",
+        sidebar=True,
+        caption="Open the AGILAB overview and core page tour.",
+    )
 
     current_year = datetime.now().year
     st.markdown(
