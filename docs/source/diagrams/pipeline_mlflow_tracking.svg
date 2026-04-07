@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="660" viewBox="0 0 1180 660" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="720" viewBox="0 0 1260 720" role="img" aria-labelledby="title desc">
   <title id="title">PIPELINE execution tracked in MLflow</title>
   <desc id="desc">Shows how Run pipeline creates one parent MLflow run, one nested run per executed step, and sends both in-process and subprocess execution traces to the same MLflow tracking store and UI.</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #0f172a; }
-      .box { stroke: #0f172a; stroke-width: 2; rx: 14; ry: 14; }
-      .panel { stroke: #94a3b8; stroke-width: 1.6; rx: 18; ry: 18; }
-      .title { font-size: 22px; font-weight: 700; }
-      .caption { font-size: 17px; font-weight: 700; }
+      .box { stroke: #0f172a; stroke-width: 2; rx: 16; ry: 16; }
+      .panel { stroke: #94a3b8; stroke-width: 1.6; rx: 20; ry: 20; }
+      .title { font-size: 24px; font-weight: 700; }
+      .caption { font-size: 18px; font-weight: 700; }
       .body { font-size: 13px; }
       .small { font-size: 12px; }
       .muted { fill: #334155; }
@@ -23,115 +23,115 @@
     </marker>
   </defs>
 
-  <rect width="100%" height="100%" fill="#f8fafc" rx="24" ry="24" />
-  <text class="title" x="590" y="42" text-anchor="middle">PIPELINE execution tracked in MLflow</text>
+  <rect width="100%" height="100%" fill="#f8fafc" rx="26" ry="26" />
+  <text class="title" x="630" y="46" text-anchor="middle">PIPELINE execution tracked in MLflow</text>
 
   <!-- Left column -->
-  <g transform="translate(44,96)">
-    <rect class="box" width="236" height="100" fill="#bfdbfe" />
-    <text class="caption" x="118" y="32" text-anchor="middle">PIPELINE page</text>
-    <text class="body" x="118" y="59" text-anchor="middle">user clicks</text>
-    <text class="body" x="118" y="79" text-anchor="middle">Run pipeline</text>
+  <g transform="translate(48,104)">
+    <rect class="box" width="250" height="104" fill="#bfdbfe" />
+    <text class="caption" x="125" y="34" text-anchor="middle">PIPELINE page</text>
+    <text class="body" x="125" y="63" text-anchor="middle">user clicks</text>
+    <text class="body" x="125" y="84" text-anchor="middle">Run pipeline</text>
   </g>
 
-  <g transform="translate(44,236)">
-    <rect class="box" width="236" height="118" fill="#ddd6fe" />
-    <text class="caption" x="118" y="32" text-anchor="middle">lab_steps.toml</text>
-    <text class="body" x="118" y="61" text-anchor="middle">step description</text>
-    <text class="body" x="118" y="81" text-anchor="middle">prompt, model, engine, runtime</text>
+  <g transform="translate(48,252)">
+    <rect class="box" width="250" height="126" fill="#ddd6fe" />
+    <text class="caption" x="125" y="34" text-anchor="middle">lab_steps.toml</text>
+    <text class="body" x="125" y="66" text-anchor="middle">step description</text>
+    <text class="body" x="125" y="88" text-anchor="middle">prompt, model, engine, runtime</text>
   </g>
 
-  <g transform="translate(44,392)">
-    <rect class="box" width="236" height="110" fill="#e2e8f0" />
-    <text class="caption" x="118" y="32" text-anchor="middle">Execution paths</text>
-    <text class="body" x="118" y="61" text-anchor="middle">runpy in the managed env</text>
-    <text class="body" x="118" y="83" text-anchor="middle">or subprocess in a selected venv</text>
+  <g transform="translate(48,428)">
+    <rect class="box" width="250" height="116" fill="#e2e8f0" />
+    <text class="caption" x="125" y="34" text-anchor="middle">Execution paths</text>
+    <text class="body" x="125" y="66" text-anchor="middle">runpy in the managed env</text>
+    <text class="body" x="125" y="88" text-anchor="middle">or subprocess in a selected venv</text>
   </g>
 
   <!-- Parent run -->
-  <g transform="translate(322,96)">
-    <rect class="box" width="430" height="100" fill="#fde68a" />
-    <text class="caption" x="215" y="32" text-anchor="middle">Parent MLflow run</text>
-    <text class="body" x="215" y="60" text-anchor="middle">one run for the whole pipeline execution</text>
-    <text class="body" x="215" y="80" text-anchor="middle">logs lab-level metadata and the run log</text>
+  <g transform="translate(354,104)">
+    <rect class="box" width="470" height="104" fill="#fde68a" />
+    <text class="caption" x="235" y="34" text-anchor="middle">Parent MLflow run</text>
+    <text class="body" x="235" y="63" text-anchor="middle">one run for the whole pipeline execution</text>
+    <text class="body" x="235" y="84" text-anchor="middle">logs lab-level metadata and the run log</text>
   </g>
 
   <!-- Nested panel -->
-  <g transform="translate(300,230)">
-    <rect class="panel" width="580" height="190" fill="#fff7ed" />
-    <text class="caption" x="22" y="30">Nested step runs</text>
-    <text class="small muted" x="22" y="50">each executed step becomes its own MLflow run under the parent</text>
+  <g transform="translate(332,244)">
+    <rect class="panel" width="590" height="226" fill="#fff7ed" />
+    <text class="caption" x="24" y="34">Nested step runs</text>
+    <text class="small muted" x="24" y="56">each executed step becomes its own MLflow run under the parent</text>
   </g>
 
-  <rect class="pill" x="448" y="244" width="284" height="28" />
-  <text class="small muted" x="590" y="262" text-anchor="middle">metadata comes from lab_steps.toml</text>
+  <rect class="pill" x="478" y="262" width="300" height="30" />
+  <text class="small muted" x="628" y="281" text-anchor="middle">metadata comes from lab_steps.toml</text>
 
-  <g transform="translate(322,278)">
-    <rect class="box" width="168" height="112" fill="#fee2e2" />
-    <text class="caption" x="84" y="30" text-anchor="middle">Step 1 run</text>
-    <text class="body" x="84" y="58" text-anchor="middle">nested MLflow run</text>
-    <text class="body" x="84" y="80" text-anchor="middle">params + stdout</text>
-    <text class="body" x="84" y="100" text-anchor="middle">snippet + dataframe</text>
+  <g transform="translate(354,314)">
+    <rect class="box" width="174" height="120" fill="#fee2e2" />
+    <text class="caption" x="87" y="32" text-anchor="middle">Step 1 run</text>
+    <text class="body" x="87" y="62" text-anchor="middle">nested MLflow run</text>
+    <text class="body" x="87" y="84" text-anchor="middle">params + stdout</text>
+    <text class="body" x="87" y="106" text-anchor="middle">snippet + dataframe</text>
   </g>
 
-  <g transform="translate(506,278)">
-    <rect class="box" width="168" height="112" fill="#fee2e2" />
-    <text class="caption" x="84" y="30" text-anchor="middle">Step 2 run</text>
-    <text class="body" x="84" y="58" text-anchor="middle">same tracking URI</text>
-    <text class="body" x="84" y="80" text-anchor="middle">same artifact contract</text>
-    <text class="body" x="84" y="100" text-anchor="middle">different step metadata</text>
+  <g transform="translate(543,314)">
+    <rect class="box" width="174" height="120" fill="#fee2e2" />
+    <text class="caption" x="87" y="32" text-anchor="middle">Step 2 run</text>
+    <text class="body" x="87" y="62" text-anchor="middle">same tracking URI</text>
+    <text class="body" x="87" y="84" text-anchor="middle">same artifact contract</text>
+    <text class="body" x="87" y="106" text-anchor="middle">different step metadata</text>
   </g>
 
-  <g transform="translate(690,278)">
-    <rect class="box" width="168" height="112" fill="#fee2e2" />
-    <text class="caption" x="84" y="30" text-anchor="middle">Step N run</text>
-    <text class="body" x="84" y="58" text-anchor="middle">keeps the full step trace</text>
-    <text class="body" x="84" y="80" text-anchor="middle">visible after the run</text>
-    <text class="body" x="84" y="100" text-anchor="middle">in the same MLflow UI</text>
+  <g transform="translate(732,314)">
+    <rect class="box" width="174" height="120" fill="#fee2e2" />
+    <text class="caption" x="87" y="32" text-anchor="middle">Step N run</text>
+    <text class="body" x="87" y="62" text-anchor="middle">keeps the full step trace</text>
+    <text class="body" x="87" y="84" text-anchor="middle">visible after the run</text>
+    <text class="body" x="87" y="106" text-anchor="middle">in the same MLflow UI</text>
   </g>
 
   <!-- Shared runtime -->
-  <g transform="translate(322,452)">
-    <rect class="box" width="430" height="84" fill="#e0f2fe" />
-    <text class="caption" x="215" y="30" text-anchor="middle">Shared runtime contract</text>
-    <text class="body" x="215" y="56" text-anchor="middle">
-      <tspan x="215" dy="0">runpy and subprocess steps both receive</tspan>
-      <tspan x="215" dy="18">the same MLFLOW_TRACKING_URI</tspan>
+  <g transform="translate(354,514)">
+    <rect class="box" width="470" height="96" fill="#e0f2fe" />
+    <text class="caption" x="235" y="34" text-anchor="middle">Shared runtime contract</text>
+    <text class="body" x="235" y="64" text-anchor="middle">
+      <tspan x="235" dy="0">runpy and subprocess steps both receive</tspan>
+      <tspan x="235" dy="18">the same MLFLOW_TRACKING_URI</tspan>
     </text>
   </g>
 
   <!-- Right column -->
-  <g transform="translate(916,96)">
-    <rect class="box" width="220" height="100" fill="#c7f9cc" />
-    <text class="caption" x="110" y="32" text-anchor="middle">MLFLOW_TRACKING_DIR</text>
-    <text class="body" x="110" y="60" text-anchor="middle">shared tracking store</text>
-    <text class="body" x="110" y="80" text-anchor="middle">all runs write here</text>
+  <g transform="translate(964,104)">
+    <rect class="box" width="242" height="104" fill="#c7f9cc" />
+    <text class="caption" x="121" y="34" text-anchor="middle">MLFLOW_TRACKING_DIR</text>
+    <text class="body" x="121" y="63" text-anchor="middle">shared tracking store</text>
+    <text class="body" x="121" y="84" text-anchor="middle">all runs write here</text>
   </g>
 
-  <g transform="translate(940,452)">
-    <rect class="box" width="172" height="88" fill="#bae6fd" />
-    <text class="caption" x="86" y="30" text-anchor="middle">MLflow UI</text>
-    <text class="body" x="86" y="58" text-anchor="middle">sidebar Open UI link</text>
-    <text class="body" x="86" y="78" text-anchor="middle">reads the same store</text>
+  <g transform="translate(994,514)">
+    <rect class="box" width="182" height="92" fill="#bae6fd" />
+    <text class="caption" x="91" y="34" text-anchor="middle">MLflow UI</text>
+    <text class="body" x="91" y="64" text-anchor="middle">sidebar Open UI link</text>
+    <text class="body" x="91" y="85" text-anchor="middle">reads the same store</text>
   </g>
 
   <!-- Flow arrows -->
-  <path class="arrow" d="M280,146 L322,146" />
-  <path class="soft-arrow" d="M280,295 C352,295 380,258 448,258" />
-  <path class="soft-arrow" d="M280,447 L322,494" />
+  <path class="arrow" d="M298,156 L354,156" />
+  <path class="soft-arrow" d="M298,315 L478,277" />
+  <path class="soft-arrow" d="M298,486 L354,562" />
 
-  <path class="arrow" d="M537,196 C537,232 406,242 406,278" />
-  <path class="arrow" d="M537,196 L590,278" />
-  <path class="arrow" d="M537,196 C537,232 774,242 774,278" />
+  <path class="arrow" d="M540,208 L440,314" />
+  <path class="arrow" d="M589,208 L630,314" />
+  <path class="arrow" d="M638,208 L819,314" />
 
-  <path class="soft-arrow" d="M537,452 C537,418 406,416 406,390" />
-  <path class="soft-arrow" d="M537,452 L590,390" />
-  <path class="soft-arrow" d="M537,452 C537,418 774,416 774,390" />
+  <path class="soft-arrow" d="M540,514 L440,434" />
+  <path class="soft-arrow" d="M589,514 L630,434" />
+  <path class="soft-arrow" d="M638,514 L819,434" />
 
-  <path class="arrow" d="M752,146 L916,146" />
-  <path class="soft-arrow" d="M880,334 C928,334 942,234 916,196" />
-  <path class="arrow" d="M1026,196 L1026,452" />
+  <path class="arrow" d="M824,156 L964,156" />
+  <path class="arrow" d="M1085,208 L1085,514" />
+  <path class="soft-arrow" d="M906,374 L994,374" />
 
-  <rect class="pill" x="942" y="320" width="168" height="28" />
-  <text class="small muted" x="1026" y="338" text-anchor="middle">all step traces converge here</text>
+  <rect class="pill" x="996" y="358" width="178" height="30" />
+  <text class="small muted" x="1085" y="377" text-anchor="middle">all step traces converge here</text>
 </svg>
