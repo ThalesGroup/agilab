@@ -106,11 +106,11 @@
 
   <g transform="translate(58,132)">
     <text class="lane" x="0" y="30">Inputs</text>
-    <line class="lane-rule" x1="84" y1="22" x2="150" y2="22" />
+    <line class="lane-rule" x1="170" y1="22" x2="236" y2="22" />
     <text class="lane" x="0" y="252">Processing</text>
-    <line class="lane-rule" x1="144" y1="244" x2="210" y2="244" />
+    <line class="lane-rule" x1="170" y1="244" x2="236" y2="244" />
     <text class="lane" x="0" y="504">Outputs</text>
-    <line class="lane-rule" x1="108" y1="496" x2="150" y2="496" />
+    <line class="lane-rule" x1="170" y1="496" x2="236" y2="496" />
   </g>
 
   <g transform="translate(138,146)">
@@ -133,11 +133,11 @@
 
   <g transform="translate(458,260)">
     <rect class="card" width="282" height="128" fill="#d8f6de" />
-    <text class="card-title" x="24" y="40">Simulation</text>
-    <text class="card-body" x="24" y="72">Link model and demand model</text>
-    <text class="card-note" x="24" y="98">
-      <tspan x="24" dy="0">Shared state prepared for</tspan>
-      <tspan x="24" dy="18">downstream decisions</tspan>
+    <text class="card-title" x="141" y="40" text-anchor="middle">Simulation</text>
+    <text class="card-body" x="141" y="72" text-anchor="middle">Link model and demand model</text>
+    <text class="card-note" x="141" y="98" text-anchor="middle">
+      <tspan x="141" dy="0">Shared state prepared for</tspan>
+      <tspan x="141" dy="18">downstream decisions</tspan>
     </text>
   </g>
 
@@ -153,11 +153,11 @@
     <text class="card-body" x="130" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
   </g>
 
-  <g transform="translate(1080,252)">
-    <rect class="card" width="160" height="148" fill="#ffd7ea" />
-    <text class="card-title" x="80" y="44" text-anchor="middle">Visualisation</text>
-    <text class="card-body" x="80" y="86" text-anchor="middle">Maps</text>
-    <text class="card-body" x="80" y="112" text-anchor="middle">Charts</text>
+  <g transform="translate(1052,252)">
+    <rect class="card" width="188" height="148" fill="#ffd7ea" />
+    <text class="card-title" x="94" y="44" text-anchor="middle">Visualisation</text>
+    <text class="card-body" x="94" y="86" text-anchor="middle">Maps</text>
+    <text class="card-body" x="94" y="112" text-anchor="middle">Charts</text>
   </g>
 
   <g transform="translate(772,548)">
@@ -176,11 +176,11 @@
   <line class="arrow" x1="740" y1="316" x2="806" y2="232" marker-end="url(#arrowhead-pipe)" />
   <line class="arrow" x1="740" y1="332" x2="806" y2="408" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="1066" y1="232" x2="1080" y2="302" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="1066" y1="408" x2="1080" y2="360" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1066" y1="232" x2="1052" y2="302" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1066" y1="408" x2="1052" y2="360" marker-end="url(#arrowhead-pipe)" />
 
-  <text class="label" x="1078" y="212">allocations</text>
-  <text class="label" x="1078" y="452">allocations</text>
+  <text class="label" x="1050" y="212">allocations</text>
+  <text class="label" x="1050" y="452">allocations</text>
 
-  <line class="arrow-soft" x1="1170" y1="400" x2="1170" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
+  <line class="arrow-soft" x1="1146" y1="400" x2="1146" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
 </svg>
