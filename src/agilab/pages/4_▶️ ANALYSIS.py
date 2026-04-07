@@ -22,6 +22,7 @@ import re
 from typing import Union
 import asyncio
 import shlex
+import importlib.util
 from urllib.parse import urlencode
 import shutil
 
@@ -33,6 +34,16 @@ import streamlit.components.v1 as components
 import logging
 import subprocess
 
+try:
+    from agilab.page_docs import render_page_docs_access
+except ModuleNotFoundError:
+    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
+    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
+    if _page_docs_spec is None or _page_docs_spec.loader is None:
+        raise
+    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
+    _page_docs_spec.loader.exec_module(_page_docs_module)
+    render_page_docs_access = _page_docs_module.render_page_docs_access
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
@@ -965,6 +976,13 @@ async def main():
 
     # Sidebar header/logo
     render_logo()
+    render_page_docs_access(
+        env,
+        html_file="explore-help.html",
+        key_prefix="analysis",
+        sidebar=True,
+        caption="Open the ANALYSIS guide.",
+    )
 
     # Sidebar: project selection
     projects = env.projects

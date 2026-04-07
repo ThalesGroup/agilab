@@ -25,6 +25,16 @@ import importlib
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 import streamlit as st
+try:
+    from agilab.page_docs import render_page_docs_access
+except ModuleNotFoundError:
+    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
+    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
+    if _page_docs_spec is None or _page_docs_spec.loader is None:
+        raise
+    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
+    _page_docs_spec.loader.exec_module(_page_docs_module)
+    render_page_docs_access = _page_docs_module.render_page_docs_access
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
     background_services_enabled,
@@ -34,7 +44,6 @@ from agi_env.pagelib import (
     get_projects_zip,
     on_project_change,
     select_project,
-    open_docs,
     render_logo,
     activate_mlflow
 )
@@ -1743,6 +1752,14 @@ def page():
 
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
+
+    render_page_docs_access(
+        env,
+        html_file="edit-help.html",
+        key_prefix="project",
+        sidebar=True,
+        caption="Open the PROJECT page guide.",
+    )
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
