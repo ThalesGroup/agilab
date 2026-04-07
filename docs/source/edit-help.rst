@@ -91,7 +91,7 @@ See also
 Support
 -------
 
-Email: focus@thalesgroup.com
+Support: open an issue on GitHub
 
 .. |PyPI version| image:: https://img.shields.io/pypi/v/AGI.svg
    :target: https://pypi.org/project/agilab/
