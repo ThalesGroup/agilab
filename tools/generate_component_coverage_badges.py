@@ -77,8 +77,9 @@ def text_width(text: str) -> int:
 
 
 def format_percent(percent: float) -> str:
-    rounded = max(0, min(100, int(percent + 0.5)))
-    return f"{rounded}%"
+    # Truncate instead of rounding so badges stay stable across tiny local/CI
+    # coverage deltas near threshold boundaries.
+    return f"{int(percent)}%"
 
 
 def render_badge(label: str, value: str, color: str) -> str:
