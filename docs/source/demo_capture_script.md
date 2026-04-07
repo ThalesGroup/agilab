@@ -1,8 +1,54 @@
-# AGILAB Demo Capture Script
+# AGILAB Video Tutorial And Slideshow Guide
 
-Use this as a short capture plan for a GIF or MP4.
+Use this guide when you want to produce a short AGILAB tutorial package instead of
+an isolated video file.
 
-Concrete workflow:
+The package has three complementary assets:
+
+- a short live tutorial video or GIF
+- a self-generated explainer MP4/GIF/poster
+- a static slideshow/visual kit for README, docs, and launch posts
+
+## Recommended tutorial package
+
+Use the built-in `flight_project` as the single narrative path.
+
+Core assets already in the repo:
+
+- `docs/source/diagrams/agilab_readme_tour.svg`
+- `docs/source/diagrams/agilab_social_card.svg`
+- `artifacts/demo_media/agilab_explainer.gif`
+- `artifacts/demo_media/agilab_explainer.mp4`
+- `artifacts/demo_media/agilab_explainer_poster.png`
+
+The key message should stay consistent across all three formats:
+
+`One app, one control path from PROJECT to ORCHESTRATE to PIPELINE to ANALYSIS.`
+
+## Which format to use
+
+Use a live tutorial when you want to show the real UI flow:
+
+- selecting the app
+- launching orchestration
+- inspecting pipeline steps
+- ending on analysis results
+
+Use the self-generated explainer when you want a lightweight shareable asset:
+
+- launch posts
+- README/social embeds
+- quick product intros
+
+Use the slideshow/static kit when you need a narrated talk track without video:
+
+- one presenter slide
+- one README figure
+- one poster frame
+
+## Fastest live workflow
+
+Concrete capture command:
 
 ```bash
 tools/capture_demo_workflow.sh --name agilab-flight --duration 45 --trim 30
@@ -13,19 +59,6 @@ This wrapper:
 - launches an interactive macOS screen recording with `screencapture`
 - stores the raw `.mov` under `artifacts/demo_media/<name>/raw/`
 - exports a shareable `.mp4` and `.gif` under `artifacts/demo_media/<name>/edited/`
-
-Self-generated fallback when you do not want to rely on interactive capture:
-
-```bash
-uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg \
-  python tools/build_demo_explainer.py
-```
-
-This produces:
-
-- `artifacts/demo_media/agilab_explainer.gif`
-- `artifacts/demo_media/agilab_explainer.mp4`
-- `artifacts/demo_media/agilab_explainer_poster.png`
 
 If you already have a raw recording and only want the export step:
 
@@ -38,32 +71,104 @@ uv --preview-features extra-build-dependencies run --with imageio-ffmpeg \
   --duration 30
 ```
 
-## Goal
+## Self-generated fallback
 
-Show, in under 60 seconds, that AGILAB removes orchestration work around an AI/ML workflow.
+Use this when you do not want to rely on interactive capture:
 
-## Suggested sequence
+```bash
+uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg \
+  python tools/build_demo_explainer.py
+```
 
-1. Open the AGILAB home screen.
-2. In `PROJECT`, select `src/agilab/apps/builtin/flight_project`.
-3. Briefly show the app settings or source area.
+This produces:
+
+- `artifacts/demo_media/agilab_explainer.gif`
+- `artifacts/demo_media/agilab_explainer.mp4`
+- `artifacts/demo_media/agilab_explainer_poster.png`
+
+## Storyboard
+
+### 30-second version
+
+Use this when you want a quick social/demo clip.
+
+1. Show the AGILAB home screen.
+2. Show `flight_project` selected in `PROJECT`.
+3. Jump to `ORCHESTRATE` and trigger the run path.
+4. Show `PIPELINE` with generated/replayable steps.
+5. End in `ANALYSIS` on a visible result.
+
+Narration:
+
+`AGILAB gives one app a single control path from selection to execution to analysis.`
+
+### 45-second version
+
+Use this as the default product tutorial.
+
+1. Open AGILAB.
+2. Select `src/agilab/apps/builtin/flight_project` in `PROJECT`.
+3. Briefly show app settings or source context.
 4. Move to `ORCHESTRATE`.
-5. Trigger the install/distribute/run flow.
-6. Show that the workflow is packaged and executed without hand-written shell glue.
+5. Trigger install, distribute, and run.
+6. Show that the workflow is packaged and executed without ad-hoc shell glue.
 7. Move to `PIPELINE`.
-8. Show the generated or replayable steps.
+8. Show generated or replayable steps.
 9. Move to `ANALYSIS`.
-10. Open a built-in page over the produced artifacts.
+10. End on a built-in page over produced artifacts.
 
-## Narration line
+Narration:
 
-`AGILAB gives the same app one control path from UI to workers to analysis, instead of making the team hand-wire environments, scripts, and validation every time.`
+`Instead of hand-wiring environments, scripts, and checks, AGILAB gives the same app one controlled path from UI to workers to analysis.`
 
-## Recording tips
+### 60-second version
 
-- Record at 1440p or 1080p, then crop tightly.
+Use this only when you need a slightly more explanatory walkthrough.
+
+Keep the same path, but add one explicit sentence on each stage:
+
+- `PROJECT` defines the app and settings
+- `ORCHESTRATE` packages and runs the workflow
+- `PIPELINE` makes the steps inspectable and replayable
+- `ANALYSIS` ends on visible evidence
+
+Do not add a second app. Do not branch into alternative flows.
+
+## Slideshow structure
+
+If you want a static slideshow instead of a video, use this sequence:
+
+1. `AGILAB 3-minute tour`
+   - `docs/source/diagrams/agilab_readme_tour.svg`
+2. `One app, one path`
+   - `docs/source/diagrams/agilab_social_card.svg`
+3. `Explainer poster`
+   - `artifacts/demo_media/agilab_explainer_poster.png`
+4. Optional closing frame
+   - a screenshot from `ANALYSIS`
+
+The slideshow should tell the same story as the video, not introduce extra claims.
+
+## Recording and visual rules
+
+- Record at `1440p` or `1080p`, then crop tightly.
 - Keep the cursor slow and deliberate.
-- Avoid typing during capture unless the command is central to the story.
+- Avoid typing during capture unless the command is the point.
 - Use one app only. The point is clarity, not breadth.
-- End on a visible result, not on logs.
-- If the capture includes dead time at the beginning or end, trim it during export rather than re-recording immediately.
+- End on a visible result, not logs.
+- Trim dead time during export instead of re-recording immediately.
+- Keep the visible UI path aligned with the narration path.
+- Prefer one strong sentence on screen rather than many small labels.
+
+## Quality checklist
+
+- the tutorial uses one app only
+- the visible sequence is `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
+- the ending frame shows a result, not infrastructure noise
+- the video and slideshow use the same message
+- the social/static assets do not contradict the live capture
+- the clip stays short enough to rewatch once without fatigue
+
+## Default tagline
+
+`AGILAB gives one app one control path from project selection to execution to analysis.`

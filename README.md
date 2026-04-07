@@ -126,8 +126,8 @@ If you want to understand AGILAB quickly, use the built-in `flight_project` as t
 Shareable visual:
 - [Social card SVG](docs/source/diagrams/agilab_social_card.svg)
 
-Local explainer generation:
-- [Demo capture workflow](docs/source/demo_capture_script.md)
+Video tutorial and slideshow:
+- [Video tutorial and slideshow guide](docs/source/demo_capture_script.md)
 - `uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg python tools/build_demo_explainer.py`
 
 1. Launch the AGILAB UI from source:
