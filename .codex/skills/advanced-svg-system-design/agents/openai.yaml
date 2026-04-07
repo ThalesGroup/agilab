@@ -1,4 +1,0 @@
-interface:
-  display_name: "Advanced SVG System Design"
-  short_description: "Design reusable SVG systems for advanced projects"
-  default_prompt: "Use $advanced-svg-system-design to define or refine a reusable SVG diagram system for this project."
