@@ -145,9 +145,12 @@ How to read the matrix quickly
 3. Compare each family back to mode ``0`` (``____``) to see whether the
    execution model is buying you anything.
 
-.. image:: diagrams/execution_mode_families.svg
+.. figure:: diagrams/execution_mode_families.svg
    :alt: Visual summary of execution mode families for execution_pandas_project and execution_polars_project
-   :width: 100%
+   :align: center
+   :class: diagram-panel diagram-hero
+
+   Compact map of the 16 execution modes grouped by topology and runtime family.
 
 .. rubric:: execution_pandas_project
 

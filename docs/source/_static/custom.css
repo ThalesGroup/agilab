@@ -21,6 +21,8 @@
   border-radius: 18px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 
 .rst-content div.figure.diagram-panel img {
@@ -29,17 +31,23 @@
   height: auto;
 }
 
+.rst-content img[src$=".svg"] {
+  display: block;
+  height: auto;
+}
+
 .rst-content div.figure.diagram-panel p.caption {
   margin-top: 0.85rem;
   color: #4c607b;
+  max-width: 80ch;
 }
 
 .rst-content div.figure.diagram-standard {
-  max-width: 980px;
+  max-width: 1080px;
 }
 
 .rst-content div.figure.diagram-hero {
-  max-width: 1180px;
+  max-width: 1240px;
 }
 
 .rst-content div.figure.diagram-standard img,
@@ -51,18 +59,19 @@
 .rst-content div.figure.diagram-wide,
 .rst-content div.figure.diagram-xl {
   overflow-x: auto;
+  max-width: 1240px;
 }
 
 .rst-content div.figure.diagram-wide img {
   width: auto;
   max-width: none;
-  min-width: 1400px;
+  min-width: 1600px;
 }
 
 .rst-content div.figure.diagram-xl img {
   width: auto;
   max-width: none;
-  min-width: 2000px;
+  min-width: 2400px;
 }
 
 @media (max-width: 900px) {
@@ -71,10 +80,10 @@
   }
 
   .rst-content div.figure.diagram-wide img {
-    min-width: 1100px;
+    min-width: 1200px;
   }
 
   .rst-content div.figure.diagram-xl img {
-    min-width: 1400px;
+    min-width: 1700px;
   }
 }
