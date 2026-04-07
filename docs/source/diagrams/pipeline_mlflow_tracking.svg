@@ -37,7 +37,7 @@
   <g transform="translate(48,292)">
     <rect class="box" width="268" height="132" fill="#ddd6fe" />
     <text class="caption" x="134" y="36" text-anchor="middle">lab_steps.toml</text>
-    <text class="body" x="134" y="70" text-anchor="middle">step description</text>
+    <text class="body" x="134" y="70" text-anchor="middle">step definitions</text>
     <text class="body" x="134" y="92" text-anchor="middle">prompt, model, engine, runtime</text>
   </g>
 
@@ -52,18 +52,18 @@
   <g transform="translate(392,120)">
     <rect class="box" width="560" height="112" fill="#fde68a" />
     <text class="caption" x="280" y="36" text-anchor="middle">Parent MLflow run</text>
-    <text class="body" x="280" y="68" text-anchor="middle">one run for the whole pipeline execution</text>
-    <text class="body" x="280" y="90" text-anchor="middle">logs lab-level metadata and the run log</text>
+    <text class="body" x="280" y="68" text-anchor="middle">one pipeline-level run</text>
+    <text class="body" x="280" y="90" text-anchor="middle">stores run log and lab-level metadata</text>
   </g>
 
   <g transform="translate(360,282)">
     <rect class="panel" width="640" height="292" fill="#fff7ed" />
     <text class="caption" x="24" y="40">Nested step runs</text>
-  <text class="small muted" x="24" y="62">each executed step becomes its own MLflow run under the parent</text>
+  <text class="small muted" x="24" y="62">one nested MLflow run is created for each executed step</text>
   </g>
 
   <rect class="pill" x="392" y="362" width="336" height="34" />
-  <text class="small muted" x="560" y="383" text-anchor="middle">metadata comes from lab_steps.toml</text>
+  <text class="small muted" x="560" y="383" text-anchor="middle">step metadata comes from lab_steps.toml</text>
 
   <g transform="translate(392,438)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
@@ -103,11 +103,11 @@
     <rect class="box" width="272" height="112" fill="#c7f9cc" />
     <text class="caption" x="136" y="36" text-anchor="middle">MLFLOW_TRACKING_DIR</text>
     <text class="body" x="136" y="68" text-anchor="middle">shared tracking store</text>
-    <text class="body" x="136" y="90" text-anchor="middle">parent run + step runs write here</text>
+    <text class="body" x="136" y="90" text-anchor="middle">parent run and step runs write here</text>
   </g>
 
   <rect class="pill" x="1060" y="466" width="250" height="34" />
-  <text class="small muted" x="1185" y="487" text-anchor="middle">all step traces converge in the same store</text>
+  <text class="small muted" x="1185" y="487" text-anchor="middle">all run traces converge in the same store</text>
 
   <g transform="translate(1088,636)">
     <rect class="box" width="208" height="102" fill="#bae6fd" />
@@ -118,7 +118,7 @@
 
   <!-- Orthogonal flow arrows -->
   <path class="arrow" d="M316,176 H392" />
-  <path class="soft-arrow" d="M316,358 H392" />
+  <path class="soft-arrow" d="M316,379 H392" />
   <path class="soft-arrow" d="M316,571 L392,636" />
 
   <path class="arrow" d="M672,232 V282" />
