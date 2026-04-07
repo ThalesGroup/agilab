@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1040" viewBox="0 0 1280 1040" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1420" height="1040" viewBox="0 0 1420 1040" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB runtime stack</title>
   <desc id="desc">Layered AGILAB diagram showing entry surfaces, control-plane components, execution services, and produced artifacts on one readable control path.</desc>
   <defs>
@@ -102,7 +102,7 @@
     </filter>
   </defs>
 
-  <rect width="1280" height="1040" fill="url(#bg)" rx="40" ry="40" />
+  <rect width="1420" height="1040" fill="url(#bg)" rx="40" ry="40" />
 
   <g transform="translate(72,72)">
     <text class="title" x="0" y="0">AGILAB runtime stack</text>
@@ -163,14 +163,14 @@
     <text class="box-note" x="36" y="112">Executes the same WorkDispatcher plan on one machine or across a cluster.</text>
   </g>
 
-  <g transform="translate(1014,188)">
+  <g transform="translate(1154,188)">
     <rect class="badge" width="212" height="38" rx="19" ry="19" />
     <text class="badge-text" x="106" y="24" text-anchor="middle">Execution path</text>
     <line class="arrow" x1="106" y1="52" x2="106" y2="340" />
     <polygon class="arrow-head" points="98,340 114,340 106,356" />
   </g>
 
-  <g transform="translate(1006,806)">
+  <g transform="translate(1154,806)">
     <rect class="callout" width="218" height="190" fill="#ffffff" />
     <text class="callout-title" x="109" y="32" text-anchor="middle">Workers and data</text>
     <circle class="bullet" cx="24" cy="64" r="4.5" />
@@ -184,15 +184,18 @@
   </g>
 
   <g transform="translate(60,838)">
-    <rect class="callout" width="1160" height="64" fill="#ffffff" />
+    <rect class="callout" width="1300" height="76" fill="#ffffff" />
     <text class="callout-title" x="22" y="36">Typical flow</text>
-    <text class="callout-body" x="168" y="36">User action → manifest build → environment resolution → worker execution → artifacts and feedback</text>
+    <text class="callout-body" x="168" y="32">
+      <tspan x="168" dy="0">User action → manifest build → environment resolution</tspan>
+      <tspan x="168" dy="20">→ worker execution → artifacts and feedback</tspan>
+    </text>
   </g>
 
   <line class="arrow" x1="602" y1="256" x2="602" y2="284" />
-  <polygon class="arrow-head" points="594,276 610,276 602,292" />
+  <polygon class="arrow-head" points="594,284 610,284 602,300" />
   <line class="arrow" x1="602" y1="432" x2="602" y2="468" />
-  <polygon class="arrow-head" points="594,460 610,460 602,476" />
+  <polygon class="arrow-head" points="594,468 610,468 602,484" />
   <line class="arrow" x1="602" y1="604" x2="602" y2="628" />
-  <polygon class="arrow-head" points="594,616 610,616 602,632" />
+  <polygon class="arrow-head" points="594,628 610,628 602,644" />
 </svg>

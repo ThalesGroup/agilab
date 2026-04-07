@@ -124,8 +124,8 @@
     </text>
   </g>
 
-  <g transform="translate(868,62)" filter="url(#shadow)">
-    <rect x="0" y="0" width="420" height="94" rx="26" ry="26" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
+  <g transform="translate(838,62)" filter="url(#shadow)">
+    <rect x="0" y="0" width="450" height="94" rx="26" ry="26" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
     <rect x="20" y="22" width="124" height="34" rx="17" ry="17" class="pill-dark"/>
     <text class="chip-text" x="82" y="44" text-anchor="middle">Demo app</text>
     <rect x="154" y="22" width="96" height="34" rx="17" ry="17" class="pill-accent"/>
@@ -249,10 +249,9 @@
     </text>
   </g>
 
-  <line class="soft-arrow" x1="209" y1="546" x2="209" y2="612"/>
-  <line class="soft-arrow" x1="521" y1="546" x2="521" y2="612"/>
-  <line class="soft-arrow" x1="833" y1="546" x2="833" y2="612"/>
-  <line class="soft-arrow" x1="1145" y1="546" x2="1145" y2="612"/>
+  <line class="soft-arrow" x1="265" y1="546" x2="265" y2="612"/>
+  <line class="soft-arrow" x1="679" y1="546" x2="679" y2="612"/>
+  <line class="soft-arrow" x1="1085" y1="546" x2="1085" y2="612"/>
 
   <g transform="translate(72,838)" filter="url(#shadow)">
     <rect x="0" y="0" width="1198" height="54" rx="24" ry="24" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
