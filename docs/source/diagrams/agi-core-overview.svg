@@ -174,7 +174,7 @@
     <line class="arrow" x1="18" y1="22" x2="72" y2="22" marker-end="url(#arrowhead-core)" />
     <text class="callout-body" x="92" y="26">Primary execution flow</text>
     <line class="arrow-soft" x1="18" y1="42" x2="72" y2="42" marker-end="url(#arrowhead-soft-core)" />
-    <text class="callout-body" x="92" y="46">Secondary support link</text>
+    <text class="callout-body" x="92" y="46">Supporting output and telemetry link</text>
   </g>
 
   <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
