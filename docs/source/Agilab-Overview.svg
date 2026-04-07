@@ -112,7 +112,7 @@
   <rect x="160" y="140" width="904" height="120" fill="#f4fbff" rx="28" ry="28" />
   <rect x="160" y="288" width="904" height="156" fill="#f6f2ff" rx="28" ry="28" />
   <rect x="160" y="472" width="904" height="160" fill="#fff8e5" rx="28" ry="28" />
-  <rect x="160" y="628" width="904" height="156" fill="#fff3f6" rx="28" ry="28" />
+  <rect x="160" y="660" width="904" height="156" fill="#fff3f6" rx="28" ry="28" />
 
   <g transform="translate(72,154)">
     <text class="lane-label" x="0" y="34">Entry</text>
@@ -121,8 +121,8 @@
     <line class="lane-rule" x1="170" y1="171" x2="262" y2="171" />
     <text class="lane-label" x="0" y="366">Execution</text>
     <line class="lane-rule" x1="170" y1="357" x2="262" y2="357" />
-    <text class="lane-label" x="0" y="526">Artifacts</text>
-    <line class="lane-rule" x1="170" y1="517" x2="262" y2="517" />
+    <text class="lane-label" x="0" y="558">Artifacts</text>
+    <line class="lane-rule" x1="170" y1="549" x2="262" y2="549" />
   </g>
 
   <g transform="translate(198,152)">
@@ -155,7 +155,7 @@
     </text>
   </g>
 
-  <g transform="translate(198,640)">
+  <g transform="translate(198,672)">
     <rect class="box" width="828" height="132" fill="#ffdbe5" />
     <text class="box-title" x="414" y="40" text-anchor="middle">agi_cluster and agi_node</text>
     <text class="box-body" x="36" y="70">
@@ -202,6 +202,6 @@
   <polygon class="arrow-head" points="594,284 610,284 602,300" />
   <line class="arrow" x1="602" y1="432" x2="602" y2="468" />
   <polygon class="arrow-head" points="594,468 610,468 602,484" />
-  <line class="arrow" x1="602" y1="604" x2="602" y2="628" />
-  <polygon class="arrow-head" points="594,628 610,628 602,644" />
+  <line class="arrow" x1="602" y1="620" x2="602" y2="656" />
+  <polygon class="arrow-head" points="594,656 610,656 602,672" />
 </svg>
