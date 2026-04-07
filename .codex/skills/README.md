@@ -19,6 +19,8 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `fcas-presentations`: FCAS PPTX/DOCX/PDF workflow for figures, generators, and Confluence-safe deliverables.
+- `svg-diagram-tuning`: Refine existing SVG diagrams for readability and export.
+- `advanced-svg-system-design`: Build reusable SVG diagram systems for advanced multi-figure projects.
 - `template`: Minimal skeleton for adding a new skill.
 
 ## Adding A New Skill
