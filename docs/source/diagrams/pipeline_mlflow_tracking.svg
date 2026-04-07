@@ -119,7 +119,7 @@
   <!-- Orthogonal flow arrows -->
   <path class="arrow" d="M316,176 H392" />
   <path class="soft-arrow" d="M316,379 H392" />
-  <path class="soft-arrow" d="M316,601 H392" />
+  <path class="soft-arrow" d="M316,615 H392" />
 
   <path class="arrow" d="M672,232 V282" />
 
