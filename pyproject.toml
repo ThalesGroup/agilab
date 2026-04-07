@@ -9,7 +9,7 @@ authors = [
     { name = "Guillaume Demets" },
     { name = "Julien Bestard" }
 ]
-maintainers = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
+maintainers = [{ name = "Jean-Pierre Morard" }]
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 

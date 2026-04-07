@@ -16,7 +16,7 @@ please upgrade to the latest release before requesting a patch.
 
 ## Reporting a Vulnerability
 
-- Email **focus@thalesgroup.com** with the subject line **`[SECURITY] <short summary>`**.
+- Open a GitHub issue with the title **`[SECURITY] <short summary>`**.
 - Include:
   - Steps to reproduce, impacted components, and any proof-of-concept material.
   - Which environments are affected (development install, packaged release, etc.).

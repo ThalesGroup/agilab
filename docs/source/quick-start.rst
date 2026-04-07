@@ -134,4 +134,4 @@ Next steps
 Support
 ^^^^^^^
 
-Email: focus@thalesgroup.com
+Support: open an issue on GitHub
