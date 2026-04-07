@@ -105,7 +105,7 @@
     <text class="subtitle" x="0" y="38">Trajectory and environment inputs feed simulation, then learned and optimization baselines, then maps and KPI outputs.</text>
   </g>
 
-  <text class="lane" x="148" y="146">Scenario inputs</text>
+  <text class="lane" x="148" y="136">Scenario inputs</text>
   <text class="lane" x="480" y="180">Simulation and decisions</text>
   <text class="lane" x="768" y="566">Analysis outputs</text>
 
