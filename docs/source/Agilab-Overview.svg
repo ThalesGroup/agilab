@@ -144,13 +144,13 @@
   </g>
 
   <g transform="translate(198,484)">
-    <rect class="box" width="808" height="120" fill="#ffe39e" />
+    <rect class="box" width="808" height="136" fill="#ffe39e" />
     <text class="box-title" x="404" y="40" text-anchor="middle">agi_env</text>
     <text class="box-body" x="36" y="68">
       <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces,</tspan>
       <tspan x="36" dy="24">and worker bundles.</tspan>
     </text>
-    <text class="box-note" x="36" y="104">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
+    <text class="box-note" x="36" y="118">Stages installs in localshare, clustershare, and <tspan font-style="italic">~/wenv</tspan>.</text>
   </g>
 
   <g transform="translate(198,640)">
