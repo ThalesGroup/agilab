@@ -95,8 +95,8 @@
 
   <rect width="1280" height="700" fill="url(#pipe-bg)" rx="38" ry="38" />
 
-  <rect x="120" y="122" width="322" height="382" fill="#eef6ff" rx="26" ry="26" />
-  <rect x="452" y="156" width="660" height="352" fill="#e7effb" rx="26" ry="26" />
+  <rect x="120" y="110" width="322" height="394" fill="#eef6ff" rx="26" ry="26" />
+  <rect x="452" y="144" width="660" height="364" fill="#e7effb" rx="26" ry="26" />
   <rect x="1082" y="228" width="170" height="196" fill="#fff1f7" rx="26" ry="26" />
   <rect x="740" y="532" width="460" height="112" fill="#fff7ea" rx="26" ry="26" />
 
@@ -105,11 +105,9 @@
     <text class="subtitle" x="0" y="38">Trajectory and environment inputs feed simulation, then learned and optimization baselines, then maps and KPI outputs.</text>
   </g>
 
-  <g transform="translate(58,132)">
-    <text class="lane" x="0" y="30">Scenario Inputs</text>
-    <text class="lane" x="0" y="252">Simulation and Decisions</text>
-    <text class="lane" x="0" y="504">Analysis Outputs</text>
-  </g>
+  <text class="lane" x="148" y="146">Scenario inputs</text>
+  <text class="lane" x="480" y="180">Simulation and decisions</text>
+  <text class="lane" x="768" y="566">Analysis outputs</text>
 
   <g transform="translate(138,146)">
     <rect class="card" width="280" height="88" fill="#d6ecff" />
