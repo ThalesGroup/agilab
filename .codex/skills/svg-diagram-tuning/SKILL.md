@@ -56,6 +56,10 @@ blob/raw page:
   Do not leave connector coordinates inherited from an older layout.
 - For repeated connectors, keep arrow placement symmetric across the row or column so
   the figure reads as intentional rather than hand-adjusted.
+- Center connectors on the geometry they are meant to describe. A vertical flow arrow
+  should sit on the actual center axis of the card or lane, not on a stale inherited x.
+- Treat lane rules and section dividers as a family too. They should share a deliberate
+  start/end axis rather than drifting with each label width.
 - Prefer widening a badge, pill, or summary card before wrapping what is really one
   short label or one atomic message. Use wrapping only when the content is genuinely
   paragraph-like.
@@ -112,6 +116,8 @@ blob/raw page:
 - Check that line breaks are semantically balanced across sibling cards instead of
   looking random or width-driven.
 - Check gutters between neighboring panels and side callouts, not only strict overlap.
+- Check that arrows, lane rules, and labels still share the same axes after any grid
+  shift. Geometry drift in connectors is a first-class defect.
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
   collisions, and clipped whitespace before pushing.
 - Re-check any badge, banner, or summary card that was previously one line after any
