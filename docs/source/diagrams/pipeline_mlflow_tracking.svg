@@ -59,13 +59,13 @@
   <g transform="translate(360,282)">
     <rect class="panel" width="640" height="292" fill="#fff7ed" />
     <text class="caption" x="24" y="40">Nested step runs</text>
-    <text class="small muted" x="24" y="62">each executed step becomes its own MLflow run under the parent</text>
+  <text class="small muted" x="24" y="62">each executed step becomes its own MLflow run under the parent</text>
   </g>
 
-  <rect class="pill" x="392" y="342" width="336" height="34" />
-  <text class="small muted" x="560" y="363" text-anchor="middle">metadata comes from lab_steps.toml</text>
+  <rect class="pill" x="392" y="362" width="336" height="34" />
+  <text class="small muted" x="560" y="383" text-anchor="middle">metadata comes from lab_steps.toml</text>
 
-  <g transform="translate(392,418)">
+  <g transform="translate(392,438)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
     <text class="caption" x="92" y="36" text-anchor="middle">Step 1 run</text>
     <text class="body" x="92" y="70" text-anchor="middle">nested MLflow run</text>
@@ -73,7 +73,7 @@
     <text class="body" x="92" y="114" text-anchor="middle">snippet + dataframe</text>
   </g>
 
-  <g transform="translate(588,418)">
+  <g transform="translate(588,438)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
     <text class="caption" x="92" y="36" text-anchor="middle">Step 2 run</text>
     <text class="body" x="92" y="70" text-anchor="middle">same tracking URI</text>
@@ -81,7 +81,7 @@
     <text class="body" x="92" y="114" text-anchor="middle">different step metadata</text>
   </g>
 
-  <g transform="translate(784,418)">
+  <g transform="translate(784,438)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
     <text class="caption" x="92" y="36" text-anchor="middle">Step N run</text>
     <text class="body" x="92" y="70" text-anchor="middle">keeps the full step trace</text>
