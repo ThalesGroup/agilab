@@ -17,6 +17,9 @@ Page snapshot
 Sidebar
 -------
 
+- ``Read Documentation`` opens this guide in the hosted public docs, and
+  ``Open Local Documentation`` uses the locally generated docs build when
+  available.
 - ``Select`` loads the chosen project and exposes an ``Export`` button that writes
   ``<project>.zip`` to ``${EXPORT_APPS}`` using the active ``export-app-filter``.
   The rest of the page (expanders described below) becomes available from this

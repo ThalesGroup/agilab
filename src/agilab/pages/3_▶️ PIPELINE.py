@@ -21,6 +21,16 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
+try:
+    from agilab.page_docs import render_page_docs_access
+except ModuleNotFoundError:
+    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
+    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
+    if _page_docs_spec is None or _page_docs_spec.loader is None:
+        raise
+    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
+    _page_docs_spec.loader.exec_module(_page_docs_module)
+    render_page_docs_access = _page_docs_module.render_page_docs_access
 from agi_env.pagelib import (
     activate_mlflow,
     background_services_enabled,
@@ -1534,6 +1544,13 @@ def main() -> None:
             render_logo()
         else:
             render_logo()
+        render_page_docs_access(
+            env,
+            html_file="experiment-help.html",
+            key_prefix="pipeline",
+            sidebar=True,
+            caption="Open the PIPELINE guide.",
+        )
 
         if background_services_enabled() and not st.session_state.get("server_started", False):
             activate_mlflow(env)

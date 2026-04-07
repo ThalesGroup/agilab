@@ -25,6 +25,9 @@ Page snapshot
 
 Sidebar
 -------
+- ``Read Documentation`` opens this guide in the hosted public docs, and
+  ``Open Local Documentation`` uses the locally generated docs build when
+  available.
 - Project selector that keeps the page in lockstep with the active app.
 - ``Verbosity level`` changes the ``verbose`` flag injected into every generated
   snippet (0–3) and is persisted under ``[cluster].verbose``.

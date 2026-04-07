@@ -28,6 +28,16 @@ os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().pare
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 try:
+    from agilab.page_docs import render_page_docs_access
+except ModuleNotFoundError:
+    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
+    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
+    if _page_docs_spec is None or _page_docs_spec.loader is None:
+        raise
+    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
+    _page_docs_spec.loader.exec_module(_page_docs_module)
+    render_page_docs_access = _page_docs_module.render_page_docs_access
+try:
     from agilab.orchestrate_cluster import (
         OrchestrateClusterDeps,
         render_cluster_settings_ui,
@@ -742,6 +752,13 @@ async def page():
     st.set_page_config(page_title="AGILab ORCHESTRATE", layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
     render_logo()
+    render_page_docs_access(
+        env,
+        html_file="execute-help.html",
+        key_prefix="orchestrate",
+        sidebar=True,
+        caption="Open the ORCHESTRATE guide.",
+    )
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
