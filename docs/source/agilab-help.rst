@@ -34,6 +34,16 @@ Core pages
 - :doc:`experiment-help` — **PIPELINE**: iterate in ``lab_steps.toml`` and run snippets against exported data.
 - :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles.
 
+Core page tour
+--------------
+
+.. figure:: _static/page-shots/core-pages-overview.png
+   :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, PIPELINE, and ANALYSIS Streamlit pages.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   A compact visual tour of the four built-in Streamlit pages that structure the AGILAB workflow.
+
 Page bundles (apps-pages)
 -------------------------
 
