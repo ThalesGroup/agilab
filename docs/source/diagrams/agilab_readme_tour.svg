@@ -139,7 +139,7 @@
   </g>
 
   <g transform="translate(72,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="280" height="292" rx="30" ry="30" fill="#dcefff" class="card-stroke"/>
+    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#dcefff" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">1</text>
     <text class="card-title" x="64" y="42">PROJECT</text>
@@ -155,8 +155,8 @@
     </text>
   </g>
 
-  <g transform="translate(378,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="280" height="292" rx="30" ry="30" fill="#e7e1ff" class="card-stroke"/>
+  <g transform="translate(384,270)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#e7e1ff" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">2</text>
     <text class="card-title" x="64" y="42">ORCHESTRATE</text>
@@ -172,25 +172,26 @@
     </text>
   </g>
 
-  <g transform="translate(684,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="280" height="292" rx="30" ry="30" fill="#fff1bf" class="card-stroke"/>
+  <g transform="translate(696,270)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#fff1bf" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">3</text>
     <text class="card-title" x="64" y="42">PIPELINE</text>
     <text class="card-kicker" x="28" y="78">Inspect the trace</text>
     <text class="body" x="28" y="116">
       <tspan x="28" dy="0">Generated steps stay visible,</tspan>
-      <tspan x="28" dy="26">replayable, and easy to inspect</tspan>
-      <tspan x="28" dy="26">when you need to debug or iterate.</tspan>
+      <tspan x="28" dy="26">replayable, and easy</tspan>
+      <tspan x="28" dy="26">to inspect when you</tspan>
+      <tspan x="28" dy="26">need to debug or iterate.</tspan>
     </text>
-    <text class="mini" x="28" y="242">
+    <text class="mini" x="28" y="252">
       <tspan x="28" dy="0">Execution becomes reviewable,</tspan>
       <tspan x="28" dy="22">not just “it ran once”.</tspan>
     </text>
   </g>
 
-  <g transform="translate(990,270)" filter="url(#shadow)">
-    <rect x="0" y="0" width="280" height="292" rx="30" ry="30" fill="#ffe2e9" class="card-stroke"/>
+  <g transform="translate(1008,270)" filter="url(#shadow)">
+    <rect x="0" y="0" width="274" height="292" rx="30" ry="30" fill="#ffe2e9" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">4</text>
     <text class="card-title" x="64" y="42">ANALYSIS</text>
@@ -206,9 +207,9 @@
     </text>
   </g>
 
-  <line class="arrow" x1="356" y1="416" x2="370" y2="416"/>
-  <line class="arrow" x1="662" y1="416" x2="676" y2="416"/>
-  <line class="arrow" x1="968" y1="416" x2="982" y2="416"/>
+  <line class="arrow" x1="352" y1="416" x2="376" y2="416"/>
+  <line class="arrow" x1="664" y1="416" x2="688" y2="416"/>
+  <line class="arrow" x1="976" y1="416" x2="1000" y2="416"/>
 
   <g transform="translate(72,646)">
     <text class="section-label" x="0" y="0">What you leave with</text>
@@ -245,10 +246,10 @@
     </text>
   </g>
 
-  <line class="soft-arrow" x1="212" y1="570" x2="212" y2="672"/>
-  <line class="soft-arrow" x1="518" y1="570" x2="518" y2="672"/>
-  <line class="soft-arrow" x1="824" y1="570" x2="824" y2="672"/>
-  <line class="soft-arrow" x1="1130" y1="570" x2="1130" y2="672"/>
+  <line class="soft-arrow" x1="209" y1="570" x2="209" y2="672"/>
+  <line class="soft-arrow" x1="521" y1="570" x2="521" y2="672"/>
+  <line class="soft-arrow" x1="833" y1="570" x2="833" y2="672"/>
+  <line class="soft-arrow" x1="1145" y1="570" x2="1145" y2="672"/>
 
   <g transform="translate(72,902)" filter="url(#shadow)">
     <rect x="0" y="0" width="1198" height="54" rx="24" ry="24" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
