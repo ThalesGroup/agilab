@@ -41,7 +41,7 @@
     <text class="body" x="134" y="92" text-anchor="middle">prompt, model, engine, runtime</text>
   </g>
 
-  <g transform="translate(48,510)">
+  <g transform="translate(48,528)">
     <rect class="box" width="268" height="122" fill="#e2e8f0" />
     <text class="caption" x="134" y="36" text-anchor="middle">Execution paths</text>
     <text class="body" x="134" y="70" text-anchor="middle">runpy in the managed env</text>
@@ -57,15 +57,15 @@
   </g>
 
   <g transform="translate(360,282)">
-    <rect class="panel" width="640" height="292" fill="#fff7ed" />
-    <text class="caption" x="24" y="40">Nested step runs</text>
-  <text class="small muted" x="24" y="62">one nested MLflow run is created for each executed step</text>
+    <rect class="panel" width="640" height="282" fill="#fff7ed" />
+    <text class="caption" x="320" y="40" text-anchor="middle">Nested step runs</text>
+  <text class="small muted" x="320" y="62" text-anchor="middle">one nested MLflow run is created for each executed step</text>
   </g>
 
   <rect class="pill" x="392" y="362" width="336" height="34" />
   <text class="small muted" x="560" y="383" text-anchor="middle">step metadata comes from lab_steps.toml</text>
 
-  <g transform="translate(392,438)">
+  <g transform="translate(392,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
     <text class="caption" x="92" y="36" text-anchor="middle">Step 1 run</text>
     <text class="body" x="92" y="70" text-anchor="middle">nested MLflow run</text>
@@ -73,7 +73,7 @@
     <text class="body" x="92" y="114" text-anchor="middle">snippet + dataframe</text>
   </g>
 
-  <g transform="translate(588,438)">
+  <g transform="translate(588,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
     <text class="caption" x="92" y="36" text-anchor="middle">Step 2 run</text>
     <text class="body" x="92" y="70" text-anchor="middle">same tracking URI</text>
@@ -81,7 +81,7 @@
     <text class="body" x="92" y="114" text-anchor="middle">different step metadata</text>
   </g>
 
-  <g transform="translate(784,438)">
+  <g transform="translate(784,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
     <text class="caption" x="92" y="36" text-anchor="middle">Step N run</text>
     <text class="body" x="92" y="70" text-anchor="middle">keeps the full step trace</text>
@@ -89,7 +89,7 @@
     <text class="body" x="92" y="114" text-anchor="middle">in the same MLflow UI</text>
   </g>
 
-  <g transform="translate(392,632)">
+  <g transform="translate(392,589)">
     <rect class="box" width="560" height="114" fill="#e0f2fe" />
     <text class="caption" x="280" y="38" text-anchor="middle">Shared runtime contract</text>
     <text class="body" x="280" y="72" text-anchor="middle">
@@ -99,18 +99,18 @@
   </g>
 
   <!-- Right column -->
-  <g transform="translate(1056,120)">
+  <g transform="translate(1032,120)">
     <rect class="box" width="272" height="112" fill="#c7f9cc" />
     <text class="caption" x="136" y="36" text-anchor="middle">MLFLOW_TRACKING_DIR</text>
     <text class="body" x="136" y="68" text-anchor="middle">shared tracking store</text>
     <text class="body" x="136" y="90" text-anchor="middle">parent run and step runs write here</text>
   </g>
 
-  <rect class="pill" x="1060" y="466" width="250" height="34" />
-  <text class="small muted" x="1185" y="487" text-anchor="middle">all run traces converge in the same store</text>
+  <rect class="pill" x="1036" y="466" width="250" height="34" />
+  <text class="small muted" x="1161" y="487" text-anchor="middle">all run traces converge in the same store</text>
 
-  <g transform="translate(1088,636)">
-    <rect class="box" width="208" height="102" fill="#bae6fd" />
+  <g transform="translate(1064,591)">
+    <rect class="box" width="208" height="112" fill="#bae6fd" />
     <text class="caption" x="104" y="38" text-anchor="middle">MLflow UI</text>
     <text class="body" x="104" y="72" text-anchor="middle">sidebar Open UI link</text>
     <text class="body" x="104" y="94" text-anchor="middle">reads the same store</text>
@@ -119,11 +119,11 @@
   <!-- Orthogonal flow arrows -->
   <path class="arrow" d="M316,176 H392" />
   <path class="soft-arrow" d="M316,379 H392" />
-  <path class="soft-arrow" d="M316,632 H392" />
+  <path class="soft-arrow" d="M316,601 H392" />
 
   <path class="arrow" d="M672,232 V282" />
 
-  <path class="arrow" d="M952,176 H1056" />
-  <path class="soft-arrow" d="M1000,482 H1060" />
-  <path class="arrow" d="M1192,232 V636" />
+  <path class="arrow" d="M952,176 H1032" />
+  <path class="soft-arrow" d="M1000,482 H1036" />
+  <path class="arrow" d="M1168,232 V591" />
 </svg>
