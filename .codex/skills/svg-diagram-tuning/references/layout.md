@@ -7,6 +7,7 @@
 - sweep sibling elements for the same defect class before stopping
 - align arrows with intent
 - remove redundant labels
+- rebalance line breaks by semantic phrase, not by leftover width
 - move decorative rules away from text corridors
 - enforce a visible gutter between body copy and footer notes
 - enforce a visible gutter between adjacent panels or side callouts
@@ -20,6 +21,7 @@
 - widen dense blocks
 - normalize title/body hierarchy
 - normalize title alignment across peer blocks
+- normalize line-break structure across peer blocks
 - reduce wording when needed
 - wrap long callouts instead of forcing one-line text
 - move legends and reading guides into their own stable lane

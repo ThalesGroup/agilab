@@ -27,8 +27,10 @@ Focus on readability first: text, spacing, arrows, and visual hierarchy.
    the full class of issue in one pass.
 4. Rebalance titles, body text, padding, and connector anchors together rather than as
    isolated micro-fixes.
-5. Keep one editable SVG as the source of truth.
-6. Re-render only after the SVG itself is clean.
+5. Rebalance line breaks across sibling cards together. If one block is rewrapped,
+   inspect whether its peers need the same semantic treatment.
+6. Keep one editable SVG as the source of truth.
+7. Re-render only after the SVG itself is clean.
 
 ## GitHub-first guardrails
 
@@ -48,6 +50,8 @@ blob/raw page:
   near a label, move the line, not the label.
 - Keep a semantic vertical rhythm. Similar elements should use the same spacing
   pattern between title, kicker, body, note, and the next section break.
+- Keep a semantic line-break rhythm too. Do not let one peer block use arbitrary
+  manual wraps while its siblings use balanced semantic phrases.
 - After moving or resizing blocks, recalculate arrow anchors from the final geometry.
   Do not leave connector coordinates inherited from an older layout.
 - For repeated connectors, keep arrow placement symmetric across the row or column so
@@ -61,6 +65,11 @@ blob/raw page:
 - If a block contains a title plus explanatory copy, reserve explicit top, middle,
   and bottom zones. Do not hand-place each text line independently without a repeatable
   vertical rhythm.
+- Treat manual line breaks as part of the layout contract. Rewrap body and note copy
+  by meaning, not by whatever happened to fit at one intermediate width.
+- For a family of peer cards, choose one text structure on purpose: for example one
+  centered title plus two balanced body lines, or one title plus body plus note.
+  Do not mix one-line, two-line, and awkward broken phrases without semantic reason.
 - Reserve a real vertical gutter between body text and footer notes. If the last body
   line visually touches the note below, the card height or note position is wrong even
   if the text does not literally overlap.
@@ -97,6 +106,8 @@ blob/raw page:
   - all arrows and arrowheads
   - section labels and lane headers
 - Check body-to-note spacing inside every card, not only overflow at the card border.
+- Check that line breaks are semantically balanced across sibling cards instead of
+  looking random or width-driven.
 - Check gutters between neighboring panels and side callouts, not only strict overlap.
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
   collisions, and clipped whitespace before pushing.
@@ -130,6 +141,8 @@ blob/raw page:
   have the same defect class.
 - Do not solve GitHub overflow by shrinking text first when geometry can be widened,
   rewrapped, or reflowed.
+- Do not leave arbitrary manual wraps in a diagram after resizing a block. Revisit
+  every edited phrase and choose deliberate semantic breaks.
 - Do not place legends, guides, or notes into leftover whitespace without checking
   whether they visually collide with the main diagram bands.
 
