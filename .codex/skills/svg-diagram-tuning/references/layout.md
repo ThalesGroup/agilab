@@ -14,6 +14,7 @@
 - reserve explicit gaps between badges/numbers and titles
 - recompute arrow start/end points after any card move or resize
 - keep repeated arrows centered and symmetric
+- preserve one-line atomic summary banners unless there is a semantic reason to wrap
 
 ## Second pass
 
@@ -22,6 +23,7 @@
 - normalize title/body hierarchy
 - normalize title alignment across peer blocks
 - normalize line-break structure across peer blocks
+- recheck previously one-line summary callouts after any global width change
 - reduce wording when needed
 - wrap long callouts instead of forcing one-line text
 - move legends and reading guides into their own stable lane
