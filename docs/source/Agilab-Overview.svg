@@ -190,11 +190,10 @@
   </g>
 
   <g transform="translate(60,864)">
-    <rect class="callout" width="1240" height="76" fill="#ffffff" />
+    <rect class="callout" width="1272" height="76" fill="#ffffff" />
     <text class="callout-title" x="22" y="36">Typical flow</text>
-    <text class="callout-body" x="168" y="32">
-      <tspan x="168" dy="0">User action → manifest build → environment resolution</tspan>
-      <tspan x="168" dy="20">→ worker execution → artifacts and feedback</tspan>
+    <text class="callout-body" x="154" y="42">
+      <tspan x="154" dy="0">User action → manifest build → environment resolution → worker execution → artifacts and feedback</tspan>
     </text>
   </g>
 
