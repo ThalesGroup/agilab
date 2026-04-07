@@ -170,7 +170,7 @@
     <polygon class="arrow-head" points="98,340 114,340 106,356" />
   </g>
 
-  <g transform="translate(1154,806)">
+  <g transform="translate(1154,586)">
     <rect class="callout" width="218" height="190" fill="#ffffff" />
     <text class="callout-title" x="109" y="32" text-anchor="middle">Workers and data</text>
     <circle class="bullet" cx="24" cy="64" r="4.5" />
@@ -183,7 +183,7 @@
     <text class="callout-body" x="38" y="153">Logs and run history</text>
   </g>
 
-  <g transform="translate(60,838)">
+  <g transform="translate(60,864)">
     <rect class="callout" width="1300" height="76" fill="#ffffff" />
     <text class="callout-title" x="22" y="36">Typical flow</text>
     <text class="callout-body" x="168" y="32">
