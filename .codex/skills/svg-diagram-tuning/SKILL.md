@@ -92,6 +92,11 @@ blob/raw page:
   same vertical band as the last row of cards.
 - Keep card titles aligned by family. If most peer blocks use centered titles, do not
   leave one or two titles left-aligned without an explicit semantic reason.
+- Attach area labels to the area they name. If a section header describes a pastel
+  panel or grouped zone, place it inside that panel or flush with its edge so the
+  target region is obvious at first glance.
+- Attach connector labels to the connector they qualify. Labels like `allocations`
+  should read as annotations of a nearby edge, not as loose text in empty space.
 - Shorten labels like lane headers or section names before tightening letter spacing.
 - When two renderers disagree, prefer the layout with more whitespace.
 
@@ -120,6 +125,9 @@ blob/raw page:
 - Check gutters between neighboring panels and side callouts, not only strict overlap.
 - Check that arrows, lane rules, and labels still share the same axes after any grid
   shift. Geometry drift in connectors is a first-class defect.
+- Check that every area label still has an obvious target panel after any resize or
+  repositioning.
+- Check that edge labels still read as edge labels rather than free-floating text.
 - Check whether each divider or lane rule is still justified. If it no longer adds
   meaning, remove it instead of polishing its alignment.
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
@@ -162,6 +170,9 @@ blob/raw page:
   whether they visually collide with the main diagram bands.
 - Do not keep decorative lane rules by inertia. If the section header already reads
   clearly without the rule, delete the rule.
+- Do not leave area labels floating far from the panel they describe.
+- Do not leave connector labels in ambiguous whitespace where they could refer to more
+  than one relation.
 
 ## References
 
