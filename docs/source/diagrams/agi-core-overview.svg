@@ -4,7 +4,7 @@
   <defs>
     <style>
       text {
-        font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
         fill: #0e223f;
       }
       .title {
@@ -65,11 +65,11 @@
         fill: #4d617c;
       }
     </style>
-    <marker id="arrowhead-core" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#0e223f" />
+    <marker id="arrowhead-core" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0e223f" />
     </marker>
-    <marker id="arrowhead-soft-core" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#627790" />
+    <marker id="arrowhead-soft-core" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#627790" />
     </marker>
     <linearGradient id="core-bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f8fbff" />
@@ -85,9 +85,9 @@
   </g>
 
   <g transform="translate(60,120)">
-    <text class="lane" x="0" y="30">Entry points</text>
-    <text class="lane" x="0" y="214">Control and planning</text>
-    <text class="lane" x="0" y="410">Execution and feedback</text>
+    <text class="lane" x="0" y="30">Entry</text>
+    <text class="lane" x="0" y="214">Control</text>
+    <text class="lane" x="0" y="410">Execution</text>
   </g>
 
   <g transform="translate(174,108)">
@@ -103,24 +103,30 @@
     <text class="card-body" x="125" y="62" text-anchor="middle">AGI_run scripts · run configs · uv launchers</text>
   </g>
 
-  <g transform="translate(484,178)">
-    <rect class="card" width="292" height="130" fill="#e3dcff" />
-    <text class="card-title" x="146" y="36" text-anchor="middle">agi_core</text>
-    <text class="card-body" x="146" y="66" text-anchor="middle">Resolve app and args, build run plans</text>
-    <text class="card-body" x="146" y="90" text-anchor="middle">Drive lab_steps and structured telemetry</text>
-    <text class="card-note" x="146" y="114" text-anchor="middle">Reusable widgets, services, history and orchestration helpers</text>
+  <g transform="translate(484,170)">
+    <rect class="card" width="308" height="142" fill="#e3dcff" />
+    <text class="card-title" x="24" y="38">agi_core</text>
+    <text class="card-body" x="24" y="72">Resolve app and args, build run plans</text>
+    <text class="card-body" x="24" y="96">Drive lab_steps and structured telemetry</text>
+    <text class="card-note" x="24" y="122">
+      <tspan x="24" dy="0">Reusable widgets, services, history,</tspan>
+      <tspan x="24" dy="18">and orchestration helpers</tspan>
+    </text>
   </g>
 
-  <g transform="translate(484,344)">
-    <rect class="card" width="292" height="88" fill="#ffe8ac" />
-    <text class="card-title" x="146" y="33" text-anchor="middle">agi_env</text>
-    <text class="card-body" x="146" y="60" text-anchor="middle">Paths, configs, logging, credentials, share roots</text>
+  <g transform="translate(500,350)">
+    <rect class="card" width="296" height="92" fill="#ffe8ac" />
+    <text class="card-title" x="24" y="36">agi_env</text>
+    <text class="card-body" x="24" y="64">Paths, configs, logging, credentials, share roots</text>
   </g>
 
   <g transform="translate(836,150)">
     <rect class="card" width="276" height="94" fill="#ffdbe2" />
     <text class="card-title" x="138" y="34" text-anchor="middle">Artifacts and telemetry</text>
-    <text class="card-body" x="138" y="60" text-anchor="middle">Outputs, logs, history, reports and exports</text>
+    <text class="card-body" x="20" y="58">
+      <tspan x="20" dy="0">Outputs, logs, history,</tspan>
+      <tspan x="20" dy="20">reports and exports</tspan>
+    </text>
   </g>
 
   <g transform="translate(836,284)">
@@ -142,11 +148,11 @@
     <text class="callout-body" x="136" y="33">Inputs converge into agi_core, then flow through environment setup to cluster and worker execution.</text>
   </g>
 
-  <line class="arrow" x1="424" y1="166" x2="484" y2="220" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="424" y1="302" x2="484" y2="266" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="630" y1="308" x2="630" y2="344" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="776" y1="243" x2="836" y2="198" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="776" y1="388" x2="836" y2="331" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="424" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="424" y1="302" x2="484" y2="254" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="648" y1="312" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="792" y1="236" x2="836" y2="198" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="796" y1="396" x2="836" y2="331" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="974" y1="378" x2="974" y2="410" marker-end="url(#arrowhead-core)" />
-  <line class="arrow-soft" x1="630" y1="210" x2="836" y2="210" marker-end="url(#arrowhead-soft-core)" />
+  <line class="arrow-soft" x1="792" y1="210" x2="836" y2="210" marker-end="url(#arrowhead-soft-core)" />
 </svg>

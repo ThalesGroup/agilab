@@ -4,7 +4,7 @@
   <defs>
     <style>
       text {
-        font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
         fill: #122745;
       }
       .title {
@@ -34,7 +34,7 @@
         filter: url(#shadow);
       }
       .card-title {
-        font-size: 25px;
+        font-size: 22px;
         font-weight: 700;
       }
       .card-body {
@@ -75,11 +75,11 @@
         stroke-dasharray: 9 8;
       }
     </style>
-    <marker id="arrowhead-pipe" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#122745" />
+    <marker id="arrowhead-pipe" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#122745" />
     </marker>
-    <marker id="arrowhead-pipe-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#7a8faa" />
+    <marker id="arrowhead-pipe-soft" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a8faa" />
     </marker>
     <linearGradient id="pipe-bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fbfdff" />
@@ -107,21 +107,21 @@
   <g transform="translate(58,132)">
     <text class="lane" x="0" y="30">Inputs</text>
     <line class="lane-rule" x1="84" y1="22" x2="150" y2="22" />
-    <text class="lane" x="0" y="252">Processing and decisions</text>
-    <line class="lane-rule" x1="226" y1="244" x2="150" y2="244" />
+    <text class="lane" x="0" y="252">Processing</text>
+    <line class="lane-rule" x1="144" y1="244" x2="210" y2="244" />
     <text class="lane" x="0" y="504">Outputs</text>
     <line class="lane-rule" x1="108" y1="496" x2="150" y2="496" />
   </g>
 
   <g transform="translate(138,146)">
     <rect class="card" width="238" height="88" fill="#d6ecff" />
-    <text class="card-title" x="119" y="34" text-anchor="middle">Trajectory generator</text>
+    <text class="card-title" x="119" y="34" text-anchor="middle">Air trajectories</text>
     <text class="card-body" x="119" y="62" text-anchor="middle">Air tracks</text>
   </g>
 
   <g transform="translate(138,274)">
     <rect class="card" width="238" height="88" fill="#d6ecff" />
-    <text class="card-title" x="119" y="34" text-anchor="middle">Trajectory generator</text>
+    <text class="card-title" x="119" y="34" text-anchor="middle">Space trajectories</text>
     <text class="card-body" x="119" y="62" text-anchor="middle">Space tracks</text>
   </g>
 
@@ -133,49 +133,54 @@
 
   <g transform="translate(458,260)">
     <rect class="card" width="282" height="128" fill="#d8f6de" />
-    <text class="card-title" x="141" y="40" text-anchor="middle">Simulation</text>
-    <text class="card-body" x="141" y="72" text-anchor="middle">Link model and demand model</text>
-    <text class="card-note" x="141" y="98" text-anchor="middle">Shared state prepared for downstream decisions</text>
+    <text class="card-title" x="24" y="40">Simulation</text>
+    <text class="card-body" x="24" y="72">Link model and demand model</text>
+    <text class="card-note" x="24" y="98">
+      <tspan x="24" dy="0">Shared state prepared for</tspan>
+      <tspan x="24" dy="18">downstream decisions</tspan>
+    </text>
   </g>
 
-  <g transform="translate(816,176)">
+  <g transform="translate(806,176)">
     <rect class="card" width="260" height="112" fill="#ffe3a1" />
     <text class="card-title" x="130" y="40" text-anchor="middle">Learned decision engine</text>
     <text class="card-body" x="130" y="74" text-anchor="middle">ML and RL allocation policies</text>
   </g>
 
-  <g transform="translate(816,352)">
+  <g transform="translate(806,352)">
     <rect class="card" width="260" height="112" fill="#ffe3a1" />
     <text class="card-title" x="130" y="40" text-anchor="middle">Optimization baseline</text>
     <text class="card-body" x="130" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
   </g>
 
-  <g transform="translate(1120,262)">
-    <rect class="card" width="120" height="132" fill="#ffd7ea" />
-    <text class="card-title" x="60" y="42" text-anchor="middle">Visualisation</text>
-    <text class="card-body" x="60" y="78" text-anchor="middle">Maps</text>
-    <text class="card-body" x="60" y="102" text-anchor="middle">Charts</text>
+  <g transform="translate(1100,252)">
+    <rect class="card" width="140" height="148" fill="#ffd7ea" />
+    <text class="card-title" x="70" y="44" text-anchor="middle">Visualisation</text>
+    <text class="card-body" x="70" y="86" text-anchor="middle">Maps</text>
+    <text class="card-body" x="70" y="112" text-anchor="middle">Charts</text>
   </g>
 
-  <g transform="translate(812,548)">
-    <rect class="callout" width="362" height="68" fill="#ffffff" />
+  <g transform="translate(772,548)">
+    <rect class="callout" width="402" height="78" fill="#ffffff" />
     <text class="callout-title" x="20" y="30">Decision output contract</text>
-    <text class="callout-body" x="20" y="52">Both engines emit allocations that feed the same KPI and visual analysis layer.</text>
+    <text class="callout-body" x="20" y="50">
+      <tspan x="20" dy="0">Both engines emit allocations that feed the same</tspan>
+      <tspan x="20" dy="18">KPI and visual analysis layer.</tspan>
+    </text>
   </g>
 
   <line class="arrow" x1="376" y1="190" x2="458" y2="308" marker-end="url(#arrowhead-pipe)" />
   <line class="arrow" x1="376" y1="318" x2="458" y2="324" marker-end="url(#arrowhead-pipe)" />
   <line class="arrow" x1="376" y1="446" x2="458" y2="340" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="740" y1="316" x2="816" y2="232" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="740" y1="332" x2="816" y2="408" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="740" y1="316" x2="806" y2="232" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="740" y1="332" x2="806" y2="408" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="1076" y1="232" x2="1120" y2="302" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="1076" y1="408" x2="1120" y2="350" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1066" y1="232" x2="1100" y2="302" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1066" y1="408" x2="1100" y2="360" marker-end="url(#arrowhead-pipe)" />
 
-  <text class="label" x="404" y="382">attenuation and map inputs</text>
-  <text class="label" x="1088" y="214">allocations</text>
-  <text class="label" x="1088" y="452">allocations</text>
+  <text class="label" x="1078" y="212">allocations</text>
+  <text class="label" x="1078" y="452">allocations</text>
 
-  <line class="arrow-soft" x1="1180" y1="394" x2="1180" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
+  <line class="arrow-soft" x1="1170" y1="400" x2="1170" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
 </svg>
