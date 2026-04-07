@@ -106,9 +106,9 @@
   </g>
 
   <g transform="translate(58,132)">
-    <text class="lane" x="0" y="30">Inputs</text>
-    <text class="lane" x="0" y="252">Processing</text>
-    <text class="lane" x="0" y="504">Outputs</text>
+    <text class="lane" x="0" y="30">Scenario Inputs</text>
+    <text class="lane" x="0" y="252">Simulation and Decisions</text>
+    <text class="lane" x="0" y="504">Analysis Outputs</text>
   </g>
 
   <g transform="translate(138,146)">
