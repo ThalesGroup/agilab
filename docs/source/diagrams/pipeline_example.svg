@@ -106,11 +106,8 @@
 
   <g transform="translate(58,132)">
     <text class="lane" x="0" y="30">Inputs</text>
-    <line class="lane-rule" x1="170" y1="22" x2="236" y2="22" />
     <text class="lane" x="0" y="252">Processing</text>
-    <line class="lane-rule" x1="170" y1="244" x2="236" y2="244" />
     <text class="lane" x="0" y="504">Outputs</text>
-    <line class="lane-rule" x1="170" y1="496" x2="236" y2="496" />
   </g>
 
   <g transform="translate(138,146)">

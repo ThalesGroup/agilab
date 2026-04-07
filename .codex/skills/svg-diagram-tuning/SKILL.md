@@ -48,6 +48,8 @@ blob/raw page:
   document already relies on a guaranteed embedded font.
 - Keep decorative rules, dividers, and arrows out of text corridors. If a line comes
   near a label, move the line, not the label.
+- Remove decorative rules entirely when they do not add structural meaning. Do not
+  preserve a horizontal lane line just because it existed in an earlier revision.
 - Keep a semantic vertical rhythm. Similar elements should use the same spacing
   pattern between title, kicker, body, note, and the next section break.
 - Keep a semantic line-break rhythm too. Do not let one peer block use arbitrary
@@ -118,6 +120,8 @@ blob/raw page:
 - Check gutters between neighboring panels and side callouts, not only strict overlap.
 - Check that arrows, lane rules, and labels still share the same axes after any grid
   shift. Geometry drift in connectors is a first-class defect.
+- Check whether each divider or lane rule is still justified. If it no longer adds
+  meaning, remove it instead of polishing its alignment.
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
   collisions, and clipped whitespace before pushing.
 - Re-check any badge, banner, or summary card that was previously one line after any
@@ -156,6 +160,8 @@ blob/raw page:
   every edited phrase and choose deliberate semantic breaks.
 - Do not place legends, guides, or notes into leftover whitespace without checking
   whether they visually collide with the main diagram bands.
+- Do not keep decorative lane rules by inertia. If the section header already reads
+  clearly without the rule, delete the rule.
 
 ## References
 

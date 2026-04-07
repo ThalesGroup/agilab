@@ -9,6 +9,7 @@
 - remove redundant labels
 - rebalance line breaks by semantic phrase, not by leftover width
 - move decorative rules away from text corridors
+- remove decorative rules that do not add meaning
 - enforce a visible gutter between body copy and footer notes
 - enforce a visible gutter between adjacent panels or side callouts
 - reserve explicit gaps between badges/numbers and titles
@@ -30,6 +31,7 @@
 - reduce wording when needed
 - wrap long callouts instead of forcing one-line text
 - move legends and reading guides into their own stable lane
+- question whether lane rules are needed at all before refining them
 
 ## Export awareness
 
