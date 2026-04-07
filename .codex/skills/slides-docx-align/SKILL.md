@@ -1,6 +1,7 @@
 ---
 name: slides-docx-align
 description: Align a slide deck with a DOCX report while preserving each artifact’s role. Use this skill when a user wants missing report figures inserted into slides, terminology synchronized across report and deck, or extra slides added without overwriting the current summary version.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # Slides DOCX Align

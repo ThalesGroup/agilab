@@ -1,6 +1,7 @@
 ---
 name: docx-figure-sync
 description: Replace or update embedded figures in DOCX reports while preserving placement, sizing, and nearby captions. Use this skill when a user wants a figure updated inside a Word document, wants SVG/PNG media replaced without rebuilding the whole document manually, or needs related PDF regeneration only when explicitly requested.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # DOCX Figure Sync

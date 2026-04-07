@@ -1,6 +1,7 @@
 ---
 name: chat-export
 description: Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # Chat Export
