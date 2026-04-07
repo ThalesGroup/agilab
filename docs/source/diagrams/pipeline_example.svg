@@ -178,8 +178,8 @@
   <line class="arrow" x1="1068" y1="260" x2="1090" y2="280" marker-end="url(#arrowhead-pipe)" />
   <line class="arrow" x1="1068" y1="380" x2="1090" y2="364" marker-end="url(#arrowhead-pipe)" />
 
-  <text class="label" x="1068" y="212">allocations</text>
-  <text class="label" x="1068" y="452">allocations</text>
+  <text class="label" x="1082" y="220">allocations</text>
+  <text class="label" x="1082" y="444">allocations</text>
 
   <line class="arrow-soft" x1="1165" y1="400" x2="1165" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
 </svg>
