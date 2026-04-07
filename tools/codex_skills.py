@@ -200,13 +200,21 @@ def collect_skills(skills_root: Path) -> tuple[list[SkillData], list[str]]:
 
 def generate_outputs(skills: list[SkillData], json_out: Path, md_out: Path) -> list[Path]:
     sorted_skills = sorted(skills, key=lambda s: s.name.lower())
+    cwd = Path.cwd()
+
+    def display_path(path: Path) -> str:
+        try:
+            return path.relative_to(cwd).as_posix()
+        except ValueError:
+            return path.as_posix()
+
     skills_payload = [
         {
             "name": s.name,
             "description": s.description,
             "license": s.license,
             "updated": s.updated,
-            "path": str(s.path.as_posix()),
+            "path": display_path(s.path),
             "body_preview": s.body_preview,
         }
         for s in sorted_skills
@@ -242,7 +250,7 @@ def generate_outputs(skills: list[SkillData], json_out: Path, md_out: Path) -> l
                 description=_md_escape_cell(skill.description),
                 updated=_md_escape_cell(updated),
                 license=_md_escape_cell(skill.license),
-                path=skill.path.as_posix(),
+                path=display_path(skill.path),
             )
         )
 

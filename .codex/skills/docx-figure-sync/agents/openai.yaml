@@ -1,4 +1,0 @@
-interface:
-  display_name: "DOCX Figure Sync"
-  short_description: "Sync report figures into DOCX/PDF"
-  default_prompt: "Use $docx-figure-sync to update the figures in this DOCX cleanly."

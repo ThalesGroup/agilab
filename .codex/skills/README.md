@@ -18,10 +18,8 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
-- `fcas-presentations`: FCAS PPTX/DOCX/PDF workflow for figures, generators, and Confluence-safe deliverables.
-- `svg-diagram-tuning`: Refine existing SVG diagrams for readability and export.
-- `advanced-svg-system-design`: Build reusable SVG diagram systems for advanced multi-figure projects.
-- `template`: Minimal skeleton for adding a new skill.
+- `agilab-lab-steps-review`: Guidance for clarifying `lab_steps.toml` labels and IO flow.
+- `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views.
 
 ## Adding A New Skill
 

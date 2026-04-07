@@ -1,4 +1,0 @@
-interface:
-  display_name: "Docs Publish GitHub Pages"
-  short_description: "Fix and review docs publish workflows"
-  default_prompt: "Use $docs-publish-github-pages to review or fix this docs publish workflow."
