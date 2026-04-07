@@ -89,7 +89,7 @@
     <text class="body" x="92" y="114" text-anchor="middle">in the same MLflow UI</text>
   </g>
 
-  <g transform="translate(392,636)">
+  <g transform="translate(392,632)">
     <rect class="box" width="560" height="114" fill="#e0f2fe" />
     <text class="caption" x="280" y="38" text-anchor="middle">Shared runtime contract</text>
     <text class="body" x="280" y="72" text-anchor="middle">
@@ -119,7 +119,7 @@
   <!-- Orthogonal flow arrows -->
   <path class="arrow" d="M316,176 H392" />
   <path class="soft-arrow" d="M316,379 H392" />
-  <path class="soft-arrow" d="M316,632 L392,636" />
+  <path class="soft-arrow" d="M316,632 H392" />
 
   <path class="arrow" d="M672,232 V282" />
 
