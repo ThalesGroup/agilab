@@ -944,14 +944,14 @@ def get_about_content():
             'About': str
                 A string containing information about the Agi&trade; agilab.
 
-                    ':blue[Agi&trade;] V5\n\n:blue[S]peedy :blue[Py]thon :blue[D]istributed  agilab for Data Science  2020-2024 \n\nThales SIX GTS France SAS \n\nsupport:  focus@thalesgroup.com'
+                    ':blue[Agi&trade;] V5\n\n:blue[S]peedy :blue[Py]thon :blue[D]istributed  agilab for Data Science  2020-2024 \n\nThales SIX GTS France SAS \n\nsupport: open a GitHub issue'
     """
     return {
         "About": (
             ":blue[AGILab&trade;]\n\n"
             "An IDE for Data Science in Engineering\n\n"
             "Thales SIX GTS France SAS \n\n"
-            "support:  focus@thalesgroup.com"
+            "support: open a GitHub issue"
         )
     }
 

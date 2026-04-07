@@ -12,7 +12,7 @@ Content developper
 Core developper
 
 ## How to become a contributor
-Send a request at focus@thalesgroup.com containing [CONTRIBUTOR] in its title
+Open a GitHub issue containing [CONTRIBUTOR] in its title
 
 ### Contributor License Agreements
 All contributions must adhere to the BSD-3 license.
@@ -39,7 +39,7 @@ Include a description of a use case that demonstrates the functionality of your 
 Ensure that all unit tests are run as part of the regression testing process.
 
 ### Issues Management
-For issue management, please contact [focus@thalesgroup.com](mailto:focus@thalesgroup.com) and include “[MANAGEMENT]” in the subject line.
+For issue management, please open a GitHub issue and include “[MANAGEMENT]” in the title.
 
 ## Repository Hygiene
 - Do not commit virtual environments or build artifacts:

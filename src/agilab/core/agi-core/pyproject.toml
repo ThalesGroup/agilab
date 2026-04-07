@@ -5,7 +5,7 @@ description = "Meta-package that installs and wires agi-env, agi-node, and agi-c
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Jean-Pierre Morard" }]
-maintainers = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
+maintainers = [{ name = "Jean-Pierre Morard" }]
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 classifiers = [
