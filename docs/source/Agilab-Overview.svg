@@ -109,10 +109,10 @@
     <text class="subtitle" x="0" y="40">One readable path from UI and CLI entrypoints to packaged workers, execution, and artifacts.</text>
   </g>
 
-  <rect x="160" y="144" width="904" height="112" fill="#f4fbff" rx="28" ry="28" />
-  <rect x="160" y="284" width="904" height="156" fill="#f6f2ff" rx="28" ry="28" />
-  <rect x="160" y="468" width="904" height="128" fill="#fff8e5" rx="28" ry="28" />
-  <rect x="160" y="624" width="904" height="152" fill="#fff3f6" rx="28" ry="28" />
+  <rect x="160" y="140" width="904" height="120" fill="#f4fbff" rx="28" ry="28" />
+  <rect x="160" y="288" width="904" height="156" fill="#f6f2ff" rx="28" ry="28" />
+  <rect x="160" y="472" width="904" height="160" fill="#fff8e5" rx="28" ry="28" />
+  <rect x="160" y="628" width="904" height="156" fill="#fff3f6" rx="28" ry="28" />
 
   <g transform="translate(72,154)">
     <text class="lane-label" x="0" y="34">Entry</text>
