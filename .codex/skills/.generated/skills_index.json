@@ -1,16 +1,8 @@
 {
-  "generated_at_utc": "2026-04-07T06:34:07Z",
+  "generated_at_utc": "2026-04-07T10:08:53Z",
   "tool": "tools/codex_skills.py",
-  "count": 17,
+  "count": 8,
   "skills": [
-    {
-      "name": "advanced-svg-system-design",
-      "description": "Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/advanced-svg-system-design/SKILL.md",
-      "body_preview": "# Advanced SVG System Design\n## Overview\nUse this skill when a project needs more than SVG cleanup.\nFocus on building a durable diagram system: layout rules, reusable components,"
-    },
     {
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
@@ -68,76 +60,12 @@
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- Start small and local: run only the tests that cover the files you changed."
     },
     {
-      "name": "chat-export",
-      "description": "Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/chat-export/SKILL.md",
-      "body_preview": "# Chat Export\n## Overview\nUse this skill to turn a chat transcript into a reusable artifact with stable structure.\nPrefer the bundled script for file-based exports and repeated transformations."
-    },
-    {
-      "name": "docs-publish-github-pages",
-      "description": "Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/docs-publish-github-pages/SKILL.md",
-      "body_preview": "# Docs Publish GitHub Pages\n## Overview\nUse this skill for GitHub Pages documentation pipelines.\nFocus on trigger logic, deploy behavior, version visibility, and what is actually published."
-    },
-    {
-      "name": "docx-figure-sync",
-      "description": "Replace or update embedded figures in DOCX reports while preserving placement, sizing, and nearby captions. Use this skill when a user wants a figure updated inside a Word document, wants SVG/PNG media replaced without rebuilding the whole document manually, or needs related PDF regeneration only when explicitly requested.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/docx-figure-sync/SKILL.md",
-      "body_preview": "# DOCX Figure Sync\n## Overview\nUse this skill for deterministic figure replacement inside existing DOCX reports.\nPrefer the surrounding document layout over ad hoc copy-paste."
-    },
-    {
-      "name": "fcas-presentations",
-      "description": "Workflow for FCAS PPTX/DOCX/PDF deliverables, figure assets, and Confluence-safe exports in the sibling thales_agilab repo.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-03-16",
-      "path": ".codex/skills/fcas-presentations/SKILL.md",
-      "body_preview": "# FCAS presentations and chapter deliverables\nUse this skill when working on the FCAS materials in the sibling repo\n`../thales_agilab`, especially:\n- `FCAS/Routing-Algo.pptx`"
-    },
-    {
       "name": "pipeline-concept-view",
       "description": "Add or refine a conceptual pipeline view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or an app-specific semantic view that complements a generic execution pipeline.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": null,
       "path": ".codex/skills/pipeline-concept-view/SKILL.md",
       "body_preview": "# Pipeline Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic pipeline page stays app-agnostic; the app contributes its own conceptual view."
-    },
-    {
-      "name": "report-qa-docx",
-      "description": "Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/report-qa-docx/SKILL.md",
-      "body_preview": "# Report QA DOCX\n## Overview\nUse this skill for a pragmatic QA pass on report-style DOCX files.\nFocus on structural defects, wording drift, and figure/caption consistency."
-    },
-    {
-      "name": "slides-docx-align",
-      "description": "Align a slide deck with a DOCX report while preserving each artifact\u2019s role. Use this skill when a user wants missing report figures inserted into slides, terminology synchronized across report and deck, or extra slides added without overwriting the current summary version.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/slides-docx-align/SKILL.md",
-      "body_preview": "# Slides DOCX Align\n## Overview\nUse this skill when a report and a slide deck have drifted apart.\nKeep the deck usable while making the report and slides say the same thing."
-    },
-    {
-      "name": "svg-diagram-tuning",
-      "description": "Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/svg-diagram-tuning/SKILL.md",
-      "body_preview": "# SVG Diagram Tuning\n## Overview\nUse this skill to improve an existing SVG diagram without changing its meaning.\nFocus on readability first: text, spacing, arrows, and visual hierarchy."
-    },
-    {
-      "name": "template",
-      "description": "Minimal skeleton for a new skill (copy this folder and edit).",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/template/SKILL.md",
-      "body_preview": "# Template Skill\nReplace this section with instructions."
     }
   ]
 }
