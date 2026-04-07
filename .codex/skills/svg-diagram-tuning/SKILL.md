@@ -1,6 +1,7 @@
 ---
 name: svg-diagram-tuning
 description: Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # SVG Diagram Tuning

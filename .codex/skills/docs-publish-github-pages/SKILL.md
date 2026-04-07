@@ -1,6 +1,7 @@
 ---
 name: docs-publish-github-pages
 description: Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # Docs Publish GitHub Pages

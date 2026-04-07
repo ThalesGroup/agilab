@@ -1,6 +1,7 @@
 ---
 name: pipeline-concept-view
 description: Add or refine a conceptual pipeline view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or an app-specific semantic view that complements a generic execution pipeline.
+license: BSD-3-Clause (see repo LICENSE)
 ---
 
 # Pipeline Concept View
