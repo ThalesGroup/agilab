@@ -133,9 +133,9 @@
     <text class="body" x="22" y="77">flight_project from PROJECT to ANALYSIS</text>
   </g>
 
-  <g transform="translate(72,206)">
-    <text class="section-label" x="0" y="0">One guided path</text>
-    <line class="line" x1="188" y1="-8" x2="1210" y2="-8"/>
+  <g transform="translate(72,212)">
+    <text class="section-label" x="0" y="0" dominant-baseline="middle">One guided path</text>
+    <line class="line" x1="188" y1="0" x2="1210" y2="0"/>
   </g>
 
   <g transform="translate(72,252)" filter="url(#shadow)">
@@ -214,9 +214,9 @@
   <line class="arrow" x1="664" y1="395" x2="688" y2="395"/>
   <line class="arrow" x1="976" y1="395" x2="1000" y2="395"/>
 
-  <g transform="translate(72,604)">
-    <text class="section-label" x="0" y="0">What you leave with</text>
-    <line class="line" x1="230" y1="-8" x2="1210" y2="-8"/>
+  <g transform="translate(72,610)">
+    <text class="section-label" x="0" y="0" dominant-baseline="middle">What you leave with</text>
+    <line class="line" x1="230" y1="0" x2="1210" y2="0"/>
   </g>
 
   <g transform="translate(72,638)" filter="url(#shadow)">
