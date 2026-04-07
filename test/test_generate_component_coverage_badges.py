@@ -17,10 +17,9 @@ def _load_module():
     return module
 
 
-def test_format_percent_rounds_to_nearest_integer() -> None:
+def test_format_percent_truncates_for_ci_stability() -> None:
     module = _load_module()
 
-    assert module.format_percent(83.5298) == "84%"
+    assert module.format_percent(83.5298) == "83%"
     assert module.format_percent(83.4999) == "83%"
-    assert module.format_percent(86.5596) == "87%"
-
+    assert module.format_percent(86.5596) == "86%"
