@@ -38,10 +38,15 @@ blob/raw page:
   document already relies on a guaranteed embedded font.
 - Keep decorative rules, dividers, and arrows out of text corridors. If a line comes
   near a label, move the line, not the label.
+- Keep a semantic vertical rhythm. Similar elements should use the same spacing
+  pattern between title, kicker, body, note, and the next section break.
 - After moving or resizing blocks, recalculate arrow anchors from the final geometry.
   Do not leave connector coordinates inherited from an older layout.
 - For repeated connectors, keep arrow placement symmetric across the row or column so
   the figure reads as intentional rather than hand-adjusted.
+- Prefer widening a badge, pill, or summary card before wrapping what is really one
+  short label or one atomic message. Use wrapping only when the content is genuinely
+  paragraph-like.
 - Do not rely on implicit spacing between a numbered badge and the following title.
   Reserve explicit horizontal gap in the geometry.
 - Do not keep long callouts on one line. Wrap them with `tspan` and increase the box
@@ -79,6 +84,7 @@ blob/raw page:
 - increase text size
 - simplify wording when layout alone is not enough
 - add whitespace before trusting typography tweaks
+- keep section labels and divider rules on one shared visual axis
 - recompute connector geometry after every layout shift
 
 ## References
