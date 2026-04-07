@@ -133,7 +133,7 @@
     <text class="body" x="22" y="77">flight_project from PROJECT to ANALYSIS</text>
   </g>
 
-  <g transform="translate(72,212)">
+  <g transform="translate(72,224)">
     <text class="section-label" x="0" y="0" dominant-baseline="middle">One guided path</text>
     <line class="line" x1="188" y1="0" x2="1210" y2="0"/>
   </g>
@@ -214,12 +214,12 @@
   <line class="arrow" x1="664" y1="395" x2="688" y2="395"/>
   <line class="arrow" x1="976" y1="395" x2="1000" y2="395"/>
 
-  <g transform="translate(72,610)">
+  <g transform="translate(72,596)">
     <text class="section-label" x="0" y="0" dominant-baseline="middle">What you leave with</text>
     <line class="line" x1="230" y1="0" x2="1210" y2="0"/>
   </g>
 
-  <g transform="translate(72,638)" filter="url(#shadow)">
+  <g transform="translate(72,628)" filter="url(#shadow)">
     <rect x="0" y="0" width="386" height="172" rx="28" ry="28" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.4"/>
     <text class="benefit-title" x="28" y="46">One app, one control path</text>
     <text class="benefit-body" x="28" y="84">
@@ -229,7 +229,7 @@
     </text>
   </g>
 
-  <g transform="translate(486,638)" filter="url(#shadow)">
+  <g transform="translate(486,628)" filter="url(#shadow)">
     <rect x="0" y="0" width="386" height="172" rx="28" ry="28" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.4"/>
     <text class="benefit-title" x="28" y="46">Less manual glue</text>
     <text class="benefit-body" x="28" y="84">
@@ -239,7 +239,7 @@
     </text>
   </g>
 
-  <g transform="translate(900,638)" filter="url(#shadow)">
+  <g transform="translate(900,628)" filter="url(#shadow)">
     <rect x="0" y="0" width="370" height="172" rx="28" ry="28" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.4"/>
     <text class="benefit-title" x="28" y="46">Visible, repeatable evidence</text>
     <text class="benefit-body" x="28" y="84">
@@ -249,12 +249,12 @@
     </text>
   </g>
 
-  <line class="soft-arrow" x1="209" y1="546" x2="209" y2="622"/>
-  <line class="soft-arrow" x1="521" y1="546" x2="521" y2="622"/>
-  <line class="soft-arrow" x1="833" y1="546" x2="833" y2="622"/>
-  <line class="soft-arrow" x1="1145" y1="546" x2="1145" y2="622"/>
+  <line class="soft-arrow" x1="209" y1="546" x2="209" y2="612"/>
+  <line class="soft-arrow" x1="521" y1="546" x2="521" y2="612"/>
+  <line class="soft-arrow" x1="833" y1="546" x2="833" y2="612"/>
+  <line class="soft-arrow" x1="1145" y1="546" x2="1145" y2="612"/>
 
-  <g transform="translate(72,850)" filter="url(#shadow)">
+  <g transform="translate(72,838)" filter="url(#shadow)">
     <rect x="0" y="0" width="1198" height="54" rx="24" ry="24" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
     <text class="benefit-title" x="28" y="35">AGILAB promise</text>
     <text class="benefit-body" x="232" y="35">Move from app selection to visible evidence quickly, with far less orchestration overhead than ad hoc scripts.</text>
