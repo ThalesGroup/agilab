@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1040" viewBox="0 0 1280 1040" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB runtime stack</title>
   <desc id="desc">Layered AGILAB diagram showing entry surfaces, control-plane components, execution services, and produced artifacts on one readable control path.</desc>
   <defs>
@@ -102,7 +102,7 @@
     </filter>
   </defs>
 
-  <rect width="1280" height="920" fill="url(#bg)" rx="40" ry="40" />
+  <rect width="1280" height="1040" fill="url(#bg)" rx="40" ry="40" />
 
   <g transform="translate(72,72)">
     <text class="title" x="0" y="0">AGILAB runtime stack</text>
@@ -127,7 +127,7 @@
 
   <g transform="translate(198,152)">
     <rect class="box" width="808" height="96" fill="#d8efff" />
-    <text class="box-title" x="36" y="40">User surfaces</text>
+    <text class="box-title" x="404" y="40" text-anchor="middle">User surfaces</text>
     <text class="box-body" x="36" y="72">
       <tspan x="36" dy="0">Streamlit pages, CLI mirrors, and PyCharm run configurations</tspan>
     </text>
@@ -135,7 +135,7 @@
 
   <g transform="translate(198,300)">
     <rect class="box" width="808" height="132" fill="#dfdcff" />
-    <text class="box-title" x="36" y="40">agi_core</text>
+    <text class="box-title" x="404" y="40" text-anchor="middle">agi_core</text>
     <text class="box-body" x="36" y="68">
       <tspan x="36" dy="0">App loaders, widgets, telemetry, history, and</tspan>
       <tspan x="36" dy="24">reusable services for AGI sessions</tspan>
@@ -145,7 +145,7 @@
 
   <g transform="translate(198,484)">
     <rect class="box" width="808" height="120" fill="#ffe39e" />
-    <text class="box-title" x="36" y="40">agi_env</text>
+    <text class="box-title" x="404" y="40" text-anchor="middle">agi_env</text>
     <text class="box-body" x="36" y="68">
       <tspan x="36" dy="0">Resolves apps, datasets, credentials, workspaces,</tspan>
       <tspan x="36" dy="24">and worker bundles.</tspan>
@@ -155,7 +155,7 @@
 
   <g transform="translate(198,640)">
     <rect class="box" width="808" height="132" fill="#ffdbe5" />
-    <text class="box-title" x="36" y="40">agi_cluster and agi_node</text>
+    <text class="box-title" x="404" y="40" text-anchor="middle">agi_cluster and agi_node</text>
     <text class="box-body" x="36" y="68">
       <tspan x="36" dy="0">Scheduler, packaging, SSH helpers, health checks,</tspan>
       <tspan x="36" dy="24">and local or remote worker execution</tspan>
@@ -170,9 +170,9 @@
     <polygon class="arrow-head" points="98,340 114,340 106,356" />
   </g>
 
-  <g transform="translate(1006,540)">
+  <g transform="translate(1006,806)">
     <rect class="callout" width="218" height="190" fill="#ffffff" />
-    <text class="callout-title" x="20" y="32">Workers and data</text>
+    <text class="callout-title" x="109" y="32" text-anchor="middle">Workers and data</text>
     <circle class="bullet" cx="24" cy="64" r="4.5" />
     <text class="callout-body" x="38" y="69">Worker bundles</text>
     <circle class="bullet" cx="24" cy="92" r="4.5" />
@@ -183,7 +183,7 @@
     <text class="callout-body" x="38" y="153">Logs and run history</text>
   </g>
 
-  <g transform="translate(60,816)">
+  <g transform="translate(60,838)">
     <rect class="callout" width="1160" height="64" fill="#ffffff" />
     <text class="callout-title" x="22" y="36">Typical flow</text>
     <text class="callout-body" x="168" y="36">User action → manifest build → environment resolution → worker execution → artifacts and feedback</text>
