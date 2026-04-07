@@ -91,16 +91,22 @@
   </g>
 
   <g transform="translate(150,108)">
-    <rect class="card" width="320" height="116" fill="#d9f0ff" />
+    <rect class="card" width="320" height="126" fill="#d9f0ff" />
     <text class="card-title" x="160" y="34" text-anchor="middle">Web interface</text>
     <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py and built-in pages</text>
-    <text class="card-note" x="160" y="88" text-anchor="middle">HOME · PROJECT · ORCHESTRATE · PIPELINE · ANALYSIS</text>
+    <text class="card-note" x="160" y="86" text-anchor="middle">
+      <tspan x="160" dy="0">HOME · PROJECT · ORCHESTRATE</tspan>
+      <tspan x="160" dy="18">PIPELINE · ANALYSIS</tspan>
+    </text>
   </g>
 
   <g transform="translate(150,252)">
-    <rect class="card" width="320" height="100" fill="#d9f0ff" />
+    <rect class="card" width="320" height="110" fill="#d9f0ff" />
     <text class="card-title" x="160" y="34" text-anchor="middle">CLI and PyCharm</text>
-    <text class="card-body" x="160" y="62" text-anchor="middle">AGI_run scripts · run configs · uv launchers</text>
+    <text class="card-body" x="160" y="60" text-anchor="middle">
+      <tspan x="160" dy="0">AGI_run scripts · run configs</tspan>
+      <tspan x="160" dy="20">uv launchers</tspan>
+    </text>
   </g>
 
   <g transform="translate(484,170)">
@@ -130,25 +136,34 @@
   </g>
 
   <g transform="translate(864,284)">
-    <rect class="card" width="320" height="94" fill="#d6f6d8" />
+    <rect class="card" width="320" height="104" fill="#d6f6d8" />
     <text class="card-title" x="160" y="34" text-anchor="middle">agi_cluster</text>
-    <text class="card-body" x="160" y="60" text-anchor="middle">AGI.distributor, scheduler, Dask, balancing</text>
+    <text class="card-body" x="160" y="58" text-anchor="middle">
+      <tspan x="160" dy="0">AGI.distributor, scheduler, Dask</tspan>
+      <tspan x="160" dy="20">and balancing</tspan>
+    </text>
   </g>
 
   <g transform="translate(864,410)">
-    <rect class="card" width="320" height="114" fill="#ffe7a8" />
+    <rect class="card" width="320" height="126" fill="#ffe7a8" />
     <text class="card-title" x="160" y="34" text-anchor="middle">agi_node workers</text>
     <text class="card-body" x="160" y="60" text-anchor="middle">
       <tspan x="160" dy="0">BaseWorker, DagWorker</tspan>
       <tspan x="160" dy="20">PandasWorker, PolarsWorker</tspan>
     </text>
-    <text class="card-note" x="160" y="96" text-anchor="middle">Plus app-specific workers packaged under <tspan font-style="italic">~/wenv</tspan></text>
+    <text class="card-note" x="160" y="94" text-anchor="middle">
+      <tspan x="160" dy="0">Plus app-specific workers</tspan>
+      <tspan x="160" dy="18">packaged under <tspan font-style="italic">~/wenv</tspan></tspan>
+    </text>
   </g>
 
   <g transform="translate(54,474)">
-    <rect class="callout" width="460" height="58" fill="#ffffff" />
+    <rect class="callout" width="520" height="66" fill="#ffffff" />
     <text class="callout-title" x="20" y="33">Reading guide</text>
-    <text class="callout-body" x="136" y="33">Inputs converge into agi_core, then flow through environment setup to cluster and worker execution.</text>
+    <text class="callout-body" x="136" y="30">
+      <tspan x="136" dy="0">Inputs converge into agi_core, then flow through</tspan>
+      <tspan x="136" dy="18">environment setup to cluster and worker execution.</tspan>
+    </text>
   </g>
 
   <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
@@ -156,6 +171,6 @@
   <line class="arrow" x1="648" y1="312" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="792" y1="236" x2="864" y2="198" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="796" y1="396" x2="864" y2="331" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="1024" y1="378" x2="1024" y2="410" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="1024" y1="388" x2="1024" y2="410" marker-end="url(#arrowhead-core)" />
   <line class="arrow-soft" x1="792" y1="210" x2="864" y2="210" marker-end="url(#arrowhead-soft-core)" />
 </svg>
