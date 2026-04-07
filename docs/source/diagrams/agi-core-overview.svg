@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="560" viewBox="0 0 1180 560" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="560" viewBox="0 0 1240 560" role="img" aria-labelledby="title desc">
   <title id="title">AGI core orchestration</title>
   <desc id="desc">Diagram showing web and CLI entrypoints feeding agi_core, then agi_env, agi_cluster, agi_node workers, and artifacts with a clear orchestration flow.</desc>
   <defs>
@@ -77,7 +77,7 @@
     </linearGradient>
   </defs>
 
-  <rect width="1180" height="560" fill="url(#core-bg)" rx="34" ry="34" />
+  <rect width="1240" height="560" fill="url(#core-bg)" rx="34" ry="34" />
 
   <g transform="translate(62,48)">
     <text class="title" x="0" y="0">AGI core orchestration</text>
@@ -90,17 +90,17 @@
     <text class="lane" x="0" y="410">Execution</text>
   </g>
 
-  <g transform="translate(174,108)">
-    <rect class="card" width="250" height="116" fill="#d9f0ff" />
-    <text class="card-title" x="125" y="34" text-anchor="middle">Web interface</text>
-    <text class="card-body" x="125" y="62" text-anchor="middle">agilab.py and built-in pages</text>
-    <text class="card-note" x="125" y="88" text-anchor="middle">HOME · PROJECT · ORCHESTRATE · PIPELINE · ANALYSIS</text>
+  <g transform="translate(150,108)">
+    <rect class="card" width="320" height="116" fill="#d9f0ff" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">Web interface</text>
+    <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py and built-in pages</text>
+    <text class="card-note" x="160" y="88" text-anchor="middle">HOME · PROJECT · ORCHESTRATE · PIPELINE · ANALYSIS</text>
   </g>
 
-  <g transform="translate(174,252)">
-    <rect class="card" width="250" height="100" fill="#d9f0ff" />
-    <text class="card-title" x="125" y="34" text-anchor="middle">CLI and PyCharm</text>
-    <text class="card-body" x="125" y="62" text-anchor="middle">AGI_run scripts · run configs · uv launchers</text>
+  <g transform="translate(150,252)">
+    <rect class="card" width="320" height="100" fill="#d9f0ff" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">CLI and PyCharm</text>
+    <text class="card-body" x="160" y="62" text-anchor="middle">AGI_run scripts · run configs · uv launchers</text>
   </g>
 
   <g transform="translate(484,170)">
@@ -120,26 +120,29 @@
     <text class="card-body" x="24" y="64">Paths, configs, logging, credentials, share roots</text>
   </g>
 
-  <g transform="translate(836,150)">
-    <rect class="card" width="276" height="94" fill="#ffdbe2" />
-    <text class="card-title" x="138" y="34" text-anchor="middle">Artifacts and telemetry</text>
+  <g transform="translate(864,150)">
+    <rect class="card" width="320" height="94" fill="#ffdbe2" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">Artifacts and telemetry</text>
     <text class="card-body" x="20" y="58">
       <tspan x="20" dy="0">Outputs, logs, history,</tspan>
       <tspan x="20" dy="20">reports and exports</tspan>
     </text>
   </g>
 
-  <g transform="translate(836,284)">
-    <rect class="card" width="276" height="94" fill="#d6f6d8" />
-    <text class="card-title" x="138" y="34" text-anchor="middle">agi_cluster</text>
-    <text class="card-body" x="138" y="60" text-anchor="middle">AGI.distributor, scheduler, Dask, balancing</text>
+  <g transform="translate(864,284)">
+    <rect class="card" width="320" height="94" fill="#d6f6d8" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">agi_cluster</text>
+    <text class="card-body" x="160" y="60" text-anchor="middle">AGI.distributor, scheduler, Dask, balancing</text>
   </g>
 
-  <g transform="translate(836,410)">
-    <rect class="card" width="276" height="104" fill="#ffe7a8" />
-    <text class="card-title" x="138" y="34" text-anchor="middle">agi_node workers</text>
-    <text class="card-body" x="138" y="60" text-anchor="middle">BaseWorker, DagWorker, PandasWorker, PolarsWorker</text>
-    <text class="card-note" x="138" y="86" text-anchor="middle">Plus app-specific workers packaged under <tspan font-style="italic">~/wenv</tspan></text>
+  <g transform="translate(864,410)">
+    <rect class="card" width="320" height="114" fill="#ffe7a8" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">agi_node workers</text>
+    <text class="card-body" x="160" y="60" text-anchor="middle">
+      <tspan x="160" dy="0">BaseWorker, DagWorker</tspan>
+      <tspan x="160" dy="20">PandasWorker, PolarsWorker</tspan>
+    </text>
+    <text class="card-note" x="160" y="96" text-anchor="middle">Plus app-specific workers packaged under <tspan font-style="italic">~/wenv</tspan></text>
   </g>
 
   <g transform="translate(54,474)">
@@ -148,11 +151,11 @@
     <text class="callout-body" x="136" y="33">Inputs converge into agi_core, then flow through environment setup to cluster and worker execution.</text>
   </g>
 
-  <line class="arrow" x1="424" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="424" y1="302" x2="484" y2="254" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="470" y1="302" x2="484" y2="254" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="648" y1="312" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="792" y1="236" x2="836" y2="198" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="796" y1="396" x2="836" y2="331" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="974" y1="378" x2="974" y2="410" marker-end="url(#arrowhead-core)" />
-  <line class="arrow-soft" x1="792" y1="210" x2="836" y2="210" marker-end="url(#arrowhead-soft-core)" />
+  <line class="arrow" x1="792" y1="236" x2="864" y2="198" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="796" y1="396" x2="864" y2="331" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="1024" y1="378" x2="1024" y2="410" marker-end="url(#arrowhead-core)" />
+  <line class="arrow-soft" x1="792" y1="210" x2="864" y2="210" marker-end="url(#arrowhead-soft-core)" />
 </svg>
