@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-07T10:08:53Z",
+  "generated_at_utc": "2026-04-07T14:21:42Z",
   "tool": "tools/codex_skills.py",
-  "count": 8,
+  "count": 7,
   "skills": [
     {
       "name": "agilab-docs",
@@ -18,14 +18,6 @@
       "updated": "2026-04-02",
       "path": ".codex/skills/agilab-installer/SKILL.md",
       "body_preview": "# AGILAB Installer Skill\nUse this skill when working on:\n- `install.sh` / `install.ps1` (root installer)\n- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)"
-    },
-    {
-      "name": "agilab-lab-steps-review",
-      "description": "Review AGILab lab_steps.toml files for readability, inferred IO flow, and step naming quality. Use this skill when a user wants a pipeline clarified, wants labels cleaned up without changing behavior, or needs the execution flow made easier to understand in the PIPELINE page.",
-      "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
-      "path": ".codex/skills/agilab-lab-steps-review/SKILL.md",
-      "body_preview": "# AGILab Lab Steps Review\n## Overview\nUse this skill to improve how `lab_steps.toml` communicates a pipeline.\nFocus on names, IO semantics, and whether the execution flow matches the intended architecture."
     },
     {
       "name": "agilab-local-llm",
@@ -61,11 +53,11 @@
     },
     {
       "name": "pipeline-concept-view",
-      "description": "Add or refine a conceptual pipeline view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or an app-specific semantic view that complements a generic execution pipeline.",
+      "description": "Add or refine a conceptual pipeline view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_steps.toml reviewed for clearer naming, IO flow, and semantic alignment with the PIPELINE page.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": null,
       "path": ".codex/skills/pipeline-concept-view/SKILL.md",
-      "body_preview": "# Pipeline Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic pipeline page stays app-agnostic; the app contributes its own conceptual view."
+      "body_preview": "# Pipeline Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic pipeline page stays app-agnostic; the app contributes its own conceptual"
     }
   ]
 }
