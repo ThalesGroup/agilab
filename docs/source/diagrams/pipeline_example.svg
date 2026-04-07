@@ -141,27 +141,27 @@
     </text>
   </g>
 
-  <g transform="translate(806,176)">
-    <rect class="card" width="286" height="112" fill="#ffe3a1" />
-    <text class="card-title" x="143" y="40" text-anchor="middle">Learned decision engine</text>
-    <text class="card-body" x="143" y="74" text-anchor="middle">ML and RL allocation policies</text>
+  <g transform="translate(788,176)">
+    <rect class="card" width="280" height="112" fill="#ffe3a1" />
+    <text class="card-title" x="140" y="40" text-anchor="middle">Learned decision engine</text>
+    <text class="card-body" x="140" y="74" text-anchor="middle">ML and RL allocation policies</text>
   </g>
 
-  <g transform="translate(806,352)">
-    <rect class="card" width="286" height="112" fill="#ffe3a1" />
-    <text class="card-title" x="143" y="40" text-anchor="middle">Optimization baseline</text>
-    <text class="card-body" x="143" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
+  <g transform="translate(788,352)">
+    <rect class="card" width="280" height="112" fill="#ffe3a1" />
+    <text class="card-title" x="140" y="40" text-anchor="middle">Optimization baseline</text>
+    <text class="card-body" x="140" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
   </g>
 
-  <g transform="translate(1104,252)">
-    <rect class="card" width="136" height="148" fill="#ffd7ea" />
-    <text class="card-title" x="68" y="44" text-anchor="middle">Visualisation</text>
-    <text class="card-body" x="68" y="86" text-anchor="middle">Maps</text>
-    <text class="card-body" x="68" y="112" text-anchor="middle">Charts</text>
+  <g transform="translate(1090,252)">
+    <rect class="card" width="150" height="148" fill="#ffd7ea" />
+    <text class="card-title" x="75" y="44" text-anchor="middle">Visualisation</text>
+    <text class="card-body" x="75" y="86" text-anchor="middle">Maps</text>
+    <text class="card-body" x="75" y="112" text-anchor="middle">Charts</text>
   </g>
 
-  <g transform="translate(772,548)">
-    <rect class="callout" width="402" height="78" fill="#ffffff" />
+  <g transform="translate(756,548)">
+    <rect class="callout" width="430" height="78" fill="#ffffff" />
     <text class="callout-title" x="20" y="30">Decision output contract</text>
     <text class="callout-body" x="20" y="50">
       <tspan x="20" dy="0">Both engines emit allocations that feed the same</tspan>
@@ -173,14 +173,14 @@
   <line class="arrow" x1="418" y1="318" x2="470" y2="324" marker-end="url(#arrowhead-pipe)" />
   <line class="arrow" x1="418" y1="446" x2="470" y2="340" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="770" y1="316" x2="806" y2="232" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="770" y1="332" x2="806" y2="408" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="770" y1="316" x2="788" y2="232" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="770" y1="332" x2="788" y2="408" marker-end="url(#arrowhead-pipe)" />
 
-  <line class="arrow" x1="1092" y1="232" x2="1104" y2="302" marker-end="url(#arrowhead-pipe)" />
-  <line class="arrow" x1="1092" y1="408" x2="1104" y2="360" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1068" y1="232" x2="1090" y2="302" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1068" y1="408" x2="1090" y2="360" marker-end="url(#arrowhead-pipe)" />
 
-  <text class="label" x="1098" y="212">allocations</text>
-  <text class="label" x="1098" y="452">allocations</text>
+  <text class="label" x="1068" y="212">allocations</text>
+  <text class="label" x="1068" y="452">allocations</text>
 
-  <line class="arrow-soft" x1="1172" y1="400" x2="1172" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
+  <line class="arrow-soft" x1="1165" y1="400" x2="1165" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
 </svg>
