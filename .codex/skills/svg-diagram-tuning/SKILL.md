@@ -59,6 +59,9 @@ blob/raw page:
 - Prefer widening a badge, pill, or summary card before wrapping what is really one
   short label or one atomic message. Use wrapping only when the content is genuinely
   paragraph-like.
+- Treat one-line summary callouts as a special case. If a banner or flow summary was
+  intentionally designed as one atomic sentence, do not let later grid tightening
+  break it into two lines without an explicit semantic reason.
 - For multiline card copy, make the block tall enough for the wrapped text first.
   Do not push a footer note, divider, or arrow closer just to preserve a fixed box
   height.
@@ -111,6 +114,8 @@ blob/raw page:
 - Check gutters between neighboring panels and side callouts, not only strict overlap.
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
   collisions, and clipped whitespace before pushing.
+- Re-check any badge, banner, or summary card that was previously one line after any
+  global width or grid change. Do not assume it will survive a layout normalization.
 - If the user pointed out one concrete defect, verify the same defect does not remain
   in sibling blocks before declaring the SVG fixed.
 - Confirm the figure is referenced from the expected `.rst` page.
