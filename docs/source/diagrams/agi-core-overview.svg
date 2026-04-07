@@ -111,7 +111,7 @@
 
   <g transform="translate(484,170)">
     <rect class="card" width="308" height="154" fill="#e3dcff" />
-    <text class="card-title" x="24" y="38">agi_core</text>
+    <text class="card-title" x="154" y="38" text-anchor="middle">agi_core</text>
     <text class="card-body" x="24" y="72">Resolve app and args, build run plans</text>
     <text class="card-body" x="24" y="96">Drive lab_steps and structured telemetry</text>
     <text class="card-note" x="24" y="128">
@@ -122,7 +122,7 @@
 
   <g transform="translate(500,350)">
     <rect class="card" width="296" height="104" fill="#ffe8ac" />
-    <text class="card-title" x="24" y="36">agi_env</text>
+    <text class="card-title" x="148" y="36" text-anchor="middle">agi_env</text>
     <text class="card-body" x="24" y="62">
       <tspan x="24" dy="0">Paths, configs, logging, credentials</tspan>
       <tspan x="24" dy="20">and share roots</tspan>
