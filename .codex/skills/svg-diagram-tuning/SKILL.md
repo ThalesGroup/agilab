@@ -22,9 +22,13 @@ Focus on readability first: text, spacing, arrows, and visual hierarchy.
 
 1. Inspect the current structure and identify the source of crowding.
 2. Fix geometry before increasing font sizes aggressively.
-3. Rebalance titles, body text, and padding.
-4. Keep one editable SVG as the source of truth.
-5. Re-render only after the SVG itself is clean.
+3. Sweep the whole semantic family before replying: if one card title, legend, callout,
+   or arrow corridor is wrong, inspect the sibling elements of the same type and fix
+   the full class of issue in one pass.
+4. Rebalance titles, body text, padding, and connector anchors together rather than as
+   isolated micro-fixes.
+5. Keep one editable SVG as the source of truth.
+6. Re-render only after the SVG itself is clean.
 
 ## GitHub-first guardrails
 
@@ -33,6 +37,8 @@ blob/raw page:
 
 - Treat text overflow as a hard failure. If any title, label, body line, or callout
   crosses a block edge in the target renderer, the SVG is not done.
+- Treat repeated user complaints about one SVG as evidence that the previous pass was
+  incomplete. Do a full regression sweep before responding again.
 - Treat browser rendering as the target, not only one local SVG engine.
 - Prefer conservative geometry over tight packing; GitHub/browser rendering is less
   forgiving than local slide or DOCX export.
@@ -59,6 +65,10 @@ blob/raw page:
   Reserve explicit horizontal gap in the geometry.
 - Do not keep long callouts on one line. Wrap them with `tspan` and increase the box
   size before shrinking text.
+- Give legends and reading guides their own lane. Do not let a legend compete for the
+  same vertical band as the last row of cards.
+- Keep card titles aligned by family. If most peer blocks use centered titles, do not
+  leave one or two titles left-aligned without an explicit semantic reason.
 - Shorten labels like lane headers or section names before tightening letter spacing.
 - When two renderers disagree, prefer the layout with more whitespace.
 
@@ -75,8 +85,16 @@ blob/raw page:
 ## AGILAB Validation
 
 - Parse the SVG locally with Python XML tooling if needed.
+- Before replying, perform a semantic sweep of:
+  - all card titles
+  - all card bodies/notes
+  - all legends/callouts
+  - all arrows and arrowheads
+  - section labels and lane headers
 - Re-render the SVG and visually inspect every text-bearing block for overflow,
   collisions, and clipped whitespace before pushing.
+- If the user pointed out one concrete defect, verify the same defect does not remain
+  in sibling blocks before declaring the SVG fixed.
 - Confirm the figure is referenced from the expected `.rst` page.
 - For published docs, verify the embedding page such as `architecture.html` or
   `agi-core-architecture.html`; Sphinx may publish figure assets under `_images/`.
@@ -89,6 +107,7 @@ blob/raw page:
 ## Priority order
 
 - eliminate overflow and collisions
+- fix the whole class of related defects, not just the line the user mentioned
 - remove overlap
 - clarify hierarchy
 - widen crowded blocks
@@ -97,6 +116,15 @@ blob/raw page:
 - add whitespace before trusting typography tweaks
 - keep section labels and divider rules on one shared visual axis
 - recompute connector geometry after every layout shift
+
+## Anti-patterns
+
+- Do not reply after fixing only the one line the user cited if adjacent blocks still
+  have the same defect class.
+- Do not solve GitHub overflow by shrinking text first when geometry can be widened,
+  rewrapped, or reflowed.
+- Do not place legends, guides, or notes into leftover whitespace without checking
+  whether they visually collide with the main diagram bands.
 
 ## References
 

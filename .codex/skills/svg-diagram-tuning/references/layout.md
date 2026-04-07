@@ -4,6 +4,7 @@
 
 - fix overlaps
 - fix cropped text
+- sweep sibling elements for the same defect class before stopping
 - align arrows with intent
 - remove redundant labels
 - move decorative rules away from text corridors
@@ -16,8 +17,10 @@
 - increase minimum font size
 - widen dense blocks
 - normalize title/body hierarchy
+- normalize title alignment across peer blocks
 - reduce wording when needed
 - wrap long callouts instead of forcing one-line text
+- move legends and reading guides into their own stable lane
 
 ## Export awareness
 
