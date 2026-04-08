@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -54,6 +55,50 @@ except ModuleNotFoundError:
     _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
 
 logger = logging.getLogger(__name__)
+
+
+def _emit_streamlit_message(level: str, *args: Any, **kwargs: Any) -> None:
+    """Call Streamlit messaging API when available without failing in tests/mocks."""
+    fn = getattr(st, level, None)
+    if callable(fn):
+        fn(*args, **kwargs)
+
+
+def _coerce_source_lines(cell_source: Any) -> list[str]:
+    """Normalize a notebook cell source payload into a list of lines."""
+    if cell_source is None:
+        return []
+    if isinstance(cell_source, str):
+        return cell_source.splitlines(keepends=True)
+    if isinstance(cell_source, Iterable):
+        return [str(line) for line in cell_source]
+    return [str(cell_source)]
+
+
+def _is_uploaded_notebook(uploaded_file: Any) -> bool:
+    """Return True if the uploaded object looks like a Jupyter notebook."""
+    if not uploaded_file:
+        return False
+    filename = str(getattr(uploaded_file, "name", "") or "").lower()
+    mime_type = str(getattr(uploaded_file, "type", "") or "").lower()
+    has_metadata = bool(filename or mime_type)
+    if filename.endswith(".ipynb"):
+        return True
+    if has_metadata and "ipynb" not in mime_type:
+        return False
+    if not has_metadata:
+        return True
+    return "ipynb" in mime_type
+
+
+def _read_uploaded_text(uploaded_file: Any) -> str:
+    """Read an uploaded file-like object and normalize into UTF-8 text."""
+    raw = uploaded_file.read()
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8")
+    return str(raw)
 
 
 def convert_paths_to_strings(obj: Any) -> Any:
@@ -649,26 +694,63 @@ def notebook_to_toml(
     module_dir: Path,
 ) -> int:
     """Convert uploaded Jupyter notebook file to a TOML file."""
-    toml_path = module_dir / toml_file_name
+    if not uploaded_file:
+        _emit_streamlit_message("error", "No uploaded notebook provided.")
+        return 0
+    if not _is_uploaded_notebook(uploaded_file):
+        _emit_streamlit_message("error", "Please upload a .ipynb file.")
+        return 0
+    toml_path = Path(module_dir) / toml_file_name
     toml_path.parent.mkdir(parents=True, exist_ok=True)
-    file_content = uploaded_file.read().decode("utf-8")
-    notebook_content = json.loads(file_content)
+    try:
+        file_content = _read_uploaded_text(uploaded_file)
+        notebook_content = json.loads(file_content)
+    except Exception as exc:
+        _emit_streamlit_message("error", f"Unable to parse notebook: {exc}")
+        return 0
+    if not isinstance(notebook_content, dict):
+        _emit_streamlit_message("error", "Invalid notebook format: expected a JSON object.")
+        return 0
     toml_content = {}
     module = module_dir.name
+    if not module:
+        module = "lab_steps"
     toml_content[module] = []
     cell_count = 0
     for cell in notebook_content.get("cells", []):
         if cell.get("cell_type") == "code":
-            step = {"D": "", "Q": "", "C": "".join(cell.get("source", [])), "M": ""}
+            source = _coerce_source_lines(cell.get("source", []))
+            code_text = "".join(source)
+            if not code_text:
+                continue
+            step = {"D": "", "Q": "", "C": code_text, "M": ""}
             toml_content[module].append(step)
             cell_count += 1
     try:
         with open(toml_path, "wb") as toml_file:
             tomli_w.dump(toml_content, toml_file)
     except Exception as e:
-        st.error(f"Failed to save TOML file: {e}")
+        _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(f"Error writing TOML in notebook_to_toml: {e}")
     return cell_count
+
+
+def refresh_notebook_export(steps_file: Path) -> Path | None:
+    """Rebuild the notebook export for a given steps file and return its path."""
+    if not steps_file.exists():
+        return None
+    try:
+        with open(steps_file, "rb") as f:
+            steps = tomllib.load(f)
+    except Exception as exc:
+        _emit_streamlit_message(
+            "error",
+            f"Unable to export notebook: failed to load {steps_file}: {exc}",
+        )
+        logger.error("Unable to load steps file %s for notebook export: %s", steps_file, exc)
+        return None
+    toml_to_notebook(steps, steps_file)
+    return steps_file.with_suffix(".ipynb")
 
 
 def on_import_notebook(
@@ -679,10 +761,25 @@ def on_import_notebook(
 ) -> None:
     """Handle notebook file import via sidebar uploader."""
     uploaded_file = st.session_state.get(key)
-    if uploaded_file and "ipynb" in uploaded_file.type:
-        cell_count = notebook_to_toml(uploaded_file, steps_file.name, module_dir)
+    if not uploaded_file:
+        _emit_streamlit_message("error", "No notebook file was uploaded.")
+        return
+    if not _is_uploaded_notebook(uploaded_file):
+        return
+
+    cell_count = notebook_to_toml(
+        uploaded_file,
+        steps_file.name,
+        module_dir,
+    )
+    if cell_count > 0:
+        _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
+    elif cell_count == 0:
+        _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
+
+    if index_page in st.session_state and isinstance(st.session_state[index_page], list):
         st.session_state[index_page][-1] = cell_count
-        st.session_state.page_broken = True
+    st.session_state.page_broken = True
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
     """Display the HISTORY tab with code editor for steps file."""

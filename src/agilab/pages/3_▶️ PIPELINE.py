@@ -168,6 +168,7 @@ try:
         _restore_pipeline_snapshot,
         get_steps_list,
         on_import_notebook,
+        refresh_notebook_export,
         remove_step,
         save_step,
     )
@@ -183,6 +184,7 @@ except ModuleNotFoundError:
     _restore_pipeline_snapshot = _pipeline_editor_module._restore_pipeline_snapshot
     get_steps_list = _pipeline_editor_module.get_steps_list
     on_import_notebook = _pipeline_editor_module.on_import_notebook
+    refresh_notebook_export = _pipeline_editor_module.refresh_notebook_export
     remove_step = _pipeline_editor_module.remove_step
     save_step = _pipeline_editor_module.save_step
 try:
@@ -1339,8 +1341,22 @@ def sidebar_controls() -> None:
         type="ipynb",
         key=key,
         on_change=on_import_notebook,
-        args=(key, module_path, index_page_str, steps_file),
+        args=(key, module_path, steps_file, index_page_str),
     )
+
+    notebook_path = refresh_notebook_export(steps_file)
+    if notebook_path and notebook_path.exists():
+        try:
+            notebook_data = notebook_path.read_bytes()
+            st.sidebar.download_button(
+                "Export notebook",
+                data=notebook_data,
+                file_name=notebook_path.name,
+                mime="application/x-ipynb+json",
+                key=index_page_str + "export_notebook",
+            )
+        except Exception as exc:
+            st.sidebar.error(f"Failed to prepare notebook export: {exc}")
 
 
 def mlflow_controls() -> None:
