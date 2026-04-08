@@ -618,6 +618,22 @@ def test_run_nonzero_command_does_not_log_traceback_for_runtime_error(tmp_path: 
     assert not any("Traceback (most recent call last)" in msg for msg in error_messages)
 
 
+def test_run_nonzero_command_prefers_last_subprocess_line_in_runtime_error(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    cmd = (
+        f"{shlex.quote(sys.executable)} -c "
+        "\"import sys; print('RuntimeError: concise failure', file=sys.stderr); sys.exit(5)\""
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(AgiEnv.run(cmd, tmp_path))
+
+    assert str(exc_info.value) == "Command failed with exit code 5: concise failure"
+    assert "sys.exit(5)" not in str(exc_info.value)
+
+
 def test_run_unexpected_exception_logs_traceback(tmp_path: Path, monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
@@ -1187,6 +1203,22 @@ def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, mo
 
     with pytest.raises(RuntimeError, match="exit 4"):
         asyncio.run(AgiEnv._run_bg(fail_cmd, cwd=tmp_path, venv=tmp_path, timeout=10))
+
+
+def test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    cmd = (
+        f"{shlex.quote(sys.executable)} -c "
+        "\"import sys; print('FileNotFoundError: missing artifact', file=sys.stderr); sys.exit(6)\""
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(AgiEnv.run_async(cmd, venv=tmp_path, cwd=tmp_path, timeout=10))
+
+    assert str(exc_info.value) == "Command failed with exit code 6: missing artifact"
+    assert "sys.exit(6)" not in str(exc_info.value)
 
 
 def test_run_agi_handles_missing_snippet_missing_venv_and_install_snippet(tmp_path: Path, monkeypatch):
