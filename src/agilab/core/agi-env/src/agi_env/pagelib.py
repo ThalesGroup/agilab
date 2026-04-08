@@ -64,8 +64,6 @@ except ModuleNotFoundError:
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package."
             ) from _toml_exc
 
-from sqlalchemy import false
-
 # Shared last-active-app helpers (persisted in a single TOML state file)
 _GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
 _LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
