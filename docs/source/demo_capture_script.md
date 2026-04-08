@@ -134,6 +134,68 @@ Keep the same path, but add one explicit sentence on each stage:
 
 Do not add a second app. Do not branch into alternative flows.
 
+### 3-minute version
+
+Use this when you want a narrated product walkthrough that still stays aligned
+with the existing `AGILAB 3-minute tour` figure.
+
+Keep the same single-app path:
+
+1. `PROJECT`
+2. `ORCHESTRATE`
+3. `PIPELINE`
+4. `ANALYSIS`
+
+Do not introduce a second app, an alternative branch, or a second execution
+mode. The extra time is for clarity, not breadth.
+
+Suggested timeline:
+
+1. `0:00 -> 0:20`
+   Open the AGILAB home screen and state the single message:
+   `one app, one control path from project selection to execution to analysis.`
+2. `0:20 -> 0:50`
+   Go to `PROJECT`, select `src/agilab/apps/builtin/flight_project`, and show
+   that the app already carries its own arguments, pages, and outputs.
+3. `0:50 -> 1:35`
+   Move to `ORCHESTRATE`, show the install / distribute / run areas, and
+   explain that AGILAB generates the operational snippet instead of asking the
+   user to hand-wire the workflow first.
+4. `1:35 -> 2:05`
+   Move to `PIPELINE`, show the generated or replayable step, and explain that
+   the same execution path can now be inspected, rerun, and tracked as part of
+   the lab workflow.
+5. `2:05 -> 2:40`
+   Move to `ANALYSIS`, open a visible result page, and show that the run ends
+   on an operator-facing view rather than raw infrastructure logs.
+6. `2:40 -> 3:00`
+   Return to the core message and close on the same app/result:
+   `AGILAB keeps one app on one coherent path from setup to evidence.`
+
+Suggested narration:
+
+`This is AGILAB in one path. In PROJECT, I select the app and keep its context.
+In ORCHESTRATE, AGILAB packages and runs the workflow without ad-hoc shell glue.
+In PIPELINE, the same execution becomes inspectable and replayable. In ANALYSIS,
+the workflow ends on visible evidence, not just logs. The point is not another
+generic DAG. The point is one app, one controlled path, from setup to result.`
+
+Suggested click path:
+
+1. Home page
+2. `PROJECT`
+3. app selector -> `flight_project`
+4. one short pause on app context
+5. `ORCHESTRATE`
+6. one short pause on generated install / run area
+7. `PIPELINE`
+8. one short pause on generated or imported step
+9. `ANALYSIS`
+10. final pause on a visible result
+
+If you need a static deck with the same message, keep the slideshow sequence
+below unchanged and use the 3-minute talk track above as the narration layer.
+
 ## Slideshow structure
 
 If you want a static slideshow instead of a video, use this sequence:
