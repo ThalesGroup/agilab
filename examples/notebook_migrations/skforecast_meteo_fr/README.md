@@ -25,6 +25,7 @@ AGILAB workflow:
 - conceptual pipeline view in `migrated_project/pipeline_view.dot`
 - stable exported artifacts under `analysis_artifacts/`
 - reusable `ANALYSIS` page through `view_forecast_analysis`
+- and now a real runnable builtin app in `src/agilab/apps/builtin/meteo_forecast_project`
 
 ## Files
 
@@ -44,3 +45,15 @@ The point is to show that:
 2. the pipeline semantics can be made explicit,
 3. the exported artifacts can be reused in AGILAB ANALYSIS,
 4. reruns can later become reproducible local or cluster runs.
+
+## From pilot to project
+
+The migration story now exists in three layers:
+
+1. notebook source under `notebooks/`
+2. conceptual AGILAB skeleton under `migrated_project/`
+3. real builtin app under `src/agilab/apps/builtin/meteo_forecast_project`
+
+That third layer is the important proof point: the notebook example does not
+stop at documentation. It now runs as an AGILAB project with `PROJECT`,
+`ORCHESTRATE`, `PIPELINE`, and `ANALYSIS`.
