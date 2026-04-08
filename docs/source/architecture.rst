@@ -101,8 +101,8 @@ Layers at a glance
       ``AGI.install`` orchestration.
     - Apps under ``src/agilab/apps`` stay isolated but consume the same base
       worker / dispatcher APIs. The repository includes example app templates
-      such as ``mycode_project`` and ``flight_project``; additional templates can
-      follow the same contract.
+      such as ``mycode_project``, ``flight_project``, and
+      ``uav_queue_project``; additional templates can follow the same contract.
 
 **Execution back-plane**
     - :doc:`agi-distributor` contains the Dask-based scheduler, worker templates and
@@ -130,6 +130,11 @@ Runtime flow
 5. Results land in ``~/agi-space`` (for end users) or the repo ``data``/``export``
    folders (for developers), while logs are mirrored to
    ``~/log/execute/<app>/`` for reproducibility.
+
+Apps choose their own distribution unit. For example,
+``uav_queue_project`` fans out one scenario JSON file per worker and writes each
+run into its own output directory so distributed runs can keep per-scenario
+artifacts isolated.
 
 Two common execution modes:
 

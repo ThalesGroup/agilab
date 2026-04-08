@@ -12,6 +12,7 @@ unset BUILTIN_APPS
 declare -a BUILTIN_APPS=(
   mycode_project
   flight_project
+  uav_queue_project
 )
 declare -a REPOSITORY_APPS=()
 declare -a INVALID_REPOSITORY_APPS=()
@@ -30,6 +31,7 @@ declare -a DEFAULT_APPS_ORDER=(
   satcom_sim_project
   sat_trajectory_project
   sb3_trainer_project
+  uav_queue_project
 )
 
 declare -a DEFAULT_SELECTED_APPS=(

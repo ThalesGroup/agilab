@@ -25,6 +25,11 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/mycode_project
   - Designed for notebook-to-AGILAB forecasting migrations. Reads `forecast_metrics.json` and `forecast_predictions.csv` from the selected export directory.
 
+- view_uav_queue_analysis
+  - uv run streamlit run src/agilab/apps-pages/view_uav_queue_analysis/src/view_uav_queue_analysis/view_uav_queue_analysis.py -- --active-app src/agilab/apps/builtin/uav_queue_project
+  - Designed for the lightweight UAV queue demo. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
+  - The same run also exports `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, `_trajectory_summary.json`, and per-node trajectory CSVs so `view_maps_network` can reuse the scenario directly.
+
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_project`).
 - Each page falls back to `AGILAB_APP` env var, then tries a default `flight_project` under the saved `~/.local/share/agilab/.agilab-path` if not provided.

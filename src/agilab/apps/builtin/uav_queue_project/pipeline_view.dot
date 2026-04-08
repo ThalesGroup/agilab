@@ -1,0 +1,12 @@
+digraph uav_queue_pipeline {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fillcolor="#eef8ff", color="#3a6680", fontname="Helvetica"];
+
+  scenario [label="Scenario JSON\nUAV nodes + relay caps"];
+  policy [label="Routing policy\nshortest_path or queue_aware"];
+  sim [label="SimPy UAV queue loop\nsource + background traffic"];
+  artifacts [label="summary_metrics.json\nqueue_timeseries.csv\npacket_events.csv\npipeline/topology.gml\npipeline/allocations_steps.csv"];
+  analysis [label="AGILAB ANALYSIS\nview_uav_queue_analysis\nview_maps_network"];
+
+  scenario -> policy -> sim -> artifacts -> analysis;
+}

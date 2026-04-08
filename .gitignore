@@ -58,6 +58,10 @@ pip-wheel-metadata/
 src/agilab/apps/*_project
 src/agilab/apps/builtin/*_project/src/app_args_form.py
 src/agilab/apps/builtin/*_project/src/app_settings.toml
+!src/agilab/apps/builtin/uav_queue_project/
+!src/agilab/apps/builtin/uav_queue_project/**
+!src/agilab/apps/builtin/uav_queue_project/src/app_args_form.py
+!src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml
 
 # Codex CLI exported logs (generated)
 codex/codex_shell_history.tsv
@@ -78,5 +82,10 @@ distribution.json
 docs/html/
 
 apps/
+!src/agilab/apps/
+!src/agilab/apps/builtin/
+src/agilab/apps/builtin/*
+!src/agilab/apps/builtin/uav_queue_project/
+!src/agilab/apps/builtin/uav_queue_project/**
 _fcas_work
 .vscode/

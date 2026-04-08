@@ -404,7 +404,8 @@ $DefaultAppsOrder = @(
     'rssi_predictor_project',
     'sat_trajectory_project',
     'satcom_sim_project',
-    'sb3_trainer_project'
+    'sb3_trainer_project',
+    'uav_queue_project'
 )
 
 $DefaultSelectedApps = @(
@@ -439,7 +440,7 @@ function Order-ByPreference {
     return [string[]]$ordered.ToArray()
 }
 
-$builtinApps = @('mycode_project', 'flight_project')
+$builtinApps = @('mycode_project', 'flight_project', 'uav_queue_project')
 $appsOverride = $env:BUILTIN_APPS_OVERRIDE
 $promptForApps = $true
 $forceAllApps = $false
