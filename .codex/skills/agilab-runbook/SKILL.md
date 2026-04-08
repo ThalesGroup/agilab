@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-07
+  updated: 2026-04-08
 ---
 
 # AGILab runbook (Agent Skill)
@@ -51,6 +51,35 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
 - **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
+
+## Git footprint maintenance
+
+- Distinguish clearly between:
+  - working-tree footprint (`.venv`, caches, build artifacts)
+  - local Git footprint (`.git/objects`, `.git/lfs`)
+  - remote repository history size
+- If the user asks to reduce `.git` only, do not touch `.venv`.
+- Measure before acting:
+  - `du -sh .git .git/objects .git/lfs`
+  - `git count-objects -vH`
+  - `git lfs prune --dry-run`
+- Prefer the safest local win first:
+  - run `git lfs prune` when the dry-run shows meaningful reclaimable space
+  - this reduces local `.git/lfs` without rewriting history
+- For actual history reduction:
+  - use `git filter-repo`, never ad hoc low-level object surgery
+  - work in an isolated `--mirror` clone, not in the main checkout
+  - create a backup bundle before rewriting: `git bundle create /tmp/<repo>-pre-rewrite.bundle --all`
+  - preserve any uncommitted local files outside the checkout before realigning branches
+  - rewrite only the intended refs/paths; avoid touching `gh-pages` or unrelated refs unless requested
+  - after force-pushing rewritten refs, realign the local checkout to the new `origin/*` history and run:
+    - `git reflog expire --expire=now --all`
+    - `git gc --prune=now`
+- Typical low-value history targets:
+  - generated `docs/html/**`
+  - `.idea/shelf/**`
+  - obsolete legacy paths or duplicated archives
+- Do not promise a smaller remote repository from local pruning alone. Local LFS prune and local GC only affect the clone on disk.
 
 ## Common commands (from the runbook matrix)
 
