@@ -55,6 +55,7 @@ jobs:
           $UV pip install -e .
           $UV pip install -e ../agi-env
           $UV pip install -e ../agi-node
+          $UV pip install -e ../agi-core
           popd
 
       - name: Run tests
