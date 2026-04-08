@@ -120,10 +120,14 @@ renders cleanly on narrower viewports.
   broad system integration via DAGs, operators, hooks, and the web UI.
 - **Best fit**: platform or data engineering teams running recurring,
   scheduled, batch-oriented pipelines across many external systems.
-- **Positioning note**: AGILab is not a general-purpose batch scheduler. It is
-  stronger when the problem is experiment packaging, managed execution
-  environments, distributed research workloads, and app-centric user
-  workflows.
+- **Positioning note**: modern Airflow already supports dynamic task mapping
+  and dynamic DAG generation, so it remains stronger when the core need is
+  task-level orchestration semantics inside a scheduler-first platform.
+  AGILab can express dynamic behavior inside generated or custom Python steps,
+  but it does not yet expose the same kind of first-class runtime pipeline-step
+  expansion in **PIPELINE**. Its strength is elsewhere: experiment packaging,
+  managed execution environments, distributed research workloads, and
+  app-centric user workflows.
 
 Selection guide
 ---------------
@@ -140,7 +144,9 @@ Selection guide
 - Choose **Metaflow** when the team prefers a single Python library that grows
   from notebook-era prototyping toward scaled and production execution.
 - Choose **Airflow** when the problem is recurring batch scheduling and broad
-  integration across external systems, not an experimentation workbench.
+  integration across external systems, especially if you need native
+  scheduler-level dynamic task expansion rather than an experimentation
+  workbench.
 
 In practice, AGILab often complements these tools rather than replacing them:
 teams can use AGILab during the experimentation and validation phase, then hand
