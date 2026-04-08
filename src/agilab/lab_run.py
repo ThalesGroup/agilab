@@ -14,6 +14,8 @@
 import argparse
 import os
 import sys
+import tomllib
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 import streamlit.web.cli as stcli
 
@@ -63,7 +65,34 @@ def _resolve_apps_path(cli_value: str | None) -> str | None:
     return str(candidate) if candidate.is_dir() else None
 
 
-def main():
+def _read_version_from_pyproject(repo_root: Path) -> str | None:
+    pyproject_path = repo_root / "pyproject.toml"
+    if not pyproject_path.is_file():
+        return None
+
+    try:
+        project = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("project", {})
+    except Exception:
+        return None
+
+    version = str(project.get("version") or "").strip()
+    return version or None
+
+
+def _detect_cli_version() -> str:
+    repo_root = _detect_repo_root(Path(__file__).resolve().parent)
+    if repo_root:
+        version = _read_version_from_pyproject(repo_root)
+        if version:
+            return version
+
+    try:
+        return importlib_metadata.version("agilab")
+    except importlib_metadata.PackageNotFoundError:
+        return ""
+
+
+def main(argv: list[str] | None = None) -> int:
     _guard_against_uvx_in_source_tree()
 
     parser = argparse.ArgumentParser(
@@ -73,9 +102,19 @@ def main():
         "--apps-path", type=str, help="Where you store your apps (default is ./)",
                         default=None
     )
+    parser.add_argument(
+        "-V", "--version",
+        action="store_true",
+        help="Show the AGILAB version and exit.",
+    )
 
     # Parse known arguments; extra arguments are captured in `unknown`
-    args, unknown = parser.parse_known_args()
+    args, unknown = parser.parse_known_args(argv)
+
+    if args.version:
+        version = _detect_cli_version()
+        print(f"agilab {version}" if version else "agilab version unavailable")
+        return 0
 
     # Determine the target script (adjust path if necessary)
     target_script = str(Path(__file__).parent /"About_agilab.py")
@@ -100,7 +139,7 @@ def main():
         new_argv.extend(custom_args)
 
     sys.argv = new_argv
-    sys.exit(stcli.main())
+    return stcli.main()
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
