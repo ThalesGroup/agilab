@@ -43,7 +43,7 @@ the per-user workspace copy of ``app_settings.toml``:
 .. code-block:: toml
 
    [pages]
-   view_module = ["view_maps_network", "view_barycentric"]
+   view_module = ["view_uav_queue_analysis", "view_maps_network"]
 
 The file lives at ``~/.agilab/apps/<project>/app_settings.toml`` and is seeded
 from the app's versioned ``app_settings.toml`` source file (for example
@@ -96,3 +96,28 @@ Network topology viewer synchronised with geographic views.
 
 - Input: node positions + link definitions in the dataset.
 - Output: map + graph views to inspect connectivity, link types, and snapshots.
+- It can also reuse the ``uav_queue_project`` exports when a run provides
+  ``pipeline/topology.gml``, ``pipeline/allocations_steps.csv``, and
+  trajectory CSV files in the same run directory.
+
+view_uav_queue_analysis
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Dedicated analysis page for the built-in ``uav_queue_project`` example.
+
+- Input: one run directory under ``~/export/uav_queue/queue_analysis/<artifact_stem>/``.
+- Output: queue occupancy charts, per-packet delay and drop summaries, route
+  usage, and a quick explanation of why the scenario is a good AGILAB demo.
+- The same run directory also exposes generic ``pipeline/`` artifacts so you can
+  open ``view_maps_network`` on the exact same result.
+
+Notes for distributed runs
+--------------------------
+
+- ``uav_queue_project`` distributes one scenario JSON file per worker. One
+  simulation is one work item; AGILAB does not split a single scenario across
+  multiple workers.
+- Each scenario now writes into its own
+  ``~/export/uav_queue/queue_analysis/<artifact_stem>/`` directory, so
+  distributed runs with several scenario files do not overwrite each other's
+  ``pipeline/`` artifacts.
