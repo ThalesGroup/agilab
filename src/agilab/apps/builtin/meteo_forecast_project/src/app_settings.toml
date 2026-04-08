@@ -1,0 +1,30 @@
+[args]
+data_in = "meteo_forecast/dataset"
+data_out = "meteo_forecast/results"
+files = "*.csv"
+nfile = 1
+station = "Paris-Montsouris"
+target_column = "tmax_c"
+lags = 7
+horizon_days = 7
+validation_days = 9
+n_estimators = 100
+random_state = 42
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[pages]
+view_module = [
+    "view_forecast_analysis",
+]
