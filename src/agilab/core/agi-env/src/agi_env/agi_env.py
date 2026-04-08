@@ -2275,6 +2275,26 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             print(line)
 
+    @staticmethod
+    def _last_non_empty_output_line(lines) -> str | None:
+        for line in reversed(lines or []):
+            if isinstance(line, str) and line.strip():
+                return line.strip()
+        return None
+
+    @staticmethod
+    def _format_command_failure_message(returncode: int, cmd: str, lines=None, diagnostic_hint: str | None = None) -> str:
+        detail = AgiEnv._last_non_empty_output_line(lines)
+        if detail:
+            simplified = re.sub(r"^(?:[\w.]*?(?:Error|Exception)):\s*", "", detail)
+            detail = simplified or detail
+            error_msg = f"Command failed with exit code {returncode}: {detail}"
+        else:
+            error_msg = f"Command failed with exit code {returncode}: {cmd}"
+        if diagnostic_hint:
+            error_msg = f"{error_msg}\n{diagnostic_hint}"
+        return error_msg
+
     """
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -2384,11 +2404,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                             "dependencies locally or enable outbound connectivity, then rerun."
                         )
 
-                    error_msg = f"Command failed with exit code {returncode}: {cmd}"
-                    if diagnostic_hint:
-                        error_msg = f"{error_msg}\n{diagnostic_hint}"
-
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(
+                        AgiEnv._format_command_failure_message(
+                            returncode,
+                            cmd,
+                            result,
+                            diagnostic_hint,
+                        )
+                    )
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
@@ -2571,11 +2594,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                             "dependencies locally or enable outbound connectivity, then rerun."
                         )
 
-                    error_msg = f"Command failed with exit code {returncode}: {cmd}"
-                    if diagnostic_hint:
-                        error_msg = f"{error_msg}\n{diagnostic_hint}"
-
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(
+                        AgiEnv._format_command_failure_message(
+                            returncode,
+                            cmd,
+                            result,
+                            diagnostic_hint,
+                        )
+                    )
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
@@ -2864,7 +2890,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             logger = AgiEnv.logger
             if logger:
                 logger.error("Command failed with exit code %s: %s", rc, cmd)
-            raise RuntimeError(f"Command failed with exit code {rc}: {cmd}")
+            raise RuntimeError(AgiEnv._format_command_failure_message(rc, cmd, result))
 
         # Preserve original behavior: return last non-empty line (prefer stderr, else stdout)
         def last_non_empty(lines):
