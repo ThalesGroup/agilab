@@ -81,6 +81,10 @@ Use this runbook whenever you:
 - **Built-in apps directory**: First-party apps such as `flight_project` and `mycode_project` now live under
   `src/agilab/apps/builtin/`. Update local commands accordingly; repository apps cloned via `install_apps.sh`
   still appear under `src/agilab/apps/`.
+- **Clone environment policy**: In the PROJECT page, treat clones in two classes:
+  - `Temporary clone`: may share the source `.venv` by symlink for lightweight local experiments.
+  - `Working clone`: should not keep a shared `.venv`; create it without `.venv` and rerun `INSTALL` before `EXECUTE`.
+  When renaming a project, preserve the existing `.venv` rather than leaving a symlink pointing to the old project path.
 - **Manager class aliases**: Every app module must expose both the legacy name and its ``*App`` variant
   (for example `FooApp` and `Foo`) so older installers keep working. Add or preserve these
   subclasses whenever you touch an app manager.
