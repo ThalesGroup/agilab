@@ -12,7 +12,26 @@ Page snapshot
    :align: center
    :class: diagram-panel diagram-wide
 
-   The PROJECT page keeps project selection in the sidebar and exposes the editable source/config sections in the main panel.
+   The PROJECT page keeps project selection in the sidebar and exposes the editable
+   source/config sections in the main panel.
+
+What you should read from this screenshot
+----------------------------------------
+
+Look at these three concrete areas:
+
+1. **Sidebar top controls**: active project selection plus clone/delete/import/export actions.
+2. **Expander stack (main panel)**: the per-file editors for ``pyproject.toml``,
+   ``app_args.py``, ``app_args_form.py``, ``pre_prompt.json``, and other project
+   artifacts.
+3. **Current-project context**: all saves apply to the selected active project; the
+   page does not patch files across projects automatically.
+
+Use this exact interpretation sequence when something looks unclear:
+
+1. Confirm the selected project name at the top controls.
+2. Open one expander and verify the file you expect is being edited.
+3. Save the change and re-open the same expander to confirm persistence.
 
 Sidebar
 -------

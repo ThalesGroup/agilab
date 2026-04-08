@@ -48,6 +48,19 @@ page first.
 
    A compact visual tour of the four built-in Streamlit pages that structure the AGILAB workflow.
 
+Read this page flow in one pass
+-------------------------------
+
+Use this map as a strict operating sequence:
+
+1. **PROJECT**: open and prepare the target project (files, settings, args).
+2. **ORCHESTRATE**: install/build/run the app in the selected environment.
+3. **PIPELINE**: run and iterate the step logic against exported artefacts.
+4. **ANALYSIS**: launch optional page bundles for dedicated visualisation.
+
+If one page looks detached from the next, return to PROJECT and verify the same
+active project is selected in the sidebar context.
+
 Page bundles (apps-pages)
 -------------------------
 
