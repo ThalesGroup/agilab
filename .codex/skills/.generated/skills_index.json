@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-07T14:21:42Z",
+  "generated_at_utc": "2026-04-08T07:49:41Z",
   "tool": "tools/codex_skills.py",
-  "count": 7,
+  "count": 8,
   "skills": [
     {
       "name": "agilab-docs",
@@ -31,7 +31,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-03",
+      "updated": "2026-04-07",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## Background: Agent Skills (status update 2026-01-08)\n- Codex now supports **Agent Skills** using the open **Agent Skills** standard (`SKILL.md` + folder layout)."
     },
@@ -47,9 +47,17 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-02",
+      "updated": "2026-04-07",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- Start small and local: run only the tests that cover the files you changed."
+    },
+    {
+      "name": "notebook-to-agilab-project",
+      "description": "Migrate a small local notebook workflow into an AGILAB project. Use this skill when a user wants a sequence of notebooks turned into a reproducible AGILAB project with lab_steps.toml, explicit artifact contracts, a conceptual pipeline view, and an ANALYSIS page that shows why the migration is useful.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-08",
+      "path": ".codex/skills/notebook-to-agilab-project/SKILL.md",
+      "body_preview": "# Notebook To AGILAB Project\nUse this skill when the source material is a small set of local notebooks and the\ngoal is to turn them into an AGILAB-style workflow rather than keep a notebook-only\ndelivery."
     },
     {
       "name": "pipeline-concept-view",

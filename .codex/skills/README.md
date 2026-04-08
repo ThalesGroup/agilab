@@ -19,6 +19,7 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_steps.toml` naming/IO-flow clarification.
+- `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
 
 ## Adding A New Skill
 

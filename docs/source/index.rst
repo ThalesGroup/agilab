@@ -56,6 +56,7 @@ simultaneous multiple virtual environments, with one venv per cell/snippet.
    :caption: Examples
 
    execution-playground
+   notebook-migration-skforecast-meteo
    mycode-project
 
    flight-project
