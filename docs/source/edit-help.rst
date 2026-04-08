@@ -24,12 +24,21 @@ Sidebar
   ``<project>.zip`` to ``${EXPORT_APPS}`` using the active ``export-app-filter``.
   The rest of the page (expanders described below) becomes available from this
   view.
-- ``Create and Clone`` lets you clone either the current project or one of the
-  templates discovered on disk. The helper normalises the name (adds the
-  ``_project`` suffix) and rejects duplicates before cloning.
-- ``Rename`` copies the selected project to the new name, removes the original
-  folder and switches the session to the renamed project once the operation
-  succeeds.
+- ``Clone`` lets you clone either the current project or one of the templates
+  discovered on disk. The helper normalises the name (adds the ``_project``
+  suffix) and rejects duplicates before cloning. You now choose an
+  ``Environment strategy``:
+
+  - ``Temporary clone (share source .venv)`` keeps the source ``.venv`` by
+    symlink. It is fast and lightweight, but deleting or rebuilding the source
+    environment can break the clone too.
+  - ``Working clone (no shared .venv)`` creates the project without a shared
+    ``.venv``. This is the safer choice for real development; run ``INSTALL``
+    before ``EXECUTE`` to recreate the environment for the clone.
+
+- ``Rename`` now preserves the existing project ``.venv`` while switching the
+  project folder to the new name, then removes the original folder and switches
+  the session to the renamed project once the operation succeeds.
 - ``Delete`` permanently removes the active project after you tick the
   confirmation box. When the folder is deleted, AGILab automatically selects a
   remaining project so you can keep working.
@@ -78,6 +87,9 @@ Use these checks if Project actions do not behave as expected:
   rebuild.
 - If edits appear lost after saving, confirm you are still in the same project and
   that write permissions are available for the selected source file.
+- If a ``Temporary clone`` stops launching, check whether the source project
+  ``.venv`` was deleted or rebuilt. Switch to a ``Working clone`` when you need
+  a stable long-lived project.
 - If import/export fails, check free disk space and confirm ``${EXPORT_APPS}`` and
   the project path are writable.
 
