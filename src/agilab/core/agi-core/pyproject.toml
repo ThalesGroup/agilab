@@ -1,5 +1,5 @@
 [project]
-version = "2026.4.9"
+version = "2026.4.10"
 name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
@@ -26,7 +26,7 @@ keywords = [
   "agi",
   "streamlit",
 ]
-dependencies = ["agi-env==2026.4.9", "agi-node==2026.4.9", "agi-cluster==2026.4.9"]
+dependencies = ["agi-env==2026.4.10", "agi-node==2026.4.10", "agi-cluster==2026.4.10"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
