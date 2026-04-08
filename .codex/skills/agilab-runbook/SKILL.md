@@ -31,6 +31,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `py_compile`, Sphinx builds, badge generation, or publish dry-runs. Use CI only for GitHub-only
   behavior such as runner differences, OS/Python matrix coverage, permissions/secrets, or the final
   publish/deploy step.
+- **Clone policy**: in the PROJECT page, keep two clone classes explicit:
+  - temporary clones may share the source `.venv` by symlink for lightweight local experiments
+  - working clones should detach `.venv` and rerun `INSTALL` before `EXECUTE`
+  Do not treat a shared `.venv` clone as a durable environment, and do not leave renamed projects
+  with `.venv` symlinks pointing at the old project path.
 - **Shared core approval gate**: do not edit shared core technology without explicit user approval first.
   This includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
   `src/agilab/core/agi-core`, shared installer/build/deploy code, and generic helpers reused across apps/pages.

@@ -750,3 +750,21 @@ def test_edit_page_project_selectbox(mock_ui_env):
         f"errors={[e.value for e in at.error]})"
     )
     assert "project_selectbox" in selectbox_keys
+
+
+def test_clone_page_exposes_environment_strategy(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_project"]
+    env.get_projects = MagicMock(return_value=["flight_project"])
+    at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Clone"
+
+    at.run()
+    assert not at.exception
+
+    sidebar_radios = list(at.sidebar.radio)
+    radio_keys = [radio.key for radio in sidebar_radios]
+    assert "clone_env_strategy" in radio_keys
