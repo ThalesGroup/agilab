@@ -118,9 +118,10 @@ Runtime flow
    an example in ``src/agilab/examples/<app>/AGI_run_*.py``.
 2. The script instantiates ``AgiEnv`` with the desired ``apps_dir`` and ``app``.
    ``AgiEnv`` resolves symlinks, copies optional data bundles, seeds
-   ``~/.agilab/apps/<app>/app_settings.toml`` from the versioned
-   ``src/app_settings.toml`` when needed, and loads overrides from that
-   workspace copy.
+   ``~/.agilab/apps/<app>/app_settings.toml`` from the app's versioned
+   source ``app_settings.toml`` (``<project>/app_settings.toml`` or
+   ``<project>/src/app_settings.toml``) when needed, and loads overrides from
+   that workspace copy.
 3. ``AGI.run`` (or ``AGI.get_distrib`` / ``AGI.install``) selects the dispatcher
    mode, builds or reuses the worker wheel, and starts a scheduler locally or on
    the configured SSH hosts.

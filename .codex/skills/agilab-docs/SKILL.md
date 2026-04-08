@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-03
+  updated: 2026-04-08
 ---
 
 # Docs Skill (AGILAB)
@@ -81,13 +81,32 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 ## Build / Validate
 
 - Local Sphinx build (from `agilab` repo root):
-  - `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
+- Local Sphinx build (from `../thales_agilab` repo root):
+  - `uv sync --group sphinx --dev` (or equivalent environment bootstrap command in your `uv` version).
+  - `uv run sphinx-build -n -q -b html docs/source docs/_build/html`
+    - Keep `--group sphinx` variants if your installed `uv` supports it for your workflow.
+  - Prefer this path when validating canonical docs edits; only sync to `../agilab/docs/source`
+    when the page is published through the `agilab` repo workflow.
+- Quick mirror validation (from `../thales_agilab`):
+  - verify the canonical change is present in `../thales_agilab/docs/source`.
+  - then mirror only the touched files into `../agilab/docs/source`.
+  - rebuild the local public mirror with your project-specific docs command if needed before publish.
 - Publish workflow check (AGILAB public site):
   - `gh workflow run docs-publish.yaml -R ThalesGroup/agilab --ref main`
   - `gh run view <run-id> -R ThalesGroup/agilab --json status,conclusion,url`
   - for a slow or opaque deploy, prefer:
     - `gh run view <run-id> -R ThalesGroup/agilab --json status,conclusion,jobs,url`
-    instead of waiting blindly on a watcher
+      instead of waiting blindly on a watcher
+
+## Newcomer Documentation Review
+
+- Before publishing, do a quick onboarding-focused pass on any edited page:
+  - installation flow is executable as written.
+  - environment paths are source-agnostic where possible (especially for
+    `apps` and workspace directories).
+  - any `app_settings.toml` mention explains both valid seed locations:
+    `<project>/app_settings.toml` and `<project>/src/app_settings.toml`.
+  - external links and labels are clear, not placeholder or contradictory.
 - Regenerate run-config wrappers after `.idea/runConfigurations` changes:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 
