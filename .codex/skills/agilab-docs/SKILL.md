@@ -104,6 +104,10 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   - installation flow is executable as written.
   - environment paths are source-agnostic where possible (especially for
     `apps` and workspace directories).
+  - when a page mixes an activated environment with a source checkout command,
+    avoid bare `cd <checkout> && uv run ...` unless a project-env switch is the
+    explicit goal; prefer `uv run --active ...` or document it as a separate
+    developer flow.
   - any `app_settings.toml` mention explains both valid seed locations:
     `<project>/app_settings.toml` and `<project>/src/app_settings.toml`.
   - external links and labels are clear, not placeholder or contradictory.
