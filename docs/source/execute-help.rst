@@ -23,24 +23,6 @@ Page snapshot
 
    ORCHESTRATE centralises deployment settings, generated snippets, install logs, and run controls in one operational page.
 
-What you should read from this screenshot
-----------------------------------------
-
-Read it as a readiness chain:
-
-1. **System settings panel**: cluster and runtime mode are selected first.
-2. **Install panel**: dependencies and worker environments are prepared once mode is valid.
-3. **Distribute panel**: generates and verifies run arguments, distribution plan, and worker map.
-4. **Run panel**: executes the managed app runner once prerequisites are in place.
-5. **Pipeline handoff action**: prepares the data artefacts used by PIPELINE/ANALYSIS.
-
-Operational read sequence:
-
-1. Confirm system settings and environment are coherent with your target project.
-2. Run ``INSTALL`` and wait for green completion.
-3. Regenerate arguments/distribution only when inputs changed.
-4. Run the app, then open PIPELINE with the same project context.
-
 Sidebar
 -------
 - ``Read Documentation`` opens this guide in the hosted public docs, and
@@ -89,6 +71,32 @@ Main Content Area
   powers the Pipeline and Analysis pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
+
+Distributed Workflow
+--------------------
+
+For distributed runs, ORCHESTRATE is the control point. The intended workflow
+is:
+
+1. Configure scheduler, workers, and execution flags in ``System settings``.
+2. Let ORCHESTRATE generate the current ``AGI.install(...)``,
+   ``AGI.get_distrib(...)``, and ``AGI.run(...)`` snippets.
+3. Reuse the generated run snippet in :doc:`experiment-help` when the
+   distributed execution should become a reproducible Pipeline step.
+
+You usually do not write these orchestration snippets manually first. They are
+generated from the current UI configuration. See :doc:`distributed-workers` for
+the full step-by-step deployment guide.
+
+For a first pass through the UI, follow this sequence exactly:
+
+1. Open ``System settings`` and configure the scheduler host and worker map.
+2. Run ``INSTALL`` so the worker runtime is staged on the configured machines.
+3. Run ``CHECK DISTRIBUTE`` to inspect the generated distribution tree and
+   confirm the work plan matches the selected workers.
+4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
+5. In :doc:`experiment-help`, import or regenerate that snippet as a Pipeline
+   step instead of retyping it.
 
 Snippet Handoff to Pipeline
 ---------------------------

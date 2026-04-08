@@ -48,19 +48,6 @@ page first.
 
    A compact visual tour of the four built-in Streamlit pages that structure the AGILAB workflow.
 
-Read this page flow in one pass
--------------------------------
-
-Use this map as a strict operating sequence:
-
-1. **PROJECT**: open and prepare the target project (files, settings, args).
-2. **ORCHESTRATE**: install/build/run the app in the selected environment.
-3. **PIPELINE**: run and iterate the step logic against exported artefacts.
-4. **ANALYSIS**: launch optional page bundles for dedicated visualisation.
-
-If one page looks detached from the next, return to PROJECT and verify the same
-active project is selected in the sidebar context.
-
 Page bundles (apps-pages)
 -------------------------
 
@@ -75,9 +62,10 @@ Use this flow the first time:
 
 1. Open :doc:`edit-help` (Project) to inspect or select the target project.
 2. Use :doc:`execute-help` (Orchestrate) to install dependencies, build
-   distributions, and generate a run snippet.
-3. Move to :doc:`experiment-help` (Pipeline) to run or iterate that step in
-   ``lab_steps.toml``.
+   distributions, configure distributed workers when needed, and generate a
+   run snippet.
+3. Move to :doc:`experiment-help` (Pipeline) to import or iterate that
+   generated step in ``lab_steps.toml``.
 4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for
    deeper views.
 
@@ -86,4 +74,5 @@ See also
 
 - :doc:`architecture` for the end-to-end pipeline view.
 - :doc:`apps-pages` for how page bundles work (and the built-in bundle catalog).
+- :doc:`distributed-workers` for the UI-driven cluster workflow from ORCHESTRATE to PIPELINE.
 - :doc:`learning-workflows` for training vs inference (and optional continuous/federated patterns).
