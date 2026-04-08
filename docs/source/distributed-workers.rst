@@ -62,6 +62,13 @@ These values are persisted in the per-user workspace copy of
 ``app_settings.toml``, so future snippet generations stay aligned with the same
 cluster definition.
 
+.. figure:: _static/page-shots/orchestrate-page.png
+   :alt: Screenshot of the ORCHESTRATE page showing system settings, install, distribute, and run areas.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   ORCHESTRATE is where you define distributed worker settings, run INSTALL, inspect distribution, and generate the final run snippet.
+
 Step 2: Let ORCHESTRATE Generate the Snippet
 --------------------------------------------
 
@@ -162,6 +169,13 @@ The normal reuse path is:
 Important: imported snippets are snapshots. If you change worker hosts,
 execution flags, or app arguments in ORCHESTRATE, regenerate or re-import the
 snippet before running it again in PIPELINE.
+
+.. figure:: _static/page-shots/pipeline-page.png
+   :alt: Screenshot of the PIPELINE page showing the lab-step workspace where generated snippets are imported and rerun.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   PIPELINE is where the generated distributed snippet becomes a tracked, reusable step in ``lab_steps.toml``.
 
 Best Practices
 --------------
