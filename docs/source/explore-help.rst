@@ -69,8 +69,9 @@ Main Content Area
       ``~/.agilab/apps/<project>/app_settings.toml`` in the ``[pages]`` section
       under ``view_module``. Only the names you choose are persisted for the
       active project; every project keeps its own list. The workspace file is
-      seeded from ``src/<project>/src/app_settings.toml`` the first time the
-      app is loaded.
+      seeded from the app's ``app_settings.toml`` source file (for example
+      ``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
+      the first time the app is loaded.
 
       You can also create a complete starter bundle directly from this page using
       **Create** in the ``Create from template`` tab. It creates a minimal

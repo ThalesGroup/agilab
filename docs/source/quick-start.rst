@@ -47,21 +47,33 @@ Install AGILab
 
        mkdir ~/agi-workspace && cd ~/agi-workspace
 
-2. **Install the published wheel** using `uv <https://docs.astral.sh/uv/>`_::
+2. **Create a managed environment** (uv-first and source-agnostic)::
 
-       uv add agilab
+       uv venv
+       source .venv/bin/activate
 
-3. **Launch the web interface** (runs inside the managed virtual environment)::
+3. **Install AGILab (published wheel)**::
+
+       uv pip install agilab
+
+4. **Launch the web interface** (runs inside the managed virtual environment)::
 
        uv run agilab
 
-   The ORCHESTRATE page opens automatically. Point the sidebar to your apps
-   directory (defaults to ``~/agi-workspace/src/agilab/apps``).
+The ORCHESTRATE page opens automatically. Point the sidebar to the folder that
+contains your AGILab projects (for example a checked-out app repository, or a
+path you set with ``APPS_PATH``).
 
-4. **Run the sample ``mycode`` app** either from the UI or the CLI
-   mirror::
+5. **Run an example app**
 
+   If you are working from a source checkout, run the sample from the local
+   ``src/`` tree::
+
+       cd /path/to/agilab-checkout
        uv run python src/agilab/examples/mycode/AGI_run_mycode.py
+
+   The same project can be exercised from the web interface by selecting it in
+   PROJECT, then using ORCHESTRATE and PIPELINE.
 
    This script constructs an ``AgiEnv``, bundles the worker, and executes a
    full AGI run so you can inspect the generated logs under
@@ -116,8 +128,9 @@ workflow. ``pycharm/setup_pycharm.py`` mirrors web interface run configurations 
    inputs you provide, keeping IDE and CLI flows in sync. Field defaults are
    read from each app's per-user workspace copy
    ``~/.agilab/apps/<app>/app_settings.toml`` before the form renders. That
-   workspace file is seeded from the versioned ``src/app_settings.toml`` on
-   first use, so update the workspace copy when you need local baselines and
+   workspace file is seeded from the versioned ``app_settings.toml`` source file
+   (for example ``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
+   on first use, so update the workspace copy when you need local baselines and
    update the source seed only when you intend to change the shipped defaults.
 
 Next steps

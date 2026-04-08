@@ -11,7 +11,7 @@ application. It generates ready-to-run snippets, streams logs back into the UI
 and keeps the per-user ``app_settings.toml`` workspace copy synchronised so
 that installs, distribution checks and runs are reproducible. The mutable file
 now lives under ``~/.agilab/apps/<app>/app_settings.toml`` and is seeded from
-the app's versioned ``src/app_settings.toml`` on first use.
+the app's versioned ``app_settings.toml`` source file on first use.
 
 Page snapshot
 -------------
@@ -183,7 +183,8 @@ Use these checks if Orchestrate actions do not behave as expected:
 - If the generated snippet looks wrong, compare ``[args]`` in
   ``~/.agilab/apps/<project>/app_settings.toml`` with the values shown in
   ``app_args_form.py``. If the workspace copy is missing, AGILab will reseed it
-  from ``src/<project>/src/app_settings.toml``.
+  from the app source copy (``<project>/app_settings.toml`` or
+  ``src/<project>/src/app_settings.toml``).
 - If ``RUN`` returns import errors, verify the target virtual environment contains
   the same versions as ``src/<project>/pyproject.toml`` and re-run install.
 - If no logs appear, confirm the log expansion is expanded and that the runtime
