@@ -83,8 +83,9 @@ Main Content Area
   - ``APP-SETTINGS`` opens the per-user workspace
     ``~/.agilab/apps/<project>/app_settings.toml``. AGILab keeps the ``[args]``
     and ``[pages]`` sections in sync with the Orchestrate and Analysis pages.
-    The file is seeded from the versioned ``src/app_settings.toml`` when the app
-    is first loaded.
+    The file is seeded from the app's versioned source ``app_settings.toml``
+    (``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
+    when the app is first loaded.
   - ``README`` allows quick edits to the project ``README.md``.
   - ``APP-ARGS`` targets ``app_args.py`` in the app package. Use it to
     synchronise default arguments with the Orchestrate page.

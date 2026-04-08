@@ -46,9 +46,10 @@ the per-user workspace copy of ``app_settings.toml``:
    view_module = ["view_maps_network", "view_barycentric"]
 
 The file lives at ``~/.agilab/apps/<project>/app_settings.toml`` and is seeded
-from ``src/<project>/src/app_settings.toml`` on first use. You can edit it
-manually (PROJECT → APP-SETTINGS) or use Analysis → Configure, which writes the
-same list for you.
+from the app's versioned ``app_settings.toml`` source file (for example
+``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``) on first
+use. You can edit it manually (PROJECT → APP-SETTINGS) or use Analysis →
+Configure, which writes the same list for you.
 
 Included page bundles
 ---------------------

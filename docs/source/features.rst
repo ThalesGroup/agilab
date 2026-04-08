@@ -9,10 +9,10 @@ AGILab delivers a single, notebook-like workflow where you can run each cell/sni
 
 AGI framework offers 2 user interfaces:
 
- - `agi-core` an API interface to interface directly in your python program on a `dask cluster <https://openai.com>`_
- - `agilab` a WEB interface that generate the agi-core API call in a snippet and offer `openai <https://openai.com>`_ code assitant.
+ - ``agi-core``: an API interface callable directly from your Python program.
+ - ``agilab``: a web interface that generates ``agi-core`` calls and can render generated snippets for execution.
 
-There is share components `agi-env` a share component to set the environment and `agi-gui` the Graphic User Interface engine
+Shared components include ``agi-env`` (environment setup), ``agi-node`` (runtime orchestration), and ``agi-cluster`` (multi-node execution support).
 
 agi-core
 --------
@@ -52,7 +52,7 @@ agi-core
 
 - **Optimized Run-Mode Selection:**
 
-  - Chooses the best run-mode from 8 available combinations, when rapids is enables it adds 8 more.
+  - Chooses the best run-mode from up to 16 combinations (8 base modes and an optional RAPIDS variant).
 
 
 agilab
