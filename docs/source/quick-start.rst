@@ -66,11 +66,11 @@ path you set with ``APPS_PATH``).
 
 5. **Run an example app**
 
-   If you are working from a source checkout, run the sample from the local
-   ``src/`` tree::
+   If you have a source checkout and want to keep using the same virtual
+   environment created above, point Python at the sample script without
+   switching into the checkout's own uv project::
 
-       cd /path/to/agilab-checkout
-       uv run python src/agilab/examples/mycode/AGI_run_mycode.py
+       uv run --active python /path/to/agilab-checkout/src/agilab/examples/mycode/AGI_run_mycode.py
 
    The same project can be exercised from the web interface by selecting it in
    PROJECT, then using ORCHESTRATE and PIPELINE.
