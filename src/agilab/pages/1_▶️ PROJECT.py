@@ -55,6 +55,22 @@ from agi_env import AgiEnv, normalize_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+CLONE_ENV_STRATEGY_LABELS = {
+    "share_source_venv": "Temporary clone (share source .venv)",
+    "detach_venv": "Working clone (no shared .venv)",
+}
+
+CLONE_ENV_STRATEGY_CAPTIONS = {
+    "share_source_venv": (
+        "Fast and lightweight. The clone keeps the source .venv by symlink, "
+        "so cleaning or deleting the source environment can break it."
+    ),
+    "detach_venv": (
+        "Safer for real development. The clone is created without .venv, "
+        "so run INSTALL before EXECUTE."
+    ),
+}
+
 
 # -------------------- Source Extractor Class -------------------- #
 
@@ -226,6 +242,78 @@ def replace_content(content, rename_map):
         pattern = re.compile(boundary.format(token=re.escape(old)))
         content = pattern.sub(new, content)
     return content
+
+
+def _path_exists_or_symlink(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
+def _remove_path_if_present(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
+    source_project = target_project
+    templates_root = env.apps_path / "templates"
+    if not source_project.name.endswith("_project"):
+        candidate = source_project.with_name(source_project.name + "_project")
+        if (env.apps_path / candidate).exists() or (templates_root / candidate).exists():
+            source_project = candidate
+
+    source_root = env.apps_path / source_project
+    if not source_root.exists() and templates_root.exists():
+        source_root = templates_root / source_project
+    return source_root
+
+
+def _finalize_cloned_project_environment(
+    source_root: Path,
+    dest_root: Path,
+    strategy: str,
+) -> str | None:
+    dest_venv = dest_root / ".venv"
+    source_venv = source_root / ".venv"
+
+    if strategy == "detach_venv":
+        if _path_exists_or_symlink(dest_venv):
+            _remove_path_if_present(dest_venv)
+        return (
+            f"Project '{dest_root.name}' was created without sharing the source .venv. "
+            "Run INSTALL before EXECUTE."
+        )
+
+    if strategy == "share_source_venv":
+        if _path_exists_or_symlink(dest_venv):
+            if source_venv.exists():
+                return (
+                    f"Project '{dest_root.name}' shares the source .venv for fast local iteration."
+                )
+            return (
+                f"Project '{dest_root.name}' shares the source .venv via symlink."
+            )
+        return (
+            f"Project '{dest_root.name}' was created without a .venv because the source project "
+            "did not expose one."
+        )
+
+    raise ValueError(f"Unknown clone environment strategy: {strategy}")
+
+
+def _repair_renamed_project_environment(source_root: Path, dest_root: Path) -> str | None:
+    source_venv = source_root / ".venv"
+    dest_venv = dest_root / ".venv"
+
+    if not _path_exists_or_symlink(source_venv):
+        return None
+
+    if _path_exists_or_symlink(dest_venv):
+        _remove_path_if_present(dest_venv)
+
+    shutil.move(str(source_venv), str(dest_venv))
+    return f"Preserved the project .venv while renaming '{source_root.name}'."
 
 
 # -------------------- Gitignore Reader -------------------- #
@@ -1428,6 +1516,18 @@ def handle_project_creation():
         ),
     )
 
+    clone_env_strategy = st.sidebar.radio(
+        "Environment strategy",
+        list(CLONE_ENV_STRATEGY_LABELS),
+        key="clone_env_strategy",
+        format_func=CLONE_ENV_STRATEGY_LABELS.get,
+        help=(
+            "Choose whether the clone should keep sharing the source .venv or "
+            "start without any .venv."
+        ),
+    )
+    st.sidebar.caption(CLONE_ENV_STRATEGY_CAPTIONS[clone_env_strategy])
+
     raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
 
     create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
@@ -1442,12 +1542,20 @@ def handle_project_creation():
             return
 
         # clone it
-        env.clone_project(Path(st.session_state["clone_src"]),
-                          Path(new_name))
+        clone_source_root = _resolve_clone_source_root(env, Path(st.session_state["clone_src"]))
+        env.clone_project(Path(st.session_state["clone_src"]), Path(new_name))
 
         # verify
-        if (env.apps_path / new_name).exists():
+        dest_root = env.apps_path / new_name
+        if dest_root.exists():
+            status_message = _finalize_cloned_project_environment(
+                clone_source_root,
+                dest_root,
+                clone_env_strategy,
+            )
             st.success(f"Project '{new_name}' created.")
+            if status_message:
+                st.info(status_message)
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             time.sleep(1.5)
@@ -1516,6 +1624,7 @@ def handle_project_rename():
 
         # verify & cleanup
         if dest_path.exists():
+            renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
             try:
                 shutil.rmtree(src_path, ignore_errors=True)
             except:
@@ -1523,6 +1632,8 @@ def handle_project_rename():
                 pass
 
             st.success(f"Project renamed: '{current}' → '{new_name}'")
+            if renamed_venv_message:
+                st.info(renamed_venv_message)
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             st.rerun()
