@@ -151,6 +151,7 @@ What this shows in one pass:
 Useful references:
 
 - [Execution Playground guide](https://thalesgroup.github.io/agilab/execution-playground.html)
+- [Notebook migration example: skforecast + Meteo-France](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
 - [execution_pandas_project drill-down](https://thalesgroup.github.io/agilab/execution-playground.html#execution-pandas-project)
 - [execution_polars_project drill-down](https://thalesgroup.github.io/agilab/execution-playground.html#execution-polars-project)
 - [Flight project overview](https://thalesgroup.github.io/agilab/flight-project.html)
