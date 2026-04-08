@@ -78,6 +78,23 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Public documentation must not mention non-public apps/repositories.
 - Keep examples generic and refer to “external apps repository” rather than naming private app modules.
 
+## Positioning Claim Guardrail
+
+- For framework/tool comparisons, prefer precise current-state wording over
+  product marketing shorthand.
+- If a competing framework already supports a capability (for example Airflow
+  dynamic task mapping / dynamic DAG generation), say so explicitly instead of
+  implying AGILAB has feature parity by default.
+- Scope operational-footprint claims to AGILAB's real strength:
+  lower operational overhead during experimentation and early validation, not a
+  blanket replacement for production MLOps/platform operations.
+- Do not claim reduced repository footprint unless the statement is backed by a
+  concrete repository comparison; this is not an inherent AGILAB property.
+- When AGILAB lacks a first-class product primitive, state the current limit
+  plainly. Example: AGILAB can express dynamic behavior inside Python steps, but
+  it does not yet provide first-class runtime pipeline-step expansion in
+  `PIPELINE`.
+
 ## Build / Validate
 
 - Local Sphinx build (from `agilab` repo root):

@@ -17,6 +17,10 @@ Where AGILab helps
 - **Distributed execution without DevOps**: Dask-based scheduling, SSH helpers,
   and worker packaging (`agi_cluster`, `agi_env`) allow TRL‑3 teams to scale out
   experiments without managing Kubernetes or cloud stacks.
+- **Lower operational footprint during experimentation**: AGILab packages
+  environment setup, execution, distributed runs, and pipeline replay into one
+  workspace, so early-stage teams can do useful work with less orchestration
+  glue and fewer platform dependencies.
 - **Offline productivity**: optional offline assistants (Mistral/GPT‑OSS paths, plus
   local documentation assets when configured) can keep experimentation usable in
   air-gapped environments once the dependencies and local model/runtime setup are
@@ -71,7 +75,8 @@ renders cleanly on narrower viewports.
   experimentation phase.
 - **Positioning note**: strongest when the problem is not only defining a
   pipeline, but also operating reusable application workflows with managed
-  runtimes and a consistent UI/CLI control path.
+  runtimes, a lower operational footprint for experimentation, and a
+  consistent UI/CLI control path.
 
 .. rubric:: Kedro
 
