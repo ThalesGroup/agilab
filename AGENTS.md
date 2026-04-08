@@ -25,6 +25,11 @@ Use this runbook whenever you:
   agilab`, run `uv --preview-features extra-build-dependencies tool upgrade agilab` to pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
   it from the source tree swaps in the published wheel and discards your local changes.
+- **Git footprint helper**: Use `uv run python tools/repo_footprint.py audit` to
+  separate working-tree size from `.git` size before cleaning anything. Prefer
+  `lfs-prune --dry-run` / `lfs-prune --apply` for local `.git/lfs` cleanup.
+  For true history reduction, use `history-rewrite` in its isolated mirror flow,
+  then `realign-local` on the checkout you keep working in.
 - **Local-first validation**: Do not trigger GitHub workflows when the same failure can be
   reproduced or validated locally. First run the narrowest local check that can prove the change:
   targeted `pytest`, isolated coverage commands, `py_compile`, Sphinx builds, badge generation,
