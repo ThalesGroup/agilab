@@ -1,18 +1,17 @@
 AGILab Documentation
 =====================
 
-Welcome to the AGILab framework documentation.
-You’ll find everything from quickstarts to API references, as well as example projects.
-
-**Teaser:** AGILab is the only notebook-like tool positioned for
-simultaneous multiple virtual environments, with one venv per cell/snippet.
+AGILab is a framework for engineering-focused AI workflows, spanning local
+development, distributed execution, and application packaging.
+This documentation covers installation, architecture, API references, and
+example projects.
 
 .. toctree::
    :maxdepth: 2
    :caption: Getting Started
 
-   quick-start
    introduction
+   quick-start
    features
 
 .. toctree::
@@ -20,12 +19,14 @@ simultaneous multiple virtual environments, with one venv per cell/snippet.
    :caption: Core Topics
 
    cluster
+   distributed-workers
    agilab
    architecture
    agi-core-architecture
    agilab-mlops-positioning
    learning-workflows
    framework-api
+   framework-submodule-contract
    modules
    environment
    faq

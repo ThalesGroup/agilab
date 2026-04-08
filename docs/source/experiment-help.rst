@@ -14,23 +14,6 @@ Page snapshot
 
    PIPELINE combines lab-step editing, execution context, and MLflow tracking status in the same workspace.
 
-What you should read from this screenshot
-----------------------------------------
-
-The image is designed as one operational loop:
-
-1. **Project context selector (left side of sidebar)**: picks ``AGILAB_EXPORT_ABS/<module>`` and determines where ``lab_steps.toml`` and artifacts are loaded.
-2. **Execution controls (center panel)**: open the assistant tab, edit snippets, and run one step or full pipeline.
-3. **Run feedback (right area)**: MLflow status and output area indicate whether execution was accepted by the engine.
-4. **History path (lower main panel)**: verify the persisted step file state and refresh if needed before resuming work.
-
-Suggested read-through for this screenshot:
-
-1. Pick the target module and step file in the sidebar.
-2. Run a small step from the assistant.
-3. Check output/MLflow status area immediately after execution.
-4. Open ``HISTORY`` if the step count feels inconsistent and re-sync the conversation.
-
 Sidebar
 -------
 - ``Read Documentation`` opens this guide in the hosted public docs, and
@@ -151,6 +134,7 @@ See also
 --------
 
 - :doc:`agilab-help` for the overall page sequence.
+- :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported Pipeline step.
 - :doc:`execute-help` for generating reliable snippets before running a step.
 - :doc:`apps-pages` for analysis-side visualisations after a successful run.
 - :doc:`roadmap/versioned-pipeline-steps` for the proposed structured successor
