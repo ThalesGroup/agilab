@@ -18,7 +18,7 @@ Which Demo To Watch
 -------------------
 
 - ``flight_project``: best first introduction to the AGILAB workflow.
-- ``UAV Relay Queue`` (install id ``uav_queue_project``): best short technical
+- ``UAV Relay Queue`` (install id ``uav_relay_queue_project``): best short technical
   demo when you want to see a reproducible benchmark ending on queue evidence.
 
 Core Tour
