@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+from pathlib import Path
 
 
 PAGE_PATH = (
     "src/agilab/apps-pages/view_uav_queue_analysis/src/view_uav_queue_analysis/view_uav_queue_analysis.py"
 )
+PAGE_META_PATH = Path(
+    "src/agilab/apps-pages/view_uav_queue_analysis/src/view_uav_queue_analysis/page_meta.py"
+)
+
+
+def _page_title() -> str:
+    spec = importlib.util.spec_from_file_location("view_uav_queue_analysis_page_meta", PAGE_META_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.PAGE_TITLE
 
 
 def test_view_uav_queue_analysis_renders_exported_artifacts(
@@ -70,7 +83,7 @@ def test_view_uav_queue_analysis_renders_exported_artifacts(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    assert any(title.value == "UAV queue analysis" for title in at.title)
+    assert any(title.value == _page_title() for title in at.title)
     assert any(metric.label == "PDR" for metric in at.metric)
     assert len(at.dataframe) >= 1
     assert len(at.selectbox) >= 1
@@ -115,6 +128,6 @@ def test_view_uav_queue_analysis_reports_missing_peer_artifacts(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    assert any(title.value == "UAV queue analysis" for title in at.title)
+    assert any(title.value == _page_title() for title in at.title)
     assert any("Related queue artifacts are missing" in error.value for error in at.error)
     assert len(at.code) >= 1
