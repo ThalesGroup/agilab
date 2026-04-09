@@ -127,6 +127,7 @@ Shareable visual:
 - [Social card SVG](docs/source/diagrams/agilab_social_card.svg)
 
 Video tutorial and slideshow:
+- [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
 - [Video tutorial and slideshow guide](docs/source/demo_capture_script.md)
 - `uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg python tools/build_demo_explainer.py`
 
