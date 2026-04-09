@@ -60,9 +60,9 @@ Install AGILab
 
        uv run agilab
 
-The ORCHESTRATE page opens automatically. Point the sidebar to the folder that
-contains your AGILab projects (for example a checked-out app repository, or a
-path you set with ``APPS_PATH``).
+   The ORCHESTRATE page opens automatically. Point the sidebar to the folder that
+   contains your AGILab projects (for example a checked-out app repository, or a
+   path you set with ``APPS_PATH``).
 
 5. **Run an example app**
 
