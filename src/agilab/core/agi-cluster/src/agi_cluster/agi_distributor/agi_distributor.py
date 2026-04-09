@@ -3217,6 +3217,15 @@ class AGI:
             except Exception:
                 return False
 
+        def _infer_repo_root_from_runtime() -> Path | None:
+            try:
+                inferred = Path(__file__).resolve().parents[5]
+            except IndexError:
+                return None
+            if (inferred / "core" / "agi-env").exists() and (inferred / "apps").exists():
+                return inferred
+            return None
+
         def _update_pyproject_dependencies(
             pyproject_file: Path,
             pinned_versions: dict[str, str] | None,
@@ -3243,8 +3252,18 @@ class AGI:
                     deps = arr
 
             existing = {str(item) for item in deps}
+            existing_keys: set[tuple[str, tuple[str, ...]]] = set()
+            for item in deps:
+                try:
+                    req = Requirement(str(item))
+                except Exception:
+                    continue
+                existing_keys.add((req.name.lower(), tuple(sorted(req.extras))))
             for key, meta in dependency_info.items():
                 if filter_to_worker and worker_pyprojects and not (meta['sources'] & worker_pyprojects):
+                    continue
+                dep_key = (key, tuple(sorted(meta['extras'])))
+                if dep_key in existing_keys:
                     continue
                 version = (pinned_versions or {}).get(key)
                 if version:
@@ -3261,6 +3280,7 @@ class AGI:
                 if spec not in existing:
                     deps.append(spec)
                     existing.add(spec)
+                    existing_keys.add(dep_key)
 
             project_tbl["dependencies"] = deps
             data["project"] = project_tbl
@@ -3326,6 +3346,8 @@ class AGI:
 
         if env.install_type == 0:
             repo_root = AgiEnv.read_agilab_path()
+            if repo_root is None:
+                repo_root = _infer_repo_root_from_runtime()
             if repo_root:
                 repo_env_project = repo_root / "core" / "agi-env"
                 repo_node_project = repo_root / "core" / "agi-node"
@@ -3520,12 +3542,22 @@ class AGI:
 
         _force_remove(wenv_abs / ".venv")
 
+        worker_core_add_paths: list[Path] = []
         if env.is_source_env:
-            # add missing agi-anv and agi-node as there are not in pyproject.toml as wished
-            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add \"{env.agi_env}\""
-            await AgiEnv.run(cmd_worker, wenv_abs)
+            worker_core_add_paths = [env.agi_env, env.agi_node]
+        elif (
+            (not env.is_worker_env)
+            and env.install_type == 0
+            and env_project
+            and node_project
+            and env_project.exists()
+            and node_project.exists()
+        ):
+            worker_core_add_paths = [env_project, node_project]
 
-            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add \"{env.agi_node}\""
+        if worker_core_add_paths:
+            quoted_paths = " ".join(f"\"{path}\"" for path in worker_core_add_paths)
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add {quoted_paths}"
             await AgiEnv.run(cmd_worker, wenv_abs)
         else:
             # add missing agi-anv and agi-node as there are not in pyproject.toml as wished

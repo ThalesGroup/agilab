@@ -78,6 +78,16 @@ Use this runbook whenever you:
 - **Missing dependency triage**: Whenever an app run fails because a module cannot be imported, check *both*
   `src/agilab/apps/<app>/pyproject.toml` (manager environment) and
   `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the dependency is declared in the correct scope.
+- **Installer solver drift triage**: If `uv sync --project <app>` succeeds in a plain shell but the AGILAB install path
+  fails later in worker deployment with an unsatisfiable dependency conflict, inspect the copied worker manifest under
+  `~/wenv/<app>_worker/pyproject.toml` before patching the app. This usually means shared install plumbing rewrote the
+  worker project or resolved local core packages inconsistently. Check in order:
+  - whether `AgiEnv._build_env()` is leaking `UV_RUN_RECURSION_DEPTH` into nested `uv` commands
+  - whether `_deploy_local_worker()` appended an exact dependency pin into the copied worker `pyproject.toml`
+  - whether local source installs are adding `agi-env` and `agi-node` together as local paths, not one by one from index metadata
+  - whether `read_agilab_path()` is empty, causing a source checkout app to be treated like a generated install artifact
+  For this bug class, compare the source app manifest with `~/wenv/<app>_worker/pyproject.toml`; if the worker copy gained
+  a conflicting exact pin (for example a stray `scipy==...`), treat it as a shared-core install bug first, not an app-only bug.
 - **Dependency removal audit**: When removing a dependency from code, check the impact on the corresponding
   `pyproject.toml` files as part of the same change. Remove stale declarations when they are no longer needed,
   or keep them only when there is a clear runtime, packaging, or optional-feature reason.

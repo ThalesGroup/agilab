@@ -2223,6 +2223,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
         proc_env = os.environ.copy()
+        # Nested uv project-management commands must run as fresh subprocesses.
+        # Propagating the outer `uv run` recursion marker can distort dependency
+        # resolution for child `uv sync/add/pip` calls during AGILAB installs.
+        proc_env.pop("UV_RUN_RECURSION_DEPTH", None)
         venv_path = None
         if venv is not None:
             venv_path = Path(venv)
