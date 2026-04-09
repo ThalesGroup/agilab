@@ -71,7 +71,8 @@ Docs drift after touching core APIs
 -----------------------------------
 If you change ``BaseWorker`` or other primitives surfaced in the guides, rebuild the
 reference documentation with ``uv run --group sphinx --dev docs/gen-docs.py`` so the published docs
-match the updated source.
+match the updated source. Use ``--refresh-generated`` only when you intentionally want to rewrite the
+tracked diagrams, inventories, and directory trees in ``docs/source/``.
 
 `AGI.install_*` fails looking for ``pyproject.toml``
 ----------------------------------------------------
