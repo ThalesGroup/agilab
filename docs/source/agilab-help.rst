@@ -76,3 +76,4 @@ See also
 - :doc:`apps-pages` for how page bundles work (and the built-in bundle catalog).
 - :doc:`distributed-workers` for the UI-driven cluster workflow from ORCHESTRATE to PIPELINE.
 - :doc:`learning-workflows` for training vs inference (and optional continuous/federated patterns).
+- :doc:`demos` for the current public AGILAB intro and technical benchmark videos.

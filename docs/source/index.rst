@@ -56,6 +56,7 @@ example projects.
    :maxdepth: 2
    :caption: Examples
 
+   demos
    execution-playground
    notebook-migration-skforecast-meteo
    mycode-project
