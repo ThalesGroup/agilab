@@ -39,6 +39,33 @@ def test_background_services_enabled_defaults_to_true(monkeypatch):
     assert pagelib.background_services_enabled() is True
 
 
+def test_get_mlflow_module_returns_none_when_import_fails(monkeypatch):
+    real_import = __import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "mlflow":
+            raise ImportError("missing mlflow")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+
+    assert pagelib._get_mlflow_module() is None
+
+
+def test_get_mlflow_module_returns_imported_module(monkeypatch):
+    sentinel = SimpleNamespace(name="mlflow")
+    real_import = __import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "mlflow":
+            return sentinel
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+
+    assert pagelib._get_mlflow_module() is sentinel
+
+
 def test_resolve_mlflow_backend_and_artifact_paths(tmp_path):
     tracking_dir = tmp_path / "mlflow"
 
@@ -89,6 +116,16 @@ def test_load_global_state_falls_back_to_legacy_plaintext(tmp_path, monkeypatch)
     assert pagelib._load_global_state() == {"last_active_app": "/tmp/legacy-app"}
 
 
+def test_load_global_state_returns_empty_dict_for_invalid_toml_without_legacy(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+    state_file.write_text("not = [valid\n", encoding="utf-8")
+
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
+
+    assert pagelib._load_global_state() == {}
+
+
 def test_store_last_active_app_persists_state(tmp_path, monkeypatch):
     state_file = tmp_path / "app_state.toml"
     legacy_file = tmp_path / ".last-active-app"
@@ -127,12 +164,32 @@ def test_persist_global_state_writes_toml(tmp_path, monkeypatch):
     assert stored == {"last_active_app": "/tmp/demo"}
 
 
+def test_persist_global_state_swallows_dump_errors(tmp_path, monkeypatch):
+    state_file = tmp_path / "app_state.toml"
+    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(
+        pagelib,
+        "_dump_toml_payload",
+        lambda _data, _handle: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    pagelib._persist_global_state({"last_active_app": "/tmp/demo"})
+
+    assert state_file.exists()
+
+
 def test_load_last_active_app_returns_none_when_target_is_missing(tmp_path, monkeypatch):
     state_file = tmp_path / "app_state.toml"
     state_file.write_text('last_active_app = "/tmp/missing-app"\n', encoding="utf-8")
 
     monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
     monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
+
+    assert pagelib.load_last_active_app() is None
+
+
+def test_load_last_active_app_returns_none_for_unparseable_path(monkeypatch):
+    monkeypatch.setattr(pagelib, "_load_global_state", lambda: {"last_active_app": object()})
 
     assert pagelib.load_last_active_app() is None
 
@@ -380,6 +437,64 @@ def test_get_base64_of_image_returns_encoded_contents(tmp_path):
     image_path.write_bytes(b"abc")
 
     assert pagelib.get_base64_of_image(image_path) == "YWJj"
+
+
+def test_get_base64_of_image_returns_empty_string_and_logs_errors(tmp_path, monkeypatch):
+    missing = tmp_path / "missing.bin"
+    errors: list[str] = []
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(error=lambda message: errors.append(str(message))))
+
+    assert pagelib.get_base64_of_image(missing) == ""
+    assert errors and "Error loading" in errors[0]
+
+
+def test_get_css_text_reads_resource_stylesheet(tmp_path, monkeypatch):
+    scss_path = tmp_path / "code_editor.scss"
+    scss_path.write_text("body { color: red; }\n", encoding="utf-8")
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(session_state={"env": SimpleNamespace(st_resources=tmp_path)}),
+    )
+
+    get_css_text = getattr(pagelib.get_css_text, "__wrapped__", pagelib.get_css_text)
+
+    assert get_css_text() == "body { color: red; }\n"
+
+
+def test_inject_theme_renders_theme_stylesheet(tmp_path, monkeypatch):
+    theme_path = tmp_path / "theme.css"
+    theme_path.write_text("body { color: red; }\n", encoding="utf-8")
+    markdown_calls: list[tuple[str, bool]] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "streamlit",
+        SimpleNamespace(markdown=lambda text, unsafe_allow_html=False: markdown_calls.append((text, unsafe_allow_html))),
+    )
+
+    inject_theme = getattr(pagelib.inject_theme, "__wrapped__", pagelib.inject_theme)
+    inject_theme(base_path=tmp_path)
+
+    assert markdown_calls == [("<style>body { color: red; }\n</style>", True)]
+
+
+def test_inject_theme_falls_back_to_binary_decode_when_text_read_fails(tmp_path, monkeypatch):
+    theme_path = tmp_path / "theme.css"
+    theme_path.write_bytes(b"\xffbody { color: blue; }\n")
+    markdown_calls: list[tuple[str, bool]] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "streamlit",
+        SimpleNamespace(markdown=lambda text, unsafe_allow_html=False: markdown_calls.append((text, unsafe_allow_html))),
+    )
+
+    inject_theme = getattr(pagelib.inject_theme, "__wrapped__", pagelib.inject_theme)
+    inject_theme(base_path=tmp_path)
+
+    assert len(markdown_calls) == 1
+    assert markdown_calls[0][1] is True
+    assert "body { color: blue; }" in markdown_calls[0][0]
+    assert "\ufffd" in markdown_calls[0][0]
 
 
 def test_open_docs_url_reopens_tab_when_focus_fails(monkeypatch):
@@ -634,6 +749,14 @@ def test_resolve_mlflow_tracking_dir_falls_back_to_home(tmp_path):
     tracking_dir = pagelib._resolve_mlflow_tracking_dir(env)
 
     assert tracking_dir == (tmp_path / ".mlflow").resolve()
+
+
+def test_resolve_mlflow_tracking_dir_resolves_relative_path_under_home(tmp_path):
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR="workspace/mlflow", home_abs=tmp_path)
+
+    tracking_dir = pagelib._resolve_mlflow_tracking_dir(env)
+
+    assert tracking_dir == (tmp_path / "workspace" / "mlflow").resolve()
 
 
 def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
@@ -1005,6 +1128,20 @@ def test_get_projects_zip_templates_and_about_content(tmp_path, monkeypatch):
     assert "AGILab" in pagelib.get_about_content()["About"]
 
 
+def test_get_templates_falls_back_to_globbed_template_names(tmp_path, monkeypatch):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    (apps_root / "alpha_template").mkdir()
+    (apps_root / "beta_template").mkdir()
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(session_state={"env": SimpleNamespace(apps_path=apps_root, agilab_pck=None)}),
+    )
+
+    assert pagelib.get_templates() == ["alpha_template", "beta_template"]
+
+
 def test_init_custom_ui_clears_form_keys(monkeypatch):
     fake_state = {
         "toggle_edit_ui": True,
@@ -1040,6 +1177,27 @@ def test_detect_agilab_version_prefers_source_pyproject_and_git_metadata(tmp_pat
     assert len(calls) == 2
 
 
+def test_read_version_from_pyproject_falls_back_to_cwd_and_skips_foreign_project(tmp_path, monkeypatch):
+    foreign_root = tmp_path / "foreign"
+    foreign_root.mkdir()
+    (foreign_root / "pyproject.toml").write_text(
+        "[project]\nname='other-project'\nversion='0.1.0'\n",
+        encoding="utf-8",
+    )
+    repo_root = tmp_path / "repo"
+    nested = repo_root / "src" / "pkg"
+    nested.mkdir(parents=True)
+    (repo_root / "pyproject.toml").write_text(
+        "[project]\nname='agilab'\nversion='2026.4.11'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(nested)
+
+    version = pagelib._read_version_from_pyproject(SimpleNamespace(agilab_pck=foreign_root))
+
+    assert version == "2026.4.11"
+
+
 def test_detect_agilab_version_falls_back_to_installed_metadata(monkeypatch):
     monkeypatch.setattr(pagelib, "_importlib_metadata", SimpleNamespace(version=lambda _name: "9.9.9"))
 
@@ -1064,6 +1222,52 @@ def test_render_logo_shows_version_when_logo_exists(tmp_path, monkeypatch):
 
     assert sidebar.image_call == (str(logo_path), 170)
     assert sidebar.caption_text == "v2026.4.2"
+
+
+def test_render_logo_warns_when_logo_is_missing(tmp_path, monkeypatch):
+    sidebar = SimpleNamespace(
+        image=lambda *_args, **_kwargs: None,
+        caption=lambda *_args, **_kwargs: None,
+        warning=lambda text: setattr(sidebar, "warning_text", text),
+    )
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(session_state={"env": SimpleNamespace(st_resources=tmp_path)}, sidebar=sidebar),
+    )
+
+    pagelib.render_logo()
+
+    assert sidebar.warning_text == "Logo could not be loaded. Please check the logo path."
+
+
+def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
+    calls = {}
+
+    class FakeProcess:
+        def __init__(self, stdout_value):
+            self.stdout = stdout_value
+
+    def fake_popen(command, shell, cwd, stdout, stderr, text):
+        calls["command"] = command
+        calls["shell"] = shell
+        calls["cwd"] = cwd
+        calls["stdout"] = stdout
+        calls["stderr"] = stderr
+        calls["text"] = text
+        return FakeProcess("stream-output")
+
+    monkeypatch.setattr(pagelib.subprocess, "Popen", fake_popen)
+
+    stdout_value = pagelib.subproc("echo hello", tmp_path / ".." / tmp_path.name)
+
+    assert stdout_value == "stream-output"
+    assert calls["command"] == "echo hello"
+    assert calls["shell"] is True
+    assert calls["cwd"] == os.path.abspath(tmp_path / ".." / tmp_path.name)
+    assert calls["stdout"] == subprocess.PIPE
+    assert calls["stderr"] == subprocess.STDOUT
+    assert calls["text"] is True
 
 
 def test_get_df_index_list_views_read_lines_and_scan_dir(tmp_path):
