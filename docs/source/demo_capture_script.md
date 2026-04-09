@@ -11,7 +11,21 @@ The package has three complementary assets:
 
 ## Recommended tutorial package
 
-Use the built-in `flight_project` as the single narrative path.
+Keep one app per video, but support two stable narrative packs:
+
+- `flight_project`
+  - safest default
+  - best for newcomer onboarding
+  - easiest to keep aligned with the existing README/slideshow story
+- `uav_queue_project`
+  - stronger novelty and more visible `ANALYSIS`
+  - best when you want a more technical and more memorable queueing demo
+
+Default recommendation:
+
+- use `flight_project` for the main AGILAB intro video
+- use `uav_queue_project` as the second product demo when you want a more
+  specialized "wow" path
 
 Core assets already in the repo:
 
@@ -48,10 +62,16 @@ Use the slideshow/static kit when you need a narrated talk track without video:
 
 ## Fastest live workflow
 
-Concrete capture command:
+Concrete capture command for the default `flight_project` tutorial:
 
 ```bash
 tools/capture_demo_workflow.sh --name agilab-flight --duration 45 --trim 30
+```
+
+Concrete capture command for the `uav_queue_project` variant:
+
+```bash
+tools/capture_demo_workflow.sh --name agilab-uav-queue --duration 60 --trim 45
 ```
 
 This wrapper:
@@ -88,7 +108,7 @@ This produces:
 
 ## Storyboard
 
-### 30-second version
+### Flight 30-second version
 
 Use this when you want a quick social/demo clip.
 
@@ -102,7 +122,7 @@ Narration:
 
 `AGILAB gives one app a single control path from selection to execution to analysis.`
 
-### 45-second version
+### Flight 45-second version
 
 Use this as the default product tutorial.
 
@@ -121,7 +141,7 @@ Narration:
 
 `Instead of hand-wiring environments, scripts, and checks, AGILAB gives the same app one controlled path from UI to workers to analysis.`
 
-### 60-second version
+### Flight 60-second version
 
 Use this only when you need a slightly more explanatory walkthrough.
 
@@ -134,7 +154,7 @@ Keep the same path, but add one explicit sentence on each stage:
 
 Do not add a second app. Do not branch into alternative flows.
 
-### 3-minute version
+### Flight 3-minute version
 
 Use this when you want a narrated product walkthrough that still stays aligned
 with the existing `AGILAB 3-minute tour` figure.
@@ -196,6 +216,88 @@ Suggested click path:
 If you need a static deck with the same message, keep the slideshow sequence
 below unchanged and use the 3-minute talk track above as the narration layer.
 
+### UAV queue 45-second version
+
+Use this when you want a technically stronger demo without changing the core
+AGILAB message.
+
+Keep the same page order:
+
+1. `PROJECT`
+2. `ORCHESTRATE`
+3. `PIPELINE`
+4. `ANALYSIS`
+
+Suggested flow:
+
+1. Open AGILAB.
+2. Select `src/agilab/apps/builtin/uav_queue_project` in `PROJECT`.
+3. Briefly show the routing policy and scenario file.
+4. Move to `ORCHESTRATE`.
+5. Trigger the run.
+6. Move to `PIPELINE`.
+7. Show that the run is now replayable as a tracked step.
+8. Move to `ANALYSIS`.
+9. Open `view_uav_queue_analysis`.
+10. End on queue buildup, drops, or route usage.
+
+Narration:
+
+`AGILAB can also turn a lightweight UAV routing experiment into a reproducible
+workflow. The point is still the same: one app, one control path, ending on a
+visible analysis result.`
+
+### UAV queue 3-minute version
+
+Use this when you want the more memorable technical demo.
+
+Do not mix it with `flight_project` in the same video. The clarity rule still
+holds: one app, one path.
+
+Suggested timeline:
+
+1. `0:00 -> 0:20`
+   Open the AGILAB home screen and state the goal:
+   `turn a queueing experiment into a reproducible workflow.`
+2. `0:20 -> 0:55`
+   Go to `PROJECT`, select `src/agilab/apps/builtin/uav_queue_project`, and
+   show the scenario file plus the routing policy selector.
+3. `0:55 -> 1:35`
+   Move to `ORCHESTRATE`, launch the run, and explain that AGILAB takes a
+   lightweight simulator-backed app and packages it into a controlled execution
+   path.
+4. `1:35 -> 2:00`
+   Move to `PIPELINE`, show the generated or replayable step, and explain that
+   the experiment is now explicit instead of being buried in one-off scripts.
+5. `2:00 -> 2:40`
+   Move to `ANALYSIS`, open `view_uav_queue_analysis`, and show queue
+   timeseries, drops, and routing summary.
+6. `2:40 -> 3:00`
+   Optionally open `view_maps_network` or end on the queue page, then close on:
+   `AGILAB keeps the experiment reproducible all the way to visible evidence.`
+
+Suggested narration:
+
+`This is the more technical AGILAB story. In PROJECT, I choose a UAV queueing
+experiment and its routing policy. In ORCHESTRATE, AGILAB runs it without
+ad-hoc glue. In PIPELINE, the execution becomes replayable. In ANALYSIS, I land
+on queue buildup, packet drops, and route usage. The point is not only to run a
+simulation. The point is to turn it into a controlled, inspectable workflow.`
+
+Suggested click path:
+
+1. Home page
+2. `PROJECT`
+3. app selector -> `uav_queue_project`
+4. short pause on scenario and routing policy
+5. `ORCHESTRATE`
+6. short pause on run controls
+7. `PIPELINE`
+8. short pause on the explicit step
+9. `ANALYSIS`
+10. `view_uav_queue_analysis`
+11. optional final pause on `view_maps_network`
+
 ## Slideshow structure
 
 If you want a static slideshow instead of a video, use this sequence:
@@ -211,6 +313,12 @@ If you want a static slideshow instead of a video, use this sequence:
 
 The slideshow should tell the same story as the video, not introduce extra claims.
 
+For the `uav_queue_project` video, reuse the same opening AGILAB figure, but end
+the static sequence on screenshots from:
+
+- `view_uav_queue_analysis`
+- optionally `view_maps_network`
+
 ## Recording and visual rules
 
 - Record at `1440p` or `1080p`, then crop tightly.
@@ -224,7 +332,7 @@ The slideshow should tell the same story as the video, not introduce extra claim
 
 ## Quality checklist
 
-- the tutorial uses one app only
+- each tutorial uses one app only
 - the visible sequence is `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
 - the ending frame shows a result, not infrastructure noise
 - the video and slideshow use the same message

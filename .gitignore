@@ -89,3 +89,4 @@ src/agilab/apps/builtin/*
 !src/agilab/apps/builtin/uav_queue_project/**
 _fcas_work
 .vscode/
+artifacts/demo_media/
