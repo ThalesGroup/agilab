@@ -20,12 +20,46 @@ LINE = (214, 224, 235)
 WHITE = (255, 255, 255)
 SHADOW = (130, 150, 180, 60)
 
-BOXES = [
-    ("PROJECT", "select app\nand settings", (85, 212, 240, 482), (217, 239, 255)),
-    ("ORCHESTRATE", "package,\nrun,\nvalidate", (327, 182, 510, 482), (230, 223, 255)),
-    ("PIPELINE", "replay steps\nand inspect flow", (540, 152, 770, 482), (255, 244, 212)),
-    ("ANALYSIS", "open views\non results", (800, 122, 1115, 482), (255, 230, 236)),
-]
+VARIANTS = {
+    "flight": {
+        "name": "AGILAB FLIGHT DEMO",
+        "title": "One control path from idea to results",
+        "subtitle": "Flight project explainer for YouTube and slideshow assets",
+        "footer": "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS",
+        "final_caption": "AGILAB keeps one app on one coherent path from setup to evidence.",
+        "stage_captions": [
+            "PROJECT keeps the flight app context and settings together.",
+            "ORCHESTRATE removes shell glue and packages the run path.",
+            "PIPELINE makes the execution replayable and inspectable.",
+            "ANALYSIS ends on a visible result, not on raw logs.",
+        ],
+        "boxes": [
+            ("PROJECT", "select flight app\nand settings", (85, 212, 240, 482), (217, 239, 255)),
+            ("ORCHESTRATE", "package,\nrun,\nvalidate", (327, 182, 510, 482), (230, 223, 255)),
+            ("PIPELINE", "replay steps\nand inspect flow", (540, 152, 770, 482), (255, 244, 212)),
+            ("ANALYSIS", "open views\non results", (800, 122, 1115, 482), (255, 230, 236)),
+        ],
+    },
+    "uav_queue": {
+        "name": "AGILAB UAV QUEUE DEMO",
+        "title": "Turn a queueing experiment into a reproducible workflow",
+        "subtitle": "UAV routing and queue analysis explainer for technical demos",
+        "footer": "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS",
+        "final_caption": "AGILAB turns a queueing experiment into a controlled and analyzable workflow.",
+        "stage_captions": [
+            "PROJECT locks the scenario file and routing policy in one app context.",
+            "ORCHESTRATE runs the queueing experiment without ad-hoc execution glue.",
+            "PIPELINE makes the simulation step explicit and replayable.",
+            "ANALYSIS lands on queue buildup, drops, and routing evidence.",
+        ],
+        "boxes": [
+            ("PROJECT", "pick scenario\nand routing policy", (85, 212, 255, 482), (221, 241, 255)),
+            ("ORCHESTRATE", "run the\nqueueing\nexperiment", (342, 182, 545, 482), (233, 226, 255)),
+            ("PIPELINE", "capture the\nreplayable\nstep", (580, 152, 805, 482), (255, 243, 209)),
+            ("ANALYSIS", "inspect queues,\ndrops,\nroutes", (835, 122, 1115, 482), (255, 231, 236)),
+        ],
+    },
+}
 
 
 def lerp(a: float, b: float, t: float) -> float:
@@ -92,18 +126,12 @@ def box_center(box):
     return ((x0 + x1) / 2, (y0 + y1) / 2)
 
 
-def stage_caption(stage: int) -> str:
-    captions = [
-        "PROJECT fixe le contexte utile.",
-        "ORCHESTRATE retire le shell glue et la mise en paquet manuelle.",
-        "PIPELINE rend le workflow lisible et rejouable.",
-        "ANALYSIS termine sur un résultat visible, pas sur des logs.",
-    ]
-    return captions[stage]
+def stage_caption(variant: dict, stage: int) -> str:
+    return variant["stage_captions"][stage]
 
 
-def final_caption() -> str:
-    return "AGILAB donne à une même app un seul chemin: UI -> workers -> analyse."
+def final_caption(variant: dict) -> str:
+    return variant["final_caption"]
 
 
 def draw_arrow(draw: ImageDraw.ImageDraw, a, b, color, width=5):
@@ -118,26 +146,27 @@ def draw_arrow(draw: ImageDraw.ImageDraw, a, b, color, width=5):
         draw.line([b, p], fill=color, width=width)
 
 
-def render_frame(t: float) -> Image.Image:
+def render_frame(t: float, variant_key: str) -> Image.Image:
+    variant = VARIANTS[variant_key]
     img = gradient_background()
     draw = ImageDraw.Draw(img)
 
     draw.rounded_rectangle((0, 0, W - 1, H - 1), radius=32, outline=(225, 232, 240), width=1)
-    rounded(draw, (70, 54, 210, 96), 18, fill=INK)
-    draw.text((140, 67), "AGILAB", font=LABEL_FONT, fill=WHITE, anchor="mm")
+    rounded(draw, (70, 54, 318, 96), 18, fill=INK)
+    draw.text((194, 67), variant["name"], font=LABEL_FONT, fill=WHITE, anchor="mm")
 
     title_alpha = 0.35 + 0.65 * ease_in_out(min(1.0, t / 0.18))
     title_fill = tuple(int(lerp(240, c, title_alpha)) for c in INK)
     sub_fill = tuple(int(lerp(244, c, title_alpha)) for c in MUTED)
-    draw.text((70, 126), "One control path from idea to results", font=TITLE_FONT, fill=title_fill)
-    draw.text((70, 182), "A self-generated explainer for AGILAB workflows", font=SUBTITLE_FONT, fill=sub_fill)
+    draw.text((70, 126), variant["title"], font=TITLE_FONT, fill=title_fill)
+    draw.text((70, 182), variant["subtitle"], font=SUBTITLE_FONT, fill=sub_fill)
 
     # Progress stages across main cards.
     active = min(3, int(max(0.0, t - 0.18) / 0.18))
     pulse = 0.5 + 0.5 * math.sin(2 * math.pi * t * 1.4)
 
     centers = []
-    for idx, (label, body, box, fill) in enumerate(BOXES):
+    for idx, (label, body, box, fill) in enumerate(variant["boxes"]):
         x0, y0, x1, y1 = box
         centers.append(box_center(box))
         shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -177,18 +206,26 @@ def render_frame(t: float) -> Image.Image:
 
     # Bottom callout
     rounded(draw, (70, 538, 1130, 618), 24, fill=(255, 250, 244), outline=(223, 214, 204), width=2)
-    caption = stage_caption(active) if t < 0.90 else final_caption()
+    caption = stage_caption(variant, active) if t < 0.90 else final_caption(variant)
     draw.text((600, 570), caption, font=CALLOUT_FONT, fill=ACCENT_2, anchor="mm")
-    draw.text((600, 604), "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS", font=FOOTER_FONT, fill=ACCENT, anchor="mm")
+    draw.text((600, 604), variant["footer"], font=FOOTER_FONT, fill=ACCENT, anchor="mm")
 
     return img.convert("RGB")
 
 
-def build_animation(out_gif: Path, out_mp4: Path, out_poster: Path, fps: int = 12, seconds: float = 6.0) -> None:
+def build_animation(
+    out_gif: Path,
+    out_mp4: Path,
+    out_poster: Path,
+    *,
+    variant_key: str = "flight",
+    fps: int = 12,
+    seconds: float = 6.0,
+) -> None:
     import imageio.v3 as iio
 
     frame_count = int(fps * seconds)
-    frames = [np.array(render_frame(i / (frame_count - 1))) for i in range(frame_count)]
+    frames = [np.array(render_frame(i / (frame_count - 1), variant_key)) for i in range(frame_count)]
     out_gif.parent.mkdir(parents=True, exist_ok=True)
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
     out_poster.parent.mkdir(parents=True, exist_ok=True)
@@ -199,6 +236,7 @@ def build_animation(out_gif: Path, out_mp4: Path, out_poster: Path, fps: int = 1
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a self-generated AGILAB explainer GIF/MP4.")
+    parser.add_argument("--variant", choices=sorted(VARIANTS.keys()), default="flight")
     parser.add_argument("--gif", default="artifacts/demo_media/agilab_explainer.gif")
     parser.add_argument("--mp4", default="artifacts/demo_media/agilab_explainer.mp4")
     parser.add_argument("--poster", default="artifacts/demo_media/agilab_explainer_poster.png")
@@ -206,7 +244,14 @@ def main() -> int:
     parser.add_argument("--seconds", type=float, default=6.0)
     args = parser.parse_args()
 
-    build_animation(Path(args.gif), Path(args.mp4), Path(args.poster), fps=args.fps, seconds=args.seconds)
+    build_animation(
+        Path(args.gif),
+        Path(args.mp4),
+        Path(args.poster),
+        variant_key=args.variant,
+        fps=args.fps,
+        seconds=args.seconds,
+    )
     print(Path(args.gif).resolve())
     print(Path(args.mp4).resolve())
     print(Path(args.poster).resolve())

@@ -55,7 +55,16 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
-from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
+
+try:
+    from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
+except ModuleNotFoundError:
+    # Direct module loading in tests does not always seed this page directory on sys.path.
+    page_dir = Path(__file__).resolve().parent
+    page_dir_str = str(page_dir)
+    if page_dir_str not in sys.path:
+        sys.path.insert(0, page_dir_str)
+    from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
 
 logger = AgiLogger.get_logger(__name__)
 
