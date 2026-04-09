@@ -55,6 +55,7 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
+from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -3645,26 +3646,26 @@ def page():
 
     edges_prev = (st.session_state.get("edges_file") or "").strip()
     edges_candidates = [str(p) for p in default_edges_candidates]
-    custom_label = "(custom path…)"
-    picker_options = ["(none)"] + edges_candidates + [custom_label]
-
-    if st.session_state.get("edges_file_choice") not in picker_options:
-        if edges_prev and edges_prev in edges_candidates:
-            st.session_state["edges_file_choice"] = edges_prev
-        elif edges_prev:
-            st.session_state["edges_file_choice"] = custom_label
-            if "edges_file_custom" not in st.session_state:
-                st.session_state["edges_file_custom"] = edges_prev
-        else:
-            st.session_state["edges_file_choice"] = edges_candidates[0] if edges_candidates else "(none)"
+    picker_state = resolve_edges_picker_state(
+        edges_prev,
+        edges_candidates,
+        current_choice=st.session_state.get("edges_file_choice"),
+        current_custom=st.session_state.get("edges_file_custom"),
+    )
+    st.session_state["edges_file_choice"] = picker_state.choice
+    if picker_state.custom_value and (
+        "edges_file_custom" not in st.session_state
+        or st.session_state.get("edges_file_choice") == CUSTOM_OPTION
+    ):
+        st.session_state["edges_file_custom"] = picker_state.custom_value
 
     edges_choice = st.sidebar.selectbox(
         "Edges file picker",
-        picker_options,
+        picker_state.picker_options,
         key="edges_file_choice",
         help="Pick a topology/edges export (GML/JSON/Parquet) that includes edge bearer/type information.",
     )
-    if edges_choice == custom_label:
+    if edges_choice == CUSTOM_OPTION:
         edges_clean = (
             st.sidebar.text_input(
                 "Custom edges file path",
@@ -3672,13 +3673,17 @@ def page():
                 key="edges_file_custom",
             ).strip()
         )
-    elif edges_choice == "(none)":
+    elif edges_choice == NONE_OPTION:
         edges_clean = ""
     else:
         edges_clean = edges_choice.strip()
 
     if edges_clean == str(example_edges_path) and not Path(edges_clean).expanduser().exists():
         edges_clean = ""
+    if picker_state.recovered_from_missing and edges_prev and edges_clean and edges_clean != edges_prev:
+        st.sidebar.info(
+            f"Recovered topology source from missing `{edges_prev}` to `{edges_clean}`."
+        )
     st.session_state["edges_file"] = edges_clean
     try:
         st.query_params["edges_file"] = edges_clean
