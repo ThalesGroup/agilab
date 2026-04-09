@@ -40,3 +40,20 @@ def test_missing_custom_path_stays_custom_when_no_candidate_exists():
     assert state.custom_value == "/missing/custom/topology.json"
     assert state.edges_clean == "/missing/custom/topology.json"
     assert state.recovered_from_missing is False
+
+
+def test_dead_custom_picker_choice_recovers_to_detected_candidate():
+    state = edge_selection.resolve_edges_picker_state(
+        "/missing/custom/topology.json",
+        [
+            "/Users/agi/clustershare/sb3_trainer/pipeline/trainer_routing/routing_edges.jsonl",
+            "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml",
+        ],
+        current_choice=edge_selection.CUSTOM_OPTION,
+        current_custom="/missing/custom/topology.json",
+    )
+
+    assert state.choice == "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml"
+    assert state.custom_value == ""
+    assert state.edges_clean == "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml"
+    assert state.recovered_from_missing is True
