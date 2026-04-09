@@ -27,10 +27,20 @@ class ClassNameFilter(logging.Filter):
 
     def filter(self, record):
         try:
+            record_path = os.path.normcase(os.path.realpath(record.pathname))
             frame = sys._getframe(0)
             while frame:
                 code = frame.f_code
-                if code.co_filename == record.pathname and code.co_name == record.funcName:
+                frame_path = os.path.normcase(os.path.realpath(code.co_filename))
+                same_file = frame_path == record_path
+                if not same_file:
+                    try:
+                        same_file = os.path.samefile(frame_path, record_path)
+                    except OSError:
+                        same_file = False
+                if not same_file:
+                    same_file = os.path.basename(frame_path) == os.path.basename(record_path)
+                if same_file and code.co_name == record.funcName:
                     if 'self' in frame.f_locals:
                         record.classname = frame.f_locals['self'].__class__.__name__
                     else:

@@ -63,7 +63,8 @@ REPO_ENV_FILE="$AGI_INSTALL_PATH/.agilab/.env"
 ENV_SHARE_USER="$(read_env_var "$USER_ENV_FILE" AGI_SHARE_DIR)"
 ENV_SHARE_REPO="$(read_env_var "$REPO_ENV_FILE" AGI_SHARE_DIR)"
 DEFAULT_SHARE_DIR="${AGI_SHARE_DIR:-${ENV_SHARE_USER:-$ENV_SHARE_REPO}}"
-DEFAULT_LOCAL_SHARE="${AGI_LOCAL_DIR:-${AGI_LOCAL_SHARE:-$HOME/localshare}}"
+AGI_LOCAL_DIR="${AGI_LOCAL_DIR:-${AGI_LOCAL_SHARE:-$HOME/localshare}}"
+DEFAULT_LOCAL_SHARE="$AGI_LOCAL_DIR"
 
 is_exported_nfs() {
     local path="$1"
@@ -114,6 +115,29 @@ share_is_mounted() {
 ensure_share_dir() {
     local share_dir="$1"
     local fallback_dir="$2"
+    local ensure_distinct_cluster_fallback
+    ensure_distinct_cluster_fallback() {
+        local requested_share="$1"
+        local local_fallback="$2"
+        local shadow_share="$requested_share"
+
+        if [[ -z "$shadow_share" || "$shadow_share" == "$local_fallback" ]]; then
+            shadow_share="$HOME/clustershare"
+        fi
+
+        if mkdir -p "$shadow_share" 2>/dev/null; then
+            printf '%s\n' "$shadow_share"
+            return 0
+        fi
+
+        shadow_share="$HOME/clustershare"
+        mkdir -p "$shadow_share" || {
+            echo -e "${RED}Failed to create fallback cluster share ${shadow_share}.${NC}"
+            exit 1
+        }
+        printf '%s\n' "$shadow_share"
+    }
+
     if [[ -z "$share_dir" ]]; then
         if (( NON_INTERACTIVE )); then
             share_dir="$fallback_dir"
@@ -154,10 +178,12 @@ ensure_share_dir() {
             echo -e "${RED}${share_dir} is not mounted. Cluster mode requires the shared path to be available; aborting (non-interactive).${NC}"
             exit 1
         fi
-        echo -e "${YELLOW}AGI_SHARE_DIR ${share_dir} unavailable; non-interactive mode: using fallback ${fallback_dir}.${NC}"
+        local cluster_shadow
+        cluster_shadow="$(ensure_distinct_cluster_fallback "$share_dir" "$fallback_dir")"
+        echo -e "${YELLOW}AGI_SHARE_DIR ${share_dir} unavailable; non-interactive mode: using local fallback ${fallback_dir} and local cluster shadow ${cluster_shadow}.${NC}"
         mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
         export AGI_LOCAL_DIR="$fallback_dir"
-        export AGI_SHARE_DIR="$fallback_dir"
+        export AGI_SHARE_DIR="$cluster_shadow"
         return 0
     fi
 
@@ -175,16 +201,18 @@ ensure_share_dir() {
 
     echo -e "${YELLOW}AGI_SHARE_DIR is unavailable at ${share_dir}.${NC}"
     echo -e "Choose an option:"
-    echo -e "  1) Use local fallback at ${fallback_dir}"
+    echo -e "  1) Use local fallback at ${fallback_dir} and keep a distinct local cluster shadow"
     echo -e "  2) Wait for ${share_dir} to be mounted (mandatory for cluster installs; will timeout)"
     choice=""
     prompt_input "Enter 1 or 2 (default: 1): "
     case "$choice" in
         ""|1)
+            local cluster_shadow
+            cluster_shadow="$(ensure_distinct_cluster_fallback "$share_dir" "$fallback_dir")"
             mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
             export AGI_LOCAL_DIR="$fallback_dir"
-            export AGI_SHARE_DIR="$fallback_dir"
-            echo -e "${GREEN}Using local fallback AGI_LOCAL_DIR=${AGI_LOCAL_DIR}.${NC}"
+            export AGI_SHARE_DIR="$cluster_shadow"
+            echo -e "${GREEN}Using local fallback AGI_LOCAL_DIR=${AGI_LOCAL_DIR} with AGI_SHARE_DIR=${AGI_SHARE_DIR}.${NC}"
             ;;
         2)
             echo -e "${BLUE}Waiting for ${share_dir} to become available (timeout 120s)...${NC}"
@@ -203,9 +231,11 @@ ensure_share_dir() {
             ;;
         *)
             echo -e "${YELLOW}No valid input detected; defaulting to local fallback.${NC}"
+            local cluster_shadow
+            cluster_shadow="$(ensure_distinct_cluster_fallback "$share_dir" "$fallback_dir")"
             mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
             export AGI_LOCAL_DIR="$fallback_dir"
-            export AGI_SHARE_DIR="$fallback_dir"
+            export AGI_SHARE_DIR="$cluster_shadow"
             ;;
     esac
 }
@@ -388,6 +418,7 @@ set_locale() {
 verify_share_dir() {
     local share_dir="${AGI_SHARE_DIR:-$HOME/clustershare}"
     local local_dir="${AGI_LOCAL_DIR:-}"
+    local home_prefix="$HOME/"
     [[ "$share_dir" == "~"* ]] && share_dir="${share_dir/#\~/$HOME}"
 
     # If we're intentionally using the local fallback, only require existence.
@@ -397,6 +428,15 @@ verify_share_dir() {
         fi
         echo -e "${RED}Local AGI_SHARE_DIR missing:${NC} expected data dir at '$share_dir'."
         exit 1
+    fi
+
+    # Local-only installs may keep a distinct "cluster shadow" under $HOME so
+    # worker environments can preserve AGI_CLUSTER_SHARE != AGI_LOCAL_SHARE
+    # without requiring a mounted remote share.
+    if [[ -z "${CLUSTER_CREDENTIALS:-}" && -n "$local_dir" && -d "$local_dir" && -d "$share_dir" ]]; then
+        if [[ "$share_dir" == "$home_prefix"* ]]; then
+            return 0
+        fi
     fi
 
     # Otherwise require a mounted share.
