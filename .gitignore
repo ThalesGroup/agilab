@@ -87,6 +87,8 @@ apps/
 src/agilab/apps/builtin/*
 !src/agilab/apps/builtin/uav_queue_project/
 !src/agilab/apps/builtin/uav_queue_project/**
+!src/agilab/apps/builtin/uav_relay_queue_project/
+!src/agilab/apps/builtin/uav_relay_queue_project/**
 _fcas_work
 .vscode/
 artifacts/demo_media/
