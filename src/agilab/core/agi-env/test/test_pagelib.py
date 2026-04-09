@@ -340,6 +340,22 @@ def test_open_docs_falls_back_to_online(monkeypatch):
     assert captured["url"] == "https://thalesgroup.github.io/agilab/index.html#anchor"
 
 
+def test_open_docs_prefers_local_file_when_available(tmp_path, monkeypatch):
+    pkg_root = tmp_path / "pkg"
+    docs_html = pkg_root / "docs" / "html"
+    docs_html.mkdir(parents=True)
+    html_path = docs_html / "guide.html"
+    html_path.write_text("guide", encoding="utf-8")
+    env = SimpleNamespace(agilab_pck=pkg_root)
+
+    opened = {}
+    monkeypatch.setattr(pagelib, "_open_docs_url", lambda url: opened.setdefault("url", url))
+
+    pagelib.open_docs(env, html_file="guide.html", anchor="section")
+
+    assert opened["url"] == f"{html_path.as_uri()}#section"
+
+
 def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
     pkg_root = tmp_path / "pkg"
     docs_build = pkg_root / "docs" / "build"
@@ -357,6 +373,13 @@ def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
 
     with pytest.raises(FileNotFoundError):
         pagelib.open_local_docs(env, html_file="missing.html")
+
+
+def test_get_base64_of_image_returns_encoded_contents(tmp_path):
+    image_path = tmp_path / "logo.bin"
+    image_path.write_bytes(b"abc")
+
+    assert pagelib.get_base64_of_image(image_path) == "YWJj"
 
 
 def test_open_docs_url_reopens_tab_when_focus_fails(monkeypatch):
@@ -451,6 +474,15 @@ def test_find_files_raises_with_directory_diagnosis(monkeypatch, tmp_path):
         find_files(missing, ".csv", True)
 
 
+def test_find_files_raises_generic_message_without_diagnosis(tmp_path, monkeypatch):
+    find_files = getattr(pagelib.find_files, "__wrapped__", pagelib.find_files)
+    missing = tmp_path / "missing"
+    monkeypatch.setattr(pagelib, "diagnose_data_directory", lambda _path: None)
+
+    with pytest.raises(NotADirectoryError, match="not a valid directory"):
+        find_files(missing, ".csv", True)
+
+
 def test_export_df_emits_warning_success_and_failure(monkeypatch):
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -483,6 +515,51 @@ def test_export_df_emits_warning_success_and_failure(monkeypatch):
     monkeypatch.setattr(pagelib, "save_csv", lambda df, path: True)
     pagelib.export_df()
     assert successes == ["Saved to /tmp/out.csv!"]
+
+
+def test_update_views_creates_missing_links_and_removes_stale_hardlinks(tmp_path, monkeypatch):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    repo_root = tmp_path / "repo"
+    pages_root = repo_root / "src" / "gui" / "pages"
+    pages_root.mkdir(parents=True)
+    keep_view = tmp_path / "keep_view.py"
+    keep_view.write_text("print('keep')\n", encoding="utf-8")
+    new_view = tmp_path / "new_view.py"
+    new_view.write_text("print('new')\n", encoding="utf-8")
+    stale_source = tmp_path / "stale_view.py"
+    stale_source.write_text("print('stale')\n", encoding="utf-8")
+    local_only = pages_root / "local_only.py"
+    local_only.write_text("print('local')\n", encoding="utf-8")
+    os.link(stale_source, pages_root / "stale_view.py")
+
+    changes: list[str] = []
+    session_state = FakeSessionState(
+        {
+            "_env": SimpleNamespace(change_app=lambda project: changes.append(project)),
+            "preview_tree": True,
+        }
+    )
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
+    monkeypatch.setattr(pagelib.os, "getcwd", lambda: str(repo_root))
+
+    updated = pagelib.update_views("demo_project", [str(keep_view), str(new_view)])
+
+    assert updated is True
+    assert changes == ["demo_project"]
+    assert session_state["preview_tree"] is False
+    assert (pages_root / "keep_view.py").exists()
+    assert (pages_root / "new_view.py").exists()
+    assert not (pages_root / "stale_view.py").exists()
+    assert local_only.exists()
 
 
 def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
@@ -1254,6 +1331,79 @@ def test_sidebar_views_and_on_df_change_manage_selection_state(monkeypatch, tmp_
     assert session_state["page_broken"] is True
     assert loaded == [(Path("lab_a"), steps_file, "legacy")]
     assert steps_file.parent.is_dir()
+
+
+def test_sidebar_views_handles_empty_dataframe_list(monkeypatch, tmp_path):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    class FakeSidebar:
+        def __init__(self, session_state):
+            self.session_state = session_state
+
+        def selectbox(self, label, options, index=0, key=None, on_change=None):
+            choice = options[index] if options else None
+            if key is not None:
+                self.session_state[key] = choice
+            return choice
+
+    export_root = tmp_path / "export"
+    (export_root / "lab_a").mkdir(parents=True)
+    env = SimpleNamespace(AGILAB_EXPORT_ABS=export_root, target="lab_a")
+    session_state = FakeSessionState({"env": env})
+    fake_st = SimpleNamespace(session_state=session_state, sidebar=FakeSidebar(session_state))
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "scan_dir", lambda path: ["lab_a"])
+    monkeypatch.setattr(pagelib, "find_files", lambda path: [])
+    monkeypatch.setattr(pagelib, "on_lab_change", lambda *_args, **_kwargs: None, raising=False)
+
+    pagelib.sidebar_views()
+
+    assert session_state["lab_dir"] == "lab_a"
+    assert session_state["lab_dir_selectbox"] == "lab_a"
+    assert session_state["df_files"] == []
+    assert session_state["index_page"] == "lab_a"
+    assert session_state["lab_adf"] is None
+    assert session_state["df_file"] is None
+
+
+def test_on_df_change_uses_explicit_df_file_when_no_selection(monkeypatch, tmp_path):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    explicit_df = tmp_path / "absolute.csv"
+    explicit_df.write_text("a\n1\n", encoding="utf-8")
+    session_state = FakeSessionState(
+        {
+            "env": SimpleNamespace(AGILAB_EXPORT_ABS=export_root),
+            "legacy": "cached",
+            "page_broken": False,
+        }
+    )
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
+
+    pagelib.on_df_change(Path("lab_a"), "legacy", df_file=explicit_df, steps_file=None)
+
+    assert session_state["legacydf_file"] == explicit_df
+    assert session_state["df_file"] == explicit_df
+    assert "legacy" not in session_state
+    assert session_state["page_broken"] is True
 
 
 def test_resolve_active_app_prefers_query_param_and_fallback_last_app(tmp_path, monkeypatch):
