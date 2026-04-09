@@ -1,6 +1,6 @@
 # view_uav_queue_analysis
 
-Streamlit analysis page for `uav_queue_project`.
+Streamlit analysis page for the built-in UAV relay queue example (`uav_queue_project` install id).
 
 What it reads:
 

@@ -81,10 +81,10 @@ if "env" not in st.session_state:
 else:
     env = st.session_state["env"]
 
-render_logo("UAV Queue Analysis")
-st.title("UAV queue analysis")
+render_logo("UAV Relay Queue Analysis")
+st.title("UAV relay queue analysis")
 st.caption(
-    "Use exported queue telemetry to compare routing policies, queue hotspots, and delivery outcomes "
+    "Use exported relay-queue telemetry to compare routing policies, queue hotspots, and delivery outcomes "
     "without reopening the simulator code."
 )
 st.info(

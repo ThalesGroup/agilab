@@ -15,7 +15,7 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from uav_queue import UavQueue, UavQueueArgs
+from uav_queue import UavQueue, UavQueueArgs, UavRelayQueue, UavRelayQueueArgs
 from uav_queue_worker import UavQueueWorker
 
 
@@ -60,6 +60,11 @@ def test_uav_queue_manager_seeds_dataset_and_distribution(tmp_path: Path) -> Non
     assert weights_key == "size_kb"
     assert unit == "KB"
     assert metadata[0][0]["scenario"] == "uav_queue_hotspot.json"
+
+
+def test_uav_relay_queue_aliases_match_legacy_surface() -> None:
+    assert UavRelayQueue is UavQueue or issubclass(UavRelayQueue, UavQueue)
+    assert UavRelayQueueArgs is UavQueueArgs
 
 
 def test_uav_queue_worker_exports_queue_artifacts(tmp_path: Path) -> None:
