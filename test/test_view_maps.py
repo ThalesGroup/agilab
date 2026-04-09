@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
-
 PAGE_PATH = "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
 
 

@@ -1,11 +1,6 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
-from unittest.mock import patch
-
-from streamlit.testing.v1 import AppTest
 
 
 PAGE_PATH = (
@@ -13,15 +8,15 @@ PAGE_PATH = (
 )
 
 
-def test_view_uav_queue_analysis_renders_exported_artifacts(tmp_path, monkeypatch) -> None:
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir()
-    project_dir = apps_dir / "uav_queue_project"
-    (project_dir / "src" / "uav_queue").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='uav-queue-project'\n", encoding="utf-8")
-    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
-    (project_dir / "src" / "uav_queue" / "__init__.py").write_text("", encoding="utf-8")
-
+def test_view_uav_queue_analysis_renders_exported_artifacts(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_queue_project",
+        package_name="uav_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-queue-project",
+    )
     artifact_dir = tmp_path / "export" / "uav_queue" / "queue_analysis"
     artifact_dir.mkdir(parents=True)
     stem = "hotspot_queue_aware_seed2026"
@@ -72,15 +67,7 @@ def test_view_uav_queue_analysis_renders_exported_artifacts(tmp_path, monkeypatc
         encoding="utf-8",
     )
 
-    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
-    with patch.object(sys, "argv", argv):
-        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
-        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
-        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
-        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-        monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
-        at.run()
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
     assert any(title.value == "UAV queue analysis" for title in at.title)
@@ -89,16 +76,15 @@ def test_view_uav_queue_analysis_renders_exported_artifacts(tmp_path, monkeypatc
     assert len(at.selectbox) >= 1
     assert len(at.text_input) >= 2
 
-
-def test_view_uav_queue_analysis_reports_missing_peer_artifacts(tmp_path, monkeypatch) -> None:
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir()
-    project_dir = apps_dir / "uav_queue_project"
-    (project_dir / "src" / "uav_queue").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='uav-queue-project'\n", encoding="utf-8")
-    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
-    (project_dir / "src" / "uav_queue" / "__init__.py").write_text("", encoding="utf-8")
-
+def test_view_uav_queue_analysis_reports_missing_peer_artifacts(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_queue_project",
+        package_name="uav_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-queue-project",
+    )
     artifact_dir = tmp_path / "export" / "uav_queue" / "queue_analysis"
     artifact_dir.mkdir(parents=True)
     stem = "hotspot_queue_aware_seed2026"
@@ -126,15 +112,7 @@ def test_view_uav_queue_analysis_reports_missing_peer_artifacts(tmp_path, monkey
         encoding="utf-8",
     )
 
-    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
-    with patch.object(sys, "argv", argv):
-        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
-        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
-        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
-        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-        monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
-        at.run()
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
     assert any(title.value == "UAV queue analysis" for title in at.title)
