@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-07
+  updated: 2026-04-09
 ---
 
 # Testing Skill (AGILAB)
@@ -45,6 +45,17 @@ Use this skill when validating changes.
 - App settings split:
   - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
   - Tests should target the right layer and avoid asserting that runtime writes back into source files.
+- Installer regressions:
+  - For install failures, reproduce both:
+    - plain shell: `uv sync --project <app>`
+    - real AGILAB path: `uv run python src/agilab/apps/install.py <app> --verbose 1`
+  - If the plain shell sync succeeds but the AGILAB path fails, prefer a shared-core installer regression over app-only tests.
+  - Inspect the copied worker manifest under `~/wenv/<app>_worker/pyproject.toml` before changing app dependencies.
+  - If the copied worker project gained a conflicting exact pin that is not present in the source app manifest, treat that as an install-plumbing bug first.
+  - Good shared regressions for this class are:
+    - nested `uv` environment cleanup in `agi_env`
+    - worker dependency-rewrite behavior in `agi_distributor`
+    - local-source worker adds using consistent local core paths instead of package-index metadata
 
 ## Common Commands
 
