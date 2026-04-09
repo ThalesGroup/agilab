@@ -359,6 +359,21 @@ def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
         pagelib.open_local_docs(env, html_file="missing.html")
 
 
+def test_open_docs_url_reopens_tab_when_focus_fails(monkeypatch):
+    opened = []
+
+    pagelib._DOCS_ALREADY_OPENED = True
+    pagelib._LAST_DOCS_URL = "http://example/docs"
+    monkeypatch.setattr(pagelib, "_focus_existing_docs_tab", lambda _: False)
+    monkeypatch.setattr(pagelib.webbrowser, "open_new_tab", lambda url: opened.append(url))
+
+    pagelib._open_docs_url("http://example/docs")
+
+    assert opened == ["http://example/docs"]
+    assert pagelib._DOCS_ALREADY_OPENED is True
+    assert pagelib._LAST_DOCS_URL == "http://example/docs"
+
+
 def test_cached_load_df_uses_session_max_rows_and_zero_means_all(monkeypatch):
     fake_st = SimpleNamespace(session_state={"TABLE_MAX_ROWS": "7"})
     calls: list[tuple[object, bool, object]] = []
@@ -402,6 +417,72 @@ def test_render_dataframe_preview_renders_caption_when_truncated(monkeypatch):
 def test_render_dataframe_preview_requires_dataframe():
     with pytest.raises(TypeError, match="pandas DataFrame"):
         pagelib.render_dataframe_preview(["not", "a", "df"])
+
+
+def test_find_files_filters_hidden_entries_and_honors_recursive_flag(tmp_path):
+    root_file = tmp_path / "root.csv"
+    root_file.write_text("a\n1\n", encoding="utf-8")
+    nested_dir = tmp_path / "nested"
+    nested_dir.mkdir()
+    nested_file = nested_dir / "inner.csv"
+    nested_file.write_text("a\n2\n", encoding="utf-8")
+    hidden_dir = tmp_path / ".hidden"
+    hidden_dir.mkdir()
+    (hidden_dir / "ignored.csv").write_text("a\n3\n", encoding="utf-8")
+    hidden_nested = nested_dir / ".secret"
+    hidden_nested.mkdir()
+    (hidden_nested / "ignored.csv").write_text("a\n4\n", encoding="utf-8")
+
+    find_files = getattr(pagelib.find_files, "__wrapped__", pagelib.find_files)
+
+    recursive_paths = sorted(path.relative_to(tmp_path).as_posix() for path in find_files(tmp_path, ".csv", True))
+    non_recursive_paths = sorted(path.relative_to(tmp_path).as_posix() for path in find_files(tmp_path, ".csv", False))
+
+    assert recursive_paths == ["nested/inner.csv", "root.csv"]
+    assert non_recursive_paths == ["nested/inner.csv"]
+
+
+def test_find_files_raises_with_directory_diagnosis(monkeypatch, tmp_path):
+    find_files = getattr(pagelib.find_files, "__wrapped__", pagelib.find_files)
+    missing = tmp_path / "missing"
+    monkeypatch.setattr(pagelib, "diagnose_data_directory", lambda _path: "share unavailable")
+
+    with pytest.raises(NotADirectoryError, match="share unavailable"):
+        find_files(missing, ".csv", True)
+
+
+def test_export_df_emits_warning_success_and_failure(monkeypatch):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    warnings: list[str] = []
+    successes: list[str] = []
+    session_state = FakeSessionState({"df_file_out": "/tmp/out.csv"})
+    fake_st = SimpleNamespace(
+        session_state=session_state,
+        warning=lambda message: warnings.append(str(message)),
+        success=lambda message: successes.append(str(message)),
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+
+    pagelib.export_df()
+    assert warnings == ["DataFrame is empty. Nothing to export."]
+
+    session_state["loaded_df"] = pd.DataFrame({"a": [1]})
+    monkeypatch.setattr(pagelib, "save_csv", lambda df, path: False)
+    pagelib.export_df()
+    assert warnings[-1] == "Export failed; please check the filename and dataframe content."
+
+    monkeypatch.setattr(pagelib, "save_csv", lambda df, path: True)
+    pagelib.export_df()
+    assert successes == ["Saved to /tmp/out.csv!"]
 
 
 def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
@@ -1107,6 +1188,72 @@ def test_select_project_filters_shortlists_and_handles_empty_results(monkeypatch
 
     assert empty_sidebar.infos == ["No projects match that filter."]
     assert empty_sidebar.select_calls == []
+
+
+def test_sidebar_views_and_on_df_change_manage_selection_state(monkeypatch, tmp_path):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    class FakeSidebar:
+        def __init__(self, session_state):
+            self.session_state = session_state
+
+        def selectbox(self, label, options, index=0, key=None, on_change=None):
+            choice = options[index]
+            if key is not None:
+                self.session_state[key] = choice
+            return choice
+
+    export_root = tmp_path / "export"
+    lab_dir = export_root / "lab_a"
+    lab_dir.mkdir(parents=True)
+    default_df = lab_dir / "default_df"
+    other_df = lab_dir / "other.csv"
+    default_df.write_text("a\n1\n", encoding="utf-8")
+    other_df.write_text("a\n2\n", encoding="utf-8")
+
+    env = SimpleNamespace(AGILAB_EXPORT_ABS=export_root, target="lab_a")
+    session_state = FakeSessionState({"env": env})
+    fake_st = SimpleNamespace(session_state=session_state, sidebar=FakeSidebar(session_state))
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "scan_dir", lambda path: ["lab_a"])
+    monkeypatch.setattr(pagelib, "find_files", lambda path: [other_df, default_df])
+    monkeypatch.setattr(pagelib, "on_lab_change", lambda *_args, **_kwargs: None, raising=False)
+
+    pagelib.sidebar_views()
+
+    assert session_state["lab_dir"] == "lab_a"
+    assert session_state["lab_dir_selectbox"] == "lab_a"
+    assert session_state["module_path"] == Path("lab_a")
+    assert session_state["df_file"] == export_root / Path("lab_a/default_df")
+    assert session_state["index_page"] == Path("lab_a/default_df")
+
+    steps_file = tmp_path / "steps" / "last.toml"
+    loaded: list[tuple[Path, Path, str]] = []
+    monkeypatch.setattr(
+        pagelib,
+        "load_last_step",
+        lambda module_dir, steps_path, page_key: loaded.append((module_dir, steps_path, page_key)),
+        raising=False,
+    )
+    session_state["legacydf"] = "lab_a/other.csv"
+    session_state["legacy"] = "cached"
+
+    pagelib.on_df_change(Path("lab_a"), Path("ignored.csv"), "legacy", steps_file)
+
+    assert session_state["legacydf_file"] == export_root / "lab_a/other.csv"
+    assert session_state["df_file"] == export_root / "lab_a/other.csv"
+    assert "legacy" not in session_state
+    assert session_state["page_broken"] is True
+    assert loaded == [(Path("lab_a"), steps_file, "legacy")]
+    assert steps_file.parent.is_dir()
 
 
 def test_resolve_active_app_prefers_query_param_and_fallback_last_app(tmp_path, monkeypatch):
