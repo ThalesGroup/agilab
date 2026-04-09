@@ -17,15 +17,15 @@ Keep one app per video, but support two stable narrative packs:
   - safest default
   - best for newcomer onboarding
   - easiest to keep aligned with the existing README/slideshow story
-- `uav_queue_project`
+- `UAV Relay Queue` (`uav_queue_project`)
   - stronger novelty and more visible `ANALYSIS`
   - best when you want a more technical and more memorable queueing demo
 
 Default recommendation:
 
 - use `flight_project` for the main AGILAB intro video
-- use `uav_queue_project` as the second product demo when you want a more
-  specialized "wow" path
+- use `UAV Relay Queue` (`uav_queue_project`) as the second product demo when
+  you want a more specialized "wow" path
 
 Core assets already in the repo:
 
@@ -231,7 +231,8 @@ Keep the same page order:
 Suggested flow:
 
 1. Open AGILAB.
-2. Select `src/agilab/apps/builtin/uav_queue_project` in `PROJECT`.
+2. Select `src/agilab/apps/builtin/uav_queue_project` in `PROJECT`
+   (`UAV Relay Queue`).
 3. Briefly show the routing policy and scenario file.
 4. Move to `ORCHESTRATE`.
 5. Trigger the run.
@@ -247,7 +248,7 @@ Narration:
 workflow. The point is still the same: one app, one control path, ending on a
 visible analysis result.`
 
-### UAV queue 3-minute version
+### UAV Relay Queue 3-minute version
 
 Use this when you want the more memorable technical demo.
 
@@ -260,8 +261,9 @@ Suggested timeline:
    Open the AGILAB home screen and state the goal:
    `turn a queueing experiment into a reproducible workflow.`
 2. `0:20 -> 0:55`
-   Go to `PROJECT`, select `src/agilab/apps/builtin/uav_queue_project`, and
-   show the scenario file plus the routing policy selector.
+   Go to `PROJECT`, select `src/agilab/apps/builtin/uav_queue_project`
+   (`UAV Relay Queue`), and show the scenario file plus the routing policy
+   selector.
 3. `0:55 -> 1:35`
    Move to `ORCHESTRATE`, launch the run, and explain that AGILAB takes a
    lightweight simulator-backed app and packages it into a controlled execution
@@ -288,7 +290,7 @@ Suggested click path:
 
 1. Home page
 2. `PROJECT`
-3. app selector -> `uav_queue_project`
+3. app selector -> `uav_queue_project` (`UAV Relay Queue`)
 4. short pause on scenario and routing policy
 5. `ORCHESTRATE`
 6. short pause on run controls
@@ -313,8 +315,8 @@ If you want a static slideshow instead of a video, use this sequence:
 
 The slideshow should tell the same story as the video, not introduce extra claims.
 
-For the `uav_queue_project` video, reuse the same opening AGILAB figure, but end
-the static sequence on screenshots from:
+For the `UAV Relay Queue` video (`uav_queue_project` install id), reuse the same
+opening AGILAB figure, but end the static sequence on screenshots from:
 
 - `view_uav_queue_analysis`
 - optionally `view_maps_network`

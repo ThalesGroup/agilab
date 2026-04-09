@@ -27,6 +27,10 @@ Use this skill when validating changes.
 
 ## Regression Hygiene
 
+- User-facing rename sweeps:
+  - When renaming a page/app/demo label, grep both the old and new wording across the page package, tests, README files, and `docs/source`.
+  - Prefer a side-effect-free metadata module (for example `page_meta.py`) for page titles or other user-facing labels that tests also assert.
+  - Make tests import or read that shared metadata instead of duplicating display strings when the page title is part of the contract.
 - Filesystem order:
   - Do not assume `glob`, `rglob`, `iterdir`, or `os.scandir` order across macOS, Linux, and GitHub runners.
   - If order is user-visible, sort in the runtime/helper.

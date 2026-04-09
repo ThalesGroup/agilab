@@ -96,14 +96,16 @@ Network topology viewer synchronised with geographic views.
 
 - Input: node positions + link definitions in the dataset.
 - Output: map + graph views to inspect connectivity, link types, and snapshots.
-- It can also reuse the ``uav_queue_project`` exports when a run provides
-  ``pipeline/topology.gml``, ``pipeline/allocations_steps.csv``, and
-  trajectory CSV files in the same run directory.
+- It can also reuse the built-in ``UAV Relay Queue`` exports (install id
+  ``uav_queue_project``) when a run provides ``pipeline/topology.gml``,
+  ``pipeline/allocations_steps.csv``, and trajectory CSV files in the same run
+  directory.
 
 view_uav_queue_analysis
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Dedicated analysis page for the built-in ``uav_queue_project`` example.
+Dedicated analysis page for the built-in ``UAV Relay Queue`` example
+(``uav_queue_project`` install id).
 
 - Input: one run directory under ``~/export/uav_queue/queue_analysis/<artifact_stem>/``.
 - Output: queue occupancy charts, per-packet delay and drop summaries, route
@@ -114,9 +116,9 @@ Dedicated analysis page for the built-in ``uav_queue_project`` example.
 Notes for distributed runs
 --------------------------
 
-- ``uav_queue_project`` distributes one scenario JSON file per worker. One
-  simulation is one work item; AGILAB does not split a single scenario across
-  multiple workers.
+- The ``UAV Relay Queue`` demo (install id ``uav_queue_project``) distributes
+  one scenario JSON file per worker. One simulation is one work item; AGILAB
+  does not split a single scenario across multiple workers.
 - Each scenario now writes into its own
   ``~/export/uav_queue/queue_analysis/<artifact_stem>/`` directory, so
   distributed runs with several scenario files do not overwrite each other's

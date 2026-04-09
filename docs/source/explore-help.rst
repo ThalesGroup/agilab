@@ -19,26 +19,7 @@ Page snapshot
    :align: center
    :class: diagram-panel diagram-wide
 
-   ANALYSIS exposes the available page bundles, stores the selected views per
-   project, and launches them as sidecar dashboards.
-
-What you should read from this screenshot
-----------------------------------------
-
-The screenshot intentionally shows one explicit flow:
-
-1. **Discovery zone (left)**: AGILAB scans installed page bundles and lists
-   every discoverable module under ``AGILAB_PAGES_ABS``.
-2. **Configure zone (middle)**: choose per-project views by project context.
-3. **Launch zone (right)**: each checked entry gets a launch button that opens the
-   page as a sidecar dashboard.
-4. **Project context banner (top)**: analysis selection is always tied to the
-   active project (same path model as PROJECT/ORCHESTRATE/PIPELINE).
-5. **Back control (sidecar header)**: returns you to Analysis after opening an
-   external dashboard in the embedded frame.
-
-If a view you expect is missing, follow the checks below before re-running
-discovery.
+   ANALYSIS exposes the available page bundles, stores the selected views per project, and launches them as sidecar dashboards.
 
 Sidebar
 -------
@@ -89,18 +70,6 @@ Main Content Area
       ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
       and a ``Back to Analysis`` control keeps navigation lightweight.
 
-When a single screenshot is not enough
---------------------------------------
-
-Use this exact sequence to move from config to visual result:
-
-1. Keep project unchanged in the top selector.
-2. Open ``Discover`` and confirm the expected bundle appears.
-3. Switch to ``Configure`` and select only the views you need for this project.
-4. Go to ``Launch`` and open one view.
-5. Verify the sidecar frame shows the expected dashboard, then close it and return
-   with ``Back to Analysis``.
-
 Tips & Notes
 ------------
 - Views are ordinary web projects. Bundles that expose a ``pyproject.toml``
@@ -108,9 +77,10 @@ Tips & Notes
 - Built-in IDE pages (PROJECT, ORCHESTRATE, PIPELINE, ANALYSIS) always remain
   available; page bundles simply add extra entries to the Analysis catalogue when
   the project opts into them.
-- ``uav_queue_project`` is a good reference setup: select both
-  ``view_uav_queue_analysis`` and ``view_maps_network`` to inspect the same run
-  through a dedicated queue dashboard and the generic topology map.
+- ``UAV Relay Queue`` is a good reference setup (install id
+  ``uav_queue_project``): select both ``view_uav_queue_analysis`` and
+  ``view_maps_network`` to inspect the same run through a dedicated queue
+  dashboard and the generic topology map.
 - AGILab caches the list per project, so the Analysis grid reflects the exact
   configuration stored in ``app_settings.toml``.
 - If a view needs its own Python environment, place it alongside the page
