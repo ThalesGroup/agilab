@@ -8,6 +8,7 @@ import math
 import random
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import pandas as pd
 import simpy
 
 from agi_node.agi_dispatcher import BaseWorker
+from agi_node.pandas_worker import PandasWorker
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -138,7 +140,7 @@ def _build_topology_graph(
     return graph
 
 
-class UavQueueWorker(BaseWorker):
+class UavQueueWorker(PandasWorker):
     """Run one lightweight UAV routing scenario and export queue telemetry."""
 
     pool_vars: dict[str, object] = {}
@@ -177,6 +179,31 @@ class UavQueueWorker(BaseWorker):
 
     def work_init(self) -> None:
         return None
+
+    def works(self, workers_plan: Any, workers_plan_metadata: Any) -> float:
+        """Execute assigned scenario batches while keeping custom artifact exports."""
+
+        assigned_batches: list[Any] = []
+        if isinstance(workers_plan, list) and len(workers_plan) > self._worker_id:
+            worker_batches = workers_plan[self._worker_id]
+            if isinstance(worker_batches, list):
+                assigned_batches = worker_batches
+
+        self.work_init()
+        for batch in assigned_batches:
+            if isinstance(batch, (list, tuple)):
+                work_items = list(batch)
+            else:
+                work_items = [batch]
+            for work_item in work_items:
+                result = self.work_pool(work_item)
+                self.work_done(result)
+
+        self.stop()
+
+        if BaseWorker._t0 is None:
+            BaseWorker._t0 = time.time()
+        return time.time() - BaseWorker._t0
 
     def _load_scenario(self, file_path: str | Path) -> dict[str, Any]:
         source = Path(str(file_path)).expanduser()

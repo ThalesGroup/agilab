@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import networkx as nx
 import pandas as pd
+from agi_node.pandas_worker import PandasWorker
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -129,6 +130,10 @@ def test_uav_queue_worker_exports_queue_artifacts(tmp_path: Path) -> None:
     assert demand_payload[0]["destination"] == "ground_sink"
 
 
+def test_uav_queue_worker_is_installable_supported_worker() -> None:
+    assert issubclass(UavQueueWorker, PandasWorker)
+
+
 def test_uav_queue_multi_scenario_outputs_do_not_overwrite(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
     args = UavQueueArgs(nfile=2, reset_target=True)
@@ -182,3 +187,35 @@ def test_uav_queue_multi_scenario_outputs_do_not_overwrite(tmp_path: Path) -> No
         "uav_queue_hotspot_shortest_path_seed2026": "uav_queue_hotspot",
         "uav_queue_hotspot_b_shortest_path_seed2026": "uav_queue_hotspot_b",
     }
+
+
+def test_uav_queue_worker_executes_distribution_batches(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    args = UavQueueArgs(nfile=2, reset_target=True)
+    manager = UavQueue(env, args=args)
+    source = sorted(manager.args.data_in.glob("*.json"))[0]
+    variant = json.loads(source.read_text(encoding="utf-8"))
+    variant["scenario"] = "uav_queue_hotspot_b"
+    (manager.args.data_in / "uav_queue_hotspot_b.json").write_text(
+        json.dumps(variant, indent=2),
+        encoding="utf-8",
+    )
+
+    work_plan, metadata, _, _, _ = manager.build_distribution({"127.0.0.1": 2})
+
+    worker = UavQueueWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+    worker.start()
+
+    runtime = worker.works(work_plan, metadata)
+
+    assert runtime >= 0.0
+    export_root = env.AGILAB_EXPORT_ABS / env.target / "queue_analysis"
+    summary_paths = sorted(export_root.glob("**/*_summary_metrics.json"))
+    assert len(summary_paths) == 1
+    metrics = json.loads(summary_paths[0].read_text(encoding="utf-8"))
+    assert metrics["scenario"] == "uav_queue_hotspot"
