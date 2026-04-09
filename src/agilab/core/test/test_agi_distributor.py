@@ -4866,9 +4866,252 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
         wenv_abs / ".venv" / "lib" / "python3.13" / "site-packages" / "agilab_uv_sources.pth"
     ).read_text(encoding="utf-8") == "../../../../_uv_sources\n"
     assert AGI._install_done_local is True
+    assert any(
+        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        for cmd, _ in commands
+    )
+    assert not any(
+        "add agi-env" in cmd and str(wenv_abs) in cmd
+        for cmd, _ in commands
+    )
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
     assert any("run --project" in cmd and "python -m ensurepip --upgrade" in cmd for cmd, _ in commands)
     assert any("demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_preserves_existing_dependency_ranges(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo" / "src" / "agilab"
+    env_project = repo_root / "core" / "agi-env"
+    node_project = repo_root / "core" / "agi-node"
+    core_project = repo_root / "core" / "agi-core"
+    cluster_project = repo_root / "core" / "agi-cluster"
+    for project in (env_project, node_project, core_project, cluster_project):
+        project.mkdir(parents=True, exist_ok=True)
+    (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
+    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8")
+    (node_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-node'\ndependencies=['scipy==1.16.1']\n",
+        encoding="utf-8",
+    )
+    (core_project / "pyproject.toml").write_text("[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8")
+    (cluster_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-cluster'\ndependencies=['pip>=1']\n",
+        encoding="utf-8",
+    )
+
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\ndependencies=['scipy>=1.15.2,<1.17']\n",
+        encoding="utf-8",
+    )
+    (app_path / "src").mkdir(parents=True, exist_ok=True)
+    (app_path / ".venv").mkdir(parents=True, exist_ok=True)
+    (app_path / "uv.lock").write_text("lock", encoding="utf-8")
+
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
+
+    env_pck = tmp_path / "env_pck" / "agi_env"
+    env_pck.mkdir(parents=True, exist_ok=True)
+    (env_pck.parent / "__editable__.agi_env-demo.pth").write_text("x", encoding="utf-8")
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=env_project,
+        agi_node=node_project,
+        agi_cluster=cluster_project,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=env_pck,
+        dataset_archive=tmp_path / "dataset.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user="another-user",
+        cluster_pck=cluster_pck,
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    AGI._run_type = "sync --dev"
+    AGI._rapids_enabled = False
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    async def _fake_ssh(_ip, _cmd):
+        raise ConnectionError("localhost ssh denied")
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "read_agilab_path", staticmethod(lambda: repo_root))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: False))
+    monkeypatch.setattr(AGI, "_build_lib_local", staticmethod(_fake_build))
+    monkeypatch.setattr(AGI, "_uninstall_modules", staticmethod(_fake_uninstall))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_ssh))
+    monkeypatch.setattr(agi_distributor_module, "_agi__version_missing_on_pypi", lambda _p: False)
+
+    await AGI._deploy_local_worker(app_path, Path("wenv"), " --extra pandas-worker")
+
+    manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'scipy>=1.15.2,<1.17' in manager_toml
+    assert 'scipy==1.16.1' not in manager_toml
+    assert any(
+        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        for cmd, _ in commands
+    )
+    assert any("sync --project" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_app(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo" / "src" / "agilab"
+    env_project = repo_root / "core" / "agi-env"
+    node_project = repo_root / "core" / "agi-node"
+    core_project = repo_root / "core" / "agi-core"
+    cluster_project = repo_root / "core" / "agi-cluster"
+    for project in (env_project, node_project, core_project, cluster_project):
+        project.mkdir(parents=True, exist_ok=True)
+    (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
+    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8")
+    (node_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-node'\ndependencies=['scipy==1.16.1']\n",
+        encoding="utf-8",
+    )
+    (core_project / "pyproject.toml").write_text("[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8")
+    (cluster_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-cluster'\ndependencies=['pip>=1']\n",
+        encoding="utf-8",
+    )
+
+    fake_module_file = (
+        repo_root
+        / "core"
+        / "agi-cluster"
+        / "src"
+        / "agi_cluster"
+        / "agi_distributor"
+        / "agi_distributor.py"
+    )
+    fake_module_file.parent.mkdir(parents=True, exist_ok=True)
+    fake_module_file.write_text("# fake module path for repo inference\n", encoding="utf-8")
+
+    app_path = repo_root / "apps" / "builtin" / "demo_project"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-project'\ndependencies=['py7zr']\n",
+        encoding="utf-8",
+    )
+    (app_path / "src").mkdir(parents=True, exist_ok=True)
+    (app_path / ".venv").mkdir(parents=True, exist_ok=True)
+    (app_path / "uv.lock").write_text("lock", encoding="utf-8")
+
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
+
+    env_pck = tmp_path / "env_pck" / "agi_env"
+    env_pck.mkdir(parents=True, exist_ok=True)
+    (env_pck.parent / "__editable__.agi_env-demo.pth").write_text("x", encoding="utf-8")
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    AGI.env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=env_project,
+        agi_node=node_project,
+        agi_cluster=cluster_project,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=env_pck,
+        dataset_archive=tmp_path / "dataset.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user="another-user",
+        cluster_pck=cluster_pck,
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    AGI._run_type = "sync --dev"
+    AGI._rapids_enabled = False
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    async def _fake_ssh(_ip, _cmd):
+        raise ConnectionError("localhost ssh denied")
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "read_agilab_path", staticmethod(lambda: None))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+    monkeypatch.setattr(agi_distributor_module, "__file__", str(fake_module_file))
+    monkeypatch.setattr(AGI, "_hardware_supports_rapids", staticmethod(lambda: False))
+    monkeypatch.setattr(AGI, "_build_lib_local", staticmethod(_fake_build))
+    monkeypatch.setattr(AGI, "_uninstall_modules", staticmethod(_fake_uninstall))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_ssh))
+    monkeypatch.setattr(agi_distributor_module, "_agi__version_missing_on_pypi", lambda _p: False)
+
+    await AGI._deploy_local_worker(app_path, Path("wenv"), " --extra pandas-worker")
+
+    manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert "py7zr" in manager_toml
+    assert "pip>=1" not in manager_toml
+    assert "scipy==1.16.1" not in manager_toml
+    assert any(
+        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio

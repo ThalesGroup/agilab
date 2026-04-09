@@ -1205,6 +1205,19 @@ def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, mo
         asyncio.run(AgiEnv._run_bg(fail_cmd, cwd=tmp_path, venv=tmp_path, timeout=10))
 
 
+def test_build_env_strips_uv_run_recursion_depth(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/demo")
+    monkeypatch.setenv("PYTHONHOME", "/tmp/home")
+
+    env = AgiEnv._build_env(tmp_path)
+
+    assert env.get("VIRTUAL_ENV") == str(tmp_path / ".venv")
+    assert "UV_RUN_RECURSION_DEPTH" not in env
+    assert "PYTHONPATH" not in env
+    assert "PYTHONHOME" not in env
+
+
 def test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error(tmp_path: Path, monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)

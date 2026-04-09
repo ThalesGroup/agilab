@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-02
+  updated: 2026-04-09
 ---
 
 # AGILAB Installer Skill
@@ -40,6 +40,23 @@ Use this skill when working on:
   - Validate both manifests exist:
     - manager: `.../<app>_project/pyproject.toml`
     - worker:  `.../<app>_project/src/<app>_worker/pyproject.toml`
+
+- **Plain `uv sync` works, AGILAB install still fails in worker phase**
+  - Treat this as a shared installer candidate before patching the app.
+  - Compare:
+    - plain shell: `uv sync --project <app>`
+    - AGILAB path: `uv run python src/agilab/apps/install.py <app> --verbose 1`
+  - Inspect the copied worker manifest:
+    - `~/wenv/<app>_worker/pyproject.toml`
+  - If that worker file gained a conflicting exact pin that is not present in the source app manifest, the usual causes are:
+    - nested `uv` subprocesses inheriting `UV_RUN_RECURSION_DEPTH`
+    - `_deploy_local_worker()` appending exact dependency pins into the worker copy
+    - local core packages (`agi-env`, `agi-node`) being added one by one instead of together as local paths
+    - missing `read_agilab_path()` causing a source checkout app to be treated like a generated install artifact
+  - Typical symptom:
+    - manager install and worker build succeed
+    - failure appears later at `uv add agi-env` / `uv add agi-node` or worker `uv sync`
+    - the error mentions an unsatisfiable transitive dependency conflict from the copied worker project
 
 - **Dataset extraction wipes seeded files**
   - Avoid mtime heuristics on extracted files; use a stamp file tied to the archive.
