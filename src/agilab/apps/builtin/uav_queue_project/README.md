@@ -1,7 +1,7 @@
-# UAV Queue Project
+# UAV Relay Queue Project
 
-`uav_queue_project` is a built-in AGILAB example for lightweight UAV routing and
-queueing experiments.
+`uav_queue_project` is the AGILAB install id for this built-in lightweight UAV
+relay queue example.
 
 It is intentionally small and Python-native. The current worker uses a
 UavNetSim-inspired SimPy model so the AGILAB workflow is immediately usable

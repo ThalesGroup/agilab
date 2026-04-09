@@ -1,4 +1,4 @@
-"""Argument helpers for the built-in UAV queue example."""
+"""Argument helpers for the built-in UAV relay queue example."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_mod
 
 
 class UavQueueArgs(BaseModel):
-    """Runtime parameters for the lightweight UAV queue demo."""
+    """Runtime parameters for the lightweight UAV relay queue demo."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -51,6 +51,8 @@ class UavQueueArgsTD(TypedDict, total=False):
 
 ArgsModel = UavQueueArgs
 ArgsOverrides = UavQueueArgsTD
+UavRelayQueueArgs = UavQueueArgs
+UavRelayQueueArgsTD = UavQueueArgsTD
 
 
 def load_args(settings_path: str | Path, *, section: str = "args") -> UavQueueArgs:
@@ -78,6 +80,8 @@ def ensure_defaults(args: UavQueueArgs, **_: Any) -> UavQueueArgs:
 __all__ = [
     "ArgsModel",
     "ArgsOverrides",
+    "UavRelayQueueArgs",
+    "UavRelayQueueArgsTD",
     "UavQueueArgs",
     "UavQueueArgsTD",
     "dump_args",
