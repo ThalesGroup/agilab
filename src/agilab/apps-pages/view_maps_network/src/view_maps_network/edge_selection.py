@@ -56,6 +56,16 @@ def resolve_edges_picker_state(
     custom_value = current_custom or ""
     recovered_from_missing = False
 
+    if (
+        choice == CUSTOM_OPTION
+        and custom_value.strip()
+        and not _path_exists(custom_value)
+        and edges_candidates
+    ):
+        choice = _preferred_recovery_candidate(custom_value, edges_candidates) or NONE_OPTION
+        custom_value = ""
+        recovered_from_missing = bool(choice and choice != NONE_OPTION)
+
     if choice not in picker_options:
         if edges_prev and edges_prev in edges_candidates:
             choice = edges_prev
