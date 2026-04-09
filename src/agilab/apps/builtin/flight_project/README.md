@@ -1,0 +1,47 @@
+# Flight Project
+
+`flight_project` is the AGILAB install id for this built-in public flight example.
+
+The project focuses on a simple but useful workflow:
+- ingest flight data from files or a Hawk source
+- turn that input into a dataframe dataset under shared storage
+- inspect the result in AGILAB pages such as `view_maps_network`
+
+## What it is good for
+
+- a compact end-to-end AGILAB demo around real-world flight data
+- validating the `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` flow
+- showing how a raw data source becomes a reusable dataset for visual exploration
+
+## What is not implemented in the public version
+
+This public built-in example is intentionally narrow. It does **not** implement:
+- richer trajectory-centric study workflows
+- multi-stage trajectory reconstruction or scenario stitching
+- dedicated cross-run comparison views for complex flight studies
+- advanced trajectory replay, alignment, or domain-specific experiment dashboards
+
+The public version is meant to stay approachable: one small app that demonstrates
+data ingestion, pipeline reuse, and visual exploration without exposing a larger
+specialized workflow.
+
+## Main outputs
+
+Each run produces a structured flight dataframe dataset that can then be reused by
+analysis pages and downstream pipeline steps.
+
+## Typical flow
+
+1. Select `flight_project` in `PROJECT`.
+2. Configure the input source in `ORCHESTRATE`.
+3. Run the ingestion step.
+4. Explore the resulting dataset in `view_maps_network`.
+
+## What this teases in AGILAB
+
+This public example is only the entry point. The same framework can also support:
+- trajectory-focused studies with custom app logic and dedicated pages
+- replayable experiment pipelines built from generated or saved steps
+- richer geospatial and network overlays on top of processed flight artifacts
+- distributed preprocessing and repeatable multi-run comparisons
+- domain-specific workflows that go beyond a generic dataframe export

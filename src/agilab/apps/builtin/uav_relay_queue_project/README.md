@@ -15,6 +15,18 @@ The project demonstrates a compact routing-and-queueing simulation:
 - quick queue-aware routing experiments
 - understanding how relay congestion changes packet delivery, delay, and queue depth
 
+## What is not implemented in the public version
+
+This public built-in example is intentionally lightweight. It does **not** implement:
+- a full external UAV network simulator or emulator backend
+- detailed radio, PHY, or MAC behavior
+- large topology families or operational-scale routing stacks
+- production-grade routing control traffic, interference, or energy models
+- a complete research benchmark for UAV networking
+
+The goal is to keep the public example easy to run while still making queue buildup,
+relay choice, delay, and drops visible inside AGILAB.
+
 ## Main outputs
 
 Each run exports:
@@ -32,3 +44,13 @@ Each run exports:
 2. Run it from `ORCHESTRATE`.
 3. Inspect queue artifacts in `view_uav_relay_queue_analysis`.
 4. Inspect topology and trajectories in `view_maps_network`.
+
+## What this teases in AGILAB
+
+The same framework can support richer network studies than this public demo shows.
+With dedicated apps and pages, AGILAB can be used to:
+- run larger scenario sweeps through `ORCHESTRATE` and `PIPELINE`
+- attach custom analysis pages to domain-specific artifacts
+- compare routing variants across repeatable experiment runs
+- distribute experiments across workers instead of keeping everything local
+- evolve a lightweight demo into a more advanced simulator-backed workflow
