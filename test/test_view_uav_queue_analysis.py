@@ -70,7 +70,7 @@ def test_view_uav_queue_analysis_renders_exported_artifacts(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    assert any(title.value == "UAV queue analysis" for title in at.title)
+    assert any(title.value == "UAV relay queue analysis" for title in at.title)
     assert any(metric.label == "PDR" for metric in at.metric)
     assert len(at.dataframe) >= 1
     assert len(at.selectbox) >= 1
@@ -115,6 +115,6 @@ def test_view_uav_queue_analysis_reports_missing_peer_artifacts(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    assert any(title.value == "UAV queue analysis" for title in at.title)
+    assert any(title.value == "UAV relay queue analysis" for title in at.title)
     assert any("Related queue artifacts are missing" in error.value for error in at.error)
     assert len(at.code) >= 1
