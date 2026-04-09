@@ -10,7 +10,7 @@ If you are new to AGILAB, start with the short `flight_project` intro reel:
 
 - `AGILAB in 15 seconds: Project -> Orchestrate -> Pipeline -> Analysis <https://www.youtube.com/watch?v=U-1A-rKm0WU>`_
 
-If you want the more technical benchmark story, use the `uav_queue_project` reel:
+If you want the more technical benchmark story, use the `UAV Relay Queue` reel:
 
 - `How AGILAB makes UAV queue benchmarks reproducible <https://youtu.be/zxWZUyoEb9U>`_
 
@@ -18,7 +18,8 @@ Which Demo To Watch
 -------------------
 
 - ``flight_project``: best first introduction to the AGILAB workflow.
-- ``uav_queue_project``: best short technical demo when you want to see a reproducible benchmark ending on queue evidence.
+- ``UAV Relay Queue`` (install id ``uav_queue_project``): best short technical
+  demo when you want to see a reproducible benchmark ending on queue evidence.
 
 Core Tour
 ---------
@@ -43,7 +44,7 @@ Both public demos keep the same AGILAB structure:
 The difference is the message:
 
 - ``flight_project`` is the product-first overview.
-- ``uav_queue_project`` is the technical benchmark comparison.
+- ``UAV Relay Queue`` is the technical benchmark comparison.
 
 See Also
 --------
