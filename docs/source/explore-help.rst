@@ -78,7 +78,7 @@ Tips & Notes
   available; page bundles simply add extra entries to the Analysis catalogue when
   the project opts into them.
 - ``UAV Relay Queue`` is a good reference setup (install id
-  ``uav_queue_project``): select both ``view_uav_queue_analysis`` and
+  ``uav_relay_queue_project``): select both ``view_uav_relay_queue_analysis`` and
   ``view_maps_network`` to inspect the same run through a dedicated queue
   dashboard and the generic topology map.
 - AGILab caches the list per project, so the Analysis grid reflects the exact
@@ -105,7 +105,7 @@ If analysis view discovery is unexpected, use these checks:
   ``~/.agilab/apps/<project>/app_settings.toml``.
 - If ``view_maps_network`` opens but shows no UAV queue data, point the data
   directory to one run folder such as
-  ``~/export/uav_queue/queue_analysis/<artifact_stem>/`` rather than the parent
+  ``~/export/uav_relay_queue/queue_analysis/<artifact_stem>/`` rather than the parent
   directory. The generic page expects one scenario run at a time.
 
 See also

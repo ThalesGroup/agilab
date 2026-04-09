@@ -102,7 +102,7 @@ Layers at a glance
     - Apps under ``src/agilab/apps`` stay isolated but consume the same base
       worker / dispatcher APIs. The repository includes example app templates
       such as ``mycode_project``, ``flight_project``, and the lightweight
-      ``UAV Relay Queue`` demo (install id ``uav_queue_project``); additional
+      ``UAV Relay Queue`` demo (install id ``uav_relay_queue_project``); additional
       templates can follow the same contract.
 
 **Execution back-plane**
@@ -133,7 +133,7 @@ Runtime flow
    ``~/log/execute/<app>/`` for reproducibility.
 
 Apps choose their own distribution unit. For example, the ``UAV Relay Queue``
-demo (install id ``uav_queue_project``) fans out one scenario JSON file per
+demo (install id ``uav_relay_queue_project``) fans out one scenario JSON file per
 worker and writes each run into its own output directory so distributed runs
 can keep per-scenario artifacts isolated.
 

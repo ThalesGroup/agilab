@@ -213,7 +213,7 @@ UAV_QUEUE_SCENES: tuple[Scene, ...] = (
         zoom_start=1.0,
         zoom_end=1.03,
         highlight=(0.22, 0.30, 0.95, 0.93),
-        highlight_label="view_uav_queue_analysis",
+        highlight_label="view_uav_relay_queue_analysis",
         overlay="uav_analysis",
     ),
 )
@@ -221,7 +221,7 @@ UAV_QUEUE_SCENES: tuple[Scene, ...] = (
 
 VARIANTS: dict[str, Variant] = {
     "flight": Variant(key="flight", app_badge="FLIGHT PROJECT", scenes=FLIGHT_SCENES),
-    "uav_queue": Variant(key="uav_queue", app_badge="UAV QUEUE PROJECT", scenes=UAV_QUEUE_SCENES),
+    "uav_queue": Variant(key="uav_queue", app_badge="UAV RELAY QUEUE", scenes=UAV_QUEUE_SCENES),
 }
 
 
@@ -838,10 +838,10 @@ def draw_uav_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x
         "from agi_cluster.agi_distributor import AGI",
         "from agi_env import AgiEnv",
         "",
-        "APP = \"uav_queue_project\"",
+        "APP = \"uav_relay_queue_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
         "for policy in [\"shortest_path\", \"queue_aware\"]:",
-        "    await AGI.run(env, mode=15, data_in=\"uav_queue/scenarios\")",
+        "    await AGI.run(env, mode=15, data_in=\"uav_relay_queue/scenarios\")",
     ]
     line_y = 92
     code_font = load_font(17)
@@ -871,7 +871,7 @@ def draw_uav_analysis_overlay(canvas: Image.Image, scene: Scene, slide_x: int, s
     draw = ImageDraw.Draw(panel)
     draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=28, fill=(9, 22, 35, 244), outline=(255, 255, 255, 34), width=2)
     draw.rounded_rectangle((18, 16, 250, 52), radius=14, fill=(255, 255, 255, 22))
-    draw.text((36, 24), "view_uav_queue_analysis", font=FONT_HIGHLIGHT, fill=INK)
+    draw.text((36, 24), "view_uav_relay_queue_analysis", font=FONT_HIGHLIGHT, fill=INK)
 
     left_card = (24, 76, 222, 166)
     right_card = (238, 76, 436, 166)

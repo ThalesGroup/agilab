@@ -17,14 +17,14 @@ Keep one app per video, but support two stable narrative packs:
   - safest default
   - best for newcomer onboarding
   - easiest to keep aligned with the existing README/slideshow story
-- `UAV Relay Queue` (`uav_queue_project`)
+- `UAV Relay Queue` (`uav_relay_queue_project`)
   - stronger novelty and more visible `ANALYSIS`
   - best when you want a more technical and more memorable queueing demo
 
 Default recommendation:
 
 - use `flight_project` for the main AGILAB intro video
-- use `UAV Relay Queue` (`uav_queue_project`) as the second product demo when
+- use `UAV Relay Queue` (`uav_relay_queue_project`) as the second product demo when
   you want a more specialized "wow" path
 
 Core assets already in the repo:
@@ -68,7 +68,7 @@ Concrete capture command for the default `flight_project` tutorial:
 tools/capture_demo_workflow.sh --name agilab-flight --duration 45 --trim 30
 ```
 
-Concrete capture command for the `uav_queue_project` variant:
+Concrete capture command for the `uav_relay_queue_project` variant:
 
 ```bash
 tools/capture_demo_workflow.sh --name agilab-uav-queue --duration 60 --trim 45
@@ -231,7 +231,7 @@ Keep the same page order:
 Suggested flow:
 
 1. Open AGILAB.
-2. Select `src/agilab/apps/builtin/uav_queue_project` in `PROJECT`
+2. Select `src/agilab/apps/builtin/uav_relay_queue_project` in `PROJECT`
    (`UAV Relay Queue`).
 3. Briefly show the routing policy and scenario file.
 4. Move to `ORCHESTRATE`.
@@ -239,7 +239,7 @@ Suggested flow:
 6. Move to `PIPELINE`.
 7. Show that the run is now replayable as a tracked step.
 8. Move to `ANALYSIS`.
-9. Open `view_uav_queue_analysis`.
+9. Open `view_uav_relay_queue_analysis`.
 10. End on queue buildup, drops, or route usage.
 
 Narration:
@@ -261,7 +261,7 @@ Suggested timeline:
    Open the AGILAB home screen and state the goal:
    `turn a queueing experiment into a reproducible workflow.`
 2. `0:20 -> 0:55`
-   Go to `PROJECT`, select `src/agilab/apps/builtin/uav_queue_project`
+   Go to `PROJECT`, select `src/agilab/apps/builtin/uav_relay_queue_project`
    (`UAV Relay Queue`), and show the scenario file plus the routing policy
    selector.
 3. `0:55 -> 1:35`
@@ -272,7 +272,7 @@ Suggested timeline:
    Move to `PIPELINE`, show the generated or replayable step, and explain that
    the experiment is now explicit instead of being buried in one-off scripts.
 5. `2:00 -> 2:40`
-   Move to `ANALYSIS`, open `view_uav_queue_analysis`, and show queue
+   Move to `ANALYSIS`, open `view_uav_relay_queue_analysis`, and show queue
    timeseries, drops, and routing summary.
 6. `2:40 -> 3:00`
    Optionally open `view_maps_network` or end on the queue page, then close on:
@@ -290,14 +290,14 @@ Suggested click path:
 
 1. Home page
 2. `PROJECT`
-3. app selector -> `uav_queue_project` (`UAV Relay Queue`)
+3. app selector -> `uav_relay_queue_project` (`UAV Relay Queue`)
 4. short pause on scenario and routing policy
 5. `ORCHESTRATE`
 6. short pause on run controls
 7. `PIPELINE`
 8. short pause on the explicit step
 9. `ANALYSIS`
-10. `view_uav_queue_analysis`
+10. `view_uav_relay_queue_analysis`
 11. optional final pause on `view_maps_network`
 
 ## Slideshow structure
@@ -315,10 +315,10 @@ If you want a static slideshow instead of a video, use this sequence:
 
 The slideshow should tell the same story as the video, not introduce extra claims.
 
-For the `UAV Relay Queue` video (`uav_queue_project` install id), reuse the same
+For the `UAV Relay Queue` video (`uav_relay_queue_project` install id), reuse the same
 opening AGILAB figure, but end the static sequence on screenshots from:
 
-- `view_uav_queue_analysis`
+- `view_uav_relay_queue_analysis`
 - optionally `view_maps_network`
 
 ## Recording and visual rules
