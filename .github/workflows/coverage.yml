@@ -286,7 +286,12 @@ jobs:
             test/test_pipeline_views.py \
             test/test_ui_pages.py \
             test/test_apps_pages_launcher.py \
+            test/test_view_forecast_analysis.py \
+            test/test_view_maps.py \
+            test/test_view_maps_3d.py \
             test/test_view_maps_network.py \
+            test/test_view_maps_network_edge_selection.py \
+            test/test_view_uav_queue_analysis.py \
             test/test_app_args.py \
             test/test_streamlit_args.py \
             test/test_pagelib.py
