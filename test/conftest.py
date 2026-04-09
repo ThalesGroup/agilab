@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+import sys
+from unittest.mock import patch
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
 
@@ -88,3 +91,50 @@ def preserve_real_user_state_for_root_tests(tmp_path):
     for src, backup in export_snapshots:
         src.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(backup, src)
+
+
+@pytest.fixture
+def create_temp_app_project(tmp_path):
+    """Create a minimal temporary AGILAB app project for page-level tests."""
+
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir(exist_ok=True)
+
+    def _create(
+        project_name: str,
+        package_name: str | None = None,
+        app_settings_text: str = "",
+        pyproject_name: str | None = None,
+    ) -> Path:
+        package_name_local = package_name or project_name.removesuffix("_project")
+        project_dir = apps_dir / project_name
+        (project_dir / "src" / package_name_local).mkdir(parents=True, exist_ok=True)
+        (project_dir / "pyproject.toml").write_text(
+            f"[project]\nname='{pyproject_name or project_name.replace('_', '-')}'\n",
+            encoding="utf-8",
+        )
+        (project_dir / "src" / "app_settings.toml").write_text(app_settings_text, encoding="utf-8")
+        (project_dir / "src" / package_name_local / "__init__.py").write_text("", encoding="utf-8")
+        return project_dir
+
+    return _create
+
+
+@pytest.fixture
+def run_page_app_test(monkeypatch, tmp_path):
+    """Run a Streamlit page AppTest with a temporary active app and isolated shares."""
+
+    def _run(page_path: str, project_dir: Path, export_root: Path | None = None, timeout: int = 20) -> AppTest:
+        resolved_export_root = export_root or (tmp_path / "export")
+        argv = [Path(page_path).name, "--active-app", str(project_dir)]
+        with patch.object(sys, "argv", argv):
+            monkeypatch.setenv("AGI_EXPORT_DIR", str(resolved_export_root))
+            monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+            monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+            monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+            monkeypatch.setenv("IS_SOURCE_ENV", "1")
+            app_test = AppTest.from_file(page_path, default_timeout=timeout)
+            app_test.run()
+        return app_test
+
+    return _run
