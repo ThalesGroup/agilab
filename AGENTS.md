@@ -51,6 +51,11 @@ Use this runbook whenever you:
   the codebase, especially in sibling apps, mirrored forms, shared helpers, or duplicated logic.
   If it does, either fix the related instances in the same change or clearly document why they are
   being left out.
+- **User-facing rename sweep**: When changing a visible app/page/demo name, title, or major label,
+  update the paired tests, README/docs text, and capture scripts in the same change. Grep for both
+  the old and new wording before closing the task. When a page title is asserted by tests, prefer a
+  small side-effect-free metadata module (for example `page_meta.py`) so the page and tests do not
+  drift on duplicated strings.
 - **Deterministic filesystem behavior**: Never rely on implicit filesystem iteration order
   (`glob`, `rglob`, `iterdir`, `os.scandir`) in runtime code or tests. If order matters to users,
   sort in the implementation. If order is not part of the contract, assert on sorted values or sets

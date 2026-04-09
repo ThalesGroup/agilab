@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -31,6 +32,18 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 from agi_env.pagelib import render_logo
+
+try:
+    from .page_meta import PAGE_LOGO, PAGE_TITLE
+except ImportError:  # pragma: no cover - direct file execution fallback
+    _meta_path = Path(__file__).with_name("page_meta.py")
+    _meta_spec = importlib.util.spec_from_file_location("view_uav_queue_analysis_page_meta", _meta_path)
+    if _meta_spec is None or _meta_spec.loader is None:  # pragma: no cover - defensive fallback
+        raise RuntimeError(f"Unable to load page metadata from {_meta_path}")
+    _meta_module = importlib.util.module_from_spec(_meta_spec)
+    _meta_spec.loader.exec_module(_meta_module)
+    PAGE_LOGO = _meta_module.PAGE_LOGO
+    PAGE_TITLE = _meta_module.PAGE_TITLE
 
 
 def _resolve_active_app() -> Path:
@@ -81,8 +94,8 @@ if "env" not in st.session_state:
 else:
     env = st.session_state["env"]
 
-render_logo("UAV Relay Queue Analysis")
-st.title("UAV relay queue analysis")
+render_logo(PAGE_LOGO)
+st.title(PAGE_TITLE)
 st.caption(
     "Use exported relay-queue telemetry to compare routing policies, queue hotspots, and delivery outcomes "
     "without reopening the simulator code."
