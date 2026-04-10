@@ -14,7 +14,7 @@ async def main():
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
     res = await AGI.run(
         app_env,
-        mode=13,
+        mode=13,  # cluster + pool + rapids
         scheduler="127.0.0.1",
         workers={"127.0.0.1": 1},
         data_in="mycode/dataset",

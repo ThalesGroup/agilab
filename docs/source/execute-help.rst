@@ -72,6 +72,87 @@ Main Content Area
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
 
+Execution Mode Values
+---------------------
+
+The generated snippets use two closely related parameters that come from
+``System settings``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 18 64
+
+   * - Parameter
+     - Used by
+     - Meaning
+   * - ``modes_enabled``
+     - ``AGI.install(...)``
+     - Bitmask of the execution capabilities that the install step should
+       prepare on the target machines.
+   * - ``mode``
+     - ``AGI.run(...)``
+     - One concrete execution mode selected for this run, built from the same
+       bitmask scheme.
+
+AGILAB currently builds these values from the execution toggles as follows:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 14 64
+
+   * - Toggle
+     - Bit value
+     - Meaning
+   * - ``pool``
+     - ``1``
+     - Enable the multiprocessing / worker-pool execution path when the app
+       provides it.
+   * - ``cython``
+     - ``2``
+     - Enable the compiled worker path when the worker has a Cython build.
+   * - ``cluster_enabled``
+     - ``4``
+     - Run through the Dask scheduler / distributed worker path instead of a
+       local-only run.
+   * - ``rapids``
+     - ``8``
+     - Enable the RAPIDS / GPU execution path when the target environment
+       supports it.
+
+Common examples:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 18 66
+
+   * - Value
+     - Expression
+     - Typical reading
+   * - ``0``
+     - none
+     - Plain local Python execution.
+   * - ``1``
+     - ``pool``
+     - Local multiprocessing path.
+   * - ``4``
+     - ``cluster``
+     - Distributed run without extra pool / Cython / RAPIDS flags.
+   * - ``13``
+     - ``cluster + pool + rapids``
+     - Distributed pool-based run with RAPIDS enabled.
+   * - ``15``
+     - ``cluster + pool + cython + rapids``
+     - All currently enabled execution flags.
+
+This is why a generated ``AGI.install(...)`` snippet may show
+``modes_enabled=13`` and the matching ``AGI.run(...)`` snippet may show
+``mode=13``: they both reflect the same toggle combination, but one prepares
+the runtime capabilities and the other selects the concrete run mode.
+
+In normal usage, you do not type these integers manually. You set the toggles
+in ``System settings`` and AGILAB generates the matching numeric value for the
+snippet.
+
 Distributed Workflow
 --------------------
 
