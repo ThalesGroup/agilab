@@ -41,8 +41,12 @@ Use this skill when creating or editing standalone SVG assets in the repo.
   prose or simplify the card copy.
 - Treat top banners and bottom takeaway bars as high-risk blocks. Give them more
   height and padding than ordinary cards.
+- Treat cards that mix a title, code pills, and body copy as high-risk too. Reserve
+  explicit vertical zones for each layer instead of hand-placing them ad hoc.
 - Put annotation labels in dedicated whitespace lanes. Do not let them graze the
   edge of a content card or sit in a text corridor.
+- If an annotation label lives between an upper card and a lower band, rebalance that
+  whole corridor together instead of squeezing the label into leftover space.
 - If a figure still shows overflow after one cleanup pass, stop making tiny local
   nudges. Rebalance the whole lane or enlarge the canvas.
 - Only reduce a block size when the reduced geometry still preserves the text
@@ -67,6 +71,7 @@ Before finishing, verify each box has:
 - no lines touching arrows, icons, or dividers
 - no pills or badges colliding with body text
 - no annotation label overlapping the box or its connector
+- enough gutter between stacked title, pill, and body zones inside mixed-content cards
 
 ## Rebalance trigger
 
@@ -94,6 +99,8 @@ For GitHub-facing or article-facing SVGs:
 - if either renderer shows crowding, shorten the copy before trying typography tricks
 - after reducing or moving a block, re-render the edited figure and re-check the
   neighboring blocks, not only the block you touched
+- if the user has already reported the same figure twice, inspect the rendered image
+  before replying; do not trust geometry alone
 
 ## Minimal pattern
 

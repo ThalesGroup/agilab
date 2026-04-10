@@ -221,8 +221,12 @@ Browser-safe rule:
   (`rsvg-convert` plus Quick Look or browser-adjacent rendering)
 - treat full-width top banners and bottom takeaway bars as high-risk blocks and
   give them more vertical slack than ordinary cards
+- treat title-plus-pill-plus-body cards as high-risk stacks too; reserve explicit
+  zones for each layer before adjusting copy
 - keep annotation labels such as `visible error line` in whitespace lanes rather
   than touching the explanatory cards
+- if an annotation label sits between a right-side explainer card and a lower panel,
+  rebalance that whole corridor rather than nudging only the label or only the arrow
 - if a figure still crowds after one cleanup pass, stop doing local nudges and
   rebalance the whole figure region or split the figure
 
@@ -252,5 +256,7 @@ If a diagram is needed, also use `svg-diagrams`.
 - If the article depends on `uv` or similar tooling details, it should briefly explain them for non-specialists.
 - If a figure is revised to reduce one block, the sibling blocks and callout bars
   should be rechecked so the fix does not simply move the crowding elsewhere.
+- If a figure has already triggered repeated readability complaints, a rendered-image
+  inspection should happen before saying the SVG is fixed.
 - If the evidence does not support a comparative claim, downgrade the claim.
 - Prefer one sharp lesson over a broad but weak taxonomy.

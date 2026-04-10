@@ -50,12 +50,18 @@ publication draft.
 - Use browser-safe fonts and leave enough gutter around arrows and pills.
 - If text starts crowding the boxes, shorten the wording before shrinking type.
 - Give full-width top banners and bottom takeaway bars extra height and padding.
+- Give mixed title-plus-pill-plus-body cards explicit internal zones instead of
+  stacking elements by hand.
 - Keep labels like `visible error line` in a dedicated whitespace lane, not on
   top of a content card.
+- If such a label sits between an upper explainer card and a lower panel, rebalance
+  that full corridor rather than moving only the label or only the arrow.
 - If a second cleanup pass is needed, rebalance the full figure instead of
   stacking more small nudges.
 - After shrinking or moving one block, rerender and recheck the neighboring
   blocks so the crowding does not just move elsewhere.
+- If the same figure has drawn repeated complaints, inspect a rendered image before
+  declaring it fixed.
 
 ## Ending
 
