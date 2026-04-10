@@ -14,9 +14,14 @@ Use this skill when creating or editing standalone SVG assets in the repo.
 
 1. Start from a fixed `viewBox` and explicit box geometry.
 2. Treat every text block as width-constrained even though plain SVG does not enforce it.
-3. Wrap text manually with `<tspan>` lines before considering the SVG done.
-4. Re-read the final SVG and check every box for text overflow, clipping, and crowding.
-5. If the SVG is meant for docs, GitHub, or article publication, validate it in
+3. Classify blocks before tuning them:
+   - full-width banner or input layer
+   - lane card
+   - annotation label
+   - bottom takeaway or callout bar
+4. Wrap text manually with `<tspan>` lines before considering the SVG done.
+5. Re-read the final SVG and check every box for text overflow, clipping, and crowding.
+6. If the SVG is meant for docs, GitHub, or article publication, validate it in
    at least two renderers before closing the task.
 
 ## Hard rules
@@ -34,6 +39,14 @@ Use this skill when creating or editing standalone SVG assets in the repo.
 - Keep arrows out of text blocks; route them through gutters and whitespace.
 - Use code pills sparingly. If pills begin to crowd the card, move the detail to
   prose or simplify the card copy.
+- Treat top banners and bottom takeaway bars as high-risk blocks. Give them more
+  height and padding than ordinary cards.
+- Put annotation labels in dedicated whitespace lanes. Do not let them graze the
+  edge of a content card or sit in a text corridor.
+- If a figure still shows overflow after one cleanup pass, stop making tiny local
+  nudges. Rebalance the whole lane or enlarge the canvas.
+- Only reduce a block size when the reduced geometry still preserves the text
+  corridor and the surrounding gutter.
 
 ## Practical wrapping heuristics
 
@@ -53,6 +66,23 @@ Before finishing, verify each box has:
 - consistent line spacing
 - no lines touching arrows, icons, or dividers
 - no pills or badges colliding with body text
+- no annotation label overlapping the box or its connector
+
+## Rebalance trigger
+
+Switch from micro-tuning to a structural pass when any of these is true:
+
+- the same block still crowds after one fix
+- a top banner or bottom callout is close to the line-height limit
+- an arrow or annotation reroute steals space from a neighboring text block
+- shrinking one box causes a sibling block to crowd again
+
+Structural pass options:
+
+- increase canvas height
+- widen the lane and shorten the copy
+- move labels into a dedicated annotation lane
+- split one dense figure into two simpler figures
 
 ## Publication check
 
@@ -62,6 +92,8 @@ For GitHub-facing or article-facing SVGs:
 - render once with `rsvg-convert`
 - render once with Quick Look or another browser-adjacent renderer
 - if either renderer shows crowding, shorten the copy before trying typography tricks
+- after reducing or moving a block, re-render the edited figure and re-check the
+  neighboring blocks, not only the block you touched
 
 ## Minimal pattern
 

@@ -219,6 +219,12 @@ Browser-safe rule:
 - route arrows through gutters, not through text corridors or card interiors
 - validate SVG readability with at least two renderers when possible
   (`rsvg-convert` plus Quick Look or browser-adjacent rendering)
+- treat full-width top banners and bottom takeaway bars as high-risk blocks and
+  give them more vertical slack than ordinary cards
+- keep annotation labels such as `visible error line` in whitespace lanes rather
+  than touching the explanatory cards
+- if a figure still crowds after one cleanup pass, stop doing local nudges and
+  rebalance the whole figure region or split the figure
 
 If a diagram is needed, also use `svg-diagrams`.
 
@@ -244,5 +250,7 @@ If a diagram is needed, also use `svg-diagrams`.
 - The article should show the concrete wrong fix, not only describe it abstractly.
 - The article should include at least one high-signal figure when readability would benefit.
 - If the article depends on `uv` or similar tooling details, it should briefly explain them for non-specialists.
+- If a figure is revised to reduce one block, the sibling blocks and callout bars
+  should be rechecked so the fix does not simply move the crowding elsewhere.
 - If the evidence does not support a comparative claim, downgrade the claim.
 - Prefer one sharp lesson over a broad but weak taxonomy.
