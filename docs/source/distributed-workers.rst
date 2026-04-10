@@ -156,6 +156,13 @@ Equivalent Generated Snippets
 
 If you want the simplest mental model first, start with a local-only run:
 
+.. figure:: diagrams/same_api_local_vs_distributed.svg
+   :alt: Compact comparison showing that local and distributed AGI.run snippets share the same API shape.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   Read distributed snippets as the same ``AGI.run(...)`` call with a few extra cluster fields.
+
 .. code-block:: python
 
    import asyncio
