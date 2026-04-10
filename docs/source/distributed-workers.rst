@@ -151,8 +151,32 @@ Use this short checklist the first time:
 5. In **PIPELINE**, open **Add step** or **New step**, then import or regenerate
    that generated run step instead of rewriting it manually.
 
-Equivalent Generated Snippet
-----------------------------
+Equivalent Generated Snippets
+-----------------------------
+
+If you want the simplest mental model first, start with a local-only run:
+
+.. code-block:: python
+
+   import asyncio
+
+   from agi_cluster.agi_distributor import AGI
+   from agi_env import AgiEnv
+
+   async def main():
+       app_env = AgiEnv(app="mycode_project", verbose=1)
+       result = await AGI.run(
+           app_env,
+           mode=0,  # plain local Python execution
+       )
+       print(result)
+
+   asyncio.run(main())
+
+That is the same API, but without scheduler, workers, or distributed flags.
+
+Once that mental model is clear, the distributed variant is the same call with
+the cluster fields filled in:
 
 ORCHESTRATE emits a snippet equivalent to the current UI configuration. A
 distributed ``AGI.run(...)`` snippet typically looks like this:
@@ -167,14 +191,14 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
    async def main():
        app_env = AgiEnv(app="mycode_project", verbose=1)
        workers = {
-           "192.168.1.21": 1,
-           "192.168.1.22": 1,
+           "192.168.1.21": 1,  # one worker slot on host 1
+           "192.168.1.22": 1,  # one worker slot on host 2
        }
        result = await AGI.run(
            app_env,
            scheduler="192.168.1.10",
            workers=workers,
-           mode=4,
+           mode=4,  # distributed cluster execution, no pool/cython/rapids extras
        )
        print(result)
 

@@ -91,7 +91,17 @@ Equivalent example for ``flight``:
 Run
 ^^^
 
-Run the installed project locally or through the configured cluster target:
+Start with the simplest mental model first:
+
+.. code-block:: python
+
+   res = await AGI.run(
+       app_env,
+       mode=0,  # plain local Python execution
+   )
+
+Then move to the generated examples that add install-time capabilities,
+distributed hosts, and app-specific arguments:
 
 .. literalinclude:: examples/mycode/AGI.run-mycode.py
    :language: python
