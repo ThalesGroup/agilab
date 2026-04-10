@@ -91,14 +91,25 @@ plane for each stage.
 
 ## Quick start
 
-### Try the published package
+If you are new to AGILab, keep the first run local and use a built-in app. Pick
+one onboarding path first and stay on it until you get one successful run:
+
+- Use the published package if you want to evaluate AGILab quickly.
+- Use the source checkout with the web UI if you want the full AGILAB workflow.
+- Use the source checkout with a notebook if you want to stay code-first and
+  learn `agi-core` before the UI.
+
+### Evaluate the published package
 
 ```bash
-pip install agilab
-agilab --help
+mkdir ~/agi-workspace && cd ~/agi-workspace
+uv venv
+source .venv/bin/activate
+uv pip install agilab
+uv run agilab
 ```
 
-### Run from source
+### Work from source
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
@@ -107,8 +118,26 @@ cd agilab
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
 
+### Stay in a notebook with `agi-core`
+
+```bash
+git clone https://github.com/ThalesGroup/agilab.git
+cd agilab
+./install.sh --install-apps --test-apps
+uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
+```
+
 The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, link
 bundled applications into the workspace, and validate the setup with tests and coverage-aware tooling.
+
+For a first pass through the product:
+
+- Start with `src/agilab/apps/builtin/mycode_project` or `src/agilab/apps/builtin/flight_project`.
+- Do one successful local run before touching SSH hosts, cluster settings, or private app repositories.
+- Treat `~/log/execute/<app>/` as the "it worked" checkpoint: AGILab writes generated snippets, logs, and run history there.
+- If you prefer to stay in a notebook at the beginning, use
+  `examples/notebook_quickstart/agi_core_first_run.ipynb` and the public guide at
+  `https://thalesgroup.github.io/agilab/notebook-quickstart.html`.
 
 See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes and end-user
 deployment instructions.

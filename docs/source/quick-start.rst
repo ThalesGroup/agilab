@@ -6,6 +6,14 @@ walks you through the minimal steps required to install the framework, open the
 web interface, and run one of the sample apps. For architectural context see
 :doc:`architecture` and :doc:`agi-core-architecture`.
 
+If you are evaluating AGILab for the first time, read :doc:`newcomer-guide`
+first. This page is the shortest install/run path once you know whether you
+want the published package or a source checkout.
+
+If you want the thinnest code-first path without the web UI, see
+:doc:`notebook-quickstart`. That is a supported newcomer path if you prefer to
+stay in a notebook.
+
 Prerequisites
 -------------
 
