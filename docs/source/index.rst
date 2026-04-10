@@ -11,7 +11,9 @@ example projects.
    :caption: Getting Started
 
    introduction
+   newcomer-guide
    quick-start
+   notebook-quickstart
    features
 
 .. toctree::
