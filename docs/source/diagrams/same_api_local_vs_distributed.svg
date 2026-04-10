@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="320" viewBox="0 0 1040 320" role="img" aria-labelledby="title desc">
+  <title id="title">Same AGI.run API from local to distributed</title>
+  <desc id="desc">A compact comparison showing that a local AGI.run call and a distributed AGI.run call use the same API shape, with scheduler and workers added for distributed execution.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .frame { fill: #ffffff; stroke: #d8dfeb; stroke-width: 2; }
+      .title { font: 700 24px Arial, Helvetica, sans-serif; fill: #17324f; }
+      .subtitle { font: 400 14px Arial, Helvetica, sans-serif; fill: #51677b; }
+      .card-title { font: 700 18px Arial, Helvetica, sans-serif; fill: #17324f; }
+      .card-note { font: 400 13px Arial, Helvetica, sans-serif; fill: #5c7289; }
+      .code { font: 400 16px 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; fill: #14324d; }
+      .chip { font: 700 14px Arial, Helvetica, sans-serif; fill: #1f5277; }
+      .bottom-note { font: 400 14px Arial, Helvetica, sans-serif; fill: #6a5531; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#2f6fa3"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1040" height="320" rx="24"/>
+  <text class="title" x="48" y="46">One API, then more fields when you distribute</text>
+  <text class="subtitle" x="48" y="72">Start with the local mental model first. The distributed variant keeps the same AGI.run(...) shape and adds cluster-specific fields.</text>
+
+  <rect class="frame" x="48" y="100" width="364" height="164" rx="22"/>
+  <text class="card-title" x="230" y="128" text-anchor="middle">Local run</text>
+  <text class="card-note" x="230" y="148" text-anchor="middle">No scheduler, no worker map</text>
+  <rect x="78" y="162" width="304" height="78" rx="16" fill="#eef5fb" stroke="#c5d8eb" stroke-width="2"/>
+  <text class="code" x="102" y="188">
+    <tspan x="102" dy="0">AGI.run(</tspan>
+    <tspan x="102" dy="20">    app_env,</tspan>
+    <tspan x="102" dy="20">    mode=0,</tspan>
+    <tspan x="102" dy="20">)</tspan>
+  </text>
+
+  <rect class="frame" x="628" y="100" width="364" height="164" rx="22"/>
+  <text class="card-title" x="810" y="128" text-anchor="middle">Distributed run</text>
+  <text class="card-note" x="810" y="148" text-anchor="middle">Same API, plus cluster fields</text>
+  <rect x="658" y="162" width="304" height="78" rx="16" fill="#efe8d9" stroke="#dbc296" stroke-width="2"/>
+  <text class="code" x="680" y="188">
+    <tspan x="680" dy="0">AGI.run(</tspan>
+    <tspan x="680" dy="20">    app_env,</tspan>
+    <tspan x="680" dy="20">    scheduler="192.168.1.10",</tspan>
+    <tspan x="680" dy="20">    workers={...}, mode=4,</tspan>
+    <tspan x="680" dy="20">)</tspan>
+  </text>
+
+  <path d="M428 184 H612" fill="none" stroke="#2f6fa3" stroke-width="5" marker-end="url(#arrow)"/>
+  <rect x="455" y="146" width="130" height="30" rx="15" fill="#d8ebf9" stroke="#2f6fa3" stroke-width="2"/>
+  <text class="chip" x="520" y="166" text-anchor="middle">same AGI.run API</text>
+  <text class="card-note" x="520" y="204" text-anchor="middle">add scheduler + workers</text>
+  <text class="card-note" x="520" y="222" text-anchor="middle">then choose a distributed mode</text>
+
+  <rect x="48" y="278" width="944" height="22" rx="11" fill="#fff0c7" stroke="#d6a93d" stroke-width="2"/>
+  <text class="bottom-note" x="66" y="293">Friendly rule: first understand mode 0 locally, then read distributed snippets as the same call with extra cluster fields.</text>
+</svg>
