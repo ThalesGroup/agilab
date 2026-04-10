@@ -153,6 +153,46 @@ In normal usage, you do not type these integers manually. You set the toggles
 in ``System settings`` and AGILAB generates the matching numeric value for the
 snippet.
 
+From UI to Snippet Fields
+-------------------------
+
+If you are reading a generated snippet and want to know where each value came
+from in the UI, use this mapping:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 24 52
+
+   * - UI field or toggle
+     - Generated snippet field
+     - Notes
+   * - ``Verbosity level``
+     - ``verbose=...``
+     - Copied directly into ``AgiEnv(..., verbose=...)``.
+   * - ``Enable Cluster``
+     - contributes ``+4`` to ``mode`` / ``modes_enabled``
+     - Also enables the scheduler / workers fields in the generated snippet.
+   * - ``Scheduler host``
+     - ``scheduler="..."``
+     - Host running the Dask scheduler in distributed mode.
+   * - ``Worker map``
+     - ``workers={...}``
+     - Maps each host to a worker-slot count. For example,
+       ``{"192.168.1.21": 1, "192.168.1.22": 2}`` means one worker slot on
+       the first host and two on the second.
+   * - ``Pool``
+     - contributes ``+1`` to ``mode`` / ``modes_enabled``
+     - Enables the multiprocessing / worker-pool path when the app supports it.
+   * - ``Cython``
+     - contributes ``+2`` to ``mode`` / ``modes_enabled``
+     - Enables the compiled worker path when a Cython build exists.
+   * - ``RAPIDS``
+     - contributes ``+8`` to ``mode`` / ``modes_enabled``
+     - Enables the RAPIDS / GPU path when the target environment supports it.
+   * - ``<module> args``
+     - app-specific kwargs such as ``data_in=...``, ``data_out=...``, ``files=...``
+     - Comes from the generated form or custom ``app_args_form.py`` UI.
+
 Distributed Workflow
 --------------------
 
