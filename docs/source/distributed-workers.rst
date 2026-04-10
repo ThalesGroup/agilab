@@ -87,6 +87,56 @@ Use the generated sections in this order:
 Treat these snippets as generated operational artifacts, not as examples you
 must manually reconstruct first.
 
+Reading ``mode`` and ``modes_enabled``
+--------------------------------------
+
+The generated install and run snippets usually contain one of these fields:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 18 64
+
+   * - Field
+     - Typical snippet
+     - Meaning
+   * - ``modes_enabled``
+     - ``AGI.install(...)``
+     - Bitmask of the execution capabilities that should be staged during
+       install.
+   * - ``mode``
+     - ``AGI.run(...)``
+     - One concrete execution mode selected for the current run.
+
+Both use the same bit values derived from the ORCHESTRATE toggles:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 14 66
+
+   * - Toggle
+     - Bit value
+     - Meaning
+   * - ``pool``
+     - ``1``
+     - Multiprocessing / worker-pool execution path.
+   * - ``cython``
+     - ``2``
+     - Compiled worker path when a Cython build exists.
+   * - ``cluster_enabled``
+     - ``4``
+     - Distributed Dask scheduler / remote worker execution.
+   * - ``rapids``
+     - ``8``
+     - RAPIDS / GPU execution path when supported by the target workers.
+
+So a value such as ``13`` means ``4 + 8 + 1``:
+distributed cluster execution, with ``rapids`` and ``pool`` enabled. A value
+of ``15`` means all four flags are enabled.
+
+You normally do not enter these integers yourself. ORCHESTRATE computes them
+from the current cluster toggles and inserts the decoded value into the
+generated snippet.
+
 Quick UI Walkthrough
 --------------------
 

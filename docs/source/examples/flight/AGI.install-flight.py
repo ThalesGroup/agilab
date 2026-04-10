@@ -14,7 +14,7 @@ async def main():
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
     res = await AGI.install(
         app_env,
-        modes_enabled=15,
+        modes_enabled=15,  # cluster + pool + cython + rapids
         scheduler="127.0.0.1",
         workers={"127.0.0.1": 1},
     )
