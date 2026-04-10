@@ -2243,20 +2243,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             extra_paths = list(AgiEnv._pythonpath_entries)
         if venv_path and Path(sys.prefix).resolve() != venv_path.resolve():
-            tree_root = Path(sys.prefix).resolve()
-            filtered: list[str] = []
-            for entry in extra_paths:
-                if not entry:
-                    continue
-                try:
-                    resolved = Path(entry).resolve()
-                except Exception:
-                    filtered.append(entry)
-                    continue
-                if tree_root in resolved.parents or resolved == tree_root:
-                    continue
-                filtered.append(str(resolved))
-            extra_paths = filtered
+            # When launching into a different virtual environment, keep the
+            # subprocess isolated from the current source checkout. Reusing
+            # AGILAB's injected PYTHONPATH entries here leaks the manager
+            # process import graph into project or worker environments.
+            extra_paths = []
         proc_env.pop("PYTHONPATH", None)
         proc_env.pop("PYTHONHOME", None)
         if extra_paths:
