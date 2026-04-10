@@ -19,6 +19,9 @@ Use this skill when the user wants to:
 This skill is for postmortem and publication work around coding-agent behavior, not
 for fixing the bug itself.
 
+If the user wants to improve a live debugging session before the fix is found,
+use `agilab-session-fix-quality` instead.
+
 ## Core Rule
 
 Do not collapse the story into “the model is bad” or “the plan tier is better”
