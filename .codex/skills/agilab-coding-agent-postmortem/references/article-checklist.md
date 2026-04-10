@@ -19,6 +19,10 @@ publication draft.
 ## Middle
 
 - Add enough AGILAB context that a non-insider can follow the story.
+- If a tooling command is central to the incident, add a short explainer for it:
+  - what the command does
+  - where it sits in the workflow
+  - why seeing it in the error log does not automatically make it the root cause
 - Explain why the wrong fix looked reasonable at first.
 - Show the wrong fix concretely, ideally with a small diff.
 - Show the retained fix concretely, ideally with a small diff.
@@ -38,7 +42,13 @@ publication draft.
   - outcomes
 - Good second figure:
   - incident timeline
+- Good tooling explainer figure:
+  - the normal command flow
+  - the earlier leak point
+  - the rejected workaround branch
 - A figure should reduce reading effort, not add decoration.
+- Use browser-safe fonts and leave enough gutter around arrows and pills.
+- If text starts crowding the boxes, shorten the wording before shrinking type.
 
 ## Ending
 

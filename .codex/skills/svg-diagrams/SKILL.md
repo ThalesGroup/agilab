@@ -3,7 +3,7 @@ name: svg-diagrams
 description: Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when Codex must produce standalone SVG assets and text must stay inside boxes without overflow.
 metadata:
   short-description: Author robust SVG diagrams
-  updated: 2026-04-09
+  updated: 2026-04-10
 ---
 
 # SVG diagrams
@@ -16,6 +16,8 @@ Use this skill when creating or editing standalone SVG assets in the repo.
 2. Treat every text block as width-constrained even though plain SVG does not enforce it.
 3. Wrap text manually with `<tspan>` lines before considering the SVG done.
 4. Re-read the final SVG and check every box for text overflow, clipping, and crowding.
+5. If the SVG is meant for docs, GitHub, or article publication, validate it in
+   at least two renderers before closing the task.
 
 ## Hard rules
 
@@ -27,6 +29,11 @@ Use this skill when creating or editing standalone SVG assets in the repo.
 - Increase canvas height instead of compressing text vertically.
 - Do not rely on justification, auto-wrap, or renderer-specific behavior.
 - Avoid `foreignObject` unless the user explicitly wants HTML-in-SVG behavior.
+- Prefer browser-safe font stacks for publication-oriented figures:
+  `Arial, Helvetica, sans-serif` unless the user needs a different visual system.
+- Keep arrows out of text blocks; route them through gutters and whitespace.
+- Use code pills sparingly. If pills begin to crowd the card, move the detail to
+  prose or simplify the card copy.
 
 ## Practical wrapping heuristics
 
@@ -45,6 +52,16 @@ Before finishing, verify each box has:
 - enough vertical padding
 - consistent line spacing
 - no lines touching arrows, icons, or dividers
+- no pills or badges colliding with body text
+
+## Publication check
+
+For GitHub-facing or article-facing SVGs:
+
+- validate XML
+- render once with `rsvg-convert`
+- render once with Quick Look or another browser-adjacent renderer
+- if either renderer shows crowding, shorten the copy before trying typography tricks
 
 ## Minimal pattern
 

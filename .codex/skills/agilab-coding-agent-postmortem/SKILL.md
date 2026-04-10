@@ -133,6 +133,8 @@ For article writing:
    - what AGILAB is in one sentence
    - what the relevant workflow terms mean
    - what the two bug phases were
+   - what a central tool or command means when the article depends on it
+     (`uv`, `uv --project`, `uv pip install -e`, etc.)
 3. State the real agent/runtime metadata whenever the corpus supports it:
    - coding-agent runtime or CLI version
    - model version
@@ -153,6 +155,14 @@ section explaining:
 - what was truly held constant
 - what was not fully controlled
 - why the result is an engineering postmortem rather than a strict scientific benchmark
+
+If the article relies on Python packaging or install-tool details that a general
+reader may not know, add one short explainer section before the deep dive:
+
+- define the one or two commands that keep appearing in the logs
+- explain why the visible command is not automatically the owning layer
+- if relevant, contrast the retained command path with the rejected workaround
+  path
 
 ## Recommended Framing
 
@@ -199,6 +209,17 @@ Semantic rule:
   - `mechanism`
   - `owning layer`
 
+Browser-safe rule:
+
+- prefer browser-safe fonts (`Arial`, `Helvetica`, sans-serif`) for publication
+  figures unless there is a strong reason not to
+- do not pack boxed figure text with the same density you would accept in prose
+- if a figure starts relying on many code pills, shorten the copy or split the
+  explanation across prose plus figure instead
+- route arrows through gutters, not through text corridors or card interiors
+- validate SVG readability with at least two renderers when possible
+  (`rsvg-convert` plus Quick Look or browser-adjacent rendering)
+
 If a diagram is needed, also use `svg-diagrams`.
 
 ## AGILAB-Specific Guardrails
@@ -222,5 +243,6 @@ If a diagram is needed, also use `svg-diagrams`.
 - The article should mention the real coding-agent stack when the corpus supports it.
 - The article should show the concrete wrong fix, not only describe it abstractly.
 - The article should include at least one high-signal figure when readability would benefit.
+- If the article depends on `uv` or similar tooling details, it should briefly explain them for non-specialists.
 - If the evidence does not support a comparative claim, downgrade the claim.
 - Prefer one sharp lesson over a broad but weak taxonomy.
