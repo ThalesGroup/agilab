@@ -1209,6 +1209,11 @@ def test_build_env_strips_uv_run_recursion_depth(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
     monkeypatch.setenv("PYTHONPATH", "/tmp/demo")
     monkeypatch.setenv("PYTHONHOME", "/tmp/home")
+    foreign_source = tmp_path / "foreign-source"
+    foreign_source.mkdir()
+    fake_instance = object.__new__(AgiEnv)
+    fake_instance._pythonpath_entries = [str(foreign_source)]
+    monkeypatch.setattr(AgiEnv, "_instance", fake_instance, raising=False)
 
     env = AgiEnv._build_env(tmp_path)
 
