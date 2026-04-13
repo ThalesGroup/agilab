@@ -56,14 +56,14 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]], env: Optional[AgiEnv
         if not text:
             return ""
         candidate = Path(text).expanduser()
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return str(raw)
 
     env_obj = env or st.session_state.get("env")
     apps_root: Optional[Path] = None
     try:
         apps_root = Path(env_obj.apps_path).expanduser()  # type: ignore[attr-defined]
-    except Exception:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         apps_root = None
 
     if not candidate.is_absolute() and apps_root:
@@ -113,7 +113,7 @@ def step_project_name(entry: Optional[Dict[str, Any]], env: Optional[AgiEnv] = N
 
     try:
         candidate = Path(runtime).expanduser()
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         candidate = Path(str(runtime))
 
     name = candidate.name.strip()
@@ -203,7 +203,7 @@ def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int
     try:
         with steps_file.open("rb") as handle:
             data = tomllib.load(handle)
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError):
         return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
 
     scanned_steps = 0
@@ -255,13 +255,13 @@ def module_keys(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[
         if raw_path.is_absolute():
             try:
                 candidate = raw_path.resolve()
-            except Exception:
+            except (OSError, RuntimeError):
                 candidate = raw_path
         else:
             candidate = (base / raw_path).resolve()
         rel = str(candidate.relative_to(base))
         keys.append(rel)
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         pass
     keys.append(str(raw_path))
     ordered: List[str] = []
@@ -280,7 +280,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
     try:
         with steps_file.open("rb") as handle:
             data = tomllib.load(handle)
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError):
         return
 
     keys = module_keys(module, env=env)
@@ -289,7 +289,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
     module_path = Path(module)
     try:
         resolved_module = module_path.expanduser().resolve()
-    except Exception:
+    except (OSError, RuntimeError):
         resolved_module = module_path.expanduser()
 
     def _matches_module(candidate_key: str) -> bool:
@@ -297,13 +297,13 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
             return True
         try:
             key_path = Path(candidate_key).expanduser()
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             return False
         try:
             if key_path.is_absolute():
                 return key_path.resolve() == resolved_module
             return (base / key_path).resolve() == resolved_module
-        except Exception:
+        except (OSError, RuntimeError):
             return False
 
     candidates: List[Tuple[str, List[Dict[str, Any]]]] = []
@@ -330,7 +330,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
     try:
         with steps_file.open("wb") as handle:
             tomli_w.dump(_convert_paths_to_strings(data), handle)
-    except Exception:
+    except (OSError, TypeError, ValueError):
         logger.warning("Failed to normalize module keys for %s", steps_file)
 
 
@@ -383,7 +383,7 @@ def persist_sequence_preferences(
         steps_file.parent.mkdir(parents=True, exist_ok=True)
         with steps_file.open("wb") as handle:
             tomli_w.dump(_convert_paths_to_strings(data), handle)
-    except Exception as exc:
+    except (OSError, TypeError, ValueError) as exc:
         logger.error("Failed to persist execution sequence to %s: %s", steps_file, exc)
 
 
@@ -412,7 +412,7 @@ def looks_like_step(value: Any) -> bool:
     """Heuristic: True when value represents a non-negative integer step index."""
     try:
         return int(value) >= 0
-    except Exception:
+    except (TypeError, ValueError):
         return False
 
 
@@ -434,7 +434,7 @@ def _normalize_venv_root(candidate: Path) -> Optional[Path]:
     """Return the resolved virtual environment directory when present."""
     try:
         path = candidate.expanduser()
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         path = candidate
     if not path.exists() or not path.is_dir():
         return None
@@ -442,7 +442,7 @@ def _normalize_venv_root(candidate: Path) -> Optional[Path]:
     if cfg.exists():
         try:
             return path.resolve()
-        except Exception:
+        except (OSError, RuntimeError):
             return path
     return None
 
