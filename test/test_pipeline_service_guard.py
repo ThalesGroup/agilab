@@ -133,3 +133,18 @@ def test_pipeline_lock_rejects_parallel_and_recycles_stale(tmp_path, monkeypatch
 
     module._release_pipeline_run_lock(recycled, "idx")
     assert not Path(recycled["path"]).exists()
+
+
+def test_pipeline_lock_ttl_seconds_falls_back_on_invalid_env(monkeypatch):
+    module = _load_pipeline_module()
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "not-a-number")
+
+    assert module._pipeline_lock_ttl_seconds() == module.PIPELINE_LOCK_DEFAULT_TTL_SEC
+
+
+def test_read_pipeline_lock_payload_returns_empty_dict_on_invalid_json(tmp_path):
+    module = _load_pipeline_module()
+    bad_lock = tmp_path / "pipeline_run.lock"
+    bad_lock.write_text("{broken", encoding="utf-8")
+
+    assert module._read_pipeline_lock_payload(bad_lock) == {}
