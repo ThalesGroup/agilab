@@ -18,7 +18,7 @@
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls)
 [![Codex skills](https://img.shields.io/badge/Codex-15%20skills-00A67E)](tools/codex_workflow.md)
 [![Coverage workflow](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml)
-[![agilab](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
+[![coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![agi-gui](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-gui.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-gui)
 [![agi-env](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-env.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-env)
 [![agi-node](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-node.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-node)
