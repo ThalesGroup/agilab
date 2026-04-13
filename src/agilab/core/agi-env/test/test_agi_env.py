@@ -670,20 +670,6 @@ def test_run_unexpected_exception_logs_traceback(tmp_path: Path, monkeypatch):
         asyncio.run(AgiEnv.run(cmd, tmp_path))
 
 
-def test_parse_level_recognizes_common_patterns():
-    assert agi_env_module.parse_level("12:34:56 INFO booting", logging.WARNING) == logging.INFO
-    assert agi_env_module.parse_level("level=error details", logging.INFO) == logging.ERROR
-    assert agi_env_module.parse_level("level=debug details", logging.INFO) == logging.DEBUG
-    assert agi_env_module.parse_level("plain text", logging.WARNING) == logging.WARNING
-
-
-def test_strip_time_level_prefix_and_packaging_detection():
-    assert agi_env_module.strip_time_level_prefix("12:34:56 INFO started") == "started"
-    assert agi_env_module.strip_time_level_prefix("12:34:56,123 WARNING: be careful") == "be careful"
-    assert agi_env_module.is_packaging_cmd("uv pip install agilab") is True
-    assert agi_env_module.is_packaging_cmd("python -m pytest") is False
-
-
 def test_ensure_dir_logs_only_on_first_creation(tmp_path: Path, monkeypatch):
     target = tmp_path / "new-dir"
     mock_logger = mock.Mock()
@@ -824,38 +810,7 @@ def test_resolve_worker_hook_prefers_installed_spec_location_and_resource_cache(
     assert resolved.read_text(encoding="utf-8") == "print('resource')\n"
 
 
-def test_normalize_path_and_windows_drive_fix(monkeypatch):
-    assert agi_env_module.normalize_path("relative/path") == "relative/path"
-    assert agi_env_module.normalize_path("") == "."
-
-    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
-    assert agi_env_module._fix_windows_drive(r"C:Users\\agi") == r"C:\Users\\agi"
-    assert agi_env_module._fix_windows_drive(r"C:\\Users\\agi") == r"C:\\Users\\agi"
-
-
-def test_fix_windows_drive_handles_regex_failure(monkeypatch):
-    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
-    fake_re = SimpleNamespace(match=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
-    monkeypatch.setitem(sys.modules, "re", fake_re)
-
-    assert agi_env_module._fix_windows_drive(r"C:Users\\agi") == r"C:Users\\agi"
-
-
-def test_normalize_path_windows_resolve_fallback_and_worker_hook_none(monkeypatch, tmp_path):
-    original_os_name = os.name
-    original_resolve = Path.resolve
-    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
-
-    def _patched_resolve(self, *args, **kwargs):
-        if self == Path("demo"):
-            raise RuntimeError("boom")
-        return original_resolve(self, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
-    assert agi_env_module.normalize_path("demo").endswith("demo")
-    monkeypatch.setattr(agi_env_module.os, "name", original_os_name, raising=False)
-    monkeypatch.setattr(Path, "resolve", original_resolve, raising=False)
-
+def test_worker_hook_none_when_resource_missing(monkeypatch, tmp_path):
     agi_env_module._resolve_worker_hook.cache_clear()
     monkeypatch.setattr(
         agi_env_module,
@@ -2192,58 +2147,6 @@ def test_run_bg_shell_fallback_handles_blank_lines_and_simple_callback(tmp_path:
     assert streamed == ["stderr line"]
 
 
-def test_build_env_strips_uv_run_recursion_depth(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
-    monkeypatch.setenv("PYTHONPATH", "/tmp/demo")
-    monkeypatch.setenv("PYTHONHOME", "/tmp/home")
-    foreign_source = tmp_path / "foreign-source"
-    foreign_source.mkdir()
-    fake_instance = object.__new__(AgiEnv)
-    fake_instance._pythonpath_entries = [str(foreign_source)]
-    monkeypatch.setattr(AgiEnv, "_instance", fake_instance, raising=False)
-
-    env = AgiEnv._build_env(tmp_path)
-
-    assert env.get("VIRTUAL_ENV") == str(tmp_path / ".venv")
-    assert "UV_RUN_RECURSION_DEPTH" not in env
-    assert "PYTHONPATH" not in env
-    assert "PYTHONHOME" not in env
-
-
-def test_build_env_uses_class_pythonpath_entries_without_venv(monkeypatch, tmp_path: Path):
-    class_entries = [str(tmp_path / "alpha"), str(tmp_path / "beta")]
-    monkeypatch.setattr(AgiEnv, "_instance", None, raising=False)
-    monkeypatch.setattr(AgiEnv, "_pythonpath_entries", class_entries, raising=False)
-    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "3")
-    monkeypatch.setenv("PYTHONPATH", "/tmp/ignored")
-    monkeypatch.setenv("PYTHONHOME", "/tmp/home")
-    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
-
-    env = AgiEnv._build_env()
-
-    assert "VIRTUAL_ENV" not in env
-    assert env["PYTHONPATH"] == os.pathsep.join(class_entries)
-    assert "PYTHONHOME" not in env
-    assert "UV_RUN_RECURSION_DEPTH" not in env
-
-
-def test_build_env_keeps_instance_pythonpath_entries_for_current_venv(monkeypatch, tmp_path: Path):
-    current_venv = Path(sys.prefix).resolve()
-    instance_entries = [str(tmp_path / "src-one"), str(tmp_path / "src-two")]
-    fake_instance = object.__new__(AgiEnv)
-    fake_instance._pythonpath_entries = instance_entries
-    monkeypatch.setattr(AgiEnv, "_instance", fake_instance, raising=False)
-    monkeypatch.setenv("PYTHONPATH", "/tmp/ignored")
-    monkeypatch.setenv("PYTHONHOME", "/tmp/home")
-
-    env = AgiEnv._build_env(current_venv)
-
-    assert env["VIRTUAL_ENV"] == str(current_venv)
-    assert env["PATH"].split(os.pathsep)[0] == str(current_venv / "bin")
-    assert env["PYTHONPATH"] == os.pathsep.join(instance_entries)
-    assert "PYTHONHOME" not in env
-
-
 def test_log_info_uses_logger_when_available(monkeypatch):
     fake_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", fake_logger)
@@ -2261,25 +2164,45 @@ def test_log_info_prints_when_logger_missing(monkeypatch, capsys):
     assert capsys.readouterr().out.strip() == "hello"
 
 
-def test_last_non_empty_output_line_skips_blank_entries():
-    lines = [None, "   ", "\n", " useful detail  "]
+def test_build_env_delegates_instance_pythonpath_entries(monkeypatch, tmp_path: Path):
+    captured = {}
+    fake_instance = object.__new__(AgiEnv)
+    fake_instance._pythonpath_entries = [str(tmp_path / "instance-src")]
+    monkeypatch.setattr(AgiEnv, "_instance", fake_instance, raising=False)
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "2")
 
-    assert AgiEnv._last_non_empty_output_line(lines) == "useful detail"
+    def _fake_builder(**kwargs):
+        captured.update(kwargs)
+        return {"PATH": "demo"}
+
+    monkeypatch.setattr(agi_env_module, "build_subprocess_env", _fake_builder)
+
+    result = AgiEnv._build_env(tmp_path)
+
+    assert result == {"PATH": "demo"}
+    assert captured["venv"] == tmp_path
+    assert captured["pythonpath_entries"] == [str(tmp_path / "instance-src")]
+    assert captured["sys_prefix"] == sys.prefix
+    assert captured["base_env"]["UV_RUN_RECURSION_DEPTH"] == "2"
 
 
-def test_last_non_empty_output_line_returns_none_for_empty_input():
-    assert AgiEnv._last_non_empty_output_line([None, "", "   "]) is None
+def test_build_env_delegates_class_pythonpath_entries_when_instance_missing(monkeypatch, tmp_path: Path):
+    captured = {}
+    class_entries = [str(tmp_path / "class-src")]
+    monkeypatch.setattr(AgiEnv, "_instance", None, raising=False)
+    monkeypatch.setattr(AgiEnv, "_pythonpath_entries", class_entries, raising=False)
 
+    def _fake_builder(**kwargs):
+        captured.update(kwargs)
+        return {"PYTHONPATH": "demo"}
 
-def test_format_command_failure_message_falls_back_to_command_and_appends_hint():
-    message = AgiEnv._format_command_failure_message(
-        7,
-        "demo command",
-        lines=[None, "", "   "],
-        diagnostic_hint="check worker manifest",
-    )
+    monkeypatch.setattr(agi_env_module, "build_subprocess_env", _fake_builder)
 
-    assert message == "Command failed with exit code 7: demo command\ncheck worker manifest"
+    result = AgiEnv._build_env()
+
+    assert result == {"PYTHONPATH": "demo"}
+    assert captured["venv"] is None
+    assert captured["pythonpath_entries"] == class_entries
 
 
 def test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error(tmp_path: Path, monkeypatch):

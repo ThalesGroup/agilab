@@ -46,7 +46,7 @@ import subprocess
 import sys
 import traceback
 from functools import lru_cache
-from pathlib import Path, PureWindowsPath, PurePosixPath
+from pathlib import Path
 import tempfile
 from dotenv import dotenv_values, set_key
 import tomlkit
@@ -66,6 +66,18 @@ import importlib.resources as importlib_resources
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.defaults import get_default_openai_model
+from agi_env.process_support import (
+    apply_inline_path_export,
+    build_subprocess_env,
+    command_failure_hint,
+    fix_windows_drive as _fix_windows_drive,
+    format_command_failure_message,
+    inject_uv_preview_flag,
+    is_packaging_cmd,
+    normalize_path,
+    parse_level,
+    strip_time_level_prefix,
+)
 import inspect as _inspect
 try:
     import pwd
@@ -245,96 +257,6 @@ def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str)
     raise FileNotFoundError(
         f"Unable to resolve {hook_label} script: expected {local_candidate} or shared agi-node copy."
     )
-
-# Compile regex once globally
-LEVEL_RES = [
-    # Optional leading time like "11:20:03 " or "11:20:03,123 "
-    re.compile(r'^\s*(?:\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\s+)?(DEBUG|INFO|WARNING|ERROR|CRITICAL)\b', re.IGNORECASE),
-    # Bracketed level: "[ERROR] something"
-    re.compile(r'^\s*\[\s*(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\]\b', re.IGNORECASE),
-    # Key/value style: "level=error ..."
-    re.compile(r'\blevel\s*=\s*(debug|info|warning|error|critical)\b', re.IGNORECASE),
-]
-TIME_LEVEL_PREFIX = re.compile(
-    r'^\s*(?:\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*[:-]?\s*',
-    re.IGNORECASE,
-)
-
-
-def normalize_path(path):
-    """Return ``path`` coerced to a normalised string representation.
-
-    On Windows, ensure relative inputs are resolved to absolute paths to match
-    historical expectations in tests and config consumers. On POSIX, preserve
-    the POSIX-style representation of the provided path.
-    """
-
-    # Accept both strings and Path-like, keeping relative inputs relative on POSIX
-    if str(path) == "":
-        p = Path(".")
-    else:
-        p = Path(path)
-    if os.name == "nt":
-        try:
-            # Resolve to absolute path without requiring the target to exist.
-            p = p.expanduser().resolve(strict=False)
-        except Exception:
-            # Fallback: normalise without resolution
-            p = p.expanduser()
-        return str(PureWindowsPath(p))
-    else:
-        return str(PurePosixPath(p))
-
-
-def _fix_windows_drive(path_str: str) -> str:
-    """Ensure Windows drive paths include a separator after the colon.
-
-    Example: 'C:Users\\me' -> 'C:\\Users\\me'. Returns input on non-Windows.
-    """
-    if os.name != "nt" or not isinstance(path_str, str):
-        return path_str
-    try:
-        import re as _re
-        if _re.match(r'^[A-Za-z]:(?![\\/])', path_str):
-            return path_str[:2] + "\\" + path_str[2:]
-    except Exception:
-        pass
-    return path_str
-
-
-def parse_level(line, default_level):
-    """Resolve a logging level token found in ``line``.
-
-    Parameters
-    ----------
-    line:
-        The text that might contain a logging level marker.
-    default_level:
-        The integer level returned when no explicit marker is present.
-
-    Returns
-    -------
-    int
-        The numeric logging level understood by :mod:`logging`.
-    """
-
-    for rx in LEVEL_RES:
-        m = rx.search(line)
-        if m:
-            return getattr(logging, m.group(1).upper(), default_level)
-    return default_level
-
-def strip_time_level_prefix(line: str) -> str:
-    """Remove a ``HH:MM:SS LEVEL`` prefix commonly emitted by log handlers."""
-
-    return TIME_LEVEL_PREFIX.sub('', line, count=1)
-
-def is_packaging_cmd(cmd: str) -> bool:
-    """Return ``True`` when ``cmd`` appears to invoke ``uv`` or ``pip``."""
-
-    s = cmd.strip()
-    return s.startswith("uv ") or s.startswith("pip ") or "uv" in s or "pip" in s
-
 
 class _AgiEnvMeta(type):
     """Delegate AgiEnv class attribute access to the singleton instance.
@@ -2222,42 +2144,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     @staticmethod
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
-        proc_env = os.environ.copy()
-        # Nested uv project-management commands must run as fresh subprocesses.
-        # Propagating the outer `uv run` recursion marker can distort dependency
-        # resolution for child `uv sync/add/pip` calls during AGILAB installs.
-        proc_env.pop("UV_RUN_RECURSION_DEPTH", None)
-        venv_path = None
-        if venv is not None:
-            venv_path = Path(venv)
-            if not (venv_path / "bin").exists() and venv_path.name != ".venv":
-                venv_path = venv_path / ".venv"
-            proc_env["VIRTUAL_ENV"] = str(venv_path)
-            bin_path = "Scripts" if os.name == "nt" else "bin"
-            venv_bin = venv_path / bin_path
-            proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
-
         instance = AgiEnv._instance
         if instance is not None and getattr(instance, "_pythonpath_entries", None):
             extra_paths = list(instance._pythonpath_entries)
         else:
             extra_paths = list(AgiEnv._pythonpath_entries)
-        if venv_path and Path(sys.prefix).resolve() != venv_path.resolve():
-            # When launching into a different virtual environment, keep the
-            # subprocess isolated from the current source checkout. Reusing
-            # AGILAB's injected PYTHONPATH entries here leaks the manager
-            # process import graph into project or worker environments.
-            extra_paths = []
-        proc_env.pop("PYTHONPATH", None)
-        proc_env.pop("PYTHONHOME", None)
-        if extra_paths:
-            current = proc_env.get("PYTHONPATH", "")
-            if current:
-                for part in current.split(os.pathsep):
-                    if part and part not in extra_paths:
-                        extra_paths.append(part)
-            proc_env["PYTHONPATH"] = os.pathsep.join(extra_paths)
-        return proc_env
+        return build_subprocess_env(
+            base_env=os.environ.copy(),
+            venv=venv,
+            pythonpath_entries=extra_paths,
+            sys_prefix=sys.prefix,
+        )
 
     @staticmethod
     def log_info(line: str) -> None:
@@ -2269,26 +2166,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             AgiEnv.logger.info(line)
         else:
             print(line)
-
-    @staticmethod
-    def _last_non_empty_output_line(lines) -> str | None:
-        for line in reversed(lines or []):
-            if isinstance(line, str) and line.strip():
-                return line.strip()
-        return None
-
-    @staticmethod
-    def _format_command_failure_message(returncode: int, cmd: str, lines=None, diagnostic_hint: str | None = None) -> str:
-        detail = AgiEnv._last_non_empty_output_line(lines)
-        if detail:
-            simplified = re.sub(r"^(?:[\w.]*?(?:Error|Exception)):\s*", "", detail)
-            detail = simplified or detail
-            error_msg = f"Command failed with exit code {returncode}: {detail}"
-        else:
-            error_msg = f"Command failed with exit code {returncode}: {cmd}"
-        if diagnostic_hint:
-            error_msg = f"{error_msg}\n{diagnostic_hint}"
-        return error_msg
 
     """
     @staticmethod
@@ -2447,65 +2324,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if logger:
                 logger.info(f"@{vname}: {cmd}")
 
-        # Inject uv preview flag to silence extra-build-dependencies warnings
-        try:
-            if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
-                import re as _re
-                cmd = _re.sub(
-                    r"(^|\s)uv(\s+)",
-                    r"\1uv --preview-features extra-build-dependencies \2",
-                    cmd,
-                    count=1,
-                )
-        except Exception:
-            pass
+        cmd = inject_uv_preview_flag(cmd)
 
         if not cwd:
             cwd = venv
         process_env = AgiEnv._build_env(venv)
-
-        # --- OPTION 3: handle `export PATH="...:$PATH"; <cmd>` in Python env instead of shell ---
-        if isinstance(cmd, str):
-            try:
-                import os
-                import re
-
-                # e.g.
-                #   export PATH="~/.local/bin:$PATH";uv --quiet self update
-                #   export PATH=~/.local/bin:$PATH; uv --quiet self update
-                #   export PATH="~/.local/bin:$PATH";
-                m = re.match(
-                    r'^\s*export\s+PATH=(?P<quote>["\']?)(?P<value>.+?)(?P=quote);?(?P<rest>.*)$',
-                    cmd,
-                    re.DOTALL,
-                )
-                if m:
-                    raw_value = m.group("value").strip()
-                    rest = m.group("rest")
-
-                    current_path = (
-                            process_env.get("PATH")
-                            or os.environ.get("PATH")
-                            or ""
-                    )
-
-                    # Expand ~ at the beginning of segments
-                    raw_value = os.path.expanduser(raw_value)
-
-                    # Replace $PATH / ${PATH} with the existing PATH
-                    new_path = (
-                        raw_value
-                        .replace("${PATH}", current_path)
-                        .replace("$PATH", current_path)
-                    )
-                    process_env["PATH"] = new_path
-
-                    # Strip leading separators/spaces from the remaining command
-                    rest = (rest or "").lstrip(" ;")
-                    cmd = rest or None  # None means "nothing left to run"
-            except Exception:
-                # If anything goes wrong, silently ignore and run the original cmd
-                pass
+        cmd = apply_inline_path_export(cmd, process_env)
 
         shell_executable = None if sys.platform == "win32" else "/bin/bash"
 
@@ -2574,23 +2398,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     if logger:
                         logger.error("Command failed with exit code %s: %s", returncode, cmd)
 
-                    diagnostic_hint = None
-                    log_blob = "\n".join(result).lower()
-                    network_markers = (
-                        "failed to establish a new connection",
-                        "temporary failure in name resolution",
-                        "nodename nor servname provided",
-                        "no route to host",
-                    )
-                    if "pip install" in cmd and any(marker in log_blob for marker in network_markers):
-                        diagnostic_hint = (
-                            "pip could not reach the package index (network access is required to "
-                            "install build dependencies such as hatchling). Pre-install those "
-                            "dependencies locally or enable outbound connectivity, then rerun."
-                        )
+                    diagnostic_hint = command_failure_hint(cmd, result)
 
                     raise RuntimeError(
-                        AgiEnv._format_command_failure_message(
+                        format_command_failure_message(
                             returncode,
                             cmd,
                             result,
@@ -2642,13 +2453,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if env_override:
             process_env.update(env_override)
 
-        # Inject uv preview flag to silence extra-build-dependencies warnings
-        try:
-            if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
-                import re as _re
-                cmd = _re.sub(r"(^|\s)uv(\s+)", r"\1uv --preview-features extra-build-dependencies \2", cmd, count=1)
-        except Exception:
-            pass
+        cmd = inject_uv_preview_flag(cmd)
 
         result = []
 
@@ -2661,7 +2466,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 cwd=str(cwd) if cwd else None,
                 env=process_env,
             )
-        except:
+        except Exception:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -2802,21 +2607,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             cwd = venv
 
         # Build env similar to your other functions
-        process_env = os.environ.copy()
-        venv_path = Path(venv)
-        if not (venv_path / "bin").exists() and venv_path.name != ".venv":
-            venv_path = venv_path / ".venv"
-
-        process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if os.name == "nt" else "bin"
-        venv_bin = venv_path / bin_dir
-        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        process_env = build_subprocess_env(base_env=os.environ.copy(), venv=venv)
         process_env["PYTHONUNBUFFERED"] = "1"  # ensure timely output
         shell_executable = None if os.name == "nt" else "/bin/bash"
 
         # Normalize cmd to string for create_subprocess_shell
         if isinstance(cmd, (list, tuple)):
             cmd = " ".join(cmd)
+        cmd = inject_uv_preview_flag(cmd)
 
         result = []
 
@@ -2829,7 +2627,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 cwd=str(cwd) if cwd else None,
                 env=process_env,
             )
-        except:
+        except Exception:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -2885,7 +2683,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             logger = AgiEnv.logger
             if logger:
                 logger.error("Command failed with exit code %s: %s", rc, cmd)
-            raise RuntimeError(AgiEnv._format_command_failure_message(rc, cmd, result))
+            raise RuntimeError(format_command_failure_message(rc, cmd, result))
 
         # Preserve original behavior: return last non-empty line (prefer stderr, else stdout)
         def last_non_empty(lines):
