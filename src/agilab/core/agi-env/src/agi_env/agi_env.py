@@ -99,6 +99,11 @@ from agi_env.share_runtime_support import (
     resolve_share_path as resolve_relative_share_path,
     share_target_name,
 )
+from agi_env.source_analysis_support import (
+    extract_base_info as extract_ast_base_info,
+    get_full_attribute_name as build_full_attribute_name,
+    get_import_mapping as build_import_mapping,
+)
 import inspect as _inspect
 try:
     import pwd
@@ -1613,22 +1618,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def get_import_mapping(self, source):
         """Build a mapping of names to modules from ``import`` statements in ``source``."""
-
-        mapping = {}
-        try:
-            tree = ast.parse(source)
-        except SyntaxError as e:
-            AgiEnv.logger.error(f"Syntax error during import mapping: {e}")
-            raise
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    mapping[alias.asname or alias.name] = alias.name
-            elif isinstance(node, ast.ImportFrom):
-                module = node.module
-                for alias in node.names:
-                    mapping[alias.asname or alias.name] = module
-        return mapping
+        return build_import_mapping(source, logger=AgiEnv.logger)
 
     def _ensure_repository_app_link(self) -> bool:
         """Create a symlink to a repository app when the public tree is missing it."""
@@ -1710,28 +1700,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def extract_base_info(self, base, import_mapping):
         """Return the base-class name and originating module for ``base`` nodes."""
-
-        if isinstance(base, ast.Name):
-            module_name = import_mapping.get(base.id)
-            return base.id, module_name
-        elif isinstance(base, ast.Attribute):
-            full_name = self.get_full_attribute_name(base)
-            parts = full_name.split(".")
-            if len(parts) > 1:
-                alias = parts[0]
-                module_name = import_mapping.get(alias, alias)
-                return parts[-1], module_name
-            return base.attr, None
-        return None
+        return extract_ast_base_info(base, import_mapping)
 
     def get_full_attribute_name(self, node):
         """Reconstruct the dotted attribute path represented by ``node``."""
-
-        if isinstance(node, ast.Name):
-            return node.id
-        elif isinstance(node, ast.Attribute):
-            return self.get_full_attribute_name(node.value) + "." + node.attr
-        return ""
+        return build_full_attribute_name(node)
 
     def mode2str(self, mode):
         """Encode a bitmask ``mode`` into readable ``pcdr`` flag form."""
