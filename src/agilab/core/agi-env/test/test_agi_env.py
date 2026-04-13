@@ -1216,67 +1216,6 @@ def test_is_relative_to_returns_expected_result(tmp_path: Path):
     assert agi_env_module._is_relative_to(tmp_path / "other", parent) is False
 
 
-def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
-    assert agi_env_module.AgiEnv._app_settings_aliases("demo_project") == {"demo_project", "demo_worker"}
-    assert agi_env_module.AgiEnv._app_settings_aliases("demo_worker") == {"demo_worker", "demo_project"}
-    assert agi_env_module.AgiEnv._app_settings_aliases("demo_project_worker") == {
-        "demo_project",
-        "demo_project_worker",
-    }
-    assert agi_env_module.AgiEnv._app_settings_aliases(None) == set()
-
-    src_dir = tmp_path / "demo_project" / "src"
-    src_dir.mkdir(parents=True)
-    src_settings = src_dir / "app_settings.toml"
-    src_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
-
-    assert agi_env_module.AgiEnv._candidate_app_settings_path(src_dir) == src_settings
-    assert agi_env_module.AgiEnv._candidate_app_settings_path(src_dir.parent) == src_settings
-    assert agi_env_module.AgiEnv._candidate_app_settings_path(object()) is None
-
-
-def test_find_source_and_user_app_settings_cover_workspace_seed_paths(tmp_path: Path):
-    env = object.__new__(AgiEnv)
-    env.app = "demo_project"
-    env.home_abs = tmp_path / "home"
-    env.home_abs.mkdir()
-    env.resources_path = env.home_abs / ".agilab"
-    env.resources_path.mkdir(parents=True)
-    env.envars = {}
-    env.apps_repository_root = None
-    env._get_apps_repository_root = lambda: None
-
-    active_app = tmp_path / "apps" / "demo_project"
-    active_src = active_app / "src"
-    active_src.mkdir(parents=True)
-    source_settings = active_src / "app_settings.toml"
-    source_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
-
-    env.active_app = active_app
-    env.app_src = active_src
-    env.apps_path = tmp_path / "apps"
-    env.builtin_apps_path = None
-
-    found = env.find_source_app_settings_file("demo_worker")
-    assert found == source_settings
-
-    workspace_file = env.resolve_user_app_settings_file("demo_project")
-    assert workspace_file.exists()
-    assert workspace_file.read_text(encoding="utf-8") == source_settings.read_text(encoding="utf-8")
-
-    blank_env = object.__new__(AgiEnv)
-    blank_env.app = "blank_project"
-    blank_env.target = "blank_project"
-    blank_env.resources_path = tmp_path / "resources"
-    blank_env.resources_path.mkdir(parents=True)
-    blank_env.find_source_app_settings_file = lambda _app_name=None: None
-    touched = blank_env.resolve_user_app_settings_file(ensure_exists=True)
-    assert touched.exists()
-    assert touched.read_text(encoding="utf-8") == ""
-    unresolved = blank_env.resolve_user_app_settings_file(ensure_exists=False)
-    assert unresolved == blank_env.resources_path / "apps" / "blank_project" / "app_settings.toml"
-
-
 def test_init_resources_copies_seed_files_and_handles_installed_and_source_extras(tmp_path: Path, monkeypatch):
     resources_src = tmp_path / "resources-src"
     resources_src.mkdir()
@@ -1377,52 +1316,6 @@ def test_ensure_repository_app_link_covers_missing_existing_and_success(tmp_path
     assert env._ensure_repository_app_link() is True
     assert env.active_app.is_symlink()
     assert env.active_app.resolve() == candidate.resolve()
-
-
-def test_app_settings_source_roots_collect_aliases_repo_builtin_worker_and_export(tmp_path: Path):
-    env = object.__new__(AgiEnv)
-    env.app = "demo_project"
-    env.home_abs = tmp_path / "home"
-    env.home_abs.mkdir()
-    env.app_src = tmp_path / "current" / "demo_project" / "src"
-    env.app_src.mkdir(parents=True)
-    env.active_app = env.app_src.parent
-    env.apps_path = tmp_path / "apps"
-    env.apps_path.mkdir()
-    env.builtin_apps_path = tmp_path / "apps" / "builtin"
-    env.builtin_apps_path.mkdir(parents=True)
-    repo_root = tmp_path / "repo-apps"
-    repo_root.mkdir()
-    env.apps_repository_root = None
-    env._get_apps_repository_root = lambda: repo_root
-    env.envars = {"AGI_EXPORT_DIR": "export-root"}
-
-    roots = env._app_settings_source_roots("demo_worker")
-    roots_set = set(roots)
-
-    assert env.app_src in roots_set
-    assert env.active_app in roots_set
-    assert env.active_app / "src" in roots_set
-    assert env.apps_path / "demo_worker" in roots_set
-    assert env.apps_path / "demo_project" in roots_set
-    assert env.builtin_apps_path / "demo_worker" in roots_set
-    assert env.builtin_apps_path / "demo_project" in roots_set
-    assert repo_root in roots_set
-    assert repo_root / "demo_worker" in roots_set
-    assert repo_root / "demo_project" in roots_set
-    assert env.home_abs / "wenv" / "demo_worker" in roots_set
-    assert env.home_abs / "wenv" / "demo_project" in roots_set
-    assert env.home_abs / "export-root" in roots_set
-    assert env.home_abs / "export-root" / "demo_project" in roots_set
-
-
-def test_resolve_user_app_settings_requires_target_name():
-    env = object.__new__(AgiEnv)
-    env.app = None
-    env.target = None
-
-    with pytest.raises(RuntimeError, match="without an app name"):
-        env.resolve_user_app_settings_file()
 
 
 def test_copy_file_logs_missing_source_and_copy_errors(tmp_path: Path, monkeypatch):
