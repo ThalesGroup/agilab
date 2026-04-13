@@ -217,12 +217,11 @@ def process_files(root, files, app_path, rename_map, spec):
             if relative_file_path.suffix == ".7z":
                 shutil.copy(Path(root) / file, new_path)
             else:
-                with open(Path(root) / file, "r") as f:
-                    content = f.read()
+                content = (Path(root) / file).read_text()
                 for old, new in rename_map.items():
                     content = content.replace(old, new)
                 new_path.write_text(content)
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             st.warning(f"Error processing file '{file}': {e}")
 
 
@@ -253,6 +252,105 @@ def _remove_path_if_present(path: Path) -> None:
         path.unlink(missing_ok=True)
     elif path.exists():
         shutil.rmtree(path)
+
+
+def _read_python_source(path: Path) -> str:
+    return path.read_text()
+
+
+def _parse_python_file(path: Path) -> tuple[str, ast.AST]:
+    source_code = _read_python_source(path)
+    return source_code, ast.parse(source_code)
+
+
+def _extract_attributes_code(parsed_code: ast.AST, selected_class: str) -> str:
+    attributes_code = ""
+    for node in ast.walk(parsed_code):
+        if isinstance(node, ast.ClassDef) and node.name == selected_class:
+            for item in node.body:
+                if isinstance(item, (ast.Assign, ast.AnnAssign)):
+                    attributes_code += astor.to_source(item)
+        elif (
+            isinstance(node, (ast.Assign, ast.AnnAssign))
+            and selected_class == "module-level"
+        ):
+            attributes_code += astor.to_source(node)
+    return attributes_code
+
+
+def _extract_function_code(parsed_code: ast.AST, selected_item: str) -> str:
+    for node in ast.walk(parsed_code):
+        if isinstance(node, ast.FunctionDef) and node.name == selected_item:
+            return astor.to_source(node)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == selected_item:
+            return astor.to_source(node)
+    return ""
+
+
+def _replace_attribute_nodes(
+    body: list[ast.stmt], new_attributes_ast: list[ast.stmt]
+) -> list[ast.stmt]:
+    kept_body = [node for node in body if not isinstance(node, (ast.Assign, ast.AnnAssign))]
+    first_attribute_index = next(
+        (index for index, node in enumerate(body) if isinstance(node, (ast.Assign, ast.AnnAssign))),
+        None,
+    )
+    if first_attribute_index is None:
+        return [*new_attributes_ast, *kept_body]
+
+    kept_before = [
+        node
+        for node in body[:first_attribute_index]
+        if not isinstance(node, (ast.Assign, ast.AnnAssign))
+    ]
+    kept_after = [
+        node
+        for node in body[first_attribute_index:]
+        if not isinstance(node, (ast.Assign, ast.AnnAssign))
+    ]
+    return [*kept_before, *new_attributes_ast, *kept_after]
+
+
+def _build_updated_attributes_source(
+    original_source: str, updated_attributes_code: str, selected_class: str
+) -> str:
+    parsed_original = ast.parse(original_source)
+    new_attributes_ast = ast.parse(updated_attributes_code).body
+    if selected_class == "module-level":
+        parsed_original.body = _replace_attribute_nodes(parsed_original.body, new_attributes_ast)
+        return astor.to_source(parsed_original)
+
+    for node in parsed_original.body:
+        if isinstance(node, ast.ClassDef) and node.name == selected_class:
+            node.body = _replace_attribute_nodes(node.body, new_attributes_ast)
+            return astor.to_source(parsed_original)
+
+    raise ValueError(f"Class '{selected_class}' not found.")
+
+
+def _build_updated_function_source(
+    original_source: str, updated_function_code: str, selected_item: str, selected_class: str
+) -> str:
+    parsed_original = ast.parse(original_source)
+    new_function_body = ast.parse(updated_function_code).body
+    if not new_function_body:
+        raise ValueError("Updated function/method code is empty.")
+    new_function_ast = new_function_body[0]
+    if not isinstance(new_function_ast, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        raise ValueError("Updated code must define a function or method.")
+    func_updater = SourceExtractor(
+        target_name=selected_item,
+        class_name=selected_class if selected_class != "module-level" else None,
+        new_ast=new_function_ast,
+    )
+    updated_ast = func_updater.visit(parsed_original)
+    if not func_updater.found:
+        raise ValueError(f"Function/Method '{selected_item}' not found.")
+    return astor.to_source(updated_ast)
+
+
+def _write_python_source(path: Path, source_code: str) -> None:
+    path.write_text(source_code)
 
 
 def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
@@ -1065,7 +1163,6 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
         comp_props (dict): Component properties for the code editor.
         ace_props (dict): Ace editor properties.
     """
-    env = st.session_state["env"]
     def update_selected_class():
         """Callback to update selected class and reset selected item."""
         st.session_state[class_state_key] = st.session_state[f"{key_prefix}_class_select"]
@@ -1081,7 +1178,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
     try:
         classes = get_classes_name(path) + ["module-level"]
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         st.error(f"Error retrieving classes: {e}")
         return
 
@@ -1113,7 +1210,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
         result = get_fcts_and_attrs_name(path, cls)
         functions = result["functions"]
         attributes = result["attributes"]
-    except Exception as e:
+    except (FileNotFoundError, OSError, SyntaxError, ValueError) as e:
         st.error(f"Error retrieving functions and attributes: {e}")
         return
 
@@ -1142,25 +1239,12 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
         if selected_item == "Attributes":
             # Handle the case where 'Attributes' is selected using render_code_editor
             try:
-                # Directly extract the attributes code from the AST
-                with open(path, "r") as f:
-                    source_code = f.read()
-                parsed_code = ast.parse(source_code)
-                attributes_code = ""
-                for node in ast.walk(parsed_code):
-                    if (
-                            isinstance(node, ast.ClassDef)
-                            and node.name == st.session_state[class_state_key]
-                    ):
-                        for item in node.body:
-                            if isinstance(item, (ast.Assign, ast.AnnAssign)):
-                                attributes_code += astor.to_source(item)
-                    elif (
-                            isinstance(node, (ast.Assign, ast.AnnAssign))
-                            and st.session_state[class_state_key] == "module-level"
-                    ):
-                        attributes_code += astor.to_source(node)
-            except Exception as ve:
+                _, parsed_code = _parse_python_file(path)
+                attributes_code = _extract_attributes_code(
+                    parsed_code,
+                    st.session_state[class_state_key],
+                )
+            except (OSError, UnicodeDecodeError, SyntaxError, TypeError) as ve:
                 st.error(f"Error extracting attributes: {ve}")
                 return
 
@@ -1179,48 +1263,22 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
             if isinstance(response, dict) and response.get("type") == "save":
                 try:
                     updated_attributes_code = response.get("text", attributes_code)
-                    # Update the attributes in the original file
-                    with open(path, "r") as f:
-                        original_source = f.read()
-                    parsed_original = ast.parse(original_source)
-                    # Create a new AST for the updated attributes
-                    new_attributes_ast = ast.parse(updated_attributes_code).body
-                    # Use SourceExtractor to inject the new attributes
-                    class_updater = SourceExtractor(
-                        target_name=None,
-                        class_name=(
-                            st.session_state[class_state_key]
-                            if st.session_state[class_state_key] != "module-level"
-                            else None
-                        ),
-                        new_ast=new_attributes_ast,
+                    original_source = _read_python_source(path)
+                    updated_source = _build_updated_attributes_source(
+                        original_source,
+                        updated_attributes_code,
+                        st.session_state[class_state_key],
                     )
-                    updated_ast = class_updater.visit(parsed_original)
-                    updated_source = astor.to_source(updated_ast)
-                    with open(path, "w") as f:
-                        f.write(updated_source)
+                    _write_python_source(path, updated_source)
                     st.success("Attributes updated successfully.")
-                except Exception as ve:
+                except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as ve:
                     st.error(f"Error updating attributes: {ve}")
         else:
             # Handle the selected method or function
             try:
-                # Extract the function/method code
-                with open(path, "r") as f:
-                    source_code = f.read()
-                parsed_code = ast.parse(source_code)
-                function_code = ""
-                for node in ast.walk(parsed_code):
-                    if isinstance(node, ast.FunctionDef) and node.name == selected_item:
-                        function_code = astor.to_source(node)
-                        break
-                    elif (
-                            isinstance(node, ast.AsyncFunctionDef)
-                            and node.name == selected_item
-                    ):
-                        function_code = astor.to_source(node)
-                        break
-            except Exception as ve:
+                _, parsed_code = _parse_python_file(path)
+                function_code = _extract_function_code(parsed_code, selected_item)
+            except (OSError, UnicodeDecodeError, SyntaxError, TypeError) as ve:
                 st.error(f"Error extracting function/method: {ve}")
                 return
 
@@ -1239,30 +1297,18 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
             if isinstance(response, dict) and response.get("type") == "save":
                 try:
                     updated_function_code = response.get("text", function_code)
-                    # Update the function/method in the original file
-                    with open(path, "r") as f:
-                        original_source = f.read()
-                    parsed_original = ast.parse(original_source)
-                    # Create a new AST for the updated function/method
-                    new_function_ast = ast.parse(updated_function_code).body[0]
-                    # Use SourceExtractor to inject the new function/method
-                    func_updater = SourceExtractor(
-                        target_name=selected_item,
-                        class_name=(
-                            st.session_state[class_state_key]
-                            if st.session_state[class_state_key] != "module-level"
-                            else None
-                        ),
-                        new_ast=new_function_ast,
+                    original_source = _read_python_source(path)
+                    updated_source = _build_updated_function_source(
+                        original_source,
+                        updated_function_code,
+                        selected_item,
+                        st.session_state[class_state_key],
                     )
-                    updated_ast = func_updater.visit(parsed_original)
-                    updated_source = astor.to_source(updated_ast)
-                    with open(path, "w") as f:
-                        f.write(updated_source)
+                    _write_python_source(path, updated_source)
                     st.success(
                         f"Function/Method '{selected_item}' updated successfully."
                     )
-                except Exception as ve:
+                except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as ve:
                     st.error(f"Error updating function/method: {ve}")
 
 
@@ -1682,10 +1728,12 @@ def handle_project_delete():
                 f"log/execute/{target_name}",
                 cleanup_errors,
             )
-            try:
-                data_root = Path(env.app_data_rel).expanduser()
-            except Exception:
-                data_root = None
+            data_root = None
+            if env.app_data_rel:
+                try:
+                    data_root = Path(env.app_data_rel).expanduser()
+                except TypeError:
+                    data_root = None
             if data_root and data_root.name == target_name:
                 _safe_remove_path(
                     data_root,

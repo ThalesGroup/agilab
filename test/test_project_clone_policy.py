@@ -4,6 +4,8 @@ import importlib.util
 import os
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = Path("src/agilab/pages/1_▶️ PROJECT.py")
 
@@ -155,3 +157,78 @@ def test_cleanup_run_configuration_artifacts_removes_matching_files(tmp_path: Pa
     assert keep_xml.exists()
     assert '<folder name="demo_app" />' not in folders_xml.read_text(encoding="utf-8")
     assert errors == []
+
+
+def test_process_files_reports_decode_errors(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    source_app = tmp_path / "demo_app"
+    target_app = tmp_path / "demo_clone"
+    source_app.mkdir()
+    source_file = source_app / "broken.py"
+    source_file.write_text("print('demo')\n", encoding="utf-8")
+    warnings: list[str] = []
+
+    original_read_text = Path.read_text
+
+    def _raise_decode(self, *args, **kwargs):
+        if self == source_file:
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad data")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raise_decode)
+    monkeypatch.setattr(module.st, "warning", warnings.append)
+
+    spec = module.PathSpec.from_lines(module.GitWildMatchPattern, [])
+    module.process_files(
+        str(source_app),
+        ["broken.py"],
+        source_app,
+        {"demo_app": "demo_clone"},
+        spec,
+    )
+
+    assert warnings == [
+        "Error processing file 'broken.py': 'utf-8' codec can't decode byte 0xff in position 0: bad data"
+    ]
+    assert not (target_app / "broken.py").exists()
+
+
+def test_extract_attributes_code_handles_module_level_and_class_scope():
+    module = _load_project_module()
+    parsed = module.ast.parse(
+        "GLOBAL = 1\nclass Demo:\n    value = 2\n    other: int = 3\n"
+    )
+
+    class_attributes = module._extract_attributes_code(parsed, "Demo")
+    module_attributes = module._extract_attributes_code(parsed, "module-level")
+
+    assert "value = 2" in class_attributes
+    assert "other: int = 3" in class_attributes
+    assert "GLOBAL = 1" in module_attributes
+
+
+def test_build_updated_attributes_source_rewrites_selected_class():
+    module = _load_project_module()
+    original = "class Demo:\n    value = 1\n"
+
+    updated = module._build_updated_attributes_source(
+        original,
+        "value = 4\nother = 5\n",
+        "Demo",
+    )
+
+    assert "value = 4" in updated
+    assert "other = 5" in updated
+    assert "value = 1" not in updated
+
+
+def test_build_updated_function_source_rejects_non_function_code():
+    module = _load_project_module()
+
+    with pytest.raises(ValueError, match="must define a function or method"):
+        module._build_updated_function_source(
+            "def demo():\n    return 1\n",
+            "value = 2\n",
+            "demo",
+            "module-level",
+        )
