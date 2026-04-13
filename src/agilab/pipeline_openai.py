@@ -66,7 +66,7 @@ def prompt_for_openai_api_key(message: str) -> None:
                 from agi_env import AgiEnv
 
                 AgiEnv.set_env_var("OPENAI_API_KEY", cleaned)
-            except Exception:
+            except (AttributeError, ImportError, RuntimeError):
                 AgiEnv = None  # type: ignore[assignment]
             env_obj = st.session_state.get("env")
             if AgiEnv is not None and isinstance(env_obj, AgiEnv) and env_obj.envars is not None:
@@ -76,7 +76,7 @@ def prompt_for_openai_api_key(message: str) -> None:
                 try:
                     persist_env_var("OPENAI_API_KEY", cleaned)
                     st.success("API key saved to ~/.agilab/.env")
-                except Exception as exc:
+                except OSError as exc:
                     st.warning(f"Could not persist API key: {exc}")
             else:
                 st.success("API key updated for this session.")
@@ -117,13 +117,13 @@ def make_openai_client_and_model(envars: Dict[str, str], api_key: str):
 
     try:
         from openai import OpenAI as OpenAIClient
-    except Exception:
+    except ImportError:
         OpenAIClient = getattr(openai, "OpenAI", None)
 
     if is_azure:
         try:
             from openai import AzureOpenAI
-        except Exception:
+        except ImportError:
             AzureOpenAI = None
 
         if AzureOpenAI is not None:
@@ -168,7 +168,7 @@ def ensure_cached_api_key(
     secret = ""
     try:
         secret = st.secrets.get("OPENAI_API_KEY", "")
-    except Exception:
+    except (AttributeError, RuntimeError, TypeError):
         pass
 
     candidate = (
