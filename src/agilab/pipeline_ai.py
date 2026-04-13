@@ -322,7 +322,7 @@ def chat_ollama_local(
             num_predict=num_predict,
             seed=seed,
         )
-    except Exception as exc:
+    except RuntimeError as exc:
         st.error(str(exc))
         raise JumpToMain(exc)
 
@@ -744,7 +744,7 @@ def chat_offline(
             from gpt_oss.responses_api.types import ResponseObject
 
             text = _response_to_text(ResponseObject.model_validate(data))
-        except Exception:
+        except (ImportError, AttributeError, TypeError, ValueError):
             # Best-effort extraction for plain dicts.
             output = data.get("output", []) if isinstance(data, dict) else []
             chunks = []
@@ -899,7 +899,7 @@ def _load_uoaic_modules() -> Tuple[Any, ...]:
                         spec.loader.exec_module(module)
                         imported_modules.append(module)
                         continue
-                except Exception as ex2:
+                except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
                     # Fall through to messaging below
                     pass
 
