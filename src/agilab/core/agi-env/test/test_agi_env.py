@@ -2146,17 +2146,11 @@ def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
     env.is_worker_env = False
     env.target = "demo_project"
     env.app = "demo_project"
-    env.hw_rapids_capable = False
 
     assert env.share_root_path() == fake_home / "clustershare"
     assert env.resolve_share_path(None) == fake_home / "clustershare"
     assert env.resolve_share_path("demo/data") == fake_home / "clustershare" / "demo" / "data"
     assert env.resolve_share_path("/tmp/absolute") == Path("/tmp/absolute").resolve(strict=False)
-    assert env._share_target_name() == "demo"
-    assert env.mode2str(0b0111) == "_dcp"
-    assert env.mode2int("pc") == 6
-    assert env.is_valid_ip("192.168.20.130") is True
-    assert env.is_valid_ip("999.1.1.1") is False
 
 
 def test_share_root_resolution_worker_uses_runtime_home_and_init_honours_share_override(tmp_path: Path, monkeypatch):

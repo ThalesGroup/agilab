@@ -92,6 +92,13 @@ from agi_env.process_support import (
     parse_level,
     strip_time_level_prefix,
 )
+from agi_env.share_runtime_support import (
+    is_valid_ip as is_valid_ipv4_address,
+    mode_to_int,
+    mode_to_str,
+    resolve_share_path as resolve_relative_share_path,
+    share_target_name,
+)
 import inspect as _inspect
 try:
     import pwd
@@ -1368,15 +1375,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def _share_target_name(self) -> str:
         """Return the logical app name for share paths (strip *_project/_worker)."""
-        name = self.target or ""
-        if not name:
-            name = self.app or ""
-        if not name:
-            name = "app"
-        for suffix in ("_project", "_worker"):
-            if name.endswith(suffix):
-                return name[: -len(suffix)]
-        return name
+        return share_target_name(self.target, self.app)
 
     def resolve_share_path(self, path: str | Path | None) -> Path:
         """
@@ -1384,15 +1383,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         ``None`` or ``"."`` returns the root itself; absolute inputs pass through unchanged.
         """
-
-        if path in (None, "", "."):
-            return self.share_root_path()
-
-        candidate = Path(path).expanduser()
-        if candidate.is_absolute():
-            return candidate.resolve(strict=False)
-
-        return (self.share_root_path() / candidate).resolve(strict=False)
+        return resolve_relative_share_path(path, self.share_root_path())
 
     @classmethod
     def _ensure_defaults(cls):
@@ -1744,36 +1735,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def mode2str(self, mode):
         """Encode a bitmask ``mode`` into readable ``pcdr`` flag form."""
-
-        chars = ["p", "c", "d", "r"]
-        reversed_chars = reversed(list(enumerate(chars)))
-
-        if self.hw_rapids_capable:
-            mode += 8
-        mode_str = "".join(
-            "_" if (mode & (1 << i)) == 0 else v for i, v in reversed_chars
-        )
-        return mode_str
+        return mode_to_str(mode, hw_rapids_capable=self.hw_rapids_capable)
 
     @staticmethod
     def mode2int(mode):
         """Convert an iterable of mode flags (``p``, ``c``, ``d``) to the bitmask int."""
-
-        mode_int = 0
-        set_rm = set(mode)
-        for i, v in enumerate(["p", "c", "d"]):
-            if v in set_rm:
-                mode_int += 2 ** (len(["p", "c", "d"]) - 1 - i)
-        return mode_int
+        return mode_to_int(mode)
 
     def is_valid_ip(self, ip: str) -> bool:
         """Return ``True`` when ``ip`` is a syntactically valid IPv4 address."""
-
-        pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
-        if pattern.match(ip):
-            parts = ip.split(".")
-            return all(0 <= int(part) <= 255 for part in parts)
-        return False
+        return is_valid_ipv4_address(ip)
 
     def init_envars_app(self, envars):
         """Cache frequently used environment variables and ensure directories exist."""
@@ -2885,14 +2856,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         from pathspec.patterns import GitWildMatchPattern
         lines = gitignore_path.read_text(encoding="utf-8").splitlines()
         return PathSpec.from_lines(GitWildMatchPattern, lines)
-
-    def is_valid_ip(self, ip: str) -> bool:
-        pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
-        if pattern.match(ip):
-            parts = ip.split(".")
-            return all(0 <= int(part) <= 255 for part in parts)
-        return False
-
 
     def unzip_data(
         self,
