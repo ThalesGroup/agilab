@@ -151,8 +151,6 @@ def _ollama_available_models(endpoint: str) -> List[str]:
     deduped: List[str] = []
     seen: set[str] = set()
     for name in models:
-        if not name:
-            continue
         if name in seen:
             continue
         seen.add(name)
@@ -628,7 +626,6 @@ CODE_STRICT_INSTRUCTIONS = (
     "Do not use Streamlit. Do not read/write files or call the network.\n"
     "Keep the result in a DataFrame named df."
 )
-
 
 
 def _redact_sensitive(text: str) -> str:

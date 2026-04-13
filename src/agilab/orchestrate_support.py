@@ -19,8 +19,6 @@ def sanitize_for_toml(obj):
             if value is None:
                 continue
             sanitized_value = sanitize_for_toml(value)
-            if sanitized_value is None:
-                continue
             sanitized[key] = sanitized_value
         return sanitized
     if isinstance(obj, list):
@@ -29,8 +27,6 @@ def sanitize_for_toml(obj):
             if item is None:
                 continue
             sanitized_item = sanitize_for_toml(item)
-            if sanitized_item is None:
-                continue
             sanitized_items.append(sanitized_item)
         return sanitized_items
     if isinstance(obj, tuple):

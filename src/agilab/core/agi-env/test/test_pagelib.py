@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import importlib
+import importlib.util
+import io
 import os
 import sqlite3
 import subprocess
@@ -7,11 +10,31 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
 from agi_env import pagelib
+
+
+def _load_pagelib_with_missing(module_name: str, *missing_modules: str):
+    module_path = Path("src/agilab/core/agi-env/src/agi_env/pagelib.py")
+    importlib.invalidate_caches()
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    original_import = __import__
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in missing_modules:
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    with patch("builtins.__import__", _patched_import):
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    return module
 
 
 def test_background_services_enabled_respects_disable_flag(monkeypatch):
@@ -77,6 +100,17 @@ def test_resolve_mlflow_backend_and_artifact_paths(tmp_path):
     assert artifact_dir.is_dir()
 
 
+def test_dump_toml_payload_supports_tomlkit_fallback_and_runtime_error():
+    fallback = _load_pagelib_with_missing("agi_env.pagelib_tomlkit_fallback", "tomli_w")
+    sink = io.BytesIO()
+    fallback._dump_toml_payload({"last_active_app": "/tmp/demo"}, sink)
+    assert b"last_active_app" in sink.getvalue()
+
+    broken = _load_pagelib_with_missing("agi_env.pagelib_no_toml_writer", "tomli_w", "tomlkit")
+    with pytest.raises(RuntimeError, match="Writing settings requires"):
+        broken._dump_toml_payload({"demo": "value"}, io.BytesIO())
+
+
 def test_legacy_mlflow_filestore_present_detects_legacy_layouts(tmp_path):
     tracking_dir = tmp_path / "mlflow"
     tracking_dir.mkdir()
@@ -88,8 +122,43 @@ def test_legacy_mlflow_filestore_present_detects_legacy_layouts(tmp_path):
     assert pagelib._legacy_mlflow_filestore_present(tracking_dir) is True
 
 
+def test_legacy_mlflow_filestore_present_handles_missing_dir_and_numeric_runs(tmp_path):
+    missing_dir = tmp_path / "missing"
+    assert pagelib._legacy_mlflow_filestore_present(missing_dir) is False
+
+    tracking_dir = tmp_path / "mlflow"
+    tracking_dir.mkdir()
+    (tracking_dir / "12").mkdir()
+    assert pagelib._legacy_mlflow_filestore_present(tracking_dir) is True
+
+
 def test_sqlite_identifier_escapes_quotes():
     assert pagelib._sqlite_identifier('a"b') == '"a""b"'
+
+
+def test_sqlite_uri_for_path_covers_posix_and_windows_formats(monkeypatch, tmp_path):
+    db_path = tmp_path / "mlflow.db"
+    resolved_db_path = db_path.resolve().as_posix()
+
+    monkeypatch.setattr(pagelib.os, "name", "posix", raising=False)
+    assert pagelib._sqlite_uri_for_path(db_path) == f"sqlite:////{resolved_db_path.lstrip('/')}"
+
+    class _FakeWindowsPath:
+        def __init__(self, _value):
+            self._value = resolved_db_path
+
+        def expanduser(self):
+            return self
+
+        def resolve(self):
+            return self
+
+        def as_posix(self):
+            return self._value
+
+    monkeypatch.setattr(pagelib.os, "name", "nt", raising=False)
+    monkeypatch.setattr(pagelib, "Path", _FakeWindowsPath)
+    assert pagelib._sqlite_uri_for_path(db_path) == f"sqlite:///{resolved_db_path}"
 
 
 def test_load_last_active_app_prefers_global_state_file(tmp_path, monkeypatch):
@@ -892,6 +961,55 @@ def test_reset_mlflow_sqlite_backend_moves_sidecars(tmp_path, monkeypatch):
         assert Path(f"{backup}{suffix}").exists()
 
 
+def test_repair_mlflow_default_experiment_db_returns_false_for_missing_layouts(tmp_path):
+    missing_db = tmp_path / "missing.db"
+    assert pagelib._repair_mlflow_default_experiment_db(missing_db) is False
+
+    bad_cols_db = tmp_path / "bad-cols.db"
+    with sqlite3.connect(bad_cols_db) as conn:
+        conn.execute("CREATE TABLE experiments (experiment_id INTEGER PRIMARY KEY)")
+        conn.commit()
+    assert pagelib._repair_mlflow_default_experiment_db(bad_cols_db) is False
+
+    missing_default_db = tmp_path / "missing-default.db"
+    with sqlite3.connect(missing_default_db) as conn:
+        conn.execute(
+            "CREATE TABLE experiments (experiment_id INTEGER PRIMARY KEY, name TEXT, workspace TEXT, artifact_location TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO experiments (experiment_id, name, workspace, artifact_location) VALUES (1, 'Other', 'default', 'file:///old')"
+        )
+        conn.commit()
+    assert pagelib._repair_mlflow_default_experiment_db(missing_default_db) is False
+
+
+def test_repair_mlflow_default_experiment_db_rewrites_nonzero_default_and_artifact(tmp_path):
+    db_path = tmp_path / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE experiments (experiment_id INTEGER PRIMARY KEY, name TEXT, workspace TEXT, artifact_location TEXT)"
+        )
+        conn.execute("CREATE TABLE runs (run_uuid TEXT, experiment_id INTEGER)")
+        conn.execute(
+            "INSERT INTO experiments (experiment_id, name, workspace, artifact_location) VALUES (7, ?, ?, ?)",
+            (pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME, "default", "file:///old"),
+        )
+        conn.execute("INSERT INTO runs (run_uuid, experiment_id) VALUES ('r1', 7)")
+        conn.commit()
+
+    assert pagelib._repair_mlflow_default_experiment_db(db_path, artifact_uri="file:///new-artifacts") is True
+
+    with sqlite3.connect(db_path) as conn:
+        experiment = conn.execute(
+            "SELECT experiment_id, artifact_location FROM experiments WHERE name = ?",
+            (pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME,),
+        ).fetchone()
+        run_row = conn.execute("SELECT experiment_id FROM runs WHERE run_uuid = 'r1'").fetchone()
+
+    assert experiment == (0, "file:///new-artifacts")
+    assert run_row == (0,)
+
+
 def test_ensure_mlflow_sqlite_schema_current_raises_without_reset_marker(tmp_path, monkeypatch):
     db_path = tmp_path / "mlflow.db"
     with sqlite3.connect(db_path) as conn:
@@ -1270,6 +1388,79 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     assert calls["text"] is True
 
 
+def test_mount_helpers_cover_proc_fstab_and_shell_fallbacks(monkeypatch):
+    real_path = Path
+
+    class FakeTextFile:
+        def __init__(self, *, exists=True, text="", exc=None):
+            self._exists = exists
+            self._text = text
+            self._exc = exc
+
+        def exists(self):
+            return self._exists
+
+        def read_text(self, *args, **kwargs):
+            if self._exc:
+                raise self._exc
+            return self._text
+
+    proc_mounts = FakeTextFile(
+        exists=True,
+        text="server:/share /mnt/share nfs rw 0 0\nbad line\n/dev/disk /Volumes/demo apfs rw 0 0\n",
+    )
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda value: proc_mounts if str(value) == "/proc/mounts" else real_path(value),
+    )
+    mounts = pagelib._current_mount_points()
+    assert mounts[real_path("/mnt/share")] == "nfs"
+    assert mounts[real_path("/Volumes/demo")] == "apfs"
+
+    fstab = FakeTextFile(
+        exists=True,
+        text="# comment\nserver:/share /mnt/share nfs defaults 0 0\nUUID=1 /Volumes/demo apfs rw 0 0\n",
+    )
+    pagelib._fstab_mount_points.cache_clear()
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda value: fstab if str(value) == "/etc/fstab" else real_path(value),
+    )
+    assert pagelib._fstab_mount_points() == (real_path("/mnt/share"), real_path("/Volumes/demo"))
+
+    pagelib._fstab_mount_points.cache_clear()
+    broken_fstab = FakeTextFile(exists=True, exc=OSError("unreadable"))
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda value: broken_fstab if str(value) == "/etc/fstab" else real_path(value),
+    )
+    assert pagelib._fstab_mount_points() == ()
+
+    no_proc = FakeTextFile(exists=False)
+
+    class Result:
+        stdout = "disk on /Volumes/data (apfs, local)\ninvalid line\n"
+
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda value: no_proc if str(value) == "/proc/mounts" else real_path(value),
+    )
+    monkeypatch.setattr(pagelib.subprocess, "run", lambda *args, **kwargs: Result())
+    mounts = pagelib._current_mount_points()
+    assert mounts[real_path("/Volumes/data")] == "apfs"
+
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(subprocess.CalledProcessError(1, "mount")),
+    )
+    assert pagelib._current_mount_points() == {}
+
+
 def test_get_df_index_list_views_read_lines_and_scan_dir(tmp_path):
     file_path = tmp_path / "demo.csv"
     file_path.write_text("a\n1\n", encoding="utf-8")
@@ -1469,6 +1660,81 @@ def test_select_project_filters_shortlists_and_handles_empty_results(monkeypatch
 
     assert empty_sidebar.infos == ["No projects match that filter."]
     assert empty_sidebar.select_calls == []
+
+
+def test_on_project_change_resets_state_and_reports_env_errors(monkeypatch, tmp_path):
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    changed: list[Path] = []
+    stored: list[Path] = []
+    errors: list[str] = []
+    env = SimpleNamespace(
+        apps_path=tmp_path / "apps",
+        AGILAB_EXPORT_ABS=tmp_path / "exports",
+        active_app=tmp_path / "apps" / "demo_project",
+        target="demo_project",
+    )
+
+    def _change_app(path):
+        changed.append(path)
+        env.active_app = path
+        env.target = "demo_project"
+
+    env.change_app = _change_app
+    session_state = FakeSessionState(
+        {
+            "env": env,
+            "toggle_edit": True,
+            "toggle_edit_ui": True,
+            "preview_tree": True,
+            "arg_name_alpha": "x",
+            "view_checkbox_beta": True,
+            "sample:app_args_form:field": "stale",
+        }
+    )
+    fake_st = SimpleNamespace(session_state=session_state, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "store_last_active_app", lambda path: stored.append(path))
+
+    pagelib.on_project_change("demo_project", switch_to_select=True)
+
+    assert changed == [env.apps_path / "demo_project"]
+    assert stored == [env.active_app]
+    assert session_state.module_rel == Path("demo_project")
+    assert session_state.datadir == env.AGILAB_EXPORT_ABS / "demo_project"
+    assert session_state.datadir_str == str(env.AGILAB_EXPORT_ABS / "demo_project")
+    assert session_state.df_export_file == str(env.AGILAB_EXPORT_ABS / "demo_project" / "export.csv")
+    assert session_state.switch_to_select is True
+    assert session_state.project_changed is True
+    assert "toggle_edit" not in session_state
+    assert "toggle_edit_ui" not in session_state
+    assert "arg_name_alpha" not in session_state
+    assert "view_checkbox_beta" not in session_state
+    assert "sample:app_args_form:field" not in session_state
+    for label in (
+        "PYTHON‑ENV",
+        "PYTHON-ENV-EXTRA",
+        "MANAGER",
+        "WORKER",
+        "EXPORT‑APP‑FILTER",
+        "APP‑SETTINGS",
+        "ARGS‑UI",
+        "PRE‑PROMPT",
+    ):
+        assert session_state[label] is False
+
+    errors.clear()
+    env.change_app = lambda _path: (_ for _ in ()).throw(RuntimeError("boom"))
+    pagelib.on_project_change("broken_project")
+    assert any("An error occurred while changing the project: boom" in message for message in errors)
 
 
 def test_sidebar_views_and_on_df_change_manage_selection_state(monkeypatch, tmp_path):
@@ -1725,3 +1991,526 @@ def test_activate_gpt_oss_requires_checkpoint_for_transformers_backend(monkeypat
     env = SimpleNamespace(envars={})
     assert pagelib.activate_gpt_oss(env) is False
     assert any("requires a checkpoint" in msg for msg in warnings)
+
+
+def test_pagelib_io_helpers_cover_ports_browser_json_and_run_agi(monkeypatch, tmp_path):
+    calls: list[tuple[str, bool]] = []
+    errors: list[str] = []
+    infos: list[str] = []
+    warnings: list[str] = []
+    st_resources = tmp_path / "resources"
+    st_resources.mkdir()
+    (st_resources / "custom_buttons.json").write_text('{"buttons": ["run"]}', encoding="utf-8")
+    (st_resources / "info_bar.json").write_text('{"title": "AGILab"}', encoding="utf-8")
+
+    def _stop():
+        raise RuntimeError("stop")
+
+    env = SimpleNamespace(
+        st_resources=st_resources,
+        agi_env=tmp_path / ".venv",
+        target="demo_project",
+        runenv=tmp_path / "runenv",
+        envars={},
+        MLFLOW_TRACKING_DIR="",
+        home_abs=tmp_path,
+    )
+    fake_st = SimpleNamespace(
+        session_state={"env": env},
+        markdown=lambda text, unsafe_allow_html=False: calls.append((text, unsafe_allow_html)),
+        warning=lambda message: warnings.append(str(message)),
+        info=lambda message: infos.append(str(message)),
+        error=lambda message: errors.append(str(message)),
+        stop=_stop,
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+
+    get_custom_buttons = getattr(pagelib.get_custom_buttons, "__wrapped__", pagelib.get_custom_buttons)
+    get_info_bar = getattr(pagelib.get_info_bar, "__wrapped__", pagelib.get_info_bar)
+    assert get_custom_buttons() == {"buttons": ["run"]}
+    assert get_info_bar() == {"title": "AGILab"}
+
+    class FakeSocket:
+        def __init__(self, result):
+            self.result = result
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def connect_ex(self, _addr):
+            return self.result
+
+    monkeypatch.setattr(pagelib.socket, "socket", lambda *args, **kwargs: FakeSocket(0))
+    assert pagelib.is_port_in_use(1234) is True
+    monkeypatch.setattr(pagelib.socket, "socket", lambda *args, **kwargs: FakeSocket(1))
+    assert pagelib.is_port_in_use(1234) is False
+
+    monkeypatch.setattr(pagelib.random, "randint", lambda low, high: 9123)
+    assert pagelib.get_random_port() == 9123
+
+    monkeypatch.setattr(pagelib.sys, "platform", "linux")
+    assert pagelib._focus_existing_docs_tab("http://example/docs") is False
+
+    monkeypatch.setattr(pagelib.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="true\n"),
+    )
+    assert pagelib._focus_existing_docs_tab("http://example/docs") is True
+
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("osascript missing")),
+    )
+    assert pagelib._focus_existing_docs_tab("http://example/docs") is False
+
+    pagelib.open_new_tab("http://example/docs")
+    assert calls == [("<script>window.open('http://example/docs');</script>", True)]
+
+    warnings.clear()
+    assert pagelib.run_agi([], path=".") is None
+    assert any("No code supplied" in message for message in warnings)
+
+    captured: dict[str, object] = {}
+    target_root = tmp_path / "project"
+    venv_path = target_root / ".venv"
+    venv_path.mkdir(parents=True)
+    monkeypatch.setattr(
+        pagelib,
+        "run_with_output",
+        lambda _env, cmd, cwd: captured.update(cmd=cmd, cwd=cwd) or "ok",
+    )
+    result = pagelib.run_agi(["a", "b", "await Agi.demo_run()"], path=venv_path)
+    assert result == "ok"
+    assert captured["cwd"] == str(target_root)
+    assert "demo_run_demo_project.py" in captured["cmd"]
+
+    restricted = tmp_path / "restricted"
+    real_exists = Path.exists
+
+    def _exists(self):
+        if self == restricted:
+            raise PermissionError("denied")
+        return real_exists(self)
+
+    monkeypatch.setattr(Path, "exists", _exists)
+    monkeypatch.setattr(pagelib, "diagnose_data_directory", lambda _path: "share hint")
+    with pytest.raises(RuntimeError, match="stop"):
+        pagelib.run_agi("print('x')", path=restricted)
+    assert any("Permission denied while accessing" in message and "share hint" in message for message in errors)
+
+    monkeypatch.setattr(Path, "exists", real_exists)
+    with pytest.raises(RuntimeError, match="stop"):
+        pagelib.run_agi("print('x')", path=tmp_path / "missing-project")
+    assert any("Please do an install first" in message for message in infos)
+
+
+def test_activate_mlflow_and_gpt_oss_cover_no_env_and_runtime_failures(monkeypatch, tmp_path):
+    errors: list[str] = []
+    warnings: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: errors.append(str(message)),
+        warning=lambda message: warnings.append(str(message)),
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+
+    assert pagelib.activate_mlflow(None) is None
+    assert pagelib.activate_gpt_oss(None) is False
+
+    env = SimpleNamespace(
+        MLFLOW_TRACKING_DIR="",
+        home_abs=tmp_path,
+        envars={},
+    )
+    monkeypatch.setattr(pagelib, "_ensure_default_mlflow_experiment", lambda _tracking_dir: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(pagelib, "_resolve_mlflow_artifact_dir", lambda _tracking_dir: tmp_path / "artifacts")
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    pagelib.activate_mlflow(env)
+    assert any("Failed to start the server: boom" in message for message in errors)
+
+    errors.clear()
+    fake_st.session_state["gpt_oss_server_started"] = True
+    assert pagelib.activate_gpt_oss(SimpleNamespace(envars={})) is True
+
+    fake_st.session_state.clear()
+    monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50124)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("launch failed")))
+    assert pagelib.activate_gpt_oss(SimpleNamespace(envars={})) is False
+    assert any("Failed to start GPT-OSS server: launch failed" in message for message in errors)
+
+
+def test_ensure_default_mlflow_experiment_returns_none_without_mlflow(tmp_path, monkeypatch):
+    monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: None)
+
+    assert pagelib._ensure_default_mlflow_experiment(tmp_path) is None
+
+
+def test_ensure_default_mlflow_experiment_ignores_create_error_and_retries_only_once(tmp_path, monkeypatch):
+    calls: dict[str, object] = {"create": 0, "set_tracking": []}
+
+    class FakeMlflow:
+        def set_tracking_uri(self, uri):
+            calls["set_tracking"].append(uri)
+
+        def get_experiment_by_name(self, _name):
+            return None
+
+        def create_experiment(self, _name, artifact_location=None):
+            calls["create"] = int(calls["create"]) + 1
+            raise RuntimeError("already exists")
+
+        def set_experiment(self, name):
+            calls["set_experiment"] = name
+
+    monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
+    monkeypatch.setattr(pagelib, "_ensure_mlflow_backend_ready", lambda _tracking_dir: "sqlite:///tmp/mlflow.db")
+
+    uri = pagelib._ensure_default_mlflow_experiment(tmp_path)
+
+    assert uri == "sqlite:///tmp/mlflow.db"
+    assert calls["create"] == 1
+    assert calls["set_experiment"] == pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME
+
+
+def test_ensure_default_mlflow_experiment_reraises_non_schema_error(tmp_path, monkeypatch):
+    class FakeMlflow:
+        def set_tracking_uri(self, _uri):
+            return None
+
+        def get_experiment_by_name(self, _name):
+            raise RuntimeError("plain failure")
+
+    monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
+    monkeypatch.setattr(pagelib, "_ensure_mlflow_backend_ready", lambda _tracking_dir: "sqlite:///tmp/mlflow.db")
+
+    with pytest.raises(RuntimeError, match="plain failure"):
+        pagelib._ensure_default_mlflow_experiment(tmp_path)
+
+
+def test_ensure_mlflow_backend_ready_raises_when_legacy_migration_fails(tmp_path, monkeypatch):
+    tracking_dir = (tmp_path / ".mlflow").resolve()
+    tracking_dir.mkdir(parents=True)
+    (tracking_dir / "0").mkdir()
+    (tracking_dir / "meta.yaml").write_text("legacy", encoding="utf-8")
+
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="migrate boom"),
+    )
+
+    with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store"):
+        pagelib._ensure_mlflow_backend_ready(tracking_dir)
+
+
+def test_ensure_mlflow_sqlite_schema_current_resets_on_known_marker(tmp_path, monkeypatch):
+    db_path = tmp_path / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        conn.execute("INSERT INTO alembic_version (version_num) VALUES ('head')")
+        conn.commit()
+
+    resets: list[Path] = []
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="duplicate column name: lifecycle_stage",
+        ),
+    )
+    monkeypatch.setattr(pagelib, "_reset_mlflow_sqlite_backend", lambda path: resets.append(path) or path)
+    monkeypatch.setattr(pagelib, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+
+    pagelib._ensure_mlflow_sqlite_schema_current(db_path)
+
+    assert resets == [db_path]
+
+
+def test_current_mount_points_parses_mount_output_and_skips_bad_lines(monkeypatch, tmp_path):
+    real_path = Path
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda raw: tmp_path / "proc_mounts_missing"
+        if str(raw) == "/proc/mounts"
+        else real_path(raw),
+    )
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout="\n".join(
+                [
+                    "server:/share on /mnt/share (nfs, nodev)",
+                    "invalid line",
+                    "server:/blank on   (nfs, nodev)",
+                ]
+            )
+        ),
+    )
+
+    mounts = pagelib._current_mount_points()
+
+    assert mounts == {(Path("/mnt/share").resolve(strict=False)): "nfs"}
+
+
+def test_current_mount_points_returns_empty_dict_when_mount_query_fails(monkeypatch, tmp_path):
+    real_path = Path
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda raw: tmp_path / "proc_mounts_missing"
+        if str(raw) == "/proc/mounts"
+        else real_path(raw),
+    )
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("mount missing")),
+    )
+
+    assert pagelib._current_mount_points() == {}
+
+
+def test_detect_agilab_version_returns_dev_suffix_when_git_metadata_fails(monkeypatch):
+    monkeypatch.setattr(pagelib, "_read_version_from_pyproject", lambda _env: "2026.04.13")
+    monkeypatch.setattr(pagelib.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("git boom")))
+
+    version = pagelib._detect_agilab_version(SimpleNamespace(is_source_env=True, agilab_pck=Path("/tmp/demo")))
+
+    assert version == "2026.04.13+dev"
+
+
+def test_load_df_covers_missing_json_directory_latin1_and_without_index(tmp_path):
+    load_df = getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)
+
+    assert load_df(tmp_path / "missing.csv") is None
+
+    json_dir = tmp_path / "json-dir"
+    json_dir.mkdir()
+    (json_dir / "a.json").write_text('[{"value": 1}, {"value": 2}]', encoding="utf-8")
+    json_df = load_df(json_dir, with_index=False)
+    assert list(json_df["value"]) == [1, 2]
+
+    latin1_csv = tmp_path / "latin1.csv"
+    latin1_csv.write_bytes("name,value\ncaf\xe9,3\n".encode("latin-1"))
+    latin_df = load_df(latin1_csv, with_index=False)
+    assert latin_df.iloc[0]["name"] == "café"
+    assert latin_df.index.tolist() == [0]
+
+
+def test_save_csv_handles_empty_dataframe_and_cache_clear_failure(tmp_path, monkeypatch):
+    errors: list[str] = []
+    monkeypatch.setattr(pagelib.st, "error", lambda message: errors.append(str(message)))
+
+    class _ClearBroken:
+        def clear(self):
+            raise RuntimeError("cache busy")
+
+    monkeypatch.setattr(pagelib, "find_files", _ClearBroken())
+    df = pd.DataFrame({"value": [1]})
+    output = tmp_path / "nested" / "out.csv"
+
+    assert pagelib.save_csv(df, output) is True
+    assert output.exists()
+    assert pagelib.save_csv(pd.DataFrame(index=[0]), tmp_path / "empty.csv") is False
+    assert errors == []
+
+
+def test_get_df_index_returns_zero_when_defaulting_to_first_file(tmp_path):
+    missing = tmp_path / "missing.csv"
+
+    assert pagelib.get_df_index(["fallback.csv"], missing) == 0
+
+
+def test_get_first_match_and_keyword_skips_invalid_items(capsys):
+    found_text, found_keyword = pagelib.get_first_match_and_keyword(
+        [123, "mission-time"],
+        [None, "time"],
+    )
+
+    captured = capsys.readouterr()
+    assert found_text == "mission-time"
+    assert found_keyword == "time"
+    assert "not a string" in captured.out
+    assert "not a valid string" in captured.out
+
+
+def test_handle_go_action_reports_selected_view(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(
+            success=lambda message: messages.append(("success", str(message))),
+            write=lambda message: messages.append(("write", str(message))),
+        ),
+    )
+
+    pagelib.handle_go_action("demo_view", tmp_path / "demo_view.py")
+
+    assert messages == [
+        ("success", "'Go' button clicked for view: demo_view"),
+        ("write", f"View Path: {tmp_path / 'demo_view.py'}"),
+    ]
+
+
+def test_update_views_returns_false_when_everything_is_already_in_sync(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    pages_root = repo_root / "src" / "gui" / "pages"
+    pages_root.mkdir(parents=True)
+    source = tmp_path / "demo_view.py"
+    source.write_text("print('demo')\n", encoding="utf-8")
+    os.link(source, pages_root / "demo_view.py")
+
+    session_state = SimpleNamespace(
+        _env=SimpleNamespace(change_app=lambda _project: None),
+        preview_tree=True,
+    )
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
+    monkeypatch.setattr(pagelib.os, "getcwd", lambda: str(repo_root))
+
+    updated = pagelib.update_views("demo_project", [str(source)])
+
+    assert updated is False
+    assert session_state.preview_tree is False
+
+
+def test_select_project_survives_env_refresh_failure(monkeypatch):
+    infos: list[str] = []
+
+    class _Sidebar:
+        def text_input(self, *_args, **_kwargs):
+            return ""
+
+        def info(self, message):
+            infos.append(str(message))
+
+        def caption(self, _message):
+            return None
+
+        def selectbox(self, _label, options, index=0, key=None):
+            return options[index]
+
+    fake_st = SimpleNamespace(
+        session_state={"env": SimpleNamespace(get_projects=lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")), apps_path=Path("/apps"), builtin_apps_path=Path("/apps/builtin"))},
+        sidebar=_Sidebar(),
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "on_project_change", lambda _selection: (_ for _ in ()).throw(AssertionError("should not change")))
+
+    pagelib.select_project(["alpha", "beta"], current_project="alpha")
+
+    assert infos == []
+
+
+def test_resolve_active_app_skips_bad_requested_candidate_and_failed_last_app(monkeypatch, tmp_path):
+    requested_path = tmp_path / "requested"
+    requested_path.mkdir()
+    last_app = tmp_path / "last_app"
+    last_app.mkdir()
+    change_attempts: list[Path] = []
+
+    def _change_app(path):
+        change_attempts.append(Path(path))
+        raise RuntimeError("bad switch")
+
+    env = SimpleNamespace(
+        app="current",
+        apps_path=tmp_path,
+        projects=["requested"],
+        active_app=tmp_path / "current_app",
+        change_app=_change_app,
+    )
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(query_params={"active_app": "requested"}))
+    monkeypatch.setattr(pagelib, "load_last_active_app", lambda: last_app)
+
+    name, changed = pagelib.resolve_active_app(env)
+
+    assert name == "current"
+    assert changed is False
+    assert change_attempts
+
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(query_params={}))
+    change_attempts.clear()
+    name, changed = pagelib.resolve_active_app(env)
+    assert name == "current"
+    assert changed is False
+    assert change_attempts == [last_app]
+
+
+def test_activate_gpt_oss_stub_backend_clears_checkpoint_and_extra_args(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "gpt_oss_checkpoint": "   ",
+            "gpt_oss_extra_args": "   ",
+            "gpt_oss_checkpoint_active": "old-checkpoint",
+            "gpt_oss_extra_args_active": "--old",
+        },
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50130)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
+
+    env = SimpleNamespace(envars={"GPT_OSS_BACKEND": "stub", "GPT_OSS_CHECKPOINT": "obsolete"})
+
+    assert pagelib.activate_gpt_oss(env) is True
+    assert "GPT_OSS_CHECKPOINT" not in env.envars
+    assert "gpt_oss_checkpoint_active" not in fake_st.session_state
+    assert "gpt_oss_extra_args_active" not in fake_st.session_state
+
+
+def test_activate_gpt_oss_transformers_backend_retries_busy_port_and_keeps_active_flags(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "gpt_oss_backend": "transformers",
+            "gpt_oss_checkpoint": "demo-checkpoint",
+            "gpt_oss_extra_args": "--temperature 0.1",
+        },
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
+
+    ports = iter([50131, 50132])
+    launched: dict[str, tuple[str, str]] = {}
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: next(ports))
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda port: port == 50131)
+    monkeypatch.setattr(
+        pagelib,
+        "subproc",
+        lambda command, cwd: launched.setdefault("call", (command, cwd)),
+    )
+
+    env = SimpleNamespace(envars={})
+
+    assert pagelib.activate_gpt_oss(env) is True
+    assert "--inference-backend transformers" in launched["call"][0]
+    assert "--checkpoint demo-checkpoint" in launched["call"][0]
+    assert launched["call"][0].endswith("--temperature 0.1")
+    assert fake_st.session_state["gpt_oss_port"] == 50132
+    assert fake_st.session_state["gpt_oss_checkpoint_active"] == "demo-checkpoint"
+    assert fake_st.session_state["gpt_oss_extra_args_active"] == "--temperature 0.1"
+    assert env.envars["GPT_OSS_CHECKPOINT"] == "demo-checkpoint"
+    assert env.envars["GPT_OSS_EXTRA_ARGS"] == "--temperature 0.1"
+
+
+def test_scan_dir_returns_empty_list_for_missing_path(tmp_path):
+    assert pagelib.scan_dir(tmp_path / "missing") == []

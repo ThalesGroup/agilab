@@ -878,3 +878,98 @@ def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp
 
     assert editor_payloads == ["{}"]
     assert errors == ["Failed to save steps file from editor: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"]
+
+
+def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
+    toml_path = tmp_path / "lab_steps.toml"
+
+    pipeline_editor.toml_to_notebook(
+        {
+            "__meta__": {"ignored": True},
+            "demo_project": [
+                "print('raw')\n",
+                {"C": ""},
+                {"C": "print('dict')\n"},
+            ],
+        },
+        toml_path,
+    )
+
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    assert [cell["source"] for cell in notebook["cells"]] == [["print('raw')\n"], ["print('dict')\n"]]
+
+
+def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(error=lambda *args, **kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["ignore"]},
+                    {"cell_type": "code", "source": []},
+                    {"cell_type": "code", "source": ["print(3)\n"]},
+                ]
+            }
+        ).encode("utf-8"),
+    )
+
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+
+    stored = tomllib.loads((tmp_path / "demo_project" / "lab_steps.toml").read_text(encoding="utf-8"))
+    assert count == 1
+    assert stored["demo_project"] == [{"D": "", "Q": "", "C": "print(3)\n", "M": ""}]
+
+
+def test_restore_pipeline_snapshot_rebuilds_engine_from_map_when_selection_missing(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"idx": [0, "", "", "", "", "", 0]})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "sequence_widget",
+        {
+            "steps": [{}],
+            "engine_map": {0: "agi.run"},
+            "selected_engine": "",
+            "selected_venv": "/invalid/runtime",
+            "sequence": [0],
+        },
+    )
+
+    assert error is None
+    assert fake_st.session_state["lab_selected_venv"] == ""
+    assert fake_st.session_state["lab_selected_engine"] == "agi.run"
+
+
+def test_restore_pipeline_snapshot_handles_non_dict_active_entry(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"idx": [0, "stale", "stale", "stale", "stale", "stale", 0]})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "sequence_widget",
+        {
+            "steps": ["not-a-dict"],
+            "active_step": 0,
+            "sequence": [0],
+        },
+    )
+
+    assert error is None
+    assert fake_st.session_state["idx"][:6] == [0, "", "", "", "", ""]
