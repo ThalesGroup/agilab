@@ -6,6 +6,8 @@ Use it with:
 
 - [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
 - [STAR_GROWTH_PLAN.md](/Users/agi/PycharmProjects/agilab/STAR_GROWTH_PLAN.md)
+- [LAUNCH_EXECUTION_CHECKLIST.md](/Users/agi/PycharmProjects/agilab/LAUNCH_EXECUTION_CHECKLIST.md)
+- [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
 
 ## Locked launch theme
 
