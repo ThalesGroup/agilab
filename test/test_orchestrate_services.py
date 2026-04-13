@@ -338,7 +338,7 @@ def test_render_service_panel_handles_status_error_and_cached_health_failures(mo
     monkeypatch.setattr(
         orchestrate_services.pd,
         "DataFrame",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("df boom")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("df boom")),
     )
 
     deps = orchestrate_services.OrchestrateServiceDeps(
