@@ -300,7 +300,7 @@ async def render_execute_section(
                             restored_file = True
                         elif not source_path.exists():
                             st.warning("Undo could not restore file from disk backup (backup not found).")
-                    except Exception as exc:
+                    except OSError as exc:
                         st.error(f"Failed to restore deleted file: {exc}")
 
                 _restore_dataframe_preview_state(undo_payload)
@@ -309,11 +309,11 @@ async def render_execute_section(
                 st.session_state.pop(delete_confirm_key, None)
                 try:
                     cached_load_df.clear()
-                except Exception:
+                except (AttributeError, RuntimeError):
                     pass
                 try:
                     find_files.clear()
-                except Exception:
+                except (AttributeError, RuntimeError):
                     pass
                 if restored_file:
                     st.success("Dataframe delete undone and file restored.")
@@ -476,11 +476,11 @@ async def render_execute_section(
                     undo_payload["backup_file"] = str(backup_path)
                     try:
                         cached_load_df.clear()
-                    except Exception:
+                    except (AttributeError, RuntimeError):
                         pass
                     try:
                         find_files.clear()
-                    except Exception:
+                    except (AttributeError, RuntimeError):
                         pass
                     st.success(f"Deleted {file_path.name} from disk.")
                     deleted = True
@@ -546,7 +546,7 @@ async def render_execute_section(
     if source_preview_path:
         try:
             source_preview_name = Path(source_preview_path).name
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             source_preview_name = str(source_preview_path)
 
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
