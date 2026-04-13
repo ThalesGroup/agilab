@@ -63,3 +63,33 @@ def test_load_pre_prompt_messages_rejects_invalid_json(tmp_path, monkeypatch):
 
     assert result == []
     assert any("Failed to load pre_prompt.json" in message for message in warnings)
+
+
+def test_ensure_notebook_export_creates_missing_notebook(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    warnings: list[str] = []
+    generated: list[tuple[dict, Path]] = []
+    monkeypatch.setattr(module, "logger", SimpleNamespace(warning=lambda message: warnings.append(str(message))))
+    monkeypatch.setattr(module, "toml_to_notebook", lambda payload, path: generated.append((payload, path)))
+
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text('[[demo]]\nQ = "q"\n', encoding="utf-8")
+
+    module._ensure_notebook_export(steps_file)
+
+    assert generated == [({"demo": [{"Q": "q"}]}, steps_file)]
+    assert warnings == []
+
+
+def test_ensure_notebook_export_logs_invalid_toml(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    warnings: list[str] = []
+    monkeypatch.setattr(module, "logger", SimpleNamespace(warning=lambda message: warnings.append(str(message))))
+    monkeypatch.setattr(module, "toml_to_notebook", lambda *_args, **_kwargs: None)
+
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("[demo\n", encoding="utf-8")
+
+    module._ensure_notebook_export(steps_file)
+
+    assert any("Skipping notebook generation:" in message for message in warnings)
