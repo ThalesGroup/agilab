@@ -132,12 +132,12 @@ def _ollama_available_models(endpoint: str) -> List[str]:
     try:
         with urllib.request.urlopen(req, timeout=10.0) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
-    except Exception:
+    except (OSError, TimeoutError, urllib.error.URLError, ValueError):
         return []
 
     try:
         parsed = json.loads(raw)
-    except Exception:
+    except (TypeError, json.JSONDecodeError):
         return []
 
     models: List[str] = []
@@ -227,7 +227,7 @@ def _ollama_generate(
         detail = ""
         try:
             detail = exc.read().decode("utf-8", errors="replace")
-        except Exception:
+        except (OSError, ValueError):
             pass
         raise RuntimeError(f"Ollama error {exc.code}: {detail or exc.reason}") from exc
     except urllib.error.URLError as exc:
@@ -290,7 +290,7 @@ def chat_ollama_local(
         raw = envars.get(name) or os.getenv(name)
         try:
             return float(raw) if raw is not None and str(raw).strip() else float(default)
-        except Exception:
+        except (TypeError, ValueError):
             return float(default)
 
     def _int_env(name: str) -> Optional[int]:
@@ -299,7 +299,7 @@ def chat_ollama_local(
             return None
         try:
             return int(float(raw))
-        except Exception:
+        except (TypeError, ValueError):
             return None
 
     temperature = _float_env(UOAIC_TEMPERATURE_ENV, 0.1)
@@ -819,7 +819,7 @@ def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
         if env is not None:
             try:
                 base = _pipeline_export_root(env)
-            except Exception:  # pragma: no cover - defensive
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):  # pragma: no cover - defensive
                 base = None
         if base is None:
             base = Path.cwd()
@@ -883,7 +883,7 @@ def _load_uoaic_modules():
             if not file_path:
                 try:
                     rec = dist.read_text("RECORD") or ""
-                except Exception:
+                except (OSError, RuntimeError):
                     rec = ""
                 for line in rec.splitlines():
                     if line.startswith("src/") and line.endswith(".py") and line.split(",",1)[0].endswith(f"src/{short}.py"):
@@ -937,7 +937,7 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
 
     try:
         data_path = _resolve_uoaic_path(data_path_raw, env)
-    except Exception as exc:
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         st.error(f"Invalid Universal Offline data directory: {exc}")
         raise JumpToMain(exc)
 
@@ -955,7 +955,7 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
 
     try:
         db_path = _resolve_uoaic_path(db_path_raw, env)
-    except Exception as exc:
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         st.error(f"Invalid Universal Offline vector store directory: {exc}")
         raise JumpToMain(exc)
 
@@ -1276,7 +1276,7 @@ def _maybe_autofix_generated_code(
 
     try:
         max_attempts = int(st.session_state.get(UOAIC_AUTOFIX_MAX_STATE_KEY, 2))
-    except Exception:
+    except (TypeError, ValueError):
         max_attempts = 2
     if max_attempts <= 0:
         return merged_code, model_label, detail
@@ -1577,7 +1577,7 @@ def universal_offline_controls(env: AgiEnv) -> None:
             raw = st.session_state.get(name) or env.envars.get(name) or os.getenv(name)
             try:
                 return float(raw)
-            except Exception:
+            except (TypeError, ValueError):
                 return float(fallback)
 
         temperature_default = max(0.0, min(1.0, _float_default(UOAIC_TEMPERATURE_ENV, 0.1)))
@@ -1606,7 +1606,7 @@ def universal_offline_controls(env: AgiEnv) -> None:
             raw = st.session_state.get(name) or env.envars.get(name) or os.getenv(name)
             try:
                 return int(float(raw))
-            except Exception:
+            except (TypeError, ValueError):
                 return int(fallback)
 
         num_ctx = st.number_input(
@@ -1662,7 +1662,7 @@ def universal_offline_controls(env: AgiEnv) -> None:
         max_default = env.envars.get(UOAIC_AUTOFIX_MAX_ENV) or os.getenv(UOAIC_AUTOFIX_MAX_ENV) or "2"
         try:
             max_default_int = max(0, int(max_default))
-        except Exception:
+        except (TypeError, ValueError):
             max_default_int = 2
         max_attempts = st.number_input(
             "Max fix attempts",
@@ -1688,7 +1688,7 @@ def universal_offline_controls(env: AgiEnv) -> None:
     if not data_default:
         try:
             default_data_path.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except OSError:
             pass
         data_default = normalize_path(default_data_path)
     data_input = st.sidebar.text_input(
@@ -1721,7 +1721,7 @@ def universal_offline_controls(env: AgiEnv) -> None:
     if not db_default:
         try:
             default_db_path.parent.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except OSError:
             pass
         db_default = normalize_path(default_db_path)
 

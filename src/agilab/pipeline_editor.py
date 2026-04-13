@@ -290,7 +290,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
     for raw_idx, text in st.session_state.get(details_key, {}).items():
         try:
             idx = int(raw_idx)
-        except Exception:
+        except (TypeError, ValueError):
             continue
         if 0 <= idx < len(steps_snapshot):
             details_snapshot[idx] = str(text or "")
@@ -299,7 +299,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
     for raw_idx, raw_path in st.session_state.get(venv_key, {}).items():
         try:
             idx = int(raw_idx)
-        except Exception:
+        except (TypeError, ValueError):
             continue
         if 0 <= idx < len(steps_snapshot):
             normalized = normalize_runtime_path(raw_path)
@@ -310,7 +310,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
     for raw_idx, engine in st.session_state.get(engine_key, {}).items():
         try:
             idx = int(raw_idx)
-        except Exception:
+        except (TypeError, ValueError):
             continue
         if 0 <= idx < len(steps_snapshot):
             engine_snapshot[idx] = str(engine or "")
@@ -320,7 +320,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
     for raw_idx in raw_sequence:
         try:
             idx = int(raw_idx)
-        except Exception:
+        except (TypeError, ValueError):
             continue
         if 0 <= idx < len(steps_snapshot) and idx not in sequence_snapshot:
             sequence_snapshot.append(idx)
@@ -330,7 +330,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
     page_state = st.session_state.get(index_page, [0])
     try:
         active_step = int(page_state[0]) if isinstance(page_state, list) and page_state else 0
-    except Exception:
+    except (TypeError, ValueError):
         active_step = 0
 
     return {
@@ -389,7 +389,7 @@ def _restore_pipeline_snapshot(
         for raw_idx, text in snapshot.get("details", {}).items():
             try:
                 idx = int(raw_idx)
-            except Exception:
+            except (TypeError, ValueError):
                 continue
             if 0 <= idx < nsteps:
                 details_map[idx] = str(text or "")
@@ -399,7 +399,7 @@ def _restore_pipeline_snapshot(
         for raw_idx, raw_path in snapshot.get("venv_map", {}).items():
             try:
                 idx = int(raw_idx)
-            except Exception:
+            except (TypeError, ValueError):
                 continue
             if 0 <= idx < nsteps:
                 normalized = normalize_runtime_path(raw_path)
@@ -411,7 +411,7 @@ def _restore_pipeline_snapshot(
         for raw_idx, engine in snapshot.get("engine_map", {}).items():
             try:
                 idx = int(raw_idx)
-            except Exception:
+            except (TypeError, ValueError):
                 continue
             if 0 <= idx < nsteps:
                 engine_map[idx] = str(engine or "")
@@ -423,7 +423,7 @@ def _restore_pipeline_snapshot(
             for raw_idx in raw_sequence:
                 try:
                     idx = int(raw_idx)
-                except Exception:
+                except (TypeError, ValueError):
                     continue
                 if 0 <= idx < nsteps and idx not in restored_sequence:
                     restored_sequence.append(idx)
@@ -446,7 +446,7 @@ def _restore_pipeline_snapshot(
         if nsteps > 0:
             try:
                 active_step = int(snapshot.get("active_step", 0))
-            except Exception:
+            except (TypeError, ValueError):
                 active_step = 0
             active_step = max(0, min(active_step, nsteps - 1))
             active_entry = steps_snapshot[active_step] if active_step < len(steps_snapshot) else {}
@@ -511,7 +511,7 @@ def toml_to_notebook(toml_data: Dict[str, Any], toml_path: Path) -> None:
     try:
         with open(notebook_path, "w", encoding="utf-8") as nb_file:
             json.dump(notebook_data, nb_file, indent=2)
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save notebook: {e}")
         logger.error(f"Error saving notebook in toml_to_notebook: {e}")
 
@@ -557,11 +557,11 @@ def save_step(
     # Normalize types
     try:
         nsteps = int(nsteps)
-    except Exception:
+    except (TypeError, ValueError):
         nsteps = 0
     try:
         index_step = int(current_step)
-    except Exception:
+    except (TypeError, ValueError):
         index_step = 0
     if steps_file.exists():
         with open(steps_file, "rb") as f:
@@ -608,12 +608,12 @@ def save_step(
             model_from_env = env.envars.get("OPENAI_MODEL") or env.envars.get("AZURE_OPENAI_DEPLOYMENT")
             if model_from_env:
                 entry["M"] = model_from_env
-    except Exception:
+    except (AttributeError, RuntimeError, TypeError):
         pass
     if venv_map is not None:
         try:
             entry["E"] = normalize_runtime_path(venv_map.get(index_step, ""))
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             entry["E"] = ""
     elif "E" in existing_entry:
         entry["E"] = normalize_runtime_path(existing_entry.get("E", ""))
@@ -621,7 +621,7 @@ def save_step(
     if engine_map is not None:
         try:
             entry["R"] = str(engine_map.get(index_step, "") or "")
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             entry["R"] = ""
     elif "R" in existing_entry:
         entry["R"] = str(existing_entry.get("R", "") or "")
@@ -705,7 +705,7 @@ def notebook_to_toml(
     try:
         file_content = _read_uploaded_text(uploaded_file)
         notebook_content = json.loads(file_content)
-    except Exception as exc:
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         _emit_streamlit_message("error", f"Unable to parse notebook: {exc}")
         return 0
     if not isinstance(notebook_content, dict):
@@ -729,7 +729,7 @@ def notebook_to_toml(
     try:
         with open(toml_path, "wb") as toml_file:
             tomli_w.dump(toml_content, toml_file)
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(f"Error writing TOML in notebook_to_toml: {e}")
     return cell_count
@@ -742,7 +742,7 @@ def refresh_notebook_export(steps_file: Path) -> Path | None:
     try:
         with open(steps_file, "rb") as f:
             steps = tomllib.load(f)
-    except Exception as exc:
+    except (OSError, TypeError, tomllib.TOMLDecodeError) as exc:
         _emit_streamlit_message(
             "error",
             f"Unable to export notebook: failed to load {steps_file}: {exc}",
@@ -818,6 +818,6 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
             with open(steps_file, "wb") as f:
                 tomli_w.dump(convert_paths_to_strings(cleaned), f)
             _bump_history_revision()
-        except Exception as e:
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
             st.error(f"Failed to save steps file from editor: {e}")
             logger.error(f"Error saving steps file from editor: {e}")

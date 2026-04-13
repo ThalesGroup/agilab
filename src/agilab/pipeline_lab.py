@@ -132,13 +132,13 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
     def _add_path(candidate: Path) -> None:
         try:
             path = candidate.expanduser()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             path = candidate
         if not path.exists() or not path.is_file() or path.suffix.lower() != ".py":
             return
         try:
             unique_key = str(path.resolve())
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             unique_key = str(path)
         if unique_key in seen:
             return
@@ -177,10 +177,10 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
                     try:
                         if py_file.stat().st_mtime < app_settings_mtime:
                             continue
-                    except Exception:
+                    except OSError:
                         continue
                 _add_path(py_file)
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             pass
 
     discovered.sort(key=lambda p: (p.name.lower(), str(p).lower()))
@@ -250,7 +250,7 @@ def display_lab_tab(
             fallback_steps = raw.get(module_key, [])
             if isinstance(fallback_steps, list):
                 persisted_steps = [s for s in fallback_steps if _is_displayable_step(s)]
-        except Exception:
+        except (AttributeError, OSError, TypeError, tomllib.TOMLDecodeError):
             pass
     total_steps = len(persisted_steps)
     safe_prefix = index_page_str.replace("/", "_")
@@ -385,7 +385,7 @@ def display_lab_tab(
                 if snippet_path:
                     try:
                         snippet_code = snippet_path.read_text(encoding="utf-8")
-                    except Exception as exc:
+                    except (OSError, UnicodeError) as exc:
                         st.warning(f"Unable to read snippet `{snippet_path}`: {exc}")
                 st.text_input(
                     "venv",
@@ -1231,7 +1231,7 @@ def display_lab_tab(
             if snippet_path:
                 try:
                     snippet_code = snippet_path.read_text(encoding="utf-8")
-                except Exception as exc:
+                except (OSError, UnicodeError) as exc:
                     st.warning(f"Unable to read snippet `{snippet_path}`: {exc}")
             st.text_input(
                 "venv",
