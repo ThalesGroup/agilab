@@ -480,7 +480,7 @@ def _restore_pipeline_snapshot(
         page_state[-1] = nsteps
         _bump_history_revision()
         return None
-    except Exception as exc:
+    except (AttributeError, IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.error(f"Undo restore failed for {steps_file}: {exc}")
         return str(exc)
 

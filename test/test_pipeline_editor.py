@@ -627,6 +627,21 @@ def test_restore_pipeline_snapshot_reports_write_failure(monkeypatch, tmp_path):
     assert error == "write boom"
 
 
+def test_restore_pipeline_snapshot_reports_invalid_snapshot_payload(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"idx": [0, "", "", "", "", "", 0]})
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "sequence_widget",
+        None,
+    )
+
+    assert error == "'NoneType' object has no attribute 'get'"
+
+
 def test_restore_pipeline_snapshot_resets_empty_state(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"idx": [4, "stale", "stale", "stale", "stale", "stale", 9]})
     monkeypatch.setattr(pipeline_editor, "st", fake_st)

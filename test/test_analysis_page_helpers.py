@@ -112,6 +112,8 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
 
     assert entrypoint == tmp_path / "demo_view" / "src" / "demo_view" / "demo_view.py"
     assert entrypoint.exists()
+    template_text = entrypoint.read_text(encoding="utf-8")
+    assert "except (ImportError, ModuleNotFoundError, OSError) as exc" in template_text
 
 
 def test_clone_source_label_falls_back_to_absolute_path(tmp_path: Path):

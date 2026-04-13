@@ -85,7 +85,7 @@ import streamlit as st
 
 try:
     from agi_env import AgiEnv
-except Exception as exc:  # pragma: no cover - dependency hint
+except (ImportError, ModuleNotFoundError, OSError) as exc:  # pragma: no cover - dependency hint
     AgiEnv = None
     _AGI_ENV_IMPORT_ERROR = exc
 else:  # pragma: no cover
