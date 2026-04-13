@@ -33,6 +33,7 @@ import sys
 import logging
 import webbrowser
 import shlex
+from . import mlflow_store
 logger = logging.getLogger(__name__)
 try:
     # Python 3.8+
@@ -88,251 +89,98 @@ def background_services_enabled() -> bool:
 
 
 def _get_mlflow_module():
-    try:
-        import mlflow  # type: ignore
-    except Exception:
-        return None
-    return mlflow
+    return mlflow_store.get_mlflow_module()
 
 
 def _resolve_mlflow_tracking_dir(env) -> Path:
-    home_abs = Path(getattr(env, "home_abs", Path.home())).expanduser()
-    tracking_value = getattr(env, "MLFLOW_TRACKING_DIR", None)
-    if tracking_value:
-        tracking_dir = Path(tracking_value).expanduser()
-        if not tracking_dir.is_absolute():
-            tracking_dir = home_abs / tracking_dir
-    else:
-        tracking_dir = home_abs / ".mlflow"
-    return tracking_dir.resolve()
+    return mlflow_store.resolve_mlflow_tracking_dir(env, home_factory=Path.home, path_cls=Path)
 
 
 def _resolve_mlflow_backend_db(tracking_dir: Path) -> Path:
-    return tracking_dir / DEFAULT_MLFLOW_DB_NAME
+    return mlflow_store.resolve_mlflow_backend_db(
+        tracking_dir,
+        default_db_name=DEFAULT_MLFLOW_DB_NAME,
+    )
 
 
 def _resolve_mlflow_artifact_dir(tracking_dir: Path) -> Path:
-    artifact_dir = tracking_dir / DEFAULT_MLFLOW_ARTIFACT_DIR
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    return artifact_dir.resolve()
+    return mlflow_store.resolve_mlflow_artifact_dir(
+        tracking_dir,
+        default_artifact_dir=DEFAULT_MLFLOW_ARTIFACT_DIR,
+    )
 
 
 def _sqlite_uri_for_path(db_path: Path) -> str:
-    resolved = Path(db_path).expanduser().resolve()
-    posix_path = resolved.as_posix()
-    if os.name == "nt":
-        return f"sqlite:///{posix_path}"
-    return f"sqlite:////{posix_path.lstrip('/')}"
+    return mlflow_store.sqlite_uri_for_path(db_path, os_name=os.name, path_cls=Path)
 
 
 def _legacy_mlflow_filestore_present(tracking_dir: Path) -> bool:
-    if not tracking_dir.exists():
-        return False
-    for child in tracking_dir.iterdir():
-        if child.name in {DEFAULT_MLFLOW_DB_NAME, DEFAULT_MLFLOW_ARTIFACT_DIR}:
-            continue
-        if child.name == ".trash" or child.name == "meta.yaml":
-            return True
-        if child.is_dir() and child.name.isdigit():
-            return True
-    return False
+    return mlflow_store.legacy_mlflow_filestore_present(
+        tracking_dir,
+        default_db_name=DEFAULT_MLFLOW_DB_NAME,
+        default_artifact_dir=DEFAULT_MLFLOW_ARTIFACT_DIR,
+    )
 
 
 def _sqlite_identifier(name: str) -> str:
-    return '"' + str(name).replace('"', '""') + '"'
+    return mlflow_store.sqlite_identifier(name)
 
 
 def _repair_mlflow_default_experiment_db(db_path: Path, artifact_uri: str | None = None) -> bool:
-    if not db_path.exists():
-        return False
-
-    try:
-        with sqlite3.connect(str(db_path)) as conn:
-            table_names = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            }
-            if "experiments" not in table_names:
-                return False
-
-            experiment_cols = {
-                row[1] for row in conn.execute("PRAGMA table_info(experiments)").fetchall()
-            }
-            if {"experiment_id", "name"} - experiment_cols:
-                return False
-
-            where_clause = "name = ?"
-            params = [DEFAULT_MLFLOW_EXPERIMENT_NAME]
-            if "workspace" in experiment_cols:
-                where_clause += " AND workspace = ?"
-                params.append("default")
-
-            default_row = conn.execute(
-                f"SELECT experiment_id FROM experiments WHERE {where_clause} ORDER BY experiment_id LIMIT 1",
-                params,
-            ).fetchone()
-            if default_row is None:
-                return False
-
-            current_id = int(default_row[0])
-            zero_row = conn.execute(
-                "SELECT experiment_id, name FROM experiments WHERE experiment_id = 0"
-            ).fetchone()
-
-            repaired = False
-            if current_id != 0 and zero_row is None:
-                conn.execute("PRAGMA foreign_keys=OFF")
-                for table_name in table_names:
-                    if table_name.startswith("sqlite_"):
-                        continue
-                    cols = {
-                        row[1]
-                        for row in conn.execute(
-                            f"PRAGMA table_info({_sqlite_identifier(table_name)})"
-                        ).fetchall()
-                    }
-                    if "experiment_id" not in cols:
-                        continue
-                    conn.execute(
-                        f"UPDATE {_sqlite_identifier(table_name)} SET experiment_id = 0 WHERE experiment_id = ?",
-                        (current_id,),
-                    )
-                repaired = True
-
-            if artifact_uri and "artifact_location" in experiment_cols:
-                conn.execute(
-                    "UPDATE experiments SET artifact_location = ? WHERE experiment_id = 0",
-                    (artifact_uri,),
-                )
-                repaired = True
-
-            if repaired:
-                conn.commit()
-            return repaired
-    except sqlite3.Error:
-        return False
+    return mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name=DEFAULT_MLFLOW_EXPERIMENT_NAME,
+        sqlite_identifier_fn=_sqlite_identifier,
+        artifact_uri=artifact_uri,
+    )
 
 
 def _ensure_mlflow_sqlite_schema_current(db_path: Path) -> None:
-    if not db_path.exists():
-        return
-
-    db_uri = _sqlite_uri_for_path(db_path)
-    if db_uri in _MLFLOW_SQLITE_UPGRADE_CHECKED:
-        return
-
-    try:
-        with sqlite3.connect(db_path) as conn:
-            has_alembic_version = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'alembic_version'"
-            ).fetchone()
-    except sqlite3.Error:
-        has_alembic_version = None
-    if not has_alembic_version:
-        return
-
-    result = subprocess.run(
-        [sys.executable, "-m", "mlflow", "db", "upgrade", db_uri],
-        check=False,
-        capture_output=True,
-        text=True,
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        db_path,
+        checked_uris=_MLFLOW_SQLITE_UPGRADE_CHECKED,
+        sqlite_uri_for_path_fn=_sqlite_uri_for_path,
+        schema_reset_markers=_MLFLOW_SCHEMA_RESET_MARKERS,
+        reset_backend_fn=_reset_mlflow_sqlite_backend,
+        run_cmd=subprocess.run,
+        sys_executable=sys.executable,
     )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout or "").strip()
-        if any(marker in details for marker in _MLFLOW_SCHEMA_RESET_MARKERS):
-            _reset_mlflow_sqlite_backend(db_path)
-            return
-        raise RuntimeError(
-            "Failed to upgrade the local MLflow SQLite schema. "
-            f"Database: {db_path}. {details}"
-        )
-    _MLFLOW_SQLITE_UPGRADE_CHECKED.add(db_uri)
 
 
 def _reset_mlflow_sqlite_backend(db_path: Path) -> Path | None:
-    db_path = Path(db_path).expanduser().resolve()
-    if not db_path.exists():
-        return None
-
-    db_uri = _sqlite_uri_for_path(db_path)
-    _MLFLOW_SQLITE_UPGRADE_CHECKED.discard(db_uri)
-    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
-    backup_path = db_path.with_name(f"{db_path.stem}.schema-reset-{timestamp}{db_path.suffix}")
-    for sidecar in ("", "-shm", "-wal", "-journal"):
-        candidate = Path(f"{db_path}{sidecar}")
-        if candidate.exists():
-            candidate.replace(Path(f"{backup_path}{sidecar}"))
-    return backup_path
+    return mlflow_store.reset_mlflow_sqlite_backend(
+        db_path,
+        checked_uris=_MLFLOW_SQLITE_UPGRADE_CHECKED,
+        sqlite_uri_for_path_fn=_sqlite_uri_for_path,
+        timestamp_fn=lambda: time.strftime("%Y%m%d_%H%M%S", time.gmtime()),
+    )
 
 
 def _ensure_mlflow_backend_ready(tracking_dir: Path) -> str:
-    db_path = _resolve_mlflow_backend_db(tracking_dir)
-    if not db_path.exists() and _legacy_mlflow_filestore_present(tracking_dir):
-        target_uri = _sqlite_uri_for_path(db_path)
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "mlflow",
-                "migrate-filestore",
-                "--source",
-                str(tracking_dir),
-                "--target",
-                target_uri,
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            details = (result.stderr or result.stdout or "").strip()
-            raise RuntimeError(
-                "Failed to migrate the legacy MLflow file store to SQLite. "
-                f"Source: {tracking_dir}. {details}"
-            )
-    _ensure_mlflow_sqlite_schema_current(db_path)
-    artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
-    _repair_mlflow_default_experiment_db(db_path, artifact_uri)
-    return _sqlite_uri_for_path(db_path)
+    return mlflow_store.ensure_mlflow_backend_ready(
+        tracking_dir,
+        resolve_mlflow_backend_db_fn=_resolve_mlflow_backend_db,
+        legacy_mlflow_filestore_present_fn=_legacy_mlflow_filestore_present,
+        sqlite_uri_for_path_fn=_sqlite_uri_for_path,
+        ensure_mlflow_sqlite_schema_current_fn=_ensure_mlflow_sqlite_schema_current,
+        resolve_mlflow_artifact_dir_fn=_resolve_mlflow_artifact_dir,
+        repair_mlflow_default_experiment_db_fn=_repair_mlflow_default_experiment_db,
+        run_cmd=subprocess.run,
+        sys_executable=sys.executable,
+    )
 
 
 def _ensure_default_mlflow_experiment(tracking_dir: Path) -> str | None:
-    mlflow = _get_mlflow_module()
-    if mlflow is None:
-        return None
-    artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
-    db_path = _resolve_mlflow_backend_db(tracking_dir)
-
-    for attempt in range(2):
-        backend_uri = _ensure_mlflow_backend_ready(tracking_dir)
-        try:
-            mlflow.set_tracking_uri(backend_uri)
-            experiment = None
-            get_experiment = getattr(mlflow, "get_experiment_by_name", None)
-            if callable(get_experiment):
-                experiment = get_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
-            if experiment is None:
-                create_experiment = getattr(mlflow, "create_experiment", None)
-                if callable(create_experiment):
-                    try:
-                        create_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME, artifact_location=artifact_uri)
-                    except Exception:
-                        pass
-            mlflow.set_experiment(DEFAULT_MLFLOW_EXPERIMENT_NAME)
-            return backend_uri
-        except Exception as exc:
-            details = str(exc)
-            if attempt == 0 and (
-                "Detected out-of-date database schema" in details
-                or any(marker in details for marker in _MLFLOW_SCHEMA_RESET_MARKERS)
-            ):
-                _reset_mlflow_sqlite_backend(db_path)
-                continue
-            raise
-
-    return backend_uri
+    return mlflow_store.ensure_default_mlflow_experiment(
+        tracking_dir,
+        get_mlflow_module_fn=_get_mlflow_module,
+        resolve_mlflow_artifact_dir_fn=_resolve_mlflow_artifact_dir,
+        resolve_mlflow_backend_db_fn=_resolve_mlflow_backend_db,
+        ensure_mlflow_backend_ready_fn=_ensure_mlflow_backend_ready,
+        reset_mlflow_sqlite_backend_fn=_reset_mlflow_sqlite_backend,
+        default_experiment_name=DEFAULT_MLFLOW_EXPERIMENT_NAME,
+        schema_reset_markers=_MLFLOW_SCHEMA_RESET_MARKERS,
+    )
 
 
 def _load_global_state() -> Dict[str, str]:
