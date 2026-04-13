@@ -6,7 +6,8 @@ from typing import Any, List, Optional
 import streamlit as st
 
 from agi_env import AgiEnv
-from agi_env.pagelib import load_last_active_app, scan_dir, store_last_active_app
+from agi_env.pagelib import scan_dir
+from agi_env.ui_support import load_last_active_app, store_last_active_app
 
 
 JUPYTER_URL = "http://localhost:8888"

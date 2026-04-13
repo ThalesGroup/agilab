@@ -53,7 +53,8 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_env.pagelib import background_services_enabled, inject_theme, load_last_active_app, store_last_active_app
+from agi_env.pagelib import background_services_enabled, inject_theme
+from agi_env.ui_support import load_last_active_app, store_last_active_app
 
 # ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path) -> None:

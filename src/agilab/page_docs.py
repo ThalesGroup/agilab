@@ -3,7 +3,7 @@ from __future__ import annotations
 import webbrowser
 
 import streamlit as st
-from agi_env.pagelib import open_local_docs
+from agi_env.ui_support import open_local_docs
 
 DOCS_BASE_URL = "https://thalesgroup.github.io/agilab"
 _DOCS_LOCAL_ALIASES: dict[str, tuple[str, ...]] = {

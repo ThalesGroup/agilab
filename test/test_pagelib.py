@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agi_env import pagelib
+from agi_env import pagelib, ui_support
 
 
 def test_diagnose_data_directory_reports_missing_mount(tmp_path, monkeypatch):
@@ -89,9 +89,9 @@ def test_run_failure_exits(monkeypatch):
 
 
 def test_with_anchor_appends_hash():
-    assert pagelib._with_anchor("http://example", "section") == "http://example#section"
-    assert pagelib._with_anchor("http://example", "#section") == "http://example#section"
-    assert pagelib._with_anchor("http://example", "") == "http://example"
+    assert ui_support.with_anchor("http://example", "section") == "http://example#section"
+    assert ui_support.with_anchor("http://example", "#section") == "http://example#section"
+    assert ui_support.with_anchor("http://example", "") == "http://example"
 
 
 def test_open_docs_url_reuses_existing_tab(monkeypatch):
@@ -100,13 +100,13 @@ def test_open_docs_url_reuses_existing_tab(monkeypatch):
     def open_new_tab(url):
         opened.append(url)
 
-    pagelib._DOCS_ALREADY_OPENED = False
-    pagelib._LAST_DOCS_URL = None
-    monkeypatch.setattr(pagelib.webbrowser, "open_new_tab", open_new_tab)
-    monkeypatch.setattr(pagelib, "_focus_existing_docs_tab", lambda _: True)
+    ui_support._DOCS_ALREADY_OPENED = False
+    ui_support._LAST_DOCS_URL = None
+    monkeypatch.setattr(ui_support.webbrowser, "open_new_tab", open_new_tab)
+    monkeypatch.setattr(ui_support, "focus_existing_docs_tab", lambda _: True)
 
-    pagelib._open_docs_url("http://example/docs")
-    pagelib._open_docs_url("http://example/docs")
+    ui_support.open_docs_url("http://example/docs")
+    ui_support.open_docs_url("http://example/docs")
 
     assert opened == ["http://example/docs"]
 
@@ -119,7 +119,7 @@ def test_resolve_docs_path_prefers_build(tmp_path):
     target.write_text("hello", encoding="utf-8")
     env = SimpleNamespace(agilab_pck=pkg_root)
 
-    resolved = pagelib._resolve_docs_path(env, "index.html")
+    resolved = ui_support.resolve_docs_path(env, "index.html")
 
     assert resolved == target
 
@@ -130,10 +130,10 @@ def test_open_docs_falls_back_to_online(monkeypatch):
     def fake_open(url):
         captured["url"] = url
 
-    monkeypatch.setattr(pagelib, "_open_docs_url", fake_open)
+    monkeypatch.setattr(ui_support, "open_docs_url", fake_open)
     env = SimpleNamespace(agilab_pck=Path("/does/not/exist"))
 
-    pagelib.open_docs(env, html_file="missing.html", anchor="anchor")
+    ui_support.open_docs(env, html_file="missing.html", anchor="anchor")
 
     assert captured["url"] == "https://thalesgroup.github.io/agilab/index.html#anchor"
 
@@ -147,14 +147,14 @@ def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
     env = SimpleNamespace(agilab_pck=pkg_root)
 
     opened = {}
-    monkeypatch.setattr(pagelib, "_open_docs_url", lambda url: opened.setdefault("url", url))
+    monkeypatch.setattr(ui_support, "open_docs_url", lambda url: opened.setdefault("url", url))
 
-    pagelib.open_local_docs(env, html_file="page.html", anchor="a")
+    ui_support.open_local_docs(env, html_file="page.html", anchor="a")
 
     assert opened["url"].startswith(html_path.as_uri())
 
     with pytest.raises(FileNotFoundError):
-        pagelib.open_local_docs(env, html_file="missing.html")
+        ui_support.open_local_docs(env, html_file="missing.html")
 
 
 def test_run_lab_captures_output_and_restores_env(tmp_path, monkeypatch):
