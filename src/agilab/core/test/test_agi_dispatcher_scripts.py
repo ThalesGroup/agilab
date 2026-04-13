@@ -1,6 +1,7 @@
 import os
 import builtins
 import runpy
+import subprocess
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -364,6 +365,85 @@ def test_post_try_link_dir_returns_false_on_setup_and_symlink_failures(tmp_path,
     assert post_mod._try_link_dir(existing, target_path) is False
 
 
+def test_post_try_link_dir_windows_junction_fallbacks(tmp_path, monkeypatch):
+    link_path = tmp_path / "dataset" / "sat"
+    target_path = tmp_path / "trajectory"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+
+    calls = []
+    monkeypatch.setattr(post_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(post_mod, "Path", type(tmp_path))
+    monkeypatch.setattr(post_mod.os, "symlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("symlink denied")))
+    monkeypatch.setattr(
+        subprocess,
+        "check_call",
+        lambda args, stdout=None, stderr=None: calls.append(tuple(args)),
+    )
+
+    assert post_mod._try_link_dir(link_path, target_path) is True
+    assert calls == [("cmd", "/c", "mklink", "/J", str(link_path), str(target_path))]
+
+    failing = tmp_path / "dataset" / "sat_fail"
+    monkeypatch.setattr(
+        subprocess,
+        "check_call",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mklink failed")),
+    )
+    assert post_mod._try_link_dir(failing, target_path) is False
+
+
+def test_post_dataset_archive_candidates_handles_resolve_failure(monkeypatch, tmp_path):
+    class DummyEnv:
+        share_target_name = "mycode"
+        dataset_archive = tmp_path / "dataset.7z"
+        agilab_pck = tmp_path
+
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == DummyEnv.dataset_archive:
+            raise OSError("boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(post_mod.Path, "resolve", _patched_resolve, raising=False)
+
+    candidates = post_mod._dataset_archive_candidates(DummyEnv())
+
+    assert len(candidates) == 2
+    assert candidates[0] == DummyEnv.dataset_archive
+
+
+def test_post_dir_is_duplicate_of_false_branches(tmp_path):
+    missing = tmp_path / "missing"
+    ref = tmp_path / "ref"
+    ref.mkdir()
+    (ref / "a.csv").write_text("1", encoding="utf-8")
+    (ref / "b.csv").write_text("2", encoding="utf-8")
+    assert post_mod._dir_is_duplicate_of(missing, ref) is False
+
+    src_one = tmp_path / "src_one"
+    src_one.mkdir()
+    (src_one / "a.csv").write_text("1", encoding="utf-8")
+    assert post_mod._dir_is_duplicate_of(src_one, ref) is False
+
+    ref_one = tmp_path / "ref_one"
+    ref_one.mkdir()
+    (ref_one / "a.csv").write_text("1", encoding="utf-8")
+    src_two = tmp_path / "src_two"
+    src_two.mkdir()
+    (src_two / "a.csv").write_text("1", encoding="utf-8")
+    (src_two / "b.csv").write_text("2", encoding="utf-8")
+    assert post_mod._dir_is_duplicate_of(src_two, ref_one) is False
+
+    ref_mismatch = tmp_path / "ref_mismatch"
+    ref_mismatch.mkdir()
+    (ref_mismatch / "a.csv").write_text("1", encoding="utf-8")
+    (ref_mismatch / "b.csv").write_text("333", encoding="utf-8")
+    assert post_mod._dir_is_duplicate_of(src_two, ref_mismatch) is False
+
+
 def test_post_main_returns_usage_on_invalid_args(capsys):
     assert post_mod.main([]) == 1
     captured = capsys.readouterr()
@@ -619,6 +699,121 @@ def test_post_main_reports_optional_dataset_seeding_exception(tmp_path, monkeypa
 
     assert result == 0
     assert "optional dataset seeding skipped: boom" in capsys.readouterr().out
+
+
+def test_post_main_returns_zero_when_deduplicate_cleanup_fails(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("placeholder", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    dataset_root = dest_arg / "dataset"
+    sat_folder = dataset_root / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    (sat_folder / "a.csv").write_text("1", encoding="utf-8")
+    (sat_folder / "b.csv").write_text("2", encoding="utf-8")
+
+    share_root = tmp_path / "shared-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: share_root,
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(
+        post_mod.shutil,
+        "rmtree",
+        lambda path, ignore_errors=False: (_ for _ in ()).throw(OSError("cleanup denied")) if Path(path) == sat_folder else None,
+    )
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    assert result == 0
+    assert sat_folder.is_dir()
+    assert "deduplicated" not in capsys.readouterr().out
+
+
+def test_post_main_returns_zero_when_large_cleanup_fails(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("placeholder", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    dataset_root = dest_arg / "dataset"
+    sat_folder = dataset_root / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    for idx in range(25):
+        (sat_folder / f"generated_{idx}_trajectory.csv").write_text("x", encoding="utf-8")
+
+    share_root = tmp_path / "shared-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: share_root,
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dir_is_duplicate_of", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        post_mod.shutil,
+        "rmtree",
+        lambda path, ignore_errors=False: (_ for _ in ()).throw(OSError("cleanup denied")) if Path(path) == sat_folder else None,
+    )
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    assert result == 0
+    assert sat_folder.is_dir()
+    assert "replaced large" not in capsys.readouterr().out
+
+
+def test_post_main_returns_zero_when_trajectory_archive_extracts_no_samples(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("placeholder", encoding="utf-8")
+    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
+    trajectory_archive.write_text("placeholder", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: tmp_path / "share-root",
+    )
+
+    extracted = {}
+
+    def _fake_extract(archive, dest):
+        extracted["archive"] = archive
+        extracted["dest"] = dest
+        trajectory_folder = Path(dest) / "Trajectory"
+        trajectory_folder.mkdir(parents=True, exist_ok=True)
+        (trajectory_folder / "only-one.csv").write_text("1", encoding="utf-8")
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_extract_archive", _fake_extract)
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    assert result == 0
+    assert extracted == {"archive": trajectory_archive, "dest": dest_arg / "dataset"}
+    assert not (dest_arg / "dataset" / "sat").exists()
+    out = capsys.readouterr().out
+    assert "extracting optional trajectories" in out
+    assert "linked" not in out
 
 
 def test_build_parse_custom_args_and_remaining():
@@ -1077,6 +1272,37 @@ def test_build_create_symlink_for_module_returns_empty_when_dest_exists(tmp_path
     assert build_mod.create_symlink_for_module(env, "demo_worker.module_a") == []
 
 
+def test_build_create_symlink_for_module_raises_when_hard_link_fails(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_file = tmp_path / "app" / "demo_worker" / "module_a"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("payload", encoding="utf-8")
+
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi_node",
+        agi_env=tmp_path / "agi_env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app",
+    )
+
+    monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", _DummyLogger(), raising=False)
+    monkeypatch.setattr(
+        build_mod.AgiEnv,
+        "create_symlink",
+        staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("symlink disabled"))),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        build_mod.os,
+        "link",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("hard link disabled")),
+    )
+
+    with pytest.raises(OSError, match="hard link disabled"):
+        build_mod.create_symlink_for_module(env, "demo_worker.module_a")
+
+
 def test_build_cleanup_links_removes_file_and_empty_parents(tmp_path):
     target = tmp_path / "a" / "agi_node" / "demo" / "payload.txt"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -1175,6 +1401,173 @@ def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatc
     assert run_calls, "Expected pre_install subprocess to run when .pyx is missing"
     assert cythonize_calls, "Expected Cythonize to be invoked for build_ext"
     assert cythonize_calls[0][1] is True, "Expected quiet=True when --quiet is passed"
+    assert setup_calls and setup_calls[0]["name"] == "demo_worker"
+
+
+def test_build_main_build_ext_rejects_missing_outdir(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(tmp_path / "home")
+            self.worker_path = "workers/demo_worker.py"
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(
+        build_mod,
+        "parse_custom_args",
+        lambda _remaining, _active_app: Namespace(
+            command="build_ext",
+            packages=[],
+            build_dir=None,
+            dist_dir=str(tmp_path / "out"),
+            remaining=[],
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Cannot determine target package name"):
+        build_mod.main(["--app-path", str(app_dir)])
+
+
+def test_build_main_build_ext_logs_truncate_path_failure(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    errors = []
+
+    class DummyLoggerWithError(_DummyLogger):
+        def error(self, *args, **_kwargs):
+            errors.append(" ".join(str(arg) for arg in args))
+
+    class DummyAgiEnv:
+        logger = DummyLoggerWithError()
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(tmp_path / "home")
+            self.worker_path = "workers/demo_worker.py"
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(
+        build_mod,
+        "parse_custom_args",
+        lambda _remaining, _active_app: Namespace(
+            command="build_ext",
+            packages=[],
+            build_dir=str(tmp_path / "invalid"),
+            dist_dir=str(tmp_path / "out"),
+            remaining=[],
+        ),
+    )
+    monkeypatch.setattr(build_mod, "truncate_path_at_segment", lambda _path: (_ for _ in ()).throw(ValueError("bad path")))
+
+    with pytest.raises(ValueError, match="bad path"):
+        build_mod.main(["--app-path", str(app_dir)])
+
+    assert any("bad path" in line for line in errors)
+
+
+def test_build_main_build_ext_free_threaded_nonquiet_uses_worker_resolve_fallback(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    (app_dir / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    worker_file = worker_home / "workers" / "demo_worker.py"
+    worker_file.parent.mkdir(parents=True, exist_ok=True)
+    worker_file.write_text("value = 1\n", encoding="utf-8")
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    out_dir = worker_home / "demo_worker"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        init_args = None
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            DummyAgiEnv.init_args = {
+                "apps_path": apps_path,
+                "active_app": active_app,
+                "verbose": verbose,
+            }
+            self.home_abs = str(worker_home)
+            self.worker_path = "workers/demo_worker.py"
+            self.pre_install = str(pre_script)
+            self.verbose = verbose
+            self.pyvers_worker = "3.13t"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    original_resolve = build_mod.Path.resolve
+    fallback_target = worker_home / "workers" / "demo_worker.py"
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == fallback_target:
+            raise RuntimeError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod.Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(build_mod, "find_sys_prefix", lambda _base: str(tmp_path / "prefix"))
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": ["demo_worker"])
+    monkeypatch.setattr(build_mod.sys, "platform", "win32", raising=False)
+
+    run_calls = []
+    monkeypatch.setattr(build_mod.subprocess, "run", lambda cmd, check=True: run_calls.append((cmd, check)))
+    cythonize_calls = []
+
+    def _fake_cythonize(modules, language_level=3, quiet=False, compiler_directives=None):
+        cythonize_calls.append((modules, quiet, compiler_directives))
+        return ["ext_mod"]
+
+    monkeypatch.setattr(build_mod, "cythonize", _fake_cythonize)
+    setup_calls = []
+    monkeypatch.setattr(build_mod, "setup", lambda **kwargs: setup_calls.append(kwargs))
+
+    build_mod.main(
+        [
+            "--app-path",
+            str(app_dir),
+            "build_ext",
+            "-b",
+            str(out_dir),
+            "--packages",
+            "pkg_a",
+        ]
+    )
+
+    assert run_calls, "Expected pre_install subprocess to run when .pyx is missing"
+    assert "--verbose" in run_calls[0][0]
+    assert cythonize_calls and cythonize_calls[0][1] is False
+    ext = cythonize_calls[0][0][0]
+    assert ("Py_GIL_DISABLED", "1") in ext.define_macros
+    assert cythonize_calls[0][2] == {"freethreading_compatible": True}
     assert setup_calls and setup_calls[0]["name"] == "demo_worker"
 
 
