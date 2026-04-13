@@ -147,7 +147,7 @@ def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeyp
     monkeypatch.setattr(
         pipeline_editor,
         "tomli_w",
-        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom"))),
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom"))),
     )
 
     remaining = pipeline_editor.remove_step(tmp_path / "flight_project", "7", steps_file, "idx")
@@ -427,6 +427,24 @@ def test_force_persist_step_merges_existing_content(tmp_path):
     assert stored["flight_project"][0]["E"] == "/tmp/runtime"
 
 
+def test_force_persist_step_swallows_invalid_toml(monkeypatch, tmp_path):
+    module_dir = tmp_path / "flight_project"
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("[[flight_project]\n", encoding="utf-8")
+    logged: list[str] = []
+
+    monkeypatch.setattr(pipeline_editor.logger, "error", logged.append)
+    with patch.object(pipeline_editor, "_module_keys", return_value=["flight_project"]):
+        pipeline_editor._force_persist_step(
+            module_dir,
+            steps_file,
+            0,
+            {"D": "detail"},
+        )
+
+    assert logged
+
+
 def test_write_steps_for_module_normalizes_runtime_and_exports_notebook(monkeypatch, tmp_path):
     steps_file = tmp_path / "lab_steps.toml"
     notebook_calls: list[dict[str, object]] = []
@@ -536,7 +554,7 @@ C = "print('short')"
     monkeypatch.setattr(
         pipeline_editor,
         "tomli_w",
-        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("save boom"))),
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("save boom"))),
     )
 
     nsteps, entry = pipeline_editor.save_step(
@@ -702,7 +720,7 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline_editor.json,
         "dump",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("nb boom")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("nb boom")),
     )
     pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print(1)"}]}, tmp_path / "lab_steps.toml")
 
@@ -712,7 +730,7 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline_editor,
         "tomli_w",
-        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("toml boom"))),
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("toml boom"))),
     )
     count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
 
@@ -770,7 +788,7 @@ def test_force_persist_step_swallows_dump_failures(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline_editor,
         "tomli_w",
-        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("dump boom"))),
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("dump boom"))),
     )
     monkeypatch.setattr(
         pipeline_editor.logger,
