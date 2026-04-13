@@ -1237,6 +1237,21 @@ def test_post_install_module_runs_main_when_invoked_as_script(monkeypatch, capsy
     assert "Usage: python post_install.py <app>" in capsys.readouterr().out
 
 
+def test_build_module_runs_main_when_invoked_as_script_and_tolerates_hacl_mkdir_failure(monkeypatch):
+    original_mkdir = Path.mkdir
+
+    def _patched_mkdir(self, *args, **kwargs):
+        if self.as_posix() == "Modules/_hacl":
+            raise OSError("mkdir denied")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _patched_mkdir, raising=False)
+    monkeypatch.setattr(build_mod.sys, "argv", ["build.py", "bdist_egg", "-d", ""])
+
+    with pytest.raises(SystemExit):
+        runpy.run_module("agi_node.agi_dispatcher.build", run_name="__main__")
+
+
 def test_build_parse_custom_args_and_remaining():
     opts = build_mod.parse_custom_args(
         ["build_ext", "--packages", "a,b", "-b", "/tmp/out", "--flag"],
