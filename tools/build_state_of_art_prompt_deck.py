@@ -95,53 +95,53 @@ def slide_problem(prs: Presentation):
     section(
         slide,
         "1. Le vrai rôle du Prompt Engineering",
-        "Le prompt ne cadre pas seulement le modèle. Il cadre le système d'exécution : modèle, boucle agentique et runtime.",
+        "Le prompt cadre le système d'exécution : modèle, boucle agentique et runtime.",
     )
     box(
         slide,
         Inches(4.18),
         Inches(2.0),
-        Inches(5.05),
-        Inches(0.52),
+        Inches(5.1),
+        Inches(0.46),
         "Système cadré par le prompt",
-        size=20,
+        size=19,
         color=DARK,
         bold=True,
         align=PP_ALIGN.CENTER,
     )
 
-    left_panel = panel(slide, Inches(0.7), Inches(2.48), Inches(2.8), Inches(3.28), fill=WHITE, line=DARK)
-    center_panel = panel(slide, Inches(4.08), Inches(2.48), Inches(4.72), Inches(3.28), fill=WHITE, line=DARK)
-    right_panel = panel(slide, Inches(9.38), Inches(2.48), Inches(3.25), Inches(3.28), fill=WHITE, line=DARK)
+    left_panel = panel(slide, Inches(0.7), Inches(2.48), Inches(2.84), Inches(3.22), fill=WHITE, line=DARK)
+    center_panel = panel(slide, Inches(4.02), Inches(2.48), Inches(4.9), Inches(3.22), fill=WHITE, line=DARK)
+    right_panel = panel(slide, Inches(9.28), Inches(2.48), Inches(3.42), Inches(3.22), fill=WHITE, line=DARK)
     for shp in (left_panel, center_panel, right_panel):
         shp.line.width = Pt(2.2)
 
-    box(slide, Inches(0.97), Inches(2.78), Inches(2.25), Inches(0.32), "Couche modèle", size=22, color=DARK, bold=False, align=PP_ALIGN.CENTER)
-    panel(slide, Inches(1.12), Inches(3.46), Inches(1.98), Inches(0.94), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
-    box(slide, Inches(1.22), Inches(3.78), Inches(1.78), Inches(0.24), "LLM de base", size=20, color=DARK, bold=False, align=PP_ALIGN.CENTER)
-    shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.93), Inches(4.46), Inches(0.34), Inches(0.34))
+    box(slide, Inches(0.97), Inches(2.76), Inches(2.3), Inches(0.32), "Couche modèle", size=21, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.1), Inches(3.34), Inches(2.02), Inches(0.96), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
+    box(slide, Inches(1.22), Inches(3.63), Inches(1.78), Inches(0.34), "LLM de base", size=19, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.94), Inches(4.34), Inches(0.32), Inches(0.32))
     shape.rotation = 90
     shape.fill.solid()
     shape.fill.fore_color.rgb = DARK
     shape.line.fill.background()
-    panel(slide, Inches(1.12), Inches(4.88), Inches(1.98), Inches(0.94), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
-    box(slide, Inches(1.22), Inches(5.12), Inches(1.78), Inches(0.42), "LLM\nreasoning", size=20, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.1), Inches(4.72), Inches(2.02), Inches(0.96), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
+    box(slide, Inches(1.22), Inches(4.96), Inches(1.78), Inches(0.42), "LLM\nreasoning", size=19, color=DARK, bold=False, align=PP_ALIGN.CENTER)
 
-    box(slide, Inches(5.1), Inches(2.78), Inches(2.72), Inches(0.32), "Boucle agentique", size=22, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    box(slide, Inches(5.14), Inches(2.76), Inches(2.72), Inches(0.32), "Boucle agentique", size=21, color=DARK, bold=False, align=PP_ALIGN.CENTER)
     loop_boxes = [
-        (Inches(4.56), Inches(3.84), "Inspecte"),
-        (Inches(6.58), Inches(3.84), "Choisit"),
-        (Inches(4.56), Inches(5.02), "Observe"),
-        (Inches(6.58), Inches(5.02), "Agit"),
+        (Inches(4.58), Inches(3.72), "Inspecte"),
+        (Inches(6.72), Inches(3.72), "Choisit"),
+        (Inches(4.58), Inches(4.92), "Observe"),
+        (Inches(6.72), Inches(4.92), "Agit"),
     ]
     for left, top, label in loop_boxes:
-        panel(slide, left, top, Inches(1.48), Inches(0.62), fill=RGBColor(197, 225, 245), line=RGBColor(197, 225, 245))
-        box(slide, left, top + Inches(0.17), Inches(1.48), Inches(0.2), label, size=19, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+        panel(slide, left, top, Inches(1.6), Inches(0.62), fill=RGBColor(197, 225, 245), line=RGBColor(197, 225, 245))
+        box(slide, left, top + Inches(0.16), Inches(1.6), Inches(0.22), label, size=18, color=DARK, bold=False, align=PP_ALIGN.CENTER)
     arrows = [
-        (Inches(6.06), Inches(4.06), Inches(0.28), Inches(0.18), 0),
-        (Inches(7.16), Inches(4.48), Inches(0.18), Inches(0.28), 90),
-        (Inches(6.06), Inches(5.28), Inches(0.28), Inches(0.18), 180),
-        (Inches(5.16), Inches(4.46), Inches(0.18), Inches(0.28), 270),
+        (Inches(6.26), Inches(3.95), Inches(0.26), Inches(0.16), 0),
+        (Inches(7.43), Inches(4.31), Inches(0.16), Inches(0.26), 90),
+        (Inches(6.26), Inches(5.11), Inches(0.26), Inches(0.16), 180),
+        (Inches(5.37), Inches(4.34), Inches(0.16), Inches(0.26), 270),
     ]
     for left, top, width, height, rotation in arrows:
         shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, top, width, height)
@@ -150,18 +150,18 @@ def slide_problem(prs: Presentation):
         shape.fill.fore_color.rgb = DARK
         shape.line.fill.background()
 
-    box(slide, Inches(9.5), Inches(2.78), Inches(2.98), Inches(0.32), "Cadre d'exécution", size=20, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+    box(slide, Inches(9.46), Inches(2.76), Inches(3.02), Inches(0.32), "Cadre d'exécution", size=20, color=DARK, bold=False, align=PP_ALIGN.CENTER)
     runtime = [
-        (Inches(9.6), Inches(3.78), "Contexte\nrepo"),
-        (Inches(11.06), Inches(3.78), "Outils"),
-        (Inches(9.6), Inches(4.62), "Permissions"),
-        (Inches(11.06), Inches(4.62), "Mémoire"),
-        (Inches(9.6), Inches(5.46), "Cache"),
-        (Inches(11.06), Inches(5.46), "Exécution"),
+        (Inches(9.56), Inches(3.66), "Contexte\nrepo"),
+        (Inches(11.12), Inches(3.66), "Outils"),
+        (Inches(9.56), Inches(4.53), "Permissions"),
+        (Inches(11.12), Inches(4.53), "Mémoire"),
+        (Inches(9.56), Inches(5.4), "Cache"),
+        (Inches(11.12), Inches(5.4), "Exécution"),
     ]
     for left, top, label in runtime:
-        panel(slide, left, top, Inches(1.38), Inches(0.58), fill=RGBColor(226, 208, 246), line=RGBColor(226, 208, 246))
-        box(slide, left, top + Inches(0.09), Inches(1.38), Inches(0.34), label, size=14, color=DARK, bold=False, align=PP_ALIGN.CENTER)
+        panel(slide, left, top, Inches(1.44), Inches(0.6), fill=RGBColor(226, 208, 246), line=RGBColor(226, 208, 246))
+        box(slide, left, top + Inches(0.1), Inches(1.44), Inches(0.34), label, size=13, color=DARK, bold=False, align=PP_ALIGN.CENTER)
 
     for left in [Inches(3.56), Inches(8.94)]:
         shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(4.12), Inches(0.34), Inches(0.28))
@@ -169,13 +169,14 @@ def slide_problem(prs: Presentation):
         shape.fill.fore_color.rgb = DARK
         shape.line.fill.background()
 
+    panel(slide, Inches(1.08), Inches(5.98), Inches(11.1), Inches(0.74), fill=RGBColor(244, 236, 224), line=RGBColor(244, 236, 224))
     box(
         slide,
-        Inches(1.0),
-        Inches(6.1),
-        Inches(11.3),
-        Inches(0.42),
-        "Le Prompt Engineering sert à cadrer la boucle, les outils, les règles d'exécution et le bon niveau de contexte.",
+        Inches(1.34),
+        Inches(6.18),
+        Inches(10.6),
+        Inches(0.28),
+        "Le Prompt Engineering cadre la boucle, les outils et le bon niveau de contexte.",
         size=16,
         color=ACCENT,
         bold=True,
@@ -202,43 +203,36 @@ def slide_landscape(prs: Presentation):
         shape.fill.solid()
         shape.fill.fore_color.rgb = ACCENT
         shape.line.fill.background()
-    panel(slide, Inches(0.98), Inches(5.0), Inches(5.25), Inches(0.92), fill=WHITE)
+    panel(slide, Inches(0.98), Inches(5.02), Inches(5.25), Inches(0.98), fill=WHITE)
     box(slide, Inches(1.18), Inches(5.18), Inches(4.86), Inches(0.2), "Message clé", size=15, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
-    box(slide, Inches(1.18), Inches(5.44), Inches(4.86), Inches(0.32),
-        "Le gain visible n’est pas dans la couche modèle seule.", size=19, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
-    panel(slide, Inches(6.55), Inches(5.0), Inches(5.78), Inches(0.92), fill=RGBColor(249, 243, 236))
+    box(slide, Inches(1.18), Inches(5.44), Inches(4.86), Inches(0.42),
+        "Le gain visible n’est pas dans la couche modèle seule.", size=18, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(6.55), Inches(5.02), Inches(5.78), Inches(0.98), fill=RGBColor(249, 243, 236))
     box(slide, Inches(6.78), Inches(5.18), Inches(5.32), Inches(0.2), "Cas AGILab", size=15, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
-    box(slide, Inches(6.78), Inches(5.44), Inches(5.32), Inches(0.32),
-        "AGENTS.md + skills + scripts renforcent surtout la couche agent.", size=19, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
+    box(slide, Inches(6.78), Inches(5.44), Inches(5.32), Inches(0.42),
+        "AGENTS.md + skills + scripts renforcent surtout la couche agent.", size=18, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
 
 
 def slide_ladder(prs: Presentation):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     section(slide, "3. La montée réelle de productivité", "Même modèle. Trois niveaux de valeur très différents.")
-    stairs = [
-        (Inches(0.78), Inches(3.08), Inches(3.35), Inches(1.7), RGBColor(244, 240, 235)),
-        (Inches(4.05), Inches(2.46), Inches(3.6), Inches(2.32), RGBColor(242, 235, 227)),
-        (Inches(7.48), Inches(1.78), Inches(4.12), Inches(3.0), RGBColor(239, 227, 214)),
-    ]
-    for left, top, width, height, fill in stairs:
-        panel(slide, left, top, width, height, fill=fill, line=fill)
     cards = [
-        (Inches(0.95), Inches(2.26), Inches(2.95), Inches(2.52), "NIVEAU 1", "Chatbot", "répond", ["copier-coller", "tests manuels"], "GAIN LIMITÉ", WHITE, 22, 15, 14, Inches(1.44), Inches(0.40), Inches(0.38)),
-        (Inches(4.24), Inches(1.86), Inches(3.16), Inches(2.82), "NIVEAU 2", "Plugin IDE", "édite", ["contexte local", "itération rapide"], "GAIN MOYEN", RGBColor(255, 250, 244), 22, 15, 14, Inches(1.48), Inches(0.44), Inches(0.40)),
-        (Inches(7.82), Inches(1.42), Inches(3.72), Inches(3.22), "NIVEAU 3", "Agent\nmulti-skill", "orchestre", ["repo + skills", "scripts + vérification"], "GAIN FORT", RGBColor(255, 248, 238), 20, 15, 14, Inches(1.50), Inches(0.44), Inches(0.40)),
+        (Inches(0.9), Inches(2.08), Inches(3.2), Inches(2.7), "NIVEAU 1", "Chatbot", "répond", ["copier-coller", "tests manuels"], "GAIN LIMITÉ", WHITE),
+        (Inches(4.38), Inches(2.08), Inches(3.2), Inches(2.7), "NIVEAU 2", "Plugin IDE", "édite", ["contexte local", "itération rapide"], "GAIN MOYEN", RGBColor(255, 250, 244)),
+        (Inches(7.86), Inches(2.08), Inches(3.6), Inches(2.7), "NIVEAU 3", "Agent multi-skill", "orchestre", ["repo + skills", "scripts + vérification"], "GAIN FORT", RGBColor(255, 248, 238)),
     ]
-    for left, top, width, height, level, title, verb, items, gain, fill, title_size, verb_size, body_size, body_top, body_height, gain_offset in cards:
+    for left, top, width, height, level, title, verb, items, gain, fill in cards:
         panel(slide, left, top, width, height, fill=fill)
         pill(slide, left + Inches(0.24), top + Inches(0.18), Inches(1.18), Inches(0.34), level, size=11)
-        box(slide, left + Inches(0.24), top + Inches(0.58), width - Inches(0.48), Inches(0.56), title, size=title_size, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
-        box(slide, left + Inches(0.24), top + Inches(1.14), width - Inches(0.48), Inches(0.24), verb, size=verb_size, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
-        box(slide, left + Inches(0.28), top + body_top, width - Inches(0.56), body_height, "\n".join(f"• {item}" for item in items), size=body_size, color=MUTED, align=PP_ALIGN.CENTER)
-        pill(slide, left + (width - Inches(1.58)) / 2, top + height - gain_offset, Inches(1.58), Inches(0.32), gain, fill=RGBColor(245, 236, 225), size=10)
-    ramp = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.5), Inches(5.1), Inches(9.9), Inches(0.42))
+        box(slide, left + Inches(0.24), top + Inches(0.62), width - Inches(0.48), Inches(0.4), title, size=22 if gain != "GAIN FORT" else 19, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
+        box(slide, left + Inches(0.24), top + Inches(1.08), width - Inches(0.48), Inches(0.24), verb, size=15, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
+        box(slide, left + Inches(0.34), top + Inches(1.52), width - Inches(0.68), Inches(0.52), "\n".join(f"• {item}" for item in items), size=14, color=MUTED, align=PP_ALIGN.CENTER)
+        pill(slide, left + (width - Inches(1.6)) / 2, top + Inches(2.16), Inches(1.6), Inches(0.34), gain, fill=RGBColor(245, 236, 225), size=10)
+    ramp = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.5), Inches(5.18), Inches(9.9), Inches(0.42))
     ramp.fill.solid()
     ramp.fill.fore_color.rgb = ACCENT
     ramp.line.fill.background()
-    box(slide, Inches(1.55), Inches(5.54), Inches(9.8), Inches(0.48),
+    box(slide, Inches(1.55), Inches(5.64), Inches(9.8), Inches(0.48),
         "Plus on retire l’orchestration à l’humain, plus le gain change d’échelle.", size=20, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
 
 
@@ -247,7 +241,7 @@ def slide_agilab(prs: Presentation):
     section(slide, "4. Pourquoi AGILab est un bon cas d’école", "Dans un repo riche, le coût d’orchestration devient visible immédiatement.")
     stages = [
         (Inches(0.95), "Demande", "corriger une page\nou un formulaire"),
-        (Inches(4.55), "Guidage", "prompt + AGENTS.md\n+ skills du repo"),
+        (Inches(4.55), "Guidage", "prompt\nAGENTS.md\nskills du repo"),
         (Inches(8.15), "Sortie", "patch plus fiable\net validation ciblée"),
     ]
     for left, title, body in stages:
@@ -259,11 +253,11 @@ def slide_agilab(prs: Presentation):
         shape.fill.solid()
         shape.fill.fore_color.rgb = ACCENT
         shape.line.fill.background()
-    panel(slide, Inches(1.0), Inches(5.05), Inches(11.0), Inches(0.9), fill=RGBColor(245, 236, 225), line=RGBColor(245, 236, 225))
-    box(slide, Inches(1.25), Inches(5.24), Inches(10.5), Inches(0.46),
-        "AGILab montre bien où un agent apporte de la valeur : il rappelle comment bien travailler dans ce repo.", size=18, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
-    panel(slide, Inches(1.0), Inches(6.08), Inches(11.0), Inches(0.7), fill=WHITE, line=ACCENT_3)
-    box(slide, Inches(1.3), Inches(6.24), Inches(10.4), Inches(0.26),
+    panel(slide, Inches(1.0), Inches(5.04), Inches(11.0), Inches(0.84), fill=RGBColor(245, 236, 225), line=RGBColor(245, 236, 225))
+    box(slide, Inches(1.25), Inches(5.24), Inches(10.5), Inches(0.34),
+        "AGILab montre bien où un agent apporte de la valeur : il rappelle comment bien travailler dans ce repo.", size=17, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.0), Inches(6.0), Inches(11.0), Inches(0.74), fill=WHITE, line=ACCENT_3)
+    box(slide, Inches(1.3), Inches(6.18), Inches(10.4), Inches(0.28),
         "Benchmark lisible : PandasWorker = process, PolarsWorker = threads, même workload, exécution rendue explicite.", size=15, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
 
 
@@ -272,18 +266,18 @@ def slide_codex(prs: Presentation):
     section(slide, "5. Pourquoi Codex CLI devient performant", "Son intérêt : agir avec le bon contexte, pas tout lire ni tout improviser.")
     steps = ["métadonnées repo", "SKILL.md", "scripts utiles", "exécution"]
     for i, step in enumerate(steps):
-        left = Inches(0.88 + i * 3.0)
-        panel(slide, left, Inches(2.55), Inches(2.42), Inches(1.34), fill=WHITE)
-        pill(slide, left + Inches(0.96), Inches(2.14), Inches(0.62), Inches(0.36), str(i + 1), fill=ACCENT, color=WHITE)
-        box(slide, left + Inches(0.16), Inches(3.03), Inches(2.22), Inches(0.34), step, size=17, color=INK, bold=True, align=PP_ALIGN.CENTER)
+        left = Inches(0.86 + i * 3.05)
+        panel(slide, left, Inches(2.58), Inches(2.48), Inches(1.28), fill=WHITE)
+        pill(slide, left + Inches(1.0), Inches(2.18), Inches(0.62), Inches(0.36), str(i + 1), fill=ACCENT, color=WHITE)
+        box(slide, left + Inches(0.16), Inches(3.05), Inches(2.26), Inches(0.34), step, size=17, color=INK, bold=True, align=PP_ALIGN.CENTER)
         if i < 3:
-            shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(3.47 + i * 3.0), Inches(3.08), Inches(0.34), Inches(0.24))
+            shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(3.53 + i * 3.05), Inches(3.12), Inches(0.3), Inches(0.22))
             shape.fill.solid()
             shape.fill.fore_color.rgb = ACCENT
             shape.line.fill.background()
-    panel(slide, Inches(1.2), Inches(5.0), Inches(10.8), Inches(0.86), fill=RGBColor(244, 236, 224), line=RGBColor(244, 236, 224))
-    box(slide, Inches(1.45), Inches(5.27), Inches(10.2), Inches(0.24),
-        "Progressive disclosure : Codex n’ouvre que ce qui est utile, au moment utile.", size=19, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(1.15), Inches(5.02), Inches(10.95), Inches(0.82), fill=RGBColor(244, 236, 224), line=RGBColor(244, 236, 224))
+    box(slide, Inches(1.42), Inches(5.25), Inches(10.4), Inches(0.34),
+        "Progressive disclosure : Codex n’ouvre que ce qui est utile, au moment utile.", size=18, color=ACCENT, bold=True, align=PP_ALIGN.CENTER)
 
 
 def slide_skills(prs: Presentation):
