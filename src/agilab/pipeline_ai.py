@@ -23,6 +23,17 @@ from agi_env.defaults import get_default_openai_model
 from agi_env.pagelib import activate_gpt_oss
 
 try:
+    from agilab.env_file_utils import load_env_file_map as _load_env_file_map
+except ModuleNotFoundError:
+    _env_file_utils_path = Path(__file__).resolve().parent / "env_file_utils.py"
+    _env_file_utils_spec = importlib.util.spec_from_file_location("agilab_env_file_utils_fallback", _env_file_utils_path)
+    if _env_file_utils_spec is None or _env_file_utils_spec.loader is None:
+        raise
+    _env_file_utils_module = importlib.util.module_from_spec(_env_file_utils_spec)
+    _env_file_utils_spec.loader.exec_module(_env_file_utils_module)
+    _load_env_file_map = _env_file_utils_module.load_env_file_map
+
+try:
     from agilab.pipeline_openai import (
         ensure_cached_api_key,
         is_placeholder_api_key,
@@ -618,25 +629,6 @@ CODE_STRICT_INSTRUCTIONS = (
     "Keep the result in a DataFrame named df."
 )
 
-
-def _load_env_file_map(path: Path) -> Dict[str, str]:
-    """Return a key/value mapping from the .env file (commented lines included)."""
-    env_map: Dict[str, str] = {}
-    try:
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            stripped = raw.strip()
-            if not stripped or "=" not in stripped:
-                continue
-            target = stripped.lstrip("#").strip()
-            if "=" not in target:
-                continue
-            key, val = target.split("=", 1)
-            key = key.strip()
-            if key:
-                env_map[key] = val.strip()
-    except FileNotFoundError:
-        pass
-    return env_map
 
 
 def _redact_sensitive(text: str) -> str:
