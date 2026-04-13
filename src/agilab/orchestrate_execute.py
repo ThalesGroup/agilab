@@ -444,7 +444,7 @@ async def render_execute_section(
                         st.warning(f"Unsupported file format: {target_file.suffix}")
                 except json.JSONDecodeError as exc:
                     st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
-                except Exception as exc:
+                except (OSError, RuntimeError, TypeError, ValueError, nx.NetworkXError) as exc:
                     st.error(f"Unable to load {target_file.name}: {exc}")
 
     if show_run_panel and delete_clicked:
