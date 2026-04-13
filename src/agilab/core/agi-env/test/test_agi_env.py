@@ -689,29 +689,16 @@ def test_ensure_dir_logs_only_on_first_creation(tmp_path: Path, monkeypatch):
     assert mkdir_logs == [f"mkdir {target}"]
 
 
-def test_select_hook_prefers_local_candidate_and_fallback(tmp_path: Path, monkeypatch):
-    local_hook = tmp_path / "pre_install.py"
-    local_hook.write_text("print('local')\n", encoding="utf-8")
-
-    selected, shared = agi_env_module._select_hook(local_hook, "pre_install.py", "pre_install")
-    assert selected == local_hook
-    assert shared is False
-
+def test_select_hook_wrapper_uses_local_resolver(tmp_path: Path, monkeypatch):
     fallback = tmp_path / "shared.py"
     fallback.write_text("print('shared')\n", encoding="utf-8")
     missing = tmp_path / "missing.py"
     monkeypatch.setattr("agi_env.agi_env._resolve_worker_hook", lambda _name: fallback)
+
     selected, shared = agi_env_module._select_hook(missing, "pre_install.py", "pre_install")
+
     assert selected == fallback
     assert shared is True
-
-
-def test_select_hook_raises_when_no_candidate_found(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("agi_env.agi_env._resolve_worker_hook", lambda _name: None)
-    missing = tmp_path / "missing.py"
-
-    with pytest.raises(FileNotFoundError, match="Unable to resolve pre_install script"):
-        agi_env_module._select_hook(missing, "pre_install.py", "pre_install")
 
 
 def test_clean_envar_value_handles_blank_values_and_process_fallback(monkeypatch):
@@ -770,65 +757,17 @@ def test_clean_envar_value_handles_mapping_errors_and_dotenv_none(monkeypatch, t
     assert agi_env_module._load_dotenv_values(tmp_path / ".env") == {"C": " 1 "}
 
 
-def test_resolve_worker_hook_prefers_installed_spec_location_and_resource_cache(tmp_path, monkeypatch):
-    installed_dir = tmp_path / "installed" / "agi_dispatcher"
-    installed_dir.mkdir(parents=True)
-    installed_hook = installed_dir / "pre_install.py"
-    installed_hook.write_text("print('installed')\n", encoding="utf-8")
+def test_resolve_worker_hook_wrapper_uses_hook_support(monkeypatch):
+    captured = {}
 
-    agi_env_module._resolve_worker_hook.cache_clear()
-    monkeypatch.setattr(
-        agi_env_module.importlib.util,
-        "find_spec",
-        lambda _name: SimpleNamespace(
-            submodule_search_locations=[str(installed_dir)],
-            origin=str(installed_dir / "__init__.py"),
-        ),
-    )
-    assert agi_env_module._resolve_worker_hook("pre_install.py") == installed_hook
+    def _fake_resolve(filename, *, module_file):
+        captured["args"] = (filename, module_file)
+        return Path("/tmp/pre_install.py")
 
-    resource_root = tmp_path / "resources"
-    resource_root.mkdir()
-    resource_hook = resource_root / "post_install.py"
-    resource_hook.write_text("print('resource')\n", encoding="utf-8")
-    cache_parent = tmp_path / "cache-parent"
-    cache_parent.mkdir()
+    monkeypatch.setattr(agi_env_module, "resolve_worker_hook", _fake_resolve)
 
-    agi_env_module._resolve_worker_hook.cache_clear()
-    monkeypatch.setattr(
-        agi_env_module,
-        "__file__",
-        str(tmp_path / "sandbox" / "nested" / "agi_env.py"),
-    )
-    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", lambda _name: None)
-    monkeypatch.setattr(agi_env_module.importlib_resources, "files", lambda _name: resource_root)
-    monkeypatch.setattr(agi_env_module.tempfile, "gettempdir", lambda: str(cache_parent))
-
-    resolved = agi_env_module._resolve_worker_hook("post_install.py")
-
-    assert resolved == cache_parent / "agi_node_hooks" / "post_install.py"
-    assert resolved.read_text(encoding="utf-8") == "print('resource')\n"
-
-
-def test_worker_hook_none_when_resource_missing(monkeypatch, tmp_path):
-    agi_env_module._resolve_worker_hook.cache_clear()
-    monkeypatch.setattr(
-        agi_env_module,
-        "__file__",
-        str(tmp_path / "sandbox" / "nested" / "agi_env.py"),
-    )
-    monkeypatch.setattr(
-        agi_env_module.importlib.util,
-        "find_spec",
-        lambda _name: (_ for _ in ()).throw(ModuleNotFoundError("missing")),
-    )
-    monkeypatch.setattr(
-        agi_env_module.importlib_resources,
-        "files",
-        lambda _name: (_ for _ in ()).throw(AttributeError("no resources")),
-    )
-    with mock.patch.object(agi_env_module.Path, "exists", lambda self: False):
-        assert agi_env_module._resolve_worker_hook("pre_install.py") is None
+    assert agi_env_module._resolve_worker_hook("pre_install.py") == Path("/tmp/pre_install.py")
+    assert captured["args"] == ("pre_install.py", agi_env_module.__file__)
 
 
 def test_read_agilab_path_wrapper_uses_installation_support(tmp_path, monkeypatch):

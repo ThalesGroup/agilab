@@ -45,9 +45,7 @@ import socket
 import subprocess
 import sys
 import traceback
-from functools import lru_cache
 from pathlib import Path
-import tempfile
 from dotenv import dotenv_values, set_key
 import tomlkit
 from typing import Tuple, Optional
@@ -62,10 +60,10 @@ import inspect
 import ctypes
 from ctypes import wintypes
 import importlib.util
-import importlib.resources as importlib_resources
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.defaults import get_default_openai_model
+from agi_env.hook_support import resolve_worker_hook, select_hook
 from agi_env.installation_support import (
     installation_marker_path,
     locate_agilab_installation_path,
@@ -175,92 +173,21 @@ def _load_dotenv_values(dotenv_path: Path, *, verbose: bool = False) -> dict[str
     return normalized
 
 
-@lru_cache(maxsize=None)
 def _resolve_worker_hook(filename: str) -> Path | None:
-    """Return the path to the shared worker hook.
+    """Return the path to the shared worker hook."""
+    return resolve_worker_hook(filename, module_file=__file__)
 
-    Resolution order:
-    1) If ``agi_node.agi_dispatcher`` is importable, use its installed files.
-    2) In source checkouts, look for ``core/agi-node/src/agi_node/agi_dispatcher/<filename>``
-       relative to this module location.
-    3) As a last resort, try reading the resource via importlib.resources when the
-       package is importable from a zip.
-    """
 
-    # 1) Try the installed package first
-    try:
-        spec = importlib.util.find_spec("agi_node.agi_dispatcher")
-    except ModuleNotFoundError:
-        spec = None
-    candidates: list[Path] = []
-
-    if spec is not None:
-        search_locations = list(spec.submodule_search_locations or [])
-        for location in search_locations:
-            if location:
-                candidates.append(Path(location) / filename)
-
-        if spec.origin:
-            origin_path = Path(spec.origin)
-            if origin_path.name == "__init__.py":
-                candidates.append(origin_path.parent / filename)
-            else:
-                candidates.append(origin_path.with_name(filename))
-
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
-
-    # 2) Fallback for source-tree usage (no agi_node installed)
-    # This file lives at: .../core/agi-env/src/agi_env/agi_env.py
-    here = Path(__file__).resolve()
-    try:
-        repo_agilab_dir = here.parents[4]  # .../src/agilab
-        core_root = repo_agilab_dir / "core"
-        src_hook = core_root / "agi-node/src/agi_node/agi_dispatcher" / filename
-        pkg_hook = core_root / "agi-node/agi_dispatcher" / filename
-        for candidate in (src_hook, pkg_hook):
-            if candidate.exists():
-                return candidate
-    except Exception:
-        # Best-effort only; ignore path probing errors
-        pass
-
-    # 3) Attempt extracting from package resources (zip installs)
-    try:
-        package_root = importlib_resources.files("agi_node.agi_dispatcher")
-    except (ModuleNotFoundError, AttributeError):
-        return None
-
-    resource = package_root / filename
-    if not resource.is_file():
-        return None
-
-    cache_dir = Path(tempfile.gettempdir()) / "agi_node_hooks"
-    cache_dir.mkdir(exist_ok=True)
-    cached = cache_dir / filename
-    try:
-        with importlib_resources.as_file(resource) as resource_path:
-            if resource_path != cached:
-                shutil.copy2(resource_path, cached)
-    except FileNotFoundError:
-        return None
-
-    return cached if cached.exists() else None
+_resolve_worker_hook.cache_clear = resolve_worker_hook.cache_clear  # type: ignore[attr-defined]
 
 
 def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str) -> tuple[Path, bool]:
     """Return the hook to execute and whether it comes from the shared baseline."""
-
-    if local_candidate.exists():
-        return local_candidate, False
-
-    fallback = _resolve_worker_hook(fallback_filename)
-    if fallback and fallback.exists():
-        return fallback, True
-
-    raise FileNotFoundError(
-        f"Unable to resolve {hook_label} script: expected {local_candidate} or shared agi-node copy."
+    return select_hook(
+        local_candidate,
+        fallback_filename,
+        hook_label,
+        resolve_hook=_resolve_worker_hook,
     )
 
 class _AgiEnvMeta(type):
