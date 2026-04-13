@@ -143,3 +143,59 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     module._render_notebook_download_button(notebook_path, "pipeline-export")
 
     assert errors == ["Failed to prepare notebook export: download failed"]
+
+
+def test_load_about_page_module_uses_imported_module(monkeypatch):
+    module = _load_pipeline_module()
+    imported = SimpleNamespace(main=lambda: None)
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: imported if name == "agilab.About_agilab" else None)
+
+    result = module._load_about_page_module()
+
+    assert result is imported
+
+
+def test_load_about_page_module_falls_back_to_file_loader(monkeypatch):
+    module = _load_pipeline_module()
+    imported_errors = []
+    fallback_module = SimpleNamespace(main=lambda: None)
+
+    def _raise_missing(_name):
+        raise ModuleNotFoundError("missing")
+
+    class _Loader:
+        def exec_module(self, target):
+            target.main = fallback_module.main
+
+    monkeypatch.setattr(module.importlib, "import_module", _raise_missing)
+    monkeypatch.setattr(
+        module.importlib.util,
+        "spec_from_file_location",
+        lambda *_args, **_kwargs: SimpleNamespace(loader=_Loader()),
+    )
+    monkeypatch.setattr(
+        module.importlib.util,
+        "module_from_spec",
+        lambda _spec: SimpleNamespace(),
+    )
+
+    result = module._load_about_page_module()
+
+    assert hasattr(result, "main")
+
+
+def test_load_about_page_module_raises_last_import_error_when_no_fallback(monkeypatch):
+    module = _load_pipeline_module()
+
+    def _raise_missing(_name):
+        raise ModuleNotFoundError("missing about page")
+
+    monkeypatch.setattr(module.importlib, "import_module", _raise_missing)
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    try:
+        module._load_about_page_module()
+    except ModuleNotFoundError as exc:
+        assert "missing about page" in str(exc)
+    else:
+        raise AssertionError("Expected ModuleNotFoundError")

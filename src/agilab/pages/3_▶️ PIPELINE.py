@@ -1418,6 +1418,33 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
     return []
 
 
+def _load_about_page_module():
+    """Load the About page module using import fallback for source and packaged layouts."""
+    last_exc: Optional[Exception] = None
+    for module_name in ("agilab.About_agilab", "About_agilab"):
+        try:
+            page_module = importlib.import_module(module_name)
+            if hasattr(page_module, "main"):
+                return page_module
+        except ModuleNotFoundError as exc:
+            last_exc = exc
+
+    about_path = Path(__file__).resolve().parents[1] / "About_agilab.py"
+    spec = importlib.util.spec_from_file_location("agilab_about_fallback", about_path)
+    if spec is None or spec.loader is None:
+        if last_exc is not None:
+            raise last_exc
+        raise ModuleNotFoundError("Unable to import About_agilab page module.")
+
+    page_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(page_module)
+    if not hasattr(page_module, "main"):
+        if last_exc is not None:
+            raise last_exc
+        raise ModuleNotFoundError("Unable to import About_agilab page module.")
+    return page_module
+
+
 def page() -> None:
     """Main page logic handler."""
     global df_file
@@ -1526,27 +1553,7 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 def main() -> None:
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = None
-        last_exc: Optional[Exception] = None
-        for module_name in ("agilab.About_agilab", "About_agilab"):
-            try:
-                page_module = importlib.import_module(module_name)
-                break
-            except ModuleNotFoundError as exc:
-                last_exc = exc
-        if page_module is None:
-            try:
-                about_path = Path(__file__).resolve().parents[1] / "About_agilab.py"
-                spec = importlib.util.spec_from_file_location("agilab_about_fallback", about_path)
-                if spec and spec.loader:
-                    page_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(page_module)
-            except Exception as exc:
-                last_exc = exc
-        if page_module is None or not hasattr(page_module, "main"):
-            if last_exc is not None:
-                raise last_exc
-            raise ModuleNotFoundError("Unable to import About_agilab page module.")
+        page_module = _load_about_page_module()
         page_module.main()
         st.rerun()
 
