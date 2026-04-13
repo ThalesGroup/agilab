@@ -357,10 +357,7 @@ def clean_project(project_path):
         for dir_name in dirs:
             relative_dir_path = Path(root).joinpath(dir_name).relative_to(project_path)
             if spec.match_file(str(relative_dir_path)):
-                try:
-                    shutil.rmtree(Path(root) / dir_name, ignore_errors=True)
-                except Exception:
-                    st.warning(f"failed to remove {Path(root) / dir_name}")
+                shutil.rmtree(Path(root) / dir_name, ignore_errors=True)
 
 
 def _safe_remove_path(candidate, label, errors):
@@ -373,7 +370,7 @@ def _safe_remove_path(candidate, label, errors):
     path = Path(candidate)
     try:
         exists = path.exists() or path.is_symlink()
-    except Exception as exc:
+    except OSError as exc:
         errors.append(f"{label}: {exc}")
         return
     if not exists:
@@ -385,7 +382,7 @@ def _safe_remove_path(candidate, label, errors):
             path.unlink()
     except FileNotFoundError:
         return
-    except Exception as exc:
+    except OSError as exc:
         errors.append(f"{label}: {exc}")
 
 
@@ -394,7 +391,7 @@ def _regex_replace(path, regex, replacement, label, errors):
         return
     try:
         text = path.read_text()
-    except Exception as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         errors.append(f"{label}: {exc}")
         return
     new_text = re.sub(regex, replacement, text)
@@ -402,7 +399,7 @@ def _regex_replace(path, regex, replacement, label, errors):
         return
     try:
         path.write_text(new_text)
-    except Exception as exc:
+    except OSError as exc:
         errors.append(f"{label}: {exc}")
 
 
@@ -418,9 +415,11 @@ def _cleanup_run_configuration_artifacts(app_name, target_name, errors):
     for xml_path in run_dir.glob("*.xml"):
         if xml_path in to_delete:
             continue
+        if xml_path.name == "folders.xml":
+            continue
         try:
             text = xml_path.read_text()
-        except Exception as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             errors.append(f"Read {xml_path.name}: {exc}")
             continue
         if app_name in text or target_name in text:
@@ -431,7 +430,7 @@ def _cleanup_run_configuration_artifacts(app_name, target_name, errors):
             xml_path.unlink()
         except FileNotFoundError:
             continue
-        except Exception as exc:
+        except OSError as exc:
             errors.append(f"Remove {xml_path.name}: {exc}")
 
     folders_xml = run_dir / "folders.xml"

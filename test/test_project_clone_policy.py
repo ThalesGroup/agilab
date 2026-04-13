@@ -77,3 +77,81 @@ def test_repair_renamed_project_environment_moves_real_venv(tmp_path: Path):
     assert not source_venv.exists()
     assert not source_venv.is_symlink()
     assert (dest_venv / "marker.txt").read_text(encoding="utf-8") == "ok"
+
+
+def test_safe_remove_path_collects_probe_errors(monkeypatch):
+    module = _load_project_module()
+    errors: list[str] = []
+
+    class _BrokenPath:
+        def __init__(self, _value):
+            pass
+
+        def exists(self):
+            raise OSError("probe failed")
+
+        def is_symlink(self):
+            return False
+
+    monkeypatch.setattr(module, "Path", _BrokenPath)
+
+    module._safe_remove_path("/tmp/demo", "demo", errors)
+
+    assert errors == ["demo: probe failed"]
+
+
+def test_regex_replace_rewrites_matching_file(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "folders.xml"
+    target.write_text('<folder name="demo" />\n', encoding="utf-8")
+    errors: list[str] = []
+
+    module._regex_replace(target, r'<folder name="demo" />', "", "folders", errors)
+
+    assert target.read_text(encoding="utf-8") == "\n"
+    assert errors == []
+
+
+def test_regex_replace_reports_decode_errors(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    target = tmp_path / "folders.xml"
+    target.write_text("demo", encoding="utf-8")
+    errors: list[str] = []
+
+    original_read_text = Path.read_text
+
+    def _raise_decode(self, *args, **kwargs):
+        if self == target:
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad data")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raise_decode)
+
+    module._regex_replace(target, "demo", "fixed", "folders", errors)
+
+    assert errors == ["folders: 'utf-8' codec can't decode byte 0xff in position 0: bad data"]
+
+
+def test_cleanup_run_configuration_artifacts_removes_matching_files(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    run_dir = tmp_path / ".idea" / "runConfigurations"
+    run_dir.mkdir(parents=True)
+    keep_xml = run_dir / "keep.xml"
+    keep_xml.write_text('<config name="keep" />\n', encoding="utf-8")
+    remove_by_pattern = run_dir / "_demo_clone.xml"
+    remove_by_pattern.write_text('<config name="demo" />\n', encoding="utf-8")
+    remove_by_content = run_dir / "manual.xml"
+    remove_by_content.write_text('<config app="demo_app" />\n', encoding="utf-8")
+    folders_xml = run_dir / "folders.xml"
+    folders_xml.write_text('<folder name="demo_app" />\n<folder name="keep" />\n', encoding="utf-8")
+    errors: list[str] = []
+
+    monkeypatch.setattr(module, "PROJECT_ROOT", tmp_path)
+
+    module._cleanup_run_configuration_artifacts("demo_app", "demo_clone", errors)
+
+    assert not remove_by_pattern.exists()
+    assert not remove_by_content.exists()
+    assert keep_xml.exists()
+    assert '<folder name="demo_app" />' not in folders_xml.read_text(encoding="utf-8")
+    assert errors == []
