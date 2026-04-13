@@ -518,7 +518,7 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
 
             args_model = apply_source_defaults(load_args_from_toml(env.app_settings_file))
             app_settings["args"] = args_model.to_toml_payload()
-        except Exception as exc:
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
             st.warning(f"Unable to load Flight args: {exc}")
             app_settings.setdefault("args", {})
     else:
