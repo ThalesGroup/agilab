@@ -740,9 +740,23 @@ def main():
                     agi_path_file = Path.home() / ".local/share/agilab/.agilab-path"
 
                 with open(agi_path_file, "r") as f:
-                    agilab_path = f.read()
+                    agilab_path = f.read().strip()
+                    if not agilab_path:
+                        raise FileNotFoundError(f"Empty .agilab-path at {agi_path_file}")
                     before, sep, after = agilab_path.rpartition(".venv")
-                    apps_arg = Path(before) / "apps"
+                    if not sep:
+                        raise ValueError(
+                            f"Malformed .agilab-path (missing .venv marker): {agilab_path!r}"
+                        )
+                    candidate = Path(before).resolve(strict=False) / "apps"
+                    # Reject paths containing traversal components
+                    try:
+                        candidate = candidate.resolve(strict=False)
+                    except OSError as path_err:
+                        raise ValueError(
+                            f"Cannot resolve apps path from .agilab-path: {path_err}"
+                        ) from path_err
+                    apps_arg = candidate
 
             if apps_arg is None:
                 st.error("Error: Missing mandatory parameter: --apps-path")

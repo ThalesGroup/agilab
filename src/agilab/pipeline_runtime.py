@@ -68,18 +68,44 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     except Exception:
         verbose = 1
 
+    def _safe_literal(value: Any) -> str:
+        """Serialize *value* to a Python literal safe for code generation.
+
+        Uses ``json.dumps`` for strings (prevents injection via crafted
+        values) and ``None``/``int`` for scalars.  Dicts and lists are
+        round-tripped through JSON so only basic types survive.
+        """
+        if value is None:
+            return "None"
+        if isinstance(value, bool):
+            return "True" if value else "False"
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            return json.dumps(value)
+        # Dicts / lists: round-trip through JSON to ensure only safe types
+        return json.dumps(value)
+
+    apps_path_lit = _safe_literal(str(env.apps_path))
+    app_lit = _safe_literal(str(env.app))
+    scheduler_lit = _safe_literal(scheduler)
+    workers_lit = _safe_literal(workers) if workers is None else f"json.loads({json.dumps(json.dumps(workers))})"
+    run_args_lit = _safe_literal(run_args) if run_args is None else f"json.loads({json.dumps(json.dumps(run_args))})"
+    needs_json = workers is not None or run_args is not None
+    json_import = "\nimport json" if needs_json else ""
+
     return f"""{marker}
-import asyncio
+import asyncio{json_import}
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_PATH = {str(env.apps_path)!r}
-APP = {str(env.app)!r}
-VERBOSE = {verbose}
-MODE = {mode}
-SCHEDULER = {scheduler!r}
-WORKERS = {workers!r}
-RUN_ARGS = {run_args!r}
+APPS_PATH = {apps_path_lit}
+APP = {app_lit}
+VERBOSE = {int(verbose)}
+MODE = {int(mode)}
+SCHEDULER = {scheduler_lit}
+WORKERS = {workers_lit}
+RUN_ARGS = {run_args_lit}
 
 async def safe_service_start():
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=VERBOSE)
