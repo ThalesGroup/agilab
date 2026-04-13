@@ -833,6 +833,14 @@ def test_normalize_path_and_windows_drive_fix(monkeypatch):
     assert agi_env_module._fix_windows_drive(r"C:\\Users\\agi") == r"C:\\Users\\agi"
 
 
+def test_fix_windows_drive_handles_regex_failure(monkeypatch):
+    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
+    fake_re = SimpleNamespace(match=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setitem(sys.modules, "re", fake_re)
+
+    assert agi_env_module._fix_windows_drive(r"C:Users\\agi") == r"C:Users\\agi"
+
+
 def test_normalize_path_windows_resolve_fallback_and_worker_hook_none(monkeypatch, tmp_path):
     original_os_name = os.name
     original_resolve = Path.resolve
@@ -934,6 +942,22 @@ def test_agienv_current_and_meta_setattr_cover_instance_and_class_paths():
     assert Dummy.helper() == "ok"
 
 
+def test_agienv_meta_handles_missing_instance_slot_and_current_returns_cached_instance():
+    class Dummy(metaclass=agi_env_module._AgiEnvMeta):
+        _lock = None
+        class_value = "class"
+
+    assert Dummy.class_value == "class"
+
+    AgiEnv.reset()
+    sentinel = object.__new__(AgiEnv)
+    AgiEnv._instance = sentinel
+    try:
+        assert AgiEnv.current() is sentinel
+    finally:
+        AgiEnv.reset()
+
+
 def test_init_worker_env_flag_requires_app_and_sets_skip_repo_links(tmp_path: Path, monkeypatch):
     fake_home = tmp_path / "worker-home"
     fake_home.mkdir()
@@ -1016,6 +1040,296 @@ def test_init_installed_env_uses_package_fallbacks_and_explicit_apps_path(tmp_pa
     assert env.cli == env.cluster_pck / "agi_distributor/cli.py"
     assert env.active_app == app_root.resolve()
     assert env.skip_repo_links is False
+
+
+def test_init_active_app_alias_falls_back_to_string_name_and_origin_only_packages(
+    tmp_path: Path, monkeypatch
+):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("IS_SOURCE_ENV=no\nIS_WORKER_ENV=0\nAGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "demo_project"
+    (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "src" / "demo_worker" / "demo_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    site_root = tmp_path / "site-packages"
+    agilab_pkg = site_root / "agilab"
+    agi_env_pkg = site_root / "agi_env"
+    agi_node_pkg = site_root / "agi_node"
+    for pkg in (agilab_pkg, agi_env_pkg, agi_node_pkg):
+        pkg.mkdir(parents=True, exist_ok=True)
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+
+    def _fake_spec(name):
+        mapping = {
+            "agilab": SimpleNamespace(origin=str(agilab_pkg / "__init__.py")),
+            "agi_env": SimpleNamespace(origin=str(agi_env_pkg / "__init__.py")),
+            "agi_node": SimpleNamespace(origin=str(agi_node_pkg / "__init__.py")),
+        }
+        if name in {"agi_core", "agi_cluster", "agi_cluster.agi_distributor.cli"}:
+            raise ModuleNotFoundError(name)
+        return mapping.get(name)
+
+    class _NonPathActiveApp:
+        def __fspath__(self):
+            raise TypeError("not path-like")
+
+        def __str__(self):
+            return "demo_project"
+
+    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", _fake_spec)
+    mock_logger = mock.Mock()
+    AgiEnv.reset()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None):
+        env = AgiEnv(apps_path=repo_apps, active_app=_NonPathActiveApp(), verbose=0)
+
+    assert env.app == "demo_project"
+    assert env.active_app == app_root.resolve()
+    assert env.env_pck == agi_env_pkg.resolve()
+    assert env.node_pck == agi_node_pkg.resolve()
+
+
+def test_init_worker_install_type_detects_wenv_apps_path(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("AGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    site_root = tmp_path / "site-packages"
+    _configure_fake_installed_specs(monkeypatch, site_root)
+    wenv_apps = tmp_path / "wenv" / "demo_worker"
+    wenv_apps.mkdir(parents=True, exist_ok=True)
+
+    mock_logger = mock.Mock()
+    AgiEnv.reset()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: None), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None):
+        env = AgiEnv(apps_path=wenv_apps, app="demo_worker", verbose=0)
+
+    assert env.is_worker_env is True
+    assert env.skip_repo_links is True
+    assert env.active_app == (fake_home / "wenv" / "demo_worker")
+
+
+def test_init_resolve_install_type_falls_back_when_apps_path_resolution_breaks(
+    tmp_path: Path, monkeypatch
+):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("AGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "demo_project"
+    (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "src" / "demo_worker" / "demo_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    site_root = tmp_path / "site-packages"
+    _configure_fake_installed_specs(monkeypatch, site_root)
+
+    original_resolve = Path.resolve
+    resolve_calls = {"repo_apps": 0}
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == repo_apps:
+            resolve_calls["repo_apps"] += 1
+            if resolve_calls["repo_apps"] == 2:
+                raise RuntimeError("resolve broke")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+    mock_logger = mock.Mock()
+    AgiEnv.reset()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None):
+        env = AgiEnv(apps_path=repo_apps, app="demo_project", verbose=0)
+
+    assert env.install_type == 0
+    assert env.is_worker_env is False
+    assert env.active_app == app_root.resolve()
+    assert resolve_calls["repo_apps"] >= 2
+
+
+def _configure_fake_installed_specs(monkeypatch, site_root: Path):
+    agilab_pkg = site_root / "agilab"
+    agi_env_pkg = site_root / "agi_env"
+    agi_node_pkg = site_root / "agi_node"
+    dispatcher_dir = agi_node_pkg / "agi_dispatcher"
+    for pkg in (agilab_pkg, agi_env_pkg, agi_node_pkg, dispatcher_dir):
+        pkg.mkdir(parents=True, exist_ok=True)
+    (agilab_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (agi_env_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (agi_node_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (dispatcher_dir / "__init__.py").write_text("", encoding="utf-8")
+    (dispatcher_dir / "pre_install.py").write_text("print('pre')\n", encoding="utf-8")
+    (dispatcher_dir / "post_install.py").write_text("print('post')\n", encoding="utf-8")
+
+    def _fake_spec(name):
+        mapping = {
+            "agilab": SimpleNamespace(origin=str(agilab_pkg / "__init__.py")),
+            "agi_env": SimpleNamespace(origin=str(agi_env_pkg / "__init__.py"), submodule_search_locations=[str(agi_env_pkg)]),
+            "agi_node": SimpleNamespace(origin=str(agi_node_pkg / "__init__.py"), submodule_search_locations=[str(agi_node_pkg)]),
+            "agi_node.agi_dispatcher": SimpleNamespace(
+                origin=str(dispatcher_dir / "__init__.py"),
+                submodule_search_locations=[str(dispatcher_dir)],
+            ),
+        }
+        if name in {"agi_core", "agi_cluster", "agi_cluster.agi_distributor.cli"}:
+            raise ModuleNotFoundError(name)
+        return mapping.get(name)
+
+    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", _fake_spec)
+    return agilab_pkg, agi_env_pkg, agi_node_pkg
+
+
+def test_init_prefers_worker_sources_already_staged_in_wenv(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("IS_SOURCE_ENV=no\nIS_WORKER_ENV=0\nAGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "demo_project"
+    (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    wenv_worker = fake_home / "wenv" / "demo_worker" / "src" / "demo_worker"
+    wenv_worker.mkdir(parents=True, exist_ok=True)
+    (wenv_worker / "demo_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+    (wenv_worker / "pyproject.toml").write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+
+    site_root = tmp_path / "site-packages"
+    _configure_fake_installed_specs(monkeypatch, site_root)
+
+    AgiEnv.reset()
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None), \
+         mock.patch.object(AgiEnv, "_ensure_repository_app_link", lambda self: False):
+        env = AgiEnv(apps_path=repo_apps, app="demo_project", verbose=0)
+
+    assert env.app_src == env.wenv_abs / "src"
+    assert env.worker_path == wenv_worker / "demo_worker.py"
+    assert env.worker_pyproject == wenv_worker / "pyproject.toml"
+    assert env.dataset_archive == wenv_worker / "dataset.7z"
+
+
+def test_init_copies_packaged_app_when_repo_worker_is_missing(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("IS_SOURCE_ENV=no\nIS_WORKER_ENV=0\nAGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "demo_project"
+    (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    site_root = tmp_path / "site-packages"
+    agilab_pkg, _agi_env_pkg, _agi_node_pkg = _configure_fake_installed_specs(monkeypatch, site_root)
+    packaged_app = agilab_pkg / "apps" / "demo_project"
+    (packaged_app / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (packaged_app / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    (packaged_app / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (packaged_app / "src" / "demo_worker" / "demo_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+    (packaged_app / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    AgiEnv.reset()
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None), \
+         mock.patch.object(AgiEnv, "_ensure_repository_app_link", lambda self: False):
+        env = AgiEnv(apps_path=repo_apps, app="demo_project", verbose=0)
+
+    copied_worker = app_root / "src" / "demo_worker" / "demo_worker.py"
+    assert copied_worker.exists()
+    assert env.worker_path == copied_worker
+    assert env.worker_pyproject == copied_worker.parent / "pyproject.toml"
+    assert env.dataset_archive == copied_worker.parent / "dataset.7z"
 
 
 def test_content_renamer_updates_ast_nodes(monkeypatch):
@@ -1685,6 +1999,115 @@ def test_run_fire_and_forget_applies_exported_path_and_uv_preview_flag(tmp_path:
     assert " ".join(str(created["cmd"]).split()) == "uv --preview-features extra-build-dependencies sync"
     assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
     assert created["kwargs"]["cwd"] == str(tmp_path)
+
+
+def test_run_wait_rewrites_exported_path_and_uv_preview_flag(tmp_path: Path, monkeypatch):
+    process_env = {"PATH": "/usr/bin"}
+    created: dict[str, object] = {}
+
+    class _Stream:
+        async def readline(self):
+            return b""
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _Stream()
+            self.stderr = _Stream()
+            self.returncode = 0
+
+        async def wait(self):
+            return self.returncode
+
+    async def _fake_exec(*args, **kwargs):
+        created["args"] = args
+        created["kwargs"] = kwargs
+        return _Proc()
+
+    monkeypatch.setattr(AgiEnv, "_build_env", staticmethod(lambda _venv: process_env))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+
+    result = asyncio.run(AgiEnv.run('export PATH="~/.local/bin:$PATH"; uv sync', tmp_path, wait=True))
+
+    assert result == ""
+    assert created["args"] == ("uv", "--preview-features", "extra-build-dependencies", "sync")
+    assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
+    assert created["kwargs"]["cwd"] == str(tmp_path)
+
+
+def test_run_wait_shell_fallback_uses_plain_callback_and_skips_blank_lines(tmp_path: Path, monkeypatch):
+    streamed: list[str] = []
+
+    class _Stream:
+        def __init__(self, lines):
+            self._lines = list(lines)
+
+        async def readline(self):
+            if self._lines:
+                return self._lines.pop(0)
+            return b""
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _Stream([b"\n", b"stdout line\n", b""])
+            self.stderr = _Stream([b"\n", b"stderr line\n", b""])
+            self.returncode = 0
+
+        async def wait(self):
+            return self.returncode
+
+    async def _raise_exec(*args, **kwargs):
+        raise ValueError("force shell")
+
+    async def _fake_shell(cmd, **kwargs):
+        return _Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+
+    result = asyncio.run(AgiEnv.run("echo hi", tmp_path, wait=True, log_callback=streamed.append))
+
+    assert result == "stdout line\nstderr line"
+    assert streamed == ["stdout line", "stderr line"]
+
+
+def test_run_wait_nonzero_pip_network_failure_adds_hint(tmp_path: Path, monkeypatch):
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+
+    class _Stream:
+        def __init__(self, lines):
+            self._lines = list(lines)
+
+        async def readline(self):
+            if self._lines:
+                return self._lines.pop(0)
+            return b""
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _Stream([b""])
+            self.stderr = _Stream(
+                [
+                    b"ERROR: failed to establish a new connection\n",
+                    b"building wheel failed\n",
+                    b"",
+                ]
+            )
+            self.returncode = 1
+
+        async def wait(self):
+            return self.returncode
+
+    async def _fake_exec(*args, **kwargs):
+        return _Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(AgiEnv.run("pip install hatchling", tmp_path, wait=True))
+
+    assert "pip could not reach the package index" in str(exc_info.value)
+    mock_logger.error.assert_any_call("Command failed with exit code %s: %s", 1, "pip install hatchling")
 
 
 def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, monkeypatch):

@@ -361,6 +361,91 @@ foo = { path = "../bad/foo" }
     assert any("Staged uv source" in str(entry[0]) for entry in logs if entry)
 
 
+def test_rewrite_uv_sources_paths_for_copied_pyproject_rewrites_invalid_paths_and_keeps_valid_ones(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+
+    rel_dep = src_dir / "deps" / "foo"
+    rel_dep.mkdir(parents=True)
+    abs_dep = tmp_path / "abs-dep"
+    abs_dep.mkdir()
+    valid_dest = dest_dir / "vendored" / "baz"
+    valid_dest.mkdir(parents=True)
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    src_pyproject.write_text(
+        f"""
+[tool.uv.sources]
+foo = {{ path = "deps/foo" }}
+bar = {{ path = "{abs_dep}" }}
+baz = {{ path = "deps/foo" }}
+skip_meta = 3
+blank = {{ path = "" }}
+missing = {{ path = "deps/missing" }}
+""".strip(),
+        encoding="utf-8",
+    )
+    dest_pyproject.write_text(
+        f"""
+[tool.uv.sources]
+foo = {{ path = "../broken/foo" }}
+bar = {{ path = "../broken/bar" }}
+baz = {{ path = "vendored/baz" }}
+skip_meta = {{ path = "../ignored" }}
+blank = {{ path = "../ignored-blank" }}
+missing = {{ path = "../ignored-missing" }}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    logs = []
+    monkeypatch.setattr(agi_distributor_module.logger, "info", lambda *args, **kwargs: logs.append(args))
+
+    agi_distributor_module._rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        log_rewrites=True,
+    )
+
+    content = dest_pyproject.read_text(encoding="utf-8")
+    assert 'foo = { path = "../src/deps/foo" }' in content
+    assert f'bar = {{ path = "{os.path.relpath(abs_dep, start=dest_dir)}" }}' in content
+    assert 'baz = { path = "vendored/baz" }' in content
+    assert 'blank = { path = "../ignored-blank" }' in content
+    assert 'missing = { path = "../ignored-missing" }' in content
+    assert any("Rewrote uv source" in str(entry[0]) for entry in logs if entry)
+
+
+def test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and_relpath_failures(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\nnot_a_table = "skip"\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\nnot_a_table = { path = "../unchanged" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(agi_distributor_module.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    agi_distributor_module._rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+    )
+
+    assert f'foo = {{ path = "{dep.resolve(strict=False)}" }}' in dest_pyproject.read_text(encoding="utf-8")
+    agi_distributor_module._rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=tmp_path / "missing-src.toml",
+        dest_pyproject=dest_pyproject,
+    )
+
+
 def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp_path, monkeypatch):
     src_dir = tmp_path / "src"
     dst_dir = tmp_path / "dst"
@@ -629,6 +714,195 @@ def test_format_exception_chain_compacts_causes():
 
     assert "inner" in text
     assert ("RuntimeError" in text) or ("ValueError" in text)
+
+
+def test_background_process_manager_tracks_running_completed_and_dead_jobs(monkeypatch, tmp_path):
+    popen_calls: list[dict[str, object]] = []
+
+    class FakeProcess:
+        def __init__(self, status):
+            self._status = status
+
+        def poll(self):
+            return self._status
+
+    processes = [FakeProcess(None), FakeProcess(0), FakeProcess(3)]
+
+    def fake_popen(cmd, shell, cwd, start_new_session):
+        popen_calls.append(
+            {
+                "cmd": cmd,
+                "shell": shell,
+                "cwd": cwd,
+                "start_new_session": start_new_session,
+            }
+        )
+        return processes.pop(0)
+
+    monkeypatch.setattr(agi_distributor_module.subprocess, "Popen", fake_popen)
+
+    manager = agi_distributor_module._BackgroundProcessManager()
+    running = manager.new("echo running", cwd=tmp_path)
+    completed = manager.new("echo completed", cwd=tmp_path)
+    dead = manager.new("echo dead", cwd=tmp_path / "missing")
+
+    assert running.num == 0
+    assert completed.num == 1
+    assert dead.num == 2
+    assert popen_calls[0]["cwd"] == str(tmp_path)
+    assert popen_calls[2]["cwd"] is None
+    assert manager.result(running.num) is running.process
+    assert manager.result(completed.num) is completed.process
+    assert manager.result(dead.num) is None
+    assert completed in manager.completed
+    assert dead in manager.dead
+
+    manager.flush()
+
+    assert completed.num not in manager.all
+    assert dead.num not in manager.all
+    assert running.num in manager.all
+    assert manager.completed == []
+    assert manager.dead == []
+
+
+def test_background_process_manager_normalize_cwd_handles_invalid_values():
+    manager = agi_distributor_module._BackgroundProcessManager()
+
+    assert manager._normalize_cwd(None) is None
+    assert manager._normalize_cwd("") is None
+    assert manager._normalize_cwd(Path("/definitely/missing/path")) is None
+
+    class BrokenPath:
+        def __fspath__(self):
+            raise RuntimeError("boom")
+
+    assert manager._normalize_cwd(BrokenPath()) is None
+
+
+def test_agi_singleton_guard_raises_when_already_instantiated(monkeypatch):
+    monkeypatch.setattr(AGI, "_instantiated", True, raising=False)
+    try:
+        with pytest.raises(RuntimeError, match="singleton"):
+            AGI("demo")
+    finally:
+        monkeypatch.setattr(AGI, "_instantiated", False, raising=False)
+
+
+def test_init_service_queue_falls_back_to_home_when_share_resolution_fails(tmp_path):
+    AGI._workers_data_path = None
+    env = SimpleNamespace(
+        target="demo_target",
+        home_abs=tmp_path,
+        resolve_share_path=lambda _hint: (_ for _ in ()).throw(RuntimeError("no share")),
+    )
+
+    paths = AGI._init_service_queue(env)
+
+    assert paths["root"] == (tmp_path / ".agilab_service" / "demo_target" / "queue").resolve()
+    assert paths["pending"].exists()
+    assert paths["heartbeats"].exists()
+
+
+@pytest.mark.asyncio
+async def test_install_sets_sync_run_type_and_install_mode(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def _fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+
+    env = SimpleNamespace()
+    await AGI.install(
+        env=env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        workers_data_path="/tmp/workers",
+        modes_enabled=AGI.PYTHON_MODE,
+        verbose=3,
+        force_update=True,
+    )
+
+    assert AGI._run_type == "sync"
+    assert captured["env"] is env
+    assert captured["mode"] == (AGI._INSTALL_MODE | AGI.PYTHON_MODE)
+    assert captured["workers_data_path"] == "/tmp/workers"
+    assert captured["rapids_enabled"] == (AGI._INSTALL_MODE & AGI.PYTHON_MODE)
+    assert captured["force_update"] is True
+
+
+@pytest.mark.asyncio
+async def test_stop_handles_scheduler_info_and_retire_failures(monkeypatch):
+    closed = {"count": 0}
+
+    async def _fake_close_all():
+        closed["count"] += 1
+
+    class _SchedulerInfoFailsClient:
+        shutdown_calls = 0
+
+        async def scheduler_info(self):
+            raise RuntimeError("scheduler down")
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+
+    AGI._mode_auto = False
+    AGI._dask_client = _SchedulerInfoFailsClient()
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+    await AGI._stop()
+    assert AGI._dask_client.shutdown_calls == 1
+    assert closed["count"] == 1
+
+    closed["count"] = 0
+
+    class _RetireFailsClient:
+        shutdown_calls = 0
+
+        async def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        async def retire_workers(self, **_kwargs):
+            raise RuntimeError("retire failed")
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+
+    AGI._dask_client = _RetireFailsClient()
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+    await AGI._stop()
+    assert AGI._dask_client.shutdown_calls == 1
+    assert closed["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_calibration_fallback_uses_worker_counts_when_no_worker_keys_exist():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = []
+    AGI._workers = {"10.0.0.1": 2}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [1.0])
+
+    await AGI._calibration()
+
+    assert AGI._capacity == {"10.0.0.1:0": 1.0, "10.0.0.1:1": 1.0}
+    assert AGI.workers_info == {"10.0.0.1:0": {"label": 1.0}, "10.0.0.1:1": {"label": 1.0}}
+
+
+def test_format_exception_chain_strips_generic_error_prefixes():
+    class CustomError(Exception):
+        pass
+
+    text = agi_distributor_module._format_exception_chain(CustomError("CustomError: precise detail"))
+
+    assert text.endswith("CustomError: precise detail")
 
 
 @pytest.fixture(autouse=True)

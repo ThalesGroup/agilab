@@ -431,3 +431,129 @@ def test_macos_autofs_hint_covers_unreadable_master_and_missing_entries(monkeypa
         lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("boom")) if self == auto_master else "",
     )
     assert orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share")) is None
+
+
+def test_orchestrate_support_additional_service_and_mount_fallbacks(monkeypatch, tmp_path):
+    orchestrate_support.mount_table.cache_clear()
+    monkeypatch.setattr(orchestrate_support, "mount_table", lambda: [])
+    assert orchestrate_support.fstype_for_path(tmp_path / "demo") is None
+
+    code, message, details = orchestrate_support.evaluate_service_health_gate(
+        {
+            "status": "degraded",
+            "workers_unhealthy_count": 0,
+            "workers_running_count": 2,
+            "workers_restarted_count": 0,
+        },
+        allow_idle=True,
+        max_unhealthy=0,
+        max_restart_rate=1.0,
+    )
+    assert code == 3
+    assert "degraded" in message
+    assert details["status"] == "degraded"
+
+    code, message, details = orchestrate_support.evaluate_service_health_gate(
+        {
+            "status": "idle",
+            "workers_unhealthy_count": 0,
+            "workers_running_count": 0,
+            "workers_restarted_count": 0,
+        },
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=1.0,
+    )
+    assert code == 4
+    assert "idle" in message
+    assert details["restart_rate"] == 0.0
+
+
+def test_sanitize_for_toml_drops_nested_none_values_in_dicts_and_lists():
+    payload = {
+        "root": [1, None, {"keep": 2, "drop": None}, (3, None)],
+        "nested": {"drop": None, "keep": [None, Path("/tmp/demo")]},
+    }
+
+    assert orchestrate_support.sanitize_for_toml(payload) == {
+        "root": [1, {"keep": 2}, [3]],
+        "nested": {"keep": ["/tmp/demo"]},
+    }
+
+
+def test_extract_result_dict_from_output_returns_none_for_empty_input():
+    assert orchestrate_support.extract_result_dict_from_output("") is None
+
+
+def test_looks_like_shared_path_handles_resolve_failure_and_home_stop(monkeypatch, tmp_path):
+    fake_home = tmp_path / "home"
+    candidate = fake_home / "clustershare" / "demo"
+    candidate.mkdir(parents=True)
+
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == candidate:
+            raise RuntimeError("resolve boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(orchestrate_support, "fstype_for_path", lambda _path: None)
+    monkeypatch.setattr(orchestrate_support.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(orchestrate_support.os.path, "ismount", lambda _path: False)
+
+    assert orchestrate_support.looks_like_shared_path(candidate, project_root=tmp_path / "project") is False
+
+
+def test_macos_autofs_hint_covers_unreadable_auto_nfs_for_volumes(monkeypatch, tmp_path):
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
+    real_path = Path
+    auto_master = tmp_path / "auto_master"
+    auto_nfs = tmp_path / "auto_nfs"
+    auto_master.write_text("/- auto_nfs\n", encoding="utf-8")
+    auto_nfs.write_text("/mnt/agilab host:/share\n", encoding="utf-8")
+
+    def _fake_path(raw):
+        text = str(raw)
+        if text == "/etc/auto_master":
+            return auto_master
+        if text == "/etc/auto_nfs":
+            return auto_nfs
+        return real_path(raw)
+
+    original_read_text = Path.read_text
+
+    def _patched_read_text(self, *args, **kwargs):
+        if self == auto_nfs:
+            raise OSError("boom")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(orchestrate_support, "Path", _fake_path)
+    monkeypatch.setattr(Path, "read_text", _patched_read_text, raising=False)
+
+    hint = orchestrate_support.macos_autofs_hint(Path("/Volumes/agilab/share"))
+    assert "does not mention `/Volumes`" in hint
+
+
+def test_macos_autofs_hint_ignores_non_mount_prefix_and_coerce_defaults():
+    assert orchestrate_support.macos_autofs_hint(Path("/tmp/agilab/share")) is None
+    assert orchestrate_support.coerce_bool_setting("maybe", True) is True
+    assert orchestrate_support.coerce_float_setting("0.4", 0.2, minimum=0.0, maximum=1.0) == 0.4
+
+
+def test_evaluate_service_health_gate_returns_ok_when_thresholds_are_respected():
+    code, message, details = orchestrate_support.evaluate_service_health_gate(
+        {
+            "status": "ok",
+            "workers_unhealthy_count": 0,
+            "workers_running_count": 3,
+            "workers_restarted_count": 1,
+        },
+        allow_idle=True,
+        max_unhealthy=0,
+        max_restart_rate=0.5,
+    )
+
+    assert code == 0
+    assert message == "ok"
+    assert details["restart_rate"] == pytest.approx(1 / 3)

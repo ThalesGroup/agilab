@@ -211,6 +211,51 @@ def test_kill_handles_pid_files_and_children(monkeypatch, tmp_path):
     assert ({321, 654}, signal.SIGTERM) in calls
 
 
+def test_kill_logs_no_dask_when_no_processes_or_pid_files(monkeypatch, caplog):
+    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
+    monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
+
+    with caplog.at_level("INFO"):
+        cli_mod.kill(exclude_pids=set())
+
+    assert "No Dask process running." in caplog.text
+
+
+def test_kill_warns_on_pid_file_cleanup_failure_and_sigkills_survivors(monkeypatch, tmp_path, caplog):
+    pid_file = tmp_path / "demo.pid"
+    pid_file.write_text("321", encoding="utf-8")
+
+    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [pid_file])
+    monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
+    monkeypatch.setattr(cli_mod, "get_child_pids", lambda pids: set())
+
+    original_unlink = Path.unlink
+
+    def _patched_unlink(self, *args, **kwargs):
+        if self == pid_file:
+            raise OSError("unlink boom")
+        return original_unlink(self, *args, **kwargs)
+
+    calls = []
+
+    def _fake_kill_pids(pids, sig):
+        calls.append((set(pids), sig))
+        return set()
+
+    monkeypatch.setattr(cli_mod.Path, "unlink", _patched_unlink)
+    monkeypatch.setattr(cli_mod, "kill_pids", _fake_kill_pids)
+    monkeypatch.setattr(cli_mod, "_poll_until_dead", lambda pids: {321})
+
+    with caplog.at_level("WARNING"):
+        cli_mod.kill(exclude_pids=set())
+
+    assert ({321}, signal.SIGTERM) in calls
+    assert ({321}, signal.SIGKILL) in calls
+    assert "Could not remove pid file" in caplog.text
+
+
 def test_choose_iters_calibration(monkeypatch):
     monkeypatch.setattr(cli_mod, "_time_busy", lambda _iters: 0.2)
     iters = cli_mod._choose_iters(target_s=0.15)
@@ -315,6 +360,17 @@ def test_python_version_covers_windows_and_freethreaded_tags(monkeypatch):
     assert "windows" in tag
     assert "x86_64" in tag
     assert "+freethreaded" in tag
+
+
+def test_python_version_handles_linux_and_unknown_platform(monkeypatch):
+    monkeypatch.setattr(cli_mod.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(cli_mod.platform, "python_version", lambda: "3.13.0")
+    monkeypatch.setattr(cli_mod.sys, "implementation", SimpleNamespace(name="cpython", cache_tag="cpython-313"))
+    monkeypatch.setattr(cli_mod.platform, "system", lambda: "Linux")
+    assert cli_mod.python_version().endswith("-linux-x86_64-none")
+
+    monkeypatch.setattr(cli_mod.platform, "system", lambda: "Plan9")
+    assert cli_mod.python_version().endswith("-plan9-x86_64-none")
 
 
 def _run_cli_as_main(monkeypatch, args):

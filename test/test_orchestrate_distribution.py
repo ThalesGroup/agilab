@@ -118,6 +118,67 @@ def test_show_tree_warns_and_falls_back_for_non_numeric_sizes(monkeypatch):
     assert calls == [("Graph", "partition", False, "Distribution Tree")]
 
 
+def test_show_tree_warns_for_empty_and_reports_invalid_worker_ids(monkeypatch):
+    warnings: list[str] = []
+    errors: list[str] = []
+    calls: list[str] = []
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(warning=warnings.append, error=errors.append),
+    )
+    monkeypatch.setattr(orchestrate_distribution, "draw_distribution", lambda *_args, **_kwargs: calls.append("drawn"))
+
+    orchestrate_distribution.show_tree([], [], [], "partition", "size")
+    assert warnings == ["No workers with assigned chunks found."]
+
+    orchestrate_distribution.show_tree(
+        workers=["bad-worker-id"],
+        work_plan_metadata=[[{"partition": "p1", "size": 3}]],
+        work_plan=[[["leaf-a"]]],
+        partition_key="partition",
+        weights_key="size",
+    )
+    assert errors == ["Worker identifier 'bad-worker-id' is not in the expected 'ip-number' format."]
+    assert calls == ["drawn"]
+
+
+def test_show_tree_builds_leaf_graph_for_valid_workers(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(warning=lambda *_a, **_k: None, error=lambda *_a, **_k: None),
+    )
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "draw_distribution",
+        lambda graph, partition_key, show_leaf_list, title: captured.update(
+            graph=graph,
+            partition_key=partition_key,
+            show_leaf_list=show_leaf_list,
+            title=title,
+        ),
+    )
+
+    orchestrate_distribution.show_tree(
+        workers=["127.0.0.1-1"],
+        work_plan_metadata=[[{"partition": "p1", "size": 4}]],
+        work_plan=[[["leaf-a", "leaf-b"]]],
+        partition_key="partition",
+        weights_key="size",
+        show_leaf_list=True,
+    )
+
+    graph = captured["graph"]
+    assert isinstance(graph, orchestrate_distribution.nx.Graph)
+    assert captured["partition_key"] == "partition"
+    assert captured["show_leaf_list"] is True
+    assert captured["title"] == "Distribution Tree"
+    assert "leaf-a" in graph.nodes
+    assert "leaf-b" in graph.nodes
+
+
 def test_workload_barchart_warns_when_no_data(monkeypatch):
     warnings: list[str] = []
     monkeypatch.setattr(orchestrate_distribution, "st", SimpleNamespace(warning=warnings.append))
@@ -241,6 +302,40 @@ def test_show_graph_builds_leaf_graph_for_valid_workers(monkeypatch):
     assert isinstance(graph, orchestrate_distribution.nx.DiGraph)
 
 
+def test_show_graph_accepts_single_value_items_without_dependencies(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(warning=lambda *_a, **_k: None, error=lambda *_a, **_k: None),
+    )
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "draw_distribution",
+        lambda graph, partition_key, show_leaf_list, title: captured.update(
+            graph=graph,
+            partition_key=partition_key,
+            show_leaf_list=show_leaf_list,
+            title=title,
+        ),
+    )
+
+    orchestrate_distribution.show_graph(
+        workers=["127.0.0.1-1"],
+        work_plan_metadata=[[{"partition": "p1", "size": "bad"}]],
+        work_plan=[[("node-only",)]],
+        partition_key="partition",
+        weights_key="size",
+        show_leaf_list=True,
+    )
+
+    graph = captured["graph"]
+    assert isinstance(graph, orchestrate_distribution.nx.DiGraph)
+    assert captured["title"] == "Workplan"
+    assert "p1\nfiles: 0 size" in graph.nodes
+    assert "node-only" not in graph.nodes
+
+
 def test_orchestrate_distribution_import_fallback_sets_matplotlib_error():
     module = _load_module_with_missing(
         "agilab.orchestrate_distribution_no_matplotlib",
@@ -294,3 +389,51 @@ def test_workload_barchart_emits_plotly_figure(monkeypatch):
     assert len(plotted) == 1
     assert len(plotted[0].traces) == 2
     assert plotted[0].layout["legend_title"] == "Partition"
+
+
+def test_workload_barchart_aggregates_partition_totals_and_annotations(monkeypatch):
+    plotted = []
+
+    class FakeBar:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeFigure:
+        def __init__(self):
+            self.traces = []
+            self.annotations = []
+            self.layout = {}
+
+        def add_trace(self, trace):
+            self.traces.append(trace)
+
+        def update_layout(self, **kwargs):
+            self.layout.update(kwargs)
+
+        def add_annotation(self, **kwargs):
+            self.annotations.append(kwargs)
+
+    monkeypatch.setattr(go, "Figure", FakeFigure)
+    monkeypatch.setattr(go, "Bar", FakeBar)
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(plotly_chart=lambda fig, **_kwargs: plotted.append(fig), warning=lambda *_a, **_k: None),
+    )
+
+    orchestrate_distribution.workload_barchart(
+        workers=["127.0.0.1-1", "127.0.0.1-2"],
+        work_plan_metadata=[
+            [{"partition": "alpha", "size": 3}, {"partition": "alpha", "size": 2}],
+            [{"partition": "beta", "size": 4}],
+        ],
+        partition_key="partition",
+        weights_key="size",
+        weights_unit="files",
+    )
+
+    figure = plotted[0]
+    assert len(figure.traces) == 2
+    assert figure.traces[0].kwargs["y"] == [5]
+    assert len(figure.annotations) == 2
+    assert figure.layout["yaxis_title"] == "Size (files)"

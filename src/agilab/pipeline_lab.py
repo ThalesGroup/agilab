@@ -549,8 +549,6 @@ def display_lab_tab(
                 if initial_label and initial_label not in venv_labels:
                     venv_labels.append(initial_label)
                 default_label = initial_label or venv_labels[0]
-                if default_label not in venv_labels:
-                    venv_labels.append(default_label)
                 if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
                     st.session_state[select_key] = default_label
                 selected_label = st.selectbox(

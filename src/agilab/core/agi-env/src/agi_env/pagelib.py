@@ -59,10 +59,10 @@ except ModuleNotFoundError:
 
     except Exception as _toml_exc:  # pragma: no cover - defensive
 
-        def _dump_toml_payload(data: dict, handle) -> None:
+        def _dump_toml_payload(data: dict, handle, _import_error=_toml_exc) -> None:
             raise RuntimeError(
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package."
-            ) from _toml_exc
+            ) from _import_error
 
 # Shared last-active-app helpers (persisted in a single TOML state file)
 _GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
@@ -1547,16 +1547,14 @@ def get_first_match_and_keyword(string_list, keywords_to_find):
     for text_string in string_list:
         if not isinstance(text_string, str):
             print(f"Warning: Item in string_list is not a string: {text_string}")
+            continue
         for keyword_pattern in keywords_to_find:
             if not isinstance(keyword_pattern, str) or not keyword_pattern:
                 print(f"Warning: Item in keywords_to_find is not a valid string: {keyword_pattern}")
-            try:
-                match = re.search(re.escape(keyword_pattern), text_string, re.IGNORECASE)
-                if match:
-                    return text_string, keyword_pattern
-            except re.error:
-                print(f"Warning: Could not compile regex for keyword: {keyword_pattern}")
-                pass # Try the next keyword
+                continue
+            match = re.search(re.escape(keyword_pattern), text_string, re.IGNORECASE)
+            if match:
+                return text_string, keyword_pattern
     # If we've gone through everything and found nothing...
     return None, None
 @st.cache_data
@@ -1900,67 +1898,6 @@ def select_project(projects, current_project):
 
     if selection != current_project:
         on_project_change(selection)
-
-
-def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bool]:
-    """
-    Resolve the active app from ?active_app=... or last-active-app, optionally switching env.
-
-    Returns (current_project_name, project_changed)
-    """
-    project_changed = False
-    try:
-        requested = st.query_params.get("active_app")
-        requested_val = requested[-1] if isinstance(requested, list) else requested
-    except Exception:
-        requested_val = None
-
-    def _candidates(name: str) -> list[Path]:
-        base = preferred_base or Path(env.apps_path)
-        builtin_base = Path(env.apps_path) / "builtin"
-        cands = [
-            Path(name).expanduser(),
-            base / name,
-            base / f"{name}_project",
-            Path(env.apps_path) / name,
-            Path(env.apps_path) / f"{name}_project",
-            builtin_base / name,
-            builtin_base / f"{name}_project",
-        ]
-        for proj_name in env.projects or []:
-            if proj_name == name or proj_name.replace("_project", "") == name:
-                cands.extend(
-                    [
-                        Path(env.apps_path) / proj_name,
-                        Path(env.apps_path) / f"{proj_name}_project",
-                        builtin_base / proj_name,
-                        builtin_base / f"{proj_name}_project",
-                    ]
-                )
-                break
-        return cands
-
-    if requested_val and requested_val != env.app:
-        for cand in _candidates(str(requested_val)):
-            if not cand.exists():
-                continue
-            try:
-                env.change_app(cand)
-                project_changed = True
-                store_last_active_app(env.active_app)
-                break
-            except Exception:
-                continue
-    elif not requested_val:
-        last_app = load_last_active_app()
-        if last_app and last_app != env.active_app and last_app.exists():
-            try:
-                env.change_app(last_app)
-                project_changed = True
-            except Exception:
-                pass
-
-    return env.app, project_changed
 
 
 def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bool]:
