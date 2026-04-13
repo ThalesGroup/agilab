@@ -1372,6 +1372,29 @@ def test_build_create_symlink_for_module_falls_back_to_hard_link(tmp_path, monke
     assert links[0].name == "pkg"
 
 
+def test_build_create_symlink_for_module_uses_agi_node_namespace_for_other_packages(tmp_path, monkeypatch):
+    src_abs = tmp_path / "agi-node" / "src" / "agi_node" / "shared" / "pkg"
+    src_abs.mkdir(parents=True, exist_ok=True)
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi-node",
+        agi_env=tmp_path / "agi-env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app-src",
+    )
+
+    created = []
+    monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "create_symlink", lambda src, dest: created.append((Path(src), Path(dest))))
+    monkeypatch.setattr(build_mod.os, "link", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("hard link should not be used")))
+
+    links = build_mod.create_symlink_for_module(env, "shared.pkg")
+
+    assert len(links) == 1
+    assert created[0][0] == src_abs
+    assert created[0][1] == links[0]
+    assert links[0].as_posix().endswith("src/agi_node/shared/pkg")
+
+
 def test_build_cleanup_links_removes_empty_parent_tree(tmp_path):
     link = tmp_path / "src" / "agi_node" / "demo_worker"
     link.parent.mkdir(parents=True, exist_ok=True)
@@ -1395,6 +1418,63 @@ def test_build_cleanup_links_stops_when_parent_not_empty(tmp_path):
     assert not link.exists()
     assert sibling.exists()
     assert link.parent.exists()
+
+
+def test_build_cleanup_links_removes_directory_targets(tmp_path):
+    target = tmp_path / "src" / "agi_node" / "demo_worker"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "payload.txt").write_text("x", encoding="utf-8")
+
+    build_mod.cleanup_links([target])
+
+    assert not target.exists()
+
+
+def test_build_cleanup_links_stops_on_parent_rmdir_oserror(tmp_path, monkeypatch):
+    target = tmp_path / "src" / "agi_node" / "demo_worker.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x", encoding="utf-8")
+
+    original_rmdir = Path.rmdir
+
+    def _patched_rmdir(self):
+        if self == target.parent:
+            raise OSError("busy")
+        return original_rmdir(self)
+
+    monkeypatch.setattr(build_mod.Path, "rmdir", _patched_rmdir, raising=False)
+
+    build_mod.cleanup_links([target])
+
+    assert not target.exists()
+    assert target.parent.exists()
+
+
+def test_build_cleanup_links_logs_warning_when_link_probe_raises(tmp_path, monkeypatch):
+    target = tmp_path / "src" / "agi_node" / "demo_worker.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x", encoding="utf-8")
+    warnings_seen = []
+
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *args, **_kwargs: warnings_seen.append(" ".join(str(arg) for arg in args)),
+        error=lambda *_args, **_kwargs: None,
+        debug=lambda *_args, **_kwargs: None,
+    ), raising=False)
+
+    original_exists = Path.exists
+
+    def _patched_exists(self):
+        if self == target:
+            raise OSError("probe failed")
+        return original_exists(self)
+
+    monkeypatch.setattr(build_mod.Path, "exists", _patched_exists, raising=False)
+
+    build_mod.cleanup_links([target])
+
+    assert any("Failed to remove" in line for line in warnings_seen)
 
 
 def test_post_main_invalid_args_returns_usage_code():
@@ -1820,6 +1900,24 @@ def test_build_force_remove_tree_handles_missing_and_chmod_failure(tmp_path, mon
     assert run_calls == [(["chmod", "-R", "u+rwx", str(target)], False, True)]
 
 
+def test_build_force_remove_tree_windows_skips_recursive_chmod(tmp_path, monkeypatch):
+    target = tmp_path / "target"
+    target.mkdir(parents=True, exist_ok=True)
+    removed = []
+    run_calls = []
+
+    monkeypatch.setattr(build_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(build_mod.os, "chmod", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(build_mod.subprocess, "run", lambda *args, **kwargs: run_calls.append((args, kwargs)))
+    monkeypatch.setattr(build_mod.shutil, "rmtree", lambda path: removed.append(Path(path)))
+
+    build_mod._force_remove_tree(target)
+
+    assert len(removed) == 1
+    assert str(removed[0]).replace("\\", "/").endswith("/target")
+    assert run_calls == []
+
+
 def test_build_purge_worker_venv_artifacts_removes_unique_candidates(tmp_path, monkeypatch):
     app_root = tmp_path / "app"
     worker_module = "demo_worker"
@@ -1839,6 +1937,62 @@ def test_build_purge_worker_venv_artifacts_removes_unique_candidates(tmp_path, m
 
     assert result == [candidate.resolve(strict=False) for candidate in candidates]
     assert removed == result
+
+
+def test_build_main_build_ext_without_app_path_uses_script_dir_and_logs_purged_venvs(tmp_path, monkeypatch):
+    script_dir = tmp_path / "scripts"
+    script_dir.mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    worker_file = worker_home / "workers" / "demo_worker.py"
+    worker_file.parent.mkdir(parents=True, exist_ok=True)
+    worker_file.write_text("value = 1\n", encoding="utf-8")
+    worker_file.with_suffix(".pyx").write_text("value = 1\n", encoding="utf-8")
+    out_dir = worker_home / "demo_worker"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (script_dir / "README.md").write_text("existing", encoding="utf-8")
+    purged = [tmp_path / "purged" / ".venv"]
+    logger_info = []
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+        init_args = None
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            DummyAgiEnv.init_args = {
+                "apps_path": apps_path,
+                "active_app": active_app,
+                "verbose": verbose,
+            }
+            self.home_abs = str(worker_home)
+            self.worker_path = str(worker_file)
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = False
+            self.active_app = Path(active_app)
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = script_dir
+
+    monkeypatch.setattr(build_mod, "__file__", str(script_dir / "build.py"), raising=False)
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod, "find_sys_prefix", lambda _base: str(tmp_path / "prefix"))
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": ["demo_worker"])
+    monkeypatch.setattr(build_mod, "_purge_worker_venv_artifacts", lambda *_args, **_kwargs: purged)
+    monkeypatch.setattr(build_mod, "logger", SimpleNamespace(info=lambda *args, **_kwargs: logger_info.append(args)))
+    monkeypatch.setattr(build_mod, "cythonize", lambda modules, **_kwargs: ["ext_mod"])
+    setup_calls = []
+    monkeypatch.setattr(build_mod, "setup", lambda **kwargs: setup_calls.append(kwargs))
+
+    build_mod.main(["build_ext", "-b", str(out_dir)])
+
+    assert DummyAgiEnv.init_args is not None
+    assert DummyAgiEnv.init_args["apps_path"] is None
+    assert Path(DummyAgiEnv.init_args["active_app"]) == script_dir
+    assert any("Purged nested worker virtualenv artifacts before %s: %s" in args[0] for args in logger_info)
+    assert setup_calls and setup_calls[0]["name"] == "demo_worker"
 
 
 def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatch):
@@ -2168,3 +2322,54 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
     assert extracted.exists()
     assert os_calls and "remove_decorators" in os_calls[0]
     assert cleanup_calls and cleanup_calls[0] == links_created
+
+
+def test_build_main_bdist_egg_filelike_outdir_uses_parent_directory(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    (app_dir / "README.md").write_text("existing", encoding="utf-8")
+    worker_home = tmp_path / "home"
+    filelike_out = worker_home / "exports" / "demo_worker.whl"
+    filelike_out.parent.mkdir(parents=True, exist_ok=True)
+    warnings_seen = []
+
+    class DummyAgiEnv:
+        logger = SimpleNamespace(
+            info=lambda *_args, **_kwargs: None,
+            warning=lambda *args, **_kwargs: warnings_seen.append(" ".join(str(arg) for arg in args)),
+            error=lambda *_args, **_kwargs: None,
+            debug=lambda *_args, **_kwargs: None,
+        )
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = str(worker_home / "workers" / "demo_worker.py")
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": [])
+    setup_calls = []
+    monkeypatch.setattr(build_mod, "setup", lambda **kwargs: setup_calls.append(kwargs))
+
+    build_mod.main(
+        [
+            "--app-path",
+            str(app_dir),
+            "bdist_egg",
+            "-d",
+            str(filelike_out),
+        ]
+    )
+
+    assert any("looks like a file" in line for line in warnings_seen)
+    assert Path(build_mod.sys.argv[3]) == worker_home / "exports" / "dist"
+    assert setup_calls
