@@ -82,7 +82,7 @@ def mount_table() -> list[tuple[str, str]]:
                 match = re.match(r".+ on (?P<mountpoint>.+?) \((?P<fstype>[^,\)]+)", line)
                 if match:
                     entries.append((match.group("mountpoint").strip(), match.group("fstype").strip()))
-    except Exception:
+    except OSError:
         entries = []
 
     entries.sort(key=lambda item: len(item[0]), reverse=True)
@@ -105,7 +105,7 @@ def looks_like_shared_path(path: Path, *, project_root: Path) -> bool:
     raw = path.expanduser()
     try:
         resolved = raw.resolve()
-    except Exception:
+    except (OSError, RuntimeError):
         resolved = raw
 
     for candidate in (raw, resolved):
@@ -123,7 +123,7 @@ def looks_like_shared_path(path: Path, *, project_root: Path) -> bool:
                 try:
                     if os.path.ismount(node):
                         return True
-                except Exception:
+                except (OSError, RuntimeError):
                     break
                 if node == stop:
                     break
@@ -164,7 +164,7 @@ def macos_autofs_hint(share_candidate: Path) -> Optional[str]:
 
     try:
         master_text = auto_master.read_text(encoding="utf-8", errors="replace")
-    except Exception:
+    except OSError:
         return None
 
     has_mnt_map = re.search(r"^\s*/mnt\s+auto_nfs(\s|$)", master_text, flags=re.MULTILINE) is not None
@@ -184,7 +184,7 @@ def macos_autofs_hint(share_candidate: Path) -> Optional[str]:
     if auto_nfs.exists():
         try:
             nfs_text = auto_nfs.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+        except OSError:
             nfs_text = ""
         if candidate_str.startswith("/mnt/"):
             mount_root = "/mnt"
@@ -230,7 +230,7 @@ def extract_result_dict_from_output(raw_output: str) -> Optional[dict]:
             continue
         try:
             parsed = ast.literal_eval(candidate)
-        except Exception:
+        except (SyntaxError, ValueError):
             continue
         if isinstance(parsed, dict):
             return parsed
