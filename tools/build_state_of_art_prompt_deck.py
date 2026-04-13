@@ -138,10 +138,10 @@ def slide_problem(prs: Presentation):
         panel(slide, left, top, Inches(1.6), Inches(0.62), fill=RGBColor(197, 225, 245), line=RGBColor(197, 225, 245))
         box(slide, left, top + Inches(0.16), Inches(1.6), Inches(0.22), label, size=18, color=DARK, bold=False, align=PP_ALIGN.CENTER)
     arrows = [
-        (Inches(6.26), Inches(3.95), Inches(0.26), Inches(0.16), 0),
-        (Inches(7.43), Inches(4.31), Inches(0.16), Inches(0.26), 90),
-        (Inches(6.26), Inches(5.11), Inches(0.26), Inches(0.16), 180),
-        (Inches(5.37), Inches(4.34), Inches(0.16), Inches(0.26), 270),
+        (Inches(6.28), Inches(4.0), Inches(0.22), Inches(0.14), 0),
+        (Inches(7.44), Inches(4.35), Inches(0.14), Inches(0.22), 90),
+        (Inches(6.28), Inches(5.16), Inches(0.22), Inches(0.14), 180),
+        (Inches(5.42), Inches(4.35), Inches(0.14), Inches(0.22), 270),
     ]
     for left, top, width, height, rotation in arrows:
         shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, top, width, height)
@@ -163,8 +163,8 @@ def slide_problem(prs: Presentation):
         panel(slide, left, top, Inches(1.44), Inches(0.52), fill=RGBColor(226, 208, 246), line=RGBColor(226, 208, 246))
         box(slide, left, top + Inches(0.09), Inches(1.44), Inches(0.26), label, size=12, color=DARK, bold=False, align=PP_ALIGN.CENTER)
 
-    for left in [Inches(3.56), Inches(8.94)]:
-        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(4.12), Inches(0.34), Inches(0.28))
+    for left, width in [(Inches(3.66), Inches(0.24)), (Inches(8.98), Inches(0.24))]:
+        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(4.16), width, Inches(0.22))
         shape.fill.solid()
         shape.fill.fore_color.rgb = DARK
         shape.line.fill.background()
@@ -198,8 +198,8 @@ def slide_landscape(prs: Presentation):
         panel(slide, left, Inches(2.18), Inches(2.7), Inches(2.75), fill=fill)
         pill(slide, left + Inches(0.54), Inches(2.46), Inches(1.62), Inches(0.34), title, fill=WHITE, color=ACCENT_2, size=10)
         box(slide, left + Inches(0.2), Inches(3.06), Inches(2.3), Inches(1.02), body, size=19, color=DARK, bold=True, align=PP_ALIGN.CENTER)
-    for left in [Inches(3.3), Inches(6.42), Inches(9.54)]:
-        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(3.28), Inches(0.48), Inches(0.4))
+    for left in [Inches(3.62), Inches(6.74), Inches(9.86)]:
+        shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, left, Inches(3.36), Inches(0.3), Inches(0.28))
         shape.fill.solid()
         shape.fill.fore_color.rgb = ACCENT
         shape.line.fill.background()
@@ -329,9 +329,9 @@ def slide_compare(prs: Presentation):
         box(slide, left + Inches(0.28), Inches(2.52), Inches(4.55), Inches(0.34), title, size=24, color=title_color, bold=True)
         box(slide, left + Inches(0.28), Inches(2.95), Inches(4.3), Inches(0.24), subtitle, size=17, color=INK)
         box(slide, left + Inches(0.35), Inches(3.48), Inches(4.2), Inches(1.1), "\n".join(f"• {item}" for item in items), size=18, color=MUTED)
-    panel(slide, Inches(2.0), Inches(5.46), Inches(9.35), Inches(0.76), fill=RGBColor(245, 236, 225), line=RGBColor(245, 236, 225))
-    box(slide, Inches(2.2), Inches(5.72), Inches(8.95), Inches(0.28),
-        "Le plugin fait gagner du temps. L’agent fait gagner des étapes de travail.", size=20, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
+    panel(slide, Inches(0.95), Inches(5.46), Inches(11.45), Inches(0.76), fill=RGBColor(245, 236, 225), line=RGBColor(245, 236, 225))
+    box(slide, Inches(1.18), Inches(5.72), Inches(11.0), Inches(0.24),
+        "Le plugin fait gagner du temps. L’agent fait gagner des étapes de travail.", size=16, color=ACCENT_2, bold=True, align=PP_ALIGN.CENTER)
 
 
 def slide_when(prs: Presentation):
