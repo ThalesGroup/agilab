@@ -19,6 +19,17 @@ os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().pare
 
 import streamlit as st
 try:
+    from agilab.env_file_utils import load_env_file_map as _load_env_file_map
+except ModuleNotFoundError:
+    _env_file_utils_path = Path(__file__).resolve().parent / "env_file_utils.py"
+    _env_file_utils_spec = importlib.util.spec_from_file_location("agilab_env_file_utils_fallback", _env_file_utils_path)
+    if _env_file_utils_spec is None or _env_file_utils_spec.loader is None:
+        raise
+    _env_file_utils_module = importlib.util.module_from_spec(_env_file_utils_spec)
+    _env_file_utils_spec.loader.exec_module(_env_file_utils_module)
+    _load_env_file_map = _env_file_utils_module.load_env_file_map
+
+try:
     from agilab.page_docs import render_page_docs_access
 except ModuleNotFoundError:
     _page_docs_path = Path(__file__).resolve().parent / "page_docs.py"
@@ -424,26 +435,6 @@ def _upsert_env_var(path: Path, key: str, value: str) -> None:
     if not updated:
         rewritten.append(f"{key}={value}")
     path.write_text("\n".join(rewritten).rstrip() + "\n", encoding="utf-8")
-
-
-def _load_env_file_map(path: Path) -> Dict[str, str]:
-    """Return a key/value mapping from the .env file (commented lines included)."""
-    env_map: Dict[str, str] = {}
-    try:
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            stripped = raw.strip()
-            if not stripped or "=" not in stripped:
-                continue
-            target = stripped.lstrip("#").strip()
-            if "=" not in target:
-                continue
-            key, val = target.split("=", 1)
-            key = key.strip()
-            if key:
-                env_map[key] = val.strip()
-    except FileNotFoundError:
-        pass
-    return env_map
 
 
 def _refresh_env_from_file(env: Any) -> None:
