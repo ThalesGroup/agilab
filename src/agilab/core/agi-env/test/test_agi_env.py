@@ -1335,30 +1335,38 @@ def test_copy_file_logs_missing_source_and_copy_errors(tmp_path: Path, monkeypat
     assert mock_logger.error.called
 
 
-def test_get_import_mapping_and_base_info_support_ast_nodes(monkeypatch):
+def test_source_analysis_wrappers_use_support_module(monkeypatch):
     env = object.__new__(AgiEnv)
+    captured = {}
 
-    source = (
-        "import pkg.module as mod\n"
-        "from demo.worker import DemoWorker\n"
-        "from another.pkg import helper\n"
-    )
-    mapping = env.get_import_mapping(source)
-    assert mapping["mod"] == "pkg.module"
-    assert mapping["DemoWorker"] == "demo.worker"
-    assert mapping["helper"] == "another.pkg"
+    def _fake_mapping(source, *, logger):
+        captured["mapping"] = (source, logger)
+        return {"Base": "demo.base"}
+
+    def _fake_extract(base, import_mapping):
+        captured["extract"] = (base, import_mapping)
+        return ("Base", "demo.base")
+
+    def _fake_full_name(node):
+        captured["full_name"] = node
+        return "mod.Base"
+
+    monkeypatch.setattr(agi_env_module, "build_import_mapping", _fake_mapping)
+    monkeypatch.setattr(agi_env_module, "extract_ast_base_info", _fake_extract)
+    monkeypatch.setattr(agi_env_module, "build_full_attribute_name", _fake_full_name)
 
     name_base = ast.parse("class Child(Base):\n    pass\n").body[0].bases[0]
-    attr_base = ast.parse("class Child(mod.DemoWorker):\n    pass\n").body[0].bases[0]
-    assert env.extract_base_info(name_base, mapping) == ("Base", None)
-    assert env.extract_base_info(attr_base, mapping) == ("DemoWorker", "pkg.module")
-    assert env.get_full_attribute_name(attr_base) == "mod.DemoWorker"
+    attr_base = ast.parse("class Child(mod.Base):\n    pass\n").body[0].bases[0]
 
-    mock_logger = mock.Mock()
-    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
-    with pytest.raises(SyntaxError):
-        env.get_import_mapping("def broken(:\n")
-    assert mock_logger.error.called
+    mapping = env.get_import_mapping("import demo.base")
+    assert mapping == {"Base": "demo.base"}
+    assert captured["mapping"] == ("import demo.base", AgiEnv.logger)
+
+    assert env.extract_base_info(name_base, mapping) == ("Base", "demo.base")
+    assert captured["extract"] == (name_base, mapping)
+
+    assert env.get_full_attribute_name(attr_base) == "mod.Base"
+    assert captured["full_name"] is attr_base
 
 
 def test_read_gitignore_and_check_internet_cover_success_and_failure(tmp_path: Path, monkeypatch):
