@@ -34,7 +34,7 @@ from copy import deepcopy
 from datetime import timedelta
 from ipaddress import ip_address as is_ip
 from pathlib import Path, PurePosixPath
-from tempfile import gettempdir
+from tempfile import gettempdir, mkdtemp
 from types import SimpleNamespace
 
 from agi_cluster.agi_distributor import cli as distributor_cli
@@ -3050,33 +3050,38 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             files_to_send: list[Path] = []
-            pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
-            if pyproject_src.exists():
-                # Ensure the receiving worker can install with `uv sync --extra ...` even when
-                # the source pyproject doesn't declare worker extras (common for built-in apps).
-                extras_to_seed = set(getattr(AGI, "agi_workers", {}).values())
-                try:
-                    tmp_dir = Path(gettempdir()) / f"agilab_{env.target_worker}_pyproject"
-                    if tmp_dir.exists():
-                        shutil.rmtree(tmp_dir, ignore_errors=True)
-                    tmp_dir.mkdir(parents=True, exist_ok=True)
-                    tmp_pyproject = tmp_dir / "pyproject.toml"
-                    shutil.copy(pyproject_src, tmp_pyproject)
-                    _ensure_optional_extras(tmp_pyproject, extras_to_seed)
-                    staged_entries = _stage_uv_sources_for_copied_pyproject(
-                        src_pyproject=pyproject_src,
-                        dest_pyproject=tmp_pyproject,
-                        stage_root=tmp_dir,
-                        log_rewrites=bool(getattr(env, "verbose", 0)),
-                    )
-                    files_to_send.append(tmp_pyproject)
-                    files_to_send.extend(staged_entries)
-                except Exception:
-                    # Fall back to the original file if anything goes wrong.
-                    files_to_send.append(pyproject_src)
-            if env.uvproject.exists():
-                files_to_send.append(env.uvproject)
-            await AGI.send_files(env, ip, files_to_send, wenv_rel)
+            staged_tmp_dir: Path | None = None
+            try:
+                pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
+                if pyproject_src.exists():
+                    # Ensure the receiving worker can install with `uv sync --extra ...` even when
+                    # the source pyproject doesn't declare worker extras (common for built-in apps).
+                    extras_to_seed = set(getattr(AGI, "agi_workers", {}).values())
+                    try:
+                        staged_tmp_dir = Path(mkdtemp(prefix=f"agilab_{env.target_worker}_pyproject_"))
+                        tmp_pyproject = staged_tmp_dir / "pyproject.toml"
+                        shutil.copy(pyproject_src, tmp_pyproject)
+                        _ensure_optional_extras(tmp_pyproject, extras_to_seed)
+                        staged_entries = _stage_uv_sources_for_copied_pyproject(
+                            src_pyproject=pyproject_src,
+                            dest_pyproject=tmp_pyproject,
+                            stage_root=staged_tmp_dir,
+                            log_rewrites=bool(getattr(env, "verbose", 0)),
+                        )
+                        files_to_send.append(tmp_pyproject)
+                        files_to_send.extend(staged_entries)
+                    except Exception:
+                        if staged_tmp_dir is not None:
+                            shutil.rmtree(staged_tmp_dir, ignore_errors=True)
+                            staged_tmp_dir = None
+                        # Fall back to the original file if anything goes wrong.
+                        files_to_send.append(pyproject_src)
+                if env.uvproject.exists():
+                    files_to_send.append(env.uvproject)
+                await AGI.send_files(env, ip, files_to_send, wenv_rel)
+            finally:
+                if staged_tmp_dir is not None:
+                    shutil.rmtree(staged_tmp_dir, ignore_errors=True)
 
     @staticmethod
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
