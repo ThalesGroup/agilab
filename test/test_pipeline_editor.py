@@ -22,6 +22,19 @@ def _load_module(module_name: str, relative_path: str):
     return module
 
 
+def _load_pipeline_editor_with_missing(*missing_modules: str):
+    module_name = f"agilab.pipeline_editor_fallback_{len(missing_modules)}_{abs(hash(missing_modules))}"
+    original_import = __import__
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in missing_modules:
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    with patch("builtins.__import__", _patched_import):
+        return _load_module(module_name, "src/agilab/pipeline_editor.py")
+
+
 pipeline_editor = _load_module("agilab.pipeline_editor", "src/agilab/pipeline_editor.py")
 
 
@@ -297,6 +310,41 @@ def test_convert_paths_to_strings_and_query_validation():
     assert pipeline_editor.is_query_valid([0, "desc", "question"]) is True
     assert pipeline_editor.is_query_valid([0, "desc", ""]) is False
     assert pipeline_editor.is_query_valid("not-a-query") is False
+
+
+def test_pipeline_editor_top_level_helpers_cover_small_fallbacks(monkeypatch):
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        pipeline_editor,
+        "st",
+        SimpleNamespace(success=lambda message: calls.append(("success", message))),
+    )
+
+    pipeline_editor._emit_streamlit_message("success", "saved")
+    pipeline_editor._emit_streamlit_message("missing", "ignored")
+
+    assert calls == [("success", "saved")]
+    assert pipeline_editor._coerce_source_lines(None) == []
+    assert pipeline_editor._coerce_source_lines("print(1)\nprint(2)") == ["print(1)\n", "print(2)"]
+    assert pipeline_editor._coerce_source_lines((1, "two")) == ["1", "two"]
+    assert pipeline_editor._coerce_source_lines(3) == ["3"]
+
+    assert pipeline_editor._is_uploaded_notebook(None) is False
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="demo.ipynb", type="")) is True
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="demo.txt", type="text/plain")) is False
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="", type="application/x-ipynb+json")) is True
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="", type="")) is True
+
+    assert pipeline_editor._read_uploaded_text(SimpleNamespace(read=lambda: "plain text")) == "plain text"
+    assert pipeline_editor._read_uploaded_text(SimpleNamespace(read=lambda: b"bytes")) == "bytes"
+    assert pipeline_editor._read_uploaded_text(SimpleNamespace(read=lambda: 42)) == "42"
+
+
+def test_pipeline_editor_import_falls_back_when_pipeline_modules_are_unavailable():
+    fallback = _load_pipeline_editor_with_missing("agilab.pipeline_runtime", "agilab.pipeline_steps")
+
+    assert callable(fallback.get_steps_list)
+    assert callable(fallback.save_step)
 
 
 def test_save_query_invalid_still_exports_dataframe(monkeypatch, tmp_path):
@@ -631,3 +679,160 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
         "Failed to save notebook: nb boom",
         "Failed to save TOML file: toml boom",
     ]
+
+
+def test_save_step_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    errors: list[str] = []
+
+    class _BrokenEnv:
+        @property
+        def envars(self):
+            raise RuntimeError("env boom")
+
+    class _BrokenMap(dict):
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("map boom")
+
+    fake_st = SimpleNamespace(
+        session_state={"_experiment_last_save_skipped": False, "env": _BrokenEnv()},
+        error=lambda message, *args, **kwargs: errors.append(message),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+
+    nsteps, entry = pipeline_editor.save_step(
+        tmp_path / "flight_project",
+        ["detail", "question", "model", 42],
+        current_step="bad",
+        nsteps="bad",
+        steps_file=steps_file,
+        venv_map=_BrokenMap(),
+        engine_map=_BrokenMap(),
+    )
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert nsteps == 1
+    assert entry["E"] == ""
+    assert entry["R"] == ""
+    assert entry["C"] == "42"
+    assert stored["flight_project"][0]["C"] == "42"
+    assert errors == []
+
+
+def test_force_persist_step_swallows_dump_failures(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    failures: list[str] = []
+    monkeypatch.setattr(
+        pipeline_editor,
+        "tomli_w",
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("dump boom"))),
+    )
+    monkeypatch.setattr(
+        pipeline_editor.logger,
+        "error",
+        lambda message, *args: failures.append(message % args if args else message),
+    )
+
+    pipeline_editor._force_persist_step(tmp_path / "flight_project", steps_file, 2, {"Q": "late"})
+
+    assert failures == [f"Force persist failed for step 2 -> {steps_file}: dump boom"]
+
+
+def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        pipeline_editor,
+        "st",
+        SimpleNamespace(
+            error=lambda message, *args, **kwargs: messages.append(("error", message)),
+            warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+            success=lambda message, *args, **kwargs: messages.append(("success", message)),
+        ),
+    )
+
+    assert pipeline_editor.notebook_to_toml(None, "lab_steps.toml", tmp_path / "demo_project") == 0
+    assert (
+        pipeline_editor.notebook_to_toml(
+            SimpleNamespace(name="demo.txt", type="text/plain", read=lambda: b"{}"),
+            "lab_steps.toml",
+            tmp_path / "demo_project",
+        )
+        == 0
+    )
+    assert (
+        pipeline_editor.notebook_to_toml(
+            SimpleNamespace(name="demo.ipynb", type="application/x-ipynb+json", read=lambda: b"{"),
+            "lab_steps.toml",
+            tmp_path / "demo_project",
+        )
+        == 0
+    )
+    assert (
+        pipeline_editor.notebook_to_toml(
+            SimpleNamespace(name="demo.ipynb", type="application/x-ipynb+json", read=lambda: b"[]"),
+            "lab_steps.toml",
+            tmp_path / "demo_project",
+        )
+        == 0
+    )
+
+    broken_steps = tmp_path / "broken.toml"
+    broken_steps.write_text("[[demo_project]\n", encoding="utf-8")
+    assert pipeline_editor.refresh_notebook_export(tmp_path / "missing.toml") is None
+    assert pipeline_editor.refresh_notebook_export(broken_steps) is None
+
+    assert messages == [
+        ("error", "No uploaded notebook provided."),
+        ("error", "Please upload a .ipynb file."),
+        ("error", "Unable to parse notebook: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"),
+        ("error", "Invalid notebook format: expected a JSON object."),
+        ("error", f"Unable to export notebook: failed to load {broken_steps}: Expected ']]' at the end of an array declaration (at line 1, column 15)"),
+    ]
+
+
+def test_on_import_notebook_reports_missing_upload_and_empty_code_cells(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+
+    fake_st.session_state["upload"] = SimpleNamespace(type="application/x-ipynb+json")
+    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: 0)
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+
+    assert messages == [
+        ("error", "No notebook file was uploaded."),
+        ("warning", "Notebook imported, but no code cells were found."),
+    ]
+    assert fake_st.session_state["page_broken"] is True
+
+
+def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp_path):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message, *args, **kwargs: errors.append(message))
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_editor, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_editor, "get_css_text", lambda: "")
+
+    editor_payloads: list[str] = []
+
+    def _code_editor(code, **_kwargs):
+        editor_payloads.append(code)
+        return {"type": "save", "text": "{bad json"}
+
+    monkeypatch.setattr(pipeline_editor, "code_editor", _code_editor)
+
+    pipeline_editor.display_history_tab(tmp_path / "missing.toml", tmp_path / "demo_project")
+
+    assert editor_payloads == ["{}"]
+    assert errors == ["Failed to save steps file from editor: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"]

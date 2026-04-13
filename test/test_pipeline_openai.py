@@ -51,6 +51,14 @@ def test_persist_env_var_replaces_existing_value(monkeypatch, tmp_path):
     assert env_file.read_text(encoding="utf-8") == 'OTHER="keep"\nOPENAI_API_KEY="new-key"\n'
 
 
+def test_persist_env_var_creates_env_file_when_missing(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    pipeline_openai.persist_env_var("OPENAI_API_KEY", "created-key")
+
+    assert (tmp_path / ".agilab" / ".env").read_text(encoding="utf-8") == 'OPENAI_API_KEY="created-key"\n'
+
+
 def test_make_openai_client_and_model_prefers_azure(monkeypatch):
     captured = {}
 
@@ -145,6 +153,27 @@ def test_make_openai_client_and_model_uses_standard_openai_client(monkeypatch):
         "api_key": "openai-secret",
         "base_url": "https://proxy.example/v1",
     }
+
+
+def test_make_openai_client_and_model_uses_standard_openai_client_without_base_url(monkeypatch):
+    captured = {}
+
+    class _OpenAIClient:
+        def __init__(self, **kwargs):
+            captured["openai"] = kwargs
+
+    fake_openai = types.ModuleType("openai")
+    fake_openai.OpenAI = _OpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_TYPE", raising=False)
+
+    client, model_name, is_azure = pipeline_openai.make_openai_client_and_model({}, "openai-secret")
+
+    assert isinstance(client, _OpenAIClient)
+    assert model_name
+    assert is_azure is False
+    assert captured["openai"] == {"api_key": "openai-secret"}
 
 
 def test_make_openai_client_and_model_falls_back_to_module_level_openai_api(monkeypatch):
@@ -273,6 +302,125 @@ def test_prompt_for_openai_api_key_updates_session_and_persists(monkeypatch):
     assert any(kind == "success" and "saved to ~/.agilab/.env" in message for kind, message in events)
 
 
+def test_prompt_for_openai_api_key_handles_session_update_when_set_env_fails(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeForm:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeAgiEnv:
+        def __init__(self):
+            self.envars = {}
+
+        @staticmethod
+        def set_env_var(_name, _value):
+            raise RuntimeError("boom")
+
+    env_obj = FakeAgiEnv()
+    fake_st = types.SimpleNamespace(
+        session_state={"openai_api_key": "cached", "env": env_obj},
+        warning=lambda message: events.append(("warning", str(message))),
+        form=lambda _key: FakeForm(),
+        text_input=lambda *args, **kwargs: "sk-updated-value-654321",
+        checkbox=lambda *args, **kwargs: False,
+        form_submit_button=lambda *args, **kwargs: True,
+        error=lambda message: events.append(("error", str(message))),
+        success=lambda message: events.append(("success", str(message))),
+        rerun=lambda: events.append(("rerun", "")),
+        stop=lambda: (_ for _ in ()).throw(RuntimeError("stopped")),
+    )
+    monkeypatch.setattr(pipeline_openai, "st", fake_st)
+    monkeypatch.setitem(sys.modules, "agi_env", types.SimpleNamespace(AgiEnv=FakeAgiEnv))
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        pipeline_openai.prompt_for_openai_api_key("Missing key")
+
+    assert fake_st.session_state["openai_api_key"] == "sk-updated-value-654321"
+    assert env_obj.envars == {}
+    assert ("success", "API key updated for this session.") in events
+
+
+def test_prompt_for_openai_api_key_warns_when_persist_fails(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeForm:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeAgiEnv:
+        def __init__(self):
+            self.envars = {}
+
+        @staticmethod
+        def set_env_var(_name, _value):
+            return None
+
+    env_obj = FakeAgiEnv()
+    fake_st = types.SimpleNamespace(
+        session_state={"openai_api_key": "cached", "env": env_obj},
+        warning=lambda message: events.append(("warning", str(message))),
+        form=lambda _key: FakeForm(),
+        text_input=lambda *args, **kwargs: "sk-updated-value-999999",
+        checkbox=lambda *args, **kwargs: True,
+        form_submit_button=lambda *args, **kwargs: True,
+        error=lambda message: events.append(("error", str(message))),
+        success=lambda message: events.append(("success", str(message))),
+        rerun=lambda: events.append(("rerun", "")),
+        stop=lambda: (_ for _ in ()).throw(RuntimeError("stopped")),
+    )
+    monkeypatch.setattr(pipeline_openai, "st", fake_st)
+    monkeypatch.setitem(sys.modules, "agi_env", types.SimpleNamespace(AgiEnv=FakeAgiEnv))
+    monkeypatch.setattr(
+        pipeline_openai,
+        "persist_env_var",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        pipeline_openai.prompt_for_openai_api_key("Missing key")
+
+    assert env_obj.envars["OPENAI_API_KEY"] == "sk-updated-value-999999"
+    assert ("warning", "Could not persist API key: disk full") in events
+
+
+def test_prompt_for_openai_api_key_stops_when_form_not_submitted(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeForm:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    fake_st = types.SimpleNamespace(
+        session_state={"openai_api_key": "cached"},
+        warning=lambda message: events.append(("warning", str(message))),
+        form=lambda _key: FakeForm(),
+        text_input=lambda *args, **kwargs: "sk-unused-value-123456",
+        checkbox=lambda *args, **kwargs: True,
+        form_submit_button=lambda *args, **kwargs: False,
+        error=lambda message: events.append(("error", str(message))),
+        success=lambda message: events.append(("success", str(message))),
+        rerun=lambda: events.append(("rerun", "")),
+        stop=lambda: (_ for _ in ()).throw(RuntimeError("stopped")),
+    )
+    monkeypatch.setattr(pipeline_openai, "st", fake_st)
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        pipeline_openai.prompt_for_openai_api_key("Missing key")
+
+    assert ("warning", "Missing key") in events
+    assert not any(kind in {"error", "success", "rerun"} for kind, _ in events)
+
+
 def test_make_openai_client_and_model_azure_falls_back_to_openai_client(monkeypatch):
     captured = {}
 
@@ -297,3 +445,18 @@ def test_make_openai_client_and_model_azure_falls_back_to_openai_client(monkeypa
         "api_key": "azure-secret",
         "base_url": "https://proxy.example/v1",
     }
+
+
+def test_make_openai_client_and_model_module_fallback_without_base_url(monkeypatch):
+    fake_openai = types.ModuleType("openai")
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_TYPE", raising=False)
+
+    client, model_name, is_azure = pipeline_openai.make_openai_client_and_model({}, "module-secret")
+
+    assert client is fake_openai
+    assert model_name
+    assert is_azure is False
+    assert fake_openai.api_key == "module-secret"
+    assert not hasattr(fake_openai, "api_base")
