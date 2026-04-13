@@ -1189,6 +1189,52 @@ def test_gpt_oss_controls_start_button_persists_backend_checkpoint_and_flags(mon
     assert any(kind == "success" and "GPT-OSS server running (transformers)" in message for kind, message in messages)
 
 
+def test_gpt_oss_controls_start_button_success_without_existing_endpoint(monkeypatch):
+    messages: list[tuple[str, str]] = []
+
+    class FakeSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            return "transformers"
+
+        def text_input(self, label, value="", help=None):
+            if label == "GPT-OSS checkpoint / model":
+                return "gpt-oss-demo"
+            if label == "GPT-OSS extra flags":
+                return ""
+            return value
+
+        def button(self, label, key=None):
+            return key == "gpt_oss_start_btn"
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+        def info(self, message):
+            messages.append(("info", str(message)))
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+    fake_st = SimpleNamespace(
+        session_state={"lab_llm_provider": "gpt-oss"},
+        sidebar=FakeSidebar(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    def _activate(_env):
+        fake_st.session_state["gpt_oss_endpoint"] = "http://127.0.0.1:9000/v1/responses"
+        fake_st.session_state["gpt_oss_backend_active"] = "transformers"
+        return True
+
+    monkeypatch.setattr(pipeline_ai, "activate_gpt_oss", _activate)
+
+    env = SimpleNamespace(envars={})
+    pipeline_ai.gpt_oss_controls(env)
+
+    assert env.envars["GPT_OSS_BACKEND"] == "transformers"
+    assert any(kind == "success" and "http://127.0.0.1:9000/v1/responses" in message for kind, message in messages)
+
+
 def test_universal_offline_controls_rag_mode_updates_env_and_rebuilds(monkeypatch, tmp_path):
     messages: list[tuple[str, str]] = []
 
@@ -2006,3 +2052,78 @@ def test_universal_offline_controls_covers_invalid_defaults_and_blank_paths(monk
     assert pipeline_ai.UOAIC_DB_STATE_KEY not in fake_st.session_state
     assert pipeline_ai.UOAIC_DATA_ENV not in env.envars
     assert pipeline_ai.UOAIC_DB_ENV not in env.envars
+
+
+def test_universal_offline_controls_blank_inputs_clear_existing_saved_paths(monkeypatch):
+    class RagSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            return "RAG (offline docs)"
+
+        def expander(self, label, expanded=True):
+            return nullcontext()
+
+        def text_input(self, label, value="", help=None):
+            mapping = {
+                "Ollama endpoint": "http://127.0.0.1:11434",
+                "Ollama model": "codegemma",
+                "Universal Offline data directory": " ",
+                "Universal Offline vector store directory": " ",
+            }
+            return mapping.get(label, value)
+
+        def slider(self, *args, **kwargs):
+            return kwargs["value"]
+
+        def number_input(self, label, **kwargs):
+            return kwargs["value"]
+
+        def checkbox(self, label, value=False, help=None):
+            return False
+
+        def button(self, label, key=None):
+            return False
+
+        def caption(self, _message):
+            return None
+
+        def warning(self, _message):
+            return None
+
+        def info(self, _message):
+            return None
+
+        def success(self, _message):
+            return None
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_DATA_STATE_KEY: "/tmp/old-data",
+            pipeline_ai.UOAIC_DB_STATE_KEY: "/tmp/old-db",
+            pipeline_ai.UOAIC_RUNTIME_KEY: "stale-runtime",
+        },
+        sidebar=RagSidebar(),
+        spinner=lambda *_args, **_kwargs: nullcontext(),
+        text_input=lambda *args, **kwargs: RagSidebar().text_input(*args, **kwargs),
+        slider=lambda *args, **kwargs: RagSidebar().slider(*args, **kwargs),
+        number_input=lambda *args, **kwargs: RagSidebar().number_input(*args, **kwargs),
+        checkbox=lambda *args, **kwargs: RagSidebar().checkbox(*args, **kwargs),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_default_ollama_model", lambda *_args, **_kwargs: "fallback-model")
+
+    env = SimpleNamespace(
+        envars={
+            pipeline_ai.UOAIC_DATA_ENV: "/tmp/old-data",
+            pipeline_ai.UOAIC_DB_ENV: "/tmp/old-db",
+        }
+    )
+    pipeline_ai.universal_offline_controls(env)
+
+    normalized_data = pipeline_ai._normalize_user_path("/tmp/old-data")
+    normalized_db = pipeline_ai._normalize_user_path("/tmp/old-db")
+    assert fake_st.session_state[pipeline_ai.UOAIC_DATA_STATE_KEY] == normalized_data
+    assert fake_st.session_state[pipeline_ai.UOAIC_DB_STATE_KEY] == normalized_db
+    assert env.envars[pipeline_ai.UOAIC_DATA_ENV] == normalized_data
+    assert env.envars[pipeline_ai.UOAIC_DB_ENV] == normalized_db
+    assert pipeline_ai.UOAIC_RUNTIME_KEY not in fake_st.session_state

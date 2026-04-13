@@ -2,6 +2,8 @@
 branch = true
 source =
     src/agilab/core/agi-env/src/agi_env
+omit =
+    src/agilab/core/agi-env/src/agi_env/pagelib.py
 
 [report]
 omit =

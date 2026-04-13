@@ -1,6 +1,7 @@
 ---
 name: svg-diagrams
 description: Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when Codex must produce standalone SVG assets and text must stay inside boxes without overflow.
+license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: Author robust SVG diagrams
   updated: 2026-04-09

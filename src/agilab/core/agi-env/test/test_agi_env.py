@@ -1899,13 +1899,57 @@ def test_run_bg_timeout_kills_process_and_raises_runtime_error(tmp_path: Path, m
 
     proc = _Proc()
 
-    async def _fake_shell(*_args, **_kwargs):
+    async def _fake_exec(*_args, **_kwargs):
         return proc
 
-    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
 
     with pytest.raises(RuntimeError, match="Timeout expired for command: echo slow"):
         asyncio.run(AgiEnv._run_bg("echo slow", cwd=tmp_path, venv=tmp_path, timeout=0.01))
+
+    assert proc.killed is True
+
+
+def test_run_async_wraps_non_runtime_stream_errors(tmp_path: Path, monkeypatch):
+    class _BrokenStream:
+        async def readline(self):
+            raise ValueError("stream broke")
+
+    class _QuietStream:
+        async def readline(self):
+            return b""
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _BrokenStream()
+            self.stderr = _QuietStream()
+            self.returncode = 0
+            self.killed = False
+
+        async def wait(self):
+            return 0
+
+        async def communicate(self):
+            return b"", b""
+
+        def kill(self):
+            self.killed = True
+
+    proc = _Proc()
+    mock_logger = mock.Mock()
+
+    async def _fake_exec(*_args, **_kwargs):
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr(AgiEnv, "_build_env", staticmethod(lambda _venv: {}))
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
+
+    with pytest.raises(RuntimeError, match="Subprocess execution error for: echo boom"):
+        asyncio.run(AgiEnv.run_async("echo boom", cwd=tmp_path, venv=tmp_path, timeout=1))
+
+    assert proc.killed is True
+    assert mock_logger.error.called
 
     assert proc.killed is True
 

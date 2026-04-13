@@ -1094,7 +1094,6 @@ async def test_agi_kill_cleans_pid_files_and_handles_local_and_remote_paths(monk
     stubborn.write_text("222\n", encoding="utf-8")
     (wenv_parent / "broken.pid").write_text("bad\n", encoding="utf-8")
 
-    logger = mock.Mock()
     env = SimpleNamespace(
         uv="uv",
         wenv_abs=wenv_abs,
@@ -1103,10 +1102,12 @@ async def test_agi_kill_cleans_pid_files_and_handles_local_and_remote_paths(monk
         cluster_pck=cluster_pck,
         agi_cluster=str(tmp_path / "cluster-runtime"),
         debug=False,
-        logger=logger,
         is_local=lambda ip: ip == "127.0.0.1",
     )
     AGI.env = env
+    warning_logger = mock.Mock()
+    info_logger = mock.Mock()
+    error_logger = mock.Mock()
 
     original_unlink = Path.unlink
 
@@ -1117,6 +1118,9 @@ async def test_agi_kill_cleans_pid_files_and_handles_local_and_remote_paths(monk
 
     monkeypatch.setattr(agi_distributor_module.Path, "unlink", _patched_unlink, raising=False)
     monkeypatch.setattr(agi_distributor_module.socket, "gethostbyname", lambda _name: "127.0.0.1")
+    monkeypatch.setattr(agi_distributor_module.logger, "warning", warning_logger)
+    monkeypatch.setattr(agi_distributor_module.logger, "info", info_logger)
+    monkeypatch.setattr(agi_distributor_module.logger, "error", error_logger)
     local_runs = []
     remote_runs = []
 
@@ -1138,9 +1142,9 @@ async def test_agi_kill_cleans_pid_files_and_handles_local_and_remote_paths(monk
     assert any("cli.py' kill 999" in cmd for cmd, _cwd in local_runs)
     assert remote_runs == [("10.0.0.2", "uv run --no-sync python 'wenv/cli.py' kill")]
     assert not (wenv_parent / "ok.pid").exists()
-    assert logger.warning.called
-    assert logger.info.called
-    assert logger.error.called
+    assert warning_logger.called
+    assert info_logger.called
+    assert error_logger.called
 
 
 def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(monkeypatch, tmp_path):
@@ -5166,6 +5170,7 @@ async def test_uninstall_modules_and_venv_todo_cover_cleanup_and_logging(monkeyp
     monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
     monkeypatch.setattr(agi_distributor_module.logger, "info", logger.info)
     monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
+    monkeypatch.setattr(agi_distributor_module, "env", AGI.env, raising=False)
 
     await AGI._uninstall_modules()
     AGI._venv_todo({"127.0.0.1", "10.0.0.2"})
