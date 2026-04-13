@@ -223,7 +223,7 @@ def remove_step(
     try:
         with open(steps_file, "wb") as f:
             tomli_w.dump(serializable_steps, f)
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save steps file: {e}")
         logger.error(f"Error writing TOML in remove_step: {e}")
 
@@ -652,7 +652,7 @@ def save_step(
     try:
         with open(steps_file, "wb") as f:
             tomli_w.dump(serializable_steps, f)
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save steps file: {e}")
         logger.error(f"Error writing TOML in save_step: {e}")
         st.session_state["_experiment_last_save_skipped"] = True
@@ -685,7 +685,7 @@ def _force_persist_step(
         steps_file.parent.mkdir(parents=True, exist_ok=True)
         with open(steps_file, "wb") as f:
             tomli_w.dump(steps, f)
-    except Exception as exc:
+    except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         logger.error(f"Force persist failed for step {step_idx} -> {steps_file}: {exc}")
 
 def notebook_to_toml(
