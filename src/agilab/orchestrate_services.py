@@ -292,7 +292,7 @@ async def render_service_panel(
             )
             try:
                 deps.clear_load_toml_cache()
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
 
         st.caption(f"Service status: `{st.session_state.get('service_status_cache', 'idle')}`")
@@ -366,7 +366,7 @@ async def render_service_panel(
                 return
             try:
                 health_df = pd.DataFrame(health_rows)
-            except Exception:
+            except (TypeError, ValueError):
                 service_health_placeholder.empty()
                 return
             ordered_cols = [
