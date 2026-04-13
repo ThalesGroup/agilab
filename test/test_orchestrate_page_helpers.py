@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import tempfile
-from pathlib import Path
+from pathlib import Path, PosixPath
 from types import SimpleNamespace
+
+from streamlit.errors import StreamlitAPIException
 
 
 def _load_orchestrate_module():
@@ -72,3 +75,76 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
         assert status["manager_ready"] is True
         assert status["worker_ready"] is True
         assert module._is_app_installed(env) is True
+
+
+def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
+    module = _load_orchestrate_module()
+
+    class _BrokenQueryParams(dict):
+        def __setitem__(self, key, value):
+            raise StreamlitAPIException("no runtime")
+
+    monkeypatch.setattr(module, "st", SimpleNamespace(query_params=_BrokenQueryParams()))
+
+    module._set_active_app_query_param("demo_project")
+
+
+def test_clear_cached_distribution_calls_clear_when_available():
+    module = _load_orchestrate_module()
+    called = {"count": 0}
+    module.load_distribution.clear = lambda: called.__setitem__("count", called["count"] + 1)
+
+    module._clear_cached_distribution()
+
+    assert called["count"] == 1
+
+
+def test_clear_mount_table_cache_calls_cache_clear_when_available(monkeypatch):
+    module = _load_orchestrate_module()
+    called = {"count": 0}
+    monkeypatch.setattr(module, "_mount_table", SimpleNamespace(cache_clear=lambda: called.__setitem__("count", called["count"] + 1)))
+
+    module._clear_mount_table_cache()
+
+    assert called["count"] == 1
+
+
+def test_resolve_share_candidate_falls_back_when_resolve_fails(monkeypatch):
+    module = _load_orchestrate_module()
+
+    class _BrokenPath(PosixPath):
+
+        def resolve(self, strict=False):
+            raise OSError("broken link")
+
+    monkeypatch.setattr(module, "Path", _BrokenPath)
+
+    resolved = module._resolve_share_candidate("clustershare", "/home/agi")
+
+    assert str(resolved) == "/home/agi/clustershare"
+
+
+def test_benchmark_display_date_uses_mtime_fallback(tmp_path: Path, monkeypatch):
+    module = _load_orchestrate_module()
+    benchmark = tmp_path / "benchmark.json"
+    benchmark.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(os.path, "getmtime", lambda _path: 0)
+
+    date_value = module._benchmark_display_date(benchmark, "")
+
+    assert date_value == module.datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def test_benchmark_display_date_returns_empty_string_when_stat_fails(tmp_path: Path, monkeypatch):
+    module = _load_orchestrate_module()
+    benchmark = tmp_path / "benchmark.json"
+    benchmark.write_text("{}", encoding="utf-8")
+
+    def _raise_stat(_path):
+        raise OSError("missing")
+
+    monkeypatch.setattr(os.path, "getmtime", _raise_stat)
+
+    date_value = module._benchmark_display_date(benchmark, "")
+
+    assert date_value == ""
