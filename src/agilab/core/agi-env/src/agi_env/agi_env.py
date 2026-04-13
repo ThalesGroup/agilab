@@ -62,6 +62,13 @@ import importlib.util
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.defaults import get_default_openai_model
+from agi_env.app_settings_support import (
+    app_settings_aliases,
+    app_settings_source_roots,
+    candidate_app_settings_path,
+    find_source_app_settings_file as find_versioned_app_settings_file,
+    resolve_user_app_settings_file as resolve_workspace_app_settings_file,
+)
 from agi_env.env_config_support import (
     clean_envar_value as _clean_envar_value,
     load_dotenv_values as _load_dotenv_values,
@@ -1657,128 +1664,40 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     @staticmethod
     def _app_settings_aliases(app_name: str | None) -> set[str]:
         """Return common project/worker aliases for ``app_name``."""
-
-        if not app_name:
-            return set()
-        if app_name.endswith("_project_worker"):
-            base_name = app_name[: -len("_project_worker")]
-            return {base_name + "_project", base_name + "_project_worker"}
-        if app_name.endswith("_project"):
-            base_name = app_name[: -len("_project")]
-            return {app_name, base_name + "_worker"}
-        if app_name.endswith("_worker"):
-            base_name = app_name[: -len("_worker")]
-            if base_name.endswith("_project"):
-                return {app_name, base_name}
-            return {app_name, base_name + "_project"}
-        return {app_name}
+        return app_settings_aliases(app_name)
 
     @staticmethod
     def _candidate_app_settings_path(base: object) -> Path | None:
         """Return a safe candidate path for ``app_settings.toml`` or ``None``."""
-
-        try:
-            base_path = Path(base)
-        except Exception:
-            return None
-
-        candidates: list[Path] = []
-        try:
-            if base_path.name == "src":
-                candidates.append(base_path / "app_settings.toml")
-            else:
-                candidates.append(base_path / "app_settings.toml")
-                candidates.append(base_path / "src" / "app_settings.toml")
-        except Exception:
-            return None
-
-        for candidate in candidates:
-            try:
-                if candidate.is_file():
-                    return candidate
-            except Exception:
-                continue
-
-        try:
-            src_dir = base_path / "src"
-            if base_path.is_dir() and src_dir.is_dir():
-                return src_dir / "app_settings.toml"
-        except Exception:
-            pass
-        return None
+        return candidate_app_settings_path(base)
 
     def _app_settings_source_roots(self, app_name: str | None = None) -> list[Path]:
         """Collect source roots that may contain ``app_settings.toml`` for an app."""
-
-        target_app = app_name or self.app
-        aliases = self._app_settings_aliases(target_app)
-        current_aliases = self._app_settings_aliases(self.app)
-        apps_repository_root = self.apps_repository_root or self._get_apps_repository_root()
-
-        roots: list[Path] = []
-        if aliases and current_aliases and aliases & current_aliases:
-            if self.app_src is not None:
-                roots.append(self.app_src)
-            if self.active_app is not None:
-                roots.append(self.active_app)
-                roots.append(self.active_app / "src")
-
-        if self.apps_path is not None:
-            for alias in aliases:
-                roots.append(self.apps_path / alias)
-                roots.append(self.apps_path / alias / "src")
-
-        if self.builtin_apps_path is not None:
-            for alias in aliases:
-                roots.append(self.builtin_apps_path / alias)
-                roots.append(self.builtin_apps_path / alias / "src")
-
-        if apps_repository_root is not None:
-            roots.append(apps_repository_root)
-            for alias in aliases:
-                roots.append(apps_repository_root / alias)
-                roots.append(apps_repository_root / alias / "src")
-                roots.append(apps_repository_root / "src" / alias)
-
-        if target_app:
-            for alias in aliases:
-                roots.append(Path(self.home_abs) / "wenv" / alias)
-                roots.append(Path(self.home_abs) / "wenv" / alias / "src")
-
-        export_root = _clean_envar_value(self.envars, "AGI_EXPORT_DIR", fallback_to_process=True)
-        if export_root:
-            try:
-                expanded_export = Path(export_root).expanduser()
-                if not expanded_export.is_absolute():
-                    expanded_export = self.home_abs / expanded_export
-                roots.append(expanded_export)
-                for alias in aliases:
-                    roots.append(expanded_export / alias)
-                    roots.append(expanded_export / alias / "src")
-            except Exception:
-                pass
-
-        normalized: list[Path] = []
-        seen: set[str] = set()
-        for root in roots:
-            try:
-                norm = str(root)
-            except Exception:
-                continue
-            if norm in seen:
-                continue
-            seen.add(norm)
-            normalized.append(root)
-        return normalized
+        return app_settings_source_roots(
+            target_app=app_name or self.app,
+            current_app=self.app,
+            app_src=self.app_src,
+            active_app=self.active_app,
+            apps_path=self.apps_path,
+            builtin_apps_path=self.builtin_apps_path,
+            apps_repository_root=self.apps_repository_root or self._get_apps_repository_root(),
+            home_abs=self.home_abs,
+            envars=self.envars,
+        )
 
     def find_source_app_settings_file(self, app_name: str | None = None) -> Path | None:
         """Return the versioned/source ``app_settings.toml`` for an app when available."""
-
-        for root in self._app_settings_source_roots(app_name):
-            candidate = self._candidate_app_settings_path(root)
-            if candidate is not None:
-                return candidate
-        return None
+        return find_versioned_app_settings_file(
+            target_app=app_name or self.app,
+            current_app=self.app,
+            app_src=self.app_src,
+            active_app=self.active_app,
+            apps_path=self.apps_path,
+            builtin_apps_path=self.builtin_apps_path,
+            apps_repository_root=self.apps_repository_root or self._get_apps_repository_root(),
+            home_abs=self.home_abs,
+            envars=self.envars,
+        )
 
     def resolve_user_app_settings_file(
         self,
@@ -1791,25 +1710,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         The workspace copy lives under ``~/.agilab/apps/<app>/app_settings.toml`` and
         is seeded from the versioned source file on first use.
         """
-
-        target_app = app_name or self.app or self.target
-        if not target_app:
-            raise RuntimeError("Cannot resolve app settings without an app name")
-
-        workspace_file = self.resources_path / "apps" / target_app / "app_settings.toml"
-        if not ensure_exists:
-            return workspace_file
-
-        workspace_file.parent.mkdir(parents=True, exist_ok=True)
-        if workspace_file.exists():
-            return workspace_file
-
-        source_file = self.find_source_app_settings_file(target_app)
-        if source_file is not None and source_file.exists():
-            shutil.copy2(source_file, workspace_file)
-        else:
-            workspace_file.touch()
-        return workspace_file
+        return resolve_workspace_app_settings_file(
+            target_app=app_name or self.app or self.target,
+            resources_path=self.resources_path,
+            ensure_exists=ensure_exists,
+            find_source_file=self.find_source_app_settings_file,
+        )
 
     def extract_base_info(self, base, import_mapping):
         """Return the base-class name and originating module for ``base`` nodes."""
