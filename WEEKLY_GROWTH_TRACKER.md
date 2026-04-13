@@ -17,9 +17,13 @@ The goal is not bookkeeping. The goal is to learn which launch actions are impro
 
 | Week | Stars start | Stars end | Net stars | README views | Docs visits | PyPI installs | External questions | Main traffic source | Main leak in funnel | Decision for next week |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-04-13 | 4 | 4 | 0 | n/a | n/a | n/a | 0 | GitHub discussion #8 | post-launch traffic not measured yet | publish LinkedIn post and record first-week response |
 | YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
 | YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
-| YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
+
+## Current launch artifacts
+
+- GitHub discussion: https://github.com/ThalesGroup/agilab/discussions/8
 
 ## Weekly review questions
 
