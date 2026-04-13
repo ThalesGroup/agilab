@@ -337,3 +337,84 @@ def test_looks_like_shared_path_detects_mount_hint_under_home(monkeypatch, tmp_p
     )
 
     assert orchestrate_support.looks_like_shared_path(candidate, project_root=tmp_path / "project") is True
+
+
+def test_orchestrate_support_edge_helpers_cover_remaining_fallbacks(monkeypatch, tmp_path):
+    assert orchestrate_support.sanitize_for_toml("plain") == "plain"
+    assert orchestrate_support.parse_benchmark("{}") is None
+    assert orchestrate_support.extract_result_dict_from_output("{bad}\n{'ok': 1}") == {"ok": 1}
+    assert orchestrate_support.coerce_bool_setting(True, False) is True
+    assert orchestrate_support.coerce_bool_setting(0, True) is False
+    assert orchestrate_support.safe_eval("{'ok': 1}", dict, "bad", on_error=lambda _msg: None) == {"ok": 1}
+    assert (
+        orchestrate_support.parse_and_validate_workers(
+            "{'127.0.0.1': 2}",
+            is_valid_ip=lambda ip: ip == "127.0.0.1",
+            on_error=lambda _msg: None,
+        )
+        == {"127.0.0.1": 2}
+    )
+    assert (
+        orchestrate_support.parse_and_validate_scheduler(
+            "127.0.0.1",
+            is_valid_ip=lambda ip: ip == "127.0.0.1",
+            on_error=lambda _msg: None,
+        )
+        == "127.0.0.1"
+    )
+
+    orchestrate_support.mount_table.cache_clear()
+    real_path = Path
+
+    def _missing_proc(raw):
+        if str(raw) == "/proc/mounts":
+            return tmp_path / "missing-proc-mounts"
+        return real_path(raw)
+
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "linux")
+    monkeypatch.setattr(orchestrate_support, "Path", _missing_proc)
+    assert orchestrate_support.mount_table() == []
+    orchestrate_support.mount_table.cache_clear()
+
+    monkeypatch.setattr(orchestrate_support, "mount_table", lambda: [("/", "apfs")])
+    assert orchestrate_support.fstype_for_path(Path("/tmp/demo")) == "apfs"
+
+    candidate = tmp_path / "clustershare" / "demo"
+    candidate.mkdir(parents=True)
+    monkeypatch.setattr(orchestrate_support, "Path", real_path)
+    monkeypatch.setattr(orchestrate_support, "fstype_for_path", lambda _path: None)
+    monkeypatch.setattr(orchestrate_support.Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(
+        orchestrate_support.os.path,
+        "ismount",
+        lambda _path: (_ for _ in ()).throw(RuntimeError("stop probing")),
+    )
+    assert orchestrate_support.looks_like_shared_path(candidate, project_root=tmp_path / "project") is False
+
+
+def test_macos_autofs_hint_covers_unreadable_master_and_missing_entries(monkeypatch, tmp_path):
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
+    real_path = Path
+    auto_master = tmp_path / "auto_master"
+    auto_nfs = tmp_path / "auto_nfs"
+
+    def _fake_path(raw):
+        text = str(raw)
+        if text == "/etc/auto_master":
+            return auto_master
+        if text == "/etc/auto_nfs":
+            return auto_nfs
+        return real_path(raw)
+
+    monkeypatch.setattr(orchestrate_support, "Path", _fake_path)
+    auto_master.write_text("/mnt auto_projects\n", encoding="utf-8")
+    auto_nfs.write_text("", encoding="utf-8")
+    hint = orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share"))
+    assert "does not advertise `/mnt`" in hint
+
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("boom")) if self == auto_master else "",
+    )
+    assert orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share")) is None

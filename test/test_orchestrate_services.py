@@ -322,3 +322,223 @@ def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
     assert any("restart_rate=0.500" in msg for msg in fake_st._caption_messages)
     assert fake_st._placeholders[0].last_code is not None
     assert fake_st._placeholders[1].last_df is not None
+
+
+def test_render_service_panel_handles_status_error_and_cached_health_failures(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+            "service_log_cache": "cached log",
+            "service_health_cache": [{"worker": "broken"}],
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_status_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_services.pd,
+        "DataFrame",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("df boom")),
+    )
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: {"status": "stopped", "worker_health": "bad"},
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: (_ for _ in ()).throw(RuntimeError("cache boom")),
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    async def fake_run_agi(*_args, **_kwargs):
+        return ("{'status': 'stopped'}", "")
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert fake_st._placeholders[0].last_code is not None
+    assert session_state["service_status_cache"] == "stopped"
+    assert session_state["service_health_cache"] == []
+    assert any("completed with status 'stopped'" in msg for msg in fake_st._success_messages)
+
+
+def test_render_service_panel_handles_start_failure_and_health_parse_failure(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+
+    start_st = _service_st(session_state, clicked="service_start_btn")
+    monkeypatch.setattr(orchestrate_services, "st", start_st)
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: None,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    async def failing_run_agi(*_args, **_kwargs):
+        raise RuntimeError("service boom")
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=failing_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert session_state["service_status_cache"] == "error"
+    assert any("failed" in msg for msg in start_st._error_messages)
+
+    health_st = _service_st(session_state, clicked="service_health_gate_btn")
+    monkeypatch.setattr(orchestrate_services, "st", health_st)
+
+    async def ok_run_agi(*_args, **_kwargs):
+        return ("no parseable payload", "")
+
+    env.run_agi = ok_run_agi
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert any("unable to parse service health payload" in msg for msg in health_st._error_messages)
+
+
+def test_render_service_panel_health_gate_failure_and_stop_action(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_stop_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: {"status": "running"},
+        evaluate_service_health_gate=lambda *args, **kwargs: (
+            2,
+            "too many unhealthy workers",
+            {
+                "status": "running",
+                "workers_unhealthy_count": 2,
+                "workers_restarted_count": 0,
+                "workers_running_count": 1,
+                "restart_rate": 0.0,
+            },
+        ),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    async def fake_run_agi(*_args, **_kwargs):
+        return ("{'status': 'running'}", "")
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert any("completed with status 'running'" in msg for msg in fake_st._success_messages)
+
+    health_st = _service_st(session_state, clicked="service_health_gate_btn")
+    monkeypatch.setattr(orchestrate_services, "st", health_st)
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert any("HEALTH gate failed" in msg for msg in health_st._error_messages)

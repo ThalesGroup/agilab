@@ -803,3 +803,362 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
     assert any(kind == "error" and "No EXECUTE command configured" in msg for kind, msg in combo_st.messages)
     assert combo_st.session_state["_combo_load_trigger"] is True
     assert combo_st.session_state["_combo_export_trigger"] is True
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_load_warns_when_no_preview_or_empty_batch(monkeypatch, tmp_path):
+    no_target_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", no_target_st)
+    monkeypatch.setattr(orchestrate_execute, "collect_candidate_roots", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(orchestrate_execute, "find_preview_target", lambda *_args, **_kwargs: (None, []))
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(no_target_st.messages, no_target_st.session_state),
+    )
+
+    assert any(kind == "warning" and "No dataframe export found yet" in msg for kind, msg in no_target_st.messages)
+
+    empty_csv = tmp_path / "empty.csv"
+    empty_csv.write_text("value\n", encoding="utf-8")
+    empty_batch_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "export_batch_window_seconds": "bad-window",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", empty_batch_st)
+    monkeypatch.setattr(orchestrate_execute, "find_preview_target", lambda *_args, **_kwargs: (empty_csv, [empty_csv]))
+    monkeypatch.setattr(
+        orchestrate_execute,
+        "cached_load_df",
+        SimpleNamespace(__call__=lambda self, *_args, **_kwargs: pd.DataFrame(), clear=lambda: None),
+        raising=False,
+    )
+
+    class _Loader:
+        def __call__(self, *_args, **_kwargs):
+            return pd.DataFrame()
+
+        def clear(self):
+            return None
+
+    monkeypatch.setattr(orchestrate_execute, "cached_load_df", _Loader())
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(empty_batch_st.messages, empty_batch_st.session_state),
+    )
+
+    assert any(kind == "warning" and "is empty; nothing to preview" in msg for kind, msg in empty_batch_st.messages)
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_handles_gml_and_unsupported_previews(monkeypatch, tmp_path):
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+    monkeypatch.setattr(orchestrate_execute, "collect_candidate_roots", lambda *_args, **_kwargs: [])
+
+    gml_file = tmp_path / "graph.gml"
+    gml_file.write_text("graph", encoding="utf-8")
+    edge_graph = orchestrate_execute.nx.Graph()
+    edge_graph.add_edge("a", "b")
+    edge_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", edge_st)
+    monkeypatch.setattr(orchestrate_execute, "find_preview_target", lambda *_args, **_kwargs: (gml_file, [gml_file]))
+    monkeypatch.setattr(orchestrate_execute.nx, "read_gml", lambda *_args, **_kwargs: edge_graph)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(edge_st.messages, edge_st.session_state),
+    )
+
+    assert any(kind == "success" and "Loaded topology edges" in msg for kind, msg in edge_st.messages)
+
+    node_graph = orchestrate_execute.nx.Graph()
+    node_graph.add_node("solo", role="worker")
+    node_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", node_st)
+    monkeypatch.setattr(orchestrate_execute.nx, "read_gml", lambda *_args, **_kwargs: node_graph)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(node_st.messages, node_st.session_state),
+    )
+
+    assert any(kind == "info" and "Showing node metadata" in msg for kind, msg in node_st.messages)
+
+    empty_graph = orchestrate_execute.nx.Graph()
+    empty_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", empty_st)
+    monkeypatch.setattr(orchestrate_execute.nx, "read_gml", lambda *_args, **_kwargs: empty_graph)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(empty_st.messages, empty_st.session_state),
+    )
+
+    assert any(kind == "warning" and "did not contain edges or node attributes" in msg for kind, msg in empty_st.messages)
+
+    txt_file = tmp_path / "preview.txt"
+    txt_file.write_text("plain text", encoding="utf-8")
+    txt_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", txt_st)
+    monkeypatch.setattr(orchestrate_execute, "find_preview_target", lambda *_args, **_kwargs: (txt_file, [txt_file]))
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(txt_st.messages, txt_st.session_state),
+    )
+
+    assert any(kind == "warning" and "Unsupported file format" in msg for kind, msg in txt_st.messages)
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_handles_delete_and_undo_edge_cases(monkeypatch, tmp_path):
+    source_file = tmp_path / "result.csv"
+    source_file.write_text("value\n1\n", encoding="utf-8")
+
+    class _BrokenClear:
+        def clear(self):
+            raise RuntimeError("clear failed")
+
+    delete_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "delete",
+            "loaded_df": pd.DataFrame({"value": [1]}),
+            "loaded_source_path": str(source_file),
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", delete_st)
+    monkeypatch.setattr(orchestrate_execute, "cached_load_df", _BrokenClear())
+    monkeypatch.setattr(orchestrate_execute, "find_files", _BrokenClear())
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(delete_st.messages, delete_st.session_state),
+    )
+
+    assert any(kind == "success" and "Deleted result.csv from disk." in msg for kind, msg in delete_st.messages)
+
+    missing_backup_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "delete_data_main_undo_payload": {
+                "backup_file": str(tmp_path / "missing-backup.csv"),
+                "source_file": str(tmp_path / "missing-source.csv"),
+                "loaded_df": pd.DataFrame({"value": [1]}),
+            },
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"delete_data_main_undo_btn": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", missing_backup_st)
+    monkeypatch.setattr(orchestrate_execute, "cached_load_df", _BrokenClear())
+    monkeypatch.setattr(orchestrate_execute, "find_files", _BrokenClear())
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(missing_backup_st.messages, missing_backup_st.session_state),
+    )
+
+    assert any(kind == "warning" and "backup not found" in msg for kind, msg in missing_backup_st.messages)
+    assert any(kind == "success" and "preview restore completed" in msg.lower() for kind, msg in missing_backup_st.messages)
+
+    restore_error_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "delete_data_main_undo_payload": {
+                "backup_file": str(tmp_path / "backup.csv"),
+                "source_file": str(tmp_path / "restore.csv"),
+                "loaded_df": pd.DataFrame({"value": [1]}),
+            },
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"delete_data_main_undo_btn": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", restore_error_st)
+    Path(restore_error_st.session_state["delete_data_main_undo_payload"]["backup_file"]).write_text("value\n1\n", encoding="utf-8")
+    monkeypatch.setattr(orchestrate_execute.shutil, "move", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("restore boom")))
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(restore_error_st.messages, restore_error_st.session_state),
+    )
+
+    assert any(kind == "error" and "Failed to restore deleted file" in msg for kind, msg in restore_error_st.messages)
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_handles_combo_install_gaps_and_export_reset(monkeypatch, tmp_path):
+    combo_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "combo",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", combo_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(combo_st.messages, combo_st.session_state),
+    )
+
+    assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in combo_st.messages)
+
+    reset_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "loaded_df": pd.DataFrame({"a": [1], "b": [2]}),
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+            "_reset_export_checkboxes": True,
+            "export_tab_previous_project": "flight_project",
+            "df_cols": ["a", "b"],
+            "selected_cols": [],
+            "check_all": True,
+            "export_col_0": False,
+            "export_col_1": False,
+        },
+        buttons={"__checkbox__::check_all": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", reset_st)
+    monkeypatch.setattr(orchestrate_execute, "render_dataframe_preview", lambda *_args, **_kwargs: None)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(reset_st.messages, reset_st.session_state),
+    )
+
+    assert reset_st.session_state["selected_cols"] == ["a", "b"]
+    assert reset_st.session_state["export_col_0"] is True
+    assert reset_st.session_state["export_col_1"] is True

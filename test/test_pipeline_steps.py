@@ -264,6 +264,239 @@ def test_normalize_imported_orchestrate_snippet_infers_agi_runtime_without_rewri
     assert runtime == "flight_trajectory_project"
 
 
+def test_normalize_runtime_path_handles_blank_fallback_and_dot_venv(monkeypatch, tmp_path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    fallback_app = apps_root / "flight_project"
+    fallback_app.mkdir()
+    venv_dir = fallback_app / ".venv"
+    venv_dir.mkdir()
+
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(apps_path=apps_root)
+
+    assert pipeline_steps.normalize_runtime_path("   ", env=env) == ""
+    assert pipeline_steps.normalize_runtime_path("nested/flight_project", env=env) == str(fallback_app)
+    assert pipeline_steps.normalize_runtime_path(venv_dir, env=env) == str(fallback_app)
+
+
+def test_step_helpers_and_runtime_reference_edge_cases(monkeypatch):
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+
+    assert pipeline_steps.step_label_for_multiselect(0, None) == "Step 1"
+
+    monkeypatch.setattr(pipeline_steps, "normalize_runtime_path", lambda *_args, **_kwargs: "/")
+    assert pipeline_steps.step_project_name({"E": "ignored"}) == ""
+
+    assert pipeline_steps.looks_like_runtime_reference("") is False
+    assert pipeline_steps.looks_like_runtime_reference(r"C:\work\demo") is True
+    assert pipeline_steps.looks_like_runtime_reference("folder/sub") is True
+    assert pipeline_steps.looks_like_runtime_reference(".venv") is True
+    assert pipeline_steps.looks_like_runtime_reference("flight_project") is True
+    assert pipeline_steps.is_runnable_step({}) is False
+    assert pipeline_steps.looks_like_step("bad") is False
+    assert pipeline_steps.is_orchestrate_locked_step(None) is False
+    assert pipeline_steps.orchestrate_snippet_source(None) == ""
+
+
+def test_upgrade_steps_file_and_pipeline_export_root_edge_paths(monkeypatch, tmp_path):
+    missing_result = pipeline_steps.upgrade_steps_file(tmp_path / "missing.toml")
+    assert missing_result == {"files": 0, "changed_steps": 0, "scanned_steps": 0}
+
+    bad_file = tmp_path / "bad.toml"
+    bad_file.write_text("[", encoding="utf-8")
+    assert pipeline_steps.upgrade_steps_file(bad_file) == {"files": 0, "changed_steps": 0, "scanned_steps": 0}
+
+    fake_st = SimpleNamespace(session_state={"AGI_EXPORT_DIR": "."})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=None, envars={"AGI_EXPORT_DIR": ""})
+    assert pipeline_steps.pipeline_export_root(env) == (tmp_path / "export").resolve()
+
+
+def test_pipeline_steps_cover_runtime_name_and_hidden_entry_edges(monkeypatch, tmp_path):
+    class BrokenRuntime:
+        def __fspath__(self):
+            raise RuntimeError("boom")
+
+        def __str__(self):
+            return str(tmp_path / "demo_project" / ".venv")
+
+    monkeypatch.setattr(pipeline_steps, "normalize_runtime_path", lambda *_args, **_kwargs: BrokenRuntime())
+    assert pipeline_steps.step_project_name({"E": "ignored"}) == "demo_project"
+    assert pipeline_steps.step_label_for_multiselect(0, {"E": "ignored"}) == "Step 1: [demo_project]"
+    assert pipeline_steps.is_displayable_step({}) is False
+
+
+def test_pipeline_steps_cover_runtime_reference_false_and_path_parse_fallback(monkeypatch):
+    original_path = pipeline_steps.Path
+
+    class BrokenPath:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def expanduser(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(pipeline_steps, "Path", BrokenPath)
+    assert pipeline_steps.normalize_runtime_path("flight_project") == "flight_project"
+    monkeypatch.setattr(pipeline_steps, "Path", original_path)
+    assert pipeline_steps.looks_like_runtime_reference("flight") is False
+
+
+def test_upgrade_steps_file_and_virtualenv_helpers_cover_guard_paths(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        'alpha = ["bad", { Q = "Visible" }]\n[__meta__]\nversion = 1\n',
+        encoding="utf-8",
+    )
+    assert pipeline_steps.upgrade_steps_file(steps_file) == {"files": 1, "changed_steps": 0, "scanned_steps": 1}
+
+    class BrokenExpand:
+        def expanduser(self):
+            raise RuntimeError("boom")
+
+        def exists(self):
+            return False
+
+        def is_dir(self):
+            return False
+
+    assert pipeline_steps._normalize_venv_root(BrokenExpand()) is None
+
+    venv_root = tmp_path / "runtime"
+    venv_root.mkdir()
+    (venv_root / "pyvenv.cfg").write_text("home = /tmp/python\n", encoding="utf-8")
+    original_resolve = pipeline_steps.Path.resolve
+
+    def _raise_for_runtime(self, *args, **kwargs):
+        if self == venv_root:
+            raise RuntimeError("boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_steps.Path, "resolve", _raise_for_runtime, raising=False)
+    assert pipeline_steps._normalize_venv_root(venv_root) == venv_root
+
+    monkeypatch.setattr(pipeline_steps.Path, "resolve", original_resolve, raising=False)
+    assert list(pipeline_steps._iter_venv_roots(venv_root)) == [venv_root.resolve()]
+
+
+def test_pipeline_steps_cover_module_key_resolve_failures_and_meta_skip(monkeypatch, tmp_path):
+    export_root = tmp_path / "export"
+    module_abs = export_root / "flight_project"
+    module_abs.mkdir(parents=True)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
+    fake_st = SimpleNamespace(session_state={"env": env})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+
+    original_resolve = pipeline_steps.Path.resolve
+
+    def _raise_for_absolute_module(self, *args, **kwargs):
+        if self == module_abs:
+            raise RuntimeError("abs resolve boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_steps.Path, "resolve", _raise_for_absolute_module, raising=False)
+    assert pipeline_steps.module_keys(module_abs, env=env)[0] == "flight_project"
+
+    steps_file = tmp_path / "absolute-key.toml"
+    steps_file.write_text(
+        f'[__meta__]\nversion = 1\n[["{module_abs}"]]\nQ = "step"\n',
+        encoding="utf-8",
+    )
+
+    relative_module = pipeline_steps.Path("flight_project")
+
+    def _raise_for_relative_module(self, *args, **kwargs):
+        if self == relative_module:
+            raise RuntimeError("relative resolve boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_steps.Path, "resolve", _raise_for_relative_module, raising=False)
+    pipeline_steps.ensure_primary_module_key("flight_project", steps_file, env=env)
+
+    data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert "__meta__" in data
+    assert str(module_abs) in data
+
+
+def test_ensure_primary_module_key_and_sequence_helpers_cover_guard_paths(monkeypatch, tmp_path):
+    export_root = tmp_path / "export"
+    module_path = export_root / "flight_project"
+    module_path.mkdir(parents=True)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
+    fake_st = SimpleNamespace(session_state={"env": env})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+
+    missing_steps = tmp_path / "missing.toml"
+    pipeline_steps.ensure_primary_module_key(module_path, missing_steps, env=env)
+
+    bad_steps = tmp_path / "bad.toml"
+    bad_steps.write_text("[", encoding="utf-8")
+    pipeline_steps.ensure_primary_module_key(module_path, bad_steps, env=env)
+
+    no_match_steps = tmp_path / "no-match.toml"
+    no_match_steps.write_text('[[other_project]]\nQ = "step"\n', encoding="utf-8")
+    pipeline_steps.ensure_primary_module_key(module_path, no_match_steps, env=env)
+    assert "other_project" in no_match_steps.read_text(encoding="utf-8")
+
+    primary_steps = tmp_path / "primary.toml"
+    primary_steps.write_text('[[flight_project]]\nQ = "step"\n', encoding="utf-8")
+    pipeline_steps.ensure_primary_module_key(module_path, primary_steps, env=env)
+    assert "flight_project" in primary_steps.read_text(encoding="utf-8")
+
+    warnings: list[str] = []
+    monkeypatch.setattr(pipeline_steps.logger, "warning", lambda message, *args: warnings.append(str(message)))
+    monkeypatch.setattr(pipeline_steps.tomli_w, "dump", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("write boom")))
+
+    merge_steps = tmp_path / "merge.toml"
+    merge_steps.write_text(
+        '[[flight_project]]\nQ = "best"\n'
+        f'[["{module_path}"]]\nQ = "other"\n',
+        encoding="utf-8",
+    )
+    pipeline_steps.ensure_primary_module_key(module_path, merge_steps, env=env)
+
+    assert any("Failed to normalize module keys" in warning for warning in warnings)
+
+    assert pipeline_steps.load_sequence_preferences(module_path, tmp_path / "missing-seq.toml", env=env) == []
+
+    bad_seq = tmp_path / "bad-seq.toml"
+    bad_seq.write_text("[", encoding="utf-8")
+    assert pipeline_steps.load_sequence_preferences(module_path, bad_seq, env=env) == []
+
+    seq_steps = tmp_path / "seq.toml"
+    seq_steps.write_text('[__meta__]\nflight_project__sequence = "bad"\n', encoding="utf-8")
+    assert pipeline_steps.load_sequence_preferences(module_path, seq_steps, env=env) == []
+
+
+def test_persist_sequence_preferences_and_venv_helpers_cover_failures(monkeypatch, tmp_path):
+    errors: list[str] = []
+    monkeypatch.setattr(pipeline_steps.logger, "error", lambda message, *args: errors.append(str(message)))
+
+    bad_steps = tmp_path / "bad-sequence-write.toml"
+    bad_steps.write_text("[", encoding="utf-8")
+    pipeline_steps.persist_sequence_preferences(tmp_path / "flight_project", bad_steps, [1, 2, 3])
+    assert any("Failed to load steps while saving sequence metadata" in message for message in errors)
+
+    errors.clear()
+    monkeypatch.setattr(pipeline_steps.tomli_w, "dump", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("persist boom")))
+    pipeline_steps.persist_sequence_preferences(tmp_path / "flight_project", tmp_path / "new-sequence.toml", [1, 2, 3])
+    assert any("Failed to persist execution sequence" in message for message in errors)
+
+    original_iterdir = pipeline_steps.Path.iterdir
+
+    def _broken_iterdir(self):
+        if self == tmp_path / "broken":
+            raise OSError("iterdir boom")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(pipeline_steps.Path, "iterdir", _broken_iterdir)
+    assert list(pipeline_steps._iter_venv_roots(tmp_path / "broken")) == []
+    assert pipeline_steps._cached_virtualenvs(("", str(tmp_path / "missing-dir"))) == []
+
+
 def test_pipeline_steps_helper_utilities_cover_runtime_and_summary_branches(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"AGI_EXPORT_DIR": "relative-export"})
     monkeypatch.setattr(pipeline_steps, "st", fake_st)

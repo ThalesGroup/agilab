@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
+import types
+from types import SimpleNamespace
 import pytest
 from pathlib import Path
+from datetime import date
 from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
+from pydantic import BaseModel, ValidationError, model_validator
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
 DEFAULT_APPTEST_TIMEOUT = 20
@@ -25,6 +30,149 @@ def _widget_or_none(collections, key: str):
 
 def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
     return AppTest.from_file(path, default_timeout=default_timeout)
+
+
+class _SimpleColumn:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def _load_flight_form_module(
+    monkeypatch,
+    tmp_path: Path,
+    *,
+    session_state: dict[str, object],
+    share_root_error: bool = False,
+    load_error: Exception | None = None,
+    defaults_error_source: str | None = None,
+    with_humanized_errors: bool = False,
+    inject_env: bool = True,
+):
+    settings_path = tmp_path / "flight-settings.toml"
+    settings_path.write_text("", encoding="utf-8")
+    calls: dict[str, list[str]] = {
+        "caption": [],
+        "error": [],
+        "warning": [],
+        "success": [],
+        "info": [],
+        "markdown": [],
+        "code": [],
+    }
+
+    fake_st = types.ModuleType("streamlit")
+    fake_st.session_state = dict(session_state)
+
+    def _record(name):
+        def inner(message=None, *args, **kwargs):
+            calls[name].append("" if message is None else str(message))
+            return None
+
+        return inner
+
+    def _stop():
+        raise RuntimeError("st.stop")
+
+    def _columns(spec):
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_SimpleColumn() for _ in range(count)]
+
+    def _widget(default=None, *, key=None, **_kwargs):
+        if key is not None:
+            fake_st.session_state.setdefault(key, default)
+            return fake_st.session_state[key]
+        return default
+
+    fake_st.stop = _stop
+    fake_st.columns = _columns
+    fake_st.caption = _record("caption")
+    fake_st.error = _record("error")
+    fake_st.warning = _record("warning")
+    fake_st.success = _record("success")
+    fake_st.info = _record("info")
+    fake_st.markdown = _record("markdown")
+    fake_st.code = _record("code")
+    fake_st.selectbox = lambda _label, options=None, key=None, **kwargs: _widget(
+        (options or [""])[0], key=key, **kwargs
+    )
+    fake_st.text_input = lambda _label, value="", key=None, **kwargs: _widget(value, key=key, **kwargs)
+    fake_st.number_input = lambda _label, value=0, key=None, **kwargs: _widget(value, key=key, **kwargs)
+    fake_st.date_input = lambda _label, value=None, key=None, **kwargs: _widget(value, key=key, **kwargs)
+    fake_st.checkbox = lambda _label, value=False, key=None, **kwargs: _widget(value, key=key, **kwargs)
+
+    class FlightArgs(BaseModel):
+        data_source: str = "file"
+        data_in: str = ""
+        data_out: str = ""
+        files: str = "*"
+        nfile: int = 1
+        nskip: int = 0
+        nread: int = 0
+        sampling_rate: float = 1.0
+        datemin: date = date(2020, 1, 1)
+        datemax: date = date(2021, 1, 1)
+        output_format: str = "parquet"
+        reset_target: bool = False
+
+        @model_validator(mode="after")
+        def _validate_hawk(self):
+            if self.data_source == "hawk" and not self.data_in.strip():
+                raise ValueError("hawk data_in is required")
+            return self
+
+        def to_toml_payload(self):
+            return self.model_dump(mode="json")
+
+    def apply_source_defaults(args):
+        if defaults_error_source and getattr(args, "data_source", "") == defaults_error_source:
+            raise RuntimeError("defaults failed")
+        if not getattr(args, "data_out", "") and getattr(args, "data_in", ""):
+            return args.model_copy(update={"data_out": "derived/output"})
+        return args
+
+    def dump_args_to_toml(_args, path):
+        Path(path).write_text("saved = true\n", encoding="utf-8")
+
+    def load_args_from_toml(_path):
+        if load_error is not None:
+            raise load_error
+        return FlightArgs()
+
+    fake_flight = types.ModuleType("flight")
+    fake_flight.FlightArgs = FlightArgs
+    fake_flight.apply_source_defaults = apply_source_defaults
+    fake_flight.dump_args_to_toml = dump_args_to_toml
+    fake_flight.load_args_from_toml = load_args_from_toml
+
+    def _resolve_share_path(raw):
+        return tmp_path / str(raw or "")
+
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        resolve_share_path=_resolve_share_path,
+    )
+    if share_root_error:
+        env.share_root_path = lambda: (_ for _ in ()).throw(RuntimeError("share missing"))
+    else:
+        env.share_root_path = lambda: tmp_path / "share-root"
+    if with_humanized_errors:
+        env.humanize_validation_errors = lambda exc: [str(item["msg"]) for item in exc.errors()]
+
+    if inject_env:
+        fake_st.session_state.setdefault("env", env)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_st)
+    monkeypatch.setitem(sys.modules, "flight", fake_flight)
+
+    module_name = f"flight_form_test_{len(sys.modules)}"
+    spec = importlib.util.spec_from_file_location(module_name, APP_ARGS_FORM)
+    module = importlib.util.module_from_spec(spec)
+    assert spec is not None and spec.loader is not None
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module, fake_st, calls
 
 
 def _iter_env_editor_keys():
@@ -310,6 +458,72 @@ def test_flight_project_app_args_form(mock_ui_env):
     finally:
         if project_src in sys.path:
             sys.path.remove(project_src)
+
+
+def test_flight_app_args_form_import_helpers_cover_missing_env_and_parse_edges(monkeypatch, tmp_path):
+    with pytest.raises(RuntimeError, match="st.stop"):
+        _load_flight_form_module(monkeypatch, tmp_path, session_state={}, inject_env=False)
+
+    module, _fake_st, _calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        session_state={"flight_project:app_args_form:data_in": "dataset/input"},
+        share_root_error=True,
+        load_error=RuntimeError("broken settings"),
+        defaults_error_source="hawk",
+    )
+
+    fallback = date(2022, 1, 1)
+    assert module._parse_iso_date(fallback, fallback=fallback) == fallback
+    assert module._parse_iso_date("not-a-date", fallback=fallback) == fallback
+    assert module._parse_iso_date("", fallback=fallback) == fallback
+
+    module.st.session_state[module._k("data_source")] = "hawk"
+    module._on_data_source_change()
+
+
+def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
+    _, _fake_st, calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        session_state={
+            "flight_project:app_args_form:data_source": "hawk",
+            "flight_project:app_args_form:data_in": "",
+        },
+        with_humanized_errors=True,
+    )
+
+    assert calls["error"] == ["Invalid Flight parameters:"]
+    assert calls["markdown"]
+
+    _, _fake_st, calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        session_state={
+            "flight_project:app_args_form:data_source": "hawk",
+            "flight_project:app_args_form:data_in": "",
+        },
+        with_humanized_errors=False,
+    )
+
+    assert calls["code"]
+
+
+def test_flight_app_args_form_import_warns_for_missing_input_and_persists_data_out(monkeypatch, tmp_path):
+    _module, _fake_st, calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        session_state={
+            "flight_project:app_args_form:data_in": "missing/input",
+            "flight_project:app_args_form:data_out": "custom/output",
+        },
+        share_root_error=True,
+        load_error=RuntimeError("broken settings"),
+    )
+
+    assert any("Unable to load Flight args" in message for message in calls["warning"])
+    assert any("Input directory does not exist" in message for message in calls["warning"])
+    assert calls["success"]
 
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import importlib
+import math
 import os
 from pathlib import Path
 import sqlite3
 import sys
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import types
@@ -43,6 +45,47 @@ def test_to_bool_flag_parses_common_truthy_values():
     assert pipeline_runtime.to_bool_flag("no") is False
 
 
+def test_safe_service_start_template_tolerates_invalid_settings_and_verbose(monkeypatch, tmp_path):
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text(
+        """
+[cluster]
+cluster_enabled = "yes"
+pool = 1
+cython = "on"
+rapids = "no"
+verbose = "bad"
+scheduler = ""
+workers = "invalid"
+
+[args]
+value = "kept"
+""".strip(),
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        app_settings_file=settings,
+        apps_path=tmp_path / "apps",
+        app="demo",
+    )
+
+    snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")
+
+    assert "VERBOSE = 1" in snippet
+    assert "MODE = 7" in snippet
+    assert "SCHEDULER = None" in snippet
+    assert "WORKERS = None" in snippet
+    assert "RUN_ARGS = {'value': 'kept'}" in snippet
+
+    broken_env = SimpleNamespace(
+        app_settings_file=SimpleNamespace(),
+        apps_path=tmp_path / "apps",
+        app="demo",
+    )
+    broken_snippet = pipeline_runtime.safe_service_start_template(broken_env, "# AUTO")
+    assert "MODE = 0" in broken_snippet
+
+
 def test_mlflow_text_and_path_helpers_cover_edge_cases(tmp_path, monkeypatch):
     env = SimpleNamespace(MLFLOW_TRACKING_DIR="relative-store", home_abs=tmp_path)
 
@@ -52,6 +95,37 @@ def test_mlflow_text_and_path_helpers_cover_edge_cases(tmp_path, monkeypatch):
     assert pipeline_runtime.resolve_mlflow_artifact_dir(env) == (tmp_path / "relative-store" / "artifacts").resolve()
     assert pipeline_runtime.legacy_mlflow_filestore_present(tmp_path / "missing") is False
     assert pipeline_runtime.sqlite_uri_for_path(tmp_path / "mlflow.db").startswith("sqlite:")
+
+
+def test_get_mlflow_module_and_legacy_filestore_helpers(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "mlflow", types.SimpleNamespace())
+    assert pipeline_runtime.get_mlflow_module() is sys.modules["mlflow"]
+    monkeypatch.delitem(sys.modules, "mlflow", raising=False)
+
+    original_import = __import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "mlflow":
+            raise ImportError("missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+    assert pipeline_runtime.get_mlflow_module() is None
+
+    tracking_dir = tmp_path / "mlflow-store"
+    tracking_dir.mkdir()
+    (tracking_dir / ".trash").mkdir()
+    assert pipeline_runtime.legacy_mlflow_filestore_present(tracking_dir) is True
+
+    meta_dir = tmp_path / "meta-store"
+    meta_dir.mkdir()
+    (meta_dir / "meta.yaml").write_text("meta", encoding="utf-8")
+    assert pipeline_runtime.legacy_mlflow_filestore_present(meta_dir) is True
+
+    digit_dir = tmp_path / "digit-store"
+    digit_dir.mkdir()
+    (digit_dir / "1").mkdir()
+    assert pipeline_runtime.legacy_mlflow_filestore_present(digit_dir) is True
 
 
 def test_python_for_venv_prefers_nested_dot_venv(tmp_path):
@@ -66,6 +140,24 @@ def test_python_for_venv_prefers_nested_dot_venv(tmp_path):
     resolved = pipeline_runtime.python_for_venv(runtime_root)
 
     assert resolved == nested_python
+
+
+def test_python_for_venv_and_runtime_helpers_cover_fallbacks(tmp_path, monkeypatch):
+    default_python = tmp_path / "controller" / "python"
+    default_python.parent.mkdir(parents=True)
+    default_python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(pipeline_runtime.sys, "executable", str(default_python))
+
+    assert pipeline_runtime.python_for_venv(None) == default_python
+    assert pipeline_runtime.python_for_venv(tmp_path / "missing") == default_python
+    assert pipeline_runtime.label_for_step_runtime(None, engine="runpy", code="print('x')") == "default env"
+    assert pipeline_runtime.is_valid_runtime_root(None) is False
+
+    class BrokenPath:
+        def __fspath__(self):
+            raise RuntimeError("boom")
+
+    assert pipeline_runtime.is_valid_runtime_root(BrokenPath()) is False
 
 
 def test_is_valid_runtime_root_accepts_project_or_venv(tmp_path):
@@ -98,6 +190,11 @@ def test_mlflow_tracking_uri_falls_back_to_home_when_unset(tmp_path):
 
     assert uri == pipeline_runtime.sqlite_uri_for_path((tmp_path / ".mlflow" / "mlflow.db").resolve())
     assert (tmp_path / ".mlflow").exists()
+
+
+def test_sqlite_uri_for_path_handles_windows_style(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline_runtime, "os", SimpleNamespace(name="nt"))
+    assert pipeline_runtime.sqlite_uri_for_path(tmp_path / "mlflow.db").startswith("sqlite:///")
 
 
 def test_mlflow_tracking_uri_resolves_relative_path_from_home(tmp_path):
@@ -178,6 +275,52 @@ def test_temporary_env_overrides_handles_none_and_missing(monkeypatch):
 
     assert os.environ["AGILAB_REMOVE_ME"] == "yes"
     assert "AGILAB_CREATE_ME" not in os.environ
+
+
+def test_runtime_helper_edges_cover_run_id_cleanup_and_metric_failures(tmp_path, monkeypatch):
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path / "mlflow-store", apps_path=None)
+    process_env = pipeline_runtime.build_mlflow_process_env(
+        env,
+        base_env={
+            "KEEP": "1",
+            pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV: "stale-step",
+            "MLFLOW_RUN_ID": "stale",
+        },
+    )
+
+    assert process_env["KEEP"] == "1"
+    assert pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV not in process_env
+    assert "MLFLOW_RUN_ID" not in process_env
+
+    monkeypatch.setenv("AGILAB_TEMP_KEEP", "before")
+    with pipeline_runtime.temporary_env_overrides({}):
+        assert os.environ["AGILAB_TEMP_KEEP"] == "before"
+
+    class FakeMlflow:
+        def __init__(self):
+            self.tags = []
+            self.metrics = []
+
+        def set_tags(self, payload):
+            self.tags.append(payload)
+
+        def log_metric(self, key, value):
+            self.metrics.append((key, value))
+            raise RuntimeError("skip bad metric")
+
+    fake_mlflow = FakeMlflow()
+    pipeline_runtime.log_mlflow_artifacts(
+        {"mlflow": fake_mlflow},
+        text_artifacts={"skip.txt": None},
+        tags={"status": "ok"},
+        metrics={"broken": "nan"},
+    )
+
+    assert fake_mlflow.tags == [{"status": "ok"}]
+    assert len(fake_mlflow.metrics) == 1
+    assert fake_mlflow.metrics[0][0] == "broken"
+    assert math.isnan(fake_mlflow.metrics[0][1])
+    assert pipeline_runtime.is_valid_runtime_root(tmp_path) is False
 
 
 def test_wrap_code_with_mlflow_resume_uses_env_run_id():
@@ -261,6 +404,13 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
     assert fake_mlflow.tags["k"] == "v"
     assert fake_mlflow.params["step_count"] == "2"
     assert fake_mlflow.run_requests == [{"run_name": "pipeline", "nested": True}]
+
+
+def test_start_mlflow_run_yields_none_when_mlflow_is_unavailable(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline_runtime, "get_mlflow_module", lambda: None)
+
+    with pipeline_runtime.start_mlflow_run(SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path), run_name="demo") as tracking:
+        assert tracking is None
 
 
 def test_mlflow_tracking_uri_migrates_legacy_filestore(tmp_path, monkeypatch):
@@ -357,6 +507,73 @@ def test_repair_mlflow_default_experiment_db_returns_false_for_missing_tables(tm
     assert pipeline_runtime.repair_mlflow_default_experiment_db(db_path) is False
 
 
+def test_repair_mlflow_default_experiment_db_handles_additional_edge_cases(tmp_path, monkeypatch):
+    missing_columns_db = tmp_path / "missing-columns.db"
+    with sqlite3.connect(missing_columns_db) as conn:
+        conn.execute("CREATE TABLE experiments (experiment_id INTEGER PRIMARY KEY)")
+        conn.commit()
+    assert pipeline_runtime.repair_mlflow_default_experiment_db(missing_columns_db) is False
+
+    missing_default_db = tmp_path / "missing-default.db"
+    with sqlite3.connect(missing_default_db) as conn:
+        conn.execute(
+            """
+            CREATE TABLE experiments (
+                experiment_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                artifact_location TEXT,
+                workspace TEXT
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO experiments (experiment_id, name, artifact_location, workspace) VALUES (1, 'other', '', 'default')"
+        )
+        conn.commit()
+    assert pipeline_runtime.repair_mlflow_default_experiment_db(missing_default_db) is False
+
+    repair_db = tmp_path / "repair.db"
+    with sqlite3.connect(repair_db) as conn:
+        conn.execute(
+            """
+            CREATE TABLE experiments (
+                experiment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                artifact_location TEXT,
+                workspace TEXT
+            )
+            """
+        )
+        conn.execute("CREATE TABLE runs (run_uuid TEXT PRIMARY KEY, experiment_id INTEGER)")
+        conn.execute("CREATE TABLE notes (note_id INTEGER PRIMARY KEY AUTOINCREMENT, message TEXT)")
+        conn.execute(
+            "INSERT INTO experiments (experiment_id, name, artifact_location, workspace) VALUES (?, ?, ?, ?)",
+            (7, pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME, "", "default"),
+        )
+        conn.execute("INSERT INTO runs (run_uuid, experiment_id) VALUES (?, ?)", ("run-1", 7))
+        conn.execute("INSERT INTO notes (message) VALUES (?)", ("kept",))
+        conn.commit()
+
+    assert pipeline_runtime.repair_mlflow_default_experiment_db(repair_db, "file:///new-artifacts") is True
+    with sqlite3.connect(repair_db) as conn:
+        experiment = conn.execute(
+            "SELECT experiment_id, artifact_location FROM experiments WHERE name = ?",
+            (pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME,),
+        ).fetchone()
+        run = conn.execute("SELECT experiment_id FROM runs WHERE run_uuid = ?", ("run-1",)).fetchone()
+        note = conn.execute("SELECT message FROM notes").fetchone()
+
+    assert experiment == (0, "file:///new-artifacts")
+    assert run == (0,)
+    assert note == ("kept",)
+
+    def _raise_sqlite_error(*_args, **_kwargs):
+        raise sqlite3.Error("boom")
+
+    monkeypatch.setattr(pipeline_runtime.sqlite3, "connect", _raise_sqlite_error)
+    assert pipeline_runtime.repair_mlflow_default_experiment_db(repair_db) is False
+
+
 def test_mlflow_tracking_uri_upgrades_sqlite_schema_once(tmp_path, monkeypatch):
     tracking_root = tmp_path / "mlflow-store"
     tracking_root.mkdir(parents=True)
@@ -419,6 +636,57 @@ def test_mlflow_tracking_uri_resets_unknown_alembic_revision(tmp_path, monkeypat
     assert uri == pipeline_runtime.sqlite_uri_for_path(db_path.resolve())
     assert not db_path.exists()
     assert len(list(tracking_root.glob("mlflow.schema-reset-*.db"))) == 1
+
+
+def test_ensure_mlflow_sqlite_schema_current_ignores_sqlite_open_error(tmp_path, monkeypatch):
+    db_path = tmp_path / "mlflow.db"
+    db_path.write_text("", encoding="utf-8")
+
+    def _raise_sqlite_error(*_args, **_kwargs):
+        raise sqlite3.Error("locked")
+
+    monkeypatch.setattr(pipeline_runtime.sqlite3, "connect", _raise_sqlite_error)
+    monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+
+    pipeline_runtime.ensure_mlflow_sqlite_schema_current(db_path)
+
+
+def test_ensure_mlflow_sqlite_schema_current_raises_for_unhandled_upgrade_error(tmp_path, monkeypatch):
+    db_path = tmp_path / "mlflow.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("abc",))
+        conn.commit()
+
+    monkeypatch.setattr(
+        pipeline_runtime.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout="", stderr="plain failure"),
+    )
+    monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+
+    with pytest.raises(RuntimeError, match="Failed to upgrade the local MLflow SQLite schema"):
+        pipeline_runtime.ensure_mlflow_sqlite_schema_current(db_path)
+
+
+def test_reset_mlflow_sqlite_backend_returns_none_for_missing_db(tmp_path):
+    assert pipeline_runtime.reset_mlflow_sqlite_backend(tmp_path / "missing.db") is None
+
+
+def test_mlflow_tracking_uri_raises_when_legacy_migration_fails(tmp_path, monkeypatch):
+    tracking_root = tmp_path / "legacy-store"
+    tracking_root.mkdir(parents=True)
+    (tracking_root / ".trash").mkdir()
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root)
+
+    monkeypatch.setattr(
+        pipeline_runtime.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout="", stderr="migration failed"),
+    )
+
+    with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store to SQLite"):
+        pipeline_runtime.mlflow_tracking_uri(env)
 
 
 def test_ensure_default_mlflow_experiment_resets_store_after_schema_error(tmp_path, monkeypatch):
@@ -501,6 +769,48 @@ def test_ensure_default_mlflow_experiment_resets_store_after_duplicate_column_er
     assert calls["reset"] == 1
     assert calls["tracking"] == ["sqlite:///tmp/mlflow.db", "sqlite:///tmp/mlflow.db"]
     assert calls["set_experiment"] == pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME
+
+
+def test_ensure_default_mlflow_experiment_handles_none_create_failure_and_unexpected_errors(tmp_path, monkeypatch):
+    tracking_root = tmp_path / "mlflow-store"
+    tracking_root.mkdir(parents=True)
+    env = SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root)
+    monkeypatch.setattr(pipeline_runtime, "mlflow_tracking_uri", lambda *_args, **_kwargs: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(pipeline_runtime, "get_mlflow_module", lambda: None)
+
+    assert pipeline_runtime.ensure_default_mlflow_experiment(env, None) is None
+
+    calls: list[str] = []
+
+    class CreateFailsMlflow:
+        def set_tracking_uri(self, uri):
+            calls.append(f"tracking:{uri}")
+
+        def get_experiment_by_name(self, _name):
+            return None
+
+        def create_experiment(self, *_args, **_kwargs):
+            raise RuntimeError("ignore")
+
+        def set_experiment(self, name):
+            calls.append(f"set:{name}")
+
+    uri = pipeline_runtime.ensure_default_mlflow_experiment(env, CreateFailsMlflow())
+    assert uri == "sqlite:///tmp/mlflow.db"
+    assert calls == [
+        "tracking:sqlite:///tmp/mlflow.db",
+        f"set:{pipeline_runtime.DEFAULT_MLFLOW_EXPERIMENT_NAME}",
+    ]
+
+    class BrokenMlflow:
+        def set_tracking_uri(self, _uri):
+            return None
+
+        def get_experiment_by_name(self, _name):
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        pipeline_runtime.ensure_default_mlflow_experiment(env, BrokenMlflow())
 
 
 def test_safe_service_start_template_embeds_cluster_and_args(tmp_path):
@@ -606,6 +916,34 @@ def test_ensure_safe_service_template_is_noop_when_content_matches(tmp_path):
 
     assert resolved == template_path
     assert template_path.read_text(encoding="utf-8") == expected
+
+
+def test_ensure_safe_service_template_logs_and_returns_none_on_write_error(tmp_path):
+    steps_file = tmp_path / "missing" / "lab_steps.toml"
+    env = SimpleNamespace(
+        app_settings_file=tmp_path / "missing.toml",
+        apps_path=tmp_path / "apps",
+        app="demo",
+    )
+    debug_calls: list[str] = []
+    original_write_text = Path.write_text
+
+    def fail_write_text(self, *args, **kwargs):
+        if self.name == "AGI_safe_service.py":
+            raise OSError("disk full")
+        return original_write_text(self, *args, **kwargs)
+
+    with patch.object(Path, "write_text", fail_write_text):
+        resolved = pipeline_runtime.ensure_safe_service_template(
+            env,
+            steps_file,
+            template_filename="AGI_safe_service.py",
+            marker="# AUTO",
+            debug_log=lambda message, *_args: debug_calls.append(message),
+        )
+
+    assert resolved is None
+    assert debug_calls
 
 
 def test_label_for_step_runtime_describes_controller_and_runtime_env(tmp_path, monkeypatch):
@@ -747,6 +1085,79 @@ def test_stream_run_command_reports_timeout(tmp_path, monkeypatch):
     assert "killed" in logs
 
 
+def test_stream_run_command_reports_called_process_error(tmp_path, monkeypatch):
+    env = SimpleNamespace(apps_path=tmp_path / "apps")
+    logs: list[str] = []
+
+    class FakeProc:
+        def __init__(self, *args, **kwargs):
+            self.stdout = iter(["line one\n"])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def wait(self, timeout=None):
+            raise pipeline_runtime.subprocess.CalledProcessError(1, "echo hi")
+
+        def kill(self):
+            logs.append("killed")
+
+    monkeypatch.setattr(pipeline_runtime.subprocess, "Popen", FakeProc)
+
+    output = pipeline_runtime.stream_run_command(
+        env,
+        "page",
+        "echo hi",
+        tmp_path,
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
+        jump_exception_cls=RuntimeError,
+    )
+
+    assert output == "line one"
+    assert "Command failed: Command 'echo hi' returned non-zero exit status 1." in logs
+    assert "killed" in logs
+
+
+def test_stream_run_command_tolerates_broken_apps_path_resolution(tmp_path, monkeypatch):
+    logs: list[str] = []
+
+    class BrokenPath:
+        def __fspath__(self):
+            raise RuntimeError("boom")
+
+    class FakeProc:
+        def __init__(self, *args, **kwargs):
+            self.stdout = iter(["ok\n"])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def wait(self, timeout=None):
+            return None
+
+    monkeypatch.setattr(pipeline_runtime.subprocess, "Popen", FakeProc)
+
+    output = pipeline_runtime.stream_run_command(
+        SimpleNamespace(apps_path=BrokenPath()),
+        "page",
+        "echo hi",
+        tmp_path,
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
+        jump_exception_cls=RuntimeError,
+    )
+
+    assert output == "ok"
+    assert logs == ["ok"]
+
+
 def test_log_mlflow_artifacts_uses_temp_files_when_log_text_missing(tmp_path):
     artifacts: list[tuple[str, str | None]] = []
     tags: list[dict[str, str]] = []
@@ -777,6 +1188,36 @@ def test_log_mlflow_artifacts_uses_temp_files_when_log_text_missing(tmp_path):
     assert metrics == [("served", 1.5)]
     assert ("demo", "logs") in artifacts
     assert ("payload", None) in artifacts
+
+
+def test_log_mlflow_artifacts_handles_empty_tracking_and_log_text_support(tmp_path):
+    pipeline_runtime.log_mlflow_artifacts(None, text_artifacts={"ignored.txt": "x"})
+
+    calls = {"texts": [], "tags": []}
+
+    class FakeMlflow:
+        def set_tags(self, payload):
+            calls["tags"].append(payload)
+
+        def log_text(self, text, artifact_name):
+            calls["texts"].append((text, artifact_name))
+
+        def log_metric(self, *_args, **_kwargs):
+            raise RuntimeError("should not be called")
+
+        def log_artifact(self, *_args, **_kwargs):
+            raise RuntimeError("should not be called")
+
+    pipeline_runtime.log_mlflow_artifacts(
+        {"mlflow": FakeMlflow()},
+        text_artifacts={"logs/stdout.txt": "demo"},
+        tags={"status": "ok"},
+        metrics={},
+        file_artifacts=[tmp_path / "missing.txt", ""],
+    )
+
+    assert calls["tags"] == [{"status": "ok"}]
+    assert calls["texts"] == [("demo", "logs/stdout.txt")]
 
 
 def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
@@ -838,6 +1279,254 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     assert any("Output (step 1):\nrunpy output" in line for line in logs)
     assert "ARTIFACTS" in logs
     assert released == ["lock"]
+
+
+def test_run_locked_step_handles_missing_snippet_and_lock_refusal(tmp_path, monkeypatch):
+    logs: list[str] = []
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {}
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    env = SimpleNamespace(app="demo", active_app="", apps_path=tmp_path / "apps", copilot_file=tmp_path / "copilot.py")
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+
+    pipeline_runtime.run_locked_step(
+        env,
+        "page",
+        steps_file,
+        0,
+        {"D": "demo", "Q": "question", "C": "print('x')"},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (None, None),
+        push_run_log=lambda *_args, **_kwargs: None,
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=lambda *_args, **_kwargs: False,
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
+        stream_run_command=lambda **_kwargs: "",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert logs == ["ERROR:Snippet file is not configured. Reload the page and try again."]
+
+    fake_streamlit.session_state = {"snippet_file": str(tmp_path / "snippet.py")}
+    pipeline_runtime.run_locked_step(
+        env,
+        "page",
+        steps_file,
+        0,
+        {"D": "demo", "Q": "question", "C": "print('x')"},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (None, None),
+        push_run_log=lambda *_args, **_kwargs: None,
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        release_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=lambda *_args, **_kwargs: False,
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
+        stream_run_command=lambda **_kwargs: "",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert fake_streamlit.session_state["page__run_logs"] == []
+
+
+def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target(tmp_path, monkeypatch):
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('x')", encoding="utf-8")
+    codex_file = tmp_path / "codex.py"
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    export_file = tmp_path / "export.csv"
+    export_file.write_text("x\n1\n", encoding="utf-8")
+    logs: list[str] = []
+    released: list[str] = []
+
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {
+        "snippet_file": str(snippet_file),
+        "lab_selected_venv": str(runtime_root),
+        "df_file_out": str(export_file),
+    }
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **_kwargs):
+        yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-999"))}
+
+    artifact_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+    monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-999"})
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+    monkeypatch.setattr(
+        pipeline_runtime,
+        "log_mlflow_artifacts",
+        lambda *_args, **kwargs: artifact_calls.append(kwargs),
+    )
+
+    pipeline_runtime.run_locked_step(
+        SimpleNamespace(
+            app="demo",
+            active_app=str(runtime_root),
+            apps_path=tmp_path / "apps",
+            copilot_file=codex_file,
+        ),
+        "page",
+        steps_file,
+        0,
+        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": "runpy"},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (None, "log unavailable"),
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda lock, *_args, **_kwargs: released.append(lock),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=lambda value: str(value) == str(runtime_root),
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "runtime" / ".venv" / "bin" / "python",
+        stream_run_command=lambda *_args, **_kwargs: "",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert any("unable to prepare log file: log unavailable" in line for line in logs)
+    assert any('Step 1: engine=agi.run, env=runtime env, summary="summary"' in line for line in logs)
+    assert artifact_calls and str(export_file) in artifact_calls[0]["file_artifacts"]
+    assert released == ["lock"]
+
+
+def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_path, monkeypatch):
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('x')", encoding="utf-8")
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    active_app = tmp_path / "active-app"
+    active_app.mkdir()
+    logs: list[str] = []
+
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {"snippet_file": str(snippet_file)}
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **_kwargs):
+        yield None
+
+    checks: list[str] = []
+
+    def _is_valid_runtime_root(value):
+        checks.append(str(value))
+        return checks.count(str(active_app)) >= 2
+
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+    monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+
+    pipeline_runtime.run_locked_step(
+        SimpleNamespace(
+            app="demo",
+            active_app=str(active_app),
+            apps_path=tmp_path / "apps",
+            copilot_file=tmp_path / "copilot.py",
+        ),
+        "page",
+        steps_file,
+        0,
+        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": "agi.run"},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "run.log", None),
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=_is_valid_runtime_root,
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
+        stream_run_command=lambda *_args, **_kwargs: "ok",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert checks.count(str(active_app)) >= 2
+    assert fake_streamlit.session_state["lab_selected_venv"] == str(active_app)
+    assert fake_streamlit.session_state["lab_selected_engine"] == "agi.run"
+
+
+def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_path, monkeypatch):
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('x')", encoding="utf-8")
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    export_file = tmp_path / "export.csv"
+    export_file.write_text("x\n1\n", encoding="utf-8")
+    logs: list[str] = []
+
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {
+        "snippet_file": str(snippet_file),
+        "df_file_out": str(export_file),
+    }
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **_kwargs):
+        yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-321"))}
+
+    artifact_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "default env")
+    monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-321"})
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+    monkeypatch.setattr(
+        pipeline_runtime,
+        "log_mlflow_artifacts",
+        lambda *_args, **kwargs: artifact_calls.append(kwargs),
+    )
+    monkeypatch.setattr(pipeline_runtime, "run_lab", lambda *_args, **_kwargs: "")
+
+    pipeline_runtime.run_locked_step(
+        SimpleNamespace(
+            app="demo",
+            active_app="",
+            apps_path=tmp_path / "apps",
+            copilot_file=tmp_path / "copilot.py",
+        ),
+        "page",
+        steps_file,
+        0,
+        {"D": "demo step", "Q": "question", "C": "print('hello')"},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "run.log", None),
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=lambda *_args, **_kwargs: False,
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
+        stream_run_command=lambda *_args, **_kwargs: "",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert any("Output (step 1): runpy executed (no captured stdout)" in line for line in logs)
+    assert artifact_calls and str(export_file) in artifact_calls[0]["file_artifacts"]
 
 
 def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch):

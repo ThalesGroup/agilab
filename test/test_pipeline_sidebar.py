@@ -84,6 +84,21 @@ def test_load_last_active_app_name_accepts_path_string(monkeypatch):
     assert resolved == "network_sim_project"
 
 
+def test_load_last_active_app_name_returns_none_when_missing_or_unknown(monkeypatch):
+    monkeypatch.setattr(pipeline_sidebar, "load_last_active_app", lambda: None)
+    assert pipeline_sidebar.load_last_active_app_name(["demo_project"]) is None
+
+    monkeypatch.setattr(pipeline_sidebar, "load_last_active_app", lambda: Path("/"))
+    assert pipeline_sidebar.load_last_active_app_name(["demo_project"]) is None
+
+    monkeypatch.setattr(
+        pipeline_sidebar,
+        "load_last_active_app",
+        lambda: Path("/tmp/apps/unknown_project"),
+    )
+    assert pipeline_sidebar.load_last_active_app_name(["demo_project"]) is None
+
+
 def test_available_lab_modules_falls_back_to_export_scan(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
 
@@ -98,6 +113,29 @@ def test_available_lab_modules_falls_back_to_export_scan(monkeypatch, tmp_path):
     modules = pipeline_sidebar.available_lab_modules(env, export_root)
 
     assert modules == ["alpha", "beta"]
+
+
+def test_available_lab_modules_drops_blank_projects_and_empty_scan(monkeypatch, tmp_path):
+    env = SimpleNamespace(
+        apps_path=tmp_path / "apps",
+        builtin_apps_path=tmp_path / "builtin",
+        apps_repository_root=tmp_path,
+        get_projects=lambda *args: ["", " demo_project ", " "],
+    )
+
+    modules = pipeline_sidebar.available_lab_modules(env, tmp_path / "export")
+    assert modules == ["demo_project"]
+
+    env = SimpleNamespace(
+        apps_path=tmp_path / "apps",
+        builtin_apps_path=tmp_path / "builtin",
+        apps_repository_root=tmp_path,
+        get_projects=lambda *args: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    monkeypatch.setattr(pipeline_sidebar, "scan_dir", lambda _path: ["", "  "])
+
+    modules = pipeline_sidebar.available_lab_modules(env, tmp_path / "export")
+    assert modules == []
 
 
 def test_on_lab_change_updates_session_state_and_stores_last_app(monkeypatch, tmp_path):
@@ -123,6 +161,52 @@ def test_on_lab_change_updates_session_state_and_stores_last_app(monkeypatch, tm
     assert "steps_file" not in fake_st.session_state
     assert "df_file" not in fake_st.session_state
     assert stored == [project_dir]
+
+
+def test_on_lab_change_checks_builtin_path_and_swallows_env_errors(monkeypatch, tmp_path):
+    builtin_project_dir = tmp_path / "apps" / "builtin" / "demo_project"
+    builtin_project_dir.mkdir(parents=True)
+
+    stored: list[Path] = []
+    fake_st = SimpleNamespace(session_state=_SessionState(index_page="demo", demodf="remove-me"))
+    monkeypatch.setattr(pipeline_sidebar, "st", fake_st)
+    monkeypatch.setattr(pipeline_sidebar, "store_last_active_app", lambda path: stored.append(path))
+
+    fake_st.session_state["env"] = SimpleNamespace(apps_path=tmp_path / "apps")
+    pipeline_sidebar.on_lab_change("demo_project")
+
+    assert "demodf" not in fake_st.session_state
+    assert stored == [builtin_project_dir]
+
+    fake_st = SimpleNamespace(session_state=_SessionState(index_page="demo"))
+    monkeypatch.setattr(pipeline_sidebar, "st", fake_st)
+    fake_st.session_state["env"] = SimpleNamespace()
+    pipeline_sidebar.on_lab_change("demo_project")
+    assert fake_st.session_state["lab_dir"] == "demo_project"
+
+
+def test_normalize_lab_choice_handles_empty_and_stem_matches():
+    assert pipeline_sidebar.normalize_lab_choice("", ["demo_project"]) == ""
+    assert pipeline_sidebar.normalize_lab_choice("demo", []) == ""
+    assert (
+        pipeline_sidebar.normalize_lab_choice("/tmp/work/demo_project", ["demo_project", "other_project"])
+        == "demo_project"
+    )
+    assert (
+        pipeline_sidebar.normalize_lab_choice("/tmp/work/demo", ["demo_project", "other_project"])
+        == "demo_project"
+    )
+
+
+def test_resolve_lab_export_dir_handles_blank_and_missing_candidates(tmp_path):
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+
+    assert pipeline_sidebar.resolve_lab_export_dir(export_root, "") == export_root.resolve()
+    assert (
+        pipeline_sidebar.resolve_lab_export_dir(export_root, "demo_project")
+        == (export_root / "demo").resolve()
+    )
 
 
 def test_open_notebook_in_browser_injects_expected_url(monkeypatch):
