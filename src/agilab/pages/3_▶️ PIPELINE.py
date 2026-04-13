@@ -1380,6 +1380,30 @@ def mlflow_controls() -> None:
         st.sidebar.caption("Start it from Edit.")
 
 
+def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
+    """Load pre-prompt messages for the current app, falling back to an empty list."""
+    pre_prompt_path = Path(env.app_src) / "pre_prompt.json"
+    try:
+        with open(pre_prompt_path, encoding="utf-8") as stream:
+            pre_prompt_content = json.load(stream)
+    except FileNotFoundError:
+        st.warning(f"Missing pre_prompt.json at {pre_prompt_path}; using empty prompt.")
+        try:
+            pre_prompt_path.write_text("[]\n", encoding="utf-8")
+        except OSError:
+            st.warning(f"Unable to create {pre_prompt_path}; check folder permissions.")
+        return []
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        st.warning(f"Failed to load pre_prompt.json: {exc}")
+        return []
+
+    if isinstance(pre_prompt_content, list):
+        return pre_prompt_content
+
+    st.warning(f"pre_prompt.json at {pre_prompt_path} is not a list of messages; using empty prompt.")
+    return []
+
+
 def page() -> None:
     """Main page logic handler."""
     global df_file
@@ -1395,27 +1419,7 @@ def page() -> None:
         if seed_key:
             st.session_state["openai_api_key"] = seed_key
 
-    pre_prompt_path = Path(env.app_src) / "pre_prompt.json"
-    try:
-        with open(pre_prompt_path) as f:
-            pre_prompt_content = json.load(f)
-            if isinstance(pre_prompt_content, list):
-                st.session_state["lab_prompt"] = pre_prompt_content
-            else:
-                st.warning(
-                    f"pre_prompt.json at {pre_prompt_path} is not a list of messages; using empty prompt."
-                )
-                st.session_state["lab_prompt"] = []
-    except FileNotFoundError:
-        st.session_state["lab_prompt"] = []
-        st.warning(f"Missing pre_prompt.json at {pre_prompt_path}; using empty prompt.")
-        try:
-            pre_prompt_path.write_text("[]\n", encoding="utf-8")
-        except OSError:
-            st.warning(f"Unable to create {pre_prompt_path}; check folder permissions.")
-    except Exception as exc:
-        st.session_state["lab_prompt"] = []
-        st.warning(f"Failed to load pre_prompt.json: {exc}")
+    st.session_state["lab_prompt"] = _load_pre_prompt_messages(env)
 
     sidebar_controls()
 
