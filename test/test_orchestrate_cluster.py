@@ -143,6 +143,28 @@ def test_persist_env_var_if_changed_updates_changed_value():
     assert calls == [("AGI_SSH_KEY_PATH", "~/.ssh/id_rsa")]
 
 
+def test_describe_share_path_handles_missing_and_resolved_paths(tmp_path):
+    share_real = tmp_path / "share_real"
+    share_real.mkdir()
+    share_link = tmp_path / "share_link"
+    share_link.symlink_to(share_real, target_is_directory=True)
+
+    env_missing = SimpleNamespace(agi_share_path=None, share_root_path=lambda: share_link)
+    assert orchestrate_cluster._describe_share_path(env_missing).startswith("not set.")
+
+    env_resolved = SimpleNamespace(agi_share_path=Path("clustershare"), share_root_path=lambda: share_link)
+    assert orchestrate_cluster._describe_share_path(env_resolved).startswith("clustershare → ")
+
+
+def test_cluster_credentials_value_formats_password_and_key_modes():
+    assert orchestrate_cluster._cluster_credentials_value(" agi ", use_ssh_key=True) == "agi"
+    assert (
+        orchestrate_cluster._cluster_credentials_value(" agi ", password="secret", use_ssh_key=False)
+        == "agi:secret"
+    )
+    assert orchestrate_cluster._cluster_credentials_value("", password="secret", use_ssh_key=False) == ""
+
+
 def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={

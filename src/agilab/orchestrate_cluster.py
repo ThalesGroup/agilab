@@ -5,6 +5,25 @@ from typing import Any, Callable, Optional
 
 import streamlit as st
 
+RUN_MODE_LABELS: tuple[str, ...] = (
+    "0: python",
+    "1: pool of process",
+    "2: cython",
+    "3: pool and cython",
+    "4: dask",
+    "5: dask and pool",
+    "6: dask and cython",
+    "7: dask and pool and cython",
+    "8: rapids",
+    "9: rapids and pool",
+    "10: rapids and cython",
+    "11: rapids and pool and cython",
+    "12: rapids and dask",
+    "13: rapids and dask and pool",
+    "14: rapids and dask and cython",
+    "15: rapids and dask and pool and cython",
+)
+
 
 @dataclass(frozen=True)
 class OrchestrateClusterDeps:
@@ -38,6 +57,39 @@ def persist_env_var_if_changed(
         current = str(agi_env_envars.get(key, "") or "")
     if normalized != current:
         set_env_var(key, normalized)
+
+
+def _describe_share_path(env: Any) -> str:
+    share_raw = env.agi_share_path
+    if not share_raw:
+        return "not set. Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
+
+    share_display = str(share_raw)
+    resolved_display: Optional[Path] = None
+    try:
+        share_root = env.share_root_path()
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        share_root = None
+    if share_root is not None:
+        resolved_display = share_root
+        try:
+            resolved_target = share_root.resolve(strict=False)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            resolved_target = share_root
+        if resolved_target != share_root:
+            resolved_display = resolved_target
+    if resolved_display and str(resolved_display) != share_display:
+        return f"{share_display} → {resolved_display}"
+    return share_display
+
+
+def _cluster_credentials_value(user: str, *, password: str = "", use_ssh_key: bool) -> str:
+    sanitized_user = user.strip()
+    if not sanitized_user:
+        return ""
+    if use_ssh_key or not password:
+        return sanitized_user
+    return f"{sanitized_user}:{password}"
 
 
 def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
@@ -76,30 +128,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
-        share_raw = env.agi_share_path
-        share_display: str
-        resolved_display: Optional[Path] = None
-        if share_raw:
-            share_display = str(share_raw)
-            try:
-                share_root = env.share_root_path()
-            except Exception:
-                share_root = None
-            if share_root is not None:
-                resolved_display = share_root
-                try:
-                    resolved_target = share_root.resolve(strict=False)
-                except Exception:
-                    resolved_target = share_root
-                if resolved_target != share_root:
-                    resolved_display = resolved_target
-            if resolved_display and str(resolved_display) != share_display:
-                share_display = f"{share_display} → {resolved_display}"
-        else:
-            share_display = (
-                "not set. Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
-            )
-        st.markdown(f"**agi_share_path:** {share_display}")
+        st.markdown(f"**agi_share_path:** {_describe_share_path(env)}")
 
         scheduler_widget_key = f"cluster_scheduler__{app_state_name}"
         if scheduler_widget_key not in st.session_state:
@@ -199,10 +228,11 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             env.password = None
             env.ssh_key_path = sanitized_key or None
 
-            if sanitized_user:
+            credentials_value = _cluster_credentials_value(sanitized_user, use_ssh_key=True)
+            if credentials_value:
                 persist_env_var_if_changed(
                     key="CLUSTER_CREDENTIALS",
-                    value=sanitized_user,
+                    value=credentials_value,
                     set_env_var=deps.set_env_var,
                     agi_env_envars=deps.agi_env_envars,
                 )
@@ -217,8 +247,12 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             env.password = password_value or None
             env.ssh_key_path = None
 
-            if sanitized_user:
-                credentials_value = sanitized_user if not password_value else f"{sanitized_user}:{password_value}"
+            credentials_value = _cluster_credentials_value(
+                sanitized_user,
+                password=password_value,
+                use_ssh_key=False,
+            )
+            if credentials_value:
                 persist_env_var_if_changed(
                     key="CLUSTER_CREDENTIALS",
                     value=credentials_value,
@@ -274,21 +308,13 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     st.session_state.dask = cluster_enabled
     benchmark_enabled = st.session_state.get("benchmark", False)
 
-    run_mode_label = [
-        "0: python", "1: pool of process", "2: cython", "3: pool and cython",
-        "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
-        "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
-        "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
-        "15: rapids and dask and pool and cython",
-    ]
-
     if benchmark_enabled:
         st.session_state["mode"] = None
         st.info("Run mode benchmark (all modes)")
     else:
         mode_value = compute_cluster_mode(cluster_params, cluster_enabled)
         st.session_state["mode"] = mode_value
-        st.info(f"Run mode {run_mode_label[mode_value]}")
+        st.info(f"Run mode {RUN_MODE_LABELS[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     st.session_state.app_settings = deps.write_app_settings_toml(
@@ -297,5 +323,5 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     )
     try:
         deps.clear_load_toml_cache()
-    except Exception:
+    except (AttributeError, RuntimeError):
         pass
