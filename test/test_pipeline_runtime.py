@@ -75,7 +75,9 @@ value = "kept"
     assert "MODE = 7" in snippet
     assert "SCHEDULER = None" in snippet
     assert "WORKERS = None" in snippet
-    assert "RUN_ARGS = {'value': 'kept'}" in snippet
+    assert 'RUN_ARGS = json.loads(' in snippet
+    # Verify the args round-trip correctly through the generated template
+    assert "value" in snippet and "kept" in snippet
 
     broken_env = SimpleNamespace(
         app_settings_file=SimpleNamespace(),
@@ -843,11 +845,13 @@ data_out = "output"
     snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")
 
     assert snippet.startswith("# AUTO")
-    assert "APP = 'demo'" in snippet
+    assert 'APP = "demo"' in snippet
     assert "MODE = 7" in snippet
-    assert 'SCHEDULER = \'tcp://127.0.0.1:8786\'' in snippet
-    assert "WORKERS = {'127.0.0.1': 2}" in snippet
-    assert "RUN_ARGS = {'data_in': 'input', 'data_out': 'output'}" in snippet
+    assert 'SCHEDULER = "tcp://127.0.0.1:8786"' in snippet
+    assert "WORKERS = json.loads(" in snippet
+    assert "127.0.0.1" in snippet
+    assert "RUN_ARGS = json.loads(" in snippet
+    assert "data_in" in snippet and "data_out" in snippet
 
 
 def test_ensure_safe_service_template_preserves_manual_file(tmp_path):

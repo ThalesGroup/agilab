@@ -320,13 +320,121 @@ def chat_ollama_local(
     return text, model
 
 
+_BLOCKED_BUILTINS = frozenset({
+    "eval", "exec", "compile", "__import__", "open", "breakpoint",
+    "globals", "locals", "vars", "dir", "getattr", "setattr", "delattr",
+    "input", "memoryview", "exit", "quit",
+})
+
+_SAFE_BUILTINS = {
+    "abs": abs, "all": all, "any": any, "bool": bool, "dict": dict,
+    "enumerate": enumerate, "filter": filter, "float": float,
+    "frozenset": frozenset, "hasattr": hasattr, "hash": hash,
+    "int": int, "isinstance": isinstance, "issubclass": issubclass,
+    "len": len, "list": list, "map": map, "max": max, "min": min,
+    "print": print, "range": range, "repr": repr, "reversed": reversed,
+    "round": round, "set": set, "slice": slice, "sorted": sorted,
+    "str": str, "sum": sum, "tuple": tuple, "type": type, "zip": zip,
+    "True": True, "False": False, "None": None,
+    # Standard exception types so sandboxed code can raise/catch errors
+    "Exception": Exception, "ValueError": ValueError, "TypeError": TypeError,
+    "KeyError": KeyError, "IndexError": IndexError, "RuntimeError": RuntimeError,
+    "AttributeError": AttributeError, "ZeroDivisionError": ZeroDivisionError,
+    "StopIteration": StopIteration, "NotImplementedError": NotImplementedError,
+    "ArithmeticError": ArithmeticError, "LookupError": LookupError,
+    "OverflowError": OverflowError,
+}
+
+_BLOCKED_DUNDER_ATTRS = frozenset({
+    "__class__", "__subclasses__", "__bases__", "__mro__",
+    "__globals__", "__code__", "__func__", "__self__",
+    "__builtins__", "__import__", "__loader__", "__spec__",
+})
+
+_BLOCKED_MODULES = frozenset({
+    "os", "sys", "subprocess", "shutil", "signal", "socket",
+    "http", "urllib", "requests", "ftplib", "smtplib", "ctypes",
+    "importlib", "pickle", "shelve", "marshal", "code", "codeop",
+    "compileall", "py_compile", "io", "pathlib", "tempfile",
+    "multiprocessing", "threading", "webbrowser",
+})
+
+
+class _UnsafeCodeError(Exception):
+    """Raised when LLM-generated code fails the safety audit."""
+
+
+def _validate_code_safety(code: str) -> None:
+    """Parse *code* and reject patterns that could escape the sandbox.
+
+    Raises ``_UnsafeCodeError`` with a human-readable explanation when a
+    dangerous construct is detected.
+    """
+    try:
+        tree = ast.parse(code, filename="<lab_step>")
+    except SyntaxError as exc:
+        raise _UnsafeCodeError(f"Syntax error in generated code: {exc}") from exc
+
+    for node in ast.walk(tree):
+        # Block all import statements
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            else:
+                names = [node.module or ""]
+            raise _UnsafeCodeError(
+                f"Import statements are not allowed in pipeline code: {', '.join(names)}"
+            )
+
+        # Block calls to dangerous builtins
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id in _BLOCKED_BUILTINS:
+                raise _UnsafeCodeError(
+                    f"Call to blocked builtin '{func.id}' is not allowed."
+                )
+
+        # Block access to dangerous dunder attributes
+        if isinstance(node, ast.Attribute):
+            if node.attr in _BLOCKED_DUNDER_ATTRS:
+                raise _UnsafeCodeError(
+                    f"Access to '{node.attr}' is not allowed."
+                )
+            # Block access to known dangerous modules via attribute chains
+            if isinstance(node.value, ast.Name) and node.value.id in _BLOCKED_MODULES:
+                raise _UnsafeCodeError(
+                    f"Access to module '{node.value.id}' is not allowed."
+                )
+
+
 def _exec_code_on_df(code: str, df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], str]:
-    """Execute code against a copy of df. Returns (new_df, error)."""
+    """Execute code against a copy of df. Returns (new_df, error).
+
+    The code is first validated via AST inspection to reject dangerous
+    constructs (imports, dunder access, blocked builtins) before execution.
+    The runtime namespace is restricted to pandas, numpy, and a safe
+    subset of Python builtins.
+    """
+    try:
+        _validate_code_safety(code)
+    except _UnsafeCodeError as exc:
+        return None, f"Safety check failed: {exc}"
+
+    import numpy as np  # local import to keep module-level namespace clean
+
     df_local = df.copy()
-    local_vars: Dict[str, Any] = {"df": df_local, "pd": pd}
+    restricted_globals: Dict[str, Any] = {
+        "__builtins__": _SAFE_BUILTINS,
+        "pd": pd,
+        "np": np,
+    }
+    local_vars: Dict[str, Any] = {"df": df_local}
     try:
         compiled = compile(code, "<lab_step>", "exec")
-        exec(compiled, {}, local_vars)
+        exec(compiled, restricted_globals, local_vars)
+    except _UnsafeCodeError:
+        raise
     except Exception:
         return None, traceback.format_exc()
     updated = local_vars.get("df")

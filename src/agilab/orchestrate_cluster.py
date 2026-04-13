@@ -177,9 +177,11 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
                 sanitized_key = str(stored_key).strip()
         else:
             password_widget_key = f"cluster_password__{app_state_name}"
-            stored_password = cluster_params.get("password")
-            if stored_password is None:
-                stored_password = env.password or ""
+            # Never read passwords from persisted cluster_params; only from
+            # the transient env object so credentials don't leak into
+            # serializable session state dicts.
+            stored_password = env.password or ""
+            cluster_params.pop("password", None)
             if password_widget_key not in st.session_state:
                 st.session_state[password_widget_key] = stored_password
             with credential_col:
