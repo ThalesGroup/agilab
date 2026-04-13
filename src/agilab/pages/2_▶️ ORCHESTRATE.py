@@ -377,6 +377,51 @@ def _looks_like_shared_path(path: Path) -> bool:
     return _looks_like_shared_path_impl(path, project_root=project_root)
 
 
+def _set_active_app_query_param(active_app: Any) -> None:
+    """Best-effort update of the active-app query parameter during page transitions."""
+    try:
+        st.query_params["active_app"] = active_app
+    except StreamlitAPIException:
+        return
+
+
+def _clear_cached_distribution() -> None:
+    """Clear cached distribution data when the selected project changes."""
+    clear = getattr(load_distribution, "clear", None)
+    if callable(clear):
+        clear()
+
+
+def _clear_mount_table_cache() -> None:
+    """Clear the mount-table cache when cluster settings are active."""
+    clear = getattr(_mount_table, "cache_clear", None)
+    if callable(clear):
+        clear()
+
+
+def _resolve_share_candidate(path_value: Any, home_abs: Path | str) -> Path:
+    """Resolve the configured share path without failing on broken targets."""
+    share_candidate = Path(path_value)
+    if not share_candidate.is_absolute():
+        share_candidate = Path(home_abs) / share_candidate
+    share_candidate = share_candidate.expanduser()
+    try:
+        return share_candidate.resolve()
+    except OSError:
+        return share_candidate
+
+
+def _benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
+    """Return the benchmark date string, using file mtime as a fallback."""
+    if date_value:
+        return date_value
+    try:
+        ts = os.path.getmtime(benchmark_path)
+    except OSError:
+        return ""
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+
+
 LOG_DISPLAY_MAX_LINES = 250
 LIVE_LOG_MIN_HEIGHT = 160
 INSTALL_LOG_HEIGHT = 320
@@ -799,10 +844,7 @@ async def page() -> None:
     select_project(projects, current_project)
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed or env.app != previous_project:
-        try:
-            st.query_params["active_app"] = env.app
-        except Exception:
-            pass
+        _set_active_app_query_param(env.app)
         store_last_active_app(env.active_app)
         app_settings_snapshot = st.session_state.get("app_settings", {})
         # Clear generic & per-project keys to prevent bleed-through
@@ -829,10 +871,7 @@ async def page() -> None:
             if state_args:
                 args_override = state_args
         st.session_state.pop("is_args_from_ui", None)
-        try:
-            load_distribution.clear()
-        except Exception:
-            pass
+        _clear_cached_distribution()
         initialize_app_settings(args_override=args_override)
         st.rerun()
 
@@ -1088,19 +1127,13 @@ if __name__ == "__main__":
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
             if cluster_enabled:
                 # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).
-                try:
-                    _mount_table.cache_clear()
-                except Exception:
-                    pass
+                _clear_mount_table_cache()
                 share_candidate = Path(env.agi_share_path)
                 if not share_candidate.is_absolute():
                     share_candidate = Path(env.home_abs) / share_candidate
                 share_candidate = share_candidate.expanduser()
                 is_symlink = share_candidate.is_symlink()
-                try:
-                    share_resolved = share_candidate.resolve()
-                except Exception:
-                    share_resolved = share_candidate
+                share_resolved = _resolve_share_candidate(env.agi_share_path, env.home_abs)
                 looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
                 if not is_symlink and not looks_shared:
                     fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
@@ -1359,12 +1392,7 @@ if __name__ == "__main__":
                             if not df_nonempty.empty:
                                 df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
                             if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                                if not date_value:
-                                    try:
-                                        ts = os.path.getmtime(env.benchmark)
-                                        date_value = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-                                    except Exception:
-                                        date_value = ""
+                                date_value = _benchmark_display_date(env.benchmark, date_value)
 
                                 if date_value:
                                     st.caption(f"Benchmark date: {date_value}")
