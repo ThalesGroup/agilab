@@ -21,8 +21,8 @@ This is not a brainstorming document. It is the run list for the current public 
 
 ## Pre-flight checks
 
-- [ ] README opening still matches the locked positioning
-- [ ] GitHub repo description still matches the locked About text
+- [x] README opening still matches the locked positioning
+- [x] GitHub repo description still matches the locked About text
 - [ ] canonical demo asset still opens and is usable
 - [ ] docs landing page still points first-time users to the same workflow
 - [ ] quick-start path still works without IDE-specific context
@@ -32,16 +32,20 @@ This is not a brainstorming document. It is the run list for the current public 
 
 ### Step 1: repo and docs alignment
 
-- [ ] verify [README.md](/Users/agi/PycharmProjects/agilab/README.md)
-- [ ] verify [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
-- [ ] verify [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [x] verify [README.md](/Users/agi/PycharmProjects/agilab/README.md)
+- [x] verify [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
+- [x] verify [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
 - [ ] verify docs landing page links are still valid
 
 ### Step 2: GitHub launch
 
-- [ ] publish the GitHub discussion or release note using [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
-- [ ] attach or link the canonical demo asset
-- [ ] point readers to the README quick start and docs home
+- [x] publish the GitHub discussion or release note using [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [x] attach or link the canonical demo asset
+- [x] point readers to the README quick start and docs home
+
+Published artifact:
+
+- GitHub discussion: https://github.com/ThalesGroup/agilab/discussions/8
 
 ### Step 3: LinkedIn launch
 
