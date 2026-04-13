@@ -49,7 +49,7 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
                 loaded = tomllib.load(stream)
             if isinstance(loaded, dict):
                 settings = loaded
-    except Exception:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError, tomllib.TOMLDecodeError):
         settings = {}
 
     cluster = settings.get("cluster", {}) if isinstance(settings.get("cluster"), dict) else {}
@@ -65,7 +65,7 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     verbose_raw = cluster.get("verbose", 1)
     try:
         verbose = int(verbose_raw)
-    except Exception:
+    except (TypeError, ValueError):
         verbose = 1
 
     def _safe_literal(value: Any) -> str:
@@ -160,7 +160,7 @@ def get_mlflow_module():
     """Import MLflow lazily so callers can degrade gracefully when unavailable."""
     try:
         import mlflow  # type: ignore
-    except Exception:
+    except ImportError:
         return None
     return mlflow
 
@@ -622,7 +622,7 @@ def ensure_safe_service_template(
         template_path.parent.mkdir(parents=True, exist_ok=True)
         template_path.write_text(content, encoding="utf-8")
         return template_path
-    except Exception as exc:
+    except OSError as exc:
         debug_log("Unable to ensure safe service template at %s: %s", template_path, exc)
         return None
 
@@ -687,7 +687,7 @@ def is_valid_runtime_root(venv_root: str | Path | None) -> bool:
         return False
     try:
         root = Path(venv_root).expanduser()
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return False
     if not root.exists():
         return False
@@ -728,7 +728,7 @@ def stream_run_command(
             src_root = apps_root.parent.parent
             if (src_root / "agilab").is_dir():
                 extra_python_paths.append(str(src_root))
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             pass
     if extra_python_paths:
         existing = process_env.get("PYTHONPATH")
