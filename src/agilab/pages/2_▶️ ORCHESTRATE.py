@@ -807,7 +807,6 @@ async def page() -> None:
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
-        st.session_state["server_started"] = True
 
     # Define defaults for session state keys.
     defaults = {
