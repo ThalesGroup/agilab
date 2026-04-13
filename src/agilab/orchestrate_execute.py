@@ -486,7 +486,7 @@ async def render_execute_section(
                     deleted = True
                 else:
                     st.info("Loaded file already removed from disk.")
-            except Exception as exc:
+            except OSError as exc:
                 st.error(f"Failed to delete {file_path}: {exc}")
 
         if not deleted:
@@ -559,7 +559,7 @@ async def render_execute_section(
     elif isinstance(graph_preview, nx.Graph):
         try:
             _render_graph_preview(graph_preview, source_preview_name)
-        except Exception as exc:
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
             st.error(f"Unable to render graph preview: {exc}")
 
     export_expanded = st.session_state.pop("_force_export_open", False)
