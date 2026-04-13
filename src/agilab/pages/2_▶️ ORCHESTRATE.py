@@ -157,10 +157,11 @@ except ModuleNotFoundError:
 # Project Libraries:
 from agi_env.pagelib import (
     background_services_enabled, get_about_content, render_logo, activate_mlflow, init_custom_ui, select_project,
-    inject_theme, is_valid_ip, render_dataframe_preview, resolve_active_app, store_last_active_app
+    inject_theme, is_valid_ip, render_dataframe_preview, resolve_active_app
 )
 
 from agi_env import AgiEnv
+from agi_env.ui_support import store_last_active_app
 
 # ===========================
 # Session State Initialization

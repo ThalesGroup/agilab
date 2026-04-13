@@ -54,10 +54,9 @@ from agi_env.pagelib import (
     render_logo,
     select_project,
     inject_theme,
-    load_last_active_app,
-    store_last_active_app,
 )
 from agi_env import AgiEnv
+from agi_env.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
 

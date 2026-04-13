@@ -15,11 +15,30 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from agi_env import pagelib
+from agi_env import pagelib, ui_support
 
 
 def _load_pagelib_with_missing(module_name: str, *missing_modules: str):
     module_path = Path("src/agilab/core/agi-env/src/agi_env/pagelib.py")
+    importlib.invalidate_caches()
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    original_import = __import__
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in missing_modules:
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    with patch("builtins.__import__", _patched_import):
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    return module
+
+
+def _load_ui_support_with_missing(module_name: str, *missing_modules: str):
+    module_path = Path("src/agilab/core/agi-env/src/agi_env/ui_support.py")
     importlib.invalidate_caches()
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     assert spec is not None and spec.loader is not None
@@ -115,12 +134,12 @@ def test_resolve_mlflow_backend_and_artifact_paths(tmp_path):
 
 
 def test_dump_toml_payload_supports_tomlkit_fallback_and_runtime_error():
-    fallback = _load_pagelib_with_missing("agi_env.pagelib_tomlkit_fallback", "tomli_w")
+    fallback = _load_ui_support_with_missing("agi_env.ui_support_tomlkit_fallback", "tomli_w")
     sink = io.BytesIO()
     fallback._dump_toml_payload({"last_active_app": "/tmp/demo"}, sink)
     assert b"last_active_app" in sink.getvalue()
 
-    broken = _load_pagelib_with_missing("agi_env.pagelib_no_toml_writer", "tomli_w", "tomlkit")
+    broken = _load_ui_support_with_missing("agi_env.ui_support_no_toml_writer", "tomli_w", "tomlkit")
     with pytest.raises(RuntimeError, match="Writing settings requires"):
         broken._dump_toml_payload({"demo": "value"}, io.BytesIO())
 
@@ -182,10 +201,10 @@ def test_load_last_active_app_prefers_global_state_file(tmp_path, monkeypatch):
     app_dir.mkdir()
     state_file.write_text(f'last_active_app = "{app_dir}"\n', encoding="utf-8")
 
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
-    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", legacy_file)
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", legacy_file)
 
-    assert pagelib.load_last_active_app() == app_dir
+    assert ui_support.load_last_active_app() == app_dir
 
 
 def test_load_global_state_falls_back_to_legacy_plaintext(tmp_path, monkeypatch):
@@ -193,20 +212,20 @@ def test_load_global_state_falls_back_to_legacy_plaintext(tmp_path, monkeypatch)
     legacy_file = tmp_path / ".last-active-app"
     legacy_file.write_text("/tmp/legacy-app\n", encoding="utf-8")
 
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
-    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", legacy_file)
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", legacy_file)
 
-    assert pagelib._load_global_state() == {"last_active_app": "/tmp/legacy-app"}
+    assert ui_support.load_global_state() == {"last_active_app": "/tmp/legacy-app"}
 
 
 def test_load_global_state_returns_empty_dict_for_invalid_toml_without_legacy(tmp_path, monkeypatch):
     state_file = tmp_path / "app_state.toml"
     state_file.write_text("not = [valid\n", encoding="utf-8")
 
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
-    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
 
-    assert pagelib._load_global_state() == {}
+    assert ui_support.load_global_state() == {}
 
 
 def test_store_last_active_app_persists_state(tmp_path, monkeypatch):
@@ -215,10 +234,10 @@ def test_store_last_active_app_persists_state(tmp_path, monkeypatch):
     app_dir = tmp_path / "stored_app"
     app_dir.mkdir()
 
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
-    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", legacy_file)
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", legacy_file)
 
-    pagelib.store_last_active_app(app_dir)
+    ui_support.store_last_active_app(app_dir)
 
     stored = tomllib.loads(state_file.read_text(encoding="utf-8"))
     assert stored["last_active_app"] == str(app_dir)
@@ -227,11 +246,11 @@ def test_store_last_active_app_persists_state(tmp_path, monkeypatch):
 def test_store_last_active_app_skips_persist_when_unchanged(monkeypatch, tmp_path):
     app_dir = tmp_path / "stored_app"
     app_dir.mkdir()
-    monkeypatch.setattr(pagelib, "_load_global_state", lambda: {"last_active_app": str(app_dir)})
+    monkeypatch.setattr(ui_support, "load_global_state", lambda: {"last_active_app": str(app_dir)})
     called: list[dict[str, str]] = []
-    monkeypatch.setattr(pagelib, "_persist_global_state", lambda data: called.append(data))
+    monkeypatch.setattr(ui_support, "persist_global_state", lambda data: called.append(data))
 
-    pagelib.store_last_active_app(app_dir)
+    ui_support.store_last_active_app(app_dir)
 
     assert called == []
 
@@ -239,9 +258,9 @@ def test_store_last_active_app_skips_persist_when_unchanged(monkeypatch, tmp_pat
 def test_persist_global_state_writes_toml(tmp_path, monkeypatch):
     state_file = tmp_path / "app_state.toml"
 
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
 
-    pagelib._persist_global_state({"last_active_app": "/tmp/demo"})
+    ui_support.persist_global_state({"last_active_app": "/tmp/demo"})
 
     stored = tomllib.loads(state_file.read_text(encoding="utf-8"))
     assert stored == {"last_active_app": "/tmp/demo"}
@@ -249,14 +268,14 @@ def test_persist_global_state_writes_toml(tmp_path, monkeypatch):
 
 def test_persist_global_state_swallows_dump_errors(tmp_path, monkeypatch):
     state_file = tmp_path / "app_state.toml"
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
     monkeypatch.setattr(
-        pagelib,
+        ui_support,
         "_dump_toml_payload",
         lambda _data, _handle: (_ for _ in ()).throw(OSError("disk full")),
     )
 
-    pagelib._persist_global_state({"last_active_app": "/tmp/demo"})
+    ui_support.persist_global_state({"last_active_app": "/tmp/demo"})
 
     assert state_file.exists()
 
@@ -265,16 +284,16 @@ def test_load_last_active_app_returns_none_when_target_is_missing(tmp_path, monk
     state_file = tmp_path / "app_state.toml"
     state_file.write_text('last_active_app = "/tmp/missing-app"\n', encoding="utf-8")
 
-    monkeypatch.setattr(pagelib, "_GLOBAL_STATE_FILE", state_file)
-    monkeypatch.setattr(pagelib, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
+    monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", tmp_path / ".last-active-app")
 
-    assert pagelib.load_last_active_app() is None
+    assert ui_support.load_last_active_app() is None
 
 
 def test_load_last_active_app_returns_none_for_unparseable_path(monkeypatch):
-    monkeypatch.setattr(pagelib, "_load_global_state", lambda: {"last_active_app": object()})
+    monkeypatch.setattr(ui_support, "load_global_state", lambda: {"last_active_app": object()})
 
-    assert pagelib.load_last_active_app() is None
+    assert ui_support.load_last_active_app() is None
 
 
 def test_diagnose_data_directory_reports_missing_mount(tmp_path, monkeypatch):
@@ -405,9 +424,9 @@ def test_run_failure_exits(monkeypatch):
 
 
 def test_with_anchor_appends_hash():
-    assert pagelib._with_anchor("http://example", "section") == "http://example#section"
-    assert pagelib._with_anchor("http://example", "#section") == "http://example#section"
-    assert pagelib._with_anchor("http://example", "") == "http://example"
+    assert ui_support.with_anchor("http://example", "section") == "http://example#section"
+    assert ui_support.with_anchor("http://example", "#section") == "http://example#section"
+    assert ui_support.with_anchor("http://example", "") == "http://example"
 
 
 def test_is_valid_ip_accepts_ipv4_and_rejects_out_of_range():
@@ -429,13 +448,13 @@ def test_open_docs_url_reuses_existing_tab(monkeypatch):
     def open_new_tab(url):
         opened.append(url)
 
-    pagelib._DOCS_ALREADY_OPENED = False
-    pagelib._LAST_DOCS_URL = None
-    monkeypatch.setattr(pagelib.webbrowser, "open_new_tab", open_new_tab)
-    monkeypatch.setattr(pagelib, "_focus_existing_docs_tab", lambda _: True)
+    ui_support._DOCS_ALREADY_OPENED = False
+    ui_support._LAST_DOCS_URL = None
+    monkeypatch.setattr(ui_support.webbrowser, "open_new_tab", open_new_tab)
+    monkeypatch.setattr(ui_support, "focus_existing_docs_tab", lambda _: True)
 
-    pagelib._open_docs_url("http://example/docs")
-    pagelib._open_docs_url("http://example/docs")
+    ui_support.open_docs_url("http://example/docs")
+    ui_support.open_docs_url("http://example/docs")
 
     assert opened == ["http://example/docs"]
 
@@ -448,7 +467,7 @@ def test_resolve_docs_path_prefers_build(tmp_path):
     target.write_text("hello", encoding="utf-8")
     env = SimpleNamespace(agilab_pck=pkg_root)
 
-    resolved = pagelib._resolve_docs_path(env, "index.html")
+    resolved = ui_support.resolve_docs_path(env, "index.html")
 
     assert resolved == target
 
@@ -461,7 +480,7 @@ def test_resolve_docs_path_falls_back_to_recursive_search(tmp_path):
     target.write_text("guide", encoding="utf-8")
     env = SimpleNamespace(agilab_pck=pkg_root)
 
-    resolved = pagelib._resolve_docs_path(env, "guide.html")
+    resolved = ui_support.resolve_docs_path(env, "guide.html")
 
     assert resolved == target
 
@@ -472,10 +491,10 @@ def test_open_docs_falls_back_to_online(monkeypatch):
     def fake_open(url):
         captured["url"] = url
 
-    monkeypatch.setattr(pagelib, "_open_docs_url", fake_open)
+    monkeypatch.setattr(ui_support, "open_docs_url", fake_open)
     env = SimpleNamespace(agilab_pck=Path("/does/not/exist"))
 
-    pagelib.open_docs(env, html_file="missing.html", anchor="anchor")
+    ui_support.open_docs(env, html_file="missing.html", anchor="anchor")
 
     assert captured["url"] == "https://thalesgroup.github.io/agilab/index.html#anchor"
 
@@ -489,9 +508,9 @@ def test_open_docs_prefers_local_file_when_available(tmp_path, monkeypatch):
     env = SimpleNamespace(agilab_pck=pkg_root)
 
     opened = {}
-    monkeypatch.setattr(pagelib, "_open_docs_url", lambda url: opened.setdefault("url", url))
+    monkeypatch.setattr(ui_support, "open_docs_url", lambda url: opened.setdefault("url", url))
 
-    pagelib.open_docs(env, html_file="guide.html", anchor="section")
+    ui_support.open_docs(env, html_file="guide.html", anchor="section")
 
     assert opened["url"] == f"{html_path.as_uri()}#section"
 
@@ -505,14 +524,14 @@ def test_open_local_docs_requires_existing_file(tmp_path, monkeypatch):
     env = SimpleNamespace(agilab_pck=pkg_root)
 
     opened = {}
-    monkeypatch.setattr(pagelib, "_open_docs_url", lambda url: opened.setdefault("url", url))
+    monkeypatch.setattr(ui_support, "open_docs_url", lambda url: opened.setdefault("url", url))
 
-    pagelib.open_local_docs(env, html_file="page.html", anchor="a")
+    ui_support.open_local_docs(env, html_file="page.html", anchor="a")
 
     assert opened["url"].startswith(html_path.as_uri())
 
     with pytest.raises(FileNotFoundError):
-        pagelib.open_local_docs(env, html_file="missing.html")
+        ui_support.open_local_docs(env, html_file="missing.html")
 
 
 def test_get_base64_of_image_returns_encoded_contents(tmp_path):
@@ -549,9 +568,9 @@ def test_inject_theme_renders_theme_stylesheet(tmp_path, monkeypatch):
     theme_path = tmp_path / "theme.css"
     theme_path.write_text("body { color: red; }\n", encoding="utf-8")
     markdown_calls: list[tuple[str, bool]] = []
-    monkeypatch.setitem(
-        sys.modules,
-        "streamlit",
+    monkeypatch.setattr(
+        pagelib,
+        "st",
         SimpleNamespace(markdown=lambda text, unsafe_allow_html=False: markdown_calls.append((text, unsafe_allow_html))),
     )
 
@@ -565,9 +584,9 @@ def test_inject_theme_falls_back_to_binary_decode_when_text_read_fails(tmp_path,
     theme_path = tmp_path / "theme.css"
     theme_path.write_bytes(b"\xffbody { color: blue; }\n")
     markdown_calls: list[tuple[str, bool]] = []
-    monkeypatch.setitem(
-        sys.modules,
-        "streamlit",
+    monkeypatch.setattr(
+        pagelib,
+        "st",
         SimpleNamespace(markdown=lambda text, unsafe_allow_html=False: markdown_calls.append((text, unsafe_allow_html))),
     )
 
@@ -583,16 +602,16 @@ def test_inject_theme_falls_back_to_binary_decode_when_text_read_fails(tmp_path,
 def test_open_docs_url_reopens_tab_when_focus_fails(monkeypatch):
     opened = []
 
-    pagelib._DOCS_ALREADY_OPENED = True
-    pagelib._LAST_DOCS_URL = "http://example/docs"
-    monkeypatch.setattr(pagelib, "_focus_existing_docs_tab", lambda _: False)
-    monkeypatch.setattr(pagelib.webbrowser, "open_new_tab", lambda url: opened.append(url))
+    ui_support._DOCS_ALREADY_OPENED = True
+    ui_support._LAST_DOCS_URL = "http://example/docs"
+    monkeypatch.setattr(ui_support, "focus_existing_docs_tab", lambda _: False)
+    monkeypatch.setattr(ui_support.webbrowser, "open_new_tab", lambda url: opened.append(url))
 
-    pagelib._open_docs_url("http://example/docs")
+    ui_support.open_docs_url("http://example/docs")
 
     assert opened == ["http://example/docs"]
-    assert pagelib._DOCS_ALREADY_OPENED is True
-    assert pagelib._LAST_DOCS_URL == "http://example/docs"
+    assert ui_support._DOCS_ALREADY_OPENED is True
+    assert ui_support._LAST_DOCS_URL == "http://example/docs"
 
 
 def test_cached_load_df_uses_session_max_rows_and_zero_means_all(monkeypatch):
@@ -1303,9 +1322,9 @@ def test_detect_agilab_version_prefers_source_pyproject_and_git_metadata(tmp_pat
             return SimpleNamespace(stdout="abc123\n")
         return SimpleNamespace(stdout="dirty\n")
 
-    monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
+    monkeypatch.setattr(ui_support.subprocess, "run", fake_run)
 
-    version = pagelib._detect_agilab_version(SimpleNamespace(is_source_env=True, agilab_pck=tmp_path))
+    version = ui_support.detect_agilab_version(SimpleNamespace(is_source_env=True, agilab_pck=tmp_path))
 
     assert version == "2026.4.2+dev.abc123*"
     assert len(calls) == 2
@@ -1327,15 +1346,15 @@ def test_read_version_from_pyproject_falls_back_to_cwd_and_skips_foreign_project
     )
     monkeypatch.chdir(nested)
 
-    version = pagelib._read_version_from_pyproject(SimpleNamespace(agilab_pck=foreign_root))
+    version = ui_support.read_version_from_pyproject(SimpleNamespace(agilab_pck=foreign_root))
 
     assert version == "2026.4.11"
 
 
 def test_detect_agilab_version_falls_back_to_installed_metadata(monkeypatch):
-    monkeypatch.setattr(pagelib, "_importlib_metadata", SimpleNamespace(version=lambda _name: "9.9.9"))
+    monkeypatch.setattr(ui_support, "_importlib_metadata", SimpleNamespace(version=lambda _name: "9.9.9"))
 
-    version = pagelib._detect_agilab_version(SimpleNamespace(is_source_env=False, agilab_pck=None))
+    version = ui_support.detect_agilab_version(SimpleNamespace(is_source_env=False, agilab_pck=None))
 
     assert version == "9.9.9"
 
@@ -2332,10 +2351,10 @@ def test_current_mount_points_returns_empty_dict_when_mount_query_fails(monkeypa
 
 
 def test_detect_agilab_version_returns_dev_suffix_when_git_metadata_fails(monkeypatch):
-    monkeypatch.setattr(pagelib, "_read_version_from_pyproject", lambda _env: "2026.04.13")
-    monkeypatch.setattr(pagelib.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("git boom")))
+    monkeypatch.setattr(ui_support, "read_version_from_pyproject", lambda _env: "2026.04.13")
+    monkeypatch.setattr(ui_support.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("git boom")))
 
-    version = pagelib._detect_agilab_version(SimpleNamespace(is_source_env=True, agilab_pck=Path("/tmp/demo")))
+    version = ui_support.detect_agilab_version(SimpleNamespace(is_source_env=True, agilab_pck=Path("/tmp/demo")))
 
     assert version == "2026.04.13+dev"
 

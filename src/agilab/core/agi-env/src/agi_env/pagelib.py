@@ -26,48 +26,36 @@ import streamlit as st
 import time
 import random
 import socket
-import base64
 import runpy
 from typing import Dict, Optional
 import sys
 import logging
-import webbrowser
 import shlex
 from . import mlflow_store
+from .ui_support import (
+    _GLOBAL_STATE_FILE,
+    _LEGACY_LAST_APP_FILE,
+    _dump_toml_payload,
+    detect_agilab_version as _detect_agilab_version,
+    focus_existing_docs_tab as _focus_existing_docs_tab,
+    load_global_state as _load_global_state,
+    load_last_active_app,
+    open_docs,
+    open_docs_url as _open_docs_url,
+    open_local_docs,
+    persist_global_state as _persist_global_state,
+    read_base64_image,
+    read_css_text,
+    read_theme_css,
+    read_version_from_pyproject as _read_version_from_pyproject,
+    resolve_docs_path as _resolve_docs_path,
+    store_last_active_app,
+    with_anchor as _with_anchor,
+)
 logger = logging.getLogger(__name__)
-try:
-    # Python 3.8+
-    from importlib import metadata as _importlib_metadata  # type: ignore
-except Exception:  # pragma: no cover
-    _importlib_metadata = None  # type: ignore
-import tomllib
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
 DEFAULT_DF_PREVIEW_MAX_COLS = 40
-
-try:  # pragma: no cover - optional dependency
-    import tomli_w as _tomli_writer  # type: ignore[import-not-found]
-
-    def _dump_toml_payload(data: dict, handle) -> None:
-        _tomli_writer.dump(data, handle)
-
-except ModuleNotFoundError:
-    try:
-        from tomlkit import dumps as _tomlkit_dumps
-
-        def _dump_toml_payload(data: dict, handle) -> None:
-            handle.write(_tomlkit_dumps(data).encode("utf-8"))
-
-    except Exception as _toml_exc:  # pragma: no cover - defensive
-
-        def _dump_toml_payload(data: dict, handle, _import_error=_toml_exc) -> None:
-            raise RuntimeError(
-                "Writing settings requires the 'tomli-w' or 'tomlkit' package."
-            ) from _import_error
-
-# Shared last-active-app helpers (persisted in a single TOML state file)
-_GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
-_LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
 DEFAULT_MLFLOW_EXPERIMENT_NAME = "Default"
 DEFAULT_MLFLOW_DB_NAME = "mlflow.db"
 DEFAULT_MLFLOW_ARTIFACT_DIR = "artifacts"
@@ -181,58 +169,6 @@ def _ensure_default_mlflow_experiment(tracking_dir: Path) -> str | None:
         default_experiment_name=DEFAULT_MLFLOW_EXPERIMENT_NAME,
         schema_reset_markers=_MLFLOW_SCHEMA_RESET_MARKERS,
     )
-
-
-def _load_global_state() -> Dict[str, str]:
-    try:
-        if _GLOBAL_STATE_FILE.exists():
-            with _GLOBAL_STATE_FILE.open("rb") as fh:
-                data = tomllib.load(fh)
-                return data if isinstance(data, dict) else {}
-    except Exception:
-        pass
-    # Legacy plaintext fallback for older installs
-    try:
-        if _LEGACY_LAST_APP_FILE.exists():
-            raw = _LEGACY_LAST_APP_FILE.read_text(encoding="utf-8").strip()
-            if raw:
-                return {"last_active_app": raw}
-    except Exception:
-        pass
-    return {}
-
-
-def _persist_global_state(data: Dict[str, str]) -> None:
-    try:
-        _GLOBAL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with _GLOBAL_STATE_FILE.open("wb") as fh:
-            _dump_toml_payload(data, fh)
-    except Exception:
-        pass
-
-
-def load_last_active_app() -> Path | None:
-    state = _load_global_state()
-    raw = state.get("last_active_app")
-    if not raw:
-        return None
-    try:
-        cand = Path(raw).expanduser()
-    except Exception:
-        return None
-    return cand if cand.exists() else None
-
-
-def store_last_active_app(path: Path) -> None:
-    try:
-        normalized = str(path.expanduser())
-    except Exception:
-        return
-    state = _load_global_state()
-    if state.get("last_active_app") == normalized:
-        return
-    state["last_active_app"] = normalized
-    _persist_global_state(state)
 
 
 
@@ -469,244 +405,33 @@ def run(command, cwd=None):
         log(f"Error Output: {e.stderr.decode().strip()}")
         sys.exit(e.returncode)
 
-
-import webbrowser
-
-# Track whether docs have been opened during the session to avoid reopening
-_DOCS_ALREADY_OPENED = False
-_LAST_DOCS_URL: Optional[str] = None
-
-
-def _with_anchor(url: str, anchor: str) -> str:
-    if anchor:
-        if not anchor.startswith("#"):
-            anchor = "#" + anchor
-        return url + anchor
-    return url
-
-
-def _open_docs_url(target_url: str) -> None:
-    """Open the docs URL, trying to reuse existing browser tabs when possible."""
-    global _DOCS_ALREADY_OPENED, _LAST_DOCS_URL
-
-    if _DOCS_ALREADY_OPENED and _LAST_DOCS_URL == target_url:
-        if _focus_existing_docs_tab(target_url):
-            return
-        webbrowser.open_new_tab(target_url)
-        _DOCS_ALREADY_OPENED = True
-        _LAST_DOCS_URL = target_url
-        return
-
-    webbrowser.open_new_tab(target_url)
-    _DOCS_ALREADY_OPENED = True
-    _LAST_DOCS_URL = target_url
-
-def _resolve_docs_path(env, html_file: str) -> Path | None:
-    """Return the first docs HTML path that exists for the requested file."""
-    candidates = [
-        env.agilab_pck.parent / "docs" / "build",
-        env.agilab_pck.parent / "docs" / "html",
-        env.agilab_pck / "docs" / "build",
-        env.agilab_pck / "docs" / "html",
-    ]
-
-    for base in candidates:
-        candidate = base / html_file
-        if candidate.exists():
-            return candidate
-
-    docs_root = env.agilab_pck.parent / "docs"
-    if docs_root.exists():
-        matches = list(docs_root.rglob(html_file))
-        if matches:
-            return matches[0]
-
-    return None
-
-
-def open_docs(env, html_file="index.html", anchor=""):
-    """
-    Opens the local Sphinx docs in a new browser tab.
-    If the local documentation file is not found, it opens the online docs.
-
-    Args:
-        env: An environment object that helps locate the docs directory.
-        html_file (str): Which HTML file within the docs/build/ folder to open (default 'index.html').
-        anchor (str, optional): Optional hash anchor (e.g. '#project-editor').
-    """
-    global _DOCS_ALREADY_OPENED, _LAST_DOCS_URL
-
-    target_url: Optional[str] = None
-    docs_path = _resolve_docs_path(env, html_file)
-
-    if docs_path is None:
-        print("Documentation file not found locally. Opening online docs instead.")
-        online_url = "https://thalesgroup.github.io/agilab/index.html"
-        target_url = _with_anchor(online_url, anchor)
-    else:
-        # Construct a file:// URL with an optional anchor
-        target_url = _with_anchor(docs_path.as_uri(), anchor)
-
-    _open_docs_url(target_url)
-
-
-def open_local_docs(env, html_file="index.html", anchor=""):
-    """
-    Open the local documentation without falling back to the hosted site.
-
-    Raises:
-        FileNotFoundError: If the requested local documentation file cannot be located.
-    """
-    docs_path = _resolve_docs_path(env, html_file)
-    if docs_path is None:
-        raise FileNotFoundError(f"Local documentation file '{html_file}' was not found.")
-
-    target_url = _with_anchor(docs_path.as_uri(), anchor)
-    _open_docs_url(target_url)
-
-
-
 def get_base64_of_image(image_path):
-    """
-    Reads an image file and encodes it to a Base64 string.
-
-    Returns:
-        str: The Base64 encoded string of the image file.
-
-    Raises:
-        FileNotFoundError: If the image file cannot be found.
-        IOError: If an error occurs during file reading or encoding.
-    """
     try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except Exception as e:
-        st.error(f"Error loading {image_path}: {e}")
+        return read_base64_image(image_path)
+    except Exception as exc:
+        st.error(f"Error loading {image_path}: {exc}")
         return ""
+
 
 @st.cache_data
 def get_css_text():
-    env = st.session_state["env"]
-    with open(env.st_resources / "code_editor.scss") as file:
-        return file.read()
+    return read_css_text(st.session_state["env"].st_resources)
+
 
 @st.cache_resource
 def inject_theme(base_path: Path | None = None) -> None:
-    """Apply the AGILAB theme CSS from the given resources directory."""
-    import streamlit as st
-
-    if base_path is None:
-        base_path = Path(__file__).resolve().parents[1] / "resources"
-    css_path = Path(base_path) / "theme.css"
-    if css_path.exists():
-        try:
-            css = css_path.read_text(encoding="utf-8")
-        except Exception:
-            try:
-                with css_path.open("rb") as fh:
-                    css = fh.read().decode("utf-8", errors="replace")
-            except Exception:
-                # Give up silently; theme is optional
-                return
+    css = read_theme_css(base_path, module_file=__file__)
+    if css is not None:
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-
-def _read_version_from_pyproject(env) -> str | None:
-    """Read version from pyproject.toml when running from source checkout.
-
-    Returns version string or None.
-    """
-    try:
-        root = env.agilab_pck if env else None
-        py_paths: list[Path] = []
-        if root:
-            py_paths.append(Path(root) / "pyproject.toml")
-        # Fallback: look for a repo pyproject.toml from current working dir upwards (dev runs)
-        try:
-            here = Path.cwd().resolve()
-            for _ in range(4):  # limit upward search
-                py = here / "pyproject.toml"
-                if py.exists():
-                    py_paths.append(py)
-                    break
-                if here.parent == here:
-                    break
-                here = here.parent
-        except Exception:
-            pass
-        for py in py_paths:
-            try:
-                if not py.exists():
-                    continue
-                with py.open("rb") as f:
-                    data = tomllib.load(f)
-                proj = (data.get("project") or {})
-                name = str(proj.get("name") or "").strip().lower()
-                if name and name != "agilab":
-                    # Not our project file; continue searching
-                    continue
-                ver = str(proj.get("version") or "").strip()
-                if ver:
-                    return ver
-            except Exception:
-                continue
-        return None
-    except Exception:
-        return None
-
-
-def _detect_agilab_version(env) -> str:
-    """Determine AGILab version for sidebar display.
-
-    - Prefer pyproject version in source env.
-    - Fallback to installed distribution metadata.
-    - Return empty string if unavailable.
-    """
-    if env and env.is_source_env:
-        v = _read_version_from_pyproject(env)
-        if v:
-            # Append a dev suffix with git metadata when available
-            suffix = ""
-            try:
-                repo = Path(env.agilab_pck or ".")
-                # Short SHA
-                sha = subprocess.run(
-                    ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                ).stdout.strip()
-                # Dirty marker
-                dirty = subprocess.run(
-                    ["git", "-C", str(repo), "status", "--porcelain"],
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                ).stdout
-                dirty_mark = "*" if dirty.strip() else ""
-                suffix = f"+dev.{sha}{dirty_mark}" if sha else "+dev"
-            except Exception:
-                suffix = "+dev"
-            return f"{v}{suffix}"
-    if _importlib_metadata is not None:
-        try:
-            return _importlib_metadata.version("agilab")
-        except Exception:
-            pass
-    return ""
 
 
 def render_logo(*_args, **_kwargs):
-    if "env" in st.session_state:
-        env = st.session_state["env"]
-    else:
+    env = st.session_state.get("env")
+    if env is None:
         return
 
     agilab_logo_path = env.st_resources / "agilab_logo.png"
     if agilab_logo_path.exists():
-        # Render in normal sidebar flow so it does not overlap controls and
-        # scrolls with the sidebar content.
         st.sidebar.image(str(agilab_logo_path), width=170)
         version = _detect_agilab_version(env)
         if version:
@@ -2106,73 +1831,3 @@ def activate_gpt_oss(env=None):
         st.session_state.pop("gpt_oss_extra_args_active", None)
     st.session_state.pop("gpt_oss_autostart_failed", None)
     return True
-def _focus_existing_docs_tab(target_url: str) -> bool:
-    """Best-effort attempt to focus an existing docs tab instead of opening a new one."""
-    if sys.platform != "darwin":
-        return False
-
-    escaped = target_url.replace("\\", "\\\\").replace("\"", "\\\"")
-    script = f'''
-on chrome_activate(targetUrl)
-    tell application "Google Chrome"
-        repeat with w in windows
-            set tabIndex to 0
-            repeat with t in tabs of w
-                set tabIndex to tabIndex + 1
-                if (URL of t is targetUrl) then
-                    set active tab index of w to tabIndex
-                    set index of w to 1
-                    activate
-                    return true
-                end if
-            end repeat
-        end repeat
-    end tell
-    return false
-end chrome_activate
-
-on safari_activate(targetUrl)
-    tell application "Safari"
-        repeat with w in windows
-            repeat with t in tabs of w
-                if (URL of t is targetUrl) then
-                    set current tab of w to t
-                    set index of w to 1
-                    activate
-                    return true
-                end if
-            end repeat
-        end repeat
-    end tell
-    return false
-end safari_activate
-
-tell application "System Events"
-    set chromeRunning to (exists process "Google Chrome")
-    set safariRunning to (exists process "Safari")
-end tell
-
-if chromeRunning then
-    if chrome_activate("{escaped}") then return true
-end if
-
-if safariRunning then
-    if safari_activate("{escaped}") then return true
-end if
-
-return false
-'''
-
-    try:
-        result = subprocess.run(
-            ["osascript", "-"],
-            input=script,
-            text=True,
-            capture_output=True,
-            timeout=2,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip().lower().endswith("true")
-    except Exception:
-        pass
-    return False
