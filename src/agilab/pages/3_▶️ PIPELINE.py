@@ -171,6 +171,7 @@ try:
         refresh_notebook_export,
         remove_step,
         save_step,
+        toml_to_notebook,
     )
 except ModuleNotFoundError:
     _pipeline_editor_path = Path(__file__).resolve().parents[1] / "pipeline_editor.py"
@@ -187,6 +188,7 @@ except ModuleNotFoundError:
     refresh_notebook_export = _pipeline_editor_module.refresh_notebook_export
     remove_step = _pipeline_editor_module.remove_step
     save_step = _pipeline_editor_module.save_step
+    toml_to_notebook = _pipeline_editor_module.toml_to_notebook
 try:
     from agilab.pipeline_lab import PipelineLabDeps, display_lab_tab
 except ModuleNotFoundError:
@@ -778,6 +780,19 @@ def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[s
     return list(data.get(module_key, []))
 
 
+def _ensure_notebook_export(steps_file: Path) -> None:
+    """Materialize the notebook export for a steps file when missing."""
+    notebook_path = steps_file.with_suffix(".ipynb")
+    if notebook_path.exists():
+        return
+    try:
+        with open(steps_file, "rb") as stream:
+            steps_full = tomllib.load(stream)
+        toml_to_notebook(steps_full, steps_file)
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, TypeError, ValueError) as exc:
+        logger.warning(f"Skipping notebook generation: {exc}")
+
+
 def load_all_steps(
     module_path: Path,
     steps_file: Path,
@@ -794,14 +809,8 @@ def load_all_steps(
         filtered_entries = _prune_invalid_entries(raw_entries)
         if filtered_entries and not st.session_state[index_page][-1]:
             st.session_state[index_page][-1] = len(filtered_entries)
-        # Lazily materialize a notebook if it's missing; read full TOML once
         if filtered_entries and not steps_file.with_suffix(".ipynb").exists():
-            try:
-                with open(steps_file, "rb") as f:
-                    steps_full = tomllib.load(f)
-                toml_to_notebook(steps_full, steps_file)
-            except Exception as e:
-                logger.warning(f"Skipping notebook generation: {e}")
+            _ensure_notebook_export(steps_file)
         return filtered_entries
     except FileNotFoundError:
         return []
