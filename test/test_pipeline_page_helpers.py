@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+from streamlit.errors import StreamlitAPIException
+
 
 def _load_pipeline_module():
     module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
@@ -93,3 +95,51 @@ def test_ensure_notebook_export_logs_invalid_toml(tmp_path, monkeypatch):
     module._ensure_notebook_export(steps_file)
 
     assert any("Skipping notebook generation:" in message for message in warnings)
+
+
+def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    download_calls: list[dict[str, object]] = []
+    errors: list[str] = []
+    fake_sidebar = SimpleNamespace(
+        download_button=lambda label, **kwargs: download_calls.append({"label": label, **kwargs}),
+        error=lambda message: errors.append(str(message)),
+    )
+    monkeypatch.setattr(module.st, "sidebar", fake_sidebar)
+
+    notebook_path = tmp_path / "lab_steps.ipynb"
+    notebook_path.write_bytes(b'{"cells": []}')
+
+    module._render_notebook_download_button(notebook_path, "pipeline-export")
+
+    assert download_calls == [
+        {
+            "label": "Export notebook",
+            "data": b'{"cells": []}',
+            "file_name": "lab_steps.ipynb",
+            "mime": "application/x-ipynb+json",
+            "key": "pipeline-export",
+        }
+    ]
+    assert errors == []
+
+
+def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    errors: list[str] = []
+
+    def _raise_download_error(_label, **_kwargs):
+        raise StreamlitAPIException("download failed")
+
+    fake_sidebar = SimpleNamespace(
+        download_button=_raise_download_error,
+        error=lambda message: errors.append(str(message)),
+    )
+    monkeypatch.setattr(module.st, "sidebar", fake_sidebar)
+
+    notebook_path = tmp_path / "lab_steps.ipynb"
+    notebook_path.write_bytes(b'{"cells": []}')
+
+    module._render_notebook_download_button(notebook_path, "pipeline-export")
+
+    assert errors == ["Failed to prepare notebook export: download failed"]
