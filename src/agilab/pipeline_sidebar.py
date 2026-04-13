@@ -59,7 +59,7 @@ def on_lab_change(new_index_page: str) -> None:
             if cand.exists():
                 store_last_active_app(cand)
                 break
-    except Exception:
+    except (AttributeError, TypeError, OSError):
         pass
 
 
@@ -73,7 +73,7 @@ def available_lab_modules(env: AgiEnv, export_root: Path) -> List[str]:
             getattr(env, "apps_repository_root", None),
         )
         modules.extend(str(project).strip() for project in projects if str(project).strip())
-    except Exception:
+    except (AttributeError, OSError, RuntimeError, TypeError):
         pass
     if not modules:
         modules = [str(module).strip() for module in scan_dir(export_root) if str(module).strip()]
