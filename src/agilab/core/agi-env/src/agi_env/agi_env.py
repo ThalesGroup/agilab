@@ -66,6 +66,11 @@ import importlib.resources as importlib_resources
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.defaults import get_default_openai_model
+from agi_env.installation_support import (
+    installation_marker_path,
+    locate_agilab_installation_path,
+    read_agilab_installation_marker,
+)
 from agi_env.process_support import (
     apply_inline_path_export,
     build_subprocess_env,
@@ -1521,60 +1526,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     @staticmethod
     def read_agilab_path(verbose=False):
         """Return the persisted AGILab installation path if previously recorded."""
-
-        if os.name == "nt":
-            where_is_agi = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.agilab-path"
-        else:
-            where_is_agi = Path.home() / ".local/share/agilab/.agilab-path"
-
-        if where_is_agi.exists():
-            try:
-                with where_is_agi.open("r", encoding="utf-8-sig") as f:
-                    install_path = f.read().strip()
-                    agilab_path = Path(install_path)
-                    if install_path and agilab_path.exists():
-                        return agilab_path
-                    else:
-                        raise ValueError("Installation path file is empty or invalid.")
-            except FileNotFoundError:
-                logger = AgiEnv.logger
-                if logger:
-                    logger.error(f"File {where_is_agi} does not exist.")
-            except PermissionError:
-                logger = AgiEnv.logger
-                if logger:
-                    logger.error(f"Permission denied when accessing {where_is_agi}.")
-            except Exception as e:
-                logger = AgiEnv.logger
-                if logger:
-                    logger.error(f"An error occurred: {e}")
-        else:
-            return False
+        marker = installation_marker_path(
+            os_name=os.name,
+            home=Path.home(),
+            localappdata=os.getenv("LOCALAPPDATA", ""),
+        )
+        return read_agilab_installation_marker(marker, logger=AgiEnv.logger)
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
         """Attempt to locate the installed AGILab package path on disk."""
-
-        try:
-            spec = importlib.util.find_spec("agilab")
-        except ModuleNotFoundError:
-            spec = None
-
-        if spec is not None and spec.origin:
-            agilab_root = Path(spec.origin).resolve().parent
-            if (agilab_root / "apps").exists():
-                return agilab_root
-
-        base_dir = Path(__file__).resolve().parents[2] / "agi_env"
-        candidate_repo = Path(__file__).resolve().parents[4]
-        if (candidate_repo / "apps").exists():
-            return candidate_repo
-
-        before, sep, _ = str(base_dir).rpartition("agilab")
-        fallback = Path(before) / sep if sep else base_dir.parent
-        if (fallback / "apps").exists():
-            return fallback
-        return base_dir.parent
+        return locate_agilab_installation_path(
+            module_file=__file__,
+            find_spec=importlib.util.find_spec,
+        )
 
     # Backwards-compatible alias kept for older tests and scripts
     @staticmethod
