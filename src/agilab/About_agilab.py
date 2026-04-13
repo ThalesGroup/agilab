@@ -764,7 +764,6 @@ def main() -> None:
 
             if background_services_enabled() and not st.session_state.get("server_started"):
                 activate_mlflow(env)
-                st.session_state["server_started"] = True
 
             try:
                 store_last_active_app(Path(env.apps_path) / env.app)

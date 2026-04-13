@@ -220,6 +220,7 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: True)
     monkeypatch.setattr(
         pagelib.subprocess,
         "run",
@@ -298,6 +299,7 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: True)
     monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
 
     pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
@@ -305,6 +307,36 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     assert migrate["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
     assert migrate["cmd"][5] == str(tracking_dir)
     assert migrate["cmd"][7] == pagelib._sqlite_uri_for_path(tracking_dir / "mlflow.db")
+
+
+def test_activate_mlflow_reports_port_start_failure(tmp_path, monkeypatch):
+    errors = []
+
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    fake_st = SimpleNamespace(session_state=FakeSessionState(), error=lambda message: errors.append(message))
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_ensure_default_mlflow_experiment", lambda _tracking_dir: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(pagelib, "_resolve_mlflow_artifact_dir", lambda _tracking_dir: tmp_path / "artifacts")
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
+
+    started = pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
+
+    assert started is False
+    assert fake_st.session_state.get("server_started") is False
+    assert "mlflow_port" not in fake_st.session_state
+    assert any("did not open its listening port" in message for message in errors)
 
 
 def test_ensure_mlflow_backend_ready_repairs_default_experiment_id_zero(tmp_path):

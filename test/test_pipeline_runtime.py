@@ -114,6 +114,15 @@ def test_get_mlflow_module_and_legacy_filestore_helpers(monkeypatch, tmp_path):
     monkeypatch.setattr("builtins.__import__", fake_import)
     assert pipeline_runtime.get_mlflow_module() is None
 
+    def fake_runtime_import(name, *args, **kwargs):
+        if name == "mlflow":
+            raise RuntimeError("boom")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_runtime_import)
+    with pytest.raises(RuntimeError, match="boom"):
+        pipeline_runtime.get_mlflow_module()
+
     tracking_dir = tmp_path / "mlflow-store"
     tracking_dir.mkdir()
     (tracking_dir / ".trash").mkdir()
@@ -792,7 +801,7 @@ def test_ensure_default_mlflow_experiment_handles_none_create_failure_and_unexpe
             return None
 
         def create_experiment(self, *_args, **_kwargs):
-            raise RuntimeError("ignore")
+            raise RuntimeError("already exists")
 
         def set_experiment(self, name):
             calls.append(f"set:{name}")

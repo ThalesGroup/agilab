@@ -21,7 +21,7 @@ import sys
 def get_mlflow_module():
     try:
         import mlflow  # type: ignore
-    except Exception:
+    except ImportError:
         return None
     return mlflow
 
@@ -84,12 +84,13 @@ def repair_mlflow_default_experiment_db(
     default_experiment_name: str,
     sqlite_identifier_fn,
     artifact_uri: str | None = None,
+    connect_fn=sqlite3.connect,
 ) -> bool:
     if not db_path.exists():
         return False
 
     try:
-        with sqlite3.connect(str(db_path)) as conn:
+        with connect_fn(str(db_path)) as conn:
             table_names = {
                 row[0]
                 for row in conn.execute(
@@ -164,6 +165,7 @@ def ensure_mlflow_sqlite_schema_current(
     sqlite_uri_for_path_fn,
     schema_reset_markers: tuple[str, ...],
     reset_backend_fn,
+    connect_fn=sqlite3.connect,
     run_cmd=subprocess.run,
     sys_executable: str = sys.executable,
 ) -> None:
@@ -175,7 +177,7 @@ def ensure_mlflow_sqlite_schema_current(
         return
 
     try:
-        with sqlite3.connect(db_path) as conn:
+        with connect_fn(db_path) as conn:
             has_alembic_version = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'alembic_version'"
             ).fetchone()
@@ -296,8 +298,10 @@ def ensure_default_mlflow_experiment(
                 if callable(create_experiment):
                     try:
                         create_experiment(default_experiment_name, artifact_location=artifact_uri)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        refreshed = get_experiment(default_experiment_name) if callable(get_experiment) else None
+                        if refreshed is None and "already exists" not in str(exc).lower():
+                            raise
             mlflow.set_experiment(default_experiment_name)
             return backend_uri
         except Exception as exc:

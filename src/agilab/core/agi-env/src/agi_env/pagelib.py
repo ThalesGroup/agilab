@@ -736,6 +736,15 @@ def subproc(command, cwd):
     ).stdout
 
 
+def _wait_for_listen_port(port: int, *, timeout_sec: float = 5.0, poll_interval_sec: float = 0.1) -> bool:
+    deadline = time.monotonic() + max(timeout_sec, 0.0)
+    while time.monotonic() < deadline:
+        if is_port_in_use(port):
+            return True
+        time.sleep(max(poll_interval_sec, 0.01))
+    return is_port_in_use(port)
+
+
 def get_projects_zip():
     """
     Get a list of zip file names for projects.
@@ -1989,10 +1998,21 @@ def activate_mlflow(env=None):
             f"--port {port}"
         )
         subproc(cmd, os.getcwd())
+        if not _wait_for_listen_port(port):
+            st.session_state["server_started"] = False
+            st.session_state.pop("mlflow_port", None)
+            st.error(
+                "Failed to start the MLflow server: the process did not open its listening port."
+            )
+            return False
         st.session_state.server_started = True
         st.session_state["mlflow_port"] = port
+        return True
     except Exception as e:
+        st.session_state["server_started"] = False
+        st.session_state.pop("mlflow_port", None)
         st.error(f"Failed to start the server: {e}")
+        return False
 
 
 def activate_gpt_oss(env=None):

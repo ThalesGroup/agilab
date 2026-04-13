@@ -1852,7 +1852,6 @@ def page():
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
-        st.session_state["server_started"] = True
 
     # Check if we need to switch the sidebar tab to "Select"
     if st.session_state.get("switch_to_edit", False):

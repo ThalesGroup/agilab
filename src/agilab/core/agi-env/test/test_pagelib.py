@@ -89,6 +89,20 @@ def test_get_mlflow_module_returns_imported_module(monkeypatch):
     assert pagelib._get_mlflow_module() is sentinel
 
 
+def test_get_mlflow_module_reraises_non_import_errors(monkeypatch):
+    real_import = __import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "mlflow":
+            raise RuntimeError("boom")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        pagelib._get_mlflow_module()
+
+
 def test_resolve_mlflow_backend_and_artifact_paths(tmp_path):
     tracking_dir = tmp_path / "mlflow"
 
@@ -859,6 +873,7 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: True)
     monkeypatch.setattr(
         pagelib.subprocess,
         "run",
@@ -937,6 +952,7 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     monkeypatch.setattr(pagelib, "_get_mlflow_module", lambda: FakeMlflow())
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: True)
     monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
 
     pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
@@ -2132,6 +2148,7 @@ def test_activate_mlflow_and_gpt_oss_cover_no_env_and_runtime_failures(monkeypat
     monkeypatch.setattr(pagelib, "_resolve_mlflow_artifact_dir", lambda _tracking_dir: tmp_path / "artifacts")
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: True)
     monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
     pagelib.activate_mlflow(env)
     assert any("Failed to start the server: boom" in message for message in errors)
@@ -2180,6 +2197,36 @@ def test_ensure_default_mlflow_experiment_ignores_create_error_and_retries_only_
     assert uri == "sqlite:///tmp/mlflow.db"
     assert calls["create"] == 1
     assert calls["set_experiment"] == pagelib.DEFAULT_MLFLOW_EXPERIMENT_NAME
+
+
+def test_activate_mlflow_keeps_server_stopped_when_port_never_opens(tmp_path, monkeypatch):
+    errors: list[str] = []
+
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    fake_st = SimpleNamespace(session_state=FakeSessionState(), error=lambda message: errors.append(message))
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_ensure_default_mlflow_experiment", lambda _tracking_dir: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(pagelib, "_resolve_mlflow_artifact_dir", lambda _tracking_dir: tmp_path / "artifacts")
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
+
+    started = pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
+
+    assert started is False
+    assert fake_st.session_state.get("server_started") is False
+    assert "mlflow_port" not in fake_st.session_state
+    assert any("did not open its listening port" in message for message in errors)
 
 
 def test_ensure_default_mlflow_experiment_reraises_non_schema_error(tmp_path, monkeypatch):
