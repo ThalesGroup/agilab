@@ -41,7 +41,7 @@ except ModuleNotFoundError:
     render_page_docs_access = _page_docs_module.render_page_docs_access
 
 # --- minimal session-state safety (add this block) ---
-def _pre_render_reset():
+def _pre_render_reset() -> None:
     # If last run asked for a reset, clear BEFORE widgets are created this run
     if st.session_state.pop("env_editor_reset", False):
         st.session_state["env_editor_new_key"] = ""
@@ -55,22 +55,8 @@ st.session_state.setdefault("env_editor_feedback", None)
 
 from agi_env.pagelib import background_services_enabled, inject_theme, load_last_active_app, store_last_active_app
 
-def _render_env_editor(env, help_file: Path | None = None):
-    feedback = st.session_state.pop("env_editor_feedback", None)
-    if feedback:
-        st.success(feedback)
-
-    # Clear inputs BEFORE widgets are created in this run
-    if st.session_state.pop("env_editor_reset", False):
-        st.session_state["env_editor_new_key"] = ""
-        st.session_state["env_editor_new_value"] = ""
-
-    # Provide defaults (safe before instantiation)
-    st.session_state.setdefault("env_editor_new_key", "")
-    st.session_state.setdefault("env_editor_new_value", "")
-
 # ----------------- Fast-Loading Banner UI -----------------
-def quick_logo(resources_path: Path):
+def quick_logo(resources_path: Path) -> None:
     """Render a lightweight banner with the AGILab logo."""
     try:
         from agi_env.pagelib import get_base64_of_image
@@ -92,7 +78,7 @@ def quick_logo(resources_path: Path):
         st.info("Welcome to AGILAB", icon="📦")
 
 
-def display_landing_page(resources_path: Path):
+def display_landing_page(resources_path: Path) -> None:
     """Display the introductory copy describing AGILab's value proposition."""
     from agi_env.pagelib import get_base64_of_image
     # You can optionally show a small logo here if wanted.
@@ -128,7 +114,7 @@ def display_landing_page(resources_path: Path):
     st.markdown(md_content, unsafe_allow_html=True)
 
 
-def show_banner_and_intro(resources_path: Path):
+def show_banner_and_intro(resources_path: Path) -> None:
     """Render the branding banner."""
     quick_logo(resources_path)
 
@@ -143,7 +129,7 @@ def _clean_openai_key(key: str | None) -> str | None:
     return trimmed
 
 
-def openai_status_banner(env):
+def openai_status_banner(env: Any) -> None:
     """Show a non-blocking banner if OpenAI features are unavailable and direct users to the env editor."""
     import os
 
@@ -470,7 +456,7 @@ def _refresh_env_from_file(env: Any) -> None:
     st.session_state["env_file_mtime_ns"] = current_mtime
 
 
-def _render_env_editor(env, help_file: Path | None = None):
+def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     feedback = st.session_state.pop("env_editor_feedback", None)
     if feedback:
         st.success(feedback)
@@ -606,7 +592,7 @@ def _render_env_editor(env, help_file: Path | None = None):
     except (OSError, UnicodeError) as exc:
         st.error(f"Unable to read env files: {exc}")
 
-def page(env):
+def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
     cols = st.columns(1)
 
@@ -672,7 +658,7 @@ def page(env):
 
 # ------------------------- Main Entrypoint -------------------------
 
-def main():
+def main() -> None:
     """Initialise the Streamlit app, bootstrap the environment and display the UI."""
     from agi_env.pagelib import get_about_content
     st.set_page_config(
