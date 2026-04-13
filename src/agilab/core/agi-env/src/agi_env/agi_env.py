@@ -46,7 +46,6 @@ import subprocess
 import sys
 import traceback
 from pathlib import Path
-from dotenv import dotenv_values, set_key
 import tomlkit
 from typing import Tuple, Optional
 import logging
@@ -63,6 +62,11 @@ import importlib.util
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.defaults import get_default_openai_model
+from agi_env.env_config_support import (
+    clean_envar_value as _clean_envar_value,
+    load_dotenv_values as _load_dotenv_values,
+    write_env_updates,
+)
 from agi_env.hook_support import resolve_worker_hook, select_hook
 from agi_env.installation_support import (
     installation_marker_path,
@@ -119,58 +123,6 @@ def _ensure_dir(path: str | Path) -> Path:
         logger.info(f"mkdir {target}")
         target.mkdir(parents=True, exist_ok=True)
     return target
-
-
-def _clean_envar_value(
-    envars: dict | None,
-    key: str,
-    *,
-    fallback_to_process: bool = False,
-) -> str | None:
-    """Return a stripped env value or ``None`` when unset/blank.
-
-    ``dotenv_values`` preserves blank assignments as empty strings. For path-like
-    settings, AGILab should treat those blank values as "unset" and fall back to
-    defaults instead of resolving ``Path('')`` to the current directory.
-    """
-
-    def _normalize(value: object) -> str | None:
-        if value is None:
-            return None
-        normalized = str(value).strip()
-        return normalized or None
-
-    raw = None
-    try:
-        raw = envars.get(key) if envars is not None else None
-    except Exception:
-        raw = None
-    value = _normalize(raw)
-    if value is not None:
-        return value
-    if fallback_to_process:
-        return _normalize(os.environ.get(key))
-    return None
-
-
-def _load_dotenv_values(dotenv_path: Path, *, verbose: bool = False) -> dict[str, str]:
-    """Load ``dotenv`` values while treating blank assignments as unset.
-
-    ``dotenv_values`` keeps ``KEY=`` entries as empty strings. That makes
-    ``mapping.get("KEY", default)`` return ``""`` instead of the intended
-    fallback. Normalizing once at load time keeps downstream callers consistent
-    without requiring every access site to re-handle blank values.
-    """
-
-    loaded = dotenv_values(dotenv_path=dotenv_path, verbose=verbose)
-    normalized: dict[str, str] = {}
-    for key, value in loaded.items():
-        if value is None:
-            continue
-        if isinstance(value, str) and not value.strip():
-            continue
-        normalized[str(key)] = value
-    return normalized
 
 
 def _resolve_worker_hook(filename: str) -> Path | None:
@@ -1532,10 +1484,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _update_env_file(updates: dict):
         AgiEnv._ensure_defaults()
         env_file = AgiEnv.resources_path / ".env"
-        # Ensure parent directory exists for pre-init usage
-        _ensure_dir(env_file.parent)
-        for k, v in updates.items():
-            set_key(str(env_file), k, str(v), quote_mode="never")
+        write_env_updates(env_file, updates)
 
     def _init_resources(self, resources_src):
         """Replicate ``resources_src`` into the managed ``.agilab`` tree."""

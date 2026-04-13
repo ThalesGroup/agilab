@@ -701,62 +701,6 @@ def test_select_hook_wrapper_uses_local_resolver(tmp_path: Path, monkeypatch):
     assert shared is True
 
 
-def test_clean_envar_value_handles_blank_values_and_process_fallback(monkeypatch):
-    monkeypatch.setenv("AGI_DEMO", " from-process ")
-
-    assert agi_env_module._clean_envar_value({"AGI_DEMO": " value "}, "AGI_DEMO") == "value"
-    assert agi_env_module._clean_envar_value({"AGI_DEMO": "   "}, "AGI_DEMO") is None
-    assert (
-        agi_env_module._clean_envar_value(
-            {"AGI_DEMO": ""},
-            "AGI_DEMO",
-            fallback_to_process=True,
-        )
-        == "from-process"
-    )
-
-
-def test_load_dotenv_values_discards_blank_assignments(tmp_path: Path):
-    dotenv_path = tmp_path / ".env"
-    dotenv_path.write_text(
-        "OPENAI_MODEL=\n"
-        "APP_DEFAULT=   \n"
-        "AGI_LOG_DIR=/tmp/logs\n"
-        "TABLE_MAX_ROWS=1000\n",
-        encoding="utf-8",
-    )
-
-    values = agi_env_module._load_dotenv_values(dotenv_path)
-
-    assert values == {
-        "AGI_LOG_DIR": "/tmp/logs",
-        "TABLE_MAX_ROWS": "1000",
-    }
-
-
-def test_clean_envar_value_handles_mapping_errors_and_dotenv_none(monkeypatch, tmp_path):
-    class BadMapping(dict):
-        def get(self, key, default=None):
-            raise RuntimeError("boom")
-
-    monkeypatch.setenv("AGI_DEMO", " process-value ")
-    assert (
-        agi_env_module._clean_envar_value(
-            BadMapping(),
-            "AGI_DEMO",
-            fallback_to_process=True,
-        )
-        == "process-value"
-    )
-
-    monkeypatch.setattr(
-        agi_env_module,
-        "dotenv_values",
-        lambda **_kwargs: {"A": " ", "B": None, "C": " 1 "},
-    )
-    assert agi_env_module._load_dotenv_values(tmp_path / ".env") == {"C": " 1 "}
-
-
 def test_resolve_worker_hook_wrapper_uses_hook_support(monkeypatch):
     captured = {}
 
