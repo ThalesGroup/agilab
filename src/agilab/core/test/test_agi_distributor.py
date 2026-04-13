@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from contextlib import asynccontextmanager
 import asyncio
 import time
+from unittest import mock
 import pytest
 import psutil
 from agi_cluster.agi_distributor import AGI
@@ -111,6 +112,104 @@ optional-dependencies = []
     assert "dag-worker = []" in content
 
 
+def test_ensure_optional_extras_bootstraps_missing_pyproject(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+
+    agi_distributor_module._ensure_optional_extras(pyproject, {"agent-worker"})
+
+    content = pyproject.read_text(encoding="utf-8")
+    assert "[project.optional-dependencies]" in content
+    assert "agent-worker = []" in content
+
+
+def test_distributor_cli_process_helpers_cover_windows_and_child_scan(monkeypatch):
+    cli = agi_distributor_module.distributor_cli
+
+    monkeypatch.setattr(cli.os, "name", "nt", raising=False)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "check_output",
+        lambda *_a, **_k: '"dask-worker.exe","1234"\n"python.exe","oops"\n',
+    )
+    assert cli.get_processes_containing("dask") == {1234}
+
+    monkeypatch.setattr(cli.os, "name", "posix", raising=False)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "check_output",
+        lambda *_a, **_k: "10 1\n11 10\nbad line\n",
+    )
+    assert cli.get_child_pids({10}) == {11}
+
+
+def test_distributor_cli_kill_handles_pid_files_children_and_exclusions(monkeypatch, tmp_path):
+    cli = agi_distributor_module.distributor_cli
+    monkeypatch.chdir(tmp_path)
+
+    (tmp_path / "keep.pid").write_text("999\n", encoding="utf-8")
+    (tmp_path / "worker.pid").write_text("111\n", encoding="utf-8")
+    (tmp_path / "broken.pid").write_text("bad\n", encoding="utf-8")
+
+    kill_calls = []
+    monkeypatch.setattr(cli, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli.os, "getpid", lambda: 999)
+    monkeypatch.setattr(cli, "get_child_pids", lambda pids: {222} if 111 in pids else set())
+    monkeypatch.setattr(cli, "kill_pids", lambda pids, sig: kill_calls.append((set(pids), sig)) or set())
+    monkeypatch.setattr(cli, "_poll_until_dead", lambda pids, **_k: set())
+
+    cli.kill()
+
+    assert kill_calls
+    assert any(pids == {111, 222} for pids, _sig in kill_calls)
+    assert not (tmp_path / "worker.pid").exists()
+    assert not (tmp_path / "keep.pid").exists()
+    assert not (tmp_path / "broken.pid").exists()
+
+
+def test_distributor_cli_clean_and_unzip_cover_success_and_failure(monkeypatch, tmp_path):
+    cli = agi_distributor_module.distributor_cli
+    scratch_root = tmp_path / "tmpdir"
+    scratch_root.mkdir()
+    scratch = scratch_root / "dask-scratch-space"
+    scratch.mkdir()
+    wenv = tmp_path / "wenv"
+    wenv.mkdir()
+    egg = wenv / "demo.egg"
+    with cli.zipfile.ZipFile(egg, "w") as zf:
+        zf.writestr("pkg/module.py", "print('ok')\n")
+
+    monkeypatch.setattr(cli, "gettempdir", lambda: str(scratch_root))
+    cli.unzip(str(wenv))
+    assert (wenv / "src" / "pkg" / "module.py").exists()
+
+    monkeypatch.setattr(cli.shutil, "rmtree", lambda *_a, **_k: (_ for _ in ()).throw(OSError("locked")))
+    cli.clean(str(wenv))
+
+
+def test_distributor_cli_signal_helpers_cover_alive_and_permission_paths(monkeypatch):
+    cli = agi_distributor_module.distributor_cli
+    calls = []
+
+    def _fake_kill(pid, sig):
+        calls.append((pid, sig))
+        if pid == 2:
+            raise ProcessLookupError()
+        if pid == 3:
+            raise PermissionError()
+        if pid == 4:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli.os, "kill", _fake_kill)
+
+    assert cli._is_alive(1) is True
+    assert cli._is_alive(2) is False
+    assert cli._is_alive(3) is True
+
+    survivors = cli.kill_pids({1, 2, 3, 4}, cli.signal.SIGTERM)
+    assert survivors == {3, 4}
+    assert calls
+
+
 def test_rewrite_uv_sources_paths_rewrites_invalid_entries_and_logs(tmp_path, monkeypatch):
     src_dir = tmp_path / "src" / "worker"
     dst_dir = tmp_path / "dst" / "worker"
@@ -198,6 +297,16 @@ def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
     assert keys == [str(ssh_dir / "id_ed25519")]
 
 
+def test_private_key_discovery_handles_missing_dir_and_unreadable_files(tmp_path, monkeypatch):
+    assert agi_distributor_module._discover_private_ssh_keys(tmp_path / ".ssh") == []
+
+    unreadable = tmp_path / "id_demo"
+    unreadable.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(Path, "read_text", lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("boom")), raising=False)
+
+    assert agi_distributor_module._is_private_ssh_key_file(unreadable) is False
+
+
 def test_stage_uv_sources_for_copied_pyproject_stages_sources(tmp_path, monkeypatch):
     src_dir = tmp_path / "src" / "worker"
     dst_dir = tmp_path / "dst"
@@ -252,6 +361,45 @@ foo = { path = "../bad/foo" }
     assert any("Staged uv source" in str(entry[0]) for entry in logs if entry)
 
 
+def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+    (dep / "pyproject.toml").write_text("[project]\nname='dep'\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(agi_distributor_module.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    staged_entries = agi_distributor_module._stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        stage_root=dst_dir,
+    )
+
+    staged_target = dst_dir / "_uv_sources" / "foo"
+    assert staged_entries == [dst_dir / "_uv_sources"]
+    assert f'foo = {{ path = "{staged_target}" }}' in dest_pyproject.read_text(encoding="utf-8")
+
+
+def test_copy_uv_source_tree_replaces_existing_file_destination(tmp_path):
+    source = tmp_path / "source.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    destination = tmp_path / "staged" / "source.py"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("old\n", encoding="utf-8")
+
+    agi_distributor_module._copy_uv_source_tree(source, destination)
+
+    assert destination.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
 def test_missing_uv_source_paths_reports_unresolved_entries(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     (tmp_path / "_uv_sources" / "ok").mkdir(parents=True, exist_ok=True)
@@ -266,6 +414,26 @@ missing = { path = "_uv_sources/missing" }
 
     missing = agi_distributor_module._missing_uv_source_paths(pyproject)
     assert missing == [("missing", "_uv_sources/missing")]
+
+
+def test_missing_uv_source_paths_and_validation_cover_edge_cases(tmp_path):
+    assert agi_distributor_module._missing_uv_source_paths(tmp_path / "missing.toml") == []
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[tool.uv.sources]
+a = { path = "_uv_sources/a" }
+b = { path = "_uv_sources/b" }
+c = { path = "_uv_sources/c" }
+d = { path = "_uv_sources/d" }
+e = { path = "_uv_sources/e" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=r"\+1 more"):
+        agi_distributor_module._validate_worker_uv_sources(pyproject)
 
 
 def test_validate_worker_uv_sources_raises_actionable_error(tmp_path):
@@ -296,6 +464,27 @@ def test_staged_uv_sources_pth_content_relative_for_remote_posix_paths():
     assert content == "../../../../_uv_sources\n"
 
 
+def test_worker_site_packages_dir_and_pth_writer_branches(tmp_path):
+    windows_path = agi_distributor_module._worker_site_packages_dir(Path("worker"), "3.13", windows=True)
+    free_threaded = agi_distributor_module._worker_site_packages_dir(Path("worker"), "3.13t")
+    assert windows_path == Path("worker/.venv/Lib/site-packages")
+    assert free_threaded == Path("worker/.venv/lib/python3.13t/site-packages")
+
+    site_packages = tmp_path / "worker" / ".venv" / "lib" / "python3.13" / "site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    pth_path = site_packages / "agilab_uv_sources.pth"
+    pth_path.write_text("stale\n", encoding="utf-8")
+
+    assert agi_distributor_module._write_staged_uv_sources_pth(site_packages, tmp_path / "missing") is None
+    assert not pth_path.exists()
+
+    uv_sources = tmp_path / "worker" / "_uv_sources"
+    uv_sources.mkdir(parents=True, exist_ok=True)
+    written = agi_distributor_module._write_staged_uv_sources_pth(site_packages, uv_sources)
+    assert written == pth_path
+    assert pth_path.read_text(encoding="utf-8").endswith("_uv_sources\n")
+
+
 def test_ensure_asyncio_run_signature_patches_pydevd_shim(monkeypatch):
     original = agi_distributor_module.asyncio.run
 
@@ -314,6 +503,49 @@ def test_ensure_asyncio_run_signature_patches_pydevd_shim(monkeypatch):
         return 7
 
     assert patched(_coro(), loop_factory=asyncio.new_event_loop) == 7
+    monkeypatch.setattr(agi_distributor_module.asyncio, "run", original)
+
+
+def test_ensure_asyncio_run_signature_tolerates_event_loop_runtime_errors(monkeypatch):
+    original = agi_distributor_module.asyncio.run
+
+    def _fake_run(main, debug=None):
+        return ("orig", main, debug)
+
+    _fake_run.__module__ = "pydevd.fake"
+    monkeypatch.setattr(agi_distributor_module.asyncio, "run", _fake_run)
+
+    set_calls: list[object] = []
+
+    def _fake_set_event_loop(loop):
+        set_calls.append(loop)
+        raise RuntimeError("loop policy locked")
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "set_event_loop", _fake_set_event_loop)
+    agi_distributor_module._ensure_asyncio_run_signature()
+
+    class _Loop:
+        def __init__(self):
+            self.debug = None
+            self.closed = False
+            self.awaited = []
+
+        def set_debug(self, value):
+            self.debug = value
+
+        def run_until_complete(self, main):
+            self.awaited.append(main)
+            return "done"
+
+        def close(self):
+            self.closed = True
+
+    loop = _Loop()
+    patched = agi_distributor_module.asyncio.run
+    assert patched("task", debug=True, loop_factory=lambda: loop) == "done"
+    assert loop.debug is True
+    assert loop.closed is True
+    assert set_calls == [loop, None]
     monkeypatch.setattr(agi_distributor_module.asyncio, "run", original)
 
 
@@ -848,6 +1080,69 @@ async def test_wait_for_port_release_timeout(monkeypatch):
     assert released is False
 
 
+@pytest.mark.asyncio
+async def test_agi_kill_cleans_pid_files_and_handles_local_and_remote_paths(monkeypatch, tmp_path):
+    wenv_parent = tmp_path / "wenv"
+    wenv_abs = wenv_parent / "demo_worker"
+    wenv_abs.mkdir(parents=True)
+    cluster_pck = tmp_path / "cluster"
+    cli_source = cluster_pck / "agi_distributor" / "cli.py"
+    cli_source.parent.mkdir(parents=True)
+    cli_source.write_text("print('cli')\n", encoding="utf-8")
+    (wenv_parent / "ok.pid").write_text("111\n", encoding="utf-8")
+    stubborn = wenv_parent / "stubborn.pid"
+    stubborn.write_text("222\n", encoding="utf-8")
+    (wenv_parent / "broken.pid").write_text("bad\n", encoding="utf-8")
+
+    logger = mock.Mock()
+    env = SimpleNamespace(
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv/demo_worker"),
+        envars={},
+        cluster_pck=cluster_pck,
+        agi_cluster=str(tmp_path / "cluster-runtime"),
+        debug=False,
+        logger=logger,
+        is_local=lambda ip: ip == "127.0.0.1",
+    )
+    AGI.env = env
+
+    original_unlink = Path.unlink
+
+    def _patched_unlink(self, *args, **kwargs):
+        if self == stubborn:
+            raise OSError("locked")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(agi_distributor_module.Path, "unlink", _patched_unlink, raising=False)
+    monkeypatch.setattr(agi_distributor_module.socket, "gethostbyname", lambda _name: "127.0.0.1")
+    local_runs = []
+    remote_runs = []
+
+    async def _fake_run(cmd, cwd):
+        local_runs.append((cmd, cwd))
+        return None
+
+    async def _fake_exec_ssh(ip, cmd):
+        remote_runs.append((ip, cmd))
+        return {"stdout": "killed", "stderr": "warn"}
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec_ssh))
+
+    await AGI._kill(current_pid=999)
+    await AGI._kill(ip="10.0.0.2", current_pid=999)
+
+    assert local_runs
+    assert any("cli.py' kill 999" in cmd for cmd, _cwd in local_runs)
+    assert remote_runs == [("10.0.0.2", "uv run --no-sync python 'wenv/cli.py' kill")]
+    assert not (wenv_parent / "ok.pid").exists()
+    assert logger.warning.called
+    assert logger.info.called
+    assert logger.error.called
+
+
 def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(monkeypatch, tmp_path):
     AGI.env = SimpleNamespace(wenv_abs=tmp_path / "wenv")
     AGI.env.wenv_abs.mkdir(parents=True, exist_ok=True)
@@ -1181,6 +1476,18 @@ def test_service_health_path_falls_back_when_resolve_share_path_is_missing(tmp_p
     env = SimpleNamespace(target="demo_target", app="demo_app", home_abs=str(tmp_path))
     path = _REAL_SERVICE_HEALTH_PATH(env, health_output_path=Path("nested/health.json"))
     assert str(path).endswith("demo_target/nested/health.json")
+    assert path.parent.exists()
+
+
+def test_service_health_path_covers_default_relative_fallback(tmp_path):
+    env = SimpleNamespace(
+        target="demo_target",
+        app="demo_app",
+        home_abs=str(tmp_path),
+        resolve_share_path=lambda _path: (_ for _ in ()).throw(RuntimeError("missing share")),
+    )
+    path = _REAL_SERVICE_HEALTH_PATH(env)
+    assert str(path).endswith("demo_target/health.json")
     assert path.parent.exists()
 
 
@@ -2026,6 +2333,46 @@ def test_service_cleanup_artifacts_ttl_and_max_files(tmp_path):
     assert hb_old.exists() is False
     assert done_new.exists() is True
     assert hb_new.exists() is True
+
+
+def test_service_cleanup_artifacts_removes_overflow_and_ignores_missing_unlinks(tmp_path, monkeypatch):
+    done_dir = tmp_path / "done"
+    failed_dir = tmp_path / "failed"
+    hb_dir = tmp_path / "heartbeats"
+    for folder in (done_dir, failed_dir, hb_dir):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    done_a = done_dir / "a.task.pkl"
+    done_b = done_dir / "b.task.pkl"
+    done_c = done_dir / "c.task.pkl"
+    for idx, file_path in enumerate((done_a, done_b, done_c), start=1):
+        file_path.write_text("x", encoding="utf-8")
+        os.utime(file_path, (100 + idx, 100 + idx))
+
+    AGI._service_queue_done = done_dir
+    AGI._service_queue_failed = failed_dir
+    AGI._service_queue_heartbeats = hb_dir
+    AGI._service_cleanup_done_ttl_sec = 0.0
+    AGI._service_cleanup_failed_ttl_sec = 0.0
+    AGI._service_cleanup_heartbeat_ttl_sec = 0.0
+    AGI._service_cleanup_done_max_files = 1
+    AGI._service_cleanup_failed_max_files = 10
+    AGI._service_cleanup_heartbeat_max_files = 10
+
+    original_unlink = Path.unlink
+
+    def _patched_unlink(self, *args, **kwargs):
+        if self == done_a:
+            raise FileNotFoundError("gone")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(agi_distributor_module.Path, "unlink", _patched_unlink, raising=False)
+
+    cleaned = AGI._service_cleanup_artifacts()
+
+    assert cleaned["done"] == 1
+    assert done_c.exists()
+    assert done_b.exists() is False
 
 
 @pytest.mark.asyncio
@@ -3779,6 +4126,27 @@ async def test_get_ssh_connection_handles_asyncssh_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_get_ssh_connection_wraps_unexpected_exception(monkeypatch):
+    AGI.env = SimpleNamespace(user="alice", password=None, ssh_key_path=None)
+    AGI._ssh_connections = {}
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    async def _fake_connect(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(agi_distributor_module.asyncssh, "connect", _fake_connect)
+
+    async def _raise_unexpected(_awaitable, timeout):
+        _awaitable.close()
+        raise ValueError("boom")
+
+    monkeypatch.setattr(agi_distributor_module.asyncio, "wait_for", _raise_unexpected)
+    with pytest.raises(ConnectionError, match="Unexpected error while connecting to 10.0.0.6: boom"):
+        async with AGI.get_ssh_connection("10.0.0.6", timeout_sec=1):
+            pass
+
+
+@pytest.mark.asyncio
 async def test_exec_ssh_success_and_error_paths(monkeypatch):
     class _Result:
         stdout = b"line-1\n"
@@ -4732,6 +5100,143 @@ async def test_build_lib_local_cython_copies_worker_lib(monkeypatch, tmp_path):
     assert any("build_ext" in cmd for cmd, _ in commands)
 
 
+@pytest.mark.asyncio
+async def test_build_lib_local_selects_fireducks_package(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    wenv_abs = tmp_path / "wenv"
+    dist_dir = wenv_abs / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    egg_path = dist_dir / "demo.egg"
+    egg_path.write_text("egg", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_send_file(*_args, **_kwargs):
+        return None
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        base_worker_cls="FireducksWorker",
+        active_app=app_path,
+        setup_app_module="agi_node.agi_dispatcher.build",
+        uv="uv",
+        envars={},
+        is_free_threading_available=False,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        verbose=2,
+        pyvers_worker="3.13",
+    )
+    AGI._mode = 0
+    AGI._dask_client = SimpleNamespace(upload_file=lambda *_args, **_kwargs: None)
+    AGI.agi_workers = {"fireducks": "fireducks-worker"}
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
+
+    await AGI._build_lib_local()
+
+    assert any("fireducks_worker" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_uninstall_modules_and_venv_todo_cover_cleanup_and_logging(monkeypatch):
+    commands = []
+    logger = mock.Mock()
+    AGI.env = SimpleNamespace(uv="uv", agi_env=Path("/tmp/agi-env"), verbose=1, logger=logger)
+    AGI._module_to_clean = ["demo-one", "demo-two"]
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, cwd))
+        return ""
+
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(agi_distributor_module.logger, "info", logger.info)
+    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
+
+    await AGI._uninstall_modules()
+    AGI._venv_todo({"127.0.0.1", "10.0.0.2"})
+
+    assert commands == [
+        ("uv pip uninstall demo-one -y", Path("/tmp/agi-env")),
+        ("uv pip uninstall demo-two -y", Path("/tmp/agi-env")),
+    ]
+    assert AGI._module_to_clean == []
+    assert AGI._local_ip == ["127.0.0.1"]
+    assert AGI._remote_ip == ["10.0.0.2"]
+    assert AGI._install_todo == 2
+    assert logger.info.called
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_wraps_non_runtime_error(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    cluster_pck = tmp_path / "cluster"
+    (cluster_pck / "agi_distributor").mkdir(parents=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_rel=Path("wenv/demo_worker"),
+        wenv_abs=tmp_path / "wenv" / "demo_worker",
+        active_app=app_path,
+        cluster_pck=cluster_pck,
+        envars={},
+        uv="uv",
+        export_local_bin="",
+        app="demo",
+        hw_rapids_capable=False,
+        is_local=lambda ip: True,
+    )
+    env.wenv_abs.mkdir(parents=True)
+    AGI.env = env
+    AGI._mode_auto = True
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._TIMEOUT = 1
+    AGI._worker_init_error = False
+
+    async def _fake_send_file(*_args, **_kwargs):
+        return None
+
+    async def _fake_kill(*_args, **_kwargs):
+        return None
+
+    async def _fake_wait_for_port_release(*_args, **_kwargs):
+        return True
+
+    async def _fake_detect_export_cmd(*_args, **_kwargs):
+        return ""
+
+    async def _fake_connect_scheduler_with_retry(*_args, **_kwargs):
+        raise ValueError("client boom")
+
+    original_sleep = asyncio.sleep
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd))
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect_scheduler_with_retry))
+    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
+    monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
+    monkeypatch.setattr(agi_distributor_module.asyncio, "sleep", lambda *_args, **_kwargs: original_sleep(0))
+
+    with pytest.raises(RuntimeError, match="Failed to instantiate Dask Client"):
+        await AGI._start_scheduler("127.0.0.1")
 @pytest.mark.asyncio
 async def test_build_lib_remote_logs_when_pool_open_zero():
     AGI.verbose = 1

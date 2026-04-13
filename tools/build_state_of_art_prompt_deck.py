@@ -32,11 +32,28 @@ def bg(slide, dark: bool = False) -> None:
     fill.fore_color.rgb = DARK if dark else BG
 
 
-def box(slide, left, top, width, height, text="", *, size=20, color=INK, bold=False, align=PP_ALIGN.LEFT):
+def box(
+    slide,
+    left,
+    top,
+    width,
+    height,
+    text="",
+    *,
+    size=20,
+    color=INK,
+    bold=False,
+    align=PP_ALIGN.LEFT,
+    valign=MSO_ANCHOR.TOP,
+):
     tb = slide.shapes.add_textbox(left, top, width, height)
     tf = tb.text_frame
     tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.TOP
+    tf.vertical_anchor = valign
+    tf.margin_left = 0
+    tf.margin_right = 0
+    tf.margin_top = 0
+    tf.margin_bottom = 0
     p = tf.paragraphs[0]
     p.alignment = align
     r = p.add_run()
@@ -52,6 +69,11 @@ def bullets(slide, left, top, width, height, items, *, size=19, color=INK):
     tb = slide.shapes.add_textbox(left, top, width, height)
     tf = tb.text_frame
     tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.TOP
+    tf.margin_left = 0
+    tf.margin_right = 0
+    tf.margin_top = 0
+    tf.margin_bottom = 0
     tf.clear()
     for i, item in enumerate(items):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
@@ -76,7 +98,19 @@ def panel(slide, left, top, width, height, *, fill=PAPER, line=ACCENT_3):
 
 def pill(slide, left, top, width, height, text, *, fill=RGBColor(245, 236, 225), color=ACCENT, size=12):
     shape = panel(slide, left, top, width, height, fill=fill, line=fill)
-    box(slide, left, top + Inches(0.03), width, height, text, size=size, color=color, bold=True, align=PP_ALIGN.CENTER)
+    box(
+        slide,
+        left,
+        top,
+        width,
+        height,
+        text,
+        size=size,
+        color=color,
+        bold=True,
+        align=PP_ALIGN.CENTER,
+        valign=MSO_ANCHOR.MIDDLE,
+    )
     return shape
 
 
