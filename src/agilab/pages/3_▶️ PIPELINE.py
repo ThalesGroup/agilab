@@ -376,7 +376,7 @@ def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = No
                 path_obj.parent.mkdir(parents=True, exist_ok=True)
                 with path_obj.open("a", encoding="utf-8") as log_file:
                     log_file.write(log_text + "\n")
-            except Exception as exc:
+            except (OSError, TypeError, ValueError) as exc:
                 logger.debug(f"Failed to append experiment log to {log_file_path}: {exc}")
     if placeholder is not None:
         logs = st.session_state.get(f"{index_page}__run_logs", [])
@@ -414,7 +414,7 @@ def _prepare_run_log_file(
         st.session_state[log_file_key] = str(log_file_path)
         st.session_state[f"{index_page}__last_run_log_file"] = str(log_file_path)
         return log_file_path, None
-    except Exception as exc:
+    except (OSError, TypeError, ValueError) as exc:
         st.session_state.pop(log_file_key, None)
         return None, str(exc)
 
@@ -433,7 +433,7 @@ def _pipeline_lock_ttl_seconds() -> float:
         return PIPELINE_LOCK_DEFAULT_TTL_SEC
     try:
         ttl = float(raw)
-    except Exception:
+    except (TypeError, ValueError):
         return PIPELINE_LOCK_DEFAULT_TTL_SEC
     return ttl if ttl > 0 else PIPELINE_LOCK_DEFAULT_TTL_SEC
 
@@ -444,7 +444,7 @@ def _pipeline_lock_path(env: AgiEnv) -> Path:
     relative = Path(".control") / "pipeline" / target / PIPELINE_LOCK_FILENAME
     try:
         path = env.resolve_share_path(relative)
-    except Exception:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
         path = (fallback_home / ".agilab_pipeline" / target / PIPELINE_LOCK_FILENAME).resolve(strict=False)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -458,7 +458,7 @@ def _read_pipeline_lock_payload(path: Path) -> Dict[str, Any]:
             payload = json.load(stream)
         if isinstance(payload, dict):
             return payload
-    except Exception:
+    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
         pass
     return {}
 
@@ -479,7 +479,7 @@ def _pipeline_lock_owner_alive(payload: Dict[str, Any]) -> Optional[bool]:
         return None
     try:
         owner_pid = int(payload.get("pid"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return None
     if owner_pid <= 0:
         return None
@@ -503,7 +503,7 @@ def _inspect_pipeline_run_lock(env: AgiEnv) -> Optional[Dict[str, Any]]:
     age_sec: Optional[float]
     try:
         age_sec = max(time.time() - lock_path.stat().st_mtime, 0.0)
-    except Exception:
+    except OSError:
         age_sec = None
     owner_alive = _pipeline_lock_owner_alive(payload)
     ttl_sec = _pipeline_lock_ttl_seconds()
@@ -545,7 +545,7 @@ def _clear_pipeline_run_lock(
         return True
     except FileNotFoundError:
         return True
-    except Exception as exc:
+    except OSError as exc:
         msg = f"Unable to remove pipeline lock `{lock_path}`: {exc}"
         st.error(msg)
         _push_run_log(index_page, msg, placeholder)
@@ -619,7 +619,7 @@ def _acquire_pipeline_run_lock(
             st.warning(msg)
             _push_run_log(index_page, msg, placeholder)
             return None
-        except Exception as exc:
+        except (OSError, TypeError, ValueError) as exc:
             msg = f"Unable to acquire pipeline lock `{lock_path}`: {exc}"
             st.error(msg)
             _push_run_log(index_page, msg, placeholder)
@@ -652,7 +652,7 @@ def _refresh_pipeline_run_lock(lock_handle: Optional[Dict[str, Any]]) -> None:
         with open(tmp_path, "w", encoding="utf-8") as stream:
             json.dump(payload, stream, indent=2)
         os.replace(tmp_path, lock_path)
-    except Exception:
+    except (OSError, TypeError, ValueError):
         logger.debug("Failed to refresh pipeline lock heartbeat for %s", lock_path, exc_info=True)
 
 
@@ -679,7 +679,7 @@ def _release_pipeline_run_lock(
         _push_run_log(index_page, f"Pipeline lock released: {lock_path}", placeholder)
     except FileNotFoundError:
         return
-    except Exception as exc:
+    except OSError as exc:
         logger.debug("Failed to release pipeline lock %s: %s", lock_path, exc)
 
 def on_page_change() -> None:
