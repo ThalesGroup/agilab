@@ -793,6 +793,21 @@ def _ensure_notebook_export(steps_file: Path) -> None:
         logger.warning(f"Skipping notebook generation: {exc}")
 
 
+def _render_notebook_download_button(notebook_path: Path, key: str) -> None:
+    """Render the notebook download button for an exported notebook."""
+    try:
+        notebook_data = notebook_path.read_bytes()
+        st.sidebar.download_button(
+            "Export notebook",
+            data=notebook_data,
+            file_name=notebook_path.name,
+            mime="application/x-ipynb+json",
+            key=key,
+        )
+    except (OSError, StreamlitAPIException) as exc:
+        st.sidebar.error(f"Failed to prepare notebook export: {exc}")
+
+
 def load_all_steps(
     module_path: Path,
     steps_file: Path,
@@ -1355,17 +1370,7 @@ def sidebar_controls() -> None:
 
     notebook_path = refresh_notebook_export(steps_file)
     if notebook_path and notebook_path.exists():
-        try:
-            notebook_data = notebook_path.read_bytes()
-            st.sidebar.download_button(
-                "Export notebook",
-                data=notebook_data,
-                file_name=notebook_path.name,
-                mime="application/x-ipynb+json",
-                key=index_page_str + "export_notebook",
-            )
-        except Exception as exc:
-            st.sidebar.error(f"Failed to prepare notebook export: {exc}")
+        _render_notebook_download_button(notebook_path, index_page_str + "export_notebook")
 
 
 def mlflow_controls() -> None:
