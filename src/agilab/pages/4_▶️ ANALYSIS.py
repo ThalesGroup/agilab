@@ -834,7 +834,7 @@ def _view_label(option_id: str, builtin_names: set[str]) -> str:
         return option_id
     try:
         path = Path(option_id).resolve()
-    except Exception:
+    except OSError:
         return option_id
     return f"{path.name} (custom)"
 
@@ -862,7 +862,7 @@ def _read_config(path: Path) -> dict:
         if path.exists():
             with open(path, "rb") as f:
                 return tomllib.load(f)
-    except Exception as e:
+    except (OSError, tomllib.TOMLDecodeError) as e:
         st.error(f"Error loading configuration: {e}")
     return {}
 
@@ -879,7 +879,7 @@ def _write_config(path: Path, cfg: dict):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             tomli_w.dump(cfg, f)
-    except Exception as e:
+    except OSError as e:
         st.error(f"Error updating configuration: {e}")
 
 async def main():
