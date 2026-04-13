@@ -15,7 +15,7 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 import importlib
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 
 import textwrap
@@ -165,7 +165,7 @@ from agi_env import AgiEnv
 # ===========================
 # Session State Initialization
 # ===========================
-def init_session_state(defaults: dict):
+def init_session_state(defaults: dict[str, Any]) -> None:
     """
     Initialize session state variables with default values if they are not already set.
     """
@@ -176,7 +176,7 @@ def init_session_state(defaults: dict):
 # Utility and Helper Functions
 # ===========================
 
-def clear_log():
+def clear_log() -> None:
     """
     Clear the accumulated log in session_state.
     Call this before starting a new run (INSTALL, DISTRIBUTE, or EXECUTE)
@@ -208,7 +208,7 @@ def _update_delete_confirm_state(
         return True
     return False
 
-def update_log(live_log_placeholder, message, max_lines=1000):
+def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -> None:
     """
     Append a cleaned message to the accumulated log and update the live display.
     Keeps only the last max_lines lines in the log.
@@ -421,7 +421,7 @@ def display_log(stdout, stderr):
         st.code(_format_log_block(clean_stdout, newest_first=False) or "No logs available", language="python", height=400)
 
 
-def safe_eval(expression, expected_type, error_message):
+def safe_eval(expression: str, expected_type: Any, error_message: str) -> Any:
     return _safe_eval_impl(
         expression,
         expected_type,
@@ -430,7 +430,7 @@ def safe_eval(expression, expected_type, error_message):
     )
 
 
-def parse_and_validate_scheduler(scheduler):
+def parse_and_validate_scheduler(scheduler: str) -> Optional[str]:
     return _parse_and_validate_scheduler_impl(
         scheduler,
         is_valid_ip=is_valid_ip,
@@ -438,7 +438,7 @@ def parse_and_validate_scheduler(scheduler):
     )
 
 
-def parse_and_validate_workers(workers_input):
+def parse_and_validate_workers(workers_input: str) -> dict[str, int]:
     return _parse_and_validate_workers_impl(
         workers_input,
         is_valid_ip=is_valid_ip,
@@ -446,7 +446,7 @@ def parse_and_validate_workers(workers_input):
         default_workers={"127.0.0.1": 1},
     )
 
-def initialize_app_settings(args_override=None):
+def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None:
     env = st.session_state["env"]
 
     file_settings = load_toml_file(env.app_settings_file)
@@ -502,7 +502,7 @@ def filter_warning_messages(log: str) -> str:
 # Caching Functions for Performance
 # ===========================
 @st.cache_data(ttl=300, show_spinner=False)
-def load_toml_file(file_path):
+def load_toml_file(file_path: str | Path) -> dict[str, Any]:
     file_path = Path(file_path)
     if file_path.exists():
         try:
@@ -516,14 +516,14 @@ def load_toml_file(file_path):
     return {}
 
 @st.cache_data(show_spinner=False)
-def load_distribution(file_path):
+def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list[Any]]:
     with open(file_path, "r") as f:
         data = json.load(f)
     workers = [f"{ip}-{i}" for ip, count in data.get("workers", {}).items() for i in range(1, count + 1)]
     return workers, data.get("work_plan_metadata", []), data.get("work_plan", [])
 
 @st.cache_data(show_spinner=False)
-def generate_profile_report(df):
+def generate_profile_report(df: pd.DataFrame) -> Any:
     env = st.session_state["env"]
     if env.python_version > "3.12":
         from ydata_profiling.profile_report import ProfileReport
@@ -535,7 +535,7 @@ def generate_profile_report(df):
 # ===========================
 # UI Rendering Functions
 # ===========================
-def render_generic_ui():
+def render_generic_ui() -> None:
     env = st.session_state["env"]
     ncols = 2
     cols = st.columns([10, 1, 10])
@@ -716,13 +716,13 @@ def _restore_dataframe_preview_state(payload: dict) -> None:
     for idx, col in enumerate(df_cols):
         st.session_state[f"export_col_{idx}"] = col in selected_cols
 
-def _is_app_installed(env):
+def _is_app_installed(env: Any) -> bool:
     manager_venv = env.active_app / ".venv"
     worker_venv = env.wenv_abs / ".venv"
     return manager_venv.exists() and worker_venv.exists()
 
 
-def _app_install_status(env):
+def _app_install_status(env: Any) -> dict[str, Any]:
     manager_venv = env.active_app / ".venv"
     worker_venv = env.wenv_abs / ".venv"
     return {
@@ -735,7 +735,7 @@ def _app_install_status(env):
 # ===========================
 # Main Application UI
 # ===========================
-async def page():
+async def page() -> None:
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
         page_module = importlib.import_module("agilab.About_agilab")
         page_module.main()
