@@ -10,7 +10,7 @@
 [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse)
 [![Agent Codex](https://img.shields.io/badge/agent-codex-00A67E)](tools/codex_workflow.md)
-[![Free-threaded aware](https://img.shields.io/badge/python-free--threaded%20aware-5B6CFF)](docs/source/environment.rst)
+[![Language Python Free-threaded and Cythonized](https://img.shields.io/badge/language-python%20free--threaded%20%26%20cythonized-5B6CFF)](docs/source/environment.rst)
 
 <details>
 <summary>More project badges</summary>
