@@ -1174,6 +1174,31 @@ def test_run_supports_export_only_and_fire_and_forget(tmp_path: Path, monkeypatc
     created["coro"].close()
 
 
+def test_run_fire_and_forget_applies_exported_path_and_uv_preview_flag(tmp_path: Path, monkeypatch):
+    process_env = {"PATH": "/usr/bin"}
+    created: dict[str, object] = {}
+
+    async def _fake_shell(cmd, **kwargs):
+        created["cmd"] = cmd
+        created["kwargs"] = kwargs
+        return SimpleNamespace()
+
+    monkeypatch.setattr(AgiEnv, "_build_env", staticmethod(lambda _venv: process_env))
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+    monkeypatch.setattr(
+        asyncio,
+        "create_task",
+        lambda coro: created.setdefault("task", asyncio.get_running_loop().create_task(coro)),
+    )
+
+    result = asyncio.run(AgiEnv.run('export PATH="~/.local/bin:$PATH"; uv sync', tmp_path, wait=False))
+
+    assert result == 0
+    assert " ".join(str(created["cmd"]).split()) == "uv --preview-features extra-build-dependencies sync"
+    assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
+    assert created["kwargs"]["cwd"] == str(tmp_path)
+
+
 def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
@@ -1205,6 +1230,57 @@ def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, mo
         asyncio.run(AgiEnv._run_bg(fail_cmd, cwd=tmp_path, venv=tmp_path, timeout=10))
 
 
+def test_run_bg_shell_fallback_handles_blank_lines_and_simple_callback(tmp_path: Path, monkeypatch):
+    streamed: list[str] = []
+    process_env = {"PATH": "/usr/bin", "PYTHONHOME": "/tmp/home"}
+
+    class _FakeStream:
+        def __init__(self, lines):
+            self._lines = list(lines)
+
+        async def readline(self):
+            if self._lines:
+                return self._lines.pop(0)
+            return b""
+
+    class _FakeProc:
+        def __init__(self):
+            self.stdout = None
+            self.stderr = _FakeStream([b"\n", b"stderr line\n", b""])
+            self.returncode = 0
+
+        async def wait(self):
+            return self.returncode
+
+        async def communicate(self):
+            return b"", b"stderr line\n"
+
+    async def _raise_exec(*args, **kwargs):
+        raise ValueError("boom")
+
+    async def _fake_shell(cmd, **kwargs):
+        return _FakeProc()
+
+    monkeypatch.setattr(AgiEnv, "_build_env", staticmethod(lambda _venv: dict(process_env)))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+
+    stdout, stderr = asyncio.run(
+        AgiEnv._run_bg(
+            "uv pip install demo",
+            cwd=tmp_path,
+            venv=tmp_path,
+            timeout=10,
+            remove_env={"PYTHONHOME"},
+            log_callback=streamed.append,
+        )
+    )
+
+    assert stdout == ""
+    assert stderr == "stderr line\n"
+    assert streamed == ["stderr line"]
+
+
 def test_build_env_strips_uv_run_recursion_depth(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
     monkeypatch.setenv("PYTHONPATH", "/tmp/demo")
@@ -1221,6 +1297,78 @@ def test_build_env_strips_uv_run_recursion_depth(tmp_path: Path, monkeypatch):
     assert "UV_RUN_RECURSION_DEPTH" not in env
     assert "PYTHONPATH" not in env
     assert "PYTHONHOME" not in env
+
+
+def test_build_env_uses_class_pythonpath_entries_without_venv(monkeypatch, tmp_path: Path):
+    class_entries = [str(tmp_path / "alpha"), str(tmp_path / "beta")]
+    monkeypatch.setattr(AgiEnv, "_instance", None, raising=False)
+    monkeypatch.setattr(AgiEnv, "_pythonpath_entries", class_entries, raising=False)
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "3")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/ignored")
+    monkeypatch.setenv("PYTHONHOME", "/tmp/home")
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+
+    env = AgiEnv._build_env()
+
+    assert "VIRTUAL_ENV" not in env
+    assert env["PYTHONPATH"] == os.pathsep.join(class_entries)
+    assert "PYTHONHOME" not in env
+    assert "UV_RUN_RECURSION_DEPTH" not in env
+
+
+def test_build_env_keeps_instance_pythonpath_entries_for_current_venv(monkeypatch, tmp_path: Path):
+    current_venv = Path(sys.prefix).resolve()
+    instance_entries = [str(tmp_path / "src-one"), str(tmp_path / "src-two")]
+    fake_instance = object.__new__(AgiEnv)
+    fake_instance._pythonpath_entries = instance_entries
+    monkeypatch.setattr(AgiEnv, "_instance", fake_instance, raising=False)
+    monkeypatch.setenv("PYTHONPATH", "/tmp/ignored")
+    monkeypatch.setenv("PYTHONHOME", "/tmp/home")
+
+    env = AgiEnv._build_env(current_venv)
+
+    assert env["VIRTUAL_ENV"] == str(current_venv)
+    assert env["PATH"].split(os.pathsep)[0] == str(current_venv / "bin")
+    assert env["PYTHONPATH"] == os.pathsep.join(instance_entries)
+    assert "PYTHONHOME" not in env
+
+
+def test_log_info_uses_logger_when_available(monkeypatch):
+    fake_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", fake_logger)
+
+    AgiEnv.log_info(123)
+
+    fake_logger.info.assert_called_once_with("123")
+
+
+def test_log_info_prints_when_logger_missing(monkeypatch, capsys):
+    monkeypatch.setattr(AgiEnv, "logger", None)
+
+    AgiEnv.log_info("hello")
+
+    assert capsys.readouterr().out.strip() == "hello"
+
+
+def test_last_non_empty_output_line_skips_blank_entries():
+    lines = [None, "   ", "\n", " useful detail  "]
+
+    assert AgiEnv._last_non_empty_output_line(lines) == "useful detail"
+
+
+def test_last_non_empty_output_line_returns_none_for_empty_input():
+    assert AgiEnv._last_non_empty_output_line([None, "", "   "]) is None
+
+
+def test_format_command_failure_message_falls_back_to_command_and_appends_hint():
+    message = AgiEnv._format_command_failure_message(
+        7,
+        "demo command",
+        lines=[None, "", "   "],
+        diagnostic_hint="check worker manifest",
+    )
+
+    assert message == "Command failed with exit code 7: demo command\ncheck worker manifest"
 
 
 def test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error(tmp_path: Path, monkeypatch):
@@ -1275,6 +1423,43 @@ def test_run_agi_handles_missing_snippet_missing_venv_and_install_snippet(tmp_pa
     assert Path(captured["venv"]) == Path(sys.prefix)
     assert captured["remove_env"] == {"PYTHONPATH", "PYTHONHOME"}
     assert logs[-1] == "Process finished"
+
+
+def test_run_agi_without_callback_uses_logger_and_logging_paths(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.runenv = tmp_path / "runenv"
+    env.target = "demo_project"
+
+    mock_logger = mock.Mock()
+    finished = []
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+    monkeypatch.setattr(agi_env_module.logging, "info", lambda message: finished.append(message))
+
+    result = asyncio.run(env.run_agi("print('hello')", venv=tmp_path))
+    assert result == ("", "")
+    mock_logger.info.assert_any_call("Could not determine snippet name from code.")
+
+    code = "async def main():\n    await Agi.demo_run()\n"
+    stdout, stderr = asyncio.run(env.run_agi(code, venv=tmp_path))
+    assert stdout == ""
+    assert "Run INSTALL first" in stderr
+    mock_logger.warning.assert_any_call(f"No virtual environment found in {tmp_path}. Run INSTALL first.")
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    project_venv = project_root / ".venv"
+    project_venv.mkdir()
+    (project_venv / "pyvenv.cfg").write_text("home = /tmp\n", encoding="utf-8")
+
+    async def _fake_run_bg(cmd, cwd=None, venv=None, remove_env=None, log_callback=None, **kwargs):
+        return "done", ""
+
+    monkeypatch.setattr(AgiEnv, "_run_bg", staticmethod(_fake_run_bg))
+    install_code = "async def main():\n    await Agi.demo_install()\n"
+    result = asyncio.run(env.run_agi(install_code, venv=project_root))
+
+    assert result == ("done", "")
+    assert finished[-1] == "Process finished"
 
 
 def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
