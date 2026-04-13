@@ -165,6 +165,134 @@ def test_apply_managed_pc_path_overrides():
     assert str(result.payload).startswith(str(Path.home() / OverrideWorker.managed_pc_home_suffix))
 
 
+def test_baseworker_managed_pc_override_skips_missing_fields_and_bad_values(monkeypatch):
+    class OverrideWorker(BaseWorker):
+        managed_pc_path_fields = ("missing", "payload")
+
+    env = SimpleNamespace(
+        _is_managed_pc=True,
+        agi_share_path=Path.home() / "clustershare",
+        agi_share_path_abs=Path.home() / "clustershare",
+    )
+    args = SimpleNamespace(payload=Path.home() / "payload")
+
+    monkeypatch.setattr(
+        OverrideWorker,
+        "_remap_managed_pc_path",
+        classmethod(lambda cls, value, env=None: (_ for _ in ()).throw(ValueError("bad path"))),
+    )
+
+    result = OverrideWorker._apply_managed_pc_path_overrides(args, env=env)
+
+    assert result is args
+    assert result.payload == Path.home() / "payload"
+    assert not hasattr(result, "missing")
+
+
+def test_baseworker_apply_managed_pc_paths_instance_wrapper():
+    class OverrideWorker(BaseWorker):
+        managed_pc_path_fields = ("payload",)
+
+    env = SimpleNamespace(
+        _is_managed_pc=True,
+        agi_share_path=Path.home() / "clustershare",
+        agi_share_path_abs=Path.home() / "clustershare",
+    )
+    worker = OverrideWorker()
+    worker.env = env
+    args = SimpleNamespace(payload=Path.home() / "payload")
+
+    result = worker._apply_managed_pc_paths(args)
+
+    assert result is args
+    assert str(result.payload).startswith(str(Path.home() / OverrideWorker.managed_pc_home_suffix))
+
+
+def test_baseworker_ensure_managed_pc_share_dir_branches(tmp_path):
+    BaseWorker._ensure_managed_pc_share_dir(None)
+
+    env_not_managed = SimpleNamespace(_is_managed_pc=False, agi_share_path=Path("clustershare"))
+    BaseWorker._ensure_managed_pc_share_dir(env_not_managed)
+    assert env_not_managed.agi_share_path == Path("clustershare")
+
+    env_without_share = SimpleNamespace(_is_managed_pc=True, agi_share_path=None)
+    BaseWorker._ensure_managed_pc_share_dir(env_without_share)
+    assert env_without_share.agi_share_path is None
+
+    home = Path.home()
+    env_managed = SimpleNamespace(_is_managed_pc=True, agi_share_path=home / "clustershare")
+    BaseWorker._ensure_managed_pc_share_dir(env_managed)
+    assert str(env_managed.agi_share_path).startswith(str(home / BaseWorker.managed_pc_home_suffix))
+
+
+def test_baseworker_share_root_path_none_absolute_and_home_fallback(tmp_path):
+    assert BaseWorker._share_root_path(None) is None
+
+    env_absolute = SimpleNamespace(
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        agi_share_path_abs=tmp_path / "absolute-share",
+        agi_share_path=Path("clustershare"),
+        home_abs=tmp_path / "home",
+    )
+    assert BaseWorker._share_root_path(env_absolute) == tmp_path / "absolute-share"
+
+    env_home = SimpleNamespace(
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        agi_share_path_abs=None,
+        agi_share_path=None,
+        home_abs=tmp_path / "home",
+    )
+    assert BaseWorker._share_root_path(env_home) == (tmp_path / "home")
+
+
+def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
+    class _BrokenPath:
+        def __fspath__(self):
+            raise RuntimeError("boom")
+
+    env = SimpleNamespace(
+        AGILAB_SHARE_HINT=Path("clustershare/link_sim"),
+        AGILAB_SHARE_REL=_BrokenPath(),
+        agi_share_path=_BrokenPath(),
+        _is_managed_pc=False,
+        share_root_path=lambda: tmp_path / "share",
+        agi_share_path_abs=tmp_path / "share",
+        home_abs=tmp_path / "home",
+    )
+    (tmp_path / "share").mkdir()
+
+    aliases = BaseWorker._collect_share_aliases(env, tmp_path / "share")
+    assert {"share", "clustershare", "data", "datashare", "link_sim"} <= aliases
+
+    assert BaseWorker._has_min_input_files(tmp_path / "missing", min_files=1) is False
+    folder = tmp_path / "dataset"
+    folder.mkdir()
+    (folder / "a.csv").write_text("x\n1\n", encoding="utf-8")
+    (folder / "b.csv").write_text("x\n2\n", encoding="utf-8")
+    assert BaseWorker._has_min_input_files(folder, min_files=2, patterns=("*.csv",)) is True
+
+    original_normalized = BaseWorker._normalized_path
+    monkeypatch.setattr(
+        BaseWorker,
+        "_normalized_path",
+        classmethod(lambda cls, value: (_ for _ in ()).throw(RuntimeError("normalize failed"))),
+    )
+    fallback = BaseWorker._resolve_data_dir(env, Path("dataset") / "inputs")
+    assert fallback == (tmp_path / "share" / "dataset" / "inputs").expanduser().resolve(strict=False)
+
+    monkeypatch.setattr(BaseWorker, "_normalized_path", original_normalized)
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == (tmp_path / "share" / "dataset" / "normpath-target"):
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+    resolved = BaseWorker._resolve_data_dir(env, Path("dataset") / "normpath-target")
+    assert resolved == Path(os.path.normpath(str(tmp_path / "share" / "dataset" / "normpath-target")))
+
+
 def test_resolve_input_folder_uses_dataset_fallback(tmp_path):
     dataset_root = tmp_path / "link_sim" / "dataset"
     flights_dir = dataset_root / "flights"
@@ -226,6 +354,31 @@ def test_resolve_input_folder_uses_share_root_namespace_fallback(tmp_path):
     assert resolved == flights_dir
 
 
+def test_resolve_input_folder_uses_nested_fallback_and_warns(tmp_path, monkeypatch):
+    dataset_root = tmp_path / "dataset"
+    nested = dataset_root / "pipeline" / "csv"
+    nested.mkdir(parents=True)
+    (nested / "a.csv").write_text("plane_id,time_s\n0,0\n", encoding="utf-8")
+    (nested / "b.csv").write_text("plane_id,time_s\n1,1\n", encoding="utf-8")
+
+    warnings = []
+    monkeypatch.setattr(base_worker_mod.logger, "warning", lambda msg, *args: warnings.append(msg % args))
+
+    resolved = BaseWorker.resolve_input_folder(
+        None,
+        dataset_root,
+        "pipeline",
+        descriptor="demo generator",
+        fallback_subdirs=("csv",),
+        min_files=2,
+        patterns=("*.csv",),
+    )
+
+    assert resolved == nested.resolve()
+    assert warnings
+    assert "using nested fallback" in warnings[0]
+
+
 def test_baseworker_path_helper_utilities_cover_share_and_home_cases(tmp_path):
     env = SimpleNamespace(
         share_root_path=lambda: tmp_path / "share",
@@ -275,6 +428,115 @@ def test_baseworker_candidate_roots_and_expand_helpers(tmp_path, monkeypatch):
     assert BaseWorker.expand("demo/file.csv", base_directory=tmp_path / "base").endswith("base/demo/file.csv")
     assert BaseWorker.expand_and_join("~/data", "nested/file.csv").endswith("data/nested/file.csv")
     assert BaseWorker.normalize_dataset_path("relative/data").endswith("relative/data")
+
+
+def test_baseworker_candidate_roots_resolve_fallback(monkeypatch, tmp_path):
+    share_root = tmp_path / "share"
+    dataset_root = tmp_path / "runtime" / "dataset"
+    env = SimpleNamespace(
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("clustershare"),
+        home_abs=Path.home(),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+        _is_managed_pc=False,
+    )
+
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == share_root / "link_sim":
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+
+    candidates = BaseWorker._candidate_named_dataset_roots(env, dataset_root, namespace="link_sim")
+
+    assert share_root / "link_sim" in candidates
+
+
+def test_baseworker_expand_and_join_windows_mount_failure_is_swallowed(monkeypatch):
+    calls = []
+    posix_path_cls = type(Path("/tmp"))
+    monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
+    monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+
+    def _fake_run(cmd, shell=True, check=True):
+        calls.append((cmd, shell, check))
+        raise OSError("mount failed")
+
+    monkeypatch.setattr(base_worker_mod.subprocess, "run", _fake_run)
+
+    result = BaseWorker.expand_and_join("/Users/demo/data", "child.txt")
+
+    assert calls
+    assert calls[0][0].startswith('net use Z: ')
+    assert result.replace("\\", "/").endswith("/Users/demo/data/child.txt")
+
+
+def test_baseworker_normalize_dataset_path_windows_unc(monkeypatch):
+    posix_path_cls = type(Path("/tmp"))
+    monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
+    monkeypatch.setattr(BaseWorker, "_is_managed_pc", True, raising=False)
+
+    result = BaseWorker.normalize_dataset_path(r"\\server\share\dataset")
+
+    assert "server" in result
+    assert result.endswith("dataset")
+
+
+def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fallback(monkeypatch):
+    posix_path_cls = type(Path("/tmp"))
+    monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
+    monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+
+    candidate = (posix_path_cls.home() / "relative" / "data").expanduser()
+    original_resolve = posix_path_cls.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == candidate:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(posix_path_cls, "resolve", _patched_resolve, raising=False)
+
+    calls = []
+
+    def _fake_run(cmd, shell=True, check=True):
+        calls.append((cmd, shell, check))
+        raise OSError("net use failed")
+
+    monkeypatch.setattr(base_worker_mod.subprocess, "run", _fake_run)
+
+    result = BaseWorker.normalize_dataset_path("relative/data")
+
+    assert calls
+    assert calls[0][0].startswith('net use Z: ')
+    assert result.endswith("relative/data")
+
+
+def test_baseworker_normalize_dataset_path_windows_without_users_prefix(monkeypatch):
+    calls = []
+    posix_path_cls = type(Path("/tmp"))
+    monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
+    monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(
+        base_worker_mod.subprocess,
+        "run",
+        lambda cmd, shell=True, check=True: calls.append((cmd, shell, check)),
+    )
+
+    result = BaseWorker.normalize_dataset_path("/tmp/demo/data")
+
+    assert calls
+    assert calls[0][0].startswith('net use Z: ')
+    assert result.endswith("/tmp/demo/data")
 
 
 def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
@@ -514,8 +776,14 @@ def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
         return 9
 
     logs, result = BaseWorker._get_logs_and_result(_logged, verbosity=1)
+    debug_logs, debug_result = BaseWorker._get_logs_and_result(_logged, verbosity=2)
+    warning_logs, warning_result = BaseWorker._get_logs_and_result(_logged, verbosity=0)
     assert result == 9
+    assert debug_result == 9
+    assert warning_result == 9
     assert "hello" in logs
+    assert debug_logs
+    assert warning_logs == ""
 
     ok = SimpleNamespace(returncode=0, stderr="", stdout="done")
     warning = SimpleNamespace(returncode=1, stderr="WARNING: notice", stdout="")
@@ -616,6 +884,72 @@ def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
     assert info["ram_available"] == [4.0]
 
 
+def test_baseworker_setup_data_directories_requires_source_path():
+    worker = DummyWorker()
+    worker.env = None
+
+    with pytest.raises(ValueError, match="requires a source_path value"):
+        worker.setup_data_directories(source_path=None)
+
+
+def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(monkeypatch, tmp_path):
+    worker = DummyWorker()
+    share_root = tmp_path / "share"
+    input_dir = share_root / "flight_trajectory" / "pipeline"
+    input_dir.mkdir(parents=True)
+
+    fallback_base = tmp_path / "localshare"
+    env = SimpleNamespace(
+        AGI_LOCAL_SHARE=fallback_base,
+        home_abs=tmp_path / "home",
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("clustershare"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    requested_output = share_root / "reports" / "out"
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == requested_output:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+
+    original_mkdir = Path.mkdir
+
+    def _patched_mkdir(self, *args, **kwargs):
+        if self == requested_output:
+            raise OSError("mkdir failed")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _patched_mkdir, raising=False)
+
+    warnings = []
+    monkeypatch.setattr(base_worker_mod.logger, "warning", lambda msg, *args: warnings.append(msg % args))
+
+    result = worker.setup_data_directories(
+        source_path=Path("flight_trajectory/pipeline"),
+        target_path=Path("reports/out"),
+        target_subdir="output",
+    )
+
+    expected_fallback = fallback_base / "demo" / "output"
+
+    assert result.input_path == input_dir.resolve()
+    assert result.normalized_output == expected_fallback.as_posix()
+    assert worker.data_out == expected_fallback.as_posix()
+    assert expected_fallback.is_dir()
+    assert warnings
+    assert "using fallback" in warnings[0]
+
+
 def test_baseworker_onerror_handles_permission_and_non_permission(tmp_path, monkeypatch):
     target = tmp_path / "locked.txt"
     target.write_text("x", encoding="utf-8")
@@ -711,6 +1045,256 @@ def test_service_loop_consumes_queued_tasks(tmp_path):
     payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
     assert payload_out.get("processed") == 1
+
+
+def test_service_loop_moves_unreadable_task_to_failed(tmp_path):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    task_file = pending / "000002-bad.task.pkl"
+    task_file.write_bytes(b"not-a-pickle")
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 2.0
+    failed_file = queue_root / "failed" / task_file.name
+    while time.time() < deadline and not failed_file.exists():
+        time.sleep(0.05)
+
+    assert failed_file.exists(), "Unreadable task was not moved to failed"
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+
+    payload_out = result.get("payload")
+    assert isinstance(payload_out, dict)
+    assert payload_out.get("failed") == 0
+
+
+def test_service_loop_records_worker_failures(tmp_path):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    worker.works = _raise
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "task_id": "batch-fail",
+        "worker_idx": 0,
+        "worker": "127.0.0.1:8787",
+        "plan": {
+            "__agi_worker_chunk__": True,
+            "chunk": ["step-1"],
+            "total_workers": 1,
+            "worker_idx": 0,
+        },
+        "metadata": {
+            "__agi_worker_chunk__": True,
+            "chunk": [{"meta": 1}],
+            "total_workers": 1,
+            "worker_idx": 0,
+        },
+    }
+    task_file = pending / "000003-batch-fail-000-worker.task.pkl"
+    with open(task_file, "wb") as stream:
+        pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 2.0
+    failed_file = queue_root / "failed" / task_file.name
+    while time.time() < deadline and not failed_file.exists():
+        time.sleep(0.05)
+
+    assert failed_file.exists(), "Failed task was not moved to failed"
+
+    with open(failed_file, "rb") as stream:
+        failed_payload = pickle.load(stream)
+    assert failed_payload["status"] == "failed"
+    assert failed_payload["error"] == "boom"
+    assert "RuntimeError: boom" in failed_payload["traceback"]
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+
+    payload_out = result.get("payload")
+    assert isinstance(payload_out, dict)
+    assert payload_out.get("failed") == 1
+
+
+def test_service_loop_skips_tasks_for_other_workers(tmp_path):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    mismatched_idx = pending / "000004-idx.task.pkl"
+    with open(mismatched_idx, "wb") as stream:
+        pickle.dump({"worker_idx": 99, "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    mismatched_worker = pending / "000005-worker.task.pkl"
+    with open(mismatched_worker, "wb") as stream:
+        pickle.dump({"worker": "tcp://other:8787", "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+    time.sleep(0.2)
+
+    assert mismatched_idx.exists()
+    assert mismatched_worker.exists()
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+
+    payload_out = result.get("payload")
+    assert isinstance(payload_out, dict)
+    assert payload_out.get("processed") == 0
+
+
+def test_service_loop_swallow_heartbeat_write_failure(monkeypatch, tmp_path):
+    class LoopWorker(BaseWorker):
+        def __init__(self):
+            self.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "queue"))
+
+        def loop(self, stop_event):
+            stop_event.set()
+            return False
+
+    worker = LoopWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._insts = {0: worker}
+
+    monkeypatch.setattr(base_worker_mod.os, "replace", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("replace denied")))
+
+    payload = BaseWorker.loop(poll_interval=0.0)
+
+    assert payload["status"] == "stopped"
+    assert list((tmp_path / "queue" / "heartbeats").glob("*.tmp")) == []
+
+
+def test_service_loop_skips_claim_races(tmp_path, monkeypatch):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    task_file = pending / "000006-claim-race.task.pkl"
+    with open(task_file, "wb") as stream:
+        pickle.dump({"worker_idx": 0, "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    original_replace = Path.replace
+
+    def _patched_replace(self, target):
+        if self == task_file:
+            raise FileNotFoundError("claimed elsewhere")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", _patched_replace, raising=False)
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+    time.sleep(0.2)
+
+    assert task_file.exists()
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+
+    payload_out = result.get("payload")
+    assert isinstance(payload_out, dict)
+    assert payload_out.get("processed") == 0
+
+
+def test_service_loop_handles_disappearing_task_files(tmp_path, monkeypatch):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    task_file = pending / "000007-disappearing.task.pkl"
+    with open(task_file, "wb") as stream:
+        pickle.dump({"worker_idx": 0, "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    original_open = open
+
+    def _patched_open(path, *args, **kwargs):
+        if Path(path) == task_file and "rb" in kwargs.get("mode", args[0] if args else ""):
+            raise FileNotFoundError("gone")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(base_worker_mod, "open", _patched_open, raising=False)
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+    time.sleep(0.2)
+
+    assert task_file.exists()
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+
+    payload_out = result.get("payload")
+    assert isinstance(payload_out, dict)
+    assert payload_out.get("processed") == 0
 
 
 def test_service_loop_custom_worker_writes_heartbeat_and_calls_stop(tmp_path):

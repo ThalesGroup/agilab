@@ -827,6 +827,14 @@ def test_build_parse_custom_args_and_remaining():
     assert opts.remaining == ["--flag"]
 
 
+def test_build_parse_custom_args_rejects_missing_required_output_dirs(tmp_path):
+    with pytest.raises(SystemExit):
+        build_mod.parse_custom_args(["build_ext", "-b", ""], tmp_path / "app")
+
+    with pytest.raises(SystemExit):
+        build_mod.parse_custom_args(["bdist_egg", "-d", ""], tmp_path / "app")
+
+
 def test_build_truncate_path_at_segment_uses_last_match():
     path = "/x/alpha_worker/y/beta_worker/file.py"
     truncated = build_mod.truncate_path_at_segment(path)
@@ -840,6 +848,13 @@ def test_build_find_sys_prefix_prefers_python_dirs(tmp_path):
     python_dir.mkdir(parents=True, exist_ok=True)
     build_mod.AgiEnv.logger = type("Logger", (), {"info": staticmethod(lambda *_args, **_kwargs: None)})()
     assert build_mod.find_sys_prefix(str(tmp_path)) == str(python_dir)
+
+
+def test_build_find_sys_prefix_falls_back_to_sys_prefix(tmp_path, monkeypatch):
+    monkeypatch.setattr(build_mod.sys, "prefix", str(tmp_path / "fallback-prefix"), raising=False)
+    build_mod.AgiEnv.logger = type("Logger", (), {"info": staticmethod(lambda *_args, **_kwargs: None)})()
+
+    assert build_mod.find_sys_prefix(str(tmp_path)) == str(tmp_path / "fallback-prefix")
 
 
 def test_build_fix_windows_drive(monkeypatch):
@@ -862,6 +877,22 @@ def test_build_keep_lflag(tmp_path):
     assert build_mod._keep_lflag("-Wl,--as-needed") is True
     assert build_mod._keep_lflag(f"-L{existing}") is True
     assert build_mod._keep_lflag("-L/definitely/missing/path") is False
+
+
+def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
+    fake_home = tmp_path / "home"
+    monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(build_mod.sys, "path", [], raising=False)
+    monkeypatch.setattr(build_mod.sys, "version_info", SimpleNamespace(major=3, minor=13), raising=False)
+
+    build_mod._inject_shared_site_packages()
+    build_mod._inject_shared_site_packages()
+
+    expected = [
+        str(fake_home / "agilab/.venv/lib/python3.13/site-packages"),
+        str(fake_home / ".agilab/.venv/lib/python3.13/site-packages"),
+    ]
+    assert build_mod.sys.path == expected
 
 
 def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path, monkeypatch):
@@ -1272,6 +1303,33 @@ def test_build_create_symlink_for_module_returns_empty_when_dest_exists(tmp_path
     assert build_mod.create_symlink_for_module(env, "demo_worker.module_a") == []
 
 
+def test_build_create_symlink_for_module_raises_when_dest_absolute_fails(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_file = tmp_path / "app" / "demo_worker" / "module_a"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("payload", encoding="utf-8")
+
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi_node",
+        agi_env=tmp_path / "agi_env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app",
+    )
+
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", _DummyLogger(), raising=False)
+    original_absolute = build_mod.Path.absolute
+
+    def _patched_absolute(self):
+        if self == build_mod.Path("src") / "demo_worker" / "module_a":
+            raise FileNotFoundError("missing source")
+        return original_absolute(self)
+
+    monkeypatch.setattr(build_mod.Path, "absolute", _patched_absolute, raising=False)
+
+    with pytest.raises(FileNotFoundError, match="Source path does not exist"):
+        build_mod.create_symlink_for_module(env, "demo_worker.module_a")
+
+
 def test_build_create_symlink_for_module_raises_when_hard_link_fails(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     source_file = tmp_path / "app" / "demo_worker" / "module_a"
@@ -1319,6 +1377,47 @@ def test_build_cleanup_links_removes_file_and_empty_parents(tmp_path):
     build_mod.cleanup_links([target])
     assert not target.exists()
     assert not (tmp_path / "a" / "agi_node" / "demo").exists()
+
+
+def test_build_force_remove_tree_handles_missing_and_chmod_failure(tmp_path, monkeypatch):
+    missing = tmp_path / "missing"
+    build_mod._force_remove_tree(missing)
+    assert not missing.exists()
+
+    target = tmp_path / "target"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "payload.txt").write_text("x", encoding="utf-8")
+    run_calls = []
+
+    monkeypatch.setattr(build_mod.os, "name", "posix", raising=False)
+    monkeypatch.setattr(build_mod.os, "chmod", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("chmod denied")))
+    monkeypatch.setattr(build_mod.subprocess, "run", lambda args, check=False, capture_output=True: run_calls.append((args, check, capture_output)))
+
+    build_mod._force_remove_tree(target)
+
+    assert not target.exists()
+    assert run_calls == [(["chmod", "-R", "u+rwx", str(target)], False, True)]
+
+
+def test_build_purge_worker_venv_artifacts_removes_unique_candidates(tmp_path, monkeypatch):
+    app_root = tmp_path / "app"
+    worker_module = "demo_worker"
+    candidates = [
+        app_root / "src" / worker_module / ".venv",
+        app_root / "build" / "lib" / worker_module / ".venv",
+        app_root / "build" / "bdist.any" / "egg" / worker_module / ".venv",
+    ]
+    for candidate in candidates:
+        candidate.mkdir(parents=True, exist_ok=True)
+
+    build_mod.logger = _DummyLogger()
+    removed = []
+    monkeypatch.setattr(build_mod, "_force_remove_tree", lambda path: removed.append(path))
+
+    result = build_mod._purge_worker_venv_artifacts(app_root, worker_module)
+
+    assert result == [candidate.resolve(strict=False) for candidate in candidates]
+    assert removed == result
 
 
 def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatch):
