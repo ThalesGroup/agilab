@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -119,6 +120,75 @@ async def test_do_distrib_preserves_multiple_worker_assignments(tmp_path, monkey
 
 
 @pytest.mark.asyncio
+async def test_do_distrib_rebuilds_stale_cache_serializes_dates_and_skips_empty_chunks(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    cluster_src = tmp_path / "cluster" / "src"
+    cluster_src.mkdir(parents=True)
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        agi_cluster=cluster_src.parent,
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    cached = {
+        "workers": {"127.0.0.1": 1},
+        "target_args": {"alpha": 0},
+        "work_plan": None,
+        "work_plan_metadata": [],
+    }
+    plan_path.write_text(json.dumps(cached), encoding="utf-8")
+
+    workers = {"127.0.0.1": 3}
+    args = {"alpha": 1}
+
+    class DemoWorker:
+        build_calls = 0
+
+        def __init__(self, env, **kwargs):
+            self.received_env = env
+            self.received_args = kwargs
+
+        def build_distribution(self, assigned_workers):
+            type(self).build_calls += 1
+            assert assigned_workers == workers
+            return (
+                [["chunk-a"], []],
+                [
+                    {
+                        "day": datetime.date(2026, 4, 13),
+                        "ts": datetime.datetime(2026, 4, 13, 9, 30, 0),
+                    }
+                ],
+                "partition",
+                2,
+                1.0,
+            )
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorker=DemoWorker)),
+    )
+
+    loaded_workers, work_plan, metadata = await WorkDispatcher._do_distrib(env, workers, args)
+
+    assert DemoWorker.build_calls == 1
+    assert loaded_workers == {"127.0.0.1": 1}
+    assert work_plan == [["chunk-a"]]
+    assert metadata[0]["day"] == datetime.date(2026, 4, 13)
+
+    data = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert data["workers"] == workers
+    assert data["target_args"] == args
+    assert data["work_plan"] == [["chunk-a"], []]
+    assert data["work_plan_metadata"][0]["day"] == "2026-04-13"
+    assert data["work_plan_metadata"][0]["ts"].startswith("2026-04-13T09:30:00")
+
+
+@pytest.mark.asyncio
 async def test_do_distrib_raises_when_module_cannot_be_loaded(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
     cluster_src = tmp_path / "cluster" / "src"
@@ -134,6 +204,39 @@ async def test_do_distrib_raises_when_module_cannot_be_loaded(tmp_path, monkeypa
 
     monkeypatch.setattr(WorkDispatcher, "_load_module", AsyncMock(return_value=None))
     with pytest.raises(RuntimeError):
+        await WorkDispatcher._do_distrib(env, {"127.0.0.1": 1}, {"alpha": 1})
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_raises_for_nonserializable_cache_payload(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    cluster_src = tmp_path / "cluster" / "src"
+    cluster_src.mkdir(parents=True)
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        agi_cluster=cluster_src.parent,
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    class DemoWorker:
+        def __init__(self, env, **kwargs):
+            self.received_env = env
+            self.received_args = kwargs
+
+        def build_distribution(self, assigned_workers):
+            assert assigned_workers == {"127.0.0.1": 1}
+            return [["chunk"]], [{"bad": object()}], "partition", 1, 1.0
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorker=DemoWorker)),
+    )
+
+    with pytest.raises(TypeError, match="not serializable"):
         await WorkDispatcher._do_distrib(env, {"127.0.0.1": 1}, {"alpha": 1})
 
 
@@ -158,6 +261,22 @@ def test_make_chunks_selects_optimal_or_fastest(monkeypatch):
     weights = [("a", 3), ("b", 1)]
     assert WorkDispatcher.make_chunks(2, weights, workers={"127.0.0.1": 1}, threshold=3) == [["optimal"]]
     assert WorkDispatcher.make_chunks(5, weights, workers={"127.0.0.1": 1}, threshold=3) == [["fastest"]]
+
+
+def test_make_chunks_uses_default_workers_and_builds_default_capacities(monkeypatch):
+    captured = {}
+
+    def _fake_optimal(weights, capacities):
+        captured["weights"] = weights
+        captured["capacities"] = capacities.tolist()
+        return [["optimal"]]
+
+    monkeypatch.setattr(WorkDispatcher, "_make_chunks_optimal", _fake_optimal)
+
+    weights = [("a", 3), ("b", 1)]
+    assert WorkDispatcher.make_chunks(2, weights, workers=None, capacities=None, threshold=3) == [["optimal"]]
+    assert captured["weights"] == weights
+    assert captured["capacities"] == [1]
 
 
 def test_make_chunks_single_weight_returns_nested_shape():
@@ -227,6 +346,32 @@ async def test_load_module_with_package_and_path(monkeypatch, tmp_path):
     assert str(src_root.resolve()) in dispatcher_module.sys.path
 
     # Keep global sys.path tidy for subsequent tests.
+    dispatcher_module.sys.path[:] = [p for p in dispatcher_module.sys.path if p in before]
+
+
+@pytest.mark.asyncio
+async def test_load_module_handles_file_path_and_direct_import(monkeypatch, tmp_path):
+    module_file = tmp_path / "workspace" / "src" / "demo_module.py"
+    module_file.parent.mkdir(parents=True, exist_ok=True)
+    module_file.write_text("# demo", encoding="utf-8")
+
+    sentinel = object()
+    import_calls = []
+
+    def fake_import(name):
+        import_calls.append(name)
+        return sentinel
+
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
+    before = set(dispatcher_module.sys.path)
+
+    result = await WorkDispatcher._load_module("demo_module", path=module_file)
+
+    assert result is sentinel
+    assert import_calls == ["demo_module"]
+    assert str(module_file.parent.resolve()) in dispatcher_module.sys.path
+    assert str(module_file.parent.parent.parent.resolve()) in dispatcher_module.sys.path
+
     dispatcher_module.sys.path[:] = [p for p in dispatcher_module.sys.path if p in before]
 
 
