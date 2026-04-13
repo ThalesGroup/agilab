@@ -3199,6 +3199,99 @@ async def test_prepare_cluster_env_uses_manager_pyproject_when_worker_missing(mo
 
 
 @pytest.mark.asyncio
+async def test_prepare_cluster_env_uses_unique_stage_dir_and_cleans_it(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    worker_pyproject = tmp_path / "worker_pyproject.toml"
+    worker_pyproject.write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+    manager_pyproject = tmp_path / "manager_pyproject.toml"
+    manager_pyproject.write_text("[project]\nname='demo-manager'\n", encoding="utf-8")
+    uvproject = tmp_path / "uv.toml"
+    uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        dist_rel=Path("wenv/dist"),
+        wenv_rel=Path("wenv"),
+        pyvers_worker="3.13",
+        is_local=lambda ip: ip == "127.0.0.1",
+        envars={"AGI_INTERNET_ON": "1"},
+        uv="uv",
+        cluster_pck=cluster_pck,
+        worker_pyproject=worker_pyproject,
+        manager_pyproject=manager_pyproject,
+        uvproject=uvproject,
+        target_worker="demo_worker",
+    )
+    AGI.env = env
+    AGI._workers = {"10.0.0.2": 1}
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+    sent = []
+    staged_roots = []
+
+    async def _fake_detect(_ip):
+        return "export PATH=\"$HOME/.local/bin:$PATH\"; "
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        sent.append(
+            (
+                ip,
+                [(Path(f).name, Path(f).exists()) for f in files],
+                str(remote_path),
+            )
+        )
+
+    async def _fake_noop(*_args, **_kwargs):
+        return None
+
+    def _fake_mkdtemp(prefix):
+        stage_root = tmp_path / f"{prefix}stage"
+        stage_root.mkdir(parents=True, exist_ok=False)
+        staged_roots.append(stage_root)
+        return str(stage_root)
+
+    def _fake_stage_sources(src_pyproject, dest_pyproject, stage_root, log_rewrites):
+        assert src_pyproject == worker_pyproject
+        assert dest_pyproject == stage_root / "pyproject.toml"
+        assert stage_root == staged_roots[0]
+        assert log_rewrites is False
+        staged_source = stage_root / "staged-source.txt"
+        staged_source.write_text("staged", encoding="utf-8")
+        return [staged_source]
+
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    monkeypatch.setattr(AGI, "send_files", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_noop))
+    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_noop))
+    monkeypatch.setattr(agi_distributor_module, "mkdtemp", _fake_mkdtemp)
+    monkeypatch.setattr(
+        agi_distributor_module,
+        "_stage_uv_sources_for_copied_pyproject",
+        _fake_stage_sources,
+    )
+    monkeypatch.setattr(agi_distributor_module.AgiEnv, "set_env_var", staticmethod(lambda *_a, **_k: None))
+
+    await AGI._prepare_cluster_env("127.0.0.1")
+
+    assert staged_roots
+    assert staged_roots[0].name.startswith("agilab_demo_worker_pyproject_")
+    assert staged_roots[0].exists() is False
+    sent_to_wenv = [items for _ip, items, remote_path in sent if remote_path == "wenv"]
+    assert sent_to_wenv
+    assert any(name == "pyproject.toml" and exists for name, exists in sent_to_wenv[0])
+    assert any(name == "staged-source.txt" and exists for name, exists in sent_to_wenv[0])
+    assert any(name == "uv.toml" and exists for name, exists in sent_to_wenv[0])
+
+
+@pytest.mark.asyncio
 async def test_prepare_cluster_env_falls_back_to_original_pyproject_when_extra_seed_fails(monkeypatch, tmp_path):
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
