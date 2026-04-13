@@ -6,6 +6,11 @@ It is not a branding memo. It is a working plan for increasing qualified traffic
 raising repo conversion, and creating enough external proof that AGILAB becomes
 easy to star, easy to explain, and easy to classify.
 
+Execution companions:
+
+- [LAUNCH_EXECUTION_CHECKLIST.md](/Users/agi/PycharmProjects/agilab/LAUNCH_EXECUTION_CHECKLIST.md)
+- [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+
 ## Reality check
 
 - EthicalML's `awesome-production-machine-learning` list requires at least **500 GitHub stars**.

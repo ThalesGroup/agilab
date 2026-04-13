@@ -1,0 +1,76 @@
+# AGILAB Launch Execution Checklist
+
+Use this file to execute the current launch wave defined in:
+
+- [STAR_GROWTH_PLAN.md](/Users/agi/PycharmProjects/agilab/STAR_GROWTH_PLAN.md)
+- [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
+- [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+
+This is not a brainstorming document. It is the run list for the current public push.
+
+## Locked launch theme
+
+`Reproducible AI/ML workflows from local experimentation to distributed workers and long-lived services.`
+
+## Locked canonical demo
+
+- primary demo video: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- still fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
+- workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
+- reference app: `flight_project`
+
+## Pre-flight checks
+
+- [ ] README opening still matches the locked positioning
+- [ ] GitHub repo description still matches the locked About text
+- [ ] canonical demo asset still opens and is usable
+- [ ] docs landing page still points first-time users to the same workflow
+- [ ] quick-start path still works without IDE-specific context
+- [ ] no new repo wording drift has appeared between README, docs, and launch copy
+
+## Launch sequence
+
+### Step 1: repo and docs alignment
+
+- [ ] verify [README.md](/Users/agi/PycharmProjects/agilab/README.md)
+- [ ] verify [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
+- [ ] verify [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [ ] verify docs landing page links are still valid
+
+### Step 2: GitHub launch
+
+- [ ] publish the GitHub discussion or release note using [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [ ] attach or link the canonical demo asset
+- [ ] point readers to the README quick start and docs home
+
+### Step 3: LinkedIn launch
+
+- [ ] publish the LinkedIn post from [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [ ] use the flight demo video if possible
+- [ ] if not, use the social card
+- [ ] keep the wording aligned with the locked launch theme
+
+### Step 4: community channels
+
+- [ ] publish Reddit post only if the landing page still feels sharp
+- [ ] publish Hacker News post only if the demo asset and landing page are both strong enough
+- [ ] do not switch to another app example for the same launch wave
+
+## 48-hour follow-up
+
+- [ ] record first star delta after the launch
+- [ ] record README / docs traffic if available
+- [ ] record whether external questions appeared
+- [ ] record whether the first-time visitor path caused confusion
+- [ ] update [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+
+## Abort conditions
+
+Pause the launch if any of these become true:
+
+- the README and GitHub description drift apart again
+- the canonical demo path is broken or unclear
+- the launch copy starts fragmenting into multiple messages
+- the landing page still needs explanation before a visitor can try anything
+
+If an abort condition is hit, fix conversion first. Do not push more traffic into a weak landing page.
