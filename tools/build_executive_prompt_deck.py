@@ -75,8 +75,23 @@ def title_block(slide, title: str, subtitle: str):
 def slide_prompt(prs: Presentation):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     set_bg(slide)
-    title_block(slide, "1. Le vrai rôle du Prompt Engineering", "Il cadre un coding harness : modèle, agent loop et runtime supports.")
-    textbox(slide, Inches(4.7), Inches(2.02), Inches(3.9), Inches(0.36), "Coding harness", size=22, color=DARK, bold=True, align=PP_ALIGN.CENTER)
+    title_block(
+        slide,
+        "1. Le vrai rôle du Prompt Engineering",
+        "Le prompt ne cadre pas seulement le modèle. Il cadre le système d'exécution : modèle, boucle agentique et runtime.",
+    )
+    textbox(
+        slide,
+        Inches(4.38),
+        Inches(2.02),
+        Inches(4.54),
+        Inches(0.36),
+        "Système cadré par le prompt",
+        size=21,
+        color=DARK,
+        bold=True,
+        align=PP_ALIGN.CENTER,
+    )
 
     left_panel = panel(slide, Inches(0.74), Inches(2.42), Inches(2.72), Inches(3.1), fill=WHITE, line=DARK)
     center_panel = panel(slide, Inches(4.02), Inches(2.42), Inches(4.82), Inches(3.1), fill=WHITE, line=DARK)
@@ -84,23 +99,23 @@ def slide_prompt(prs: Presentation):
     for shp in (left_panel, center_panel, right_panel):
         shp.line.width = Pt(2.0)
 
-    textbox(slide, Inches(1.0), Inches(2.72), Inches(2.16), Inches(0.28), "Model family", size=21, color=DARK, align=PP_ALIGN.CENTER)
+    textbox(slide, Inches(1.0), Inches(2.72), Inches(2.16), Inches(0.28), "Couche modèle", size=21, color=DARK, align=PP_ALIGN.CENTER)
     panel(slide, Inches(1.14), Inches(3.34), Inches(1.92), Inches(0.88), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
-    textbox(slide, Inches(1.3), Inches(3.64), Inches(1.6), Inches(0.2), "Base LLM", size=19, color=DARK, align=PP_ALIGN.CENTER)
+    textbox(slide, Inches(1.24), Inches(3.64), Inches(1.72), Inches(0.2), "LLM de base", size=18, color=DARK, align=PP_ALIGN.CENTER)
     shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.CHEVRON, Inches(1.95), Inches(4.28), Inches(0.28), Inches(0.28))
     shape.rotation = 90
     shape.fill.solid()
     shape.fill.fore_color.rgb = DARK
     shape.line.fill.background()
     panel(slide, Inches(1.14), Inches(4.62), Inches(1.92), Inches(0.88), fill=RGBColor(250, 217, 176), line=RGBColor(250, 217, 176))
-    textbox(slide, Inches(1.3), Inches(4.84), Inches(1.6), Inches(0.36), "Reasoning\nmodel", size=18, color=DARK, align=PP_ALIGN.CENTER)
+    textbox(slide, Inches(1.24), Inches(4.84), Inches(1.72), Inches(0.36), "LLM\nreasoning", size=18, color=DARK, align=PP_ALIGN.CENTER)
 
-    textbox(slide, Inches(5.16), Inches(2.72), Inches(2.52), Inches(0.28), "Agent loop", size=21, color=DARK, align=PP_ALIGN.CENTER)
+    textbox(slide, Inches(5.0), Inches(2.72), Inches(2.84), Inches(0.28), "Boucle agentique", size=21, color=DARK, align=PP_ALIGN.CENTER)
     loop_boxes = [
-        (Inches(4.46), Inches(3.66), "Inspect"),
-        (Inches(6.58), Inches(3.66), "Choose"),
+        (Inches(4.46), Inches(3.66), "Inspecte"),
+        (Inches(6.58), Inches(3.66), "Choisit"),
         (Inches(4.46), Inches(4.76), "Observe"),
-        (Inches(6.58), Inches(4.76), "Act"),
+        (Inches(6.58), Inches(4.76), "Agit"),
     ]
     for left, top, label in loop_boxes:
         panel(slide, left, top, Inches(1.55), Inches(0.56), fill=RGBColor(197, 225, 245), line=RGBColor(197, 225, 245))
@@ -118,14 +133,14 @@ def slide_prompt(prs: Presentation):
         shape.fill.fore_color.rgb = DARK
         shape.line.fill.background()
 
-    textbox(slide, Inches(9.7), Inches(2.72), Inches(2.56), Inches(0.28), "Runtime supports", size=20, color=DARK, align=PP_ALIGN.CENTER)
+    textbox(slide, Inches(9.44), Inches(2.72), Inches(3.02), Inches(0.28), "Cadre d'exécution", size=20, color=DARK, align=PP_ALIGN.CENTER)
     runtime = [
-        (Inches(9.68), Inches(3.56), "Repo context"),
-        (Inches(11.1), Inches(3.56), "Tools"),
+        (Inches(9.68), Inches(3.56), "Contexte repo"),
+        (Inches(11.1), Inches(3.56), "Outils"),
         (Inches(9.68), Inches(4.34), "Permissions"),
-        (Inches(11.1), Inches(4.34), "Memory"),
+        (Inches(11.1), Inches(4.34), "Mémoire"),
         (Inches(9.68), Inches(5.12), "Cache"),
-        (Inches(11.1), Inches(5.12), "Execution"),
+        (Inches(11.1), Inches(5.12), "Exécution"),
     ]
     for left, top, label in runtime:
         panel(slide, left, top, Inches(1.16), Inches(0.48), fill=RGBColor(226, 208, 246), line=RGBColor(226, 208, 246))
@@ -136,6 +151,20 @@ def slide_prompt(prs: Presentation):
         shape.fill.solid()
         shape.fill.fore_color.rgb = DARK
         shape.line.fill.background()
+
+    panel(slide, Inches(1.08), Inches(5.78), Inches(11.0), Inches(0.72), fill=RGBColor(244, 236, 224), line=RGBColor(244, 236, 224))
+    textbox(
+        slide,
+        Inches(1.32),
+        Inches(6.02),
+        Inches(10.5),
+        Inches(0.22),
+        "Le Prompt Engineering sert à cadrer la boucle, les outils, les règles d'exécution et le bon niveau de contexte.",
+        size=16,
+        color=ACCENT,
+        bold=True,
+        align=PP_ALIGN.CENTER,
+    )
 
 
 def slide_landscape(prs: Presentation):

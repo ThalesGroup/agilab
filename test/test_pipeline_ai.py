@@ -585,6 +585,50 @@ def test_pipeline_ai_import_falls_back_when_pipeline_modules_are_unavailable():
     assert callable(fallback.prompt_for_openai_api_key)
 
 
+def test_pipeline_ai_import_fallback_raises_when_pipeline_openai_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_openai_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_openai"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_fallback_missing_pipeline_openai",
+            "src/agilab/pipeline_ai.py",
+            "agilab.pipeline_openai",
+            "agilab.pipeline_steps",
+        )
+
+
+def test_pipeline_ai_import_fallback_raises_when_pipeline_steps_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+    fake_openai = SimpleNamespace(
+        ensure_cached_api_key=lambda *_args, **_kwargs: "",
+        is_placeholder_api_key=lambda *_args, **_kwargs: False,
+        make_openai_client_and_model=lambda *_args, **_kwargs: (None, "", False),
+        prompt_for_openai_api_key=lambda *_args, **_kwargs: "",
+    )
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_steps_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+    monkeypatch.setitem(sys.modules, "agilab.pipeline_openai", fake_openai)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_steps"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_fallback_missing_pipeline_steps",
+            "src/agilab/pipeline_ai.py",
+            "agilab.pipeline_steps",
+        )
+
+
 def test_load_uoaic_modules_loads_modules_from_wheel_files(monkeypatch, tmp_path):
     errors: list[str] = []
     fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
@@ -661,6 +705,84 @@ def test_load_uoaic_modules_reports_generic_file_load_failure(monkeypatch, tmp_p
         pipeline_ai.importlib,
         "import_module",
         lambda name: (_ for _ in ()).throw(ImportError("generic failure", name=name)),
+    )
+
+    with pytest.raises(RuntimeError):
+        pipeline_ai._load_uoaic_modules()
+
+    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
+
+
+def test_load_uoaic_modules_record_fallback_and_spec_failure_paths(monkeypatch, tmp_path):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    wheel_root = tmp_path / "wheel"
+    wheel_root.mkdir()
+    chunker_file = wheel_root / "src" / "chunker.py"
+    chunker_file.parent.mkdir(parents=True)
+    chunker_file.write_text("IDENT = 'chunker'\n", encoding="utf-8")
+
+    class FakeDist:
+        files = []
+
+        @staticmethod
+        def locate_file(path):
+            return wheel_root / str(path)
+
+        @staticmethod
+        def read_text(_name):
+            return "src/chunker.py,,\n"
+
+    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
+    monkeypatch.setattr(
+        pipeline_ai.importlib,
+        "import_module",
+        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
+    )
+
+    class _Loader:
+        @staticmethod
+        def exec_module(_module):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        pipeline_ai.importlib.util,
+        "spec_from_file_location",
+        lambda *_args, **_kwargs: SimpleNamespace(loader=_Loader()),
+    )
+
+    with pytest.raises(RuntimeError):
+        pipeline_ai._load_uoaic_modules()
+
+    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
+
+
+def test_load_uoaic_modules_record_read_failure_uses_generic_error(monkeypatch, tmp_path):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    wheel_root = tmp_path / "wheel"
+    wheel_root.mkdir()
+
+    class FakeDist:
+        files = []
+
+        @staticmethod
+        def locate_file(path):
+            return wheel_root / str(path)
+
+        @staticmethod
+        def read_text(_name):
+            raise RuntimeError("record broken")
+
+    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
+    monkeypatch.setattr(
+        pipeline_ai.importlib,
+        "import_module",
+        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
     )
 
     with pytest.raises(RuntimeError):
@@ -1338,6 +1460,52 @@ def test_chat_ollama_local_covers_missing_model_and_generation_failure(monkeypat
     assert any("ollama boom" in message for message in errors)
 
 
+def test_extract_code_covers_fenced_blocks_without_newline_and_non_python_language():
+    assert pipeline_ai.extract_code("```print('ok')```") == ("print('ok')", "")
+    assert pipeline_ai.extract_code("```sql\nselect 1\n```") == ("sql\nselect 1", "")
+
+
+def test_ollama_model_helpers_cover_error_empty_names_and_first_available(monkeypatch):
+    monkeypatch.setattr(
+        pipeline_ai.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert pipeline_ai._ollama_available_models("http://127.0.0.1:11434") == []
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {
+                    "models": [
+                        {"name": ""},
+                        {"name": "mistral:7b"},
+                        {"name": "mistral:7b"},
+                        {"name": "codegemma:latest"},
+                    ]
+                }
+            ).encode("utf-8")
+
+    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: _Resp())
+    pipeline_ai._ollama_available_models.clear()
+    assert pipeline_ai._ollama_available_models("http://127.0.0.1:11434") == [
+        "mistral:7b",
+        "codegemma:latest",
+    ]
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_ollama_available_models",
+        lambda _endpoint: ["llama3:70b", "codestral:22b"],
+    )
+    assert pipeline_ai._default_ollama_model("http://127.0.0.1:11434", preferred="missing") == "llama3:70b"
+
+
 def test_chat_online_covers_legacy_client_auth_and_unexpected_failures(monkeypatch):
     infos: list[str] = []
     errors: list[str] = []
@@ -1703,3 +1871,138 @@ def test_ask_gpt_and_autofix_cover_empty_and_failed_repair_paths(monkeypatch):
     assert detail == "detail-a"
     assert any("model returned no code" in entry for entry in logs)
     assert any("keeping the last generated code" in entry for entry in logs)
+
+
+def test_autofix_and_provider_switch_cover_remaining_error_paths(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_AUTOFIX_STATE_KEY: True,
+            pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY: 1,
+            pipeline_ai.UOAIC_RUNTIME_KEY: {"status": "cached"},
+            "index_page": "page",
+            "page": [0, 0, 0, "stale-model"],
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        },
+        sidebar=SimpleNamespace(selectbox=lambda *_args, **_kwargs: "OpenAI (online)"),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "get_default_openai_model", lambda: "gpt-5.4")
+    monkeypatch.setattr(
+        pipeline_ai,
+        "ask_gpt",
+        lambda *args, **kwargs: [Path("df.csv"), "fix", "m2", "raise RuntimeError('still broken')", "detail"],
+    )
+
+    logs: list[str] = []
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="q",
+        df_path=Path("df.csv"),
+        index_page="page",
+        env=SimpleNamespace(envars={}),
+        merged_code="raise ValueError('boom')",
+        model_label="model-a",
+        detail="detail-a",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=lambda *_args: logs.append(_args[1]),
+        get_run_placeholder=lambda _page: "placeholder",
+    )
+
+    assert code == "# detail\nraise RuntimeError('still broken')"
+    assert model == "m2"
+    assert detail == "detail"
+    assert any("Auto-fix attempt 1 failed" in entry for entry in logs)
+    assert any("keeping the last generated code" in entry for entry in logs)
+
+    env = SimpleNamespace(envars={"LAB_LLM_PROVIDER": pipeline_ai.UOAIC_PROVIDER})
+    provider = pipeline_ai.configure_assistant_engine(env)
+    assert provider == "openai"
+    assert pipeline_ai.UOAIC_RUNTIME_KEY not in fake_st.session_state
+    assert fake_st.session_state["page"][3] == ""
+    assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
+
+
+def test_universal_offline_controls_covers_invalid_defaults_and_blank_paths(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+
+    class RagSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            return "RAG (offline docs)"
+
+        def expander(self, label, expanded=True):
+            return nullcontext()
+
+        def text_input(self, label, value="", help=None):
+            mapping = {
+                "Ollama endpoint": "http://127.0.0.1:11434",
+                "Ollama model": "codegemma",
+                "Universal Offline data directory": "",
+                "Universal Offline vector store directory": "",
+            }
+            return mapping.get(label, value)
+
+        def slider(self, *args, **kwargs):
+            return kwargs["value"]
+
+        def number_input(self, label, **kwargs):
+            if label == "Max fix attempts":
+                return kwargs["value"]
+            return kwargs["value"]
+
+        def checkbox(self, label, value=False, help=None):
+            return False
+
+        def button(self, label, key=None):
+            return False
+
+        def caption(self, message):
+            messages.append(("caption", str(message)))
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+        def info(self, message):
+            messages.append(("info", str(message)))
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+    fake_st = SimpleNamespace(
+        session_state={"lab_llm_provider": pipeline_ai.UOAIC_PROVIDER},
+        sidebar=RagSidebar(),
+        spinner=lambda *_args, **_kwargs: nullcontext(),
+        text_input=lambda *args, **kwargs: RagSidebar().text_input(*args, **kwargs),
+        slider=lambda *args, **kwargs: RagSidebar().slider(*args, **kwargs),
+        number_input=lambda *args, **kwargs: RagSidebar().number_input(*args, **kwargs),
+        checkbox=lambda *args, **kwargs: RagSidebar().checkbox(*args, **kwargs),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_default_ollama_model", lambda *_args, **_kwargs: "fallback-model")
+    monkeypatch.setattr(pipeline_ai, "_normalize_user_path", lambda raw: "")
+    monkeypatch.setattr(pipeline_ai, "DEFAULT_UOAIC_BASE", tmp_path / "uoaic")
+
+    original_mkdir = Path.mkdir
+
+    def _patched_mkdir(self, *args, **kwargs):
+        if self in {
+            tmp_path / "uoaic" / "data",
+            tmp_path / "uoaic" / "vectorstore",
+        }:
+            raise OSError("no access")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _patched_mkdir, raising=False)
+
+    env = SimpleNamespace(
+        envars={
+            pipeline_ai.UOAIC_AUTOFIX_MAX_ENV: "bad",
+        }
+    )
+    pipeline_ai.universal_offline_controls(env)
+
+    assert fake_st.session_state[pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY] == 2
+    assert pipeline_ai.UOAIC_DATA_STATE_KEY not in fake_st.session_state
+    assert pipeline_ai.UOAIC_DB_STATE_KEY not in fake_st.session_state
+    assert pipeline_ai.UOAIC_DATA_ENV not in env.envars
+    assert pipeline_ai.UOAIC_DB_ENV not in env.envars

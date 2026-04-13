@@ -197,6 +197,27 @@ def test_blank_log_and_export_dirs_do_not_mask_process_overrides(tmp_path: Path,
     assert env.export_apps == fake_home / "process-export" / "apps-zip"
 
 
+def test_init_envars_app_honours_relative_mlflow_and_pages_overrides(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.home_abs = tmp_path / "home"
+    env.home_abs.mkdir()
+    env.target = "sb3_trainer"
+    env.agilab_pck = tmp_path / "pkg"
+    env.agilab_pck.mkdir()
+    env.read_agilab_path = lambda: None
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+
+    env.init_envars_app(
+        {
+            "MLFLOW_TRACKING_DIR": "mlruns",
+            "AGI_PAGES_DIR": str(tmp_path / "custom-pages"),
+        }
+    )
+
+    assert env.MLFLOW_TRACKING_DIR == env.home_abs / "mlruns"
+    assert env.AGILAB_PAGES_ABS == tmp_path / "custom-pages"
+
+
 def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, monkeypatch):
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     fake_home = tmp_path / "fake_home"
@@ -812,6 +833,41 @@ def test_normalize_path_and_windows_drive_fix(monkeypatch):
     assert agi_env_module._fix_windows_drive(r"C:\\Users\\agi") == r"C:\\Users\\agi"
 
 
+def test_normalize_path_windows_resolve_fallback_and_worker_hook_none(monkeypatch, tmp_path):
+    original_os_name = os.name
+    original_resolve = Path.resolve
+    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == Path("demo"):
+            raise RuntimeError("boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+    assert agi_env_module.normalize_path("demo").endswith("demo")
+    monkeypatch.setattr(agi_env_module.os, "name", original_os_name, raising=False)
+    monkeypatch.setattr(Path, "resolve", original_resolve, raising=False)
+
+    agi_env_module._resolve_worker_hook.cache_clear()
+    monkeypatch.setattr(
+        agi_env_module,
+        "__file__",
+        str(tmp_path / "sandbox" / "nested" / "agi_env.py"),
+    )
+    monkeypatch.setattr(
+        agi_env_module.importlib.util,
+        "find_spec",
+        lambda _name: (_ for _ in ()).throw(ModuleNotFoundError("missing")),
+    )
+    monkeypatch.setattr(
+        agi_env_module.importlib_resources,
+        "files",
+        lambda _name: (_ for _ in ()).throw(AttributeError("no resources")),
+    )
+    with mock.patch.object(agi_env_module.Path, "exists", lambda self: False):
+        assert agi_env_module._resolve_worker_hook("pre_install.py") is None
+
+
 def test_read_agilab_path_logs_invalid_marker_and_locate_agilab_installation_spec(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
@@ -860,6 +916,106 @@ def test_agienv_meta_prefers_instance_attributes_and_class_fallback():
     assert Dummy.class_value == "class"
     with pytest.raises(AttributeError):
         _ = Dummy.missing_value
+
+
+def test_agienv_current_and_meta_setattr_cover_instance_and_class_paths():
+    AgiEnv.reset()
+    with pytest.raises(RuntimeError, match="has not been initialised"):
+        AgiEnv.current()
+
+    class Dummy(metaclass=agi_env_module._AgiEnvMeta):
+        _instance = SimpleNamespace()
+        _lock = None
+
+    Dummy.dynamic_value = "instance-bound"
+    assert Dummy._instance.dynamic_value == "instance-bound"
+
+    Dummy.helper = staticmethod(lambda: "ok")
+    assert Dummy.helper() == "ok"
+
+
+def test_init_worker_env_flag_requires_app_and_sets_skip_repo_links(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "worker-home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    (share_root / ".agilab-path").write_text(str(AgiEnv.locate_agilab_installation(verbose=False)), encoding="utf-8")
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("IS_SOURCE_ENV=false\nIS_WORKER_ENV=maybe\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    AgiEnv.reset()
+    with mock.patch.object(AgiEnv, "_init_apps", lambda self: None):
+        with pytest.raises(ValueError, match="app is required when self.is_worker_env"):
+            AgiEnv(apps_path=tmp_path / "apps", app=None, verbose=0)
+
+
+def test_init_installed_env_uses_package_fallbacks_and_explicit_apps_path(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text("IS_SOURCE_ENV=no\nIS_WORKER_ENV=0\nAGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "demo_project"
+    (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "src" / "demo_worker" / "demo_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    site_root = tmp_path / "site-packages"
+    agilab_pkg = site_root / "agilab"
+    agi_env_pkg = site_root / "agi_env"
+    agi_node_pkg = site_root / "agi_node"
+    for pkg in (agilab_pkg, agi_env_pkg, agi_node_pkg):
+        pkg.mkdir(parents=True, exist_ok=True)
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+
+    def _fake_spec(name):
+        mapping = {
+            "agilab": SimpleNamespace(origin=str(agilab_pkg / "__init__.py")),
+            "agi_env": SimpleNamespace(origin=str(agi_env_pkg / "__init__.py"), submodule_search_locations=[str(agi_env_pkg)]),
+            "agi_node": SimpleNamespace(origin=str(agi_node_pkg / "__init__.py"), submodule_search_locations=[str(agi_node_pkg)]),
+        }
+        if name in {"agi_core", "agi_cluster", "agi_cluster.agi_distributor.cli"}:
+            raise ModuleNotFoundError(name)
+        return mapping.get(name)
+
+    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", _fake_spec)
+    mock_logger = mock.Mock()
+    AgiEnv.reset()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None):
+        env = AgiEnv(apps_path=repo_apps, app="demo_project", verbose=0)
+
+    assert env.is_source_env is False
+    assert env.is_worker_env is False
+    assert env.apps_path == repo_apps
+    assert env.apps_repository_root == repo_apps
+    assert env.core_pck == agi_env_pkg.parent
+    assert env.cluster_pck == env.core_pck
+    assert env.cli == env.cluster_pck / "agi_distributor/cli.py"
+    assert env.active_app == app_root.resolve()
+    assert env.skip_repo_links is False
 
 
 def test_content_renamer_updates_ast_nodes(monkeypatch):
@@ -968,6 +1124,171 @@ def test_find_source_and_user_app_settings_cover_workspace_seed_paths(tmp_path: 
     assert touched.read_text(encoding="utf-8") == ""
     unresolved = blank_env.resolve_user_app_settings_file(ensure_exists=False)
     assert unresolved == blank_env.resources_path / "apps" / "blank_project" / "app_settings.toml"
+
+
+def test_init_resources_copies_seed_files_and_handles_installed_and_source_extras(tmp_path: Path, monkeypatch):
+    resources_src = tmp_path / "resources-src"
+    resources_src.mkdir()
+    (resources_src / ".env").write_text("OPENAI_MODEL=gpt-5.4\n", encoding="utf-8")
+    (resources_src / "seed.json").write_text('{"ok": true}\n', encoding="utf-8")
+
+    installed = object.__new__(AgiEnv)
+    installed.resources_path = tmp_path / "installed-home" / ".agilab"
+    installed.resources_path.mkdir(parents=True)
+    installed.is_source_env = False
+    installed.st_resources = tmp_path / "st-resources"
+    installed.st_resources.mkdir()
+    (installed.st_resources / "custom_buttons.json").write_text("buttons\n", encoding="utf-8")
+    (installed.st_resources / "info_bar.json").write_text("info\n", encoding="utf-8")
+    (installed.st_resources / "code_editor.scss").write_text("scss\n", encoding="utf-8")
+
+    installed._init_resources(resources_src)
+
+    assert (installed.resources_path / ".env").read_text(encoding="utf-8") == "OPENAI_MODEL=gpt-5.4\n"
+    assert (installed.resources_path / "seed.json").read_text(encoding="utf-8") == '{"ok": true}\n'
+    assert (installed.resources_path / "custom_buttons.json").read_text(encoding="utf-8") == "buttons\n"
+    assert (installed.resources_path / "info_bar.json").read_text(encoding="utf-8") == "info\n"
+    assert (installed.resources_path / "code_editor.scss").read_text(encoding="utf-8") == "scss\n"
+
+    source_env = object.__new__(AgiEnv)
+    source_env.resources_path = tmp_path / "source-home" / ".agilab"
+    source_env.resources_path.mkdir(parents=True)
+    source_env.is_source_env = True
+    source_env.st_resources = installed.st_resources
+    legacy = source_env.resources_path / "custom_buttons.json"
+    legacy.write_text("legacy\n", encoding="utf-8")
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+
+    source_env._init_resources(resources_src)
+
+    assert not legacy.exists()
+    assert (source_env.resources_path / ".env").exists()
+
+
+def test_init_apps_sets_files_and_only_copies_missing_resource_files(tmp_path: Path):
+    env = object.__new__(AgiEnv)
+    env.app_src = tmp_path / "demo_project" / "src"
+    env.app_src.mkdir(parents=True)
+    env.resources_path = tmp_path / "home" / ".agilab"
+    env.resources_path.mkdir(parents=True)
+    env.active_app = tmp_path / "demo_project"
+    env.agilab_pck = tmp_path / "agilab_pkg"
+    resources_dir = env.agilab_pck / "resources"
+    resources_dir.mkdir(parents=True)
+    (resources_dir / "fresh.json").write_text('{"fresh": true}\n', encoding="utf-8")
+    (resources_dir / "keep.json").write_text('{"should": "not-overwrite"}\n', encoding="utf-8")
+    existing = env.resources_path / "keep.json"
+    existing.write_text('{"kept": true}\n', encoding="utf-8")
+    workspace_settings = env.resources_path / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True)
+    workspace_settings.write_text("[cluster]\n", encoding="utf-8")
+
+    env.find_source_app_settings_file = lambda: None
+    env.resolve_user_app_settings_file = lambda: workspace_settings
+
+    env._init_apps()
+
+    assert env.app_settings_source_file == env.app_src / "app_settings.toml"
+    assert env.app_settings_file == workspace_settings
+    assert env.app_args_form == env.app_src / "app_args_form.py"
+    assert env.app_args_form.exists()
+    assert env.gitignore_file == env.active_app / ".gitignore"
+    assert (env.resources_path / "fresh.json").exists()
+    assert existing.read_text(encoding="utf-8") == '{"kept": true}\n'
+
+
+def test_ensure_repository_app_link_covers_missing_existing_and_success(tmp_path: Path):
+    env = object.__new__(AgiEnv)
+    env.app = "demo_project"
+    env.active_app = tmp_path / "apps" / "demo_project"
+    env.active_app.parent.mkdir(parents=True)
+    repo_root = tmp_path / "repo-apps"
+    repo_root.mkdir()
+    AgiEnv.logger = mock.Mock()
+
+    env._get_apps_repository_root = lambda: None
+    assert env._ensure_repository_app_link() is False
+
+    env._get_apps_repository_root = lambda: repo_root
+    assert env._ensure_repository_app_link() is False
+
+    candidate = repo_root / "demo_project"
+    candidate.mkdir()
+
+    env.active_app.write_text("busy", encoding="utf-8")
+    assert env._ensure_repository_app_link() is False
+    env.active_app.unlink()
+
+    stale_target = tmp_path / "apps" / "old_demo_project"
+    stale_target.mkdir()
+    env.active_app.symlink_to(stale_target, target_is_directory=True)
+
+    assert env._ensure_repository_app_link() is True
+    assert env.active_app.is_symlink()
+    assert env.active_app.resolve() == candidate.resolve()
+
+
+def test_app_settings_source_roots_collect_aliases_repo_builtin_worker_and_export(tmp_path: Path):
+    env = object.__new__(AgiEnv)
+    env.app = "demo_project"
+    env.home_abs = tmp_path / "home"
+    env.home_abs.mkdir()
+    env.app_src = tmp_path / "current" / "demo_project" / "src"
+    env.app_src.mkdir(parents=True)
+    env.active_app = env.app_src.parent
+    env.apps_path = tmp_path / "apps"
+    env.apps_path.mkdir()
+    env.builtin_apps_path = tmp_path / "apps" / "builtin"
+    env.builtin_apps_path.mkdir(parents=True)
+    repo_root = tmp_path / "repo-apps"
+    repo_root.mkdir()
+    env.apps_repository_root = None
+    env._get_apps_repository_root = lambda: repo_root
+    env.envars = {"AGI_EXPORT_DIR": "export-root"}
+
+    roots = env._app_settings_source_roots("demo_worker")
+    roots_set = set(roots)
+
+    assert env.app_src in roots_set
+    assert env.active_app in roots_set
+    assert env.active_app / "src" in roots_set
+    assert env.apps_path / "demo_worker" in roots_set
+    assert env.apps_path / "demo_project" in roots_set
+    assert env.builtin_apps_path / "demo_worker" in roots_set
+    assert env.builtin_apps_path / "demo_project" in roots_set
+    assert repo_root in roots_set
+    assert repo_root / "demo_worker" in roots_set
+    assert repo_root / "demo_project" in roots_set
+    assert env.home_abs / "wenv" / "demo_worker" in roots_set
+    assert env.home_abs / "wenv" / "demo_project" in roots_set
+    assert env.home_abs / "export-root" in roots_set
+    assert env.home_abs / "export-root" / "demo_project" in roots_set
+
+
+def test_resolve_user_app_settings_requires_target_name():
+    env = object.__new__(AgiEnv)
+    env.app = None
+    env.target = None
+
+    with pytest.raises(RuntimeError, match="without an app name"):
+        env.resolve_user_app_settings_file()
+
+
+def test_copy_file_logs_missing_source_and_copy_errors(tmp_path: Path, monkeypatch):
+    missing = tmp_path / "missing.txt"
+    destination = tmp_path / "dest.txt"
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
+
+    AgiEnv._copy_file(missing, destination)
+    assert mock_logger.info.called
+
+    source = tmp_path / "source.txt"
+    source.write_text("demo", encoding="utf-8")
+    monkeypatch.setattr(agi_env_module.shutil, "copy2", lambda *_a, **_k: (_ for _ in ()).throw(OSError("denied")))
+
+    AgiEnv._copy_file(source, destination)
+    assert mock_logger.error.called
 
 
 def test_get_import_mapping_and_base_info_support_ast_nodes(monkeypatch):
@@ -1088,6 +1409,131 @@ def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(t
     assert (dataset / "payload.txt").exists()
 
 
+def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permission(tmp_path: Path, monkeypatch):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger)
+    monkeypatch.setattr(AgiEnv, "verbose", 2, raising=False)
+
+    env = object.__new__(AgiEnv)
+    env.app_data_rel = "demo"
+    env.agi_share_path_abs = tmp_path / "share"
+    env.agi_share_path_abs.mkdir(parents=True)
+    env.home_abs = tmp_path / "managed-home"
+    env.home_abs.mkdir()
+    env.user = "someone-else"
+
+    env.unzip_data(archive, "dataset/demo")
+    assert (env.agi_share_path_abs / "dataset" / "demo").exists()
+    assert not (env.agi_share_path_abs / "dataset" / "demo" / "dataset").exists()
+
+    failing_env = object.__new__(AgiEnv)
+    failing_env.app_data_rel = "demo"
+    failing_env.agi_share_path_abs = tmp_path / "share-failing"
+    failing_env.agi_share_path_abs.mkdir(parents=True)
+    failing_env.home_abs = Path.home()
+    failing_env.user = Path.home().name
+
+    original_ensure_dir = agi_env_module._ensure_dir
+
+    def _broken_ensure_dir(path):
+        if Path(path) == failing_env.agi_share_path_abs / "dataset":
+            raise OSError("denied")
+        return original_ensure_dir(path)
+
+    monkeypatch.setattr(agi_env_module, "_ensure_dir", _broken_ensure_dir)
+    failing_env.unzip_data(archive, "dataset/demo")
+    assert not (failing_env.agi_share_path_abs / "dataset" / "demo").exists()
+
+    refresh_env = object.__new__(AgiEnv)
+    refresh_env.app_data_rel = "demo"
+    refresh_env.agi_share_path_abs = tmp_path / "share-refresh"
+    refresh_env.agi_share_path_abs.mkdir(parents=True)
+    refresh_env.home_abs = Path.home()
+    refresh_env.user = Path.home().name
+    dataset = refresh_env.agi_share_path_abs / "dataset" / "demo" / "dataset"
+    dataset.mkdir(parents=True)
+
+    monkeypatch.setattr(agi_env_module, "_ensure_dir", original_ensure_dir)
+    monkeypatch.setattr(agi_env_module.shutil, "rmtree", lambda *_a, **_k: (_ for _ in ()).throw(PermissionError("busy")))
+    refresh_env.unzip_data(archive, "dataset/demo", force_extract=True)
+    assert dataset.exists()
+
+
+def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.app_data_rel = "demo"
+    env.agi_share_path_abs = tmp_path / "share"
+    env.agi_share_path_abs.mkdir(parents=True)
+    env.user = Path.home().name
+    env.home_abs = Path.home()
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+
+    class _BrokenSevenZip:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            raise ValueError("bad archive")
+
+    monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _BrokenSevenZip)
+
+    with pytest.raises(RuntimeError, match="Extraction failed"):
+        env.unzip_data(archive, "dataset/demo", force_extract=True)
+
+
+def test_read_agilab_path_logs_permission_and_missing_file_errors(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_dir = fake_home / ".local" / "share" / "agilab"
+    share_dir.mkdir(parents=True)
+    marker = share_dir / ".agilab-path"
+    marker.write_text("demo\n", encoding="utf-8")
+    mock_logger = mock.Mock()
+    monkeypatch.setattr(agi_env_module.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
+
+    original_open = Path.open
+
+    def _permission_open(self, *args, **kwargs):
+        if self == marker:
+            raise PermissionError("denied")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(agi_env_module.Path, "open", _permission_open, raising=False)
+    assert AgiEnv.read_agilab_path() is None
+
+    def _missing_open(self, *args, **kwargs):
+        if self == marker:
+            raise FileNotFoundError("gone")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(agi_env_module.Path, "open", _missing_open, raising=False)
+    assert AgiEnv.read_agilab_path() is None
+    assert mock_logger.error.call_count >= 2
+
+
+def test_ensure_defaults_falls_back_when_home_or_env_loading_fail(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(AgiEnv, "resources_path", None, raising=False)
+    monkeypatch.setattr(AgiEnv, "envars", None, raising=False)
+    monkeypatch.setattr(agi_env_module.Path, "home", staticmethod(lambda: (_ for _ in ()).throw(RuntimeError("no home"))))
+    monkeypatch.setattr(agi_env_module, "_load_dotenv_values", lambda *_a, **_k: (_ for _ in ()).throw(OSError("bad env")))
+
+    AgiEnv._ensure_defaults()
+
+    assert AgiEnv.resources_path.name == ".agilab"
+    assert AgiEnv.envars == {}
+
+
 def test_clone_project_renames_sources_respects_gitignore_and_copies_data(tmp_path: Path, monkeypatch):
     home = tmp_path / "home"
     apps_path = tmp_path / "apps"
@@ -1128,8 +1574,50 @@ def test_clone_project_renames_sources_respects_gitignore_and_copies_data(tmp_pa
     assert (cloned / "src" / "demo_worker" / "demo_worker.py").exists()
     assert "class Demo" in (cloned / "src" / "demo" / "demo.py").read_text(encoding="utf-8")
     assert "class DemoWorker" in (cloned / "src" / "demo_worker" / "demo_worker.py").read_text(encoding="utf-8")
-    assert (home / "data" / "demo" / "sample.csv").exists()
-    assert Path("demo_project") in env.projects
+
+
+def test_clone_project_handles_missing_existing_and_template_sources(tmp_path: Path, monkeypatch):
+    apps_path = tmp_path / "apps"
+    templates = apps_path / "templates"
+    templates.mkdir(parents=True)
+
+    env = object.__new__(AgiEnv)
+    env.apps_path = apps_path
+    env.home_abs = tmp_path / "home"
+    env.home_abs.mkdir()
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+
+    env.clone_project(Path("missing"), Path("demo"))
+    assert env.projects == []
+
+    existing_source = apps_path / "alpha_project"
+    existing_source.mkdir(parents=True)
+    existing_dest = apps_path / "beta_project"
+    existing_dest.mkdir(parents=True)
+    env.clone_project(Path("alpha"), Path("beta"))
+    assert env.projects == []
+
+    shutil.rmtree(existing_dest)
+    template_source = templates / "template_project"
+    template_source.mkdir(parents=True)
+
+    recorded = {}
+
+    def _fake_clone_directory(source_dir, dest_dir, rename_map, spec, source_root):
+        recorded["source_dir"] = source_dir
+        recorded["dest_dir"] = dest_dir
+        recorded["rename_map"] = rename_map
+
+    env.clone_directory = _fake_clone_directory
+    env._cleanup_rename = lambda root, rename_map: recorded.setdefault("cleanup", (root, rename_map))
+    monkeypatch.setattr(agi_env_module.shutil, "copytree", lambda *_a, **_k: (_ for _ in ()).throw(OSError("copy failed")))
+
+    env.clone_project(Path("template"), Path("gamma"))
+
+    assert recorded["source_dir"] == template_source
+    assert recorded["dest_dir"] == apps_path / "gamma_project"
+    assert env.projects[0] == Path("gamma_project")
 
 
 def test_clone_project_noops_when_source_missing_or_destination_exists(tmp_path: Path, monkeypatch):
@@ -1385,6 +1873,41 @@ def test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error
 
     assert str(exc_info.value) == "Command failed with exit code 6: missing artifact"
     assert "sys.exit(6)" not in str(exc_info.value)
+
+
+def test_run_bg_timeout_kills_process_and_raises_runtime_error(tmp_path: Path, monkeypatch):
+    class _Stream:
+        async def readline(self):
+            return b""
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _Stream()
+            self.stderr = _Stream()
+            self.returncode = None
+            self.killed = False
+
+        async def wait(self):
+            await asyncio.sleep(1)
+            return 0
+
+        async def communicate(self):
+            return b"", b""
+
+        def kill(self):
+            self.killed = True
+
+    proc = _Proc()
+
+    async def _fake_shell(*_args, **_kwargs):
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+
+    with pytest.raises(RuntimeError, match="Timeout expired for command: echo slow"):
+        asyncio.run(AgiEnv._run_bg("echo slow", cwd=tmp_path, venv=tmp_path, timeout=0.01))
+
+    assert proc.killed is True
 
 
 def test_run_agi_handles_missing_snippet_missing_venv_and_install_snippet(tmp_path: Path, monkeypatch):
@@ -1816,6 +2339,46 @@ def test_locate_agilab_installation_falls_back_to_repo_and_parent(tmp_path: Path
         str(fallback_root / "pkg" / "one" / "two" / "agi_env.py"),
     )
     assert AgiEnv.locate_agilab_installation() == fallback_root
+
+
+def test_clone_directory_covers_symlink_readlink_fallback_and_existing_destination(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    target_file = source_root / "target.txt"
+    target_file.write_text("payload\n", encoding="utf-8")
+    symlink_item = source_root / "link.txt"
+    symlink_item.symlink_to(target_file)
+    venv_dir = source_root / ".venv"
+    venv_dir.mkdir()
+
+    dest_root = tmp_path / "dest"
+    dest_root.mkdir()
+    existing_link = dest_root / "link.txt"
+    existing_link.write_text("occupied\n", encoding="utf-8")
+
+    env = object.__new__(AgiEnv)
+    spec = agi_env_module.PathSpec.from_lines(agi_env_module.GitWildMatchPattern, [])
+
+    original_readlink = os.readlink
+    original_symlink = os.symlink
+
+    def _patched_readlink(path):
+        if Path(path) == symlink_item:
+            raise OSError("readlink failed")
+        return original_readlink(path)
+
+    def _patched_symlink(src, dst, target_is_directory=False):
+        if Path(dst) == existing_link:
+            raise FileExistsError("already exists")
+        return original_symlink(src, dst, target_is_directory=target_is_directory)
+
+    monkeypatch.setattr(agi_env_module.os, "readlink", _patched_readlink)
+    monkeypatch.setattr(agi_env_module.os, "symlink", _patched_symlink)
+
+    env.clone_directory(source_root, dest_root, {}, spec, source_root)
+
+    assert existing_link.read_text(encoding="utf-8") == "occupied\n"
+    assert (dest_root / ".venv").is_symlink()
 
 
 def test_copy_existing_projects_warns_when_symlink_cannot_be_removed(tmp_path: Path, monkeypatch):

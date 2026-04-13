@@ -1263,3 +1263,157 @@ def test_display_lab_tab_existing_steps_imports_additional_snippet(monkeypatch, 
     assert args[2] == 1
     assert kwargs["engine_map"][1] == "runpy"
     assert fake_st.session_state["demo__details"][1].startswith("Imported from")
+
+
+def test_display_lab_tab_overlay_run_covers_fallback_runtime_and_missing_snippet(monkeypatch, tmp_path):
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "lab_selected_venv": str(runtime_root),
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(
+        pipeline_lab,
+        "code_editor",
+        lambda *_args, **_kwargs: {"text": "print('overlay run')", "type": "run"},
+    )
+
+    entry = {"D": "desc", "Q": "question", "M": "model", "C": "print('old')", "E": "", "R": ""}
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [entry],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert fake_st.session_state["lab_selected_venv"] == str(runtime_root)
+    assert fake_st.session_state["demo_selected_venv_0"] == str(runtime_root)
+    assert any(kind == "error" and "Snippet file is not configured" in message for kind, message in fake_st.messages)
+
+
+def test_display_lab_tab_sequence_lock_cancel_and_undo_paths(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [],
+            "demo_run_sequence_widget": [],
+            "demo_confirm_force_run": True,
+            "demo_confirm_delete_all": True,
+            "demo__undo_delete_snapshot": {"steps": [{"Q": "q"}], "label": "latest delete"},
+        },
+        buttons={
+            "demo_force_run_cancel": True,
+            "demo_delete_all_cancel": True,
+            "demo_undo_delete": True,
+        },
+        multiselects={"demo_run_sequence_widget": []},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: {
+            "owner_text": "owner-1",
+            "stale_reason": "missing heartbeat",
+            "is_stale": False,
+        },
+        restore_pipeline_snapshot=lambda *_args, **_kwargs: "restore boom",
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo_run_sequence_widget"] == [0]
+    assert "demo_confirm_force_run" not in fake_st.session_state
+    assert "demo_confirm_delete_all" not in fake_st.session_state
+    assert any(kind == "info" and "looks stale" in message for kind, message in fake_st.messages)
+    assert any(kind == "error" and "Undo failed: restore boom" in message for kind, message in fake_st.messages)
+
+
+def test_display_lab_tab_overlay_run_uses_active_app_when_agi_engine_has_no_runtime(monkeypatch, tmp_path):
+    active_app = tmp_path / "flight_project"
+    active_app.mkdir()
+    pushed_logs = []
+    stream_calls = []
+
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "snippet_file": str(tmp_path / "snippet.py"),
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(
+        pipeline_lab,
+        "code_editor",
+        lambda *_args, **_kwargs: {"text": "print('overlay run')", "type": "run"},
+    )
+    monkeypatch.setattr(pipeline_lab, "wrap_code_with_mlflow_resume", lambda code: code)
+    monkeypatch.setattr(pipeline_lab, "build_mlflow_process_env", lambda env, run_id=None: {})
+
+    class _RunContext:
+        def __enter__(self):
+            return {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-123"))}
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(pipeline_lab, "start_mlflow_run", lambda *args, **kwargs: _RunContext())
+    monkeypatch.setattr(pipeline_lab, "log_mlflow_artifacts", lambda *args, **kwargs: None)
+
+    entry = {"D": "desc", "Q": "question", "M": "model", "C": "print('old')", "E": "", "R": "agi.run"}
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [entry],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "step.log", None),
+        push_run_log=lambda *_args, **kwargs: pushed_logs.append(kwargs.get("message") if "message" in kwargs else _args[1]),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        python_for_step=lambda *_args, **_kwargs: "python-run",
+        label_for_step_runtime=lambda *_args, **_kwargs: "runtime",
+        stream_run_command=lambda *args, **kwargs: stream_calls.append((args, kwargs)) or "",
+        rerun_fragment_or_app=lambda: pushed_logs.append("rerun"),
+    )
+    env = SimpleNamespace(active_app=active_app, envars={}, app="flight_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", active_app, env, deps)
+
+    assert fake_st.session_state["lab_selected_venv"] == str(active_app)
+    assert stream_calls
