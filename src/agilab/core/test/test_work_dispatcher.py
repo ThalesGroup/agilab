@@ -384,3 +384,42 @@ async def test_load_module_without_env_does_not_attempt_install(monkeypatch):
     )
     with pytest.raises(ModuleNotFoundError):
         await WorkDispatcher._load_module("missing")
+
+
+@pytest.mark.asyncio
+async def test_load_module_ignores_sys_path_insertion_failures(monkeypatch, tmp_path):
+    src_root = tmp_path / "workspace" / "src"
+    src_root.mkdir(parents=True, exist_ok=True)
+    sentinel = object()
+
+    class _BrokenPath(list):
+        def insert(self, index, value):
+            raise OSError("insert failed")
+
+    broken_path = _BrokenPath(dispatcher_module.sys.path)
+    monkeypatch.setattr(dispatcher_module.sys, "path", broken_path, raising=False)
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", lambda _name: sentinel)
+
+    result = await WorkDispatcher._load_module("demo_module", package="demo_pkg", path=src_root)
+
+    assert result is sentinel
+
+
+@pytest.mark.asyncio
+async def test_load_module_ignores_path_resolution_failures(monkeypatch, tmp_path):
+    src_root = tmp_path / "workspace" / "src"
+    src_root.mkdir(parents=True, exist_ok=True)
+    sentinel = object()
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == src_root:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(dispatcher_module.Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", lambda _name: sentinel)
+
+    result = await WorkDispatcher._load_module("demo_module", package="demo_pkg", path=src_root)
+
+    assert result is sentinel
