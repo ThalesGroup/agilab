@@ -182,6 +182,19 @@ def test_looks_like_shared_path_rejects_paths_under_project_root(monkeypatch, tm
     assert orchestrate_support.looks_like_shared_path(candidate, project_root=project_root) is False
 
 
+def test_looks_like_shared_path_survives_ismount_errors_and_accepts_absolute_external_path(monkeypatch, tmp_path):
+    external = tmp_path / "external" / "share"
+    external.mkdir(parents=True)
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    monkeypatch.setattr(orchestrate_support, "fstype_for_path", lambda _path: None)
+    monkeypatch.setattr(orchestrate_support.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    monkeypatch.setattr(orchestrate_support.os.path, "ismount", lambda _node: (_ for _ in ()).throw(OSError("stat failed")))
+
+    assert orchestrate_support.looks_like_shared_path(external, project_root=project_root) is True
+
+
 def test_mount_table_darwin_parses_and_sorts(monkeypatch):
     orchestrate_support.mount_table.cache_clear()
     monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")

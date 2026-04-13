@@ -267,6 +267,48 @@ def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_ste
     assert snapshot["active_step"] == 0
 
 
+def test_restore_pipeline_snapshot_skips_invalid_indices_and_rebuilds_default_page_state(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(
+        session_state={
+            "idx__details": {},
+            "idx": "bad-state",
+        }
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
+    monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *args, **kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    monkeypatch.setattr(pipeline_editor, "_reset_pipeline_editor_state", lambda _index_page: None)
+    monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "_write_steps_for_module",
+        lambda _module_path, _steps_file, module_steps: len(module_steps),
+    )
+
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "flight_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "idx_sequence_widget",
+        {
+            "steps": [{"Q": "q0", "C": "print(0)"}, {"Q": "q1", "C": "print(1)"}],
+            "details": {"bad": "skip", "1": "detail1"},
+            "venv_map": {"bad": "/tmp/skip", "1": "/tmp/runtime"},
+            "engine_map": {"bad": "skip", "1": "agi.run"},
+            "sequence": ["bad", 1, 1],
+            "active_step": "bad",
+        },
+    )
+
+    assert error is None
+    assert fake_st.session_state["idx__details"] == {1: "detail1"}
+    assert fake_st.session_state["idx__venv_map"] == {1: "/tmp/runtime"}
+    assert fake_st.session_state["idx__engine_map"] == {1: "agi.run"}
+    assert fake_st.session_state["idx__run_sequence"] == [1]
+    assert fake_st.session_state["idx"][:6] == [0, "", "q0", "", "print(0)", ""]
+
+
 def test_reset_pipeline_editor_state_clears_editor_widget_keys(monkeypatch):
     fake_st = SimpleNamespace(
         session_state={

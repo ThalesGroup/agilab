@@ -3,6 +3,7 @@ import sys
 import zipfile
 from pathlib import Path
 import signal
+from types import SimpleNamespace
 
 import pytest
 
@@ -60,6 +61,20 @@ def test_get_processes_containing_skips_bad_windows_pid(monkeypatch):
     assert cli_mod.get_processes_containing("dask") == set()
 
 
+def test_get_processes_containing_handles_windows_tasklist_failure(monkeypatch):
+    warnings = []
+    monkeypatch.setattr(cli_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "check_output",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("tasklist failed")),
+    )
+    monkeypatch.setattr(cli_mod.logger, "warning", lambda message: warnings.append(str(message)))
+
+    assert cli_mod.get_processes_containing("dask") == set()
+    assert any("Windows tasklist failed" in message for message in warnings)
+
+
 def test_get_child_pids_parses_ppid_map(monkeypatch):
     output = "\n".join(["100 1", "200 100", "300 999", "400 200"])
     monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
@@ -93,6 +108,19 @@ def test_poll_until_dead_returns_empty_when_all_dead(monkeypatch):
     monkeypatch.setattr(cli_mod, "_is_alive", lambda _pid: False)
     remaining = cli_mod._poll_until_dead({1, 2}, total=0.05, interval=0.01)
     assert remaining == set()
+
+
+def test_poll_until_dead_sleeps_while_processes_remain(monkeypatch):
+    status = iter([True, False])
+    sleeps = []
+
+    monkeypatch.setattr(cli_mod, "_is_alive", lambda _pid: next(status))
+    monkeypatch.setattr(cli_mod.time, "sleep", lambda interval: sleeps.append(interval))
+
+    remaining = cli_mod._poll_until_dead({1}, total=0.05, interval=0.01)
+
+    assert remaining == set()
+    assert sleeps == [0.01]
 
 
 def test_is_alive_handles_expected_exceptions(monkeypatch):
@@ -276,6 +304,19 @@ def test_python_version_os_mapping(monkeypatch):
     assert "aarch64" in tag
 
 
+def test_python_version_covers_windows_and_freethreaded_tags(monkeypatch):
+    monkeypatch.setattr(cli_mod.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(cli_mod.platform, "machine", lambda: "amd64")
+    monkeypatch.setattr(cli_mod.platform, "python_version", lambda: "3.13.0")
+    monkeypatch.setattr(cli_mod.sys, "implementation", SimpleNamespace(name="cpython", cache_tag="cpython-313-freethreaded"))
+
+    tag = cli_mod.python_version()
+
+    assert "windows" in tag
+    assert "x86_64" in tag
+    assert "+freethreaded" in tag
+
+
 def _run_cli_as_main(monkeypatch, args):
     monkeypatch.setattr(sys, "argv", [str(Path(cli_mod.__file__))] + args)
     return runpy.run_path(str(Path(cli_mod.__file__)), run_name="__main__")
@@ -319,3 +360,14 @@ def test_cli_main_unzip_runs_with_arg(monkeypatch, tmp_path):
 
 def test_cli_main_threaded_runs(monkeypatch):
     _run_cli_as_main(monkeypatch, ["threaded"])
+
+
+def test_cli_main_kill_warns_for_invalid_excluded_pid(monkeypatch, caplog):
+    monkeypatch.setattr(cli_mod.subprocess, "check_output", lambda *args, **kwargs: "")
+    monkeypatch.setattr(cli_mod.Path, "glob", lambda self, pattern: [])
+    monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
+
+    caplog.set_level("WARNING")
+    _run_cli_as_main(monkeypatch, ["kill", "100,bad"])
+
+    assert "Invalid PID to exclude: bad" in caplog.text

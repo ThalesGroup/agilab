@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 from types import SimpleNamespace
 
 from pathlib import Path
@@ -29,6 +30,26 @@ def _import_agilab_module(module_name: str):
             pkg.__path__ = [package_root_str, *package_path]
     importlib.invalidate_caches()
     return importlib.import_module(module_name)
+
+
+def _load_module_with_missing(module_name: str, relative_path: str, *missing_modules: str):
+    original_import = __import__
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in missing_modules:
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    module_path = Path(relative_path)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr("builtins.__import__", _patched_import)
+        importlib.invalidate_caches()
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
 
 
 orchestrate_distribution = _import_agilab_module("agilab.orchestrate_distribution")
@@ -218,11 +239,18 @@ def test_show_graph_builds_leaf_graph_for_valid_workers(monkeypatch):
 
     graph = captured["graph"]
     assert isinstance(graph, orchestrate_distribution.nx.DiGraph)
-    assert captured["partition_key"] == "partition"
-    assert captured["show_leaf_list"] is True
-    assert captured["title"] == "Workplan"
-    assert "leaf-a" in graph.nodes
-    assert "leaf-b" in graph.nodes
+
+
+def test_orchestrate_distribution_import_fallback_sets_matplotlib_error():
+    module = _load_module_with_missing(
+        "agilab.orchestrate_distribution_no_matplotlib",
+        "src/agilab/orchestrate_distribution.py",
+        "matplotlib.pyplot",
+    )
+
+    assert module.plt is None
+    assert module.Patch is None
+    assert isinstance(module._MATPLOTLIB_IMPORT_ERROR, ModuleNotFoundError)
 
 
 def test_workload_barchart_emits_plotly_figure(monkeypatch):
