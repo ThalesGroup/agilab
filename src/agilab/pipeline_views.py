@@ -58,7 +58,7 @@ def _pipeline_expr_to_text(node: ast.AST) -> str:
         ):
             return _pipeline_expr_to_text(node.args[0])
         return ast.unparse(node).strip()
-    except Exception:
+    except (AttributeError, RuntimeError, TypeError, ValueError):
         return ""
 
 
@@ -146,7 +146,7 @@ def _pipeline_conceptual_view_candidates(env: Optional[AgiEnv], lab_dir: Optiona
             if raw:
                 try:
                     roots.append(Path(raw))
-                except Exception:
+                except (RuntimeError, TypeError):
                     pass
     if lab_dir is not None:
         roots.append(Path(lab_dir))
@@ -156,7 +156,7 @@ def _pipeline_conceptual_view_candidates(env: Optional[AgiEnv], lab_dir: Optiona
     for root in roots:
         try:
             resolved_root = root.expanduser().resolve()
-        except Exception:
+        except (OSError, RuntimeError):
             continue
         for name in names:
             candidate = resolved_root / name
@@ -244,7 +244,7 @@ def load_pipeline_conceptual_dot(env: Optional[AgiEnv], lab_dir: Optional[Path])
                     dot = _pipeline_dot_from_json(payload).strip()
                     if dot:
                         return candidate, dot
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
             logger.warning("Failed to load conceptual pipeline view from %s: %s", candidate, exc)
     return None, ""
 
