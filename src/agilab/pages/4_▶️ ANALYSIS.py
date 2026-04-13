@@ -397,6 +397,15 @@ def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | N
         env=env,
     )
 
+
+def _terminate_process_quietly(process: subprocess.Popen[Any]) -> None:
+    """Terminate a background process without surfacing timeout noise in the UI."""
+    process.terminate()
+    try:
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        return
+
 def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) -> bool:
     """Start the view's Streamlit in a separate process (one per session)."""
     if _is_port_open(port):
@@ -485,11 +494,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             return True
 
         if run_process.poll() is None:
-            run_process.terminate()
-            try:
-                run_process.wait(timeout=1)
-            except Exception:
-                pass
+            _terminate_process_quietly(run_process)
         last_error = f"Sidecar streamlit did not open port {port} for {page_home}"
         attempts.append(last_error)
 
@@ -547,11 +552,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                 continue
 
             if run_process.poll() is None:
-                run_process.terminate()
-                try:
-                    run_process.wait(timeout=1)
-                except Exception:
-                    pass
+                _terminate_process_quietly(run_process)
             if not _is_port_open(port):
                 last_error = f"Fallback command '{label}' did not open port {port} for {view_page}"
                 attempts.append(last_error)
@@ -745,7 +746,7 @@ def _rename_paths_and_contents(
             continue
         try:
             text = path.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
         new_text = _clone_word_substitutions(text, rename_map)
         if new_text != text:
@@ -762,11 +763,55 @@ def _clone_source_label(option_path: Path, pages_root: Path | None = None) -> st
         try:
             rel = option_path.relative_to(pages_root)
             normalized = f"{normalized} ({rel.parent.as_posix()})"
-        except Exception:
+        except (OSError, ValueError):
             normalized = f"{normalized} ({option_path})"
     else:
         normalized = f"{normalized} ({option_path})"
     return normalized
+
+
+def _resolve_discovered_views(all_views: list[Path]) -> dict[str, Path]:
+    """Build stable display labels for discovered analysis views, skipping broken entries."""
+    resolved_pages: dict[str, Path] = {}
+    for view_path in all_views:
+        try:
+            key = _normalize_view_name(view_path.stem)
+            page_root = _resolve_page_project_root(view_path)
+            if page_root is not None:
+                root_key = _normalize_view_name(page_root.name)
+                if root_key:
+                    key = root_key
+            if key in resolved_pages and resolved_pages[key] != view_path:
+                suffix = 2
+                while f"{key} ({suffix})" in resolved_pages:
+                    suffix += 1
+                key = f"{key} ({suffix})"
+            resolved_pages[key] = _find_view_entrypoint(view_path) or view_path
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return resolved_pages
+
+
+async def _render_selected_view_route(current_page: str | None) -> bool:
+    """Render a selected analysis view route and surface one explicit user-facing failure."""
+    if not current_page or current_page in ("", "main"):
+        return False
+    try:
+        await render_view_page(Path(current_page))
+    except Exception as exc:
+        st.error(f"Failed to render view: {exc}")
+    return True
+
+
+def _create_analysis_page_bundle(pages_root: Path, page_name: str, clone_source: str) -> Path:
+    """Create a new analysis page bundle from a blank template or an existing bundle."""
+    if clone_source:
+        source_entry = Path(clone_source)
+        source_root = _resolve_clone_source_root(source_entry)
+        target_root = pages_root / page_name
+        return _clone_view_bundle(source_entry, source_root, target_root)
+    _, entrypoint_path, _ = _write_minimal_view_template(pages_root, page_name)
+    return entrypoint_path
 
 
 def _resolve_clone_source_root(view_path: Path) -> Path:
@@ -999,33 +1044,13 @@ async def main():
 
     # Discover pages dynamically under AGILAB_PAGES_ABS
     all_views = discover_views(Path(env.AGILAB_PAGES_ABS))
-    resolved_pages: dict[str, Path] = {}
-    for view_path in all_views:
-        try:
-            key = _normalize_view_name(view_path.stem)
-            page_root = _resolve_page_project_root(view_path)
-            if page_root is not None:
-                root_key = _normalize_view_name(page_root.name)
-                if root_key:
-                    key = root_key
-            if key in resolved_pages and resolved_pages[key] != view_path:
-                suffix = 2
-                while f"{key} ({suffix})" in resolved_pages:
-                    suffix += 1
-                key = f"{key} ({suffix})"
-            resolved_pages[key] = _find_view_entrypoint(view_path) or view_path
-        except Exception:
-            continue
+    resolved_pages = _resolve_discovered_views(all_views)
 
     custom_view_lookup: dict[str, Path] = {}
     pages_root = Path(env.AGILAB_PAGES_ABS)
 
     # Route: only render a view when the param is a concrete path, not "main"/empty
-    if current_page and current_page not in ("", "main"):
-        try:
-            await render_view_page(Path(current_page))
-        except Exception as e:
-            st.error(f"Failed to render view: {e}")
+    if await _render_selected_view_route(current_page):
         return
 
     # ---------- Main analysis page ----------
@@ -1121,18 +1146,10 @@ async def main():
                         pages_root,
                     )
                     try:
-                        if clone_source:
-                            source_entry = Path(clone_source)
-                            source_root = _resolve_clone_source_root(source_entry)
-                            target_root = pages_root / page_name
-                            entrypoint_path = _clone_view_bundle(
-                                source_entry, source_root, target_root
-                            )
-                        else:
-                            _, entrypoint_path, _ = _write_minimal_view_template(
-                                pages_root, page_name
-                            )
-                    except Exception as e:
+                        entrypoint_path = _create_analysis_page_bundle(
+                            pages_root, page_name, clone_source
+                        )
+                    except (FileNotFoundError, OSError, shutil.Error, ValueError, RuntimeError) as e:
                         st.error(f"Failed to create template page: {e}")
                     else:
                         entry_key = str(entrypoint_path)

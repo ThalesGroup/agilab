@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -58,3 +59,91 @@ def test_write_config_reports_oserror(tmp_path: Path, monkeypatch):
     module._write_config(config_path, {"title": "demo"})
 
     assert errors == ["Error updating configuration: disk full"]
+
+
+def test_resolve_discovered_views_skips_broken_entry(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    good_view = tmp_path / "good_view.py"
+    broken_view = tmp_path / "broken_view.py"
+    good_view.write_text("", encoding="utf-8")
+    broken_view.write_text("", encoding="utf-8")
+
+    def _fake_root(path: Path):
+        if path == broken_view:
+            raise OSError("bad path")
+        return None
+
+    monkeypatch.setattr(module, "_resolve_page_project_root", _fake_root)
+    monkeypatch.setattr(module, "_find_view_entrypoint", lambda path: path)
+
+    resolved = module._resolve_discovered_views([good_view, broken_view])
+
+    assert resolved == {"good_view": good_view}
+
+
+def test_render_selected_view_route_reports_error(monkeypatch):
+    module = _load_analysis_module()
+    errors: list[str] = []
+    monkeypatch.setattr(module, "st", SimpleNamespace(error=lambda message: errors.append(str(message))))
+
+    async def _raise_render(_path: Path):
+        raise RuntimeError("broken view")
+
+    monkeypatch.setattr(module, "render_view_page", _raise_render)
+
+    handled = asyncio.run(module._render_selected_view_route("/tmp/view.py"))
+
+    assert handled is True
+    assert errors == ["Failed to render view: broken view"]
+
+
+def test_render_selected_view_route_ignores_main_route():
+    module = _load_analysis_module()
+
+    handled = asyncio.run(module._render_selected_view_route("main"))
+
+    assert handled is False
+
+
+def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
+    module = _load_analysis_module()
+
+    entrypoint = module._create_analysis_page_bundle(tmp_path, "demo_view", "")
+
+    assert entrypoint == tmp_path / "demo_view" / "src" / "demo_view" / "demo_view.py"
+    assert entrypoint.exists()
+
+
+def test_clone_source_label_falls_back_to_absolute_path(tmp_path: Path):
+    module = _load_analysis_module()
+    page_file = tmp_path / "view_demo.py"
+    page_file.write_text("", encoding="utf-8")
+    foreign_root = tmp_path / "other_root"
+    foreign_root.mkdir()
+
+    label = module._clone_source_label(page_file, foreign_root)
+
+    assert label == f"view_demo ({page_file})"
+
+
+def test_terminate_process_quietly_ignores_timeout():
+    module = _load_analysis_module()
+
+    class _FakeProcess:
+        def __init__(self):
+            self.terminated = False
+            self.wait_calls = 0
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout: int):
+            self.wait_calls += 1
+            raise module.subprocess.TimeoutExpired(cmd="demo", timeout=timeout)
+
+    process = _FakeProcess()
+
+    module._terminate_process_quietly(process)
+
+    assert process.terminated is True
+    assert process.wait_calls == 1
