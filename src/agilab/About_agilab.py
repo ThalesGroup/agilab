@@ -87,7 +87,7 @@ def quick_logo(resources_path: Path):
                     </div>
                 </div>""", unsafe_allow_html=True
         )
-    except Exception as e:
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as e:
         st.info(str(e))
         st.info("Welcome to AGILAB", icon="📦")
 
@@ -147,10 +147,7 @@ def openai_status_banner(env):
     """Show a non-blocking banner if OpenAI features are unavailable and direct users to the env editor."""
     import os
 
-    try:
-        env_key = env.OPENAI_API_KEY
-    except Exception:
-        env_key = None
+    env_key = getattr(env, "OPENAI_API_KEY", None)
 
     key = _clean_openai_key(os.environ.get("OPENAI_API_KEY") or env_key)
     if not key:
@@ -162,7 +159,7 @@ def openai_status_banner(env):
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
 try:
     TEMPLATE_ENV_PATH = importlib_resources.files("agi_env") / "resources/.agilab/.env"
-except Exception:
+except (ModuleNotFoundError, FileNotFoundError, AttributeError, OSError):
     TEMPLATE_ENV_PATH = None
 
 
@@ -174,7 +171,7 @@ def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
     candidates: list[Path] = []
     try:
         provided = Path(raw_value).expanduser()
-    except Exception:
+    except (TypeError, RuntimeError, ValueError):
         return None
 
     # If the user passed a direct path, trust it first.
@@ -212,7 +209,7 @@ def _apply_active_app_request(env, request_value: Optional[str]) -> bool:
         return False
     try:
         env.change_app(target_path)
-    except Exception as exc:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         st.warning(f"Unable to switch to project '{target_name}': {exc}")
         return False
     return True
@@ -222,7 +219,7 @@ def _sync_active_app_from_query(env) -> None:
     """Honor ?active_app=… query parameter so all pages stay in sync."""
     try:
         requested = st.query_params.get("active_app")
-    except Exception:
+    except (AttributeError, RuntimeError, TypeError):
         requested = None
 
     if isinstance(requested, (list, tuple)):
@@ -237,14 +234,14 @@ def _sync_active_app_from_query(env) -> None:
     if not requested_value or changed or requested_value != env.app:
         try:
             st.query_params["active_app"] = env.app
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError):
             pass
 
     # Persist the latest active app for reuse on next launch only if it changed via request
     try:
         if changed:
             store_last_active_app(Path(env.apps_path) / env.app)
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         pass
 
 def _ensure_env_file(path: Path) -> Path:
@@ -252,7 +249,7 @@ def _ensure_env_file(path: Path) -> Path:
     try:
         if path.exists():
             return path
-    except Exception:
+    except OSError:
         return path
 
     parent = path.parent
@@ -267,10 +264,10 @@ def _ensure_env_file(path: Path) -> Path:
                 template_text = TEMPLATE_ENV_PATH.read_text(encoding="utf-8")
                 path.write_text(template_text, encoding="utf-8")
                 return path
-            except Exception:
+            except (OSError, UnicodeError):
                 pass
         path.touch(exist_ok=True)
-    except Exception as exc:
+    except OSError as exc:
         logger.warning(f"Unable to create env file at {path}: {exc}")
     return path
 
@@ -295,7 +292,7 @@ def _refresh_share_dir(env, new_value: str) -> None:
     env.dataframe_path = env.app_data_rel / "dataframe"
     try:
         env.data_root = env.ensure_data_root()
-    except Exception as exc:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         st.warning(f"AGI_SHARE_DIR update saved but data directory is still unreachable: {exc}")
 
 def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
@@ -458,7 +455,7 @@ def _refresh_env_from_file(env: Any) -> None:
         try:
             if env.envars is not None:
                 env.envars[key] = val
-        except Exception:
+        except (AttributeError, TypeError):
             pass
 
     # Keep env.apps_path in sync with the user's .env APPS_PATH
@@ -467,7 +464,7 @@ def _refresh_env_from_file(env: Any) -> None:
         try:
             resolved = Path(new_apps_path).expanduser().resolve()
             env.apps_path = resolved
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             pass
 
     st.session_state["env_file_mtime_ns"] = current_mtime
@@ -509,7 +506,7 @@ def _render_env_editor(env, help_file: Path | None = None):
                         template_keys.append(key)
                     if key and key not in template_defaults:
                         template_defaults[key] = value
-        except Exception:
+        except (OSError, UnicodeError):
             pass
 
     unique_keys = template_keys if template_keys else list(dict.fromkeys(
@@ -565,7 +562,7 @@ def _render_env_editor(env, help_file: Path | None = None):
             st.session_state["env_editor_feedback"] = "Environment variables updated."
             st.session_state["env_editor_reset"] = True
             st.rerun()
-        except Exception as exc:
+        except (OSError, RuntimeError, TypeError, UnicodeError, ValueError) as exc:
             st.error(f"Failed to save .env file: {exc}")
 
     st.divider()
@@ -606,7 +603,7 @@ def _render_env_editor(env, help_file: Path | None = None):
             st.caption("No environment variables found in the current .env.")
     except FileNotFoundError:
         st.caption(f"Template or current .env file not found (template: {TEMPLATE_ENV_PATH}, current: {ENV_FILE_PATH}).")
-    except Exception as exc:
+    except (OSError, UnicodeError) as exc:
         st.error(f"Unable to read env files: {exc}")
 
 def page(env):
@@ -622,7 +619,7 @@ def page(env):
     with st.expander("Installed package versions", expanded=False):
         try:
             from importlib import metadata as importlib_metadata
-        except Exception:
+        except ImportError:
             import importlib_metadata  # type: ignore
 
         packages = [
@@ -687,7 +684,7 @@ def main():
     os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(resources_path / "config.toml"))
     try:
         inject_theme(resources_path)
-    except Exception as e:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
         # Non-fatal: UI will still load without custom theme
         st.warning(f"Theme injection skipped: {e}")
     st.session_state.setdefault("first_run", True)
@@ -785,12 +782,12 @@ def main():
 
             try:
                 store_last_active_app(Path(env.apps_path) / env.app)
-            except Exception:
+            except (OSError, RuntimeError, TypeError, ValueError):
                 pass
 
             try:
                 _refresh_env_from_file(env)
-            except Exception:
+            except (OSError, RuntimeError, TypeError, ValueError):
                 pass
 
             openai_api_key = _clean_openai_key(env.OPENAI_API_KEY)
@@ -822,7 +819,7 @@ def main():
             st.session_state["first_run"] = False
             try:
                 st.query_params["active_app"] = env.app
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError):
                 pass
             if background_services_enabled():
                 st.rerun()
@@ -834,7 +831,7 @@ def main():
     _sync_active_app_from_query(env)
     try:
         store_last_active_app(Path(env.apps_path) / env.app)
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         pass
     show_banner_and_intro(resources_path)
     openai_status_banner(env)
