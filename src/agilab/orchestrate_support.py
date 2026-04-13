@@ -6,12 +6,12 @@ import subprocess
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import tomli_w
 
 
-def sanitize_for_toml(obj):
+def sanitize_for_toml(obj: Any) -> Any:
     """Recursively convert values into TOML-safe structures."""
     if isinstance(obj, dict):
         sanitized = {}
@@ -200,7 +200,7 @@ def macos_autofs_hint(share_candidate: Path) -> Optional[str]:
     return None
 
 
-def parse_benchmark(benchmark_str):
+def parse_benchmark(benchmark_str: str) -> Optional[dict]:
     """Parse a benchmark string into a dictionary."""
     if not isinstance(benchmark_str, str):
         raise ValueError("Input must be a string.")
@@ -260,7 +260,7 @@ def coerce_int_setting(raw_value, default: int, *, minimum: int = 0) -> int:
 
 
 def coerce_float_setting(
-    raw_value,
+    raw_value: Any,
     default: float,
     *,
     minimum: float = 0.0,
@@ -308,12 +308,12 @@ def evaluate_service_health_gate(
 
 
 def safe_eval(
-    expression,
-    expected_type,
-    error_message,
+    expression: str,
+    expected_type: Any,
+    error_message: str,
     *,
     on_error: Callable[[str], None],
-):
+) -> Any:
     try:
         result = ast.literal_eval(expression)
         if not isinstance(result, expected_type):
@@ -326,11 +326,11 @@ def safe_eval(
 
 
 def parse_and_validate_scheduler(
-    scheduler,
+    scheduler: str,
     *,
     is_valid_ip: Callable[[str], bool],
     on_error: Callable[[str], None],
-):
+) -> Optional[str]:
     """Accept IP or IP:PORT. Validate IP via is_valid_ip(host) and optional numeric port."""
     host, sep, port = scheduler.partition(":")
     if not is_valid_ip(host):
@@ -343,12 +343,12 @@ def parse_and_validate_scheduler(
 
 
 def parse_and_validate_workers(
-    workers_input,
+    workers_input: str,
     *,
     is_valid_ip: Callable[[str], bool],
     on_error: Callable[[str], None],
     default_workers: Optional[dict] = None,
-):
+) -> dict:
     fallback_workers = default_workers or {"127.0.0.1": 1}
     workers = safe_eval(
         expression=workers_input,

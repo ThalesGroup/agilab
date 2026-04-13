@@ -828,8 +828,7 @@ def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
         candidate = candidate.resolve()
     return candidate
 
-
-def _load_uoaic_modules():
+def _load_uoaic_modules() -> Tuple[Any, ...]:
     """Import the Universal Offline AI Chatbot helpers with detailed diagnostics."""
 
     try:

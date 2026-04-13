@@ -1,6 +1,7 @@
 import numbers
 import textwrap
 from collections import defaultdict
+from typing import Any
 
 import networkx as nx
 import pandas as pd
@@ -17,7 +18,7 @@ else:
     _MATPLOTLIB_IMPORT_ERROR = None
 
 
-def draw_distribution(graph, partition_key, show_leaf_list, title):
+def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
     """Shared drawing routine for distribution or DAG graphs."""
     if plt is None or Patch is None:
         raise RuntimeError(f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}")
@@ -75,7 +76,7 @@ def draw_distribution(graph, partition_key, show_leaf_list, title):
     st.pyplot(plt, width="stretch")
 
 
-def extract_chunk_info(chunk, partition_key, weights_key):
+def extract_chunk_info(chunk, partition_key, weights_key) -> tuple[Any, Any]:
     """Return `(partition, size)` for a chunk entry with flexible shapes."""
     if isinstance(chunk, dict):
         partition = (
@@ -113,7 +114,7 @@ def extract_chunk_info(chunk, partition_key, weights_key):
     return chunk, 1
 
 
-def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False):
+def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False) -> None:
     """Display the distribution tree of the workload."""
     total = 0
     total_per_host = defaultdict(int)
@@ -170,7 +171,7 @@ def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key
     draw_distribution(graph, partition_key, show_leaf_list, title="Distribution Tree")
 
 
-def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False):
+def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False) -> None:
     """Display a directed acyclic graph based on workplan metadata."""
     total = 0
     total_per_host = defaultdict(int)
@@ -222,7 +223,7 @@ def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_ke
     draw_distribution(graph, partition_key, show_leaf_list, title="Workplan")
 
 
-def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit):
+def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit) -> None:
     """Display a workload bar chart using Plotly."""
     import plotly.graph_objects as go
 
