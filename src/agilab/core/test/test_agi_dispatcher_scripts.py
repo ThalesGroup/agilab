@@ -28,6 +28,20 @@ def test_pre_install_get_decorator_name_falls_back_to_raw_code():
     assert pre_mod.get_decorator_name(decorator) == "@fallback"
 
 
+def test_pre_install_get_decorator_name_falls_back_for_empty_atom_expr_and_unknown_expr():
+    atom_expr = SimpleNamespace(
+        type="atom_expr",
+        children=[SimpleNamespace(type="operator", value="@")],
+    )
+    unknown_expr = SimpleNamespace(type="trailer")
+
+    atom_decorator = SimpleNamespace(children=[None, atom_expr], get_code=lambda: "@atom_fallback")
+    unknown_decorator = SimpleNamespace(children=[None, unknown_expr], get_code=lambda: "@unknown_fallback")
+
+    assert pre_mod.get_decorator_name(atom_decorator) == "@atom_fallback"
+    assert pre_mod.get_decorator_name(unknown_decorator) == "@unknown_fallback"
+
+
 def test_pre_install_remove_decorators_by_name():
     source = "@keep\n@drop\ndef func():\n    return 1\n"
     out = pre_mod.remove_decorators(source, decorator_names=["drop"], verbose=False)
@@ -51,6 +65,25 @@ def test_pre_install_process_decorators_handles_missing_parent_entry(monkeypatch
     pre_mod.process_decorators(node, ["drop"], verbose=False)
 
     assert any("not found in parent's children" in line for line in logs)
+
+
+def test_pre_install_process_decorators_removes_following_newline(monkeypatch):
+    newline = SimpleNamespace(type="newline")
+    decorator = SimpleNamespace()
+    parent = SimpleNamespace(children=[decorator, newline])
+    decorator.parent = parent
+    node = SimpleNamespace(
+        type="funcdef",
+        name=SimpleNamespace(value="demo"),
+        get_decorators=lambda: [decorator],
+    )
+
+    monkeypatch.setattr(pre_mod, "get_decorator_name", lambda _decorator: "drop")
+    monkeypatch.setattr(pre_mod.AgiEnv, "log_info", staticmethod(lambda *_args, **_kwargs: None))
+
+    pre_mod.process_decorators(node, ["drop"], verbose=False)
+
+    assert parent.children == []
 
 
 def test_pre_install_remove_decorators_defaults_and_verbose_logging(monkeypatch):
@@ -365,6 +398,68 @@ def test_post_try_link_dir_returns_false_on_setup_and_symlink_failures(tmp_path,
     assert post_mod._try_link_dir(existing, target_path) is False
 
 
+def test_post_try_link_dir_returns_false_when_broken_symlink_cannot_be_removed(tmp_path, monkeypatch):
+    link_path = tmp_path / "dataset" / "sat"
+    wrong_target = tmp_path / "wrong-target"
+    target_path = tmp_path / "trajectory"
+    wrong_target.mkdir(parents=True, exist_ok=True)
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    link_path.symlink_to(wrong_target, target_is_directory=True)
+
+    original_resolve = Path.resolve
+    original_unlink = Path.unlink
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == link_path:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    def _patched_unlink(self, *args, **kwargs):
+        if self == link_path:
+            raise OSError("unlink failed")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(post_mod.Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(post_mod.Path, "unlink", _patched_unlink, raising=False)
+
+    assert post_mod._try_link_dir(link_path, target_path) is False
+
+
+def test_post_try_link_dir_rejects_non_sample_dir_with_visible_files(tmp_path):
+    link_path = tmp_path / "dataset" / "sat"
+    target_path = tmp_path / "trajectory"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+    link_path.mkdir(parents=True, exist_ok=True)
+    (link_path / "keep.txt").write_text("keep", encoding="utf-8")
+
+    assert post_mod._try_link_dir(link_path, target_path) is False
+
+
+def test_post_try_link_dir_returns_false_when_existing_dir_probe_raises(tmp_path, monkeypatch):
+    link_path = tmp_path / "dataset" / "sat"
+    target_path = tmp_path / "trajectory"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+    link_path.mkdir(parents=True, exist_ok=True)
+
+    original_iterdir = Path.iterdir
+
+    def _patched_iterdir(self):
+        if self == link_path:
+            raise OSError("scan failed")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(post_mod.Path, "iterdir", _patched_iterdir, raising=False)
+
+    assert post_mod._try_link_dir(link_path, target_path) is False
+
+
 def test_post_try_link_dir_windows_junction_fallbacks(tmp_path, monkeypatch):
     link_path = tmp_path / "dataset" / "sat"
     target_path = tmp_path / "trajectory"
@@ -413,6 +508,23 @@ def test_post_dataset_archive_candidates_handles_resolve_failure(monkeypatch, tm
 
     assert len(candidates) == 2
     assert candidates[0] == DummyEnv.dataset_archive
+
+
+def test_post_dataset_archive_candidates_skips_non_path_and_duplicate_packaged_archive(tmp_path):
+    packaged = tmp_path / "apps" / "mycode_project" / "src" / "mycode_worker" / "dataset.7z"
+
+    class NonPathEnv:
+        share_target_name = "mycode"
+        dataset_archive = "dataset.7z"
+        agilab_pck = tmp_path
+
+    class DuplicateEnv:
+        share_target_name = "mycode"
+        dataset_archive = packaged
+        agilab_pck = tmp_path
+
+    assert post_mod._dataset_archive_candidates(NonPathEnv()) == [packaged]
+    assert post_mod._dataset_archive_candidates(DuplicateEnv()) == [packaged]
 
 
 def test_post_dir_is_duplicate_of_false_branches(tmp_path):
@@ -814,6 +926,315 @@ def test_post_main_returns_zero_when_trajectory_archive_extracts_no_samples(tmp_
     out = capsys.readouterr().out
     assert "extracting optional trajectories" in out
     assert "linked" not in out
+
+
+def test_post_folder_looks_large_requires_two_files(tmp_path):
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    (folder / "only.csv").write_text("1", encoding="utf-8")
+
+    assert post_mod._folder_looks_large(folder) is False
+
+
+def test_post_main_returns_zero_when_existing_sat_samples_have_no_preferred_source(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+
+    def _fake_unzip(_archive, dest):
+        sat = Path(dest) / "dataset" / "sat"
+        sat.mkdir(parents=True, exist_ok=True)
+        (sat / "a.csv").write_text("1", encoding="utf-8")
+        (sat / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: tmp_path / "share-root",
+    )
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(
+        post_mod,
+        "_try_link_dir",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("linking should not be attempted")),
+    )
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+
+
+def test_post_main_keeps_non_sat_trajectory_symlink_without_relink(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+    share_root = tmp_path / "share-root"
+    sat_folder = dest_arg / "dataset" / "sat"
+    current = tmp_path / "external-sat"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    current.mkdir(parents=True, exist_ok=True)
+    preferred.mkdir(parents=True, exist_ok=True)
+    for folder, names in ((current, ("x.csv", "y.csv")), (preferred, ("a.csv", "b.csv"))):
+        for name in names:
+            (folder / name).write_text("1", encoding="utf-8")
+
+    def _fake_unzip(_archive, dest):
+        current_sat = Path(dest) / "dataset" / "sat"
+        current_sat.parent.mkdir(parents=True, exist_ok=True)
+        current_sat.symlink_to(current, target_is_directory=True)
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: share_root,
+    )
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(
+        post_mod,
+        "_try_link_dir",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("relink should not be attempted")),
+    )
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert sat_folder.is_symlink()
+    assert sat_folder.resolve(strict=False) == current.resolve(strict=False)
+
+
+def test_post_main_returns_zero_when_sat_trajectory_relink_fails(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+    share_root = tmp_path / "share-root"
+    sat_folder = dest_arg / "dataset" / "sat"
+    current = share_root / "sat_trajectory" / "dataframe" / "Trajectory"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    current.mkdir(parents=True, exist_ok=True)
+    preferred.mkdir(parents=True, exist_ok=True)
+    for folder in (current, preferred):
+        (folder / "a.csv").write_text("1", encoding="utf-8")
+        (folder / "b.csv").write_text("2", encoding="utf-8")
+
+    def _fake_unzip(_archive, dest):
+        current_sat = Path(dest) / "dataset" / "sat"
+        current_sat.parent.mkdir(parents=True, exist_ok=True)
+        current_sat.symlink_to(current, target_is_directory=True)
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: share_root,
+    )
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert sat_folder.is_symlink()
+    assert sat_folder.resolve(strict=False) == current.resolve(strict=False)
+    assert "relinked" not in capsys.readouterr().out
+
+
+def test_post_main_copy_fallback_skips_existing_destinations(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+    sat_folder = dest_arg / "dataset" / "sat"
+    trajectory_folder = dest_arg / "dataset" / "Trajectory"
+
+    def _fake_unzip(_archive, dest):
+        current_sat = Path(dest) / "dataset" / "sat"
+        current_trajectory = Path(dest) / "dataset" / "Trajectory"
+        current_sat.mkdir(parents=True, exist_ok=True)
+        current_trajectory.mkdir(parents=True, exist_ok=True)
+        for name in ("a.csv", "b.csv"):
+            (current_sat / name).write_text("existing", encoding="utf-8")
+            (current_trajectory / name).write_text("new", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: tmp_path / "share-root",
+    )
+
+    original_has_samples = post_mod._has_samples
+
+    def _patched_has_samples(path):
+        if Path(path) == sat_folder:
+            return False
+        return original_has_samples(path)
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(post_mod, "_has_samples", _patched_has_samples)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert (sat_folder / "a.csv").read_text(encoding="utf-8") == "existing"
+    assert (sat_folder / "b.csv").read_text(encoding="utf-8") == "existing"
+    assert trajectory_folder.exists()
+    assert "copied" not in capsys.readouterr().out
+
+
+def test_post_main_returns_zero_when_duplicate_relink_fails(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    dataset_root = dest_arg / "dataset"
+    sat_folder = dataset_root / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    (sat_folder / "a.csv").write_text("1", encoding="utf-8")
+    (sat_folder / "b.csv").write_text("2", encoding="utf-8")
+
+    share_root = tmp_path / "shared-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: share_root,
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert not sat_folder.exists()
+    assert "deduplicated" not in capsys.readouterr().out
+
+
+def test_post_main_returns_zero_when_large_relink_fails(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    dataset_root = dest_arg / "dataset"
+    sat_folder = dataset_root / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    for idx in range(25):
+        (sat_folder / f"generated_{idx}_trajectory.csv").write_text("x", encoding="utf-8")
+
+    share_root = tmp_path / "shared-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: share_root,
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dir_is_duplicate_of", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert not sat_folder.exists()
+    assert "replaced large" not in capsys.readouterr().out
+
+
+def test_post_main_ignores_symlink_resolution_errors_before_returning(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+    sat_folder = dest_arg / "dataset" / "sat"
+    share_root = tmp_path / "share-root"
+    current = tmp_path / "current"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    current.mkdir(parents=True, exist_ok=True)
+    preferred.mkdir(parents=True, exist_ok=True)
+    for folder, names in ((current, ("x.csv", "y.csv")), (preferred, ("a.csv", "b.csv"))):
+        for name in names:
+            (folder / name).write_text("1", encoding="utf-8")
+
+    def _fake_unzip(_archive, dest):
+        current_sat = Path(dest) / "dataset" / "sat"
+        current_sat.parent.mkdir(parents=True, exist_ok=True)
+        current_sat.symlink_to(current, target_is_directory=True)
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: share_root,
+    )
+
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == sat_folder:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod.Path, "resolve", _patched_resolve, raising=False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+
+
+def test_post_main_returns_zero_when_preferred_link_fails_without_trajectory_fallback(tmp_path, monkeypatch):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+    share_root = tmp_path / "share-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    def _fake_unzip(_archive, dest):
+        (Path(dest) / "dataset").mkdir(parents=True, exist_ok=True)
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: share_root,
+    )
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert not (dest_arg / "dataset" / "sat").exists()
+
+
+def test_post_install_module_runs_main_when_invoked_as_script(monkeypatch, capsys):
+    monkeypatch.setattr(post_mod.sys, "argv", ["post_install.py"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        runpy.run_module("agi_node.agi_dispatcher.post_install", run_name="__main__")
+
+    assert excinfo.value.code == 1
+    assert "Usage: python post_install.py <app>" in capsys.readouterr().out
 
 
 def test_build_parse_custom_args_and_remaining():
