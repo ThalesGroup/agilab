@@ -831,32 +831,31 @@ def test_worker_hook_none_when_resource_missing(monkeypatch, tmp_path):
         assert agi_env_module._resolve_worker_hook("pre_install.py") is None
 
 
-def test_read_agilab_path_logs_invalid_marker_and_locate_agilab_installation_spec(tmp_path, monkeypatch):
+def test_read_agilab_path_wrapper_uses_installation_support(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
-    share_dir = fake_home / ".local" / "share" / "agilab"
-    share_dir.mkdir(parents=True)
-    (share_dir / ".agilab-path").write_text(str(tmp_path / "missing-install"), encoding="utf-8")
+    marker = fake_home / ".local" / "share" / "agilab" / ".agilab-path"
+    install_root = tmp_path / "install-root"
+    install_root.mkdir()
+    captured = {}
 
-    mock_logger = mock.Mock()
-    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
     monkeypatch.setattr(agi_env_module.Path, "home", staticmethod(lambda: fake_home))
 
-    assert AgiEnv.read_agilab_path() is None
-    assert mock_logger.error.called
+    def _fake_marker_path(**kwargs):
+        captured["marker_kwargs"] = kwargs
+        return marker
 
-    installed_root = tmp_path / "site-packages" / "agilab"
-    installed_root.mkdir(parents=True)
-    (installed_root / "apps").mkdir()
-    init_file = installed_root / "__init__.py"
-    init_file.write_text("", encoding="utf-8")
-    monkeypatch.setattr(
-        agi_env_module.importlib.util,
-        "find_spec",
-        lambda _name: SimpleNamespace(origin=str(init_file)),
-    )
+    def _fake_read(marker_path, *, logger=None):
+        captured["read_args"] = (marker_path, logger)
+        return install_root
 
-    assert AgiEnv.locate_agilab_installation() == installed_root.resolve()
+    monkeypatch.setattr(agi_env_module, "installation_marker_path", _fake_marker_path)
+    monkeypatch.setattr(agi_env_module, "read_agilab_installation_marker", _fake_read)
+
+    assert AgiEnv.read_agilab_path() == install_root
+    assert captured["marker_kwargs"]["home"] == fake_home
+    assert captured["read_args"][0] == marker
+    assert captured["read_args"][1] == AgiEnv.logger
 
 
 def test_agienv_meta_prefers_instance_attributes_and_class_fallback():
@@ -1760,35 +1759,19 @@ def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, m
         env.unzip_data(archive, "dataset/demo", force_extract=True)
 
 
-def test_read_agilab_path_logs_permission_and_missing_file_errors(tmp_path: Path, monkeypatch):
-    fake_home = tmp_path / "home"
-    fake_home.mkdir()
-    share_dir = fake_home / ".local" / "share" / "agilab"
-    share_dir.mkdir(parents=True)
-    marker = share_dir / ".agilab-path"
-    marker.write_text("demo\n", encoding="utf-8")
-    mock_logger = mock.Mock()
-    monkeypatch.setattr(agi_env_module.Path, "home", staticmethod(lambda: fake_home))
-    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
+def test_locate_agilab_installation_wrapper_uses_installation_support(monkeypatch, tmp_path: Path):
+    expected = tmp_path / "repo-root"
+    captured = {}
 
-    original_open = Path.open
+    def _fake_locate(**kwargs):
+        captured.update(kwargs)
+        return expected
 
-    def _permission_open(self, *args, **kwargs):
-        if self == marker:
-            raise PermissionError("denied")
-        return original_open(self, *args, **kwargs)
+    monkeypatch.setattr(agi_env_module, "locate_agilab_installation_path", _fake_locate)
 
-    monkeypatch.setattr(agi_env_module.Path, "open", _permission_open, raising=False)
-    assert AgiEnv.read_agilab_path() is None
-
-    def _missing_open(self, *args, **kwargs):
-        if self == marker:
-            raise FileNotFoundError("gone")
-        return original_open(self, *args, **kwargs)
-
-    monkeypatch.setattr(agi_env_module.Path, "open", _missing_open, raising=False)
-    assert AgiEnv.read_agilab_path() is None
-    assert mock_logger.error.call_count >= 2
+    assert AgiEnv.locate_agilab_installation() == expected
+    assert captured["module_file"] == agi_env_module.__file__
+    assert captured["find_spec"] == agi_env_module.importlib.util.find_spec
 
 
 def test_ensure_defaults_falls_back_when_home_or_env_loading_fail(monkeypatch, tmp_path: Path):
@@ -2707,28 +2690,6 @@ def test_create_symlink_windows_logs_success_and_failure(tmp_path: Path, monkeyp
     AgiEnv.create_symlink_windows(src_dir, dest)
 
     assert mock_logger.info.called
-
-
-def test_locate_agilab_installation_falls_back_to_repo_and_parent(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", lambda _name: None)
-
-    repo_root = tmp_path / "repo-root"
-    (repo_root / "apps").mkdir(parents=True)
-    monkeypatch.setattr(
-        agi_env_module,
-        "__file__",
-        str(repo_root / "x" / "y" / "z" / "w" / "agi_env.py"),
-    )
-    assert AgiEnv.locate_agilab_installation() == repo_root
-
-    fallback_root = tmp_path / "fallback" / "agilab"
-    (fallback_root / "apps").mkdir(parents=True)
-    monkeypatch.setattr(
-        agi_env_module,
-        "__file__",
-        str(fallback_root / "pkg" / "one" / "two" / "agi_env.py"),
-    )
-    assert AgiEnv.locate_agilab_installation() == fallback_root
 
 
 def test_clone_directory_covers_symlink_readlink_fallback_and_existing_destination(tmp_path: Path, monkeypatch):
