@@ -138,6 +138,22 @@ def test_available_lab_modules_drops_blank_projects_and_empty_scan(monkeypatch, 
     assert modules == []
 
 
+def test_available_lab_modules_reraises_unexpected_value_error(tmp_path):
+    env = SimpleNamespace(
+        apps_path=tmp_path / "apps",
+        builtin_apps_path=tmp_path / "builtin",
+        apps_repository_root=tmp_path,
+        get_projects=lambda *args: (_ for _ in ()).throw(ValueError("bad project config")),
+    )
+
+    try:
+        pipeline_sidebar.available_lab_modules(env, tmp_path / "export")
+    except ValueError as exc:
+        assert str(exc) == "bad project config"
+    else:
+        raise AssertionError("ValueError should propagate for unexpected project listing failures")
+
+
 def test_on_lab_change_updates_session_state_and_stores_last_app(monkeypatch, tmp_path):
     app_root = tmp_path / "apps"
     project_dir = app_root / "sb3_trainer_project"
@@ -183,6 +199,26 @@ def test_on_lab_change_checks_builtin_path_and_swallows_env_errors(monkeypatch, 
     fake_st.session_state["env"] = SimpleNamespace()
     pipeline_sidebar.on_lab_change("demo_project")
     assert fake_st.session_state["lab_dir"] == "demo_project"
+
+
+def test_on_lab_change_swallows_store_last_active_app_os_error(monkeypatch, tmp_path):
+    app_root = tmp_path / "apps"
+    project_dir = app_root / "demo_project"
+    project_dir.mkdir(parents=True)
+
+    fake_st = SimpleNamespace(session_state=_SessionState(index_page="demo"))
+    monkeypatch.setattr(pipeline_sidebar, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_sidebar,
+        "store_last_active_app",
+        lambda _path: (_ for _ in ()).throw(OSError("disk error")),
+    )
+    fake_st.session_state["env"] = SimpleNamespace(apps_path=app_root)
+
+    pipeline_sidebar.on_lab_change("demo_project")
+
+    assert fake_st.session_state["lab_dir"] == "demo_project"
+    assert fake_st.session_state["project_changed"] is True
 
 
 def test_normalize_lab_choice_handles_empty_and_stem_matches():
