@@ -130,6 +130,24 @@ def test_render_form_handles_none_only_and_unconstrained_numeric_fields(dummy_st
     assert float_kwargs["step"] == pytest.approx(0.1)
 
 
+def test_render_form_covers_defensive_none_origin_branch(dummy_streamlit, monkeypatch):
+    class DefensiveArgs(BaseModel):
+        weird: str = "hello"
+
+    real_get_origin = streamlit_args.get_origin
+
+    def fake_get_origin(annotation):
+        if annotation is str:
+            return type(None)
+        return real_get_origin(annotation)
+
+    monkeypatch.setattr(streamlit_args, "get_origin", fake_get_origin)
+
+    values = streamlit_args.render_form(DefensiveArgs())
+
+    assert values["weird"] == "text:Weird"
+
+
 def test_constraint_value_returns_none_when_constraint_absent():
     field = DemoArgs.model_fields["name"]
     assert streamlit_args._constraint_value(field, Ge, "ge") is None

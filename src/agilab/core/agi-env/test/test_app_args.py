@@ -44,6 +44,15 @@ def test_merge_model_data_applies_overrides_without_mutating_original():
     assert original.bar == "orig"
 
 
+def test_merge_model_data_without_overrides_returns_copy():
+    original = ExampleModel(foo=4, bar="same")
+
+    updated = merge_model_data(original, {})
+
+    assert updated == original
+    assert updated is not original
+
+
 def test_load_model_from_toml_reads_existing_section(tmp_path: Path):
     settings = tmp_path / "config.toml"
     settings.write_text(
@@ -62,6 +71,20 @@ bar = "from_toml"
 def test_load_model_from_toml_returns_defaults_when_missing(tmp_path: Path):
     settings = tmp_path / "missing.toml"
     model = load_model_from_toml(ExampleModel, settings)
+    assert model == ExampleModel()
+
+
+def test_load_model_from_toml_returns_defaults_when_section_is_absent(tmp_path: Path):
+    settings = tmp_path / "config.toml"
+    settings.write_text(
+        """
+[other]
+foo = 10
+""".strip()
+    )
+
+    model = load_model_from_toml(ExampleModel, settings)
+
     assert model == ExampleModel()
 
 

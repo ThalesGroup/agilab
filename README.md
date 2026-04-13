@@ -9,7 +9,7 @@
 [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse)
-[![Agent-friendly](https://img.shields.io/badge/agent-friendly%20repo-00A67E)](tools/codex_workflow.md)
+[![Agent Codex](https://img.shields.io/badge/agent-codex-00A67E)](tools/codex_workflow.md)
 [![Free-threaded aware](https://img.shields.io/badge/python-free--threaded%20aware-5B6CFF)](docs/source/environment.rst)
 
 <details>
