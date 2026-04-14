@@ -1,1 +1,3 @@
-from .polars_worker import *
+from .polars_worker import PolarsWorker
+
+__all__ = ["PolarsWorker"]

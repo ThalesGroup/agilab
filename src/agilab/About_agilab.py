@@ -54,6 +54,12 @@ st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
 from agi_env.pagelib import background_services_enabled, inject_theme
+from agi_env.credential_store_support import (
+    CLUSTER_CREDENTIALS_KEY,
+    KEYRING_SENTINEL,
+    read_cluster_credentials,
+    store_cluster_credentials,
+)
 from agi_env.ui_support import load_last_active_app, store_last_active_app
 
 # ----------------- Fast-Loading Banner UI -----------------
@@ -258,16 +264,32 @@ def _ensure_env_file(path: Path) -> Path:
         logger.warning(f"Unable to create env file at {path}: {exc}")
     return path
 
+def _resolve_share_dir_path(raw_value: str, *, home_path: Path) -> Path:
+    """Return a normalized AGI share path or raise ``ValueError`` when invalid."""
+    try:
+        share_dir = Path(str(raw_value)).expanduser()
+    except (TypeError, ValueError) as exc:
+        raise ValueError("AGI_SHARE_DIR is not a valid filesystem path.") from exc
+
+    if not share_dir.is_absolute():
+        share_dir = home_path.expanduser() / share_dir
+
+    try:
+        return share_dir.resolve(strict=False)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"AGI_SHARE_DIR cannot be resolved: {exc}") from exc
+
 def _refresh_share_dir(env, new_value: str) -> None:
     """Update the in-memory AgiEnv share-path attributes after a UI change."""
     if not new_value:
         return
 
     share_value = str(new_value)
-    share_dir = Path(share_value).expanduser()
-    if not share_dir.is_absolute():
-        share_dir = Path(env.home_abs).expanduser() / share_dir
-    share_dir = share_dir.resolve(strict=False)
+    try:
+        share_dir = _resolve_share_dir_path(share_value, home_path=Path(env.home_abs))
+    except ValueError as exc:
+        st.warning(str(exc))
+        return
 
     # Persist the raw value (without forcing absolutes) so workers can resolve
     # relative mounts appropriately; share_root_path() performs the expansion.
@@ -322,6 +344,11 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls) -> bool:
         if not new_value:
             st.warning("AGI_SHARE_DIR cannot be empty.")
         else:
+            try:
+                _resolve_share_dir_path(new_value, home_path=Path(agi_env_cls.home_abs))
+            except ValueError as exc:
+                st.warning(str(exc))
+                return True
             agi_env_cls.set_env_var("AGI_SHARE_DIR", new_value)
             st.success(f"Saved AGI_SHARE_DIR = {new_value}. Reloading…")
             st.session_state["first_run"] = True
@@ -438,10 +465,17 @@ def _refresh_env_from_file(env: Any) -> None:
         return
 
     for key, val in env_map.items():
-        os.environ[key] = val
+        resolved_value = val
+        if key == CLUSTER_CREDENTIALS_KEY:
+            resolved_value = read_cluster_credentials(
+                val,
+                environ=os.environ,
+                logger=logger,
+            )
+        os.environ[key] = resolved_value
         try:
             if env.envars is not None:
-                env.envars[key] = val
+                env.envars[key] = resolved_value
         except (AttributeError, TypeError):
             pass
 
@@ -504,6 +538,11 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
         updated_values: Dict[str, str] = {}
         for key in unique_keys:
             default_value = last_value_map.get(key, template_defaults.get(key, ""))
+            if key == CLUSTER_CREDENTIALS_KEY and default_value == KEYRING_SENTINEL:
+                default_value = (
+                    str(getattr(env, "CLUSTER_CREDENTIALS", "") or "")
+                    or str(getattr(env, "envars", {}).get(CLUSTER_CREDENTIALS_KEY, "") or "")
+                )
             updated_values[key] = st.text_input(
                 key,
                 value=default_value,
@@ -532,8 +571,24 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
                 new_entry_data = {"key": new_key_clean, "value": new_value_clean}
 
         try:
-            _write_env_file(ENV_FILE_PATH, entries, cleaned_updates, new_entry_data)
-            combined_updates = dict(cleaned_updates)
+            runtime_updates = dict(cleaned_updates)
+            env_file_updates = dict(cleaned_updates)
+            env_file_new_entry = dict(new_entry_data) if new_entry_data else None
+            if CLUSTER_CREDENTIALS_KEY in runtime_updates:
+                cluster_secret = runtime_updates[CLUSTER_CREDENTIALS_KEY]
+                if store_cluster_credentials(cluster_secret, environ=os.environ, logger=logger):
+                    env_file_updates[CLUSTER_CREDENTIALS_KEY] = KEYRING_SENTINEL
+
+            if (
+                env_file_new_entry
+                and env_file_new_entry.get("key") == CLUSTER_CREDENTIALS_KEY
+                and env_file_new_entry.get("value")
+            ):
+                if store_cluster_credentials(env_file_new_entry["value"], environ=os.environ, logger=logger):
+                    env_file_new_entry["value"] = KEYRING_SENTINEL
+
+            _write_env_file(ENV_FILE_PATH, entries, env_file_updates, env_file_new_entry)
+            combined_updates = dict(runtime_updates)
             if new_entry_data:
                 combined_updates[new_entry_data["key"]] = new_entry_data["value"]
 
@@ -541,6 +596,8 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
                 os.environ[key] = value
                 if hasattr(env, "envars") and isinstance(env.envars, dict):
                     env.envars[key] = value
+            if CLUSTER_CREDENTIALS_KEY in combined_updates:
+                env.CLUSTER_CREDENTIALS = combined_updates[CLUSTER_CREDENTIALS_KEY]
 
             new_share = combined_updates.get("AGI_SHARE_DIR")
             if new_share is not None and new_share.strip() and new_share.strip() != existing_values.get("AGI_SHARE_DIR"):
@@ -583,7 +640,10 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
 
         merged = []
         for key in template_keys:
-            merged.append(f"{key}={current.get(key, '')}")
+            value = current.get(key, "")
+            if key == CLUSTER_CREDENTIALS_KEY and value == KEYRING_SENTINEL:
+                value = "<stored in keyring>"
+            merged.append(f"{key}={value}")
         if merged:
             st.code("\n".join(merged))
         else:
@@ -797,7 +857,17 @@ def main() -> None:
 
             if openai_api_key:
                 _init_env_var("OPENAI_API_KEY", openai_api_key)
-            _init_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
+            if cluster_credentials:
+                os.environ[CLUSTER_CREDENTIALS_KEY] = cluster_credentials
+                if hasattr(env, "envars") and isinstance(env.envars, dict):
+                    env.envars[CLUSTER_CREDENTIALS_KEY] = cluster_credentials
+                if CLUSTER_CREDENTIALS_KEY not in _saved:
+                    if store_cluster_credentials(cluster_credentials, environ=os.environ, logger=logger):
+                        AgiEnv.set_env_var(CLUSTER_CREDENTIALS_KEY, KEYRING_SENTINEL)
+                    else:
+                        AgiEnv.set_env_var(CLUSTER_CREDENTIALS_KEY, cluster_credentials)
+            else:
+                _init_env_var(CLUSTER_CREDENTIALS_KEY, "")
             _init_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
             _init_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
             _init_env_var("APPS_PATH", str(apps_path), force=bool(args.apps_path))
