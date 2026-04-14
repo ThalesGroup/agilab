@@ -1512,62 +1512,36 @@ def test_get_df_index_list_views_read_lines_and_scan_dir(tmp_path):
     assert sorted(pagelib.scan_dir(tmp_path)) == ["subdir", "views"]
 
 
-def test_ast_helpers_extract_top_level_and_class_symbols(tmp_path):
+def test_pagelib_ast_wrappers_use_source_analysis_support(monkeypatch, tmp_path):
     source_path = tmp_path / "symbols.py"
-    source_path.write_text(
-        "TOP_A = 1\n"
-        "TOP_B, TOP_C = 2, 3\n"
-        "annot: int = 4\n"
-        "\n"
-        "def outer():\n"
-        "    hidden = 1\n"
-        "    def nested():\n"
-        "        return hidden\n"
-        "    return nested()\n"
-        "\n"
-        "class Demo(object):\n"
-        "    CLASS_ATTR = 1\n"
-        "    x, y = 2, 3\n"
-        "    ann: int = 4\n"
-        "    def __init__(self):\n"
-        "        self.runtime = 5\n"
-        "    def first(self):\n"
-        "        return 1\n"
-        "    def second(self):\n"
-        "        return 2\n",
-        encoding="utf-8",
-    )
+    source_path.write_text("class Demo:\n    pass\n", encoding="utf-8")
+    captured = {}
 
-    top_level = pagelib.get_fcts_and_attrs_name(source_path)
-    class_level = pagelib.get_fcts_and_attrs_name(source_path, class_name="Demo")
+    def _fake_functions(src_path_arg, class_name=None):
+        captured["functions"] = (src_path_arg, class_name)
+        return {"functions": ["run"], "attributes": ["demo"]}
 
-    assert top_level == {
-        "functions": ["outer"],
-        "attributes": ["TOP_A", "TOP_B", "TOP_C", "annot"],
-    }
-    assert class_level == {
-        "functions": ["__init__", "first", "second"],
-        "attributes": ["CLASS_ATTR", "x", "y", "ann"],
+    def _fake_classes(src_path_arg):
+        captured["classes"] = src_path_arg
+        return ["Demo"]
+
+    def _fake_methods(src_path_arg, class_name_arg):
+        captured["methods"] = (src_path_arg, class_name_arg)
+        return ["run"]
+
+    monkeypatch.setattr(pagelib, "get_functions_and_attributes", _fake_functions)
+    monkeypatch.setattr(pagelib, "extract_class_names", _fake_classes)
+    monkeypatch.setattr(pagelib, "extract_class_methods", _fake_methods)
+
+    assert pagelib.get_fcts_and_attrs_name(source_path, class_name="Demo") == {
+        "functions": ["run"],
+        "attributes": ["demo"],
     }
     assert pagelib.get_classes_name(source_path) == ["Demo"]
-    assert pagelib.get_class_methods(source_path, "Demo") == ["__init__", "first", "second"]
-
-
-def test_ast_helpers_raise_for_missing_invalid_or_unreadable_sources(tmp_path):
-    missing = tmp_path / "missing.py"
-    broken = tmp_path / "broken.py"
-    broken.write_text("def nope(:\n", encoding="utf-8")
-    source_path = tmp_path / "symbols.py"
-    source_path.write_text("class Demo:\n    def run(self):\n        return 1\n", encoding="utf-8")
-
-    with pytest.raises(FileNotFoundError):
-        pagelib.get_fcts_and_attrs_name(missing)
-    with pytest.raises(SyntaxError):
-        pagelib.get_fcts_and_attrs_name(broken)
-    with pytest.raises(ValueError, match="Class 'Missing' not found"):
-        pagelib.get_fcts_and_attrs_name(source_path, class_name="Missing")
-    with pytest.raises(ValueError, match="Class 'Missing' not found"):
-        pagelib.get_class_methods(source_path, "Missing")
+    assert pagelib.get_class_methods(source_path, "Demo") == ["run"]
+    assert captured["functions"] == (source_path, "Demo")
+    assert captured["classes"] == source_path
+    assert captured["methods"] == (source_path, "Demo")
 
 
 def test_initialize_csv_files_and_update_datadir_manage_dataset_state(tmp_path, monkeypatch):

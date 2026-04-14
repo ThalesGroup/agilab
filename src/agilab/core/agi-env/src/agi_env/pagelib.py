@@ -52,6 +52,11 @@ from .ui_support import (
     store_last_active_app,
     with_anchor as _with_anchor,
 )
+from .source_analysis_support import (
+    get_class_methods as extract_class_methods,
+    get_classes_name as extract_class_names,
+    get_functions_and_attributes,
+)
 logger = logging.getLogger(__name__)
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
@@ -780,170 +785,19 @@ def export_df():
     else:
         st.warning("Export failed; please check the filename and dataframe content.")
 
-# Remove ANSI escape codes
-import ast
-from pathlib import Path
-from typing import List, Optional, Union
-
-
-def get_fcts_and_attrs_name(
-        src_path: Union[str, Path], class_name: Optional[str] = None
-) -> Dict[str, List[str]]:
-    """
-    Extract function (or method) and attribute names from a Python source file.
-    If a class name is provided, extract method and attribute names from that class.
-    Otherwise, extract top-level function and attribute names.
-
-    Args:
-        src_path (str or Path): The path to the source file.
-        class_name (str, optional): The name of the class to extract methods and attributes from.
-
-    Returns:
-        Dict[str, List[str]]: Dictionary with keys 'functions' and 'attributes' mapping to lists of names.
-
-    Raises:
-        FileNotFoundError: If the source file does not exist.
-        SyntaxError: If the source file contains invalid Python syntax.
-        ValueError: If the specified class name does not exist in the source file.
-    """
-    src_path = Path(src_path)
-
-    if not src_path.exists():
-        raise FileNotFoundError(f"The file {src_path} does not exist.")
-
-    try:
-        with src_path.open("r", encoding="utf-8") as f:
-            content = f.read()
-    except Exception as e:
-        raise IOError(f"Error reading the file {src_path}: {e}")
-
-    try:
-        tree = ast.parse(content, filename=str(src_path))
-    except SyntaxError as e:
-        raise SyntaxError(f"Syntax error in the file {src_path}: {e}")
-
-    function_names = []
-    attribute_names = []
-    target_class = None
-
-    # Helper function to set parent references
-    for node in ast.walk(tree):
-        for child in ast.iter_child_nodes(node):
-            child.parent = node
-
-    if class_name:
-        # Find the class definition
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == class_name:
-                target_class = node
-                break
-
-        if not target_class:
-            raise ValueError(f"Class '{class_name}' not found in {src_path}.")
-
-        # Extract method and attribute names from the target class
-        for item in target_class.body:
-            if isinstance(item, ast.FunctionDef):
-                function_names.append(item.name)
-            elif isinstance(item, (ast.Assign, ast.AnnAssign)):
-                if isinstance(item, ast.Assign):
-                    targets = item.targets
-                else:  # ast.AnnAssign
-                    targets = [item.target]
-                for target in targets:
-                    if isinstance(target, ast.Name):
-                        attribute_names.append(target.id)
-                    elif isinstance(target, ast.Tuple):
-                        for elt in target.elts:
-                            if isinstance(elt, ast.Name):
-                                attribute_names.append(elt.id)
-    else:
-        # Extract top-level function and attribute names
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
-                # Ensure the function is not nested within another function or class
-                if not isinstance(
-                        getattr(node, "parent", None), (ast.FunctionDef, ast.ClassDef)
-                ):
-                    function_names.append(node.name)
-            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-                # Ensure the assignment is at the module level
-                if isinstance(getattr(node, "parent", None), ast.Module):
-                    if isinstance(node, ast.Assign):
-                        targets = node.targets
-                    else:  # ast.AnnAssign
-                        targets = [node.target]
-                    for target in targets:
-                        if isinstance(target, ast.Name):
-                            attribute_names.append(target.id)
-                        elif isinstance(target, ast.Tuple):
-                            for elt in target.elts:
-                                if isinstance(elt, ast.Name):
-                                    attribute_names.append(elt.id)
-
-    return {"functions": function_names, "attributes": attribute_names}
+def get_fcts_and_attrs_name(src_path: str | Path, class_name: Optional[str] = None) -> Dict[str, list[str]]:
+    """Compatibility wrapper over the pure source-analysis helper."""
+    return get_functions_and_attributes(src_path, class_name=class_name)
 
 
 def get_classes_name(src_path):
-    """
-    Extract function names from a Python source file.
-
-    Args:
-        src_path (Path): The path to the source file.
-
-    Returns:
-        list: List of function names.
-    """
-    with open(src_path, "r") as f:
-        content = f.read()
-    pattern = re.compile(r"class\s+(\w+)\(")
-    return pattern.findall(content)
+    """Compatibility wrapper over the pure source-analysis helper."""
+    return extract_class_names(src_path)
 
 
-def get_class_methods(src_path: Path, class_name: str) -> List[str]:
-    """
-    Extract method names from a specific class in a Python source file.
-
-    Args:
-        src_path (Path): The path to the Python source file.
-        class_name (str): The name of the class whose methods are to be extracted.
-
-    Returns:
-        List[str]: A list of method names belonging to the specified class.
-
-    Raises:
-        FileNotFoundError: If the source file does not exist.
-        ValueError: If the specified class is not found in the source file.
-    """
-
-    if not src_path.is_file():
-        raise FileNotFoundError(f"The file {src_path} does not exist.")
-
-    with src_path.open("r", encoding="utf-8") as file:
-        source = file.read()
-
-    # Parse the source code into an AST
-    try:
-        tree = ast.parse(source, filename=str(src_path))
-    except SyntaxError as e:
-        raise SyntaxError(f"Syntax error in source file: {e}")
-
-    # Initialize an empty list to store method names
-    method_names = []
-
-    # Traverse the AST to find the class definition
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, ast.ClassDef) and node.name == class_name:
-            # Iterate through the class body to find method definitions
-            for class_body_item in node.body:
-                if isinstance(class_body_item, ast.FunctionDef):
-                    method_names.append(class_body_item.name)
-            break
-    else:
-        # If the class is not found, raise an error
-        raise ValueError(f"Class '{class_name}' not found in {src_path}.")
-
-    return method_names
+def get_class_methods(src_path: Path, class_name: str) -> list[str]:
+    """Compatibility wrapper over the pure source-analysis helper."""
+    return extract_class_methods(src_path, class_name)
 
 
 def run_agi(code, path="."):
