@@ -84,6 +84,10 @@ from .pagelib_preview_support import (
     resolve_export_target,
     resolve_preview_nrows,
 )
+from .pagelib_resource_support import (
+    about_content_payload,
+    load_json_resource,
+)
 logger = logging.getLogger(__name__)
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
@@ -558,14 +562,7 @@ def get_about_content():
 
                     ':blue[Agi&trade;] V5\n\n:blue[S]peedy :blue[Py]thon :blue[D]istributed  agilab for Data Science  2020-2024 \n\nThales SIX GTS France SAS \n\nsupport: open a GitHub issue'
     """
-    return {
-        "About": (
-            ":blue[AGILab&trade;]\n\n"
-            "An IDE for Data Science in Engineering\n\n"
-            "Thales SIX GTS France SAS \n\n"
-            "support: open a GitHub issue"
-        )
-    }
+    return about_content_payload()
 
 
 def init_custom_ui(_form_path):
@@ -749,8 +746,7 @@ def get_custom_buttons():
         This function uses Streamlit's caching mechanism to avoid reloading the data each time it is called.
     """
     env = st.session_state["env"]
-    with open(env.st_resources / "custom_buttons.json") as file:
-        return json.load(file)
+    return load_json_resource(Path(env.st_resources), "custom_buttons.json")
 
 
 @st.cache_data
@@ -766,8 +762,7 @@ def get_info_bar():
     :raise FileNotFoundError: If the 'info_bar.json' file cannot be found.
     """
     env = st.session_state["env"]
-    with open(env.st_resources / "info_bar.json") as file:
-        return json.load(file)
+    return load_json_resource(Path(env.st_resources), "info_bar.json")
 
 
 def export_df():
