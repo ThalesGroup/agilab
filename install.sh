@@ -687,11 +687,9 @@ run_core_tests() {
     local -a failures=()
     local -a uv_run=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
 
-    echo ""
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE}RUNNING CORE TEST SUITES${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
 
     pushd "$repo_root" > /dev/null
 
@@ -707,7 +705,6 @@ run_core_tests() {
         failures+=("core tests")
     fi
 
-    echo ""
     echo -e "${BLUE}Generating coverage reports...${NC}"
     COVERAGE_FILE=".coverage-agi-core" "${uv_run[@]}" -m coverage xml -i --include="src/agilab/core/agi-node/src/agi_node/*" -o coverage-agi-node.xml || true
     COVERAGE_FILE=".coverage-agi-core" "${uv_run[@]}" -m coverage xml -i --include="src/agilab/core/agi-cluster/src/agi_cluster/*" -o coverage-agi-cluster.xml || true
