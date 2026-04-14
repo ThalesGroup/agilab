@@ -5,6 +5,13 @@ from unittest import mock
 import pytest
 
 import agi_env.source_analysis_support as source_analysis_module
+import agi_env.source_analysis_ast as source_analysis_ast_module
+
+
+def test_source_analysis_support_reexports_pure_ast_helpers():
+    assert source_analysis_module.get_import_mapping is source_analysis_ast_module.get_import_mapping
+    assert source_analysis_module.extract_base_info is source_analysis_ast_module.extract_base_info
+    assert source_analysis_module.get_full_attribute_name is source_analysis_ast_module.get_full_attribute_name
 
 
 def test_source_analysis_helpers_cover_import_mapping_and_base_info():
