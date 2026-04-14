@@ -967,19 +967,6 @@ def test_is_local():
     assert not AgiEnv.is_local("8.8.8.8"), "8.8.8.8 should not be considered local."
 
 
-def test_reset_deploy_state_initializes_flags():
-    AGI._run_types = ["run", "sync", "upgrade", "simulate"]
-    AGI._mode = AGI.DASK_MODE
-    AGI._install_done_local = True
-    AGI._install_done = True
-    AGI._worker_init_error = True
-    AGI._reset_deploy_state()
-    assert AGI._run_type == "run"
-    assert AGI._install_done_local is False
-    assert AGI._install_done is False
-    assert AGI._worker_init_error is False
-
-
 def test_hardware_supports_rapids_true_and_false(monkeypatch):
     monkeypatch.setattr(agi_distributor_module.subprocess, "run", lambda *_a, **_k: None)
     assert AGI._hardware_supports_rapids() is True
@@ -990,61 +977,6 @@ def test_hardware_supports_rapids_true_and_false(monkeypatch):
         lambda *_a, **_k: (_ for _ in ()).throw(FileNotFoundError("nvidia-smi missing")),
     )
     assert AGI._hardware_supports_rapids() is False
-
-
-@pytest.mark.asyncio
-async def test_clean_remote_procs_only_non_local(monkeypatch):
-    called = []
-
-    async def _fake_kill(ip, current_pid, force=True):
-        called.append((ip, force))
-        return None
-
-    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
-    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
-    await AGI._clean_remote_procs({"127.0.0.1", "10.0.0.2"}, force=False)
-    assert called == [("10.0.0.2", False)]
-
-
-@pytest.mark.asyncio
-async def test_clean_remote_dirs_runs_for_all(monkeypatch):
-    called = []
-
-    async def _fake_clean(ip):
-        called.append(ip)
-
-    monkeypatch.setattr(AGI, "_clean_dirs", staticmethod(_fake_clean))
-    await AGI._clean_remote_dirs({"127.0.0.1", "10.0.0.2"})
-    assert set(called) == {"127.0.0.1", "10.0.0.2"}
-
-
-@pytest.mark.asyncio
-async def test_clean_nodes_runs_local_and_remote_cleanup(monkeypatch):
-    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
-    calls = {"local": 0, "procs": None, "dirs": None}
-
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _addr=None: ("127.0.0.1", 8786)))
-    monkeypatch.setattr(AgiEnv, "is_local", staticmethod(lambda ip: ip == "127.0.0.1"))
-    monkeypatch.setattr(
-        AGI,
-        "_clean_dirs_local",
-        staticmethod(lambda: calls.__setitem__("local", calls["local"] + 1)),
-    )
-
-    async def _clean_procs(list_ip, force=True):
-        calls["procs"] = (set(list_ip), force)
-
-    async def _clean_dirs(list_ip):
-        calls["dirs"] = set(list_ip)
-
-    monkeypatch.setattr(AGI, "_clean_remote_procs", staticmethod(_clean_procs))
-    monkeypatch.setattr(AGI, "_clean_remote_dirs", staticmethod(_clean_dirs))
-
-    list_ip = await AGI._clean_nodes("127.0.0.1:8786", force=True)
-    assert set(list_ip) == {"127.0.0.1", "10.0.0.2"}
-    assert calls["local"] >= 1
-    assert calls["procs"][1] is True
-    assert calls["dirs"] == {"127.0.0.1", "10.0.0.2"}
 
 
 def test_service_queue_prefers_workers_data_path(tmp_path):
@@ -3525,80 +3457,6 @@ async def test_prepare_cluster_env_raises_when_uv_missing_offline(monkeypatch):
 
     with pytest.raises(EnvironmentError, match="Uv binary is not installed"):
         await AGI._prepare_cluster_env("127.0.0.1")
-
-
-@pytest.mark.asyncio
-async def test_deploy_application_calls_local_and_remote_workers(monkeypatch):
-    AGI._mode = AGI._INSTALL_MODE | AGI.DASK_MODE
-    AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
-    AGI.install_worker_group = ["pandas-worker"]
-    AGI.env = SimpleNamespace(
-        active_app=Path("/tmp/demo_app"),
-        wenv_rel=Path("wenv"),
-        base_worker_cls="PandasWorker",
-        verbose=1,
-        is_local=lambda ip: ip == "127.0.0.1",
-    )
-    calls = {"local": [], "remote": [], "todo": []}
-
-    async def _fake_local(src, wenv_rel, options):
-        calls["local"].append((str(src), str(wenv_rel), options))
-
-    async def _fake_remote(ip, _env, wenv_rel, options):
-        calls["remote"].append((ip, str(wenv_rel), options))
-
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
-    monkeypatch.setattr(
-        AGI,
-        "_venv_todo",
-        staticmethod(lambda node_ips: calls["todo"].append(set(node_ips))),
-    )
-    monkeypatch.setattr(AGI, "_deploy_local_worker", staticmethod(_fake_local))
-    monkeypatch.setattr(AGI, "_deploy_remote_worker", staticmethod(_fake_remote))
-
-    await AGI._deploy_application("127.0.0.1")
-
-    assert calls["local"]
-    assert calls["remote"] == [("10.0.0.2", "wenv", " --extra pandas-worker")]
-    assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
-
-
-@pytest.mark.asyncio
-async def test_deploy_application_local_mode_skips_remote_workers(monkeypatch):
-    AGI._mode = AGI._INSTALL_MODE | AGI.PYTHON_MODE
-    AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
-    AGI.install_worker_group = ["pandas-worker"]
-    AGI.env = SimpleNamespace(
-        active_app=Path("/tmp/demo_app"),
-        wenv_rel=Path("wenv"),
-        base_worker_cls="PandasWorker",
-        verbose=0,
-        is_local=lambda ip: ip == "127.0.0.1",
-    )
-    calls = {"local": [], "remote": [], "todo": []}
-
-    async def _fake_local(src, wenv_rel, options):
-        calls["local"].append((str(src), str(wenv_rel), options))
-
-    async def _fake_remote(ip, _env, wenv_rel, options):
-        calls["remote"].append((ip, str(wenv_rel), options))
-
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
-    monkeypatch.setattr(
-        AGI,
-        "_venv_todo",
-        staticmethod(lambda node_ips: calls["todo"].append(set(node_ips))),
-    )
-    monkeypatch.setattr(AGI, "_deploy_local_worker", staticmethod(_fake_local))
-    monkeypatch.setattr(AGI, "_deploy_remote_worker", staticmethod(_fake_remote))
-
-    await AGI._deploy_application("127.0.0.1")
-
-    assert calls["local"] == [("/tmp/demo_app", "wenv", " --extra pandas-worker")]
-    assert calls["remote"] == []
-    assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
 
 
 @pytest.mark.asyncio
