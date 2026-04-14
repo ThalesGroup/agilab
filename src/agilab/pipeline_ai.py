@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import importlib
-import importlib.metadata as importlib_metadata
 import importlib.util
 import json
 import logging
 import os
 import re
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -78,6 +76,9 @@ try:
         _validate_code_safety,
         format_for_responses as _format_for_responses,
         format_uoaic_question as _format_uoaic_question,
+        _ensure_uoaic_runtime as _ensure_uoaic_runtime_impl,
+        _load_uoaic_modules as _load_uoaic_modules_impl,
+        _resolve_uoaic_path as _resolve_uoaic_path_impl,
         normalize_gpt_oss_endpoint as _normalize_gpt_oss_endpoint,
         normalize_identifier as _normalize_identifier,
         normalize_ollama_endpoint as _normalize_ollama_endpoint,
@@ -122,6 +123,9 @@ except ModuleNotFoundError:
     _redact_sensitive = _pipeline_ai_support_module.redact_sensitive
     _response_to_text = _pipeline_ai_support_module.response_to_text
     _synthesize_stub_response = _pipeline_ai_support_module.synthesize_stub_response
+    _ensure_uoaic_runtime_impl = _pipeline_ai_support_module._ensure_uoaic_runtime
+    _load_uoaic_modules_impl = _pipeline_ai_support_module._load_uoaic_modules
+    _resolve_uoaic_path_impl = _pipeline_ai_support_module._resolve_uoaic_path
 
 logger = logging.getLogger(__name__)
 JumpToMain = RuntimeError
@@ -415,236 +419,56 @@ def chat_offline(
 
     return text, model_name
 
+def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
+    """Resolve universal offline provider runtime through pure helper layer."""
+    env: Optional[AgiEnv] = st.session_state.get("env")
+    base_dir: Optional[Path] = None
+    if env is not None:
+        try:
+            base_dir = _pipeline_export_root(env)
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            base_dir = None
+
+    try:
+        return _ensure_uoaic_runtime_impl(
+            envars,
+            session_state=st.session_state,
+            resolve_uoaic_path=_resolve_uoaic_path,
+            load_uoaic_modules=_load_uoaic_modules,
+            runtime_state_key=UOAIC_RUNTIME_KEY,
+            data_state_key=UOAIC_DATA_STATE_KEY,
+            db_state_key=UOAIC_DB_STATE_KEY,
+            rebuild_state_key=UOAIC_REBUILD_FLAG_KEY,
+            data_env_key=UOAIC_DATA_ENV,
+            db_env_key=UOAIC_DB_ENV,
+            model_env_key="UOAIC_MODEL",
+            default_db_dirname=UOAIC_DEFAULT_DB_DIRNAME,
+            spinner=st.spinner,
+            base_dir=base_dir,
+        )
+    except RuntimeError as exc:
+        st.error(str(exc))
+        raise JumpToMain(exc)
+
+
 def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
     """Resolve user-supplied paths relative to AGILab export directory when needed."""
-    path_str = (raw_path or "").strip()
-    if not path_str:
-        raise ValueError("Path is empty.")
-    candidate = Path(path_str).expanduser()
-    if not candidate.is_absolute():
-        base: Optional[Path] = None
-        if env is not None:
-            try:
-                base = _pipeline_export_root(env)
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):  # pragma: no cover - defensive
-                base = None
-        if base is None:
-            base = Path.cwd()
-        candidate = (base / candidate).resolve()
-    else:
-        candidate = candidate.resolve()
-    return candidate
+    base: Optional[Path] = None
+    if env is not None:
+        try:
+            base = _pipeline_export_root(env)
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):  # pragma: no cover - defensive
+            base = None
+    return _resolve_uoaic_path_impl(raw_path, base)
+
 
 def _load_uoaic_modules() -> Tuple[Any, ...]:
     """Import the Universal Offline AI Chatbot helpers with detailed diagnostics."""
-
     try:
-        importlib_metadata.distribution("universal-offline-ai-chatbot")
-    except importlib_metadata.PackageNotFoundError as exc:
-        st.error(
-            "Install `universal-offline-ai-chatbot` (e.g. `uv pip install \"agilab[offline]\"`) "
-            "to enable the local (Ollama) assistant."
-        )
+        return _load_uoaic_modules_impl()
+    except RuntimeError as exc:
+        st.error(str(exc))
         raise JumpToMain(exc)
-
-    dist = importlib_metadata.distribution("universal-offline-ai-chatbot")
-    site_root = Path(dist.locate_file(""))
-    if site_root.is_file():
-        site_root = site_root.parent
-    candidate_dirs = {
-        site_root,
-        site_root.parent if site_root.name.endswith(".dist-info") else site_root,
-        (site_root.parent if site_root.name.endswith(".dist-info") else site_root) / "src",
-    }
-    for path in candidate_dirs:
-        if path and path.exists():
-            str_path = str(path.resolve())
-            if str_path not in sys.path:
-                sys.path.append(str_path)
-
-    module_names = (
-        "src.chunker",
-        "src.embedding",
-        "src.loader",
-        "src.model_loader",
-        "src.prompts",
-        "src.qa_chain",
-        "src.vectorstore",
-    )
-
-    imported_modules: List[Any] = []
-    for name in module_names:
-        try:
-            imported_modules.append(importlib.import_module(name))
-        except ImportError as exc:
-            # Fallback: load the module directly from files inside the wheel
-            short = name.split(".")[-1]
-            file_path: Optional[Path] = None
-            files = getattr(dist, "files", None)
-            if files:
-                for entry in files:
-                    if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
-                        file_path = Path(dist.locate_file(entry))
-                        break
-            if not file_path:
-                try:
-                    rec = dist.read_text("RECORD") or ""
-                except (OSError, RuntimeError):
-                    rec = ""
-                for line in rec.splitlines():
-                    if line.startswith("src/") and line.endswith(".py") and line.split(",",1)[0].endswith(f"src/{short}.py"):
-                        rel = line.split(",", 1)[0]
-                        file_path = Path(dist.locate_file(rel))
-                        break
-
-            if file_path and file_path.exists():
-                alias = f"uoaic_{short}"
-                try:
-                    spec = importlib.util.spec_from_file_location(alias, str(file_path))
-                    if spec and spec.loader:
-                        module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(module)
-                        imported_modules.append(module)
-                        continue
-                except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
-                    # Fall through to messaging below
-                    pass
-
-            missing = getattr(exc, "name", "") or ""
-            if missing and missing != name:
-                st.error(
-                    f"Missing dependency `{missing}` required by universal-offline-ai-chatbot. "
-                    "Install the offline extras with `uv pip install \"agilab[offline]\"` or "
-                    "`uv pip install universal-offline-ai-chatbot`."
-                )
-            else:
-                st.error(
-                    "Failed to load Universal Offline AI Chatbot module files. Ensure the package is installed in "
-                    "the same environment running Streamlit. You can force a reinstall with "
-                    "`uv pip install --force-reinstall universal-offline-ai-chatbot`."
-                )
-            raise JumpToMain(exc) from exc
-
-    return tuple(imported_modules)
-
-
-def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
-    """Initialise or reuse the Universal Offline AI Chatbot QA chain."""
-    env: Optional[AgiEnv] = st.session_state.get("env")
-
-    data_path_raw = (
-        st.session_state.get(UOAIC_DATA_STATE_KEY)
-        or envars.get(UOAIC_DATA_ENV)
-        or os.getenv(UOAIC_DATA_ENV, "")
-    )
-    if not data_path_raw:
-        st.error("Configure the Universal Offline data directory in the sidebar to enable this provider.")
-        raise JumpToMain(ValueError("Missing Universal Offline data directory"))
-
-    try:
-        data_path = _resolve_uoaic_path(data_path_raw, env)
-    except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        st.error(f"Invalid Universal Offline data directory: {exc}")
-        raise JumpToMain(exc)
-
-    normalized_data = normalize_path(data_path)
-    st.session_state[UOAIC_DATA_STATE_KEY] = normalized_data
-    envars[UOAIC_DATA_ENV] = normalized_data
-
-    db_path_raw = (
-        st.session_state.get(UOAIC_DB_STATE_KEY)
-        or envars.get(UOAIC_DB_ENV)
-        or os.getenv(UOAIC_DB_ENV, "")
-    )
-    if not db_path_raw:
-        db_path_raw = normalize_path(Path(data_path) / UOAIC_DEFAULT_DB_DIRNAME)
-
-    try:
-        db_path = _resolve_uoaic_path(db_path_raw, env)
-    except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        st.error(f"Invalid Universal Offline vector store directory: {exc}")
-        raise JumpToMain(exc)
-
-    normalized_db = normalize_path(db_path)
-    st.session_state[UOAIC_DB_STATE_KEY] = normalized_db
-    envars[UOAIC_DB_ENV] = normalized_db
-
-    runtime = st.session_state.get(UOAIC_RUNTIME_KEY)
-    if runtime and runtime.get("data_path") == normalized_data and runtime.get("db_path") == normalized_db:
-        return runtime
-
-    rebuild_requested = bool(st.session_state.pop(UOAIC_REBUILD_FLAG_KEY, False))
-
-    chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore = _load_uoaic_modules()
-
-    try:
-        embedding_model = embedding.get_embedding_model()
-    except Exception as exc:
-        st.error(f"Failed to load the embedding model for Universal Offline AI Chatbot: {exc}")
-        raise JumpToMain(exc)
-
-    db_directory = Path(db_path)
-    if rebuild_requested or not db_directory.exists():
-        with st.spinner("Building Universal Offline AI Chatbot knowledge base…"):
-            try:
-                documents = loader.load_pdf_files(str(data_path))
-            except Exception as exc:
-                st.error(f"Unable to load PDF documents from {data_path}: {exc}")
-                raise JumpToMain(exc)
-
-            if not documents:
-                st.error(f"No PDF documents found in {data_path}. Add PDFs and rebuild the index.")
-                raise JumpToMain(ValueError("Universal Offline data directory is empty"))
-
-            try:
-                chunks = chunker.create_chunks(documents)
-                db_directory.parent.mkdir(parents=True, exist_ok=True)
-                vectorstore.build_vector_db(chunks, embedding_model, str(db_path))
-            except Exception as exc:
-                st.error(f"Failed to build the Universal Offline vector store: {exc}")
-                raise JumpToMain(exc)
-
-    with st.spinner("Loading Universal Offline AI Chatbot artifacts…"):
-        try:
-            db = vectorstore.load_vector_db(str(db_path), embedding_model)
-        except Exception as exc:
-            st.error(f"Failed to load the Universal Offline vector store at {db_path}: {exc}")
-            raise JumpToMain(exc)
-
-        try:
-            llm = model_loader.load_llm()
-        except Exception as exc:
-            st.error(f"Failed to load the local Ollama model used by Universal Offline AI Chatbot: {exc}")
-            raise JumpToMain(exc)
-
-        model_label = ""
-        for attr in ("model_name", "model", "model_id", "model_path", "name"):
-            value = getattr(llm, attr, None)
-            if value:
-                model_label = str(value)
-                break
-        if not model_label:
-            model_label = str(envars.get("UOAIC_MODEL") or "universal-offline")
-
-        prompt_template = prompts.set_custom_prompt(prompts.CUSTOM_PROMPT_TEMPLATE)
-        try:
-            chain = qa_chain.setup_qa_chain(llm, db, prompt_template)
-        except Exception as exc:
-            st.error(f"Failed to initialise the Universal Offline AI Chatbot chain: {exc}")
-            raise JumpToMain(exc)
-
-    runtime = {
-        "data_path": normalized_data,
-        "db_path": normalized_db,
-        "chain": chain,
-        "embedding_model": embedding_model,
-        "vector_store": db,
-        "llm": llm,
-        "prompt": prompt_template,
-        "model_label": model_label,
-    }
-    st.session_state[UOAIC_RUNTIME_KEY] = runtime
-    return runtime
 
 
 def chat_universal_offline(
