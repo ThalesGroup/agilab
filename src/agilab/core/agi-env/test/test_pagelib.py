@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib
 import importlib.util
 import io
@@ -1542,6 +1543,36 @@ def test_pagelib_ast_wrappers_use_source_analysis_support(monkeypatch, tmp_path)
     assert captured["functions"] == (source_path, "Demo")
     assert captured["classes"] == source_path
     assert captured["methods"] == (source_path, "Demo")
+
+
+def test_pagelib_source_analysis_compatibility_wrappers(monkeypatch):
+    source = "import demo.base"
+    captured = {}
+
+    def _fake_get_import_mapping(source_arg, logger=None):
+        captured["import_mapping_input"] = (source_arg, logger)
+        return {"demo": "demo.base"}
+
+    def _fake_extract_base_info(base_arg, mapping_arg):
+        captured["extract_input"] = (base_arg, mapping_arg)
+        return ("DemoWorker", "pkg")
+
+    def _fake_full_name(node_arg):
+        captured["full_name_input"] = node_arg
+        return "mod.Demo"
+
+    monkeypatch.setattr(pagelib, "_get_import_mapping", _fake_get_import_mapping)
+    monkeypatch.setattr(pagelib, "_extract_base_info", _fake_extract_base_info)
+    monkeypatch.setattr(pagelib, "_get_full_attribute_name", _fake_full_name)
+
+    assert pagelib.get_import_mapping(source) == {"demo": "demo.base"}
+    assert captured["import_mapping_input"] == (source, None)
+
+    base_ast = ast.parse("x = mod.Demo").body[0].value
+    assert pagelib.extract_base_info(base_ast, {"mod": "pkg"}) == ("DemoWorker", "pkg")
+    assert captured["extract_input"] == (base_ast, {"mod": "pkg"})
+    assert pagelib.get_full_attribute_name(base_ast) == "mod.Demo"
+    assert captured["full_name_input"] is base_ast
 
 
 def test_initialize_csv_files_and_update_datadir_manage_dataset_state(tmp_path, monkeypatch):

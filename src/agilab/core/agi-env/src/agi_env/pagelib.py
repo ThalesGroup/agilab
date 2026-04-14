@@ -56,6 +56,9 @@ from .source_analysis_support import (
     get_class_methods as extract_class_methods,
     get_classes_name as extract_class_names,
     get_functions_and_attributes,
+    extract_base_info as _extract_base_info,
+    get_full_attribute_name as _get_full_attribute_name,
+    get_import_mapping as _get_import_mapping,
 )
 logger = logging.getLogger(__name__)
 
@@ -798,6 +801,21 @@ def get_classes_name(src_path):
 def get_class_methods(src_path: Path, class_name: str) -> list[str]:
     """Compatibility wrapper over the pure source-analysis helper."""
     return extract_class_methods(src_path, class_name)
+
+
+def get_import_mapping(source: str, *, logger=None):
+    """Compatibility wrapper for source-analysis import mapping."""
+    return _get_import_mapping(source, logger=logger)
+
+
+def extract_base_info(base, import_mapping):
+    """Compatibility wrapper for extracting AST base-class metadata."""
+    return _extract_base_info(base, import_mapping)
+
+
+def get_full_attribute_name(node):
+    """Compatibility wrapper for reconstructing dotted AST attributes."""
+    return _get_full_attribute_name(node)
 
 
 def run_agi(code, path="."):
