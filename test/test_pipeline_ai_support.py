@@ -4,6 +4,7 @@ import importlib
 import importlib.util
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -21,6 +22,326 @@ def _load_module(module_name: str, relative_path: str):
 
 
 pipeline_ai_support = _load_module("agilab.pipeline_ai_support_test", "src/agilab/pipeline_ai_support.py")
+
+
+def test_extract_code_splits_detail_and_python_block():
+    message = "Use this.\n```python\nprint('ok')\n```\nDone."
+
+    code, detail = pipeline_ai_support.extract_code(message)
+
+    assert code == "print('ok')"
+    assert detail == "Use this.\n\nDone."
+
+
+def test_extract_code_handles_plain_python_empty_and_non_python_text():
+    assert pipeline_ai_support.extract_code("value = 1\nprint(value)") == ("value = 1\nprint(value)", "")
+    assert pipeline_ai_support.extract_code("") == ("", "")
+    assert pipeline_ai_support.extract_code("not valid python!") == ("", "not valid python!")
+
+
+def test_normalize_gpt_oss_endpoint_appends_responses_path():
+    assert pipeline_ai_support.normalize_gpt_oss_endpoint("") == pipeline_ai_support.DEFAULT_GPT_OSS_ENDPOINT
+    assert (
+        pipeline_ai_support.normalize_gpt_oss_endpoint("http://127.0.0.1:8000")
+        == "http://127.0.0.1:8000/v1/responses"
+    )
+    assert (
+        pipeline_ai_support.normalize_gpt_oss_endpoint("http://127.0.0.1:8000/v1")
+        == "http://127.0.0.1:8000/v1/responses"
+    )
+
+
+def test_normalize_ollama_endpoint_strips_generate_path_and_uses_env(monkeypatch):
+    monkeypatch.setenv("OLLAMA_HOST", "http://ollama.local:11434/")
+
+    assert pipeline_ai_support.normalize_ollama_endpoint("") == "http://ollama.local:11434"
+    assert (
+        pipeline_ai_support.normalize_ollama_endpoint("http://127.0.0.1:11434/api/generate")
+        == "http://127.0.0.1:11434"
+    )
+
+
+def test_prompt_to_plaintext_flattens_list_content_and_unknown_roles():
+    text = pipeline_ai_support.prompt_to_plaintext(
+        [
+            {"role": "system", "content": "rules"},
+            {"role": "critic", "content": ["alpha", "beta"]},
+        ],
+        "continue",
+    )
+
+    assert "System: rules" in text
+    assert "Critic: alpha\nbeta" in text
+    assert text.endswith("User: continue")
+
+
+def test_normalize_identifier_handles_digits_and_fallback():
+    assert pipeline_ai_support.normalize_identifier("Flight Level (%)") == "flight_level"
+    assert pipeline_ai_support.normalize_identifier("12-bearers") == "_12_bearers"
+    assert pipeline_ai_support.normalize_identifier("", fallback="service") == "service"
+
+
+def test_synthesize_stub_response_builds_savgol_code_with_odd_window():
+    response = pipeline_ai_support.synthesize_stub_response("Apply savgol on column Air-Speed with window 8")
+
+    assert "from scipy.signal import savgol_filter" in response
+    assert "column = 'air_speed'" in response
+    assert "window_length = 9" in response
+
+
+def test_synthesize_stub_response_returns_generic_stub_message():
+    response = pipeline_ai_support.synthesize_stub_response("Summarize the dataframe")
+
+    assert "stub backend" in response
+    assert "real backend" in response
+
+
+def test_format_for_responses_wraps_plain_text_and_preserves_list_content():
+    conversation = [
+        {"role": "system", "content": "rules"},
+        {"role": "assistant", "content": [{"type": "text", "text": "already structured"}]},
+    ]
+
+    formatted = pipeline_ai_support.format_for_responses(conversation)
+
+    assert formatted[0] == {
+        "role": "system",
+        "content": [{"type": "text", "text": "rules"}],
+    }
+    assert formatted[1]["content"] == [{"type": "text", "text": "already structured"}]
+
+
+def test_response_to_text_prefers_output_text_then_structured_and_legacy_choices():
+    direct = SimpleNamespace(output_text="  done  ")
+    assert pipeline_ai_support.response_to_text(direct) == "done"
+
+    structured = SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[
+                    SimpleNamespace(type="text", text="alpha"),
+                    SimpleNamespace(type="output_text", text=SimpleNamespace(value="beta")),
+                ],
+            )
+        ]
+    )
+    assert pipeline_ai_support.response_to_text(structured) == "alpha\nbeta"
+
+    legacy = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=" legacy "))])
+    assert pipeline_ai_support.response_to_text(legacy) == "legacy"
+
+
+def test_response_to_text_handles_text_chunks_and_empty_payloads():
+    chunked = SimpleNamespace(output=[SimpleNamespace(type="tool", text=SimpleNamespace(value="chunk"))])
+    assert pipeline_ai_support.response_to_text(chunked) == "chunk"
+
+    broken_legacy = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace())])
+    assert pipeline_ai_support.response_to_text(broken_legacy) == ""
+    assert pipeline_ai_support.response_to_text(None) == ""
+
+
+def test_redact_sensitive_masks_openai_style_keys():
+    message = "bad key sk-ABCD1234567890 and project key sk-proj-WXYZabcdefgh123456"
+
+    redacted = pipeline_ai_support.redact_sensitive(message)
+
+    assert "sk-ABCD12…" in redacted
+    assert "sk-proj…" in redacted
+    assert "1234567890" not in redacted
+
+
+def test_prompt_to_gpt_oss_messages_separates_system_and_normalizes_roles():
+    instructions, history = pipeline_ai_support.prompt_to_gpt_oss_messages(
+        [
+            {"role": "system", "content": "obey"},
+            {"role": "assistant", "content": "done"},
+            {"role": "critic", "content": "fallback role"},
+        ],
+        "next step?",
+    )
+
+    assert instructions == "obey"
+    assert history[0] == {
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": "done"}],
+    }
+    assert history[1] == {
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "text", "text": "fallback role"}],
+    }
+    assert history[-1]["content"] == [{"type": "input_text", "text": "next step?"}]
+
+
+def test_format_uoaic_question_flattens_history_with_code_preamble():
+    text = pipeline_ai_support.format_uoaic_question(
+        [
+            {"role": "system", "content": "rules"},
+            {"role": "assistant", "content": "previous answer"},
+        ],
+        "plot value",
+    )
+
+    assert text.startswith(pipeline_ai_support.CODE_STRICT_INSTRUCTIONS)
+    assert "System: rules" in text
+    assert "Assistant: previous answer" in text
+    assert text.endswith("User: plot value")
+
+
+def test_format_uoaic_question_handles_list_content_blank_entries_and_fallback_roles():
+    text = pipeline_ai_support.format_uoaic_question(
+        [
+            {"role": "user", "content": ["first", "second"]},
+            {"role": "", "content": "fallback role"},
+            {"role": "assistant", "content": "   "},
+        ],
+        "next",
+    )
+
+    assert "User: first\nsecond" in text
+    assert "Assistant: fallback role" in text
+    assert "Assistant:    " not in text
+
+
+def test_normalize_user_path_resolves_relative_paths(monkeypatch, tmp_path):
+    target = tmp_path / "dataset.csv"
+    target.write_text("x", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    normalized = pipeline_ai_support.normalize_user_path("dataset.csv")
+
+    assert normalized == str(target.resolve())
+
+
+def test_resolve_uoaic_path_uses_base_dir_and_rejects_empty_input(tmp_path):
+    assert pipeline_ai_support._resolve_uoaic_path("docs/manual.pdf", base_dir=tmp_path) == (
+        tmp_path / "docs" / "manual.pdf"
+    ).resolve()
+
+    with pytest.raises(ValueError, match="Path is empty"):
+        pipeline_ai_support._resolve_uoaic_path("", base_dir=tmp_path)
+
+
+def test_load_uoaic_modules_reports_missing_package():
+    def _missing_distribution(_name: str):
+        raise pipeline_ai_support.importlib_metadata.PackageNotFoundError()
+
+    with pytest.raises(RuntimeError, match="universal-offline-ai-chatbot"):
+        pipeline_ai_support._load_uoaic_modules(distribution_fn=_missing_distribution)
+
+
+def test_load_uoaic_modules_loads_modules_from_wheel_files(tmp_path):
+    wheel_root = tmp_path / "wheel"
+    src_dir = wheel_root / "src"
+    src_dir.mkdir(parents=True)
+    (wheel_root / "site.dist-info").write_text("dist-info marker", encoding="utf-8")
+
+    module_files = {}
+    for short in ("chunker", "embedding", "loader", "model_loader", "prompts", "qa_chain", "vectorstore"):
+        file_path = src_dir / f"{short}.py"
+        file_path.write_text(f"IDENT = '{short}'\n", encoding="utf-8")
+        module_files[f"src/{short}.py"] = file_path
+
+    class FakeDist:
+        files = list(module_files)
+
+        @staticmethod
+        def locate_file(path):
+            if path == "":
+                return wheel_root / "site.dist-info"
+            return module_files[str(path)]
+
+        @staticmethod
+        def read_text(_name):
+            return ""
+
+    def _failing_import(name: str):
+        raise ImportError("fallback", name=name)
+
+    modules = pipeline_ai_support._load_uoaic_modules(
+        distribution_fn=lambda _name: FakeDist(),
+        import_module_fn=_failing_import,
+    )
+
+    assert [module.IDENT for module in modules] == [
+        "chunker",
+        "embedding",
+        "loader",
+        "model_loader",
+        "prompts",
+        "qa_chain",
+        "vectorstore",
+    ]
+
+
+def test_ensure_uoaic_runtime_builds_and_reuses_cached_runtime(tmp_path):
+    data_dir = tmp_path / "docs"
+    data_dir.mkdir()
+    session_state = {}
+    envars = {
+        "UOAIC_DATA_DIR": str(data_dir),
+        "UOAIC_MODEL": "offline-model",
+    }
+    build_calls = []
+
+    chunker = SimpleNamespace(create_chunks=lambda docs: ["chunk"] if docs == ["doc"] else [])
+    embedding = SimpleNamespace(get_embedding_model=lambda: "embedding-model")
+    loader = SimpleNamespace(load_pdf_files=lambda path: ["doc"] if path == str(data_dir) else [])
+    model_loader = SimpleNamespace(load_llm=lambda: SimpleNamespace(model_name="local-model"))
+    prompts = SimpleNamespace(
+        CUSTOM_PROMPT_TEMPLATE="prompt-template",
+        set_custom_prompt=lambda template: f"custom:{template}",
+    )
+    qa_chain = SimpleNamespace(setup_qa_chain=lambda llm, db, prompt: ("chain", llm, db, prompt))
+    vectorstore = SimpleNamespace(
+        build_vector_db=lambda chunks, emb, path: build_calls.append((chunks, emb, path)),
+        load_vector_db=lambda path, emb: {"path": path, "embedding": emb},
+    )
+
+    runtime = pipeline_ai_support._ensure_uoaic_runtime(
+        envars,
+        session_state=session_state,
+        resolve_uoaic_path=lambda raw_path, base_dir=None: pipeline_ai_support._resolve_uoaic_path(
+            raw_path, base_dir=base_dir
+        ),
+        load_uoaic_modules=lambda: (chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore),
+        runtime_state_key="runtime",
+        data_state_key="data_dir",
+        db_state_key="db_dir",
+        rebuild_state_key="rebuild",
+        data_env_key="UOAIC_DATA_DIR",
+        db_env_key="UOAIC_DB_DIR",
+        model_env_key="UOAIC_MODEL",
+        default_db_dirname="vectorstore",
+        base_dir=tmp_path,
+    )
+
+    assert runtime["model_label"] == "local-model"
+    assert runtime["prompt"] == "custom:prompt-template"
+    assert build_calls == [(["chunk"], "embedding-model", str(data_dir / "vectorstore"))]
+    assert session_state["runtime"] is runtime
+
+    cached = pipeline_ai_support._ensure_uoaic_runtime(
+        envars,
+        session_state=session_state,
+        resolve_uoaic_path=lambda raw_path, base_dir=None: pipeline_ai_support._resolve_uoaic_path(
+            raw_path, base_dir=base_dir
+        ),
+        load_uoaic_modules=lambda: pytest.fail("cached runtime should be reused"),
+        runtime_state_key="runtime",
+        data_state_key="data_dir",
+        db_state_key="db_dir",
+        rebuild_state_key="rebuild",
+        data_env_key="UOAIC_DATA_DIR",
+        db_env_key="UOAIC_DB_DIR",
+        model_env_key="UOAIC_MODEL",
+        default_db_dirname="vectorstore",
+        base_dir=tmp_path,
+    )
+
+    assert cached is runtime
 
 
 def test_validate_code_safety_rejects_import_statements():
