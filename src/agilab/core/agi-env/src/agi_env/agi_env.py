@@ -44,7 +44,7 @@ import subprocess
 import sys
 from pathlib import Path
 import tomlkit
-from typing import Tuple, Optional
+from typing import Tuple
 import logging
 import astor
 from pathspec import PathSpec
@@ -97,6 +97,10 @@ from agi_env.share_runtime_support import (
     mode_to_str,
     resolve_share_path as resolve_relative_share_path,
     share_target_name,
+)
+from agi_env.share_mount_support import (
+    cluster_enabled_from_settings as resolve_cluster_enabled_from_settings,
+    resolve_share_path as resolve_runtime_share_path,
 )
 from agi_env.rename_gitignore_support import (
     is_relative_to as is_path_relative_to,
@@ -926,187 +930,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             except Exception:
                 pass
 
-        def _cluster_enabled_from_settings() -> bool:
-            """Best-effort read of the Streamlit 'Enable Cluster' toggle.
-
-            The toggle is persisted under `[cluster].cluster_enabled` in the
-            per-user app settings file seeded from each app's source
-            `app_settings.toml`. When the per-app setting is missing, fall back to
-            the versioned source file, then to the global `.env` value
-            `AGI_CLUSTER_ENABLED` if present.
-            """
-
-            if self.is_worker_env:
-                return True
-
-            def _parse_bool(value: object) -> bool | None:
-                if isinstance(value, bool):
-                    return value
-                if isinstance(value, (int, float)):
-                    return bool(value)
-                if isinstance(value, str):
-                    normalized = value.strip().lower()
-                    if normalized in {"1", "true", "yes", "y", "on"}:
-                        return True
-                    if normalized in {"0", "false", "no", "n", "off", ""}:
-                        return False
-                return None
-
-            def _read_cluster_setting(path: Path) -> bool | None:
-                """Read [cluster].cluster_enabled from a settings file."""
-                try:
-                    if not path.is_file() or path.stat().st_size <= 0:
-                        return None
-                    import tomllib
-
-                    with path.open("rb") as handle:
-                        doc = tomllib.load(handle)
-                    cluster_section = doc.get("cluster")
-                    if isinstance(cluster_section, dict) and "cluster_enabled" in cluster_section:
-                        return _parse_bool(cluster_section.get("cluster_enabled"))
-                    return None
-                except Exception:
-                    return None
-
-            parsed: bool | None = None
-
-            try:
-                settings_candidates = [
-                    self.resolve_user_app_settings_file(ensure_exists=False),
-                    self.find_source_app_settings_file(),
-                ]
-                for settings_path in settings_candidates:
-                    if settings_path is None:
-                        continue
-                    parsed = _read_cluster_setting(settings_path)
-                    if parsed is not None:
-                        break
-            except Exception:
-                parsed = None
-
-            if parsed is not None:
-                return parsed
-
-            parsed = _parse_bool(envars.get("AGI_CLUSTER_ENABLED"))
-            if parsed is None:
-                parsed = _parse_bool(os.environ.get("AGI_CLUSTER_ENABLED"))
-            return bool(parsed) if parsed is not None else False
-
-        cluster_enabled = _cluster_enabled_from_settings()
-
-        def _abs_path(path_str: str) -> str:
-            """Absolute path; relative paths are relative to $HOME."""
-            p = Path(path_str).expanduser()
-            if not p.is_absolute():
-                p = Path.home() / p
-            return os.path.normpath(os.path.abspath(str(p)))
-
-        def _is_usable_dir(p: str) -> bool:
-            """Directory exists and is readable/writable."""
-            if not os.path.isdir(p):
-                return False
-            try:
-                os.listdir(p)
-                testfile = os.path.join(p, ".agi_mount_test")
-                with open(testfile, "w") as f:
-                    f.write("ok")
-                os.remove(testfile)
-                return True
-            except Exception:
-                return False
-
-        def _same_storage(a: str, b: str) -> bool:
-            """True if a and b are the same inode/device (bind or symlink)."""
-            try:
-                sa = os.stat(os.path.realpath(a))
-                sb = os.stat(os.path.realpath(b))
-                return (sa.st_dev, sa.st_ino) == (sb.st_dev, sb.st_ino)
-            except FileNotFoundError:
-                return False
-
-        def _fstab_bind_source_for_target(target: str) -> Optional[str]:
-            """
-            If /etc/fstab contains a bind mount for 'target',
-            return the bind source path; else None.
-            """
-            try:
-                with open("/etc/fstab", "r") as f:
-                    for raw in f:
-                        line = raw.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        parts = line.split()
-                        if len(parts) < 4:
-                            continue
-                        src, tgt, fstype, opts = parts[:4]
-                        if os.path.normpath(tgt) == target and "bind" in opts.split(","):
-                            return os.path.normpath(src)
-            except FileNotFoundError:
-                pass
-            return None
-
-        def is_mounted(p: str) -> bool:
-            """
-            "Mounted enough to use" for AGI_CLUSTER_SHARE.
-
-            Returns True if:
-              1) path is a usable directory, AND
-              2) either:
-                 a) it is an actual mount target in this namespace, OR
-                 b) /etc/fstab defines a bind mount for it and it points to the same storage
-                    as the bind source (even if the bind isn't visible here), OR
-                 c) no bind rule found; we accept usability alone.
-
-            This matches your real intent: prefer clustershare when it works.
-            """
-
-            # Must be usable first (your real requirement)
-            if not _is_usable_dir(p):
-                return False
-
-            # If it shows up as a mount target here, great.
-            try:
-                with open("/proc/self/mountinfo", "r") as f:
-                    for line in f:
-                        parts = line.split()
-                        if len(parts) > 4 and os.path.normpath(parts[4]) == p:
-                            return True
-            except FileNotFoundError:
-                # Non-Linux / no proc: fall back to usability only
-                return True
-
-            # Not a visible mountpoint here.
-            # If fstab says it's a bind mount, verify it really points to the bind source.
-            bind_src = _fstab_bind_source_for_target(p)
-            if bind_src:
-                # bind_src may be relative in fstab (rare), normalize it similarly
-                bind_src_abs = _abs_path(bind_src) if not os.path.isabs(bind_src) else bind_src
-                return _same_storage(p, bind_src_abs)
-
-            # No bind rule found; directory is usable, so accept it.
-            return True
-        candidate = _abs_path(self.AGI_CLUSTER_SHARE)
-        local_candidate = _abs_path(self.AGI_LOCAL_SHARE)
-
-        wants_cluster_share = bool(cluster_enabled)
-        if wants_cluster_share and os.path.normpath(candidate) == os.path.normpath(local_candidate):
-            raise RuntimeError(
-                "Cluster mode requires AGI_CLUSTER_SHARE to be distinct from AGI_LOCAL_SHARE. "
-                f"Both resolve to {candidate!r}; env={env_path}"
-            )
-        mounted = is_mounted(candidate)
-        if mounted and wants_cluster_share:
-            self.agi_share_path = self.AGI_CLUSTER_SHARE
-            #AgiEnv.logger.info(
-            #    f"self.agi_share_path = AGI_CLUSTER_SHARE = {candidate}"
-            #)
-        else:
-            if wants_cluster_share and not mounted:
-                raise RuntimeError(
-                    "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
-                    f"Configured AGI_CLUSTER_SHARE={candidate!r} is not usable; env={env_path}"
-                )
-            self.agi_share_path = self.AGI_LOCAL_SHARE
+        cluster_enabled = resolve_cluster_enabled_from_settings(
+            is_worker_env=self.is_worker_env,
+            resolve_workspace_settings_fn=lambda: self.resolve_user_app_settings_file(ensure_exists=False),
+            find_source_settings_fn=self.find_source_app_settings_file,
+            envars=envars,
+            environ=os.environ,
+        )
+        self.agi_share_path = resolve_runtime_share_path(
+            cluster_share=self.AGI_CLUSTER_SHARE,
+            local_share=self.AGI_LOCAL_SHARE,
+            cluster_enabled=bool(cluster_enabled),
+            env_path=env_path,
+            home_path=Path.home(),
+        )
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()
