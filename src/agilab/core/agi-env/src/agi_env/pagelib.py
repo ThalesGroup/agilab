@@ -14,7 +14,6 @@
 
 import re
 import json
-import io
 from pathlib import Path
 from functools import lru_cache
 import pandas as pd
@@ -29,8 +28,22 @@ import runpy
 from typing import Dict, Optional
 import sys
 import logging
-import shlex
 from . import mlflow_store
+from .pagelib_execution_support import (
+    run_agi as _run_agi_impl,
+    run_lab as _run_lab_impl,
+)
+from .pagelib_runtime_support import (
+    activate_gpt_oss as _activate_gpt_oss_impl,
+    activate_mlflow as _activate_mlflow_impl,
+    get_random_port as _get_random_port_impl,
+    is_port_in_use as _is_port_in_use_impl,
+    next_free_port as _next_free_port_impl,
+    run as _run_impl,
+    run_with_output as _run_with_output_impl,
+    subproc as _subproc_impl,
+    wait_for_listen_port as _wait_for_listen_port_impl,
+)
 from .ui_support import (
     _GLOBAL_STATE_FILE,
     _LEGACY_LAST_APP_FILE,
@@ -78,6 +91,10 @@ from .pagelib_navigation_support import (
     normalize_query_param_value,
     resolve_default_selection,
     resolve_selected_df_path,
+)
+from .pagelib_project_support import (
+    init_custom_ui as _init_custom_ui_impl,
+    on_project_change as _on_project_change_impl,
 )
 from .pagelib_preview_support import (
     build_dataframe_preview,
@@ -210,47 +227,25 @@ def _ensure_default_mlflow_experiment(tracking_dir: Path) -> str | None:
 
 
 def _next_free_port() -> int:
-    port = get_random_port()
-    while is_port_in_use(port):
-        port = get_random_port()
-    return port
+    return _next_free_port_impl(
+        get_random_port_fn=get_random_port,
+        is_port_in_use_fn=is_port_in_use,
+    )
 
 
 def run_with_output(env, cmd, cwd="./", timeout=None):
-    """
-    Execute a command within a subprocess.
-    """
-    os.environ["uv_IGNORE_ACTIVE_VENV"] = "1"
-    process_env = os.environ.copy()
-
-    with subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-            cwd=Path(cwd).absolute(),
-            env=process_env,
-            text=True,
-    ) as proc:
-        try:
-            outs, _ = proc.communicate(timeout=timeout)
-            if "module not found" in outs:
-                if not (env.apps_path / ".venv").exists():
-                    raise JumpToMain(outs)
-            elif proc.returncode or "failed" in outs.lower() or "error" in outs.lower():
-                pass
-
-        except subprocess.TimeoutExpired as err:
-            proc.kill()
-            outs, _ = proc.communicate()
-            st.error(err)
-
-        except subprocess.CalledProcessError as err:
-            outs, _ = proc.communicate()
-            st.error(err)
-
-        # Process the output and remove ANSI escape codes
-        return re.sub(r"\x1b[^m]*m", "", outs)
+    """Execute a command within a subprocess."""
+    return _run_with_output_impl(
+        env,
+        cmd,
+        cwd=cwd,
+        timeout=timeout,
+        path_cls=Path,
+        os_module=os,
+        popen_factory=subprocess.Popen,
+        streamlit=st,
+        jump_to_main_exc=JumpToMain,
+    )
 
 
 def is_valid_ip(ip: str) -> bool:
@@ -405,32 +400,8 @@ def diagnose_data_directory(directory: Path) -> str | None:
 
 
 def run(command, cwd=None):
-    """
-    Execute a shell command.
-
-    Args:
-        command (str): The command to execute.
-        cwd (str, optional): The working directory to execute the command in.
-
-    Raises:
-        subprocess.CalledProcessError: If the command exits with a non-zero status.
-    """
-    try:
-        subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        log(f"Executed: {command}")
-    except subprocess.CalledProcessError as e:
-        log(f"Error executing command: {command}")
-        log(f"Exit Code: {e.returncode}")
-        log(f"Output: {e.output.decode().strip()}")
-        log(f"Error Output: {e.stderr.decode().strip()}")
-        sys.exit(e.returncode)
+    """Execute a shell command."""
+    _run_impl(command, cwd=cwd, subprocess_module=subprocess, log_fn=log, sys_module=sys)
 
 def get_base64_of_image(image_path):
     try:
@@ -468,33 +439,18 @@ def render_logo(*_args, **_kwargs):
 
 
 def subproc(command, cwd):
-    """
-    Execute a command in the background.
-
-    Args:
-        command (str): The command to be executed.
-        cwd (str): The current working directory where the command will be executed.
-
-    Returns:
-        None
-    """
-    return subprocess.Popen(
-        command,
-        shell=True,
-        cwd=os.path.abspath(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    ).stdout
+    """Execute a command in the background."""
+    return _subproc_impl(command, cwd, subprocess_module=subprocess, os_module=os)
 
 
 def _wait_for_listen_port(port: int, *, timeout_sec: float = 5.0, poll_interval_sec: float = 0.1) -> bool:
-    deadline = time.monotonic() + max(timeout_sec, 0.0)
-    while time.monotonic() < deadline:
-        if is_port_in_use(port):
-            return True
-        time.sleep(max(poll_interval_sec, 0.01))
-    return is_port_in_use(port)
+    return _wait_for_listen_port_impl(
+        port,
+        timeout_sec=timeout_sec,
+        poll_interval_sec=poll_interval_sec,
+        time_module=time,
+        is_port_in_use_fn=is_port_in_use,
+    )
 
 
 def get_projects_zip():
@@ -557,20 +513,7 @@ def get_about_content():
 
 
 def init_custom_ui(_form_path):
-    """Keep edit-mode toggles in sync and signal app-args forms to refresh."""
-    toggle_ui = bool(st.session_state.get("toggle_edit_ui", False))
-    # `toggle_edit_ui=True` means ORCHESTRATE generic editor is active.
-    # App-specific forms use `toggle_edit=True` for their guided editor branch,
-    # so keep this state inverted when switching back to custom forms.
-    st.session_state["toggle_edit"] = not toggle_ui
-    # Reset custom form widget state on each mode switch so non-edit mode reloads
-    # persisted args instead of stale in-memory values.
-    for key in list(st.session_state.keys()):
-        if ":app_args_form:" in key:
-            del st.session_state[key]
-    st.session_state["app_args_form_refresh_nonce"] = (
-        int(st.session_state.get("app_args_form_refresh_nonce", 0)) + 1
-    )
+    _init_custom_ui_impl(st.session_state)
     return
 
 
@@ -581,30 +524,16 @@ def on_project_change(project, switch_to_select=False):
     Reset project-scoped session state, switch the active app, and re-seed the
     sidebar state for the newly selected project.
     """
-    env = st.session_state["env"]
-    session_state = st.session_state
-    clear_project_session_state(session_state)
-
-    try:
-        env.change_app(env.apps_path / project)
-        module = env.target
-        try:
-            store_last_active_app(env.active_app)
-        except (OSError, RuntimeError):
-            pass
-
-        session_state.module_rel = Path(module)
-        session_state.datadir = env.AGILAB_EXPORT_ABS / module
-        session_state.datadir_str = str(session_state.datadir)
-        session_state.df_export_file = str(session_state.datadir / "export.csv")
-
-        session_state.switch_to_select = switch_to_select
-        session_state.project_changed = True
-
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
-        st.error(f"An error occurred while changing the project: {e}")
-
-    reset_project_sections(session_state)
+    _on_project_change_impl(
+        project,
+        session_state=st.session_state,
+        store_last_active_app_fn=store_last_active_app,
+        clear_project_session_state_fn=clear_project_session_state,
+        reset_project_sections_fn=reset_project_sections,
+        error_fn=st.error,
+        switch_to_select=switch_to_select,
+        path_cls=Path,
+    )
 
 
 def is_port_in_use(target_port):
@@ -617,8 +546,7 @@ def is_port_in_use(target_port):
     Returns:
         bool: True if the port is in use, False otherwise.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("localhost", target_port)) == 0
+    return _is_port_in_use_impl(target_port, socket_module=socket)
 
 
 def get_random_port():
@@ -628,7 +556,7 @@ def get_random_port():
     Returns:
         int: A random port number between 8800 and 9900.
     """
-    return random.randint(8800, 9900)
+    return _get_random_port_impl(random_module=random)
 
 
 
@@ -752,67 +680,17 @@ def run_agi(code, path="."):
         id_core (int): Core identifier.
         path (str): The working directory.
     """
-    env = st.session_state["env"]
-    if isinstance(code, (list, tuple)):
-        if len(code) >= 3:
-            code_str = str(code[2])
-        elif code:
-            code_str = str(code[-1])
-        else:
-            code_str = ""
-    elif code is None:
-        code_str = ""
-    else:
-        code_str = str(code)
-
-    code_str = code_str.strip("\n")
-    if not code_str:
-        st.warning("No code supplied for execution.")
-        return None
-
-    try:
-        target_path = Path(path) if path else Path(env.agi_env)
-    except TypeError:
-        target_path = Path(env.agi_env)
-    target_path = target_path.expanduser()
-    if target_path.name == ".venv":
-        target_path = target_path.parent
-
-    # Regular expression pattern to match the string between "await" and "("
-    pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
-
-    # Find all matches in the code
-    matches = re.findall(pattern, code_str)
-    snippet_name = matches[0] if matches else "AGI_command"
-
-    snippet_prefix = re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "AGI_unknown_command"
-    target_slug = re.sub(r"[^0-9A-Za-z_]+", "_", str(env.target)).strip("_") or "unknown_app_name"
-
-    runenv_path = Path(env.runenv)
-    logger.info(f"mkdir {runenv_path}")
-    runenv_path.mkdir(parents=True, exist_ok=True)
-    snippet_file = runenv_path / f"{snippet_prefix}_{target_slug}.py"
-    with open(snippet_file, "w") as file:
-        file.write(code_str)
-
-    try:
-        path_exists = target_path.exists()
-    except PermissionError as exc:
-        hint = diagnose_data_directory(target_path)
-        msg = f"Permission denied while accessing '{target_path}': {exc}"
-        if hint:
-            msg = f"{msg}\n{hint}"
-        st.error(msg)
-        st.stop()
-    except OSError as exc:
-        st.error(f"Unable to access '{target_path}': {exc}")
-        st.stop()
-
-    if path_exists:
-        return run_with_output(env, f"uv -q run python {snippet_file}", str(target_path))
-
-    st.info("Please do an install first, ensure pyproject.toml lists required dependencies and rerun the project installation.")
-    st.stop()
+    return _run_agi_impl(
+        code,
+        env=st.session_state["env"],
+        path=path,
+        streamlit=st,
+        logger=logger,
+        run_with_output_fn=run_with_output,
+        diagnose_data_directory_fn=diagnose_data_directory,
+        path_cls=Path,
+        re_module=re,
+    )
 
 
 def run_lab(query, snippet, codex, *, env_overrides=None):
@@ -824,40 +702,16 @@ def run_lab(query, snippet, codex, *, env_overrides=None):
         snippet: The snippet file path.
         codex: The codex script path.
     """
-    if not query:
-        return
-    with open(snippet, "w") as file:
-        file.write(query[2])
-    output = io.StringIO()
-    sentinel = object()
-    previous_env = {
-        key: os.environ.get(key, sentinel)
-        for key in (env_overrides or {})
-    }
-    try:
-        for key, value in (env_overrides or {}).items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[str(key)] = str(value)
-        stdout, stderr = sys.stdout, sys.stderr
-        sys.stdout = output
-        sys.stderr = output
-        try:
-            runpy.run_path(codex)
-        finally:
-            sys.stdout = stdout
-            sys.stderr = stderr
-    except (ImportError, OSError, RuntimeError, SyntaxError, NameError, ValueError, TypeError, AttributeError, KeyError, IndexError) as e:
-        st.warning(f"Error: {e}")
-        print(f"Error: {e}", file=output)
-    finally:
-        for key, value in previous_env.items():
-            if value is sentinel:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = str(value)
-    return output.getvalue().strip()
+    return _run_lab_impl(
+        query,
+        snippet,
+        codex,
+        env_overrides=env_overrides,
+        warning_fn=st.warning,
+        os_module=os,
+        sys_module=sys,
+        runpy_module=runpy,
+    )
 
 
 @st.cache_data
@@ -1293,133 +1147,31 @@ def on_df_change(module_dir, index_page, df_file=None, steps_file=None):
 
 
 def activate_mlflow(env=None):
-
-    if not env:
-        return
-
-    st.session_state["rapids_default"] = True
-    tracking_dir = _resolve_mlflow_tracking_dir(env)
-    if not tracking_dir.exists():
-        logger.info(f"mkdir {tracking_dir}")
-    tracking_dir.mkdir(parents=True, exist_ok=True)
-    env.MLFLOW_TRACKING_DIR = str(tracking_dir)
-
-    port = _next_free_port()
-
-    try:
-        backend_uri = _ensure_default_mlflow_experiment(tracking_dir) or _ensure_mlflow_backend_ready(tracking_dir)
-        artifact_uri = _resolve_mlflow_artifact_dir(tracking_dir).as_uri()
-        cmd = (
-            "uv -q run mlflow server "
-            f"--backend-store-uri {shlex.quote(backend_uri)} "
-            f"--default-artifact-root {shlex.quote(artifact_uri)} "
-            "--host 127.0.0.1 "
-            f"--port {port}"
-        )
-        subproc(cmd, os.getcwd())
-        if not _wait_for_listen_port(port):
-            st.session_state["server_started"] = False
-            st.session_state.pop("mlflow_port", None)
-            st.error(
-                "Failed to start the MLflow server: the process did not open its listening port."
-            )
-            return False
-        st.session_state.server_started = True
-        st.session_state["mlflow_port"] = port
-        return True
-    except (RuntimeError, OSError, ValueError, AttributeError) as e:
-        st.session_state["server_started"] = False
-        st.session_state.pop("mlflow_port", None)
-        st.error(f"Failed to start the server: {e}")
-        return False
+    return _activate_mlflow_impl(
+        env,
+        session_state=st.session_state,
+        streamlit=st,
+        logger=logger,
+        resolve_mlflow_tracking_dir_fn=_resolve_mlflow_tracking_dir,
+        ensure_default_mlflow_experiment_fn=_ensure_default_mlflow_experiment,
+        ensure_mlflow_backend_ready_fn=_ensure_mlflow_backend_ready,
+        resolve_mlflow_artifact_dir_fn=_resolve_mlflow_artifact_dir,
+        next_free_port_fn=_next_free_port,
+        wait_for_listen_port_fn=_wait_for_listen_port,
+        subproc_fn=subproc,
+        cwd=os.getcwd(),
+    )
 
 
 def activate_gpt_oss(env=None):
     """Spin up a local GPT-OSS responses server (stub backend) if available."""
-
-    if not env:
-        return False
-
-    if st.session_state.get("gpt_oss_server_started"):
-        return True
-
-    st.session_state.pop("gpt_oss_autostart_failed", None)
-    try:
-        import gpt_oss  # noqa: F401
-    except ImportError:
-        st.warning("Install `gpt-oss` (`pip install gpt-oss`) to enable the offline assistant.")
-        st.session_state["gpt_oss_autostart_failed"] = True
-        return False
-
-    backend = (
-        st.session_state.get("gpt_oss_backend")
-        or env.envars.get("GPT_OSS_BACKEND")
-        or os.getenv("GPT_OSS_BACKEND")
-        or "stub"
-    ).strip() or "stub"
-    checkpoint = (
-        st.session_state.get("gpt_oss_checkpoint")
-        or env.envars.get("GPT_OSS_CHECKPOINT")
-        or os.getenv("GPT_OSS_CHECKPOINT")
-        or ("gpt2" if backend == "transformers" else "")
-    ).strip()
-    extra_args = (
-        st.session_state.get("gpt_oss_extra_args")
-        or env.envars.get("GPT_OSS_EXTRA_ARGS")
-        or os.getenv("GPT_OSS_EXTRA_ARGS")
-        or ""
-    ).strip()
-    python_exec = (
-        env.envars.get("GPT_OSS_PYTHON")
-        or os.getenv("GPT_OSS_PYTHON")
-        or sys.executable
+    return _activate_gpt_oss_impl(
+        env,
+        session_state=st.session_state,
+        streamlit=st,
+        next_free_port_fn=_next_free_port,
+        subproc_fn=subproc,
+        cwd=os.getcwd(),
+        os_module=os,
+        sys_module=sys,
     )
-    requires_checkpoint = backend in {"transformers", "metal", "triton", "vllm"}
-    if requires_checkpoint and not checkpoint:
-        st.warning(
-            "GPT-OSS backend requires a checkpoint. Set `GPT_OSS_CHECKPOINT` in the sidebar or environment."
-        )
-        st.session_state["gpt_oss_autostart_failed"] = True
-        return False
-
-    env.envars["GPT_OSS_BACKEND"] = backend
-    if checkpoint:
-        env.envars["GPT_OSS_CHECKPOINT"] = checkpoint
-    elif "GPT_OSS_CHECKPOINT" in env.envars:
-        del env.envars["GPT_OSS_CHECKPOINT"]
-    if extra_args:
-        env.envars["GPT_OSS_EXTRA_ARGS"] = extra_args
-
-    port = _next_free_port()
-
-    cmd = (
-        f"{shlex.quote(python_exec)} -m gpt_oss.responses_api.serve "
-        f"--inference-backend {shlex.quote(backend)} --port {int(port)}"
-    )
-    if checkpoint and backend != "stub":
-        cmd += f" --checkpoint {shlex.quote(checkpoint)}"
-    if extra_args:
-        cmd = f"{cmd} {extra_args}"
-
-    try:
-        subproc(cmd, os.getcwd())
-    except RuntimeError as e:
-        st.error(f"Failed to start GPT-OSS server: {e}")
-        return False
-
-    endpoint = f"http://127.0.0.1:{port}/v1/responses"
-    st.session_state["gpt_oss_server_started"] = True
-    st.session_state["gpt_oss_port"] = port
-    st.session_state["gpt_oss_endpoint"] = endpoint
-    env.envars["GPT_OSS_ENDPOINT"] = endpoint
-    st.session_state["gpt_oss_backend_active"] = backend
-    if checkpoint:
-        st.session_state["gpt_oss_checkpoint_active"] = checkpoint
-    else:
-        st.session_state.pop("gpt_oss_checkpoint_active", None)
-    if extra_args:
-        st.session_state["gpt_oss_extra_args_active"] = extra_args
-    else:
-        st.session_state.pop("gpt_oss_extra_args_active", None)
-    st.session_state.pop("gpt_oss_autostart_failed", None)
-    return True

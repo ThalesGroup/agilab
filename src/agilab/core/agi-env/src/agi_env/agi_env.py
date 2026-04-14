@@ -77,6 +77,16 @@ from agi_env.installation_support import (
     locate_agilab_installation_path,
     read_agilab_installation_marker,
 )
+from agi_env.package_layout_support import (
+    resolve_agilab_package_context,
+    resolve_package_layout,
+    resolve_resource_root,
+)
+from agi_env.runtime_bootstrap_support import (
+    parse_int_env_value,
+    resolve_share_runtime_config,
+    sync_repository_apps,
+)
 from agi_env.process_support import (
     build_subprocess_env,
     fix_windows_drive as _fix_windows_drive,
@@ -108,6 +118,16 @@ from agi_env.rename_gitignore_support import (
     replace_text_content,
 )
 from agi_env.content_renamer_support import ContentRenamer as BaseContentRenamer
+from agi_env.bootstrap_support import (
+    can_link_repo_apps,
+    coerce_active_app_request,
+    resolve_active_app_selection,
+    resolve_builtin_apps_path,
+    resolve_default_apps_path,
+    resolve_install_type,
+    resolve_package_dir,
+    resolve_requested_apps_path,
+)
 from agi_env.credential_store_support import read_cluster_credentials
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
@@ -321,80 +341,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                  python_variante: str = '',
                  **kwargs):
 
-        # Backward/forward compat: accept 'active_app' alias for 'app'
-        if app is None and 'active_app' in kwargs:
-            val = kwargs.pop('active_app')
-            try:
-                active_app_override = Path(val)
-            except (TypeError, ValueError):
-                active_app_override = None
-            try:
-                app = Path(val).name
-            except (TypeError, ValueError):
-                app = str(val) if val is not None else None
-        else:
-            active_app_override = None
+        app, active_app_override = coerce_active_app_request(app, kwargs, path_cls=Path)
 
         self.skip_repo_links = False
         self.AGILAB_SHARE_HINT = None
         self.AGILAB_SHARE_REL = None
-
-        def _resolve_install_type(apps_path: str | None,
-                                  agilab_pck: Path,
-                                  envars: dict | None,
-                                  active_app_override: Path | None = None) -> int:
-            """Infer install type without requiring an explicit argument.
-
-            Precedence:
-            1. honour explicit overrides from environment variables (``AGILAB_INSTALL_TYPE``
-               or ``INSTALL_TYPE``) when they are valid integers;
-            2. when no ``apps_path`` is provided, assume a worker-only environment (type 2);
-            3. otherwise rely on the directory layout to distinguish source checkouts (type 1)
-               from packaged installs (type 0), falling back to the legacy heuristic based on
-               ``agilab_pck`` when needed.
-            """
-            try:
-                # Heuristic: if apps_path is not provided (BaseWorker.new) or it resides inside a worker env folder (wenv/*_worker),
-                # treat this as a worker-only environment regardless of source/layout markers.
-                if active_app_override is not None and apps_path is None:
-                    return 1
-
-                if apps_path is None or "wenv" in set(apps_path.resolve().parts):
-                    self.is_worker_env = True
-                    return 2
-
-                elif apps_path.parents[1].name == "src":
-                    return 1
-
-            except (AttributeError, IndexError, OSError, RuntimeError, TypeError, ValueError):
-                pass
-
-            return 0
-
-        def _package_dir(package: str) -> Path:
-            try:
-                spec = importlib.util.find_spec(package)
-            except (ModuleNotFoundError, ValueError):
-                spec = None
-
-            if spec:
-                search_locations = getattr(spec, "submodule_search_locations", None)
-                if search_locations:
-                    for location in search_locations:
-                        if location:
-                            path = Path(location)
-                            if path.exists():
-                                return path.resolve()
-
-                origin = getattr(spec, "origin", None)
-                if origin:
-                    path = Path(origin).parent
-                    if path.exists():
-                        return path.resolve()
-
-            raise ModuleNotFoundError(
-                f"Package '{package}' is not installed in the current environment."
-            )
 
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self._is_managed_pc = self.is_managed_pc
@@ -427,46 +378,22 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             os.environ.setdefault("STREAMLIT_SERVER_MAX_MESSAGE_SIZE", str(streamlit_size))
             os.environ.setdefault("STREAMLIT_MAX_MESSAGE_SIZE", str(streamlit_size))
 
-        agilab_spec = importlib.util.find_spec("agilab")
-        if agilab_spec and getattr(agilab_spec, "origin", None):
-            agilab_pkg_dir = Path(agilab_spec.origin).resolve().parent
-        else:
-            agilab_pkg_dir = repo_agilab_dir
-        agilab_pkg_dir = agilab_pkg_dir.resolve()
-        agilab_pck = agilab_pkg_dir.parent.resolve()
-        markers = {"site-packages", "dist-packages"}
-        is_agilab_installed = any(part in markers for part in agilab_pkg_dir.parts) or any(
-            part.startswith(".venv") for part in agilab_pkg_dir.parts
+        package_context = resolve_agilab_package_context(
+            repo_agilab_dir=repo_agilab_dir,
+            find_spec_fn=importlib.util.find_spec,
+            path_cls=Path,
         )
+        agilab_pkg_dir = package_context.package_dir
+        agilab_pck = package_context.apps_root_hint
+        is_agilab_installed = package_context.is_installed
 
-        # User's .env APPS_PATH takes priority over the constructor argument
-        # so that values saved via the env editor UI are always honoured.
-        _env_apps_path = envars.get("APPS_PATH", "").strip()
-        if _env_apps_path:
-            apps_path = Path(_env_apps_path).expanduser()
-            try:
-                apps_path = apps_path.resolve()
-            except OSError:
-                pass
-        elif apps_path is not None:
-            apps_path = Path(apps_path).expanduser()
-            try:
-                apps_path = apps_path.resolve()
-            except FileNotFoundError:
-                pass
-        elif active_app_override is not None:
-            # Use the provided active_app path as the anchor when no apps_path is supplied.
-            try:
-                candidate_parent = active_app_override.parent.resolve()
-            except OSError:
-                candidate_parent = active_app_override.parent
-
-            # If the active_app sits under apps/builtin/<app>, keep apps_path at apps/
-            if candidate_parent.name == "builtin" and candidate_parent.parent.name == "apps":
-                apps_path = candidate_parent.parent
-                self.builtin_apps_path = candidate_parent
-            else:
-                apps_path = candidate_parent
+        env_apps_path = str(envars.get("APPS_PATH", "") or "").strip()
+        apps_path, override_builtin_apps_path = resolve_requested_apps_path(
+            env_apps_path=env_apps_path,
+            explicit_apps_path=apps_path,
+            active_app_override=active_app_override,
+            path_cls=Path,
+        )
 
         # Honour env flags when present
         env_is_source = envars.get("IS_SOURCE_ENV")
@@ -483,63 +410,49 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             except (TypeError, ValueError):
                 self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
 
-        install_type = _resolve_install_type(apps_path, agilab_pck, self.envars, active_app_override)
+        install_type, inferred_worker_env = resolve_install_type(
+            apps_path,
+            active_app_override=active_app_override,
+        )
         if env_is_source is None and install_type == 1:
             self.is_source_env = True
         if env_is_worker is None and install_type == 2:
+            self.is_worker_env = True
+        if inferred_worker_env:
             self.is_worker_env = True
         if self.is_worker_env:
             self.skip_repo_links = True
 
         repo_root = agilab_pck.parents[1] if len(agilab_pck.parents) > 1 else agilab_pck
-        builtin_candidates = [
-            apps_path if apps_path and apps_path.name == "builtin" else None,
-            apps_path / "builtin" if apps_path else None,
-            repo_root / "apps" / "builtin",
-            agilab_pck / "apps" / "builtin",
-        ]
-        self.builtin_apps_path = next((c for c in builtin_candidates if c and c.exists()), None)
+        self.builtin_apps_path = override_builtin_apps_path or resolve_builtin_apps_path(
+            apps_path=apps_path,
+            repo_root=repo_root,
+            agilab_pck=agilab_pck,
+        )
 
         # Default apps_path for non-worker envs when not provided
-        if not self.is_worker_env and apps_path is None:
-            repo_apps = self._get_apps_repository_root()
-            default_apps_root = agilab_pck / "apps"
+        repo_apps = self._get_apps_repository_root()
+        default_apps_root = agilab_pck / "apps"
+        apps_path, apps_repository_root = resolve_default_apps_path(
+            apps_path=apps_path,
+            is_worker_env=self.is_worker_env,
+            default_apps_root=default_apps_root,
+            apps_repository_root=repo_apps,
+        )
+        self.apps_repository_root = apps_repository_root or repo_apps
 
-            # Prefer an explicit APPS_REPOSITORY if present
-            if repo_apps is not None:
-                apps_path = default_apps_root if default_apps_root.exists() else repo_apps
-                self.apps_repository_root = repo_apps
-            else:
-                apps_path = default_apps_root
-
-        if self.is_worker_env:
-            if not app:
-                raise ValueError("app is required when self.is_worker_env")
-            active_app = home_abs / "wenv" / app
-        else:
-            if app is None:
-                app_default = str(envars.get("APP_DEFAULT", "flight_project") or "").strip()
-                app = app_default or "flight_project"
-
-            # If caller provided an explicit path and it exists, honour it directly.
-            if active_app_override is not None and Path(active_app_override).exists():
-                active_app = Path(active_app_override)
-            else:
-                base_dir = apps_path if apps_path is not None else Path()
-                try:
-                    base_dir = base_dir.resolve()
-                except OSError:
-                    pass
-                active_app = base_dir / app
-
-                # Prefer builtin app directories over legacy duplicated roots.
-                if self.builtin_apps_path:
-                    candidate_builtin = self.builtin_apps_path / app
-                    try:
-                        if candidate_builtin.exists():
-                            active_app = candidate_builtin
-                    except OSError:
-                        pass
+        active_app_selection = resolve_active_app_selection(
+            app=app,
+            active_app_override=active_app_override,
+            apps_path=apps_path,
+            builtin_apps_path=self.builtin_apps_path,
+            home_abs=home_abs,
+            is_worker_env=self.is_worker_env,
+            default_app=str(envars.get("APP_DEFAULT", "flight_project") or "").strip(),
+            path_cls=Path,
+        )
+        app = active_app_selection.app
+        active_app = active_app_selection.active_app
 
         if not app.endswith('_project') and not app.endswith('_worker'):
             raise ValueError(f"{app} must end with '_project' or '_worker'")
@@ -554,7 +467,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except OSError:
             self.active_app = active_app
         self.apps_path = apps_path
-        self.apps_repository_root: Path | None = None
 
         target = app.replace("_project", "").replace("_worker","").replace("-", "_")
         self.share_target_name = target
@@ -569,39 +481,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # Backward-compat: map booleans to legacy install_type
         self.install_type = 1 if self.is_source_env else (2 if self.is_worker_env else 0)
 
-        if self.is_source_env:
-            pkg_dirs = {
-                "env": "agi-env/src/agi_env",
-                "node": "agi-node/src/agi_node",
-                "core": "agi-core/src/agi_core",
-                "cluster": "agi-cluster/src/agi_cluster",
-            }
-            # Force source layout to the repo checkout when available
-            self.agilab_pck = repo_agilab_dir
-            core_root = self.agilab_pck / "core"
-            self.env_pck = core_root / pkg_dirs["env"]
-            self.node_pck = core_root / pkg_dirs["node"]
-            self.core_pck = core_root / pkg_dirs["core"]
-            self.cluster_pck = core_root / pkg_dirs["cluster"]
-            self.cli = self.cluster_pck / "agi_distributor/cli.py"
-        else:
-            self.agilab_pck = agilab_pkg_dir
-            self.env_pck = _package_dir("agi_env")
-            self.node_pck = _package_dir("agi_node")
-            try:
-                self.core_pck = _package_dir("agi_core")
-            except ModuleNotFoundError:
-                self.core_pck = Path(_package_dir("agi_env")).parent
-            try:
-                self.cluster_pck = _package_dir("agi_cluster")
-            except ModuleNotFoundError:
-                # In minimal worker environments, agi_cluster may be absent; fall back near env/core
-                self.cluster_pck = self.core_pck
-            try:
-                cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
-            except ModuleNotFoundError:
-                cli_spec = None
-            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_pck / "agi_distributor/cli.py"
+        package_layout = resolve_package_layout(
+            is_source_env=self.is_source_env,
+            repo_agilab_dir=repo_agilab_dir,
+            installed_package_dir=agilab_pkg_dir,
+            resolve_package_dir_fn=resolve_package_dir,
+            find_spec_fn=importlib.util.find_spec,
+            path_cls=Path,
+        )
+        self.agilab_pck = package_layout.agilab_pck
+        self.env_pck = package_layout.env_pck
+        self.node_pck = package_layout.node_pck
+        self.core_pck = package_layout.core_pck
+        self.cluster_pck = package_layout.cluster_pck
+        self.cli = package_layout.cli
 
         resolve = self._resolve_package
         self.env_pck = resolve(self.env_pck)
@@ -613,87 +506,32 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.agi_core = self.core_pck.parents[1]
         self.agi_cluster = self.cluster_pck.parents[1]
 
-        if self.is_source_env:
-            resource_candidates = [
-                self.agilab_pck / "resources",
-                self.agilab_pck / "agilab/resources",
-            ]
-        else:
-            resource_candidates = [
-                self.agilab_pck / "resources",
-                self.agilab_pck / "agilab/resources",
-            ]
-        for candidate in resource_candidates:
-            if candidate.exists():
-                self.st_resources = candidate
-                break
-        else:
-            self.st_resources = resource_candidates[-1]
+        self.st_resources = resolve_resource_root(self.agilab_pck, path_cls=Path)
 
         apps_root = self.agilab_pck / "apps"
-        is_builtin_app = False
-        try:
-            if self.builtin_apps_path and self.active_app.resolve().is_relative_to(self.builtin_apps_path.resolve()):
-                is_builtin_app = True
-        except (OSError, ValueError):
-            is_builtin_app = False
-
-        can_link_repo = (
-            apps_path is not None
-            and not self.is_worker_env
-            and not self.skip_repo_links
-            and not is_builtin_app
+        can_link_repo = can_link_repo_apps(
+            apps_path=apps_path,
+            active_app=self.active_app,
+            builtin_apps_path=self.builtin_apps_path,
+            is_worker_env=self.is_worker_env,
+            skip_repo_links=self.skip_repo_links,
         )
-        if can_link_repo:
-            try:
-                apps_root_candidate = apps_path.resolve(strict=False)
-            except OSError:
-                apps_root_candidate = apps_path
-            try:
-                active_parent = self.active_app.parent.resolve(strict=False)
-            except OSError:
-                active_parent = self.active_app.parent
-            if apps_root_candidate != active_parent:
-                can_link_repo = False
-            else:
-                normalized_name = apps_root_candidate.name.lower()
-                if normalized_name.endswith("_project") or normalized_name.endswith("_worker"):
-                    can_link_repo = False
-
-        if can_link_repo:
-            _ensure_dir(apps_path)
-
-            link_source = self.apps_repository_root or self._get_apps_repository_root()
-
-            if link_source is not None and link_source.exists():
-                same_tree = False
-                if apps_path is not None:
-                    try:
-                        same_tree = apps_path.resolve(strict=False) == link_source.resolve()
-                    except OSError:
-                        same_tree = False
-
-                if not same_tree:
-                    for src_app in link_source.glob("*_project"):
-                        dest_app = apps_path / src_app.relative_to(link_source)
-                        # Avoid self-referential or pre-existing entries; only fill gaps.
-                        try:
-                            if dest_app.exists() or dest_app.resolve(strict=False) == src_app.resolve():
-                                continue
-                        except OSError:
-                            continue
-
-                        if os.name == "nt":
-                            AgiEnv.create_symlink_windows(Path(src_app), dest_app)
-                        else:
-                            os.symlink(src_app, dest_app, target_is_directory=True)
-                        AgiEnv.logger.info("Created symbolic link for app: %s -> %s", src_app, dest_app)
-            elif apps_root.exists() and not self.is_source_env:
-                try:
-                    if apps_root.resolve() != active_app.parent.resolve():
-                        self.copy_existing_projects(apps_root, active_app.parent)
-                except OSError:
-                    pass
+        sync_repository_apps(
+            can_link_repo=can_link_repo,
+            apps_path=apps_path,
+            apps_root=apps_root,
+            active_app=active_app,
+            is_source_env=self.is_source_env,
+            apps_repository_root=self.apps_repository_root,
+            get_apps_repository_root_fn=self._get_apps_repository_root,
+            ensure_dir_fn=_ensure_dir,
+            copy_existing_projects_fn=self.copy_existing_projects,
+            create_symlink_windows_fn=AgiEnv.create_symlink_windows,
+            symlink_fn=os.symlink,
+            logger=AgiEnv.logger,
+            os_name=os.name,
+            path_cls=Path,
+        )
 
 
         # Resource seed files (.agilab/.env, balancer assets) always live under
@@ -701,14 +539,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         resources_root = self.env_pck
         if not self.is_worker_env:
             self._init_resources(resources_root / self._agi_resources)
-        try:
-            self.TABLE_MAX_ROWS = int(str(envars.get("TABLE_MAX_ROWS", 1000000) or "").strip() or 1000000)
-        except (TypeError, ValueError):
-            self.TABLE_MAX_ROWS = 1000000
-        try:
-            self.GUI_SAMPLING = int(str(envars.get("GUI_SAMPLING", 20) or "").strip() or 20)
-        except (TypeError, ValueError):
-            self.GUI_SAMPLING = 20
+        self.TABLE_MAX_ROWS = parse_int_env_value(envars, "TABLE_MAX_ROWS", 1000000)
+        self.GUI_SAMPLING = parse_int_env_value(envars, "GUI_SAMPLING", 20)
 
         self._configure_worker_runtime(
             target=target,
@@ -719,39 +551,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             requested_active_app=active_app,
         )
 
-        self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE") or os.environ.get("AGI_LOCAL_SHARE")
-        if not self.AGI_LOCAL_SHARE:
-            self.AGI_LOCAL_SHARE = "localshare"
-
-        self.AGI_CLUSTER_SHARE = envars.get("AGI_CLUSTER_SHARE") or os.environ.get("AGI_CLUSTER_SHARE")
-        if not self.AGI_CLUSTER_SHARE:
-            self.AGI_CLUSTER_SHARE = "clustershare"
-
-        # `AGI_SHARE_DIR` is the user-facing knob (installer + Streamlit UI). Treat it
-        # as an override for the cluster share root so updating it is immediately
-        # reflected without having to also edit `AGI_CLUSTER_SHARE` manually.
-        share_dir_override = _clean_envar_value(envars, "AGI_SHARE_DIR", fallback_to_process=True)
-        if share_dir_override is not None:
-            self.AGI_CLUSTER_SHARE = share_dir_override
-            try:
-                envars["AGI_CLUSTER_SHARE"] = share_dir_override
-            except TypeError:
-                pass
-
-        cluster_enabled = resolve_cluster_enabled_from_settings(
+        share_runtime_config = resolve_share_runtime_config(
+            envars=envars,
+            environ=os.environ,
             is_worker_env=self.is_worker_env,
             resolve_workspace_settings_fn=lambda: self.resolve_user_app_settings_file(ensure_exists=False),
             find_source_settings_fn=self.find_source_app_settings_file,
-            envars=envars,
-            environ=os.environ,
-        )
-        self.agi_share_path = resolve_runtime_share_path(
-            cluster_share=self.AGI_CLUSTER_SHARE,
-            local_share=self.AGI_LOCAL_SHARE,
-            cluster_enabled=bool(cluster_enabled),
+            clean_envar_value_fn=_clean_envar_value,
+            resolve_cluster_enabled_fn=resolve_cluster_enabled_from_settings,
+            resolve_runtime_share_path_fn=resolve_runtime_share_path,
             env_path=env_path,
             home_path=Path.home(),
         )
+        self.AGI_LOCAL_SHARE = share_runtime_config.local_share
+        self.AGI_CLUSTER_SHARE = share_runtime_config.cluster_share
+        self.agi_share_path = share_runtime_config.agi_share_path
         self._share_root_cache = None
 
         share_root_abs = self.share_root_path()
