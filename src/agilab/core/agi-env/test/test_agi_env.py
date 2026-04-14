@@ -2305,90 +2305,74 @@ def test_get_projects_and_copy_existing_projects_handle_symlinks_and_nested_proj
     assert (dst_apps / "group" / "alpha_project" / "app.py").exists()
 
 
-def test_apps_repository_root_and_pythonpath_helpers(tmp_path: Path, monkeypatch):
-    repo_root = tmp_path / "repo"
-    apps_root = repo_root / "src" / "agilab" / "apps"
-    (apps_root / "alpha_project").mkdir(parents=True)
-
+def test_apps_repository_root_wrapper_uses_repository_support(monkeypatch):
     env = object.__new__(AgiEnv)
-    env.envars = {"APPS_REPOSITORY": f"'{repo_root}'"}
-    mock_logger = mock.Mock()
-    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
+    env.envars = {"APPS_REPOSITORY": "/tmp/repo"}
+    captured = {}
 
-    assert env._get_apps_repository_root() == apps_root
+    def _fake_get_apps_repository_root(*, envars, environ, logger, fix_windows_drive_fn):
+        captured["args"] = {
+            "envars": envars,
+            "environ": environ,
+            "logger": logger,
+            "fix_windows_drive_fn": fix_windows_drive_fn,
+        }
+        return Path("/tmp/repo/src/agilab/apps")
 
-    alt_repo = tmp_path / "alt-repo"
-    alt_apps = alt_repo / "nested" / "apps"
-    (alt_apps / "beta_project").mkdir(parents=True)
-    env.envars = {"APPS_REPOSITORY": str(alt_repo)}
-    assert env._get_apps_repository_root() == alt_apps
+    monkeypatch.setattr(agi_env_module, "resolve_apps_repository_root", _fake_get_apps_repository_root)
 
-    env.envars = {"APPS_REPOSITORY": str(tmp_path / "missing-repo")}
-    assert env._get_apps_repository_root() is None
-    assert mock_logger.info.called
+    assert env._get_apps_repository_root() == Path("/tmp/repo/src/agilab/apps")
+    assert captured["args"]["envars"] == env.envars
+    assert captured["args"]["environ"] is os.environ
+    assert captured["args"]["logger"] == AgiEnv.logger
+    assert captured["args"]["fix_windows_drive_fn"] is agi_env_module._fix_windows_drive
 
-    package_root = tmp_path / "pkg-root"
-    env_pkg = package_root / "envpkg"
-    node_pkg = package_root / "nodepkg"
-    core_pkg = package_root / "corepkg"
-    cluster_pkg = package_root / "clusterpkg"
-    for pkg in (env_pkg, node_pkg, core_pkg, cluster_pkg):
-        (pkg / "__init__.py").parent.mkdir(parents=True, exist_ok=True)
-        (pkg / "__init__.py").write_text("", encoding="utf-8")
-    dist_abs = tmp_path / "dist"
-    app_src = tmp_path / "app_src"
-    wenv_abs = tmp_path / "wenv"
-    agilab_pck = tmp_path / "agilab_pck"
-    for path in (dist_abs, app_src, wenv_abs / "src", agilab_pck / "agilab"):
-        path.mkdir(parents=True, exist_ok=True)
 
-    env.env_pck = env_pkg
-    env.node_pck = node_pkg
-    env.core_pck = core_pkg
-    env.cluster_pck = cluster_pkg
-    env.dist_abs = dist_abs
-    env.app_src = app_src
-    env.wenv_abs = wenv_abs
-    env.agilab_pck = agilab_pck
+def test_pythonpath_helper_wrappers_use_repository_support(monkeypatch, tmp_path: Path):
+    env = object.__new__(AgiEnv)
+    env.env_pck = tmp_path / "envpkg"
+    env.node_pck = tmp_path / "nodepkg"
+    env.core_pck = tmp_path / "corepkg"
+    env.cluster_pck = tmp_path / "clusterpkg"
+    env.dist_abs = tmp_path / "dist"
+    env.app_src = tmp_path / "app_src"
+    env.wenv_abs = tmp_path / "wenv"
+    env.agilab_pck = tmp_path / "agilab_pck"
+    captured = {}
 
-    entries = env._collect_pythonpath_entries()
+    def _fake_collect(**kwargs):
+        captured["collect"] = kwargs
+        return ["/tmp/alpha", "/tmp/beta"]
 
-    assert str(package_root) in entries
-    assert str(dist_abs) in entries
-    assert str(app_src) in entries
-    assert str(wenv_abs / "src") in entries
-    assert str(agilab_pck / "agilab") in entries
-    assert env._dedupe_paths([dist_abs, dist_abs, tmp_path / "missing"]) == [str(dist_abs)]
+    def _fake_configure(entries, *, sys_path, environ):
+        captured["configure"] = {
+            "entries": entries,
+            "sys_path": sys_path,
+            "environ": environ,
+        }
 
+    def _fake_dedupe(paths):
+        captured["dedupe"] = list(paths)
+        return ["/tmp/unique"]
+
+    monkeypatch.setattr(agi_env_module, "build_pythonpath_entries", _fake_collect)
+    monkeypatch.setattr(agi_env_module, "apply_pythonpath_entries", _fake_configure)
+    monkeypatch.setattr(agi_env_module, "dedupe_existing_paths", _fake_dedupe)
     monkeypatch.setattr(agi_env_module.sys, "path", ["/existing"], raising=False)
     monkeypatch.setenv("PYTHONPATH", "/existing")
-    env._configure_pythonpath(entries[:2])
-    assert entries[0] in agi_env_module.sys.path
-    assert entries[1] in os.environ["PYTHONPATH"]
 
+    entries = env._collect_pythonpath_entries()
+    env._configure_pythonpath(entries)
 
-def test_apps_repository_root_handles_unreadable_alt_apps_dirs(tmp_path: Path, monkeypatch):
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    unreadable_apps = repo_root / "nested" / "apps"
-    unreadable_apps.mkdir(parents=True)
-
-    env = object.__new__(AgiEnv)
-    env.envars = {"APPS_REPOSITORY": str(repo_root)}
-    mock_logger = mock.Mock()
-    monkeypatch.setattr(AgiEnv, "logger", mock_logger, raising=False)
-
-    original_iterdir = Path.iterdir
-
-    def _broken_iterdir(self):
-        if self == unreadable_apps:
-            raise OSError("no access")
-        return original_iterdir(self)
-
-    monkeypatch.setattr(agi_env_module.Path, "iterdir", _broken_iterdir, raising=False)
-
-    assert env._get_apps_repository_root() is None
-    assert mock_logger.info.called
+    assert entries == ["/tmp/alpha", "/tmp/beta"]
+    assert captured["collect"]["env_pck"] == env.env_pck
+    assert captured["collect"]["node_pck"] == env.node_pck
+    assert captured["collect"]["dedupe_paths_fn"] == env._dedupe_paths
+    assert env._pythonpath_entries == entries
+    assert captured["configure"]["entries"] == entries
+    assert captured["configure"]["sys_path"] is agi_env_module.sys.path
+    assert captured["configure"]["environ"] is os.environ
+    assert env._dedupe_paths([Path("/tmp/demo")]) == ["/tmp/unique"]
 
 
 def test_copy_existing_projects_warns_on_conflicting_destination_file(tmp_path: Path, monkeypatch):
