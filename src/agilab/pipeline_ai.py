@@ -7,10 +7,11 @@ import json
 import logging
 import os
 import re
+from contextlib import nullcontext
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -65,6 +66,7 @@ try:
         CODE_STRICT_INSTRUCTIONS,
         DEFAULT_GPT_OSS_ENDPOINT,
         _API_KEY_PATTERNS,
+        normalize_user_path as _normalize_user_path,
         _OLLAMA_CODE_MODEL_RE,
         _BLOCKED_BUILTINS,
         _BLOCKED_DUNDER_ATTRS,
@@ -75,15 +77,11 @@ try:
         _build_autofix_prompt,
         _exec_code_on_df,
         _validate_code_safety,
+        format_uoaic_question as _format_uoaic_question_impl,
         format_for_responses as _format_for_responses,
-        format_uoaic_question as _format_uoaic_question,
-        _ensure_uoaic_runtime as _ensure_uoaic_runtime_impl,
-        _load_uoaic_modules as _load_uoaic_modules_impl,
-        _resolve_uoaic_path as _resolve_uoaic_path_impl,
         normalize_gpt_oss_endpoint as _normalize_gpt_oss_endpoint,
         normalize_identifier as _normalize_identifier,
         normalize_ollama_endpoint as _normalize_ollama_endpoint,
-        normalize_user_path as _normalize_user_path,
         prompt_to_gpt_oss_messages as _prompt_to_gpt_oss_messages,
         prompt_to_plaintext as _prompt_to_plaintext,
         redact_sensitive as _redact_sensitive,
@@ -103,6 +101,7 @@ except ModuleNotFoundError:
     CODE_STRICT_INSTRUCTIONS = _pipeline_ai_support_module.CODE_STRICT_INSTRUCTIONS
     DEFAULT_GPT_OSS_ENDPOINT = _pipeline_ai_support_module.DEFAULT_GPT_OSS_ENDPOINT
     _API_KEY_PATTERNS = _pipeline_ai_support_module._API_KEY_PATTERNS
+    _normalize_user_path = _pipeline_ai_support_module.normalize_user_path
     _OLLAMA_CODE_MODEL_RE = _pipeline_ai_support_module._OLLAMA_CODE_MODEL_RE
     _BLOCKED_BUILTINS = _pipeline_ai_support_module._BLOCKED_BUILTINS
     _BLOCKED_DUNDER_ATTRS = _pipeline_ai_support_module._BLOCKED_DUNDER_ATTRS
@@ -113,20 +112,99 @@ except ModuleNotFoundError:
     _build_autofix_prompt = _pipeline_ai_support_module._build_autofix_prompt
     _exec_code_on_df = _pipeline_ai_support_module._exec_code_on_df
     _validate_code_safety = _pipeline_ai_support_module._validate_code_safety
+    _format_uoaic_question_impl = _pipeline_ai_support_module.format_uoaic_question
     _format_for_responses = _pipeline_ai_support_module.format_for_responses
-    _format_uoaic_question = _pipeline_ai_support_module.format_uoaic_question
     _normalize_gpt_oss_endpoint = _pipeline_ai_support_module.normalize_gpt_oss_endpoint
     _normalize_identifier = _pipeline_ai_support_module.normalize_identifier
     _normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
-    _normalize_user_path = _pipeline_ai_support_module.normalize_user_path
     _prompt_to_gpt_oss_messages = _pipeline_ai_support_module.prompt_to_gpt_oss_messages
     _prompt_to_plaintext = _pipeline_ai_support_module.prompt_to_plaintext
     _redact_sensitive = _pipeline_ai_support_module.redact_sensitive
     _response_to_text = _pipeline_ai_support_module.response_to_text
     _synthesize_stub_response = _pipeline_ai_support_module.synthesize_stub_response
-    _ensure_uoaic_runtime_impl = _pipeline_ai_support_module._ensure_uoaic_runtime
-    _load_uoaic_modules_impl = _pipeline_ai_support_module._load_uoaic_modules
-    _resolve_uoaic_path_impl = _pipeline_ai_support_module._resolve_uoaic_path
+
+try:
+    from agilab.pipeline_ai_uoaic import (
+        UOAIC_AUTOFIX_ENV,
+        UOAIC_AUTOFIX_MAX_ENV,
+        UOAIC_AUTOFIX_MAX_STATE_KEY,
+        UOAIC_AUTOFIX_STATE_KEY,
+        UOAIC_DATA_ENV,
+        UOAIC_DATA_STATE_KEY,
+        UOAIC_DB_ENV,
+        UOAIC_DB_STATE_KEY,
+        UOAIC_MODE_ENV,
+        UOAIC_MODE_OLLAMA,
+        UOAIC_MODE_RAG,
+        UOAIC_MODE_STATE_KEY,
+        UOAIC_MODEL_ENV,
+        UOAIC_NUM_CTX_ENV,
+        UOAIC_NUM_PREDICT_ENV,
+        UOAIC_OLLAMA_ENDPOINT_ENV,
+        DEFAULT_UOAIC_BASE,
+        UOAIC_PROVIDER,
+        UOAIC_DEFAULT_DB_DIRNAME,
+        UOAIC_REBUILD_FLAG_KEY,
+        UOAIC_RUNTIME_KEY,
+        UOAIC_SEED_ENV,
+        UOAIC_TEMPERATURE_ENV,
+        UOAIC_TOP_P_ENV,
+        UoaicControlDeps,
+        UoaicRuntimeDeps,
+        _normalize_user_path,
+        chat_universal_offline as _chat_universal_offline_impl,
+        ensure_uoaic_runtime as _ensure_uoaic_runtime_impl,
+        load_uoaic_modules as _load_uoaic_modules_impl,
+        render_universal_offline_controls as _render_universal_offline_controls_impl,
+        resolve_uoaic_path as _resolve_uoaic_path_impl,
+    )
+except ModuleNotFoundError:
+    _pipeline_ai_uoaic_path = Path(__file__).resolve().parent / "pipeline_ai_uoaic.py"
+    _pipeline_ai_uoaic_spec = importlib.util.spec_from_file_location(
+        "agilab_pipeline_ai_uoaic_fallback",
+        _pipeline_ai_uoaic_path,
+    )
+    if _pipeline_ai_uoaic_spec is None or _pipeline_ai_uoaic_spec.loader is None:
+        raise
+    _pipeline_ai_uoaic_module = importlib.util.module_from_spec(_pipeline_ai_uoaic_spec)
+    _pipeline_ai_uoaic_spec_modules = _pipeline_ai_uoaic_spec.name
+    if _pipeline_ai_uoaic_spec_modules is not None:
+        import sys
+
+        sys.modules.setdefault(_pipeline_ai_uoaic_spec_modules, _pipeline_ai_uoaic_module)
+    _pipeline_ai_uoaic_spec.loader.exec_module(_pipeline_ai_uoaic_module)
+    UOAIC_AUTOFIX_ENV = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_ENV
+    UOAIC_AUTOFIX_MAX_ENV = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_MAX_ENV
+    UOAIC_AUTOFIX_MAX_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_MAX_STATE_KEY
+    UOAIC_AUTOFIX_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_STATE_KEY
+    UOAIC_DATA_ENV = _pipeline_ai_uoaic_module.UOAIC_DATA_ENV
+    UOAIC_DATA_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_DATA_STATE_KEY
+    UOAIC_DB_ENV = _pipeline_ai_uoaic_module.UOAIC_DB_ENV
+    UOAIC_DB_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_DB_STATE_KEY
+    UOAIC_MODE_ENV = _pipeline_ai_uoaic_module.UOAIC_MODE_ENV
+    UOAIC_MODE_OLLAMA = _pipeline_ai_uoaic_module.UOAIC_MODE_OLLAMA
+    UOAIC_MODE_RAG = _pipeline_ai_uoaic_module.UOAIC_MODE_RAG
+    UOAIC_MODE_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_MODE_STATE_KEY
+    UOAIC_MODEL_ENV = _pipeline_ai_uoaic_module.UOAIC_MODEL_ENV
+    UOAIC_NUM_CTX_ENV = _pipeline_ai_uoaic_module.UOAIC_NUM_CTX_ENV
+    UOAIC_NUM_PREDICT_ENV = _pipeline_ai_uoaic_module.UOAIC_NUM_PREDICT_ENV
+    UOAIC_OLLAMA_ENDPOINT_ENV = _pipeline_ai_uoaic_module.UOAIC_OLLAMA_ENDPOINT_ENV
+    DEFAULT_UOAIC_BASE = _pipeline_ai_uoaic_module.DEFAULT_UOAIC_BASE
+    UOAIC_PROVIDER = _pipeline_ai_uoaic_module.UOAIC_PROVIDER
+    UOAIC_DEFAULT_DB_DIRNAME = _pipeline_ai_uoaic_module.UOAIC_DEFAULT_DB_DIRNAME
+    UOAIC_REBUILD_FLAG_KEY = _pipeline_ai_uoaic_module.UOAIC_REBUILD_FLAG_KEY
+    UOAIC_RUNTIME_KEY = _pipeline_ai_uoaic_module.UOAIC_RUNTIME_KEY
+    UOAIC_SEED_ENV = _pipeline_ai_uoaic_module.UOAIC_SEED_ENV
+    UOAIC_TEMPERATURE_ENV = _pipeline_ai_uoaic_module.UOAIC_TEMPERATURE_ENV
+    UOAIC_TOP_P_ENV = _pipeline_ai_uoaic_module.UOAIC_TOP_P_ENV
+    UoaicControlDeps = _pipeline_ai_uoaic_module.UoaicControlDeps
+    UoaicRuntimeDeps = _pipeline_ai_uoaic_module.UoaicRuntimeDeps
+    _normalize_user_path = _pipeline_ai_uoaic_module._normalize_user_path
+    _chat_universal_offline_impl = _pipeline_ai_uoaic_module.chat_universal_offline
+    _ensure_uoaic_runtime_impl = _pipeline_ai_uoaic_module.ensure_uoaic_runtime
+    _load_uoaic_modules_impl = _pipeline_ai_uoaic_module.load_uoaic_modules
+    _render_universal_offline_controls_impl = _pipeline_ai_uoaic_module.render_universal_offline_controls
+    _resolve_uoaic_path_impl = _pipeline_ai_uoaic_module.resolve_uoaic_path
 
 logger = logging.getLogger(__name__)
 JumpToMain = RuntimeError
@@ -311,34 +389,12 @@ def chat_ollama_local(
 
     return text, model
 
-
-UOAIC_PROVIDER = "universal-offline-ai-chatbot"
-UOAIC_DATA_ENV = "UOAIC_DATA_PATH"
-UOAIC_DB_ENV = "UOAIC_DB_PATH"
-UOAIC_DEFAULT_DB_DIRNAME = "vectorstore/db_faiss"
-UOAIC_RUNTIME_KEY = "uoaic_runtime"
-UOAIC_DATA_STATE_KEY = "uoaic_data_path"
-UOAIC_DB_STATE_KEY = "uoaic_db_path"
-UOAIC_REBUILD_FLAG_KEY = "uoaic_rebuild_requested"
-UOAIC_MODE_ENV = "UOAIC_MODE"
-UOAIC_MODE_STATE_KEY = "uoaic_mode"
-UOAIC_MODE_OLLAMA = "ollama"
-UOAIC_MODE_RAG = "rag"
-UOAIC_OLLAMA_ENDPOINT_ENV = "UOAIC_OLLAMA_ENDPOINT"
-UOAIC_MODEL_ENV = "UOAIC_MODEL"
-UOAIC_TEMPERATURE_ENV = "UOAIC_TEMPERATURE"
-UOAIC_TOP_P_ENV = "UOAIC_TOP_P"
-UOAIC_NUM_CTX_ENV = "UOAIC_NUM_CTX"
-UOAIC_NUM_PREDICT_ENV = "UOAIC_NUM_PREDICT"
-UOAIC_SEED_ENV = "UOAIC_SEED"
-UOAIC_AUTOFIX_ENV = "UOAIC_AUTOFIX"
-UOAIC_AUTOFIX_MAX_ENV = "UOAIC_AUTOFIX_MAX_ATTEMPTS"
-UOAIC_AUTOFIX_STATE_KEY = "uoaic_autofix_enabled"
-UOAIC_AUTOFIX_MAX_STATE_KEY = "uoaic_autofix_max_attempts"
-DEFAULT_UOAIC_BASE = Path.home() / ".agilab" / "mistral_offline"
-_HF_TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN")
-
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
+
+
+def _format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
+    """Compatibility wrapper for legacy callers kept in tests and callers."""
+    return _format_uoaic_question_impl(prompt, question)
 
 
 def chat_offline(
@@ -421,62 +477,56 @@ def chat_offline(
     return text, model_name
 
 def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
-    """Resolve universal offline provider runtime through pure helper layer."""
     env: Optional[AgiEnv] = st.session_state.get("env")
-    base_dir: Optional[Path] = None
-    if env is not None:
-        try:
-            base_dir = _pipeline_export_root(env)
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-            base_dir = None
-
     try:
         return _ensure_uoaic_runtime_impl(
             envars,
-            session_state=st.session_state,
-            resolve_uoaic_path=lambda raw_path, base_dir=None: _resolve_uoaic_path(raw_path, base_dir),
-            load_uoaic_modules=_load_uoaic_modules,
-            runtime_state_key=UOAIC_RUNTIME_KEY,
-            data_state_key=UOAIC_DATA_STATE_KEY,
-            db_state_key=UOAIC_DB_STATE_KEY,
-            rebuild_state_key=UOAIC_REBUILD_FLAG_KEY,
-            data_env_key=UOAIC_DATA_ENV,
-            db_env_key=UOAIC_DB_ENV,
-            model_env_key="UOAIC_MODEL",
-            default_db_dirname=UOAIC_DEFAULT_DB_DIRNAME,
-            spinner=st.spinner,
-            base_dir=base_dir,
+            env=env,
+            deps=UoaicRuntimeDeps(
+                session_state=st.session_state,
+                normalize_path_fn=normalize_path,
+                pipeline_export_root_fn=_pipeline_export_root,
+                load_modules_fn=_load_uoaic_modules,
+                error_sink=st.error,
+                spinner_factory=getattr(st, "spinner", nullcontext),
+            ),
+            resolve_uoaic_path_fn=lambda raw_path, _env: _resolve_uoaic_path(raw_path, _env),
         )
-    except ValueError as exc:
+    except (RuntimeError, ValueError) as exc:
         if str(exc) == "Missing Universal Offline data directory":
-            st.error("Configure the Universal Offline data directory in page settings (`UOAIC_DATA_DIR`) and click `Run`.")
+            st.error("Configure the Universal Offline data directory in the sidebar to enable this provider.")
         else:
             st.error(str(exc))
-        raise JumpToMain(exc)
-    except RuntimeError as exc:
-        st.error(str(exc))
+        if isinstance(exc, ValueError):
+            raise JumpToMain(str(exc)) from exc
         raise JumpToMain(exc)
 
 
 def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
-    """Resolve user-supplied paths relative to AGILab export directory when needed."""
-    base: Optional[Path] = None
-    if env is not None:
-        try:
-            base = _pipeline_export_root(env)
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):  # pragma: no cover - defensive
-            base = None
-    return _resolve_uoaic_path_impl(raw_path, base)
+    return _resolve_uoaic_path_impl(raw_path, env, pipeline_export_root_fn=_pipeline_export_root)
 
 
-def _load_uoaic_modules() -> Tuple[Any, ...]:
-    """Import the Universal Offline AI Chatbot helpers with detailed diagnostics."""
+def _load_uoaic_modules(
+    *,
+    distribution_fn: Callable[[str], Any] | None = None,
+    import_module_fn: Callable[[str], Any] | None = None,
+    spec_from_file_location_fn: Callable[[str, str], Any] | None = None,
+    module_from_spec_fn: Callable[[Any], Any] | None = None,
+) -> Tuple[Any, ...]:
+    if distribution_fn is None:
+        distribution_fn = importlib_metadata.distribution
+    if import_module_fn is None:
+        import_module_fn = importlib.import_module
+    if spec_from_file_location_fn is None:
+        spec_from_file_location_fn = importlib.util.spec_from_file_location
+    if module_from_spec_fn is None:
+        module_from_spec_fn = importlib.util.module_from_spec
     try:
         return _load_uoaic_modules_impl(
-            distribution_fn=importlib_metadata.distribution,
-            import_module_fn=importlib.import_module,
-            spec_from_file_location_fn=importlib.util.spec_from_file_location,
-            module_from_spec_fn=importlib.util.module_from_spec,
+            distribution_fn=distribution_fn,
+            import_module_fn=import_module_fn,
+            spec_from_file_location_fn=spec_from_file_location_fn,
+            module_from_spec_fn=module_from_spec_fn,
         )
     except RuntimeError as exc:
         st.error(str(exc))
@@ -488,46 +538,16 @@ def chat_universal_offline(
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
 ) -> Tuple[str, str]:
-    """Invoke the Universal Offline AI Chatbot pipeline for the current query."""
-    runtime = _ensure_uoaic_runtime(envars)
-    chain = runtime["chain"]
-    model_label = runtime.get("model_label") or str(envars.get("UOAIC_MODEL") or "universal-offline")
-    query_text = _format_uoaic_question(prompt, input_request) or input_request
-
     try:
-        response = chain.invoke({"query": query_text})
-    except Exception as exc:
-        st.error(f"Universal Offline AI Chatbot invocation failed: {exc}")
-        raise JumpToMain(exc)
-
-    answer = ""
-    sources: List[str] = []
-
-    if isinstance(response, dict):
-        answer = response.get("result") or response.get("answer") or ""
-        source_documents = response.get("source_documents") or []
-        for doc in source_documents:
-            metadata = getattr(doc, "metadata", {}) if hasattr(doc, "metadata") else {}
-            if isinstance(metadata, dict):
-                source = metadata.get("source") or metadata.get("file") or metadata.get("path")
-                page = metadata.get("page") or metadata.get("page_number")
-                if source:
-                    if page is not None:
-                        sources.append(f"{source} (page {page})")
-                    else:
-                        sources.append(str(source))
-    else:
-        answer = str(response)
-
-    answer_text = str(answer).strip()
-    if sources:
-        sources_block = "\n".join(f"- {entry}" for entry in sources)
-        if answer_text:
-            answer_text = f"{answer_text}\n\nSources:\n{sources_block}"
-        else:
-            answer_text = f"Sources:\n{sources_block}"
-
-    return answer_text, model_label
+        return _chat_universal_offline_impl(
+            input_request,
+            prompt,
+            envars,
+            ensure_runtime_fn=_ensure_uoaic_runtime,
+            error_sink=st.error,
+        )
+    except RuntimeError as exc:
+        raise JumpToMain(exc) from exc
 
 
 def chat_online(
@@ -924,262 +944,15 @@ def gpt_oss_controls(env: AgiEnv) -> None:
 
 
 def universal_offline_controls(env: AgiEnv) -> None:
-    """Provide configuration helpers for the Universal Offline AI Chatbot provider."""
-    if st.session_state.get("lab_llm_provider") != UOAIC_PROVIDER:
-        return
-
-    mode_default = (
-        st.session_state.get(UOAIC_MODE_STATE_KEY)
-        or env.envars.get(UOAIC_MODE_ENV)
-        or os.getenv(UOAIC_MODE_ENV)
-        or UOAIC_MODE_OLLAMA
+    _render_universal_offline_controls_impl(
+        env,
+        deps=UoaicControlDeps(
+            session_state=st.session_state,
+            sidebar=st.sidebar,
+            normalize_path_fn=normalize_path,
+            default_ollama_model_fn=_default_ollama_model,
+            ensure_runtime_fn=_ensure_uoaic_runtime,
+            normalize_user_path_fn=_normalize_user_path,
+            spinner_factory=getattr(st, "spinner", nullcontext),
+        ),
     )
-    mode_options = {
-        "Code (Ollama)": UOAIC_MODE_OLLAMA,
-        "RAG (offline docs)": UOAIC_MODE_RAG,
-    }
-    mode_labels = list(mode_options.keys())
-    current_mode_label = next(
-        (label for label, val in mode_options.items() if val == mode_default),
-        mode_labels[0],
-    )
-    selected_mode_label = st.sidebar.selectbox(
-        "Local assistant mode",
-        mode_labels,
-        index=mode_labels.index(current_mode_label),
-        help="Use direct Ollama generation for code correctness, or the Universal Offline RAG chain for doc Q&A.",
-    )
-    selected_mode = mode_options[selected_mode_label]
-    previous_mode = st.session_state.get(UOAIC_MODE_STATE_KEY)
-    st.session_state[UOAIC_MODE_STATE_KEY] = selected_mode
-    env.envars[UOAIC_MODE_ENV] = selected_mode
-    if previous_mode and previous_mode != selected_mode:
-        st.session_state.pop(UOAIC_RUNTIME_KEY, None)
-
-    with st.sidebar.expander("Ollama settings", expanded=True):
-        endpoint_default = (
-            st.session_state.get("uoaic_ollama_endpoint")
-            or env.envars.get(UOAIC_OLLAMA_ENDPOINT_ENV)
-            or os.getenv(UOAIC_OLLAMA_ENDPOINT_ENV)
-            or os.getenv("OLLAMA_HOST", "")
-            or "http://127.0.0.1:11434"
-        )
-        endpoint_input = st.text_input(
-            "Ollama endpoint",
-            value=str(endpoint_default),
-            help="Base URL of the Ollama server (default: http://127.0.0.1:11434).",
-        ).strip()
-        normalized_endpoint = _normalize_ollama_endpoint(endpoint_input)
-        st.session_state["uoaic_ollama_endpoint"] = normalized_endpoint
-        env.envars[UOAIC_OLLAMA_ENDPOINT_ENV] = normalized_endpoint
-
-        model_default = (
-            st.session_state.get("uoaic_model")
-            or env.envars.get(UOAIC_MODEL_ENV)
-            or os.getenv(UOAIC_MODEL_ENV, "")
-            or _default_ollama_model(
-                normalized_endpoint,
-                prefer_code=selected_mode == UOAIC_MODE_OLLAMA,
-            )
-        )
-        model_input = st.text_input(
-            "Ollama model",
-            value=str(model_default),
-            help="Model name (as shown by `ollama list`). For best code correctness, use a code-tuned model when available.",
-        ).strip()
-        st.session_state["uoaic_model"] = model_input
-        if model_input:
-            env.envars[UOAIC_MODEL_ENV] = model_input
-        else:
-            env.envars.pop(UOAIC_MODEL_ENV, None)
-
-        def _float_default(name: str, fallback: float) -> float:
-            raw = st.session_state.get(name) or env.envars.get(name) or os.getenv(name)
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                return float(fallback)
-
-        temperature_default = max(0.0, min(1.0, _float_default(UOAIC_TEMPERATURE_ENV, 0.1)))
-        temperature = st.slider(
-            "temperature",
-            min_value=0.0,
-            max_value=1.0,
-            value=float(temperature_default),
-            step=0.05,
-            help="Lower values improve determinism for code generation.",
-        )
-        env.envars[UOAIC_TEMPERATURE_ENV] = str(float(temperature))
-
-        top_p_default = max(0.0, min(1.0, _float_default(UOAIC_TOP_P_ENV, 0.9)))
-        top_p = st.slider(
-            "top_p",
-            min_value=0.0,
-            max_value=1.0,
-            value=float(top_p_default),
-            step=0.05,
-            help="Nucleus sampling. Lower values can reduce hallucinations for code.",
-        )
-        env.envars[UOAIC_TOP_P_ENV] = str(float(top_p))
-
-        def _int_default(name: str, fallback: int) -> int:
-            raw = st.session_state.get(name) or env.envars.get(name) or os.getenv(name)
-            try:
-                return int(float(raw))
-            except (TypeError, ValueError):
-                return int(fallback)
-
-        num_ctx = st.number_input(
-            "num_ctx (0 = default)",
-            min_value=0,
-            max_value=262144,
-            value=_int_default(UOAIC_NUM_CTX_ENV, 0),
-            step=256,
-            help="Context window. Increase if prompts are truncated (requires RAM).",
-        )
-        if int(num_ctx) > 0:
-            env.envars[UOAIC_NUM_CTX_ENV] = str(int(num_ctx))
-        else:
-            env.envars.pop(UOAIC_NUM_CTX_ENV, None)
-
-        num_predict = st.number_input(
-            "num_predict (0 = default)",
-            min_value=0,
-            max_value=65536,
-            value=_int_default(UOAIC_NUM_PREDICT_ENV, 0),
-            step=128,
-            help="Max tokens to generate. Set 0 to use Ollama defaults.",
-        )
-        if int(num_predict) > 0:
-            env.envars[UOAIC_NUM_PREDICT_ENV] = str(int(num_predict))
-        else:
-            env.envars.pop(UOAIC_NUM_PREDICT_ENV, None)
-
-        seed = st.number_input(
-            "seed (0 = unset)",
-            min_value=0,
-            max_value=2**31 - 1,
-            value=_int_default(UOAIC_SEED_ENV, 0),
-            step=1,
-            help="Optional deterministic seed for the local model.",
-        )
-        if int(seed) > 0:
-            env.envars[UOAIC_SEED_ENV] = str(int(seed))
-        else:
-            env.envars.pop(UOAIC_SEED_ENV, None)
-
-    with st.sidebar.expander("Code correctness", expanded=True):
-        autofix_default = env.envars.get(UOAIC_AUTOFIX_ENV) or os.getenv(UOAIC_AUTOFIX_ENV) or "0"
-        autofix_enabled = bool(st.session_state.get(UOAIC_AUTOFIX_STATE_KEY, autofix_default in {"1", "true", "True"}))
-        autofix_enabled = st.checkbox(
-            "Auto-run + auto-fix generated code",
-            value=autofix_enabled,
-            help="After generating code, run it against the loaded dataframe and ask the model to repair tracebacks.",
-        )
-        st.session_state[UOAIC_AUTOFIX_STATE_KEY] = autofix_enabled
-        env.envars[UOAIC_AUTOFIX_ENV] = "1" if autofix_enabled else "0"
-
-        max_default = env.envars.get(UOAIC_AUTOFIX_MAX_ENV) or os.getenv(UOAIC_AUTOFIX_MAX_ENV) or "2"
-        try:
-            max_default_int = max(0, int(max_default))
-        except (TypeError, ValueError):
-            max_default_int = 2
-        max_attempts = st.number_input(
-            "Max fix attempts",
-            min_value=0,
-            max_value=10,
-            value=int(st.session_state.get(UOAIC_AUTOFIX_MAX_STATE_KEY, max_default_int)),
-            step=1,
-            help="0 disables iterative repairs; the first generated code is kept.",
-        )
-        st.session_state[UOAIC_AUTOFIX_MAX_STATE_KEY] = int(max_attempts)
-        env.envars[UOAIC_AUTOFIX_MAX_ENV] = str(int(max_attempts))
-
-    if selected_mode != UOAIC_MODE_RAG:
-        st.sidebar.caption("RAG knowledge-base settings are hidden (switch mode to enable).")
-        return
-
-    default_data_path = DEFAULT_UOAIC_BASE / "data"
-    data_default = (
-        st.session_state.get(UOAIC_DATA_STATE_KEY)
-        or env.envars.get(UOAIC_DATA_ENV)
-        or os.getenv(UOAIC_DATA_ENV, "")
-    )
-    if not data_default:
-        try:
-            default_data_path.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass
-        data_default = normalize_path(default_data_path)
-    data_input = st.sidebar.text_input(
-        "Universal Offline data directory",
-        value=data_default,
-        help="Path containing the PDF documents to index for the Universal Offline AI Chatbot.",
-    ).strip()
-    if not data_input:
-        data_input = data_default
-    if data_input:
-        normalized_data = _normalize_user_path(data_input)
-        if normalized_data:
-            changed = normalized_data != st.session_state.get(UOAIC_DATA_STATE_KEY)
-            st.session_state[UOAIC_DATA_STATE_KEY] = normalized_data
-            env.envars[UOAIC_DATA_ENV] = normalized_data
-            if changed:
-                st.session_state.pop(UOAIC_RUNTIME_KEY, None)
-        else:
-            st.sidebar.warning("Provide a valid data directory for the Universal Offline AI Chatbot.")
-    else:
-        st.session_state.pop(UOAIC_DATA_STATE_KEY, None)
-        env.envars.pop(UOAIC_DATA_ENV, None)
-
-    default_db_path = DEFAULT_UOAIC_BASE / "vectorstore" / "db_faiss"
-    db_default = (
-        st.session_state.get(UOAIC_DB_STATE_KEY)
-        or env.envars.get(UOAIC_DB_ENV)
-        or os.getenv(UOAIC_DB_ENV, "")
-    )
-    if not db_default:
-        try:
-            default_db_path.parent.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass
-        db_default = normalize_path(default_db_path)
-
-    db_input = st.sidebar.text_input(
-        "Universal Offline vector store directory",
-        value=db_default,
-        help="Location for the FAISS vector store (defaults to `<data>/vectorstore/db_faiss`).",
-    ).strip()
-    if not db_input:
-        db_input = db_default
-    if db_input:
-        normalized_db = _normalize_user_path(db_input)
-        if normalized_db:
-            changed = normalized_db != st.session_state.get(UOAIC_DB_STATE_KEY)
-            st.session_state[UOAIC_DB_STATE_KEY] = normalized_db
-            env.envars[UOAIC_DB_ENV] = normalized_db
-            if changed:
-                st.session_state.pop(UOAIC_RUNTIME_KEY, None)
-        else:
-            st.sidebar.warning("Provide a valid directory for the Universal Offline vector store.")
-    else:
-        st.session_state.pop(UOAIC_DB_STATE_KEY, None)
-        env.envars.pop(UOAIC_DB_ENV, None)
-
-    if not any(os.getenv(k) for k in _HF_TOKEN_ENV_KEYS):
-        st.sidebar.info(
-            "Set `HF_TOKEN` (or `HUGGINGFACEHUB_API_TOKEN`) so the embedding model can download once."
-        )
-
-    if st.sidebar.button("Rebuild Universal Offline knowledge base", key="uoaic_rebuild_btn"):
-        if not st.session_state.get(UOAIC_DATA_STATE_KEY):
-            st.sidebar.error("Set the data directory before rebuilding the Universal Offline knowledge base.")
-            return
-        st.session_state[UOAIC_REBUILD_FLAG_KEY] = True
-        try:
-            with st.spinner("Rebuilding Universal Offline AI Chatbot knowledge base…"):
-                _ensure_uoaic_runtime(env.envars)
-        except JumpToMain:
-            # Errors are already surfaced via st.error in the helper.
-            return
-        st.sidebar.success("Universal Offline knowledge base updated.")
