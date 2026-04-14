@@ -42,31 +42,14 @@ try:
         build_run_snippet,
         compute_run_mode,
         describe_run_mode,
-        benchmark_display_date as _orchestrate_benchmark_display_date,
-        clear_cached_distribution as _orchestrate_clear_cached_distribution,
-        clear_log as _orchestrate_clear_log,
-        clear_mount_table_cache as _orchestrate_clear_mount_table_cache,
-        append_log_lines as _orchestrate_append_log_lines,
-        init_session_state as _orchestrate_init_session_state,
-        app_install_status as _orchestrate_app_install_status,
-        is_app_installed as _orchestrate_is_app_installed,
-        resolve_share_candidate as _orchestrate_resolve_share_candidate,
-        update_delete_confirm_state as _orchestrate_update_delete_confirm_state,
-        toggle_select_all as _orchestrate_toggle_select_all,
-        update_select_all as _orchestrate_update_select_all,
-        update_log as _orchestrate_update_log,
-        display_log as _orchestrate_display_log,
         optional_python_expr,
         optional_string_expr,
-        capture_dataframe_preview_state as _orchestrate_capture_dataframe_preview_state,
-        restore_dataframe_preview_state as _orchestrate_restore_dataframe_preview_state,
         filter_noise_lines,
         filter_warning_messages,
         format_log_block,
         reassign_distribution_plan,
         is_dask_shutdown_noise,
         serialize_args_payload,
-        log_indicates_install_failure as _orchestrate_log_indicates_install_failure,
         strip_ansi,
         update_distribution_payload,
         workplan_selection_key,
@@ -93,27 +76,79 @@ except ModuleNotFoundError:
     optional_string_expr = _orchestrate_page_support_module.optional_string_expr
     reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
     is_dask_shutdown_noise = _orchestrate_page_support_module.is_dask_shutdown_noise
-    _orchestrate_benchmark_display_date = _orchestrate_page_support_module.benchmark_display_date
-    _orchestrate_clear_cached_distribution = _orchestrate_page_support_module.clear_cached_distribution
-    _orchestrate_clear_log = _orchestrate_page_support_module.clear_log
-    _orchestrate_clear_mount_table_cache = _orchestrate_page_support_module.clear_mount_table_cache
-    _orchestrate_append_log_lines = _orchestrate_page_support_module.append_log_lines
-    _orchestrate_init_session_state = _orchestrate_page_support_module.init_session_state
-    _orchestrate_app_install_status = _orchestrate_page_support_module.app_install_status
-    _orchestrate_is_app_installed = _orchestrate_page_support_module.is_app_installed
-    _orchestrate_log_indicates_install_failure = _orchestrate_page_support_module.log_indicates_install_failure
-    _orchestrate_resolve_share_candidate = _orchestrate_page_support_module.resolve_share_candidate
-    _orchestrate_update_delete_confirm_state = _orchestrate_page_support_module.update_delete_confirm_state
     serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
     strip_ansi = _orchestrate_page_support_module.strip_ansi
     update_distribution_payload = _orchestrate_page_support_module.update_distribution_payload
     workplan_selection_key = _orchestrate_page_support_module.workplan_selection_key
-    _orchestrate_capture_dataframe_preview_state = _orchestrate_page_support_module.capture_dataframe_preview_state
-    _orchestrate_restore_dataframe_preview_state = _orchestrate_page_support_module.restore_dataframe_preview_state
-    _orchestrate_toggle_select_all = _orchestrate_page_support_module.toggle_select_all
-    _orchestrate_update_select_all = _orchestrate_page_support_module.update_select_all
-    _orchestrate_update_log = _orchestrate_page_support_module.update_log
-    _orchestrate_display_log = _orchestrate_page_support_module.display_log
+try:
+    from agilab.orchestrate_page_helpers import (
+        app_install_status as _orchestrate_app_install_status,
+        init_session_state as _orchestrate_init_session_state,
+        clear_log as _orchestrate_clear_log,
+        rerun_fragment_or_app as _orchestrate_rerun_fragment_or_app,
+        update_delete_confirm_state as _orchestrate_update_delete_confirm_state,
+        update_log as _orchestrate_update_log,
+        reset_traceback_skip as _orchestrate_reset_traceback_skip,
+        append_log_lines as _orchestrate_append_log_lines,
+        log_indicates_install_failure as _orchestrate_log_indicates_install_failure,
+        looks_like_shared_path as _orchestrate_looks_like_shared_path,
+        set_active_app_query_param as _orchestrate_set_active_app_query_param,
+        clear_cached_distribution as _orchestrate_clear_cached_distribution,
+        clear_mount_table_cache as _orchestrate_clear_mount_table_cache,
+        resolve_share_candidate as _orchestrate_resolve_share_candidate,
+        benchmark_display_date as _orchestrate_benchmark_display_date,
+        display_log as _orchestrate_display_log,
+        safe_eval as _orchestrate_safe_eval,
+        parse_and_validate_scheduler as _orchestrate_parse_and_validate_scheduler,
+        parse_and_validate_workers as _orchestrate_parse_and_validate_workers,
+        toggle_select_all as _orchestrate_toggle_select_all,
+        update_select_all as _orchestrate_update_select_all,
+        capture_dataframe_preview_state as _orchestrate_capture_dataframe_preview_state,
+        restore_dataframe_preview_state as _orchestrate_restore_dataframe_preview_state,
+        is_app_installed as _orchestrate_is_app_installed,
+        LOG_DISPLAY_MAX_LINES,
+        LIVE_LOG_MIN_HEIGHT,
+        INSTALL_LOG_HEIGHT,
+        _TRACEBACK_SKIP,
+    )
+except ModuleNotFoundError:
+    _orchestrate_page_helpers_path = Path(__file__).resolve().parents[1] / "orchestrate_page_helpers.py"
+    _orchestrate_page_helpers_spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_page_helpers_fallback",
+        _orchestrate_page_helpers_path,
+    )
+    if _orchestrate_page_helpers_spec is None or _orchestrate_page_helpers_spec.loader is None:
+        raise
+    _orchestrate_page_helpers_module = importlib.util.module_from_spec(_orchestrate_page_helpers_spec)
+    _orchestrate_page_helpers_spec.loader.exec_module(_orchestrate_page_helpers_module)
+    _orchestrate_app_install_status = _orchestrate_page_helpers_module.app_install_status
+    _orchestrate_init_session_state = _orchestrate_page_helpers_module.init_session_state
+    _orchestrate_clear_log = _orchestrate_page_helpers_module.clear_log
+    _orchestrate_rerun_fragment_or_app = _orchestrate_page_helpers_module.rerun_fragment_or_app
+    _orchestrate_update_delete_confirm_state = _orchestrate_page_helpers_module.update_delete_confirm_state
+    _orchestrate_update_log = _orchestrate_page_helpers_module.update_log
+    _orchestrate_reset_traceback_skip = _orchestrate_page_helpers_module.reset_traceback_skip
+    _orchestrate_append_log_lines = _orchestrate_page_helpers_module.append_log_lines
+    _orchestrate_log_indicates_install_failure = _orchestrate_page_helpers_module.log_indicates_install_failure
+    _orchestrate_looks_like_shared_path = _orchestrate_page_helpers_module.looks_like_shared_path
+    _orchestrate_set_active_app_query_param = _orchestrate_page_helpers_module.set_active_app_query_param
+    _orchestrate_clear_cached_distribution = _orchestrate_page_helpers_module.clear_cached_distribution
+    _orchestrate_clear_mount_table_cache = _orchestrate_page_helpers_module.clear_mount_table_cache
+    _orchestrate_resolve_share_candidate = _orchestrate_page_helpers_module.resolve_share_candidate
+    _orchestrate_benchmark_display_date = _orchestrate_page_helpers_module.benchmark_display_date
+    _orchestrate_display_log = _orchestrate_page_helpers_module.display_log
+    _orchestrate_safe_eval = _orchestrate_page_helpers_module.safe_eval
+    _orchestrate_parse_and_validate_scheduler = _orchestrate_page_helpers_module.parse_and_validate_scheduler
+    _orchestrate_parse_and_validate_workers = _orchestrate_page_helpers_module.parse_and_validate_workers
+    _orchestrate_toggle_select_all = _orchestrate_page_helpers_module.toggle_select_all
+    _orchestrate_update_select_all = _orchestrate_page_helpers_module.update_select_all
+    _orchestrate_capture_dataframe_preview_state = _orchestrate_page_helpers_module.capture_dataframe_preview_state
+    _orchestrate_restore_dataframe_preview_state = _orchestrate_page_helpers_module.restore_dataframe_preview_state
+    _orchestrate_is_app_installed = _orchestrate_page_helpers_module.is_app_installed
+    LOG_DISPLAY_MAX_LINES = _orchestrate_page_helpers_module.LOG_DISPLAY_MAX_LINES
+    LIVE_LOG_MIN_HEIGHT = _orchestrate_page_helpers_module.LIVE_LOG_MIN_HEIGHT
+    INSTALL_LOG_HEIGHT = _orchestrate_page_helpers_module.INSTALL_LOG_HEIGHT
+    _TRACEBACK_SKIP = _orchestrate_page_helpers_module._TRACEBACK_SKIP
 try:
     from agilab.orchestrate_cluster import (
         OrchestrateClusterDeps,
@@ -196,14 +231,10 @@ try:
         evaluate_service_health_gate as _evaluate_service_health_gate,
         extract_result_dict_from_output as _extract_result_dict_from_output,
         fstype_for_path as _fstype_for_path,
-        looks_like_shared_path as _looks_like_shared_path_impl,
         macos_autofs_hint as _macos_autofs_hint,
         mount_table as _mount_table,
-        parse_and_validate_scheduler as _parse_and_validate_scheduler_impl,
-        parse_and_validate_workers as _parse_and_validate_workers_impl,
         parse_benchmark,
         sanitize_for_toml as _sanitize_for_toml,
-        safe_eval as _safe_eval_impl,
         write_app_settings_toml as _write_app_settings_toml,
     )
 except ModuleNotFoundError:
@@ -222,14 +253,10 @@ except ModuleNotFoundError:
     _evaluate_service_health_gate = _orchestrate_support_module.evaluate_service_health_gate
     _extract_result_dict_from_output = _orchestrate_support_module.extract_result_dict_from_output
     _fstype_for_path = _orchestrate_support_module.fstype_for_path
-    _looks_like_shared_path_impl = _orchestrate_support_module.looks_like_shared_path
     _macos_autofs_hint = _orchestrate_support_module.macos_autofs_hint
     _mount_table = _orchestrate_support_module.mount_table
-    _parse_and_validate_scheduler_impl = _orchestrate_support_module.parse_and_validate_scheduler
-    _parse_and_validate_workers_impl = _orchestrate_support_module.parse_and_validate_workers
     parse_benchmark = _orchestrate_support_module.parse_benchmark
     _sanitize_for_toml = _orchestrate_support_module.sanitize_for_toml
-    _safe_eval_impl = _orchestrate_support_module.safe_eval
     _write_app_settings_toml = _orchestrate_support_module.write_app_settings_toml
 # Project Libraries:
 from agi_env.pagelib import (
@@ -258,10 +285,7 @@ def clear_log() -> None:
 
 def _rerun_fragment_or_app() -> None:
     """Prefer a fragment rerun when valid; otherwise fall back to a full app rerun."""
-    try:
-        st.rerun(scope="fragment")
-    except StreamlitAPIException:
-        st.rerun()
+    _orchestrate_rerun_fragment_or_app(st.rerun, StreamlitAPIException)
 
 
 def _update_delete_confirm_state(
@@ -298,7 +322,7 @@ def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -
 
 
 def _reset_traceback_skip() -> None:
-    _TRACEBACK_SKIP["active"] = False
+    _orchestrate_reset_traceback_skip(_TRACEBACK_SKIP)
     update_log._skip_traceback = False
 
 
@@ -320,15 +344,12 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
 
 def _looks_like_shared_path(path: Path) -> bool:
     project_root = Path(__file__).resolve().parents[2]
-    return _looks_like_shared_path_impl(path, project_root=project_root)
+    return _orchestrate_looks_like_shared_path(path, project_root)
 
 
 def _set_active_app_query_param(active_app: Any) -> None:
     """Best-effort update of the active-app query parameter during page transitions."""
-    try:
-        st.query_params["active_app"] = active_app
-    except StreamlitAPIException:
-        return
+    _orchestrate_set_active_app_query_param(st.query_params, active_app, streamlit_api_exception=StreamlitAPIException)
 
 
 def _clear_cached_distribution() -> None:
@@ -348,13 +369,12 @@ def _resolve_share_candidate(path_value: Any, home_abs: Path | str) -> Path:
 
 def _benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     """Return the benchmark date string, using file mtime as a fallback."""
-    return _orchestrate_benchmark_display_date(benchmark_path, date_value)
-
-
-LOG_DISPLAY_MAX_LINES = 250
-LIVE_LOG_MIN_HEIGHT = 160
-INSTALL_LOG_HEIGHT = 320
-_TRACEBACK_SKIP = {"active": False}
+    return _orchestrate_benchmark_display_date(
+        benchmark_path,
+        date_value,
+        os_module=os,
+        datetime_type=datetime,
+    )
 
 
 def display_log(stdout, stderr):
@@ -379,16 +399,11 @@ update_log._skip_traceback = False
 
 
 def safe_eval(expression: str, expected_type: Any, error_message: str) -> Any:
-    return _safe_eval_impl(
-        expression,
-        expected_type,
-        error_message,
-        on_error=st.error,
-    )
+    return _orchestrate_safe_eval(expression, expected_type, error_message, on_error=st.error)
 
 
 def parse_and_validate_scheduler(scheduler: str) -> Optional[str]:
-    return _parse_and_validate_scheduler_impl(
+    return _orchestrate_parse_and_validate_scheduler(
         scheduler,
         is_valid_ip=is_valid_ip,
         on_error=st.error,
@@ -396,7 +411,7 @@ def parse_and_validate_scheduler(scheduler: str) -> Optional[str]:
 
 
 def parse_and_validate_workers(workers_input: str) -> dict[str, int]:
-    return _parse_and_validate_workers_impl(
+    return _orchestrate_parse_and_validate_workers(
         workers_input,
         is_valid_ip=is_valid_ip,
         on_error=st.error,
