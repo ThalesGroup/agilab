@@ -44,6 +44,7 @@ from agi_cluster.agi_distributor import (
     deployment_orchestration_support,
     deployment_prepare_support,
     deployment_remote_support,
+    entrypoint_support,
     runtime_distribution_support,
     service_runtime_support,
     transport_support,
@@ -764,106 +765,22 @@ class AGI:
             ValueError: If `mode` is invalid.
             RuntimeError: If the target module fails to load.
         """
-        AGI.env = env
-
-        if not workers:
-            workers = _workers_default
-        elif not isinstance(workers, dict):
-            raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
-
-        AGI.target_path = env.manager_path
-        AGI._target = env.target
-        AGI._rapids_enabled = rapids_enabled
-        if env.verbose > 0:
-            logger.info(f"AGI instance created for target {env.target} with verbosity {env.verbose}")
-
-        if mode is None or isinstance(mode, list):
-            mode_range = range(8) if mode is None else sorted(mode)
-            return await AGI._benchmark(
-                env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
-            )
-        else:
-            if isinstance(mode, str):
-                pattern = r"^[dcrp]+$"
-                if not re.fullmatch(pattern, mode.lower()):
-                    raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-                AGI._mode = env.mode2int(mode)
-            elif isinstance(mode, int):
-                AGI._mode = int(mode)
-            else:
-                raise ValueError("parameter <mode> must be an int, a list of int or a string")
-
-            AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-            if AGI._mode:
-                if AGI._mode & AGI._RUN_MASK not in range(0, AGI.RAPIDS_MODE):
-                    raise ValueError(f"mode {AGI._mode} not implemented")
-            else:
-                # 16 first modes are "run" type, then there 16, 17 and 18
-                AGI._run_type = AGI._run_types[(AGI._mode & AGI._DEPLOYEMENT_MASK) >> AGI.DASK_MODE]
-            AGI._args = args
-            AGI.verbose = verbose
-            AGI._workers = workers
-            AGI._workers_data_path = workers_data_path
-            AGI._run_time = {}
-
-            AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
-            AGI._capacity_model_file = env.resources_path / "balancer_model.pkl"
-            path = Path(AGI._capacity_model_file)
-
-            if path.is_file():
-                with open(path, "rb") as f:
-                    AGI._capacity_predictor = pickle.load(f)
-            else:
-                AGI._train_capacity(Path(env.home_abs))
-
-        # import of derived Class of WorkDispatcher, name target_inst which is typically instance of Flight or MyCode
-        AGI.agi_workers = {
-            "AgiDataWorker": "pandas-worker",
-            "PolarsWorker": "polars-worker",
-            "PandasWorker": "pandas-worker",
-            "FireducksWorker": "fireducks-worker",
-            "DagWorker": "dag-worker",
-        }
-        base_worker_cls = getattr(env, "base_worker_cls", None)
-        if not base_worker_cls:
-            target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
-            worker_path = getattr(env, "worker_path", None) or "<worker path>"
-            supported = ", ".join(sorted(AGI.agi_workers.keys()))
-            raise ValueError(
-                f"Missing {target_worker_class} definition; expected {worker_path}. "
-                f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
-            )
-        try:
-            AGI.install_worker_group = [AGI.agi_workers[base_worker_cls]]
-        except KeyError as exc:
-            supported = ", ".join(sorted(AGI.agi_workers.keys()))
-            raise ValueError(
-                f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
-            ) from exc
-
-        try:
-            return await AGI._main(scheduler)
-
-        except ProcessError as e:
-            logger.error(f"failed to run \n{e}")
-            return
-
-        except ConnectionError as e:
-            message = str(e).strip() or "Failed to connect to remote host."
-            logger.info(message)
-            print(message, file=sys.stderr, flush=True)
-            return {"status": "error", "message": message, "kind": "connection"}
-
-        except ModuleNotFoundError as e:
-            logger.error(f"failed to load module \n{e}")
-            return
-
-        except Exception as err:
-            message = _format_exception_chain(err)
-            logger.error(f"Unhandled exception in AGI.run: {message}")
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("Traceback:\n%s", traceback.format_exc())
-            raise
+        return await entrypoint_support.run(
+            AGI,
+            env=env,
+            scheduler=scheduler,
+            workers=workers,
+            workers_data_path=workers_data_path,
+            verbose=verbose,
+            mode=mode,
+            rapids_enabled=rapids_enabled,
+            workers_default=_workers_default,
+            process_error_type=ProcessError,
+            format_exception_chain_fn=_format_exception_chain,
+            traceback_format_exc_fn=traceback.format_exc,
+            log=logger,
+            **args,
+        )
 
     @staticmethod
     def _wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
@@ -1657,42 +1574,15 @@ class AGI:
             verbose: Optional[int] = None,
             **args: Any,
     ) -> None:
-        """
-        Update the cluster's virtual environment.
-
-        Args:
-            project_path (Path):
-                The name of the module to install or the path to the module.
-            list_ip (List[str], optional):
-                A list of IPv4 addresses with SSH access. Each IP should have Python,
-                `psutil`, and `pdm` installed. Defaults to None.
-            modes_enabled (int, optional):
-                Bitmask indicating enabled modes. Defaults to `0b0111`.
-            verbose (int, optional):
-                Verbosity level (0-3). Higher numbers increase the verbosity of the output.
-                Defaults to 1.
-            **args:
-                Additional keyword arguments.
-
-        Returns:
-            bool:
-                `True` if the installation was successful, `False` otherwise.
-
-        Raises:
-            ValueError:
-                If `module_name_or_path` is invalid.
-            ConnectionError:
-        """
-        AGI._run_type = "sync"
-        mode = (AGI._INSTALL_MODE | modes_enabled)
-        await AGI.run(
+        await entrypoint_support.install(
+            AGI,
             env=env,
             scheduler=scheduler,
             workers=workers,
             workers_data_path=workers_data_path,
-            mode=mode,
-            rapids_enabled=AGI._INSTALL_MODE & modes_enabled,
-            verbose=verbose, **args
+            modes_enabled=modes_enabled,
+            verbose=verbose,
+            args=args,
         )
 
     @staticmethod
@@ -1704,24 +1594,14 @@ class AGI:
             verbose: Optional[int] = None,
             **args: Any,
     ) -> None:
-        """
-        install cluster virtual environment
-        Parameters
-        ----------
-        package: any Agi target apps or project created with AGILAB
-        list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
-        mode_enabled: this is typically a mode mask to know for example if cython or rapids are required
-        force_update: make a Spud.update before the installation, default is True
-        verbose: verbosity [0-3]
-
-        Returns
-        -------
-
-        """
-        AGI._run_type = "upgrade"
-        await AGI.run(env=env, scheduler=scheduler, workers=workers,
-                      mode=(AGI._UPDATE_MODE | modes_enabled) & AGI._DASK_RESET,
-                      rapids_enabled=AGI._UPDATE_MODE & modes_enabled, **args)
+        await entrypoint_support.update(
+            AGI,
+            env=env,
+            scheduler=scheduler,
+            workers=workers,
+            modes_enabled=modes_enabled,
+            args=args,
+        )
 
     @staticmethod
     async def get_distrib(
@@ -1731,20 +1611,13 @@ class AGI:
             verbose: int = 0,
             **args: Any,
     ) -> Any:
-        """
-        check the distribution with a dry run
-        Parameters
-        ----------
-        package: any Agi target apps or project created by AGILAB
-        list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
-        verbose: verbosity [0-3]
-
-        Returns
-        the distribution tree
-        -------
-        """
-        AGI._run_type = "simulate"
-        return await AGI.run(env, scheduler, workers, mode=AGI._SIMULATE_MODE, **args)
+        return await entrypoint_support.get_distrib(
+            AGI,
+            env=env,
+            scheduler=scheduler,
+            workers=workers,
+            args=args,
+        )
 
     # Backward compatibility alias
     @staticmethod
@@ -1755,147 +1628,24 @@ class AGI:
             verbose: int = 0,
             **args: Any,
     ) -> Any:
-        return await AGI.get_distrib(env, scheduler, workers, verbose=verbose, **args)
+        return await entrypoint_support.distribute(
+            AGI,
+            env=env,
+            scheduler=scheduler,
+            workers=workers,
+            args=args,
+        )
 
     @staticmethod
     async def _start_scheduler(scheduler: Optional[str]) -> bool:
-        """
-        Start Dask scheduler either locally or remotely.
-
-        Returns:
-            bool: True on success.
-
-        Raises:
-            FileNotFoundError: if worker initialization error occurs.
-            SystemExit: on fatal error starting scheduler or Dask client.
-        """
-        env = AGI.env
-        cli_rel = env.wenv_rel.parent / "cli.py"
-
-        if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
-            env.hw_rapids_capable = True
-            if AGI._mode & AGI.DASK_MODE:
-                if scheduler is None:
-                    if list(AGI._workers) == ["127.0.0.1"]:
-                        scheduler = "127.0.0.1"
-                    else:
-                        logger.info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
-
-                AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
-
-            # Clean worker
-            for ip in list(AGI._workers):
-                await AGI.send_file(
-                    env,
-                    ip,
-                    env.cluster_pck / "agi_distributor/cli.py",
-                    cli_rel,
-                )
-                hw_rapids_capable = env.envars.get(ip, None)
-                if not hw_rapids_capable or hw_rapids_capable == "no_rapids_hw":
-                    env.hw_rapids_capable = False
-                try:
-                    await AGI._kill(ip, os.getpid(), force=True)
-                except Exception as e:
-                    raise
-
-            # clean scheduler (avoid duplicate kill when scheduler host already handled as worker)
-            if AGI._scheduler_ip not in AGI._workers:
-                try:
-                    await AGI._kill(AGI._scheduler_ip, os.getpid(), force=True)
-                except Exception as e:
-                    raise
-
-            toml_local = env.active_app / "pyproject.toml"
-            wenv_rel = env.wenv_rel
-        else:
-            toml_local = env.active_app / "pyproject.toml"
-            wenv_rel = env.wenv_rel
-        wenv_abs = env.wenv_abs
-        if env.is_local(AGI._scheduler_ip):
-            released = await AGI._wait_for_port_release(AGI._scheduler_ip, AGI._scheduler_port)
-            if not released:
-                new_port = AGI.find_free_port()
-                logger.warning(
-                    "Scheduler port %s:%s still busy. Switching scheduler port to %s.",
-                    AGI._scheduler_ip,
-                    AGI._scheduler_port,
-                    new_port,
-                )
-                AGI._scheduler_port = new_port
-                AGI._scheduler = f"{AGI._scheduler_ip}:{AGI._scheduler_port}"
-            elif AGI._mode_auto:
-                # Rotate ports between benchmark iterations to avoid TIME_WAIT collisions.
-                new_port = AGI.find_free_port()
-                AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(
-                    {AGI._scheduler_ip: new_port}
-                )
-
-        cmd_prefix = env.envars.get(f"{AGI._scheduler_ip}_CMD_PREFIX", "")
-        if not cmd_prefix:
-            try:
-                cmd_prefix = await AGI._detect_export_cmd(AGI._scheduler_ip) or ""
-            except Exception:
-                cmd_prefix = ""
-            if cmd_prefix:
-                AgiEnv.set_env_var(f"{AGI._scheduler_ip}_CMD_PREFIX", cmd_prefix)
-
-        dask_env = AGI._dask_env_prefix()
-        if env.is_local(AGI._scheduler_ip):
-            await asyncio.sleep(1)  # non-blocking sleep
-            local_prefix = cmd_prefix or env.export_local_bin or ""
-            cmd = (
-                f"{local_prefix}{dask_env}{env.uv} run --no-sync --project {env.wenv_abs} "
-                f"dask scheduler "
-                f"--port {AGI._scheduler_port} "
-                f"--host {AGI._scheduler_ip} "
-                f"--dashboard-address :0 "
-                f"--pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
-            )
-            logger.info(f"Starting dask scheduler locally: {cmd}")
-            result = AGI._exec_bg(cmd, env.app)
-            if result:  # assuming _exec_bg is sync
-                logger.info(result)
-        else:
-            # Create remote directory
-            cmd = (
-                f"{cmd_prefix}{env.uv} run --no-sync python -c "
-                f"\"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-            )
-            await AGI.exec_ssh(AGI._scheduler_ip, cmd)
-
-            toml_wenv = wenv_rel / "pyproject.toml"
-            await AGI.send_file(env, AGI._scheduler_ip, toml_local, toml_wenv)
-
-            cmd = (
-                f"{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync "
-                f"dask scheduler "
-                f"--port {AGI._scheduler_port} "
-                f"--host {AGI._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
-            )
-            # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
-            asyncio.create_task(AGI.exec_ssh_async(AGI._scheduler_ip, cmd))
-
-        await asyncio.sleep(1)  # Give scheduler a moment to spin up
-        try:
-            client = await AGI._connect_scheduler_with_retry(
-                AGI._scheduler,
-                timeout=max(AGI._TIMEOUT * 3, 15),
-                heartbeat_interval=5000,
-            )
-            AGI._dask_client = client
-        except Exception as e:
-            logger.error("Dask Client instantiation trouble, run aborted due to:")
-            logger.info(e)
-            if isinstance(e, RuntimeError):
-                raise
-            raise RuntimeError("Failed to instantiate Dask Client") from e
-
-        AGI._install_done = True
-        if AGI._worker_init_error:
-            raise FileNotFoundError(f"Please run AGI.install([{AGI._scheduler_ip}])")
-
-        return True
+        return await entrypoint_support.start_scheduler(
+            AGI,
+            scheduler,
+            set_env_var_fn=AgiEnv.set_env_var,
+            create_task_fn=asyncio.create_task,
+            sleep_fn=asyncio.sleep,
+            log=logger,
+        )
 
     @staticmethod
     async def _connect_scheduler_with_retry(
@@ -1904,49 +1654,24 @@ class AGI:
         timeout: float,
         heartbeat_interval: int = 5000,
     ) -> Client:
-        """Attempt to connect to the scheduler until ``timeout`` elapses."""
-
-        deadline = time.monotonic() + max(timeout, 1)
-        attempt = 0
-        last_exc: Optional[Exception] = None
-        while time.monotonic() < deadline:
-            attempt += 1
-            remaining = max(deadline - time.monotonic(), 0.5)
-            try:
-                return await Client(
-                    address,
-                    heartbeat_interval=heartbeat_interval,
-                    timeout=remaining,
-                )
-            except Exception as exc:
-                last_exc = exc
-                sleep_for = min(1.0 * attempt, 5.0)
-                logger.debug(
-                    "Dask scheduler at %s not ready (attempt %s, retrying in %.1fs): %s",
-                    address,
-                    attempt,
-                    sleep_for,
-                    exc,
-                )
-                await asyncio.sleep(sleep_for)
-
-        raise RuntimeError("Failed to instantiate Dask Client") from last_exc
+        return await entrypoint_support.connect_scheduler_with_retry(
+            address,
+            timeout=timeout,
+            heartbeat_interval=heartbeat_interval,
+            client_factory=Client,
+            sleep_fn=asyncio.sleep,
+            monotonic_fn=time.monotonic,
+            log=logger,
+        )
 
     @staticmethod
     async def _detect_export_cmd(ip: str) -> Optional[str]:
-        if AgiEnv.is_local(ip):
-            return AgiEnv.export_local_bin
-
-        # probe remote OS via SSH
-        try:
-            os_id = await AGI.exec_ssh(ip, "uname -s")
-        except Exception:
-            os_id = ''
-
-        if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
-            return 'export PATH="$HOME/.local/bin:$PATH";'
-        else:
-            return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+        return await entrypoint_support.detect_export_cmd(
+            AGI,
+            ip,
+            is_local_fn=AgiEnv.is_local,
+            local_export_bin=AgiEnv.export_local_bin,
+        )
 
     @staticmethod
     def _dask_env_prefix() -> str:
