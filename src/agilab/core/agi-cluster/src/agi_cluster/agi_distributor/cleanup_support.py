@@ -18,6 +18,7 @@ from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
+REMOVE_DIR_RETRY_EXCEPTIONS = (OSError, shutil.Error)
 
 
 def remove_dir_forcefully(
@@ -38,12 +39,12 @@ def remove_dir_forcefully(
 
     try:
         rmtree_fn(path, onerror=onerror)
-    except Exception as exc:
+    except REMOVE_DIR_RETRY_EXCEPTIONS as exc:
         log.error("Exception while deleting %s: %s", path, exc)
         sleep_fn(1)
         try:
             rmtree_fn(path, onerror=onerror)
-        except Exception as second_exc:
+        except REMOVE_DIR_RETRY_EXCEPTIONS as second_exc:
             log.error("Second failure deleting %s: %s", path, second_exc)
             raise
 
@@ -73,11 +74,11 @@ async def kill_processes(
             pid = int(pid_file.read_text().strip())
             if pid == current_pid:
                 continue
-        except Exception:
+        except (OSError, ValueError):
             log.warning("Could not read PID from %s, skipping", pid_file)
         try:
             pid_file.unlink()
-        except Exception as exc:
+        except OSError as exc:
             log.warning("Failed to remove pid file %s: %s", pid_file, exc)
 
     cmds: list[str] = []
@@ -141,7 +142,7 @@ async def wait_for_port_release(
         finally:
             try:
                 sock.close()
-            except Exception:
+            except OSError:
                 pass
     return False
 
