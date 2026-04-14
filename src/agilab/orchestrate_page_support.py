@@ -349,6 +349,97 @@ def append_log_lines(
                 buffer.append(stripped)
 
 
+def update_log(
+    session_state: MutableMapping[str, Any],
+    live_log_placeholder: Any,
+    message: str,
+    *,
+    max_lines: int,
+    cluster_verbose: int,
+    traceback_state: MutableMapping[str, bool],
+    strip_ansi_fn: Callable[[str], str],
+    is_dask_shutdown_noise_fn: Callable[[str], bool],
+    log_display_max_lines: int,
+    live_log_min_height: int,
+    max_log_height: int = 500,
+) -> None:
+    """Append a cleaned message to accumulated log and refresh live display."""
+    if "log_text" not in session_state:
+        session_state["log_text"] = ""
+
+    clean_msg = strip_ansi_fn(message).rstrip()
+    if cluster_verbose < 2:
+        if bool(traceback_state.get("active", False)):
+            if not clean_msg:
+                traceback_state["active"] = False
+            return
+        if clean_msg.lower().startswith("traceback (most recent call last"):
+            traceback_state["active"] = True
+            return
+        if is_dask_shutdown_noise_fn(clean_msg):
+            return
+    if clean_msg:
+        session_state["log_text"] += clean_msg + "\n"
+
+    lines = str(session_state.get("log_text", "")).splitlines()
+    if len(lines) > max_lines:
+        lines = lines[-max_lines:]
+        session_state["log_text"] = "\n".join(lines) + "\n"
+
+    display_lines = lines[-log_display_max_lines:]
+    live_view = "\n".join(display_lines)
+    line_count = max(len(display_lines), 1)
+    height_px = min(max(20 * line_count, live_log_min_height), max_log_height)
+    live_log_placeholder.code(live_view, language="python", height=height_px)
+
+
+def display_log(
+    stdout: str,
+    stderr: str,
+    *,
+    session_state: Mapping[str, Any],
+    strip_ansi_fn: Callable[[str], str],
+    filter_warning_messages_fn: Callable[[str], str] = filter_warning_messages,
+    format_log_block_fn: Callable[[str], str] = lambda text: format_log_block(text, newest_first=False),
+    warning_fn: Callable[[str], Any] = lambda message: None,
+    error_fn: Callable[[str], Any] = lambda message: None,
+    code_fn: Callable[..., Any] = lambda *args, **kwargs: None,
+    log_display_max_lines: int = 250,
+    log_display_height: int = 400,
+) -> None:
+    """Render combined stdout/stderr logs with warning and error normalization."""
+    if not stdout.strip() and "log_text" in session_state:
+        stdout = str(session_state.get("log_text", ""))
+
+    clean_stdout = filter_warning_messages_fn(strip_ansi_fn(stdout or ""))
+    clean_stderr = filter_warning_messages_fn(strip_ansi_fn(stderr or ""))
+    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
+    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
+
+    combined = "\n".join([clean_stdout, clean_stderr]).strip()
+
+    if "warning:" in combined.lower():
+        warning_fn("Warnings occurred during cluster installation:")
+        code_fn(
+            format_log_block_fn(combined),
+            language="python",
+            height=log_display_height,
+        )
+    elif clean_stderr:
+        error_fn("Errors occurred during cluster installation:")
+        code_fn(
+            format_log_block_fn(clean_stderr),
+            language="python",
+            height=log_display_height,
+        )
+    else:
+        code_fn(
+            format_log_block_fn(clean_stdout) or "No logs available",
+            language="python",
+            height=log_display_height,
+        )
+
+
 def init_session_state(session_state: Mapping[str, Any], defaults: Mapping[str, Any]) -> None:
     """Initialize session-like state keys that are missing."""
     for key, value in defaults.items():

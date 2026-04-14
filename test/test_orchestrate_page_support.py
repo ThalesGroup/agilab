@@ -7,6 +7,17 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
+class _CaptureCodeSink:
+    def __init__(self) -> None:
+        self.calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def code(self, *args: object, **kwargs: object) -> None:
+        self.calls.append((args, kwargs))
+
+    def __call__(self, *args: object, **kwargs: object) -> None:
+        self.calls.append((args, kwargs))
+
+
 def _import_agilab_module(module_name: str):
     src_root = Path(__file__).resolve().parents[1] / "src"
     package_root = src_root / "agilab"
@@ -197,6 +208,115 @@ def test_append_log_lines_filters_tracebacks_and_dask_noise():
     )
     assert buffer == ["normal", "next"]
     assert state["active"] is False
+
+
+def test_update_log_helper_updates_session_state_and_trims_output():
+    sink = _CaptureCodeSink()
+    session_state: dict[str, object] = {}
+    traceback_state = {"active": False}
+
+    for i in range(1, 5):
+        orchestrate_page_support.update_log(
+            session_state,
+            sink,
+            f"line {i}",
+            max_lines=3,
+            cluster_verbose=2,
+            traceback_state=traceback_state,
+            strip_ansi_fn=orchestrate_page_support.strip_ansi,
+            is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+            log_display_max_lines=2,
+            live_log_min_height=160,
+        )
+
+    assert session_state["log_text"] == "line 2\nline 3\nline 4\n"
+    assert sink.calls[-1][0][0] == "line 3\nline 4"
+    assert sink.calls[-1][1]["language"] == "python"
+    assert sink.calls[-1][1]["height"] == 160
+
+
+def test_update_log_helper_ignores_traceback_and_dask_noise_at_low_verbosity():
+    sink = _CaptureCodeSink()
+    session_state: dict[str, object] = {"cluster_verbose": 1}
+    traceback_state = {"active": False}
+
+    for message in [
+        "normal",
+        "Traceback (most recent call last):",
+        "stream is closed",
+        "",
+        "after traceback",
+    ]:
+        orchestrate_page_support.update_log(
+            session_state,
+            sink,
+            message,
+            max_lines=10,
+            cluster_verbose=1,
+            traceback_state=traceback_state,
+            strip_ansi_fn=orchestrate_page_support.strip_ansi,
+            is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+            log_display_max_lines=10,
+            live_log_min_height=100,
+        )
+
+    assert session_state["log_text"] == "normal\nafter traceback\n"
+    assert traceback_state["active"] is False
+    assert sink.calls[-1][0][0] == "normal\nafter traceback"
+
+
+def test_display_log_helper_warns_on_warning_stderr_and_uses_stderr_path():
+    warnings: list[str] = []
+    errors: list[str] = []
+    code_sink = _CaptureCodeSink()
+
+    def _warn(message: str) -> None:
+        warnings.append(message)
+
+    def _err(message: str) -> None:
+        errors.append(message)
+
+    orchestrate_page_support.display_log(
+        stdout="normal output\nwarning: deprecated option\n",
+        stderr="",
+        session_state={},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda text: text,
+        format_log_block_fn=lambda text: text,
+        warning_fn=_warn,
+        error_fn=_err,
+        code_fn=code_sink,
+        log_display_max_lines=250,
+        log_display_height=300,
+    )
+
+    assert warnings == ["Warnings occurred during cluster installation:"]
+    assert errors == []
+    assert code_sink.calls[-1][0][0] == "normal output\nwarning: deprecated option"
+
+
+def test_display_log_helper_uses_cached_stdout_when_missing_and_shows_stderr_errors():
+    errors: list[str] = []
+    warning_messages: list[str] = []
+    code_sink = _CaptureCodeSink()
+
+    orchestrate_page_support.display_log(
+        stdout="",
+        stderr="something failed",
+        session_state={"log_text": "fallback log"},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda text: text,
+        format_log_block_fn=lambda text: text,
+        warning_fn=lambda message: warning_messages.append(message),
+        error_fn=lambda message: errors.append(message),
+        code_fn=code_sink,
+        log_display_max_lines=250,
+        log_display_height=300,
+    )
+
+    assert warning_messages == []
+    assert errors == ["Errors occurred during cluster installation:"]
+    assert code_sink.calls[-1][0][0] == "something failed"
 
 
 def test_capture_and_restore_dataframe_preview_state_round_trip():
