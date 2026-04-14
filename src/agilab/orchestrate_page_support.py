@@ -448,3 +448,77 @@ def log_indicates_install_failure(lines: list[str]) -> bool:
         else:
             return True
     return False
+
+
+def capture_dataframe_preview_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
+    """Capture dataframe preview-related state for one-step undo."""
+    df_cols_raw = session_state.get("df_cols", [])
+    selected_cols_raw = session_state.get("selected_cols", [])
+    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
+    selected_cols = list(selected_cols_raw) if isinstance(selected_cols_raw, (list, tuple)) else []
+    return {
+        "loaded_df": session_state.get("loaded_df"),
+        "loaded_graph": session_state.get("loaded_graph"),
+        "loaded_source_path": session_state.get("loaded_source_path"),
+        "df_cols": df_cols,
+        "selected_cols": selected_cols,
+        "check_all": bool(session_state.get("check_all", False)),
+        "force_export_open": bool(session_state.get("_force_export_open", False)),
+        "dataframe_deleted": bool(session_state.get("dataframe_deleted", False)),
+    }
+
+
+def restore_dataframe_preview_state(
+    session_state: MutableMapping[str, Any],
+    payload: Mapping[str, Any],
+) -> None:
+    """Restore dataframe preview state from a snapshot."""
+    session_state["loaded_df"] = payload.get("loaded_df")
+    if payload.get("loaded_graph") is None:
+        session_state.pop("loaded_graph", None)
+    else:
+        session_state["loaded_graph"] = payload.get("loaded_graph")
+
+    source_path = payload.get("loaded_source_path")
+    if source_path:
+        session_state["loaded_source_path"] = source_path
+    else:
+        session_state.pop("loaded_source_path", None)
+
+    df_cols_raw = payload.get("df_cols", [])
+    selected_cols_raw = payload.get("selected_cols", [])
+    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
+    selected_cols = [col for col in (selected_cols_raw or []) if col in df_cols]
+    requested_all = bool(payload.get("check_all", False))
+    if requested_all and df_cols:
+        selected_cols = df_cols.copy()
+
+    session_state["df_cols"] = df_cols
+    session_state["selected_cols"] = selected_cols
+    session_state["check_all"] = bool(df_cols) and len(selected_cols) == len(df_cols)
+    session_state["_force_export_open"] = bool(payload.get("force_export_open", False))
+    session_state["dataframe_deleted"] = bool(payload.get("dataframe_deleted", False))
+
+    for key in [key for key in list(session_state.keys()) if key.startswith("export_col_")]:
+        session_state.pop(key, None)
+    for idx, col in enumerate(df_cols):
+        session_state[f"export_col_{idx}"] = col in selected_cols
+
+
+def toggle_select_all(session_state: MutableMapping[str, Any]) -> None:
+    """Update selected dataframe columns based on a pre-set ``check_all`` flag."""
+    if session_state.get("check_all"):
+        session_state["selected_cols"] = list(session_state.get("df_cols", []))
+    else:
+        session_state["selected_cols"] = []
+
+
+def update_select_all(session_state: MutableMapping[str, Any]) -> None:
+    """Synchronize ``check_all`` and selected column state from checkbox session flags."""
+    df_cols_raw = session_state.get("df_cols", [])
+    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
+    all_selected = all(session_state.get(f"export_col_{i}", False) for i in range(len(df_cols)))
+    session_state["check_all"] = all_selected
+    session_state["selected_cols"] = [
+        col for i, col in enumerate(df_cols) if session_state.get(f"export_col_{i}", False)
+    ]

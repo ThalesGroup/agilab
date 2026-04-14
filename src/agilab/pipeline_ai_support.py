@@ -341,10 +341,16 @@ def _resolve_uoaic_path(raw_path: str, base_dir: Optional[Path] = None) -> Path:
     return (base / candidate).resolve()
 
 
-def _load_uoaic_modules() -> Tuple[Any, ...]:
+def _load_uoaic_modules(
+    *,
+    distribution_fn: Callable[[str], Any] = importlib_metadata.distribution,
+    import_module_fn: Callable[[str], Any] = importlib.import_module,
+    spec_from_file_location_fn: Callable[[str, str], Any] = importlib.util.spec_from_file_location,
+    module_from_spec_fn: Callable[[Any], Any] = importlib.util.module_from_spec,
+) -> Tuple[Any, ...]:
     """Import Universal Offline AI Chatbot modules with detailed diagnostics."""
     try:
-        dist = importlib_metadata.distribution("universal-offline-ai-chatbot")
+        dist = distribution_fn("universal-offline-ai-chatbot")
     except importlib_metadata.PackageNotFoundError as exc:
         raise RuntimeError(
             "Install `universal-offline-ai-chatbot` (e.g. `uv pip install \"agilab[offline]\"`) "
@@ -378,7 +384,7 @@ def _load_uoaic_modules() -> Tuple[Any, ...]:
     imported_modules: List[Any] = []
     for name in module_names:
         try:
-            imported_modules.append(importlib.import_module(name))
+            imported_modules.append(import_module_fn(name))
             continue
         except ImportError as exc:
             # Fallback: load the module directly from files inside the wheel
@@ -404,9 +410,9 @@ def _load_uoaic_modules() -> Tuple[Any, ...]:
             if file_path and file_path.exists():
                 alias = f"uoaic_{short}"
                 try:
-                    spec = importlib.util.spec_from_file_location(alias, str(file_path))
+                    spec = spec_from_file_location_fn(alias, str(file_path))
                     if spec and spec.loader:
-                        module = importlib.util.module_from_spec(spec)
+                        module = module_from_spec_fn(spec)
                         spec.loader.exec_module(module)
                         imported_modules.append(module)
                         continue
@@ -455,7 +461,7 @@ def _ensure_uoaic_runtime(
         or os.getenv(data_env_key, "")
     )
     if not data_path_raw:
-        raise ValueError("Configure the Universal Offline data directory in the sidebar to enable this provider.")
+        raise ValueError("Missing Universal Offline data directory")
 
     try:
         data_path = resolve_uoaic_path(data_path_raw, base_dir=base_dir)

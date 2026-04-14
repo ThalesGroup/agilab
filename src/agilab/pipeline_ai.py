@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.metadata as importlib_metadata
 import importlib.util
 import json
 import logging
@@ -433,7 +434,7 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
         return _ensure_uoaic_runtime_impl(
             envars,
             session_state=st.session_state,
-            resolve_uoaic_path=_resolve_uoaic_path,
+            resolve_uoaic_path=lambda raw_path, base_dir=None: _resolve_uoaic_path(raw_path, base_dir),
             load_uoaic_modules=_load_uoaic_modules,
             runtime_state_key=UOAIC_RUNTIME_KEY,
             data_state_key=UOAIC_DATA_STATE_KEY,
@@ -446,6 +447,12 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
             spinner=st.spinner,
             base_dir=base_dir,
         )
+    except ValueError as exc:
+        if str(exc) == "Missing Universal Offline data directory":
+            st.error("Configure the Universal Offline data directory in page settings (`UOAIC_DATA_DIR`) and click `Run`.")
+        else:
+            st.error(str(exc))
+        raise JumpToMain(exc)
     except RuntimeError as exc:
         st.error(str(exc))
         raise JumpToMain(exc)
@@ -465,7 +472,12 @@ def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
 def _load_uoaic_modules() -> Tuple[Any, ...]:
     """Import the Universal Offline AI Chatbot helpers with detailed diagnostics."""
     try:
-        return _load_uoaic_modules_impl()
+        return _load_uoaic_modules_impl(
+            distribution_fn=importlib_metadata.distribution,
+            import_module_fn=importlib.import_module,
+            spec_from_file_location_fn=importlib.util.spec_from_file_location,
+            module_from_spec_fn=importlib.util.module_from_spec,
+        )
     except RuntimeError as exc:
         st.error(str(exc))
         raise JumpToMain(exc)
