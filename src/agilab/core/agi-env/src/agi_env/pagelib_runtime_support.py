@@ -117,7 +117,7 @@ def next_free_port(*, get_random_port_fn, is_port_in_use_fn) -> int:
 def wait_for_listen_port(
     port: int,
     *,
-    timeout_sec: float = 5.0,
+    timeout_sec: float = 15.0,
     poll_interval_sec: float = 0.1,
     time_module=time,
     is_port_in_use_fn: Callable[[int], bool],
@@ -164,7 +164,7 @@ def activate_mlflow(
         )
         artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
         cmd = (
-            "uv -q run mlflow server "
+            f"{shlex.quote(sys.executable)} -m mlflow server "
             f"--backend-store-uri {shlex.quote(backend_uri)} "
             f"--default-artifact-root {shlex.quote(artifact_uri)} "
             "--host 127.0.0.1 "

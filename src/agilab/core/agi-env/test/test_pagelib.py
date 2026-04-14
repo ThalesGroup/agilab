@@ -921,6 +921,7 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
         expected_artifacts.resolve().as_uri(),
     )
     assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
+    assert sys.executable in launched["call"][0]
     assert "mlflow server" in launched["call"][0]
     assert pagelib._sqlite_uri_for_path(expected_db) in launched["call"][0]
     assert expected_artifacts.resolve().as_uri() in launched["call"][0]

@@ -42,7 +42,8 @@ def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     assert session_state["server_started"] is True
     assert session_state["mlflow_port"] == 50123
     assert env.MLFLOW_TRACKING_DIR == str(tmp_path / ".mlflow")
-    assert launched and "--port 50123" in launched[0][0]
+    assert launched and sys.executable in launched[0][0]
+    assert "--port 50123" in launched[0][0]
     assert messages == []
 
 
