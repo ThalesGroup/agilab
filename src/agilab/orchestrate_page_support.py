@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import textwrap
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
 
@@ -292,3 +292,89 @@ def _build_agi_snippet(
             asyncio.run(main())
         """
     ).strip()
+
+
+def init_session_state(session_state: Mapping[str, Any], defaults: Mapping[str, Any]) -> None:
+    """Initialize session-like state keys that are missing."""
+    for key, value in defaults.items():
+        session_state.setdefault(key, value)
+
+
+def clear_log(session_state: MutableMapping[str, Any]) -> None:
+    """Clear the accumulated log text in a mutable state mapping."""
+    session_state["log_text"] = ""
+
+
+def update_delete_confirm_state(
+    session_state: MutableMapping[str, Any],
+    confirm_key: str,
+    *,
+    delete_armed_clicked: bool,
+    delete_cancel_clicked: bool,
+) -> bool:
+    """Update the delete-confirm state and report if a rerun is required."""
+    if delete_armed_clicked:
+        session_state[confirm_key] = True
+        return True
+    if delete_cancel_clicked:
+        session_state.pop(confirm_key, None)
+        return True
+    return False
+
+
+def clear_cached_distribution(load_distribution_fn: Any) -> None:
+    """Clear a cached distribution callable if cache API is available."""
+    clear = getattr(load_distribution_fn, "clear", None)
+    if callable(clear):
+        clear()
+
+
+def clear_mount_table_cache(mount_table_fn: Any) -> None:
+    """Clear a mount-table cache when cluster settings are updated."""
+    clear = getattr(mount_table_fn, "cache_clear", None)
+    if callable(clear):
+        clear()
+
+
+def resolve_share_candidate(path_value: Any, home_abs: str | Path) -> Path:
+    """Resolve share candidate paths without raising on bad references."""
+    share_candidate = Path(path_value)
+    if not share_candidate.is_absolute():
+        share_candidate = Path(home_abs) / share_candidate
+    share_candidate = share_candidate.expanduser()
+    try:
+        return share_candidate.resolve()
+    except OSError:
+        return share_candidate
+
+
+def benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
+    """Return the benchmark date string, using file mtime when no date is provided."""
+    if date_value:
+        return date_value
+    try:
+        ts = benchmark_path.stat().st_mtime
+    except OSError:
+        return ""
+    from datetime import datetime
+
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def is_app_installed(env: Any) -> bool:
+    """Return whether both manager and worker virtual environments are present."""
+    manager_venv = env.active_app / ".venv"
+    worker_venv = env.wenv_abs / ".venv"
+    return manager_venv.exists() and worker_venv.exists()
+
+
+def app_install_status(env: Any) -> dict[str, Any]:
+    """Return a cached status map for manager/worker installation readiness."""
+    manager_venv = env.active_app / ".venv"
+    worker_venv = env.wenv_abs / ".venv"
+    return {
+        "manager_ready": manager_venv.exists(),
+        "worker_ready": worker_venv.exists(),
+        "manager_venv": manager_venv,
+        "worker_venv": worker_venv,
+    }

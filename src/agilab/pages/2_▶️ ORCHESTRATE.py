@@ -42,6 +42,15 @@ try:
         build_run_snippet,
         compute_run_mode,
         describe_run_mode,
+        benchmark_display_date as _orchestrate_benchmark_display_date,
+        clear_cached_distribution as _orchestrate_clear_cached_distribution,
+        clear_log as _orchestrate_clear_log,
+        clear_mount_table_cache as _orchestrate_clear_mount_table_cache,
+        init_session_state as _orchestrate_init_session_state,
+        app_install_status as _orchestrate_app_install_status,
+        is_app_installed as _orchestrate_is_app_installed,
+        resolve_share_candidate as _orchestrate_resolve_share_candidate,
+        update_delete_confirm_state as _orchestrate_update_delete_confirm_state,
         optional_python_expr,
         optional_string_expr,
         filter_noise_lines,
@@ -76,6 +85,15 @@ except ModuleNotFoundError:
     optional_string_expr = _orchestrate_page_support_module.optional_string_expr
     reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
     is_dask_shutdown_noise = _orchestrate_page_support_module.is_dask_shutdown_noise
+    _orchestrate_benchmark_display_date = _orchestrate_page_support_module.benchmark_display_date
+    _orchestrate_clear_cached_distribution = _orchestrate_page_support_module.clear_cached_distribution
+    _orchestrate_clear_log = _orchestrate_page_support_module.clear_log
+    _orchestrate_clear_mount_table_cache = _orchestrate_page_support_module.clear_mount_table_cache
+    _orchestrate_init_session_state = _orchestrate_page_support_module.init_session_state
+    _orchestrate_app_install_status = _orchestrate_page_support_module.app_install_status
+    _orchestrate_is_app_installed = _orchestrate_page_support_module.is_app_installed
+    _orchestrate_resolve_share_candidate = _orchestrate_page_support_module.resolve_share_candidate
+    _orchestrate_update_delete_confirm_state = _orchestrate_page_support_module.update_delete_confirm_state
     serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
     strip_ansi = _orchestrate_page_support_module.strip_ansi
     update_distribution_payload = _orchestrate_page_support_module.update_distribution_payload
@@ -210,23 +228,16 @@ from agi_env.ui_support import store_last_active_app
 # Session State Initialization
 # ===========================
 def init_session_state(defaults: dict[str, Any]) -> None:
-    """
-    Initialize session state variables with default values if they are not already set.
-    """
-    for key, value in defaults.items():
-        st.session_state.setdefault(key, value)
+    """Initialize session state variables with default values if they are not already set."""
+    _orchestrate_init_session_state(st.session_state, defaults)
 
 # ===========================
 # Utility and Helper Functions
 # ===========================
 
 def clear_log() -> None:
-    """
-    Clear the accumulated log in session_state.
-    Call this before starting a new run (INSTALL, DISTRIBUTE, or EXECUTE)
-    to avoid mixing logs.
-    """
-    st.session_state["log_text"] = ""
+    """Clear the accumulated log in session state."""
+    _orchestrate_clear_log(st.session_state)
 
 
 def _rerun_fragment_or_app() -> None:
@@ -244,13 +255,12 @@ def _update_delete_confirm_state(
     delete_cancel_clicked: bool,
 ) -> bool:
     """Update the delete-confirm flag and report whether a local rerun is needed."""
-    if delete_armed_clicked:
-        st.session_state[confirm_key] = True
-        return True
-    if delete_cancel_clicked:
-        st.session_state.pop(confirm_key, None)
-        return True
-    return False
+    return _orchestrate_update_delete_confirm_state(
+        st.session_state,
+        confirm_key,
+        delete_armed_clicked=delete_armed_clicked,
+        delete_cancel_clicked=delete_cancel_clicked,
+    )
 
 def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -> None:
     """
@@ -377,39 +387,22 @@ def _set_active_app_query_param(active_app: Any) -> None:
 
 def _clear_cached_distribution() -> None:
     """Clear cached distribution data when the selected project changes."""
-    clear = getattr(load_distribution, "clear", None)
-    if callable(clear):
-        clear()
+    _orchestrate_clear_cached_distribution(load_distribution)
 
 
 def _clear_mount_table_cache() -> None:
     """Clear the mount-table cache when cluster settings are active."""
-    clear = getattr(_mount_table, "cache_clear", None)
-    if callable(clear):
-        clear()
+    _orchestrate_clear_mount_table_cache(_mount_table)
 
 
 def _resolve_share_candidate(path_value: Any, home_abs: Path | str) -> Path:
     """Resolve the configured share path without failing on broken targets."""
-    share_candidate = Path(path_value)
-    if not share_candidate.is_absolute():
-        share_candidate = Path(home_abs) / share_candidate
-    share_candidate = share_candidate.expanduser()
-    try:
-        return share_candidate.resolve()
-    except OSError:
-        return share_candidate
+    return _orchestrate_resolve_share_candidate(path_value, home_abs)
 
 
 def _benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     """Return the benchmark date string, using file mtime as a fallback."""
-    if date_value:
-        return date_value
-    try:
-        ts = os.path.getmtime(benchmark_path)
-    except OSError:
-        return ""
-    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+    return _orchestrate_benchmark_display_date(benchmark_path, date_value)
 
 
 LOG_DISPLAY_MAX_LINES = 250
@@ -741,20 +734,11 @@ def _restore_dataframe_preview_state(payload: dict) -> None:
         st.session_state[f"export_col_{idx}"] = col in selected_cols
 
 def _is_app_installed(env: Any) -> bool:
-    manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
-    return manager_venv.exists() and worker_venv.exists()
+    return _orchestrate_is_app_installed(env)
 
 
 def _app_install_status(env: Any) -> dict[str, Any]:
-    manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
-    return {
-        "manager_ready": manager_venv.exists(),
-        "worker_ready": worker_venv.exists(),
-        "manager_venv": manager_venv,
-        "worker_venv": worker_venv,
-    }
+    return _orchestrate_app_install_status(env)
 
 # ===========================
 # Main Application UI
