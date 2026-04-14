@@ -33,18 +33,15 @@ try:
 except Exception:  # Optional dependency; fallback if absent
     FormattedTB = None  # type: ignore
 import ast
-import asyncio
 import errno
 import getpass
 import os
 import re
-import shlex
 import shutil
 import psutil
 import socket
 import subprocess
 import sys
-import traceback
 from pathlib import Path
 import tomlkit
 from typing import Tuple, Optional
@@ -81,16 +78,11 @@ from agi_env.installation_support import (
     read_agilab_installation_marker,
 )
 from agi_env.process_support import (
-    apply_inline_path_export,
     build_subprocess_env,
-    command_failure_hint,
     fix_windows_drive as _fix_windows_drive,
-    format_command_failure_message,
-    inject_uv_preview_flag,
     is_packaging_cmd,
     normalize_path,
     parse_level,
-    strip_time_level_prefix,
 )
 from agi_env.repository_support import (
     collect_pythonpath_entries as build_pythonpath_entries,
@@ -120,6 +112,20 @@ from agi_env.source_analysis_support import (
 from agi_env.worker_source_support import (
     get_base_classes as discover_base_classes,
     get_base_worker_cls as discover_base_worker_cls,
+)
+from agi_env.project_clone_support import (
+    cleanup_rename as cleanup_project_rename,
+    clone_directory as clone_project_directory,
+    clone_project as clone_app_project,
+    copy_existing_projects as copy_missing_projects,
+    create_rename_map as build_clone_rename_map,
+)
+from agi_env.data_archive_support import unzip_data as extract_dataset_archive
+from agi_env.execution_support import (
+    run as run_command_in_env,
+    run_agi as run_agi_snippet,
+    run_async as run_command_async,
+    run_bg as run_command_in_background,
 )
 import inspect as _inspect
 try:
@@ -1371,56 +1377,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
         """Copy ``*_project`` trees from ``src_apps`` into ``dst_apps`` if missing."""
-
-        try:
-            if src_apps.resolve(strict=False) == dst_apps.resolve(strict=False):
-                return
-        except Exception:
-            pass
-
-        _ensure_dir(dst_apps)
-
-        AgiEnv.logger.info(f"copy_existing_projects src={src_apps.resolve()} dst={dst_apps.resolve()}")
-        candidates = [p for p in src_apps.rglob("*_project") if p.is_dir()]
-        AgiEnv.logger.info(
-            "Matched projects: " + ", ".join(str(p.relative_to(src_apps)) for p in candidates) or "<none>")
-
-        # match every nested directory ending with "_project"
-        for item in src_apps.rglob("*_project"):
-            if not item.is_dir():
-                continue
-
-            rel = item.relative_to(src_apps)  # keep nested structure
-            dst_item = dst_apps / rel
-            if dst_item.is_symlink():
-                try:
-                    dst_item.unlink()
-                except OSError as exc:
-                    AgiEnv.logger.warning(
-                        f"Failed to remove dangling project symlink {dst_item}: {exc}"
-                    )
-                    continue
-            elif dst_item.exists() and not dst_item.is_dir():
-                try:
-                    dst_item.unlink()
-                except OSError as exc:
-                    AgiEnv.logger.warning(
-                        f"Failed to remove conflicting project file {dst_item}: {exc}"
-                    )
-                    continue
-            try:
-                shutil.copytree(
-                    item,
-                    dst_item,
-                    dirs_exist_ok=True,  # merge into existing tree
-                    symlinks=True,  # keep symlinks as symlinks
-                    ignore=shutil.ignore_patterns(  # skip bulky/ephemeral stuff
-                        ".venv", "build", "dist", "__pycache__", ".pytest_cache",
-                        ".idea", ".mypy_cache", ".ruff_cache", "*.egg-info"
-                    ),
-                )
-            except Exception as e:
-                AgiEnv.logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
+        copy_missing_projects(
+            src_apps,
+            dst_apps,
+            ensure_dir_fn=_ensure_dir,
+            logger=AgiEnv.logger,
+        )
 
     # Simplified: keep single copy_missing implementation defined later using _copy_file
 
@@ -1780,533 +1742,66 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             print(line)
 
-    """
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
-        #""
-        Run a shell command inside a virtual environment.
-        Streams stdout/stderr live without blocking (Windows-safe).
-        Returns the full stdout string.
-        #""
-        if (AgiEnv.verbose or 0) > 0:
-            try:
-                vname = Path(venv).name if venv is not None else "<venv>"
-            except Exception:
-                vname = str(venv)
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(f"@{vname}: {cmd}")
-
-        # Inject uv preview flag to silence extra-build-dependencies warnings
-        try:
-            if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
-                import re as _re
-                cmd = _re.sub(
-                    "(^|\\s)uv(\\s+)",
-                    "\\1uv --preview-features extra-build-dependencies \\2",
-                    cmd,
-                    count=1,
-                )
-
-        except Exception:
-            pass
-
-        if not cwd:
-            cwd = venv
-        process_env = AgiEnv._build_env(venv)
-
-        shell_executable = None if sys.platform == "win32" else "/bin/bash"
-
-        if wait:
-            try:
-                result = []
-                async def read_stream(stream, callback=None):
-                    enc = sys.stdout.encoding or "utf-8"
-                    while True:
-                        line = await stream.readline()
-                        if not line:
-                            break
-                        text = line.decode("utf-8", errors="replace").rstrip()
-                        if not text:
-                            continue
-                        safe = text.encode(enc, errors="replace").decode(enc)
-                        plain = AgiLogger.decolorize(safe)
-                        msg = strip_time_level_prefix(plain)
-                        # If callback looks like a logging function, pass extra
-                        try:
-                            callback(msg, extra={"subprocess": True})
-                        except TypeError:
-                            callback(msg)
-                        result.append(msg)
-
-                try:
-                    cmd_list = shlex.split(cmd)
-                    proc = await asyncio.create_subprocess_exec(
-                        *cmd_list,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        cwd=str(cwd) if cwd else None,
-                        env=process_env,
-                    )
-                except (ValueError, TypeError, OSError, RuntimeError):
-                    proc = await asyncio.create_subprocess_shell(
-                        cmd,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        cwd=str(cwd) if cwd else None,
-                        env=process_env,
-                        executable=shell_executable,
-                    )
-
-                _logger = AgiEnv.logger
-                out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
-                err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
-                await asyncio.wait_for(asyncio.gather(
-                    read_stream(proc.stdout, out_cb),
-                    read_stream(proc.stderr, err_cb),
-                ), timeout=timeout)
-
-                returncode = await proc.wait()
-
-                if returncode != 0:
-                    # Promote to ERROR with context even if lines were logged as INFO
-                    logger = AgiEnv.logger
-                    if logger:
-                        logger.error("Command failed with exit code %s: %s", returncode, cmd)
-
-                    diagnostic_hint = None
-                    log_blob = "\n".join(result).lower()
-                    network_markers = (
-                        "failed to establish a new connection",
-                        "temporary failure in name resolution",
-                        "nodename nor servname provided",
-                        "no route to host",
-                    )
-                    if "pip install" in cmd and any(marker in log_blob for marker in network_markers):
-                        diagnostic_hint = (
-                            "pip could not reach the package index (network access is required to "
-                            "install build dependencies such as hatchling). Pre-install those "
-                            "dependencies locally or enable outbound connectivity, then rerun."
-                        )
-
-                    raise RuntimeError(
-                        AgiEnv._format_command_failure_message(
-                            returncode,
-                            cmd,
-                            result,
-                            diagnostic_hint,
-                        )
-                    )
-
-                return "\n".join(result)
-            except asyncio.TimeoutError:
-                proc.kill()
-                raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
-            except Exception as e:
-                logger = AgiEnv.logger
-                if logger and not isinstance(e, RuntimeError):
-                    logger.error(traceback.format_exc())
-                if isinstance(e, RuntimeError):
-                    raise
-                raise RuntimeError(f"Command execution error: {e}") from e
-
-        else:
-            asyncio.create_task(asyncio.create_subprocess_shell(
-                cmd,
-                cwd=str(cwd),
-                env=process_env,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-                executable=shell_executable
-            ))
-            return 0
-    """
-    @staticmethod
-    async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
-        """
-        Run a shell command inside a virtual environment.
-        Streams stdout/stderr live without blocking (Windows-safe).
-        Returns the full stdout string.
-        """
-        if (AgiEnv.verbose or 0) > 0:
-            try:
-                vname = Path(venv).name if venv is not None else "<venv>"
-            except Exception:
-                vname = str(venv)
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(f"@{vname}: {cmd}")
-
-        cmd = inject_uv_preview_flag(cmd)
-
-        if not cwd:
-            cwd = venv
-        process_env = AgiEnv._build_env(venv)
-        cmd = apply_inline_path_export(cmd, process_env)
-
-        shell_executable = None if sys.platform == "win32" else "/bin/bash"
-
-        if wait:
-            # If cmd reduced to just an env tweak (`export PATH=...` with no rest), no-op
-            if not cmd:
-                return ""
-
-            try:
-                result = []
-
-                async def read_stream(stream, callback=None):
-                    enc = sys.stdout.encoding or "utf-8"
-                    while True:
-                        line = await stream.readline()
-                        if not line:
-                            break
-                        text = line.decode("utf-8", errors="replace").rstrip()
-                        if not text:
-                            continue
-                        safe = text.encode(enc, errors="replace").decode(enc)
-                        plain = AgiLogger.decolorize(safe)
-                        msg = strip_time_level_prefix(plain)
-                        # If callback looks like a logging function, pass extra
-                        try:
-                            callback(msg, extra={"subprocess": True})
-                        except TypeError:
-                            callback(msg)
-                        result.append(msg)
-
-                try:
-                    cmd_list = shlex.split(cmd)
-                    proc = await asyncio.create_subprocess_exec(
-                        *cmd_list,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        cwd=str(cwd) if cwd else None,
-                        env=process_env,
-                    )
-                except Exception:
-                    proc = await asyncio.create_subprocess_shell(
-                        cmd,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        cwd=str(cwd) if cwd else None,
-                        env=process_env,
-                        executable=shell_executable,
-                    )
-
-                _logger = AgiEnv.logger
-                out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
-                err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
-                await asyncio.wait_for(
-                    asyncio.gather(
-                        read_stream(proc.stdout, out_cb),
-                        read_stream(proc.stderr, err_cb),
-                    ),
-                    timeout=timeout,
-                )
-
-                returncode = await proc.wait()
-
-                if returncode != 0:
-                    # Promote to ERROR with context even if lines were logged as INFO
-                    logger = AgiEnv.logger
-                    if logger:
-                        logger.error("Command failed with exit code %s: %s", returncode, cmd)
-
-                    diagnostic_hint = command_failure_hint(cmd, result)
-
-                    raise RuntimeError(
-                        format_command_failure_message(
-                            returncode,
-                            cmd,
-                            result,
-                            diagnostic_hint,
-                        )
-                    )
-
-                return "\n".join(result)
-            except asyncio.TimeoutError:
-                proc.kill()
-                raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
-            except Exception as e:
-                logger = AgiEnv.logger
-                if logger and not isinstance(e, RuntimeError):
-                    logger.error(traceback.format_exc())
-                if isinstance(e, RuntimeError):
-                    raise
-                raise RuntimeError(f"Command execution error: {e}") from e
-
-        else:
-            # fire-and-forget mode
-            if not cmd:
-                return 0
-
-            asyncio.create_task(
-                asyncio.create_subprocess_shell(
-                    cmd,
-                    cwd=str(cwd),
-                    env=process_env,
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL,
-                    executable=shell_executable,
-                )
-            )
-            return 0
+        """Run a shell command inside a virtual environment."""
+        return await run_command_in_env(
+            cmd,
+            venv,
+            cwd=cwd,
+            timeout=timeout,
+            wait=wait,
+            log_callback=log_callback,
+            verbose=AgiEnv.verbose or 0,
+            logger=AgiEnv.logger,
+            build_env_fn=AgiEnv._build_env,
+        )
 
     @staticmethod
     async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None,
                       env_override: dict | None = None, remove_env: set[str] | None = None):
-        """
-        Run the given command asynchronously, reading stdout and stderr line by line
-        and passing them to the log_callback. Returns (stdout, stderr) as strings.
-        """
-        process_env = AgiEnv._build_env(venv)
-        process_env["PYTHONUNBUFFERED"] = "1"
-        if remove_env:
-            for key in remove_env:
-                process_env.pop(key, None)
-        if env_override:
-            process_env.update(env_override)
-
-        cmd = inject_uv_preview_flag(cmd)
-
-        result = []
-
-        try:
-            cmd_list = shlex.split(cmd)
-            proc = await asyncio.create_subprocess_exec(
-                *cmd_list,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-            )
-        except Exception:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-            )
-
-        async def read_stream(stream, callback=None):
-            enc = sys.stdout.encoding or "utf-8"
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").rstrip()
-                if not text:
-                    continue
-                safe = text.encode(enc, errors="replace").decode(enc)
-                plain = AgiLogger.decolorize(safe)
-                msg = strip_time_level_prefix(safe)
-                try:
-                    callback(msg, extra={"subprocess": True})
-                except TypeError:
-                    callback(msg)
-                result.append(msg)
-
-        tasks = []
-        if proc.stdout:
-            tasks.append(asyncio.create_task(
-                read_stream(proc.stdout, log_callback if log_callback else logging.info)
-            ))
-        if proc.stderr:
-            tasks.append(asyncio.create_task(
-                read_stream(proc.stderr, log_callback if log_callback else logging.error)
-            ))
-
-        try:
-            await asyncio.wait_for(proc.wait(), timeout=timeout)
-        except asyncio.TimeoutError as err:
-            proc.kill()
-            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
-
-        await asyncio.gather(*tasks)
-        stdout, stderr = await proc.communicate()
-
-        returncode = proc.returncode
-
-        if returncode != 0:
-            logger = AgiEnv.logger
-            if logger:
-                logger.error("Command failed with exit code %s: %s", returncode, cmd)
-            raise RuntimeError(f"Command failed (exit {returncode})")
-
-        return stdout.decode(), stderr.decode()
+        """Run a command asynchronously and return ``(stdout, stderr)``."""
+        return await run_command_in_background(
+            cmd,
+            cwd=cwd,
+            venv=venv,
+            timeout=timeout,
+            log_callback=log_callback,
+            env_override=env_override,
+            remove_env=remove_env,
+            logger=AgiEnv.logger,
+            build_env_fn=AgiEnv._build_env,
+        )
 
     async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
-        """
-        Asynchronous version of run_agi for use within an async context.
-        """
-        pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
-        matches = re.findall(pattern, code)
-        if not matches:
-            message = "Could not determine snippet name from code."
-            if log_callback:
-                log_callback(message)
-            else:
-                AgiEnv.logger.info(message)
-            return "", ""
-        snippet_name = matches[0]
-        is_install_snippet = "install" in snippet_name.lower()
-
-        runenv_path = _ensure_dir(self.runenv)
-
-        snippet_file = runenv_path / "{}_{}.py".format(
-            re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "AGI.unknown_command",
-            re.sub(r"[^0-9A-Za-z_]+", "_", str(self.target)).strip("_") or "unknown_app_name")
-        with open(snippet_file, "w") as file:
-            file.write(code)
-
-        project_root = Path(venv) if venv else None
-        project_venv = None
-        if project_root:
-            if project_root.name == ".venv" or (project_root / "pyvenv.cfg").exists():
-                project_venv = project_root
-            else:
-                candidate = project_root / ".venv"
-                if (candidate / "pyvenv.cfg").exists():
-                    project_venv = candidate
-
-        if not is_install_snippet and project_root and project_venv is None:
-            message = f"No virtual environment found in {project_root}. Run INSTALL first."
-            if log_callback:
-                log_callback(message)
-            else:
-                AgiEnv.logger.warning(message)
-            return "", message
-
-        if project_venv:
-            python_bin = project_venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(str(snippet_file))}"
-            result = await AgiEnv._run_bg(
-                cmd,
-                cwd=str(project_root),
-                venv=project_venv,
-                remove_env={"PYTHONPATH", "PYTHONHOME"},
-                log_callback=log_callback,
-            )
-        else:
-            python_bin = Path(sys.executable)
-            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(str(snippet_file))}"
-            result = await AgiEnv._run_bg(
-                cmd,
-                cwd=str(project_root or self.runenv),
-                venv=Path(sys.prefix),
-                remove_env={"PYTHONPATH", "PYTHONHOME"},
-                log_callback=log_callback,
-            )
-        if log_callback:
-            log_callback(f"Process finished")
-        else:
-            logging.info("Process finished")
-        return result
+        """Asynchronous version of run_agi for use within an async context."""
+        return await run_agi_snippet(
+            code=code,
+            runenv=Path(self.runenv),
+            target=str(self.target),
+            log_callback=log_callback,
+            venv=Path(venv) if venv else None,
+            run_bg_fn=AgiEnv._run_bg,
+            ensure_dir_fn=_ensure_dir,
+            logger=AgiEnv.logger,
+            python_executable=sys.executable,
+            log_info_fn=logging.info,
+            snippet_type=type,
+        )
 
     @staticmethod
     async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
-        """
-        Run a shell command asynchronously inside a virtual environment.
-        Streams stdout/stderr live with sensible levels (packaging-aware).
-        Returns the last non-empty line among stderr (preferred) then stdout.
-        Raises on non-zero exit (logs stderr tail).
-        """
-        if (AgiEnv.verbose or 0) > 0:
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(f"Executing in {venv}: {cmd}")
-
-        if cwd is None:
-            cwd = venv
-
-        # Build env similar to your other functions
-        process_env = build_subprocess_env(base_env=os.environ.copy(), venv=venv)
-        process_env["PYTHONUNBUFFERED"] = "1"  # ensure timely output
-        shell_executable = None if os.name == "nt" else "/bin/bash"
-
-        # Normalize cmd to string for create_subprocess_shell
-        if isinstance(cmd, (list, tuple)):
-            cmd = " ".join(cmd)
-        cmd = inject_uv_preview_flag(cmd)
-
-        result = []
-
-        try:
-            cmd_list = shlex.split(cmd)
-            proc = await asyncio.create_subprocess_exec(
-                *cmd_list,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-            )
-        except Exception:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-                executable=shell_executable,
-            )
-
-        async def read_stream(stream, callback=None):
-            enc = sys.stdout.encoding or "utf-8"
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").rstrip()
-                if not text:
-                    continue
-                safe = text.encode(enc, errors="replace").decode(enc)
-                plain = AgiLogger.decolorize(safe)
-                msg = strip_time_level_prefix(plain)
-                logger = AgiEnv.logger
-                if callback is (logger.info if logger else None) or callback is (logger.error if logger else None):
-                    callback(msg, extra={"subprocess": True})
-                else:
-                    callback(msg)
-                result.append(msg)
-
-        try:
-            _logger = AgiEnv.logger
-            out_cb = log_callback if log_callback else (_logger.info if _logger else logging.info)
-            err_cb = log_callback if log_callback else (_logger.error if _logger else logging.error)
-            await asyncio.wait_for(
-                asyncio.gather(
-                    read_stream(proc.stdout, out_cb),
-                    read_stream(proc.stderr, err_cb),
-                    proc.wait(),
-                ),
-                timeout=timeout,
-            )
-        except Exception as err:
-            proc.kill()
-            logger = AgiEnv.logger
-            if logger:
-                logger.error(f"Error during: {cmd}")
-                logger.error(err)
-            if isinstance(err, RuntimeError):
-                raise
-            raise RuntimeError(f"Subprocess execution error for: {cmd}") from err
-
-        rc = proc.returncode
-        if rc != 0:
-            logger = AgiEnv.logger
-            if logger:
-                logger.error("Command failed with exit code %s: %s", rc, cmd)
-            raise RuntimeError(format_command_failure_message(rc, cmd, result))
-
-        # Preserve original behavior: return last non-empty line (prefer stderr, else stdout)
-        def last_non_empty(lines):
-            for l in reversed(lines):
-                if l.strip():
-                    return l
-            return None
-
-        last_line = last_non_empty(result) or ""
-        return last_line
+        """Run a shell command asynchronously and return the last non-empty line."""
+        return await run_command_async(
+            cmd,
+            venv=venv,
+            cwd=cwd,
+            timeout=timeout,
+            log_callback=log_callback,
+            verbose=AgiEnv.verbose or 0,
+            logger=AgiEnv.logger,
+            build_env_fn=AgiEnv._build_env,
+        )
 
 
     @staticmethod
@@ -2478,145 +1973,23 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 )
 
     def create_rename_map(self, target_project: Path, dest_project: Path) -> dict:
-        """
-        Create a mapping of old → new names for cloning.
-        Includes project names, top-level src folders, worker folders,
-        in-file identifiers and class names.
-        """
-        def cap(s: str) -> str:
-            return "".join(p.capitalize() for p in s.split("_"))
-
-        name_tp = target_project.name      # e.g. "flight_project" or "dag_app_template"
-        name_dp = dest_project.name        # e.g. "tata_project"
-
-        def strip_suffix(name: str) -> str:
-            for suffix in ("_project", "_template"):
-                if name.endswith(suffix):
-                    return name[: -len(suffix)]
-            return name
-
-        tp = strip_suffix(name_tp)
-        dp = strip_suffix(name_dp)
-
-        tm = tp.replace("-", "_")
-        dm = dp.replace("-", "_")
-        tc = cap(tm)                       # "Flight"
-        dc = cap(dm)                       # "Tata"
-
-        rename_map = {
-            # project-level
-            name_tp:              name_dp,
-
-            # folder-level (longest keys first)
-            f"src/{tm}_worker": f"src/{dm}_worker",
-            f"src/{tm}":        f"src/{dm}",
-
-            # sibling-level
-            f"{tm}_worker":      f"{dm}_worker",
-            tm:                    dm,
-
-            # class-level
-            f"{tc}Worker":       f"{dc}Worker",
-            f"{tc}Args":         f"{dc}Args",
-            f"{tc}ArgsTD":       f"{dc}ArgsTD",
-            tc:                    dc,
-        }
-
-        # Add common suffix variants (e.g., flight_args -> toto_args)
-        for suffix in ("_args", "_manager", "_worker", "_distributor", "_project"):
-            rename_map.setdefault(f"{tm}{suffix}", f"{dm}{suffix}")
-        rename_map.setdefault(f"{tm}_args_td", f"{dm}_args_td")
-        rename_map.setdefault(f"{tm}ArgsTD", f"{dm}ArgsTD")
-
-        return rename_map
+        """Create a mapping of old → new names for cloning."""
+        return build_clone_rename_map(target_project, dest_project)
 
     def clone_project(self, target_project: Path, dest_project: Path):
-        """
-        Clone a project by copying files and directories, applying renaming,
-        then cleaning up any leftovers.
-
-        Args:
-            target_project: Path under self.apps_path (e.g. Path("flight_project"))
-            dest_project:   Path under self.apps_path (e.g. Path("tata_project"))
-        """
-
-        # normalize names
-        templates_root = self.apps_path / "templates"
-        if not target_project.name.endswith("_project"):
-            candidate = target_project.with_name(target_project.name + "_project")
-            if (self.apps_path / candidate).exists() or (templates_root / candidate).exists():
-                target_project = candidate
-        if not dest_project.name.endswith("_project"):
-            dest_project = dest_project.with_name(dest_project.name + "_project")
-
-        rename_map  = self.create_rename_map(target_project, dest_project)
-        def _strip(name: Path) -> str:
-            base = name.name if isinstance(name, Path) else str(name)
-            for suffix in ("_project", "_template"):
-                if base.endswith(suffix):
-                    base = base[: -len(suffix)]
-            return base.replace("-", "_")
-
-        tm = _strip(target_project)
-        dm = _strip(dest_project)
-        source_root = self.apps_path / target_project
-        if not source_root.exists() and templates_root.exists():
-            source_root = templates_root / target_project
-        dest_root   = self.apps_path / dest_project
-
-        if not source_root.exists():
-            AgiEnv.logger.info(f"Source project '{target_project}' does not exist.")
-            return
-        if dest_root.exists():
-            AgiEnv.logger.info(f"Destination project '{dest_project}' already exists.")
-            return
-
-        # Clone all files by default. Only skip repository metadata such as .git.
-        ignore_patterns = [".git", ".git/", ".git/**"]
-
-        # Augment ignore rules with .gitignore content from the source project and its ancestors.
-        gitignore_candidates: list[Path] = []
-        seen_gitignore_dirs: set[Path] = set()
-        for ancestor in [source_root, *source_root.parents]:
-            gi = ancestor / ".gitignore"
-            if gi.exists() and ancestor not in seen_gitignore_dirs:
-                gitignore_candidates.append(gi)
-                seen_gitignore_dirs.add(ancestor)
-
-        for gitignore in gitignore_candidates:
-            try:
-                lines = gitignore.read_text(encoding="utf-8").splitlines()
-            except OSError as exc:
-                AgiEnv.logger.debug(f"Unable to read {gitignore}: {exc}")
-                continue
-            # PathSpec honours gitignore semantics (including negations), so keep raw lines.
-            ignore_patterns.extend(line for line in lines if line.strip())
-
-        spec = PathSpec.from_lines(GitWildMatchPattern, ignore_patterns)
-
-        try:
-            if not dest_root.exists():
-                logger.info(f"mkdir {dest_root}")
-                dest_root.mkdir(parents=True, exist_ok=False)
-        except Exception as e:
-            AgiEnv.logger.error(f"Could not create '{dest_root}': {e}")
-            return
-
-        # 1) Recursive clone
-        self.clone_directory(source_root, dest_root, rename_map, spec, source_root)
-
-        # 2) Final cleanup
-        self._cleanup_rename(dest_root, rename_map)
-        self.projects.insert(0, dest_project)
-
-        # 3) Mirror data directory if present under ~/data/<source>
-        src_data_dir = self.home_abs / "data" / tm
-        dest_data_dir = self.home_abs / "data" / dm
-        try:
-            if src_data_dir.exists() and not dest_data_dir.exists():
-                shutil.copytree(src_data_dir, dest_data_dir)
-        except Exception as exc:
-            AgiEnv.logger.info(f"Unable to copy data directory '{src_data_dir}' to '{dest_data_dir}': {exc}")
+        """Clone a project by copying files, applying renames, and final cleanup."""
+        clone_app_project(
+            target_project,
+            dest_project,
+            apps_path=self.apps_path,
+            home_abs=self.home_abs,
+            projects=self.projects,
+            logger=AgiEnv.logger,
+            create_rename_map_fn=self.create_rename_map,
+            clone_directory_fn=self.clone_directory,
+            cleanup_rename_fn=self._cleanup_rename,
+            copytree_fn=shutil.copytree,
+        )
 
     def clone_directory(self,
                         source_dir: Path,
@@ -2624,119 +1997,24 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         rename_map: dict,
                         spec: PathSpec,
                         source_root: Path):
-        """
-        Recursively copy + rename directories, files, and contents,
-        applying renaming only on exact path segments.
-        """
-        for item in source_dir.iterdir():
-            rel = item.relative_to(source_root).as_posix()
-
-            # Skip files/directories matched by .gitignore spec
-            if spec.match_file(rel + ("/" if item.is_dir() else "")):
-                continue
-
-            # Rename only full segments of the relative path
-            parts = rel.split("/")
-            for i, seg in enumerate(parts):
-                # Sort rename_map by key length descending to avoid partial conflicts
-                for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
-                    if seg == old:
-                        parts[i] = new
-                        break
-
-            new_rel = "/".join(parts)
-            dst = dest_dir / new_rel
-            _ensure_dir(dst.parent)
-
-            if item.is_symlink():
-                try:
-                    target = os.readlink(item)
-                except OSError:
-                    # Fallback to absolute path if readlink fails
-                    target = str(item.resolve())
-                try:
-                    os.symlink(target, dst, target_is_directory=item.is_dir())
-                except FileExistsError:
-                    pass
-                continue
-
-            if item.is_dir():
-                if item.name == ".venv":
-                    # Keep virtual env directory as a symlink
-                    os.symlink(item, dst, target_is_directory=True)
-                else:
-                    self.clone_directory(item, dest_dir, rename_map, spec, source_root)
-
-            elif item.is_file():
-                suf = item.suffix.lower()
-                base = item.stem
-
-                # Rename file if its basename is in rename_map
-                if base in rename_map:
-                    dst = dst.with_name(rename_map[base] + item.suffix)
-
-                if suf in (".7z", ".zip"):
-                    shutil.copy2(item, dst)
-
-                elif suf == ".py":
-                    src = item.read_text(encoding="utf-8")
-                    try:
-                        tree = ast.parse(src)
-                        renamer = ContentRenamer(rename_map)
-                        new_tree = renamer.visit(tree)
-                        ast.fix_missing_locations(new_tree)
-                        out = astor.to_source(new_tree)
-                    except SyntaxError:
-                        out = src
-                    out = self.replace_content(out, rename_map)
-                    dst.write_text(out, encoding="utf-8")
-
-                elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
-                    txt = item.read_text(encoding="utf-8")
-                    txt = self.replace_content(txt, rename_map)
-                    dst.write_text(txt, encoding="utf-8")
-
-                else:
-                    shutil.copy2(item, dst)
-
-            elif item.is_symlink():
-                target = os.readlink(item)
-                os.symlink(target, dst, target_is_directory=item.is_dir())
+        """Recursively copy + rename directories, files, and contents."""
+        clone_project_directory(
+            source_dir,
+            dest_dir,
+            rename_map,
+            spec,
+            source_root,
+            ensure_dir_fn=_ensure_dir,
+            content_renamer_cls=ContentRenamer,
+            replace_content_fn=self.replace_content,
+        )
 
     def _cleanup_rename(self, root: Path, rename_map: dict):
-        """
-        1) Rename any leftover file/dir basenames (including .py) that exactly match a key.
-        2) Rewrite text files for any straggler content references.
-        """
-        # build simple name→new map (no slashes)
-        simple_map = {old: new for old, new in rename_map.items() if "/" not in old}
-        # sort longest first
-        sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
-
-        # -- step 1: rename basenames (dirs & files) bottom‑up --
-        for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-            old = path.name
-            for o, n in sorted_simple:
-                # directory exactly "flight" → "truc", or "flight_worker" → "truc_worker"
-                if old == o or old == f"{o}_worker" or old == f"{o}_project":
-                    new_name = old.replace(o, n, 1)
-                    path.rename(path.with_name(new_name))
-                    break
-                # file like "flight.py" → "truc.py"
-                if path.is_file() and old.startswith(o + "."):
-                    new_name = n + old[len(o):]
-                    path.rename(path.with_name(new_name))
-                    break
-
-        # -- step 2: rewrite any lingering text references --
-        exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
-        for file in root.rglob("*"):
-            if not file.is_file() or file.suffix.lower() not in exts:
-                continue
-            txt = file.read_text(encoding="utf-8")
-            new_txt = self.replace_content(txt, rename_map)
-            if new_txt != txt:
-                file.write_text(new_txt, encoding="utf-8")
+        cleanup_project_rename(
+            root,
+            rename_map,
+            replace_content_fn=self.replace_content,
+        )
 
     def replace_content(self, txt: str, rename_map: dict) -> str:
         return replace_text_content(txt, rename_map)
@@ -2751,159 +2029,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         *,
         force_extract: bool = False,
     ):
-        archive_path = Path(archive_path)
-        if not archive_path.exists():
-            AgiEnv.logger.warning(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
-            return  # Do not exit, just warn
-
-        # Normalize extract_to to a Path relative to cwd or absolute.
-        extract_rel = Path(extract_to) if extract_to is not None else Path(self.app_data_rel)
-
-        def _resolve_destination(base: Path, candidate: Path) -> Path:
-            return candidate if candidate.is_absolute() else (base / candidate)
-
-        def _prepare_parent(path: Path) -> Path | None:
-            parent = path.parent
-            try:
-                _ensure_dir(parent)
-            except OSError as exc:  # pragma: no cover - defensive guard
-                AgiEnv.logger.warning(
-                    "Unable to prepare dataset parent '%s': %s.",
-                    parent,
-                    exc,
-                )
-                return None
-            return parent
-
-        base_share = self.agi_share_path_abs
-        dest = _resolve_destination(Path(base_share), extract_rel)
-        dest_parent = _prepare_parent(dest)
-
-        if dest_parent is None:
-            AgiEnv.logger.warning(
-                "Skipping dataset extraction; unable to prepare dataset parent '%s'.",
-                dest.parent,
-            )
-            return
-
-        dataset = dest / "dataset"
-
-        env_force = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
-        force_refresh = force_extract or env_force
-
-        desired_user = self.user
-        current_owner = Path(self.home_abs).name
-
-        if (
-            desired_user
-            and desired_user != current_owner
-            and not force_refresh
-        ):
-            try:
-                _ensure_dir(dest)
-            except OSError as exc:
-                AgiEnv.logger.warning(
-                    "Unable to ensure target directory '%s': %s. Skipping extraction.",
-                    dest,
-                    exc,
-                )
-                return
-            if AgiEnv.verbose > 0:
-                AgiEnv.logger.info(
-                    f"Skipping dataset extraction for '{dest}' (desired owner '{desired_user}' "
-                    f"differs from local owner '{current_owner}')."
-                )
-            return
-
-        try:
-            _ensure_dir(dest)
-        except OSError as exc:
-            AgiEnv.logger.warning(
-                "Unable to ensure target directory '%s': %s. Skipping extraction.",
-                dest,
-                exc,
-            )
-            return
-
-        if dataset.exists() and not force_refresh:
-            if AgiEnv.verbose > 0:
-                AgiEnv.logger.info(
-                    f"Dataset already present at '{dataset}'. "
-                    "Skipping extraction (set AGILAB_FORCE_DATA_REFRESH=1 to rebuild)."
-                )
-            stamp_path = dataset / ".agilab_dataset_stamp"
-            if not stamp_path.exists():
-                try:
-                    stamp_path.write_text(str(archive_path), encoding="utf-8")
-                    archive_mtime = archive_path.stat().st_mtime
-                    os.utime(stamp_path, (archive_mtime, archive_mtime))
-                except Exception:  # pragma: no cover - best effort
-                    pass
-            return
-
-        if dataset.exists() and force_refresh:
-            try:
-                def _ignore_missing(func, path, excinfo):
-                    exc = excinfo[1]
-                    if isinstance(exc, FileNotFoundError):
-                        return
-                    raise exc
-
-                shutil.rmtree(dataset, onerror=_ignore_missing)
-            except FileNotFoundError:
-                # Finder metadata files ("._*") may disappear during rmtree on macOS.
-                # Treat missing entries as success so installs remain idempotent.
-                pass
-            except PermissionError as exc:
-                if AgiEnv.verbose > 0:
-                    AgiEnv.logger.info(
-                        f"Unable to refresh dataset '{dataset}': {exc}. Skipping extraction."
-                    )
-                return
-
-        try:
-            _ensure_dir(dataset)
-        except OSError as exc:
-            AgiEnv.logger.warning(
-                "Unable to create dataset directory '%s': %s. Skipping extraction.",
-                dataset,
-                exc,
-            )
-            return
-
-        try:
-            with py7zr.SevenZipFile(archive_path, mode="r") as archive:
-                try:
-                    size_mb = archive_path.stat().st_size / 1_000_000
-                except Exception:
-                    size_mb = None
-                size_hint = f" (~{size_mb:.1f} MB)" if size_mb else ""
-                if AgiEnv.verbose > 1:
-                    progress_msg = (
-                        f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
-                        "(this can take a moment; please wait)."
-                    )
-                    AgiEnv.logger.info(progress_msg)
-                archive.extractall(path=dest)
-            if AgiEnv.verbose > 1:
-                AgiEnv.logger.info(f"Extracted '{archive_path}' to '{dest}'.")
-
-            # Stamp the extracted dataset so future runs can decide whether the archive
-            # has changed without relying on extracted file mtimes (which may be older
-            # than the archive itself).
-            stamp_path = dataset / ".agilab_dataset_stamp"
-            try:
-                stamp_path.write_text(str(archive_path), encoding="utf-8")
-                archive_mtime = archive_path.stat().st_mtime
-                os.utime(stamp_path, (archive_mtime, archive_mtime))
-            except Exception:  # pragma: no cover - best effort
-                pass
-        except Exception as e:
-            AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
-            traceback.print_exc()
-            if isinstance(e, RuntimeError):
-                raise
-            raise RuntimeError(f"Extraction failed for '{archive_path}'") from e
+        extract_dataset_archive(
+            archive_path,
+            extract_to=extract_to,
+            app_data_rel=self.app_data_rel,
+            agi_share_path_abs=Path(self.agi_share_path_abs),
+            user=self.user,
+            home_abs=Path(self.home_abs),
+            verbose=AgiEnv.verbose or 0,
+            logger=AgiEnv.logger,
+            force_extract=force_extract,
+            ensure_dir_fn=_ensure_dir,
+            sevenzip_file_cls=py7zr.SevenZipFile,
+            rmtree_fn=shutil.rmtree,
+            environ=os.environ,
+        )
 
 
     @staticmethod
