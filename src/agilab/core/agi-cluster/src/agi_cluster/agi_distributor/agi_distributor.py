@@ -41,6 +41,7 @@ from agi_cluster.agi_distributor import (
     capacity_support,
     deployment_build_support,
     deployment_local_support,
+    deployment_orchestration_support,
     deployment_prepare_support,
     deployment_remote_support,
     service_runtime_support,
@@ -1507,39 +1508,26 @@ class AGI:
 
     @staticmethod
     async def _clean_nodes(scheduler_addr: Optional[str], force: bool = True) -> Set[str]:
-        # Compose list of IPs: workers plus scheduler's IP
-        list_ip = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
-        localhost_ip = socket.gethostbyname("localhost")
-        if not list_ip:
-            list_ip.add(localhost_ip)
-
-        for ip in list_ip:
-            if AgiEnv.is_local(ip):
-                # Assuming this cleans local dirs once per IP (or should be once per call)
-                AGI._clean_dirs_local()
-
-        await AGI._clean_remote_procs(list_ip=list_ip, force=force)
-        await AGI._clean_remote_dirs(list_ip=list_ip)
-
-        return list_ip
+        return await deployment_orchestration_support.clean_nodes(
+            AGI,
+            scheduler_addr,
+            force=force,
+            is_local_fn=AgiEnv.is_local,
+            gethostbyname_fn=socket.gethostbyname,
+        )
 
     @staticmethod
     async def _clean_remote_procs(list_ip: Set[str], force: bool = True) -> None:
-        tasks = []
-        for ip in list_ip:
-            if not AgiEnv.is_local(ip):
-                tasks.append(asyncio.create_task(AGI._kill(ip, os.getpid(), force=force)))
-
-        if tasks:
-            await asyncio.gather(*tasks)
+        await deployment_orchestration_support.clean_remote_procs(
+            AGI,
+            list_ip,
+            force=force,
+            is_local_fn=AgiEnv.is_local,
+        )
 
     @staticmethod
     async def _clean_remote_dirs(list_ip: Set[str]) -> None:
-        tasks = []
-        for ip in list_ip:
-            tasks.append(asyncio.create_task(AGI._clean_dirs(ip)))
-        if tasks:
-            await asyncio.gather(*tasks)
+        await deployment_orchestration_support.clean_remote_dirs(AGI, list_ip)
 
     @staticmethod
     async def _prepare_local_env() -> None:
@@ -1574,45 +1562,17 @@ class AGI:
 
     @staticmethod
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
-        AGI._reset_deploy_state()
-        env = AGI.env
-        app_path = env.active_app
-        wenv_rel = env.wenv_rel
-        if isinstance(env.base_worker_cls, str):
-            options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
-
-        # node_ips = await AGI._clean_nodes(scheduler)
-        node_ips = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
-        AGI._venv_todo(node_ips)
-        start_time = time.time()
-        if env.verbose > 0:
-            logger.info(f"Installing {app_path} on 127.0.0.1")
-
-        await AGI._deploy_local_worker(app_path, Path(wenv_rel), options_worker)
-        # logger.info(AGI.run(cmd, wenv_abs))
-        if AGI._mode & 4:
-            tasks = []
-            for ip in node_ips:
-                if env.verbose > 0:
-                    logger.info(f"Installing worker on {ip}")
-                if not env.is_local(ip):
-                    tasks.append(asyncio.create_task(
-                        AGI._deploy_remote_worker(ip, env, wenv_rel, options_worker)
-                    ))
-            await asyncio.gather(*tasks)
-
-        if AGI.verbose:
-            duration = AGI._format_elapsed(time.time() - start_time)
-            if env.verbose > 0:
-                logger.info(f"uv {AGI._run_type} completed in {duration}")
+        await deployment_orchestration_support.deploy_application(
+            AGI,
+            scheduler_addr,
+            time_fn=time.time,
+            log=logger,
+        )
 
     @staticmethod
     def _reset_deploy_state() -> None:
         """Initialize installation flags and run type."""
-        AGI._run_type = AGI._run_types[(AGI._mode & AGI._DEPLOYEMENT_MASK) >> 4]
-        AGI._install_done_local = False
-        AGI._install_done = False
-        AGI._worker_init_error = False
+        deployment_orchestration_support.reset_deploy_state(AGI)
 
     @staticmethod
     def _hardware_supports_rapids() -> bool:
