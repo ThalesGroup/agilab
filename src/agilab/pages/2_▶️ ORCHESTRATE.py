@@ -52,8 +52,12 @@ try:
         is_app_installed as _orchestrate_is_app_installed,
         resolve_share_candidate as _orchestrate_resolve_share_candidate,
         update_delete_confirm_state as _orchestrate_update_delete_confirm_state,
+        toggle_select_all as _orchestrate_toggle_select_all,
+        update_select_all as _orchestrate_update_select_all,
         optional_python_expr,
         optional_string_expr,
+        capture_dataframe_preview_state as _orchestrate_capture_dataframe_preview_state,
+        restore_dataframe_preview_state as _orchestrate_restore_dataframe_preview_state,
         filter_noise_lines,
         filter_warning_messages,
         format_log_block,
@@ -102,6 +106,10 @@ except ModuleNotFoundError:
     strip_ansi = _orchestrate_page_support_module.strip_ansi
     update_distribution_payload = _orchestrate_page_support_module.update_distribution_payload
     workplan_selection_key = _orchestrate_page_support_module.workplan_selection_key
+    _orchestrate_capture_dataframe_preview_state = _orchestrate_page_support_module.capture_dataframe_preview_state
+    _orchestrate_restore_dataframe_preview_state = _orchestrate_page_support_module.restore_dataframe_preview_state
+    _orchestrate_toggle_select_all = _orchestrate_page_support_module.toggle_select_all
+    _orchestrate_update_select_all = _orchestrate_page_support_module.update_select_all
 try:
     from agilab.orchestrate_cluster import (
         OrchestrateClusterDeps,
@@ -625,69 +633,20 @@ def render_generic_ui() -> None:
         st.session_state.app_settings["args"] = args_input
 
 def toggle_select_all():
-    if st.session_state.check_all:
-        st.session_state.selected_cols = st.session_state.df_cols.copy()
-    else:
-        st.session_state.selected_cols = []
+    _orchestrate_toggle_select_all(st.session_state)
 
 def update_select_all():
-    all_selected = all(st.session_state.get(f"export_col_{i}", False) for i in range(len(st.session_state.df_cols)))
-    st.session_state.check_all = all_selected
-    st.session_state.selected_cols = [
-        col for i, col in enumerate(st.session_state.df_cols) if st.session_state.get(f"export_col_{i}", False)
-    ]
+    _orchestrate_update_select_all(st.session_state)
 
 
 def _capture_dataframe_preview_state() -> dict:
     """Capture dataframe preview-related session state for one-step undo."""
-    df_cols_raw = st.session_state.get("df_cols", [])
-    selected_cols_raw = st.session_state.get("selected_cols", [])
-    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
-    selected_cols = list(selected_cols_raw) if isinstance(selected_cols_raw, (list, tuple)) else []
-    return {
-        "loaded_df": st.session_state.get("loaded_df"),
-        "loaded_graph": st.session_state.get("loaded_graph"),
-        "loaded_source_path": st.session_state.get("loaded_source_path"),
-        "df_cols": df_cols,
-        "selected_cols": selected_cols,
-        "check_all": bool(st.session_state.get("check_all", False)),
-        "force_export_open": bool(st.session_state.get("_force_export_open", False)),
-        "dataframe_deleted": bool(st.session_state.get("dataframe_deleted", False)),
-    }
+    return _orchestrate_capture_dataframe_preview_state(st.session_state)
 
 
 def _restore_dataframe_preview_state(payload: dict) -> None:
     """Restore dataframe preview session state from an undo payload."""
-    st.session_state["loaded_df"] = payload.get("loaded_df")
-    if payload.get("loaded_graph") is None:
-        st.session_state.pop("loaded_graph", None)
-    else:
-        st.session_state["loaded_graph"] = payload.get("loaded_graph")
-
-    source_path = payload.get("loaded_source_path")
-    if source_path:
-        st.session_state["loaded_source_path"] = source_path
-    else:
-        st.session_state.pop("loaded_source_path", None)
-
-    df_cols_raw = payload.get("df_cols", [])
-    selected_cols_raw = payload.get("selected_cols", [])
-    df_cols = list(df_cols_raw) if isinstance(df_cols_raw, (list, tuple)) else []
-    selected_cols = [col for col in (selected_cols_raw or []) if col in df_cols]
-    requested_all = bool(payload.get("check_all", False))
-    if requested_all and df_cols:
-        selected_cols = df_cols.copy()
-
-    st.session_state["df_cols"] = df_cols
-    st.session_state["selected_cols"] = selected_cols
-    st.session_state["check_all"] = bool(df_cols) and len(selected_cols) == len(df_cols)
-    st.session_state["_force_export_open"] = bool(payload.get("force_export_open", False))
-    st.session_state["dataframe_deleted"] = bool(payload.get("dataframe_deleted", False))
-
-    for key in [key for key in st.session_state.keys() if key.startswith("export_col_")]:
-        st.session_state.pop(key, None)
-    for idx, col in enumerate(df_cols):
-        st.session_state[f"export_col_{idx}"] = col in selected_cols
+    _orchestrate_restore_dataframe_preview_state(st.session_state, payload)
 
 def _is_app_installed(env: Any) -> bool:
     return _orchestrate_is_app_installed(env)

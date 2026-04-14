@@ -197,3 +197,68 @@ def test_append_log_lines_filters_tracebacks_and_dask_noise():
     )
     assert buffer == ["normal", "next"]
     assert state["active"] is False
+
+
+def test_capture_and_restore_dataframe_preview_state_round_trip():
+    session_state: dict[str, object] = {
+        "loaded_df": {"rows": 1},
+        "loaded_graph": {"nodes": 3},
+        "loaded_source_path": "/tmp/source.csv",
+        "df_cols": ["a", "b"],
+        "selected_cols": ["a"],
+        "check_all": False,
+        "_force_export_open": True,
+        "dataframe_deleted": False,
+        "export_col_0": True,
+        "export_col_1": False,
+    }
+
+    captured = orchestrate_page_support.capture_dataframe_preview_state(session_state)
+    assert captured["loaded_df"] == {"rows": 1}
+    assert captured["df_cols"] == ["a", "b"]
+    assert captured["selected_cols"] == ["a"]
+
+    target: dict[str, object] = {}
+    orchestrate_page_support.restore_dataframe_preview_state(
+        target,
+        payload={
+            "loaded_df": "restored_df",
+            "loaded_graph": "restored_graph",
+            "loaded_source_path": "/tmp/restored.csv",
+            "df_cols": ["x", "y"],
+            "selected_cols": ["y"],
+            "check_all": True,
+            "force_export_open": False,
+            "dataframe_deleted": True,
+        },
+    )
+
+    assert target["loaded_df"] == "restored_df"
+    assert target["loaded_graph"] == "restored_graph"
+    assert target["loaded_source_path"] == "/tmp/restored.csv"
+    assert target["df_cols"] == ["x", "y"]
+    assert target["selected_cols"] == ["x", "y"]
+    assert target["check_all"] is True
+    assert target["_force_export_open"] is False
+    assert target["dataframe_deleted"] is True
+    assert target["export_col_0"] is True
+    assert target["export_col_1"] is True
+
+
+def test_select_all_state_helpers_update_columns():
+    session_state: dict[str, object] = {
+        "df_cols": ["a", "b", "c"],
+        "selected_cols": ["a"],
+        "check_all": False,
+    }
+    orchestrate_page_support.toggle_select_all(session_state)
+    assert session_state["selected_cols"] == []
+
+    session_state["check_all"] = True
+    orchestrate_page_support.toggle_select_all(session_state)
+    assert session_state["selected_cols"] == ["a", "b", "c"]
+
+    session_state.update({"export_col_0": True, "export_col_1": True, "export_col_2": False})
+    orchestrate_page_support.update_select_all(session_state)
+    assert session_state["check_all"] is False
+    assert session_state["selected_cols"] == ["a", "b"]
