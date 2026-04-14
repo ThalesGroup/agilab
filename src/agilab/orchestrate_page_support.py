@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import re
+import os
 import textwrap
 from collections.abc import Mapping, MutableMapping, Sequence
+from pathlib import Path
 from typing import Any
 
 
@@ -336,11 +338,11 @@ def clear_mount_table_cache(mount_table_fn: Any) -> None:
         clear()
 
 
-def resolve_share_candidate(path_value: Any, home_abs: str | Path) -> Path:
+def resolve_share_candidate(path_value: Any, home_abs: str | Path, *, path_type=Path) -> Path:
     """Resolve share candidate paths without raising on bad references."""
-    share_candidate = Path(path_value)
+    share_candidate = path_type(path_value)
     if not share_candidate.is_absolute():
-        share_candidate = Path(home_abs) / share_candidate
+        share_candidate = path_type(home_abs) / share_candidate
     share_candidate = share_candidate.expanduser()
     try:
         return share_candidate.resolve()
@@ -353,7 +355,7 @@ def benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     if date_value:
         return date_value
     try:
-        ts = benchmark_path.stat().st_mtime
+        ts = os.path.getmtime(benchmark_path)
     except OSError:
         return ""
     from datetime import datetime

@@ -397,7 +397,7 @@ def _clear_mount_table_cache() -> None:
 
 def _resolve_share_candidate(path_value: Any, home_abs: Path | str) -> Path:
     """Resolve the configured share path without failing on broken targets."""
-    return _orchestrate_resolve_share_candidate(path_value, home_abs)
+    return _orchestrate_resolve_share_candidate(path_value, home_abs, path_type=Path)
 
 
 def _benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
