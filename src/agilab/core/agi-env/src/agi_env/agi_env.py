@@ -1918,7 +1918,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         cwd=str(cwd) if cwd else None,
                         env=process_env,
                     )
-                except:
+                except (ValueError, TypeError, OSError, RuntimeError):
                     proc = await asyncio.create_subprocess_shell(
                         cmd,
                         stdout=asyncio.subprocess.PIPE,
@@ -2484,7 +2484,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
-        except:
+        except (AttributeError, OSError, RuntimeError):
             return False
 
     @staticmethod

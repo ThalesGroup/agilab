@@ -1609,7 +1609,7 @@ def main() -> None:
 
         page()
 
-    except Exception as e:
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as e:
         st.error(f"An error occurred: {e}")
         import traceback
 

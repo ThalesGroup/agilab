@@ -1672,9 +1672,8 @@ def handle_project_rename():
             renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
             try:
                 shutil.rmtree(src_path, ignore_errors=True)
-            except:
-                st.warning(f"failed to remove {src_path}")
-                pass
+            except OSError as exc:
+                st.warning(f"failed to remove {src_path}: {exc}")
 
             st.success(f"Project renamed: '{current}' → '{new_name}'")
             if renamed_venv_message:
@@ -1948,7 +1947,7 @@ def main():
     try:
         page()
 
-    except Exception as e:
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as e:
         st.error(f"An error occurred: {e}")
         import traceback
 
