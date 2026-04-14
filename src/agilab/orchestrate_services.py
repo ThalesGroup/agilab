@@ -461,7 +461,7 @@ async def render_service_panel(
                         log_callback=_service_log_callback,
                         venv=project_path,
                     )
-                except Exception as exc:
+                except (RuntimeError, OSError, TimeoutError, ValueError, AttributeError, TypeError) as exc:
                     service_error = exc
                     service_stderr = str(exc)
                     deps.append_log_lines(local_log, f"ERROR: {service_stderr}")

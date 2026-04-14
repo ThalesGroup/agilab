@@ -2784,7 +2784,7 @@ class AGI:
         ]:
             try:
                 shutil.rmtree(d, ignore_errors=True)
-            except:
+            except (OSError, TypeError):
                 pass
 
     @staticmethod

@@ -797,7 +797,7 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
         return False
     try:
         await render_view_page(Path(current_page))
-    except Exception as exc:
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
         st.error(f"Failed to render view: {exc}")
     return True
 

@@ -424,7 +424,7 @@ def run(command, cwd=None):
 def get_base64_of_image(image_path):
     try:
         return read_base64_image(image_path)
-    except Exception as exc:
+    except (OSError, TypeError) as exc:
         st.error(f"Error loading {image_path}: {exc}")
         return ""
 
@@ -642,7 +642,7 @@ def on_project_change(project, switch_to_select=False):
         module = env.target
         try:
             store_last_active_app(env.active_app)
-        except Exception:
+        except (OSError, RuntimeError):
             pass
 
         # Update session state with new module and data directory paths
@@ -655,7 +655,7 @@ def on_project_change(project, switch_to_select=False):
         session_state.switch_to_select = switch_to_select
         session_state.project_changed = True
 
-    except Exception as e:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
         st.error(f"An error occurred while changing the project: {e}")
 
     section_labels = (
@@ -917,7 +917,7 @@ def run_lab(query, snippet, codex, *, env_overrides=None):
         finally:
             sys.stdout = stdout
             sys.stderr = stderr
-    except Exception as e:
+    except (ImportError, OSError, RuntimeError, SyntaxError, NameError, ValueError, TypeError, AttributeError, KeyError, IndexError) as e:
         st.warning(f"Error: {e}")
         print(f"Error: {e}", file=output)
     finally:
@@ -1028,17 +1028,17 @@ def save_csv(df, path: Path, sep=",") -> bool:
     if path.is_dir():
         st.error(f"{path} is a directory instead of a filename.")
         return False
+    if df.shape[1] == 0:
+        return False
     logger.info(f"mkdir {path.parent}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    if df.shape[1] > 0:
-        df.to_csv(path, sep=sep, index=False)
-        # Bust cached directory listings so dependent pages (Experiment, Explore) pick up new exports immediately.
-        try:
-            find_files.clear()
-        except Exception:
-            pass
-        return True
-    return False
+    df.to_csv(path, sep=sep, index=False)
+    # Bust cached directory listings so dependent pages (Experiment, Explore) pick up new exports immediately.
+    try:
+        find_files.clear()
+    except (AttributeError, RuntimeError):
+        pass
+    return True
 
 
 def get_df_index(df_files, df_file):
@@ -1197,7 +1197,7 @@ def select_project(projects, current_project):
         try:
             projects = env.get_projects(env.apps_path, env.builtin_apps_path)
             env.projects = projects
-        except Exception:
+        except (OSError, TypeError, RuntimeError):
             pass
 
     search_term = st.sidebar.text_input("Filter projects", key="project_filter").strip().lower()
@@ -1244,10 +1244,12 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
     Returns (current_project_name, project_changed)
     """
     project_changed = False
-    try:
-        requested = st.query_params.get("active_app")
-        requested_val = requested[-1] if isinstance(requested, list) else requested
-    except Exception:
+    requested = st.query_params.get("active_app")
+    if isinstance(requested, list):
+        requested_val = requested[-1] if requested else None
+    elif requested is not None:
+        requested_val = requested
+    else:
         requested_val = None
 
     def _candidates(name: str) -> list[Path]:
@@ -1284,7 +1286,7 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
                 project_changed = True
                 store_last_active_app(env.active_app)
                 break
-            except Exception:
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
                 continue
     elif not requested_val:
         last_app = load_last_active_app()
@@ -1292,7 +1294,7 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
             try:
                 env.change_app(last_app)
                 project_changed = True
-            except Exception:
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
                 pass
 
     return env.app, project_changed
@@ -1484,7 +1486,7 @@ def activate_mlflow(env=None):
         st.session_state.server_started = True
         st.session_state["mlflow_port"] = port
         return True
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError, AttributeError) as e:
         st.session_state["server_started"] = False
         st.session_state.pop("mlflow_port", None)
         st.error(f"Failed to start the server: {e}")
