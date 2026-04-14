@@ -15,6 +15,21 @@ from code_editor import code_editor
 from agi_env.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
 
 try:
+    from agilab.code_editor_support import normalize_custom_buttons
+except ModuleNotFoundError:
+    _code_editor_support_path = Path(__file__).resolve().parent / "code_editor_support.py"
+    import importlib.util
+    _code_editor_support_spec = importlib.util.spec_from_file_location(
+        "agilab_code_editor_support_fallback",
+        _code_editor_support_path,
+    )
+    if _code_editor_support_spec is None or _code_editor_support_spec.loader is None:
+        raise
+    _code_editor_support_module = importlib.util.module_from_spec(_code_editor_support_spec)
+    _code_editor_support_spec.loader.exec_module(_code_editor_support_module)
+    normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+try:
     from agilab.pipeline_runtime import is_valid_runtime_root as _is_valid_runtime_root
 except ModuleNotFoundError:
     _pipeline_runtime_path = Path(__file__).resolve().parent / "pipeline_runtime.py"
@@ -800,7 +815,7 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
         code,
         height=min(30, len(code)),
         theme="contrast",
-        buttons=get_custom_buttons(),
+        buttons=normalize_custom_buttons(get_custom_buttons()),
         info=get_info_bar(),
         component_props=get_css_text(),
         props={"style": {"borderRadius": "0px 0px 8px 8px"}},

@@ -53,6 +53,20 @@ from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv, normalize_path
 
+try:
+    from agilab.code_editor_support import normalize_custom_buttons
+except ModuleNotFoundError:
+    _code_editor_support_path = Path(__file__).resolve().parents[1] / "code_editor_support.py"
+    _code_editor_support_spec = importlib.util.spec_from_file_location(
+        "agilab_code_editor_support_fallback",
+        _code_editor_support_path,
+    )
+    if _code_editor_support_spec is None or _code_editor_support_spec.loader is None:
+        raise
+    _code_editor_support_module = importlib.util.module_from_spec(_code_editor_support_spec)
+    _code_editor_support_spec.loader.exec_module(_code_editor_support_module)
+    normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 CLONE_ENV_STRATEGY_LABELS = {
@@ -1862,7 +1876,7 @@ def page():
 
     try:
         with open(env.st_resources / "custom_buttons.json") as f:
-            CUSTOM_BUTTONS = json.load(f)
+            CUSTOM_BUTTONS = normalize_custom_buttons(json.load(f))
         with open(env.st_resources / "info_bar.json") as f:
             INFO_BAR = json.load(f)
         with open(env.st_resources / "code_editor.scss") as f:
@@ -1872,6 +1886,9 @@ def page():
         return
     except json.JSONDecodeError as e:
         st.error(f"Error decoding JSON resource: {e}")
+        return
+    except TypeError as e:
+        st.error(f"Invalid code editor resource: {e}")
         return
 
     comp_props = {

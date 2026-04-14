@@ -21,6 +21,20 @@ from agi_env.pagelib import (
 )
 
 try:
+    from agilab.code_editor_support import normalize_custom_buttons
+except ModuleNotFoundError:
+    _code_editor_support_path = Path(__file__).resolve().parent / "code_editor_support.py"
+    _code_editor_support_spec = importlib.util.spec_from_file_location(
+        "agilab_code_editor_support_fallback",
+        _code_editor_support_path,
+    )
+    if _code_editor_support_spec is None or _code_editor_support_spec.loader is None:
+        raise
+    _code_editor_support_module = importlib.util.module_from_spec(_code_editor_support_spec)
+    _code_editor_support_spec.loader.exec_module(_code_editor_support_module)
+    normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+try:
     from agilab.pipeline_steps import (
         ORCHESTRATE_LOCKED_SOURCE_KEY,
         ORCHESTRATE_LOCKED_STEP_KEY,
@@ -717,7 +731,7 @@ def display_lab_tab(
                 code_text if code_text.endswith("\n") else code_text + "\n",
                 height=(min(30, len(code_text)) if code_text else 100),
                 theme="contrast",
-                buttons=get_custom_buttons(),
+                buttons=normalize_custom_buttons(get_custom_buttons()),
                 info=get_info_bar(),
                 component_props=get_css_text(),
                 props={"style": {"borderRadius": "0px 0px 8px 8px"}},
