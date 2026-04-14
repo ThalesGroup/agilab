@@ -28,7 +28,6 @@ import time
 import shlex
 import warnings
 from copy import deepcopy
-from datetime import timedelta
 from ipaddress import ip_address as is_ip
 from pathlib import Path, PurePosixPath
 from tempfile import gettempdir, mkdtemp
@@ -177,14 +176,13 @@ import errno
 import asyncssh
 from asyncssh.process import ProcessError
 from contextlib import asynccontextmanager
-import humanize
 import numpy as np
 import polars as pl
 import psutil
+import subprocess
 from dask.distributed import Client, wait
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-import subprocess
 import runpy
 from packaging.requirements import Requirement
 from importlib.metadata import PackageNotFoundError, version as pkg_version
@@ -862,16 +860,7 @@ class AGI:
 
     @staticmethod
     def _hardware_supports_rapids() -> bool:
-        try:
-            subprocess.run(
-                ["nvidia-smi"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
+        return runtime_misc_support.hardware_supports_rapids()
 
     @staticmethod
     async def _deploy_local_worker(src: Path, wenv_rel: Path, options_worker: str) -> None:
@@ -905,7 +894,7 @@ class AGI:
 
     @staticmethod
     def _should_install_pip() -> bool:
-        return str(getpass.getuser()).startswith("T0") and not (Path(sys.prefix) / "Scripts/pip.exe").exists()
+        return runtime_misc_support.should_install_pip()
 
     @staticmethod
     async def _uninstall_modules() -> None:
@@ -918,15 +907,7 @@ class AGI:
 
     @staticmethod
     def _format_elapsed(seconds: float) -> str:
-        """Format the duration from seconds to a human-readable format.
-
-        Args:
-            seconds (float): The duration in seconds.
-
-        Returns:
-            str: The formatted duration.
-        """
-        return humanize.precisedelta(timedelta(seconds=seconds))
+        return runtime_misc_support.format_elapsed(seconds)
 
     @staticmethod
     def _venv_todo(list_ip: Set[str]) -> None:

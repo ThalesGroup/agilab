@@ -93,6 +93,7 @@ def service_read_state(agi_cls: Any, env: AgiEnv, *, log: Any = logger) -> Optio
 
 def service_write_state(agi_cls: Any, env: AgiEnv, payload: Dict[str, Any]) -> None:
     state_path = agi_cls._service_state_path(env)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = state_path.with_suffix(state_path.suffix + ".tmp")
     with open(tmp_path, "w", encoding="utf-8") as stream:
         json.dump(payload, stream, indent=2)

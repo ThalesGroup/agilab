@@ -1,12 +1,26 @@
 import asyncio
+import getpass
+import humanize
 import inspect
 import json
+import pickle
 import re
+import subprocess
+import sys
 import traceback
 import urllib.error
 import urllib.request
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, List, Optional
+
+_CAPACITY_LOAD_EXCEPTIONS = (
+    AttributeError,
+    EOFError,
+    ImportError,
+    OSError,
+    pickle.PickleError,
+)
 
 
 def ensure_asyncio_run_signature(
@@ -141,3 +155,62 @@ def format_exception_chain(exc: BaseException) -> str:
     if not messages:
         return str(exc).strip() or repr(exc)
     return " -> ".join(messages)
+
+
+def load_capacity_predictor(
+    model_path: Path,
+    *,
+    load_fn: Callable[[Any], Any] = pickle.load,
+    retrain_fn: Optional[Callable[[], Any]] = None,
+    log: Any = None,
+) -> Any:
+    path = Path(model_path)
+    if not path.is_file():
+        if retrain_fn is not None:
+            retrain_fn()
+        return None
+
+    try:
+        with open(path, "rb") as stream:
+            return load_fn(stream)
+    except _CAPACITY_LOAD_EXCEPTIONS as exc:
+        if log is not None:
+            log.warning("Failed to load capacity model from %s: %s", path, exc)
+        if retrain_fn is not None:
+            retrain_fn()
+        return None
+
+
+def hardware_supports_rapids(
+    *,
+    run_fn: Callable[..., Any] | None = None,
+    devnull: Any = subprocess.DEVNULL,
+) -> bool:
+    try:
+        if run_fn is None:
+            run_fn = subprocess.run
+        run_fn(
+            ["nvidia-smi"],
+            stdout=devnull,
+            stderr=devnull,
+            check=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def should_install_pip(
+    *,
+    getuser_fn: Callable[[], str] = getpass.getuser,
+    sys_prefix: str = sys.prefix,
+) -> bool:
+    return str(getuser_fn()).startswith("T0") and not (Path(sys_prefix) / "Scripts/pip.exe").exists()
+
+
+def format_elapsed(
+    seconds: float,
+    *,
+    precisedelta_fn: Callable[[timedelta], str] = humanize.precisedelta,
+) -> str:
+    return precisedelta_fn(timedelta(seconds=seconds))

@@ -199,6 +199,18 @@ def test_service_write_state_roundtrip_and_clear(tmp_path):
     assert not state_path.exists()
 
 
+def test_service_write_state_creates_missing_parent_directory(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    state_path = tmp_path / "missing" / "nested" / "service_state.json"
+    agi._service_state_path = lambda _env: state_path
+
+    service_state_support.service_write_state(agi, env, {"schema": "x", "status": "running"})
+
+    assert state_path.exists()
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "running"
+
+
 def test_service_finalize_response_health_only_adds_export_path():
     agi = _build_agi()
     env = _build_env(Path("/tmp"))
