@@ -147,7 +147,7 @@ Next steps
 - :doc:`architecture` – understand how the web interface, ``agi_core``, ``agi_env`` and
   ``agi_cluster`` fit together.
 - :doc:`directory-structure` – explore the repository layout with an annotated
-  tree tracked in the repo and refreshed by ``docs/gen-docs.py --refresh-generated``.
+  tree tracked in the repo and refreshed when ``docs/source/directory-structure.txt`` is updated.
 - :doc:`agilab-help` – learn how core pages and optional page bundles fit
   together in the UI.
 - :doc:`apps-pages` – learn how page bundles are discovered, enabled, and launched.

@@ -226,9 +226,41 @@ core/
                 agi_env.py
                 agi_logger.py
                 app_args.py
+                app_settings_support.py
+                bootstrap_support.py
+                content_renamer_support.py
+                credential_store_support.py
+                data_archive_support.py
                 defaults.py
+                env_config_support.py
+                execution_support.py
+                hook_support.py
+                installation_support.py
+                mlflow_store.py
+                package_layout_support.py
                 pagelib.py
+                pagelib_data_support.py
+                pagelib_execution_support.py
+                pagelib_navigation_support.py
+                pagelib_preview_support.py
+                pagelib_project_support.py
+                pagelib_resource_support.py
+                pagelib_runtime_support.py
+                pagelib_session_support.py
+                process_support.py
+                project_clone_support.py
+                rename_gitignore_support.py
+                repository_support.py
+                runtime_bootstrap_support.py
+                share_mount_support.py
+                share_runtime_support.py
+                source_analysis_ast.py
+                source_analysis_support.py
                 streamlit_args.py
+                ui_docs_support.py
+                ui_state_support.py
+                ui_support.py
+                worker_source_support.py
             __init__.py
             pyproject.toml
         test/
@@ -237,9 +269,39 @@ core/
             clean_csv.py
             dummy_cmd.py
             test_agi_env.py
+            test_agi_logger.py
             test_app_args.py
+            test_app_settings_support.py
+            test_bootstrap_support.py
+            test_content_renamer_support.py
+            test_credential_store_support.py
+            test_data_archive_support.py
+            test_env_config_support.py
+            test_hook_support.py
+            test_installation_support.py
+            test_package_layout_support.py
             test_pagelib.py
+            test_pagelib_data_support.py
+            test_pagelib_execution_support.py
+            test_pagelib_navigation_support.py
+            test_pagelib_preview_support.py
+            test_pagelib_project_support.py
+            test_pagelib_resource_support.py
+            test_pagelib_runtime_support.py
+            test_pagelib_session_support.py
+            test_process_support.py
+            test_project_clone_support.py
+            test_rename_gitignore_support.py
+            test_repository_support.py
+            test_runtime_bootstrap_support.py
+            test_share_runtime_support.py
+            test_source_analysis_ast.py
+            test_source_analysis_support.py
             test_streamlit_args.py
+            test_ui_docs_support.py
+            test_ui_state_support.py
+            test_ui_support.py
+            test_worker_source_support.py
         .gitignore
         __init__.py
         LICENSE
