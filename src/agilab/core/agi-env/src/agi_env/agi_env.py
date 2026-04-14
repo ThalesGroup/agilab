@@ -92,6 +92,13 @@ from agi_env.process_support import (
     parse_level,
     strip_time_level_prefix,
 )
+from agi_env.repository_support import (
+    collect_pythonpath_entries as build_pythonpath_entries,
+    configure_pythonpath as apply_pythonpath_entries,
+    dedupe_existing_paths,
+    get_apps_repository_root as resolve_apps_repository_root,
+    resolve_package_root,
+)
 from agi_env.share_runtime_support import (
     is_valid_ip as is_valid_ipv4_address,
     mode_to_int,
@@ -1214,113 +1221,36 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     @staticmethod
     def _resolve_package(root: Path) -> Path:
-        """Return the ``src`` directory for a package when present.
-
-        Many AGILab components follow the ``src/`` layout; when that folder is
-        missing the package root itself is returned.
-        """
-
-        src_dir = root / "src" / root.name.replace("-", "_")
-        return src_dir if src_dir.exists() else root
+        return resolve_package_root(root)
 
     def _get_apps_repository_root(self) -> Path | None:
-        """Return the apps repository directory when ``APPS_REPOSITORY`` is configured."""
-
-        repo_root = self.envars.get("APPS_REPOSITORY") or os.environ.get("APPS_REPOSITORY")
-        if not repo_root:
-            return None
-        repo_root = repo_root.strip()
-        if repo_root.startswith(("'", '"')) and repo_root.endswith(("'", '"')) and len(repo_root) >= 2:
-            repo_root = repo_root[1:-1].strip()
-        if not repo_root:
-            return None
-
-        # Normalise malformed Windows drive paths like 'C:Users...'
-        repo_root = _fix_windows_drive(repo_root)
-        repo_path = Path(repo_root).expanduser()
-
-        candidate = repo_path / "src/agilab/apps"
-        if candidate.exists():
-            return candidate
-
-        try:
-            for alt in repo_path.glob("**/apps"):
-                try:
-                    if any(child.name.endswith("_project") for child in alt.iterdir()):
-                        return alt
-                except OSError:
-                    continue
-        except Exception as exc:
-            AgiEnv.logger.debug(f"Error while scanning apps repository: {exc}")
-
-        AgiEnv.logger.info(
-            f"APPS_REPOSITORY is set but apps directory is missing under {repo_path}"
+        return resolve_apps_repository_root(
+            envars=self.envars,
+            environ=os.environ,
+            logger=AgiEnv.logger,
+            fix_windows_drive_fn=_fix_windows_drive,
         )
-        return None
 
     def _collect_pythonpath_entries(self) -> list[str]:
-        """Build an ordered list of paths that must live on ``PYTHONPATH``."""
-
-        def import_root(path: Path) -> Path:
-            """Return the directory that must be added to ``PYTHONPATH`` for ``path``."""
-
-            try:
-                init_file = path / "__init__.py"
-            except TypeError:
-                return path
-
-            if init_file.exists():
-                return path.parent
-            return path
-
-        candidates = [
-            import_root(self.env_pck.parent),
-            import_root(self.node_pck.parent),
-            import_root(self.core_pck.parent),
-            import_root(self.cluster_pck.parent),
-            self.dist_abs,
-            self.app_src,
-            self.wenv_abs / "src",
-            self.agilab_pck / "agilab",
-        ]
-        return self._dedupe_paths(candidates)
+        return build_pythonpath_entries(
+            env_pck=self.env_pck,
+            node_pck=self.node_pck,
+            core_pck=self.core_pck,
+            cluster_pck=self.cluster_pck,
+            dist_abs=self.dist_abs,
+            app_src=self.app_src,
+            wenv_abs=self.wenv_abs,
+            agilab_pck=self.agilab_pck,
+            dedupe_paths_fn=self._dedupe_paths,
+        )
 
     def _configure_pythonpath(self, entries: list[str]) -> None:
-        """Inject ``entries`` into both ``sys.path`` and the ``PYTHONPATH`` env var."""
-
         self._pythonpath_entries = entries
-        if not entries:
-            return
-        for entry in entries:
-            if entry not in sys.path:
-                sys.path.append(entry)
-        current = os.environ.get("PYTHONPATH", "")
-        combined = entries.copy()
-        if current:
-            for part in current.split(os.pathsep):
-                if part and part not in combined:
-                    combined.append(part)
-        os.environ["PYTHONPATH"] = os.pathsep.join(combined)
+        apply_pythonpath_entries(entries, sys_path=sys.path, environ=os.environ)
 
     @staticmethod
     def _dedupe_paths(paths) -> list[str]:
-        """Collapse ``paths`` into a list of unique, existing filesystem entries."""
-
-        seen: set[str] = set()
-        result: list[str] = []
-        for path in paths:
-            if not path:
-                continue
-            path_str = str(path)
-            if not path_str:
-                continue
-            if not Path(path_str).exists():
-                continue
-            if path_str in seen:
-                continue
-            seen.add(path_str)
-            result.append(path_str)
-        return result
+        return dedupe_existing_paths(paths)
 
     def has_agilab_anywhere_under_home(self, path: Path) -> bool:
         """Return ``True`` when ``path`` sits under the user's home ``agilab`` tree."""
