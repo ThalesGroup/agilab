@@ -36,10 +36,17 @@ def env(tmp_path, monkeypatch):
     return AgiEnv(apps_path=apps_path, app='mycode_project', verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
-    txt = 'foo foo_bar barfoo bar Foo foo.'
-    rename_map = {'foo': 'baz', 'bar': 'qux', 'Foo': 'Baz'}
-    out = env.replace_content(txt, rename_map)
-    assert out == 'baz foo_bar barfoo qux Baz baz.'
+    captured = {}
+
+    def _fake_replace(txt, rename_map):
+        captured["args"] = (txt, rename_map)
+        return "patched"
+
+    with mock.patch.object(agi_env_module, "replace_text_content", _fake_replace):
+        out = env.replace_content("foo", {"foo": "bar"})
+
+    assert out == "patched"
+    assert captured["args"] == ("foo", {"foo": "bar"})
 
 def test_change_app_reinitializes_on_change(monkeypatch, env):
     called = {'count': 0, 'kwargs': None}
@@ -1207,15 +1214,6 @@ def test_content_renamer_updates_ast_nodes(monkeypatch):
     assert mock_logger.info.call_count > 0
 
 
-def test_is_relative_to_returns_expected_result(tmp_path: Path):
-    parent = tmp_path / "parent"
-    child = parent / "child"
-    child.mkdir(parents=True)
-
-    assert agi_env_module._is_relative_to(child, parent) is True
-    assert agi_env_module._is_relative_to(tmp_path / "other", parent) is False
-
-
 def test_init_resources_copies_seed_files_and_handles_installed_and_source_extras(tmp_path: Path, monkeypatch):
     resources_src = tmp_path / "resources-src"
     resources_src.mkdir()
@@ -1369,15 +1367,74 @@ def test_source_analysis_wrappers_use_support_module(monkeypatch):
     assert captured["full_name"] is attr_base
 
 
+def test_worker_source_wrappers_use_support_module(monkeypatch):
+    env = object.__new__(AgiEnv)
+    captured = {}
+
+    def _fake_get_base_classes(module_path, class_name, *, logger, import_mapping_fn, extract_base_info_fn):
+        captured["base_classes"] = (
+            module_path,
+            class_name,
+            logger,
+            import_mapping_fn,
+            extract_base_info_fn,
+        )
+        return [("DemoWorker", "demo.worker")]
+
+    def _fake_get_base_worker_cls(module_path, class_name, *, logger, get_base_classes_fn):
+        captured["base_worker"] = (module_path, class_name, logger, get_base_classes_fn)
+        return ("DemoWorker", "demo.worker")
+
+    monkeypatch.setattr(agi_env_module, "discover_base_classes", _fake_get_base_classes)
+    monkeypatch.setattr(agi_env_module, "discover_base_worker_cls", _fake_get_base_worker_cls)
+
+    assert env.get_base_classes("worker.py", "DemoWorker") == [("DemoWorker", "demo.worker")]
+    assert captured["base_classes"] == (
+        "worker.py",
+        "DemoWorker",
+        AgiEnv.logger,
+        env.get_import_mapping,
+        env.extract_base_info,
+    )
+
+    assert env.get_base_worker_cls("worker.py", "DemoWorker") == ("DemoWorker", "demo.worker")
+    assert captured["base_worker"] == (
+        "worker.py",
+        "DemoWorker",
+        AgiEnv.logger,
+        env.get_base_classes,
+    )
+
+
+def test_is_relative_to_wrapper_uses_support_module(monkeypatch, tmp_path: Path):
+    captured = {}
+
+    def _fake_is_relative_to(path, other):
+        captured["args"] = (path, other)
+        return True
+
+    monkeypatch.setattr(agi_env_module, "is_path_relative_to", _fake_is_relative_to)
+
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    assert agi_env_module._is_relative_to(child, parent) is True
+    assert captured["args"] == (child, parent)
+
+
 def test_read_gitignore_and_check_internet_cover_success_and_failure(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     gitignore = tmp_path / ".gitignore"
     gitignore.write_text("*.pyc\nbuild/\n", encoding="utf-8")
+    captured = {}
 
-    spec = env.read_gitignore(gitignore)
-    assert spec.match_file("module.pyc") is True
-    assert spec.match_file("build/output.txt") is True
-    assert spec.match_file("README.md") is False
+    def _fake_load_gitignore(path):
+        captured["path"] = path
+        return "gitignore-spec"
+
+    monkeypatch.setattr(agi_env_module, "load_gitignore_spec", _fake_load_gitignore)
+
+    assert env.read_gitignore(gitignore) == "gitignore-spec"
+    assert captured["path"] == gitignore
     assert env.is_valid_ip("192.168.0.10") is True
     assert env.is_valid_ip("999.1.1.1") is False
 
