@@ -17,6 +17,28 @@ from agi_env import AgiEnv
 logger = logging.getLogger(__name__)
 
 
+async def _run_scp_command(
+    cmd: list[str],
+    *,
+    local_path: Path,
+    remote: str,
+    log: Any = logger,
+) -> None:
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        message = stderr.decode().strip()
+        log.error(f"SCP failed sending {local_path} to {remote}: {message}")
+        raise ConnectionError(f"SCP error: {message}")
+
+    log.info(f"Sent file {local_path} to {remote}")
+
+
 def _verbose_logging_enabled() -> bool:
     verbose = getattr(AgiEnv, "verbose", 0) or 0
     return verbose > 0 or bool(getattr(AgiEnv, "debug", False))
@@ -121,33 +143,16 @@ async def send_file(
     scp_cmd.append(remote)
     cmd = auth_prefix + scp_cmd
 
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _stdout, stderr = await process.communicate()
+    last_error: ConnectionError | OSError | None = None
+    for _attempt in range(2):
+        try:
+            await _run_scp_command(cmd, local_path=local_path, remote=remote, log=log)
+            return
+        except (ConnectionError, OSError) as exc:
+            last_error = exc
 
-        if process.returncode != 0:
-            log.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
-            raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
-
-        log.info(f"Sent file {local_path} to {remote}")
-
-    except Exception:
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _stdout, stderr = await process.communicate()
-
-        if process.returncode:
-            log.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
-            raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
-
-        log.info(f"Sent file {local_path} to {remote}")
+    if last_error is not None:
+        raise last_error
 
 
 async def send_files(
@@ -257,6 +262,7 @@ async def get_ssh_connection(
         raise ConnectionError(base_msg) from None
 
     except Exception as exc:
+        # AsyncSSH/connect can surface unexpected wrapper exceptions; normalize once here.
         err_msg = f"Unexpected error while connecting to {ip}: {exc}"
         log.error(err_msg)
         raise ConnectionError(err_msg) from None
