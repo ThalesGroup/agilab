@@ -58,6 +58,7 @@ from copy import deepcopy
 from agi_env import AgiEnv, normalize_path
 
 from agi_env.agi_logger import AgiLogger
+from . import base_worker_path_support as path_support
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -115,18 +116,13 @@ class BaseWorker(abc.ABC):
         *,
         env: AgiEnv | None = None,
     ) -> Path:
-        env = env or cls.env
-        if env is None or not env._is_managed_pc:
-            return Path(value)
-
-        home = Path.home()
-        managed_root = home / cls.managed_pc_home_suffix
-
-        try:
-            return Path(str(Path(value)).replace(str(home), str(managed_root)))
-        except Exception:  # pragma: no cover - defensive guard
-            logger.debug("Failed to remap path %s for managed PC", value, exc_info=True)
-            return Path(value)
+        return path_support.remap_managed_pc_path(
+            value,
+            env=env or cls.env,
+            managed_pc_home_suffix=cls.managed_pc_home_suffix,
+            path_cls=Path,
+            home_factory=Path.home,
+        )
 
     @classmethod
     def _apply_managed_pc_path_overrides(
@@ -156,59 +152,24 @@ class BaseWorker(abc.ABC):
 
     @classmethod
     def _ensure_managed_pc_share_dir(cls, env: AgiEnv | None) -> None:
-        if env is None:
-            return
-        if not env._is_managed_pc:
-            return
-
-        home = Path.home()
-        managed_root = home / cls.managed_pc_home_suffix
-
-        agi_share_path = env.agi_share_path
-        if agi_share_path is None:
-            return
-
-        try:
-            env.agi_share_path = Path(
-                str(Path(agi_share_path)).replace(str(home), str(managed_root))
-            )
-        except Exception:  # pragma: no cover - defensive guard
-            logger.debug(
-                "Failed to remap agi_share_path for managed PC", exc_info=True
-            )
+        path_support.ensure_managed_pc_share_dir(
+            env,
+            managed_pc_home_suffix=cls.managed_pc_home_suffix,
+            path_cls=Path,
+            home_factory=Path.home,
+        )
 
     @classmethod
     def _normalized_path(cls, value: Path | str) -> Path:
-        path_obj = Path(value)
-        try:
-            return Path(normalize_path(path_obj)).expanduser()
-        except Exception:
-            return path_obj.expanduser()
+        return path_support.normalized_path(
+            value,
+            normalize_path_fn=normalize_path,
+            path_cls=Path,
+        )
 
     @staticmethod
     def _share_root_path(env: AgiEnv | None) -> Path | None:
-        if env is None:
-            return None
-
-        try:
-            base = Path(env.share_root_path()).expanduser()
-            if base:
-                return base
-        except Exception:  # pragma: no cover - defensive guard
-            logger.debug("share_root_path() failed; falling back to legacy resolution", exc_info=True)
-
-        candidates = (
-            env.agi_share_path_abs,
-            env.agi_share_path,
-        )
-        for candidate in candidates:
-            if candidate:
-                base = Path(candidate).expanduser()
-                if not base.is_absolute():
-                    home = Path(env.home_abs).expanduser()
-                    base = (home / base).expanduser()
-                return base
-        return Path(env.home_abs).expanduser()
+        return path_support.share_root_path(env, path_cls=Path)
 
     @classmethod
     def _resolve_data_dir(
@@ -217,93 +178,37 @@ class BaseWorker(abc.ABC):
         data_path: Path | str | None,
     ) -> Path:
         """Resolve ``data_in`` style values relative to the current environment."""
-
-        if data_path is None:
-            raise ValueError("data_path must be provided to resolve a dataset directory")
-
-        raw = Path(str(data_path)).expanduser()
-        if not raw.is_absolute():
-            base = cls._share_root_path(env) or Path.home()
-            raw = Path(base).expanduser() / raw
-
-        remapped = cls._remap_managed_pc_path(raw, env=env)
-        try:
-            resolved = cls._normalized_path(remapped)
-        except Exception:
-            resolved = remapped.expanduser()
-
-        try:
-            return resolved.resolve(strict=False)
-        except Exception:
-            return Path(os.path.normpath(str(resolved)))
+        return path_support.resolve_data_dir(
+            env,
+            data_path,
+            share_root_path_fn=cls._share_root_path,
+            remap_managed_pc_path_fn=lambda value: cls._remap_managed_pc_path(value, env=env),
+            normalized_path_fn=cls._normalized_path,
+            path_cls=Path,
+            home_factory=Path.home,
+        )
 
     @staticmethod
     def _relative_to_user_home(path: Path) -> Path | None:
-        parts = path.parts
-        if len(parts) >= 3 and parts[1].lower() in {"users", "home"}:
-            return Path(*parts[3:]) if len(parts) > 3 else Path()
-        return None
+        return path_support.relative_to_user_home(path, path_cls=Path)
 
     @staticmethod
     def _remap_user_home(path: Path, *, username: str) -> Path | None:
-        parts = path.parts
-        if len(parts) < 3:
-            return None
-        root_marker = parts[1].lower()
-        if root_marker not in {"users", "home"}:
-            return None
-        root = Path(parts[0]) if parts[0] else Path("/")
-        base = root / parts[1] / username
-        remainder = Path(*parts[3:]) if len(parts) > 3 else Path()
-        candidate = base / remainder if remainder else base
-        return candidate
+        return path_support.remap_user_home(path, username=username, path_cls=Path)
 
     @staticmethod
     def _strip_share_prefix(path: Path, aliases: set[str]) -> Path:
-        parts = path.parts
-        if parts and parts[0] in aliases:
-            return Path(*parts[1:]) if len(parts) > 1 else Path()
-        return path
+        return path_support.strip_share_prefix(path, aliases, path_cls=Path)
 
     @staticmethod
     def _can_create_path(path: Path) -> bool:
-        target_dir = path
-        if target_dir.suffix:
-            target_dir = target_dir.parent
-        probe = target_dir / f".agi_perm_{uuid.uuid4().hex}"
-        try:
-            logger.info(f"mkdir {target_dir}")
-            target_dir.mkdir(parents=True, exist_ok=True)
-            probe.touch(exist_ok=False)
-        except (PermissionError, FileNotFoundError, OSError):
-            return False
-        else:
-            return True
-        finally:
-            with suppress(Exception):
-                probe.unlink()
+        return path_support.can_create_path(path, path_cls=Path)
 
     @staticmethod
     def _collect_share_aliases(
         env: AgiEnv | None, share_base: Path
     ) -> set[str]:
-        aliases = {share_base.name, "data", "clustershare", "datashare"}
-        if env:
-            if env.AGILAB_SHARE_HINT:
-                hint_path = Path(str(env.AGILAB_SHARE_HINT))
-                parts = [p for p in hint_path.parts if p not in {"", "."}]
-                aliases.update(parts[-2:])
-            if env.AGILAB_SHARE_REL:
-                try:
-                    aliases.add(Path(env.AGILAB_SHARE_REL).name)
-                except Exception:
-                    pass
-            if env.agi_share_path:
-                try:
-                    aliases.add(Path(env.agi_share_path).name)
-                except Exception:
-                    pass
-        return {alias for alias in aliases if alias}
+        return path_support.collect_share_aliases(env, share_base, path_cls=Path)
 
     @staticmethod
     def _iter_input_files(
@@ -311,11 +216,7 @@ class BaseWorker(abc.ABC):
         *,
         patterns: Iterable[str] | None = None,
     ) -> list[Path]:
-        file_patterns = tuple(patterns or ("*.csv", "*.parquet", "*.pq", "*.parq"))
-        files: list[Path] = []
-        for pattern in file_patterns:
-            files.extend(sorted(folder.glob(pattern)))
-        return [path for path in files if path.is_file() and not path.name.startswith("._")]
+        return path_support.iter_input_files(folder, patterns=patterns)
 
     @classmethod
     def _has_min_input_files(
@@ -325,9 +226,12 @@ class BaseWorker(abc.ABC):
         min_files: int = 1,
         patterns: Iterable[str] | None = None,
     ) -> bool:
-        if not folder.exists() or not folder.is_dir():
-            return False
-        return len(cls._iter_input_files(folder, patterns=patterns)) >= min_files
+        return path_support.has_min_input_files(
+            folder,
+            min_files=min_files,
+            patterns=patterns,
+            iter_input_files_fn=cls._iter_input_files,
+        )
 
     @classmethod
     def _candidate_named_dataset_roots(
@@ -338,32 +242,15 @@ class BaseWorker(abc.ABC):
         namespace: str | None = None,
         parent_levels: int = 4,
     ) -> list[Path]:
-        root = cls._normalized_path(dataset_root)
-        candidates: list[Path] = [root]
-
-        if namespace:
-            dataset_name = root.name
-            for ancestor in list(root.parents)[:parent_levels]:
-                candidates.append(ancestor / namespace / dataset_name)
-                candidates.append(ancestor / namespace)
-
-            share_root = cls._share_root_path(env)
-            if share_root:
-                candidates.append(share_root / namespace / dataset_name)
-                candidates.append(share_root / namespace)
-
-        unique_roots: list[Path] = []
-        seen_roots: set[str] = set()
-        for candidate in candidates:
-            try:
-                normalized = cls._normalized_path(candidate).resolve(strict=False)
-            except Exception:
-                normalized = cls._normalized_path(candidate)
-            key = str(normalized)
-            if key not in seen_roots:
-                seen_roots.add(key)
-                unique_roots.append(normalized)
-        return unique_roots
+        return path_support.candidate_named_dataset_roots(
+            env,
+            dataset_root,
+            namespace=namespace,
+            parent_levels=parent_levels,
+            normalized_path_fn=cls._normalized_path,
+            share_root_path_fn=cls._share_root_path,
+            path_cls=Path,
+        )
 
     @classmethod
     def resolve_input_folder(
@@ -379,45 +266,25 @@ class BaseWorker(abc.ABC):
         patterns: Iterable[str] | None = None,
         required_label: str = "data files",
     ) -> Path:
-        dataset_root_path = cls._normalized_path(dataset_root)
-        target = Path(relative_dir).expanduser()
-        if not target.is_absolute():
-            target = dataset_root_path / target
-        target = cls._normalized_path(target)
-
-        if cls._has_min_input_files(target, min_files=min_files, patterns=patterns):
-            return target.resolve(strict=False)
-
-        for fallback_subdir in fallback_subdirs:
-            nested_target = cls._normalized_path(target / fallback_subdir)
-            if cls._has_min_input_files(nested_target, min_files=min_files, patterns=patterns):
-                logger.warning(
-                    "Needed %s data under '%s' but none found; using nested fallback '%s' instead.",
-                    descriptor,
-                    target,
-                    nested_target,
-                )
-                return nested_target.resolve(strict=False)
-
-        for root in cls._candidate_named_dataset_roots(
+        return path_support.resolve_input_folder(
             env,
-            dataset_root_path,
-            namespace=dataset_namespace,
-        ):
-            for fallback_subdir in fallback_subdirs:
-                fallback = cls._normalized_path(root / fallback_subdir)
-                if cls._has_min_input_files(fallback, min_files=min_files, patterns=patterns):
-                    logger.warning(
-                        "Needed %s data under '%s' but none found; using fallback '%s' instead.",
-                        descriptor,
-                        target,
-                        fallback,
-                    )
-                    return fallback.resolve(strict=False)
-
-        raise FileNotFoundError(
-            f"Need at least {min_files} {required_label} under '{target}'. "
-            f"Run {descriptor} to generate inputs before executing."
+            dataset_root,
+            relative_dir,
+            descriptor=descriptor,
+            fallback_subdirs=fallback_subdirs,
+            dataset_namespace=dataset_namespace,
+            min_files=min_files,
+            patterns=patterns,
+            required_label=required_label,
+            normalized_path_fn=cls._normalized_path,
+            has_min_input_files_fn=cls._has_min_input_files,
+            candidate_named_dataset_roots_fn=lambda current_env, root, namespace=None: cls._candidate_named_dataset_roots(
+                current_env,
+                root,
+                namespace=namespace,
+            ),
+            warn_fn=logger.warning,
+            path_cls=Path,
         )
 
 
