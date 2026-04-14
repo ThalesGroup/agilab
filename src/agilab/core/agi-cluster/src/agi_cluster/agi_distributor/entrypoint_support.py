@@ -1,12 +1,13 @@
 import asyncio
 import logging
 import os
-import pickle
 import re
 import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
+
+from agi_cluster.agi_distributor import runtime_misc_support
 
 
 logger = logging.getLogger(__name__)
@@ -73,11 +74,13 @@ def _load_capacity_predictor(agi_cls: Any, env: Any) -> None:
     agi_cls._capacity_data_file = env.resources_path / "balancer_df.csv"
     agi_cls._capacity_model_file = env.resources_path / "balancer_model.pkl"
     capacity_model_file = Path(agi_cls._capacity_model_file)
-    if capacity_model_file.is_file():
-        with open(capacity_model_file, "rb") as stream:
-            agi_cls._capacity_predictor = pickle.load(stream)
-    else:
-        agi_cls._train_capacity(Path(env.home_abs))
+    predictor = runtime_misc_support.load_capacity_predictor(
+        capacity_model_file,
+        retrain_fn=lambda: agi_cls._train_capacity(Path(env.home_abs)),
+        log=logger,
+    )
+    if predictor is not None:
+        agi_cls._capacity_predictor = predictor
 
 
 def _resolve_install_worker_group(agi_cls: Any, env: Any) -> None:
