@@ -709,207 +709,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception:
             self.GUI_SAMPLING = 20
 
-        self.target = target
-        wenv_root = Path("wenv")
-        target_worker = f"{target}_worker"
-        self.target_worker = target_worker
-        wenv_rel = wenv_root / target_worker
-        target_class = "".join(x.title() for x in target.split("_"))
-        self.target_class = target_class
-        worker_class = target_class + "Worker"
-        self.target_worker_class = worker_class
-
-        self.wenv_rel = wenv_rel
-        self.dist_rel = wenv_rel / 'dist'
-        wenv_abs = home_abs / wenv_rel
-        self.wenv_abs = wenv_abs
-        _ensure_dir(self.wenv_abs)
-
-        self.pre_install =  self.node_pck / "agi_dispatcher/pre_install.py"
-        self.post_install = self.node_pck / "agi_dispatcher/post_install.py"
-        self.post_install_rel =   "agi_node.agi_dispatcher.post_install"
-
-        dist_abs = wenv_abs / 'dist'
-        dist = normalize_path(dist_abs)
-        if not dist in sys.path:
-            sys.path.append(dist)
-        self.dist_abs = dist_abs
-        self.app_src = self.active_app / "src"
-        self.manager_pyproject = self.active_app / "pyproject.toml"
-        self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
-        self.manager_path = self.app_src / target / f"{target}.py"
-        is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_pck)
-        worker_src_abs = self.wenv_abs / 'src'
-
-        if self.is_worker_env and not is_local_worker:
-            self.app_src = self.agilab_pck / "src"
-            self.worker_path = worker_src_abs / target_worker / f"{target_worker}.py"
-
-            self.manager_path = worker_src_abs / target / f"{target}.py"
-
-        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-        self.uvproject = self.active_app / "uv_config.toml"
-        self.dataset_archive = self.worker_path.parent / "dataset.7z"
-
-        src_path = normalize_path(self.app_src)
-        if not src_path in sys.path:
-            sys.path.append(src_path)
-
-        if not self.worker_path.exists():
-            if not self.is_worker_env:
-                builtin_roots = []
-                if self.builtin_apps_path is not None:
-                    builtin_roots.append(self.builtin_apps_path)
-                if apps_path is not None:
-                    builtin_roots.append(apps_path / "builtin")
-                builtin_roots.append(apps_root / "builtin")
-                builtin_roots.append(self.agilab_pck / "apps" / "builtin")
-
-                for builtin_root in builtin_roots:
-                    try:
-                        candidate_app = builtin_root / self.app
-                    except TypeError:
-                        continue
-                    candidate_worker = candidate_app / "src" / target_worker / f"{target_worker}.py"
-                    if not candidate_worker.exists():
-                        continue
-                    try:
-                        self.active_app = candidate_app.resolve(strict=False)
-                    except Exception:
-                        self.active_app = candidate_app
-                    self.app_src = self.active_app / "src"
-                    self.manager_pyproject = self.active_app / "pyproject.toml"
-                    self.uvproject = self.active_app / "uv_config.toml"
-                    self.worker_path = candidate_worker
-                    self.manager_path = self.app_src / target / f"{target}.py"
-                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                    self.builtin_apps_path = builtin_root
-                    AgiEnv.logger.info(
-                        "Resolved builtin app %s from %s after missing worker path in %s",
-                        self.app,
-                        candidate_app,
-                        active_app,
-                    )
-                    break
-
-        if not self.worker_path.exists():
-            copied_packaged_worker = False
-            # Prefer an installed worker tree inside wenv to avoid mutating the source checkout.
-            wenv_worker_src = self.wenv_abs / "src" / target_worker / f"{target_worker}.py"
-            if wenv_worker_src.exists():
-                self.app_src = self.wenv_abs / "src"
-                self.worker_path = wenv_worker_src
-                self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-                self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                copied_packaged_worker = True
-            if not copied_packaged_worker:
-                if self._ensure_repository_app_link():
-                    self.app_src = self.active_app / "src"
-                    self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
-                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                else:
-                    packaged_app = self.agilab_pck / "apps" / self.app
-                    if not self.is_worker_env and packaged_app.exists():
-                        try:
-                            same_app = packaged_app.resolve(
-                                strict=False
-                            ) == self.active_app.resolve(strict=False)
-                        except Exception:  # pragma: no cover - defensive guard
-                            same_app = False
-
-                        if not same_app:
-                            try:
-                                shutil.copytree(
-                                    packaged_app,
-                                    self.active_app,
-                                    dirs_exist_ok=True,
-                                )
-                                copied_packaged_worker = True
-                                AgiEnv.logger.info(
-                                    "Copied packaged app %s into %s",
-                                    packaged_app,
-                                    self.active_app,
-                                )
-                            except Exception as exc:
-                                AgiEnv.logger.warning(
-                                    "Unable to copy packaged worker app from %s to %s: %s",
-                                    packaged_app,
-                                    self.active_app,
-                                    exc,
-                                )
-                    elif not self.is_worker_env and apps_root.exists():
-                        self.copy_existing_projects(apps_root, apps_path)
-
-                if (
-                    not self.is_worker_env
-                    and not self.worker_path.exists()
-                    and apps_root.exists()
-                    and self.app.endswith("_worker")
-                ):
-                    project_name = self.app.replace("_worker", "_project")
-                    project_worker_dir = apps_root / project_name / "src" / self.app
-                    if project_worker_dir.exists():
-                        dest_worker_dir = self.active_app / "src" / self.app
-                        try:
-                            shutil.copytree(
-                                project_worker_dir,
-                                dest_worker_dir,
-                                dirs_exist_ok=True,
-                            )
-                            AgiEnv.logger.info(
-                                "Copied project worker sources %s into %s",
-                                project_worker_dir,
-                                dest_worker_dir,
-                            )
-                        except Exception as exc:
-                            AgiEnv.logger.warning(
-                                f"Failed to copy worker sources from {project_worker_dir}: {exc}"
-                            )
-                        else:
-                            copied_packaged_worker = True
-
-                if copied_packaged_worker:
-                    self.app_src =self.active_app / "src"
-                    self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
-                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                #elif self.is_worker_env:
-                #    AgiEnv.logger.info(
-                #        "Worker sources not found (is_worker_env=True) at %s", self.worker_path
-                #    )
-
-        self.apps_path = apps_path
-        distribution_tree = self.wenv_abs / "distribution_tree.json"
-        if distribution_tree.exists():
-            distribution_tree.unlink()
-        self.distribution_tree = distribution_tree
-
-        pythonpath_entries = self._collect_pythonpath_entries()
-        self._configure_pythonpath(pythonpath_entries)
-
-        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
-
-        self.pyvers_worker = self.python_version
-        self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
-        # Avoid stray stdout; rely on logger when needed
-        if self.worker_pyproject.exists():
-            with open(self.worker_pyproject, "r") as f:
-                data = tomlkit.parse(f.read())
-            try:
-                use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
-                if use_freethread and self.is_free_threading_available:
-                    self.uv_worker = "PYTHON_GIL=0 " + self.uv
-                    self.pyvers_worker = self.pyvers_worker + "t"
-                else:
-                    self.uv_worker = self.uv
-            except KeyError as e:
-                use_freethread = False
-                self.uv_worker = self.uv
-        else:
-            self.uv_worker = self.uv
-            use_freethread = False
+        self._configure_worker_runtime(
+            target=target,
+            home_abs=home_abs,
+            apps_path=apps_path,
+            apps_root=apps_root,
+            envars=envars,
+            requested_active_app=active_app,
+        )
 
         self.AGI_LOCAL_SHARE = envars.get("AGI_LOCAL_SHARE") or os.environ.get("AGI_LOCAL_SHARE")
         if not self.AGI_LOCAL_SHARE:
@@ -959,7 +766,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if self.worker_path.exists():
             self.base_worker_cls, self._base_worker_module = self.get_base_worker_cls(
-                self.worker_path, worker_class
+                self.worker_path, self.target_worker_class
             )
         else:
             self.base_worker_cls, self._base_worker_module = (None, None)
@@ -1090,6 +897,198 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _configure_pythonpath(self, entries: list[str]) -> None:
         self._pythonpath_entries = entries
         apply_pythonpath_entries(entries, sys_path=sys.path, environ=os.environ)
+
+    def _configure_worker_runtime(
+        self,
+        *,
+        target: str,
+        home_abs: Path,
+        apps_path: Path | None,
+        apps_root: Path,
+        envars: dict,
+        requested_active_app: Path,
+    ) -> None:
+        self.target = target
+        wenv_root = Path("wenv")
+        target_worker = f"{target}_worker"
+        self.target_worker = target_worker
+        wenv_rel = wenv_root / target_worker
+        target_class = "".join(part.title() for part in target.split("_"))
+        self.target_class = target_class
+        self.target_worker_class = target_class + "Worker"
+
+        self.wenv_rel = wenv_rel
+        self.dist_rel = wenv_rel / "dist"
+        self.wenv_abs = home_abs / wenv_rel
+        _ensure_dir(self.wenv_abs)
+
+        self.pre_install = self.node_pck / "agi_dispatcher/pre_install.py"
+        self.post_install = self.node_pck / "agi_dispatcher/post_install.py"
+        self.post_install_rel = "agi_node.agi_dispatcher.post_install"
+
+        self.dist_abs = self.wenv_abs / "dist"
+        dist_path = normalize_path(self.dist_abs)
+        if dist_path not in sys.path:
+            sys.path.append(dist_path)
+
+        self.app_src = self.active_app / "src"
+        self.manager_pyproject = self.active_app / "pyproject.toml"
+        self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+        self.manager_path = self.app_src / target / f"{target}.py"
+
+        is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_pck)
+        worker_src_abs = self.wenv_abs / "src"
+        if self.is_worker_env and not is_local_worker:
+            self.app_src = self.agilab_pck / "src"
+            self.worker_path = worker_src_abs / target_worker / f"{target_worker}.py"
+            self.manager_path = worker_src_abs / target / f"{target}.py"
+
+        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+        self.uvproject = self.active_app / "uv_config.toml"
+        self.dataset_archive = self.worker_path.parent / "dataset.7z"
+
+        src_path = normalize_path(self.app_src)
+        if src_path not in sys.path:
+            sys.path.append(src_path)
+
+        if not self.worker_path.exists() and not self.is_worker_env:
+            builtin_roots: list[Path] = []
+            if self.builtin_apps_path is not None:
+                builtin_roots.append(self.builtin_apps_path)
+            if apps_path is not None:
+                builtin_roots.append(apps_path / "builtin")
+            builtin_roots.append(apps_root / "builtin")
+            builtin_roots.append(self.agilab_pck / "apps" / "builtin")
+
+            for builtin_root in builtin_roots:
+                try:
+                    candidate_app = builtin_root / self.app
+                except TypeError:
+                    continue
+                candidate_worker = candidate_app / "src" / target_worker / f"{target_worker}.py"
+                if not candidate_worker.exists():
+                    continue
+                try:
+                    self.active_app = candidate_app.resolve(strict=False)
+                except Exception:
+                    self.active_app = candidate_app
+                self.app_src = self.active_app / "src"
+                self.manager_pyproject = self.active_app / "pyproject.toml"
+                self.uvproject = self.active_app / "uv_config.toml"
+                self.worker_path = candidate_worker
+                self.manager_path = self.app_src / target / f"{target}.py"
+                self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                self.builtin_apps_path = builtin_root
+                AgiEnv.logger.info(
+                    "Resolved builtin app %s from %s after missing worker path in %s",
+                    self.app,
+                    candidate_app,
+                    requested_active_app,
+                )
+                break
+
+        if not self.worker_path.exists():
+            copied_packaged_worker = False
+            wenv_worker_src = self.wenv_abs / "src" / target_worker / f"{target_worker}.py"
+            if wenv_worker_src.exists():
+                self.app_src = self.wenv_abs / "src"
+                self.worker_path = wenv_worker_src
+                self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                copied_packaged_worker = True
+
+            if not copied_packaged_worker:
+                if self._ensure_repository_app_link():
+                    self.app_src = self.active_app / "src"
+                    self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                else:
+                    packaged_app = self.agilab_pck / "apps" / self.app
+                    if not self.is_worker_env and packaged_app.exists():
+                        try:
+                            same_app = packaged_app.resolve(strict=False) == self.active_app.resolve(strict=False)
+                        except Exception:  # pragma: no cover - defensive guard
+                            same_app = False
+
+                        if not same_app:
+                            try:
+                                shutil.copytree(packaged_app, self.active_app, dirs_exist_ok=True)
+                                copied_packaged_worker = True
+                                AgiEnv.logger.info(
+                                    "Copied packaged app %s into %s",
+                                    packaged_app,
+                                    self.active_app,
+                                )
+                            except Exception as exc:
+                                AgiEnv.logger.warning(
+                                    "Unable to copy packaged worker app from %s to %s: %s",
+                                    packaged_app,
+                                    self.active_app,
+                                    exc,
+                                )
+                    elif not self.is_worker_env and apps_root.exists():
+                        self.copy_existing_projects(apps_root, apps_path)
+
+                if (
+                    not self.is_worker_env
+                    and not self.worker_path.exists()
+                    and apps_root.exists()
+                    and self.app.endswith("_worker")
+                ):
+                    project_name = self.app.replace("_worker", "_project")
+                    project_worker_dir = apps_root / project_name / "src" / self.app
+                    if project_worker_dir.exists():
+                        dest_worker_dir = self.active_app / "src" / self.app
+                        try:
+                            shutil.copytree(project_worker_dir, dest_worker_dir, dirs_exist_ok=True)
+                            AgiEnv.logger.info(
+                                "Copied project worker sources %s into %s",
+                                project_worker_dir,
+                                dest_worker_dir,
+                            )
+                        except Exception as exc:
+                            AgiEnv.logger.warning(
+                                "Failed to copy worker sources from %s: %s",
+                                project_worker_dir,
+                                exc,
+                            )
+                        else:
+                            copied_packaged_worker = True
+
+                if copied_packaged_worker:
+                    self.app_src = self.active_app / "src"
+                    self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
+
+        self.apps_path = apps_path
+        distribution_tree = self.wenv_abs / "distribution_tree.json"
+        if distribution_tree.exists():
+            distribution_tree.unlink()
+        self.distribution_tree = distribution_tree
+
+        pythonpath_entries = self._collect_pythonpath_entries()
+        self._configure_pythonpath(pythonpath_entries)
+
+        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
+        self.pyvers_worker = self.python_version
+        self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
+        if self.worker_pyproject.exists():
+            with open(self.worker_pyproject, "r") as handle:
+                data = tomlkit.parse(handle.read())
+            try:
+                use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
+                if use_freethread and self.is_free_threading_available:
+                    self.uv_worker = "PYTHON_GIL=0 " + self.uv
+                    self.pyvers_worker = self.pyvers_worker + "t"
+                else:
+                    self.uv_worker = self.uv
+            except KeyError:
+                self.uv_worker = self.uv
+        else:
+            self.uv_worker = self.uv
 
     @staticmethod
     def _dedupe_paths(paths) -> list[str]:
