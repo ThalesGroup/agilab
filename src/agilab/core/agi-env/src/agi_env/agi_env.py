@@ -107,6 +107,7 @@ from agi_env.share_runtime_support import (
     mode_to_str,
     resolve_share_path as resolve_relative_share_path,
     share_target_name,
+    python_supports_free_threading,
 )
 from agi_env.share_mount_support import (
     cluster_enabled_from_settings as resolve_cluster_enabled_from_settings,
@@ -889,7 +890,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
         self.pyvers_worker = self.python_version
-        self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
+        requested_free_threading = bool(parse_int_env_value(envars, "AGI_PYTHON_FREE_THREADED", 0))
+        self.is_free_threading_available = requested_free_threading and python_supports_free_threading()
         if self.worker_pyproject.exists():
             with open(self.worker_pyproject, "r") as handle:
                 data = tomlkit.parse(handle.read())

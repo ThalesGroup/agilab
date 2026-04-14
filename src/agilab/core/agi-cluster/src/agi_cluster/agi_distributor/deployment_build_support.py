@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agi_env import AgiEnv
+from agi_env.share_runtime_support import python_supports_free_threading
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def _python_site_version(pyvers_worker: str) -> str:
 
 
 def _project_uv(env: Any) -> str:
-    if not env.is_free_threading_available:
+    if not env.is_free_threading_available or not python_supports_free_threading():
         return env.uv
     cmd_prefix = str(env.envars.get("127.0.0.1_CMD_PREFIX", "")).strip()
     return " ".join(part for part in (cmd_prefix, "PYTHON_GIL=0", env.uv) if part)
