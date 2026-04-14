@@ -85,6 +85,12 @@ BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 AGILAB_REPO="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 APPS_REPOSITORY="${APPS_REPOSITORY:-}"
+CORE_EDITABLE_PACKAGES=(
+  --with-editable "$AGILAB_REPO/core/agi-env"
+  --with-editable "$AGILAB_REPO/core/agi-node"
+  --with-editable "$AGILAB_REPO/core/agi-cluster"
+  --with-editable "$AGILAB_REPO/core/agi-core"
+)
 
 PAGES_TARGET_BASE=""
 APPS_TARGET_BASE=""
@@ -874,8 +880,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
         if pushd -- "$app_dir_rel" >/dev/null; then
         ran_app_test=0
         if [[ -f app_test.py ]]; then
-          echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
-          "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+          echo "${UV_PREVIEW[@]} run -p \"$AGI_PYTHON_VERSION\" ${CORE_EDITABLE_PACKAGES[*]} python app_test.py"
+          "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py
           ran_app_test=1
         else
             if app_has_collectable_pytests .; then
@@ -935,7 +941,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       popd >/dev/null
       continue
     fi
-    if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . --with pytest --with pytest-cov pytest; then
+    if "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
         rc=$?
