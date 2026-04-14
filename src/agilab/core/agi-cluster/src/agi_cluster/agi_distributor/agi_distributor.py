@@ -28,7 +28,6 @@ import sys
 import time
 import shlex
 import warnings
-import uuid
 import posixpath
 from copy import deepcopy
 from datetime import timedelta
@@ -43,6 +42,7 @@ from agi_cluster.agi_distributor import (
     deployment_build_support,
     deployment_local_support,
     deployment_prepare_support,
+    deployment_remote_support,
     service_runtime_support,
     transport_support,
 )
@@ -1645,153 +1645,17 @@ class AGI:
 
     @staticmethod
     async def _deploy_remote_worker(ip: str, env: AgiEnv, wenv_rel: Path, option: str) -> None:
-        """Install packages and set up the environment on a remote node."""
-
-        wenv_abs = env.wenv_abs
-        wenv_rel = env.wenv_rel
-        dist_rel = env.dist_rel
-        dist_abs = env.dist_abs
-        pyvers = env.pyvers_worker
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        uv = cmd_prefix + env.uv_worker
-
-        # 1) set AGI_CLUSTER_SHARE on workers
-        if AGI._workers_data_path:
-            await AGI.exec_ssh(ip, "mkdir -p .agilab")
-            await AGI.exec_ssh(ip, f"echo 'AGI_CLUSTER_SHARE=\"{Path(AGI._workers_data_path).expanduser().as_posix()}\"' > .agilab/.env")
-
-        if env.is_source_env:
-            # Then send the files to the remote directory
-            egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
-            if egg_file is None:
-                egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
-            if egg_file is None:
-                logger.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
-                raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
-
-            wenv = env.agi_env / 'dist'
-            try:
-                env_whl = next(iter(wenv.glob("agi_env*.whl")))
-            except StopIteration:
-                raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_env*'}")
-
-            # build agi_node*.whl
-            wenv = env.agi_node / 'dist'
-            try:
-                node_whl = next(iter(wenv.glob("agi_node*.whl")))
-            except StopIteration:
-                raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_node*'}")
-
-            dist_remote = wenv_rel / "dist"
-            logger.info(f"mkdir {dist_remote}")
-            await AGI.exec_ssh(ip, f"mkdir -p '{dist_remote}'")
-            await AGI.send_files(env, ip, [egg_file], wenv_rel)
-            await AGI.send_files(env, ip, [node_whl, env_whl], dist_remote)
-        else:
-            # Then send the files to the remote directory
-            egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
-            if egg_file is None:
-                egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
-            if egg_file is None:
-                logger.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
-                raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
-
-            await AGI.send_files(env, ip, [egg_file], wenv_rel)
-
-        # 5) Check remote Rapids hardware support via nvidia-smi
-        hw_rapids_capable = False
-        if AGI._rapids_enabled:
-            check_rapids = 'nvidia-smi'
-
-            try:
-                result = await AGI.exec_ssh(ip, check_rapids)
-            except Exception as e:
-                logger.error(f"rapids is requested but not supported by node [{ip}]")
-                raise
-
-            hw_rapids_capable = (result != "") and AGI._rapids_enabled
-            env.hw_rapids_capable = hw_rapids_capable
-            if hw_rapids_capable:
-                AgiEnv.set_env_var(ip, "hw_rapids_capable")
-            logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
-
-        # unzip egg to get src/
-        cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run -p {pyvers} python  {cli.as_posix()} unzip {wenv_rel.as_posix()}"
-        await AGI.exec_ssh(ip, cmd)
-
-        #############
-        # install env
-        #############
-
-        cmd = f"{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -m ensurepip"
-        await AGI.exec_ssh(ip, cmd)
-
-        if env.is_source_env:
-            env_pck = wenv_rel / "dist" / env_whl.name
-            node_pck = wenv_rel / "dist" / node_whl.name
-        else:
-            env_pck = "agi-env"
-            node_pck = "agi-node"
-
-        def _pkg_ref(pkg: Union[str, Path]) -> str:
-            return pkg.as_posix() if isinstance(pkg, Path) else str(pkg)
-
-        # install env
-        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(env_pck)}"
-        await AGI.exec_ssh(ip, cmd)
-
-        # install node
-        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(node_pck)}"
-        await AGI.exec_ssh(ip, cmd)
-
-        remote_site_packages = _worker_site_packages_dir(
-            PurePosixPath(wenv_rel.as_posix()),
-            pyvers,
-            windows=False,
+        await deployment_remote_support.deploy_remote_worker(
+            AGI,
+            ip,
+            env,
+            wenv_rel,
+            option,
+            worker_site_packages_dir_fn=_worker_site_packages_dir,
+            staged_uv_sources_pth_content_fn=_staged_uv_sources_pth_content,
+            set_env_var_fn=AgiEnv.set_env_var,
+            log=logger,
         )
-        remote_uv_sources = PurePosixPath(wenv_rel.as_posix()) / "_uv_sources"
-        pth_content = _staged_uv_sources_pth_content(remote_site_packages, remote_uv_sources)
-        tmp_pth = Path(gettempdir()) / f"agilab_uv_sources_{uuid.uuid4().hex}.pth"
-        tmp_pth.write_text(pth_content, encoding="utf-8")
-        try:
-            await AGI.exec_ssh(ip, f"mkdir -p '{remote_site_packages.as_posix()}'")
-            await AGI.send_file(
-                env,
-                ip,
-                tmp_pth,
-                remote_site_packages / "agilab_uv_sources.pth",
-            )
-        finally:
-            try:
-                tmp_pth.unlink()
-            except FileNotFoundError:
-                pass
-
-        # unzip egg to get src/
-        cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} --project {wenv_rel.as_posix()}  run --no-sync -p {pyvers} python {cli.as_posix()} unzip {wenv_rel.as_posix()}"
-        await AGI.exec_ssh(ip, cmd)
-
-        # Post-install script
-        cmd = (
-            f"{uv} --project {wenv_rel.as_posix()} run --no-sync -p {pyvers} python -m "
-            f"{env.post_install_rel} {wenv_rel.stem}"
-        )
-        await AGI.exec_ssh(ip, cmd)
-
-        # build target_worker lib from src/
-        if env.verbose > 1:
-            cmd = (
-                f"{uv} --project '{wenv_rel.as_posix()}' run --no-sync -p {pyvers} python -m "
-                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel.as_posix()}' build_ext -b '{wenv_rel.as_posix()}'"
-            )
-        else:
-            cmd = (
-                f"{uv} --project '{wenv_rel.as_posix()}' run --no-sync -p {pyvers} python -m "
-                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel.as_posix()}' -q build_ext -b '{wenv_rel.as_posix()}'"
-            )
-        await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
     def _should_install_pip() -> bool:
