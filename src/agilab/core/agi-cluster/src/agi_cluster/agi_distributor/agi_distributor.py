@@ -38,6 +38,13 @@ from tempfile import gettempdir, mkdtemp
 from types import SimpleNamespace
 
 from agi_cluster.agi_distributor import cli as distributor_cli
+from agi_cluster.agi_distributor import (
+    capacity_support,
+    deployment_build_support,
+    deployment_prepare_support,
+    service_runtime_support,
+    transport_support,
+)
 
 from agi_env import normalize_path
 
@@ -103,51 +110,11 @@ def _ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
 
 
 def _is_private_ssh_key_file(path: Path) -> bool:
-    """Return True when ``path`` looks like a usable private SSH key."""
-
-    if not path.is_file():
-        return False
-
-    name = path.name.lower()
-    if name == "config":
-        return False
-    if name.startswith("authorized_keys"):
-        return False
-    if name.startswith("known_hosts"):
-        return False
-    if name.endswith(".pub"):
-        return False
-
-    try:
-        header = path.read_text(errors="ignore")[:256]
-    except OSError:
-        return False
-
-    private_key_markers = (
-        "BEGIN OPENSSH PRIVATE KEY",
-        "BEGIN RSA PRIVATE KEY",
-        "BEGIN DSA PRIVATE KEY",
-        "BEGIN EC PRIVATE KEY",
-        "BEGIN PRIVATE KEY",
-        "BEGIN ENCRYPTED PRIVATE KEY",
-    )
-    if any(marker in header for marker in private_key_markers):
-        return True
-
-    return name.startswith("id_") and "." not in name
+    return transport_support.is_private_ssh_key_file(path)
 
 
 def _discover_private_ssh_keys(ssh_dir: Path) -> List[str]:
-    """Return likely private SSH keys from ``ssh_dir``."""
-
-    if not ssh_dir.exists():
-        return []
-
-    keys = []
-    for file in ssh_dir.iterdir():
-        if _is_private_ssh_key_file(file):
-            keys.append(str(file))
-    return keys
+    return transport_support.discover_private_ssh_keys(ssh_dir)
 
 
 def _rewrite_uv_sources_paths_for_copied_pyproject(
@@ -897,29 +864,11 @@ class AGI:
 
     @staticmethod
     def _wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
-        """Wrap one worker chunk so BaseWorker can reconstruct legacy payloads."""
-
-        if not isinstance(payload, list):
-            return payload
-        chunk = payload[worker_index] if worker_index < len(payload) else []
-        return {
-            "__agi_worker_chunk__": True,
-            "chunk": chunk,
-            "total_workers": len(payload),
-            "worker_idx": worker_index,
-        }
+        return service_runtime_support.wrap_worker_chunk(payload, worker_index)
 
     @staticmethod
     def _service_queue_paths(queue_root: Path) -> Dict[str, Path]:
-        root = Path(queue_root)
-        return {
-            "root": root,
-            "pending": root / "pending",
-            "running": root / "running",
-            "done": root / "done",
-            "failed": root / "failed",
-            "heartbeats": root / "heartbeats",
-        }
+        return service_runtime_support.service_queue_paths(queue_root)
 
     @staticmethod
     def _service_apply_queue_root(
@@ -927,156 +876,37 @@ class AGI:
             *,
             create: bool = False,
     ) -> Dict[str, Path]:
-        queue_paths = AGI._service_queue_paths(Path(queue_root))
-        if create:
-            for path in queue_paths.values():
-                path.mkdir(parents=True, exist_ok=True)
-        AGI._service_queue_root = queue_paths["root"]
-        AGI._service_queue_pending = queue_paths["pending"]
-        AGI._service_queue_running = queue_paths["running"]
-        AGI._service_queue_done = queue_paths["done"]
-        AGI._service_queue_failed = queue_paths["failed"]
-        AGI._service_queue_heartbeats = queue_paths["heartbeats"]
-        return queue_paths
+        return service_runtime_support.service_apply_queue_root(AGI, queue_root, create=create)
 
     @staticmethod
     def _service_state_path(env: AgiEnv) -> Path:
-        relative_path = Path("service") / env.target / "service_state.json"
-        try:
-            path = env.resolve_share_path(relative_path)
-        except Exception:
-            fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
-            path = (
-                fallback_home / ".agilab_service" / env.target / "service_state.json"
-            ).resolve(strict=False)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
+        return service_runtime_support.service_state_path(env)
 
     @staticmethod
     def _service_read_state(env: AgiEnv) -> Optional[Dict[str, Any]]:
-        state_path = AGI._service_state_path(env)
-        if not state_path.exists():
-            return None
-        try:
-            with open(state_path, "r", encoding="utf-8") as stream:
-                payload = json.load(stream)
-            return payload if isinstance(payload, dict) else None
-        except Exception as exc:
-            logger.warning("Failed to read service state from %s: %s", state_path, exc)
-            return None
+        return service_runtime_support.service_read_state(AGI, env, log=logger)
 
     @staticmethod
     def _service_write_state(env: AgiEnv, payload: Dict[str, Any]) -> None:
-        state_path = AGI._service_state_path(env)
-        tmp_path = state_path.with_suffix(state_path.suffix + ".tmp")
-        with open(tmp_path, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2)
-        os.replace(tmp_path, state_path)
+        service_runtime_support.service_write_state(AGI, env, payload)
 
     @staticmethod
     def _service_clear_state(env: AgiEnv) -> None:
-        state_path = AGI._service_state_path(env)
-        try:
-            if state_path.exists():
-                state_path.unlink()
-        except Exception as exc:
-            logger.debug("Failed to remove service state file %s: %s", state_path, exc)
+        service_runtime_support.service_clear_state(AGI, env, log=logger)
 
     @staticmethod
     def _service_health_path(
             env: AgiEnv,
             health_output_path: Optional[Union[str, Path]] = None,
     ) -> Path:
-        if health_output_path:
-            candidate = Path(str(health_output_path))
-            if candidate.is_absolute():
-                path = candidate
-            else:
-                try:
-                    path = env.resolve_share_path(candidate)
-                except Exception:
-                    fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
-                    path = (fallback_home / ".agilab_service" / env.target / candidate).resolve(
-                        strict=False
-                    )
-        else:
-            relative_path = Path("service") / env.target / "health.json"
-            try:
-                path = env.resolve_share_path(relative_path)
-            except Exception:
-                fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
-                path = (
-                    fallback_home / ".agilab_service" / env.target / "health.json"
-                ).resolve(strict=False)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
+        return service_runtime_support.service_health_path(
+            env,
+            health_output_path=health_output_path,
+        )
 
     @staticmethod
     def _service_health_payload(env: AgiEnv, result_payload: Dict[str, Any]) -> Dict[str, Any]:
-        workers = [str(worker) for worker in (result_payload.get("workers") or []) if worker]
-        pending = [str(worker) for worker in (result_payload.get("pending") or []) if worker]
-        restarted = [str(worker) for worker in (result_payload.get("restarted_workers") or []) if worker]
-        restart_reasons = result_payload.get("restart_reasons") or {}
-        queue = result_payload.get("queue") or {}
-        worker_health = result_payload.get("worker_health")
-        worker_health_rows = worker_health if isinstance(worker_health, list) else []
-
-        healthy_workers: List[str] = []
-        unhealthy_workers: List[str] = []
-        for row in worker_health_rows:
-            if not isinstance(row, dict):
-                continue
-            worker_name = str(row.get("worker", "")).strip()
-            if not worker_name:
-                continue
-            if bool(row.get("healthy", False)):
-                healthy_workers.append(worker_name)
-            else:
-                unhealthy_workers.append(worker_name)
-
-        health_payload: Dict[str, Any] = {
-            "schema": "agi.service.health.v1",
-            "timestamp": time.time(),
-            "app": env.app,
-            "target": env.target,
-            "status": str(result_payload.get("status", "unknown") or "unknown"),
-            "workers_running": workers,
-            "workers_pending": pending,
-            "workers_restarted": restarted,
-            "workers_healthy": healthy_workers,
-            "workers_unhealthy": unhealthy_workers,
-            "workers_running_count": len(workers),
-            "workers_pending_count": len(pending),
-            "workers_restarted_count": len(restarted),
-            "workers_healthy_count": len(healthy_workers),
-            "workers_unhealthy_count": len(unhealthy_workers),
-            "queue": queue if isinstance(queue, dict) else {},
-        }
-
-        if isinstance(restart_reasons, dict) and restart_reasons:
-            health_payload["restart_reasons"] = {
-                str(worker): str(reason)
-                for worker, reason in restart_reasons.items()
-            }
-        client_status = result_payload.get("client_status")
-        if client_status is not None:
-            health_payload["client_status"] = str(client_status)
-        heartbeat_timeout = result_payload.get("heartbeat_timeout_sec")
-        if heartbeat_timeout is not None:
-            try:
-                health_payload["heartbeat_timeout_sec"] = float(heartbeat_timeout)
-            except (TypeError, ValueError):
-                pass
-        queue_dir = result_payload.get("queue_dir")
-        if queue_dir:
-            health_payload["queue_dir"] = str(queue_dir)
-        cleanup = result_payload.get("cleanup")
-        if isinstance(cleanup, dict):
-            health_payload["cleanup"] = cleanup
-        if worker_health_rows:
-            health_payload["worker_health"] = worker_health_rows
-
-        return health_payload
+        return service_runtime_support.service_health_payload(env, result_payload)
 
     @staticmethod
     def _service_write_health_payload(
@@ -1085,16 +915,13 @@ class AGI:
             *,
             health_output_path: Optional[Union[str, Path]] = None,
     ) -> Optional[str]:
-        try:
-            output_path = AGI._service_health_path(env, health_output_path=health_output_path)
-            tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
-            with open(tmp_path, "w", encoding="utf-8") as stream:
-                json.dump(health_payload, stream, indent=2)
-            os.replace(tmp_path, output_path)
-            return str(output_path)
-        except Exception as exc:
-            logger.warning("Failed to write service health payload: %s", exc)
-            return None
+        return service_runtime_support.service_write_health_payload(
+            AGI,
+            env,
+            health_payload,
+            health_output_path=health_output_path,
+            log=logger,
+        )
 
     @staticmethod
     def _service_finalize_response(
@@ -1104,30 +931,17 @@ class AGI:
             health_output_path: Optional[Union[str, Path]] = None,
             health_only: bool = False,
     ) -> Dict[str, Any]:
-        payload = dict(result_payload)
-        health_payload = AGI._service_health_payload(env, payload)
-        health_path = AGI._service_write_health_payload(
+        return service_runtime_support.service_finalize_response(
+            AGI,
             env,
-            health_payload,
+            result_payload,
             health_output_path=health_output_path,
+            health_only=health_only,
         )
-        payload["health"] = health_payload
-        if health_path:
-            payload["health_path"] = health_path
-        if health_only:
-            exported = dict(health_payload)
-            if health_path:
-                exported["path"] = health_path
-            return exported
-        return payload
 
     @staticmethod
     async def _service_connected_workers(client: Client) -> List[str]:
-        info = client.scheduler_info()
-        if inspect.isawaitable(info):
-            info = await info
-        workers = (info or {}).get("workers") or {}
-        return [worker.split("/")[-1] for worker in workers.keys()]
+        return await service_runtime_support.service_connected_workers(client)
 
     @staticmethod
     async def _service_recover(
@@ -1135,280 +949,47 @@ class AGI:
             *,
             allow_stale_cleanup: bool = False,
     ) -> bool:
-        state = AGI._service_read_state(env)
-        if not state:
-            return False
-
-        try:
-            AGI.env = env
-            AGI.target_path = env.manager_path
-            AGI._target = env.target
-            AGI._mode = int(state.get("mode", AGI.DASK_MODE))
-            AGI._mode_auto = False
-            AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-            AGI._run_type = str(state.get("run_type", AGI._run_types[0]))
-
-            workers_state = state.get("workers")
-            AGI._workers = workers_state if isinstance(workers_state, dict) else (AGI._workers or _workers_default)
-
-            args_state = state.get("args")
-            if isinstance(args_state, dict):
-                AGI._args = AGI._service_public_args(args_state)
-
-            AGI._scheduler = state.get("scheduler")
-            AGI._scheduler_ip = state.get("scheduler_ip")
-            AGI._scheduler_port = state.get("scheduler_port")
-            AGI._service_poll_interval = state.get("poll_interval", AGI._service_poll_interval)
-            AGI._service_stop_timeout = state.get("stop_timeout", AGI._service_stop_timeout)
-            AGI._service_shutdown_on_stop = state.get(
-                "shutdown_on_stop",
-                AGI._service_shutdown_on_stop,
-            )
-            AGI._service_heartbeat_timeout = state.get("heartbeat_timeout", AGI._service_heartbeat_timeout)
-            AGI._service_cleanup_done_ttl_sec = state.get(
-                "cleanup_done_ttl_sec",
-                AGI._service_cleanup_done_ttl_sec,
-            )
-            AGI._service_cleanup_failed_ttl_sec = state.get(
-                "cleanup_failed_ttl_sec",
-                AGI._service_cleanup_failed_ttl_sec,
-            )
-            AGI._service_cleanup_heartbeat_ttl_sec = state.get(
-                "cleanup_heartbeat_ttl_sec",
-                AGI._service_cleanup_heartbeat_ttl_sec,
-            )
-            AGI._service_cleanup_done_max_files = state.get(
-                "cleanup_done_max_files",
-                AGI._service_cleanup_done_max_files,
-            )
-            AGI._service_cleanup_failed_max_files = state.get(
-                "cleanup_failed_max_files",
-                AGI._service_cleanup_failed_max_files,
-            )
-            AGI._service_cleanup_heartbeat_max_files = state.get(
-                "cleanup_heartbeat_max_files",
-                AGI._service_cleanup_heartbeat_max_files,
-            )
-            started_at = state.get("started_at")
-            AGI._service_started_at = (
-                float(started_at)
-                if started_at not in (None, "")
-                else (AGI._service_started_at or time.time())
-            )
-
-            queue_dir = state.get("queue_dir")
-            if queue_dir:
-                AGI._service_apply_queue_root(Path(queue_dir), create=True)
-            else:
-                AGI._init_service_queue(env)
-            AGI._service_worker_args = {
-                **(AGI._args or {}),
-                "_agi_service_mode": True,
-                "_agi_service_queue_dir": str(AGI._service_queue_root),
-            }
-
-            scheduler_addr = state.get("scheduler") or AGI._scheduler
-            if not scheduler_addr:
-                raise RuntimeError("Missing scheduler address in persisted service state.")
-
-            if AGI._dask_client is None or getattr(AGI._dask_client, "status", "") in {"closed", "closing"}:
-                AGI._dask_client = await AGI._connect_scheduler_with_retry(
-                    scheduler_addr,
-                    timeout=max(AGI._TIMEOUT, 5),
-                    heartbeat_interval=5000,
-                )
-
-            AGI._scheduler = scheduler_addr
-            AGI._dask_workers = await AGI._service_connected_workers(AGI._dask_client)
-            AGI._service_workers = (
-                AGI._dask_workers
-                if AGI._dask_workers
-                else [str(w) for w in state.get("service_workers", []) if w]
-            )
-            AGI._service_futures = {}
-
-            if not AGI._service_workers:
-                raise RuntimeError("Recovered service scheduler has no attached workers.")
-
-            return True
-
-        except Exception as exc:
-            logger.warning("Failed to recover persistent AGI service: %s", exc)
-            if allow_stale_cleanup:
-                AGI._service_clear_state(env)
-                AGI._service_futures = {}
-                AGI._service_workers = []
-                AGI._reset_service_queue_state()
-            return False
+        return await service_runtime_support.service_recover(
+            AGI,
+            env,
+            allow_stale_cleanup=allow_stale_cleanup,
+            log=logger,
+        )
 
     @staticmethod
     def _reset_service_queue_state() -> None:
-        AGI._service_queue_root = None
-        AGI._service_queue_pending = None
-        AGI._service_queue_running = None
-        AGI._service_queue_done = None
-        AGI._service_queue_failed = None
-        AGI._service_queue_heartbeats = None
-        AGI._service_heartbeat_timeout = None
-        AGI._service_started_at = None
-        AGI._service_submit_counter = 0
-        AGI._service_worker_args = {}
+        service_runtime_support.reset_service_queue_state(AGI)
 
     @staticmethod
     def _init_service_queue(
             env: AgiEnv,
             service_queue_dir: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Path]:
-        # Prefer an explicit cluster share path when provided so service queue paths
-        # stay valid across heterogeneous hosts (e.g. macOS manager + Linux workers).
-        if service_queue_dir is not None:
-            # Keep caller-provided absolute paths verbatim to avoid host-specific
-            # canonicalisation (e.g. macOS /tmp -> /private/tmp) that breaks
-            # heterogeneous clusters.
-            queue_root = Path(service_queue_dir).expanduser()
-        elif AGI._workers_data_path:
-            queue_root = (
-                Path(str(AGI._workers_data_path)).expanduser()
-                / "service"
-                / env.target
-                / "queue"
-            )
-        else:
-            queue_hint = Path("service") / env.target / "queue"
-            try:
-                queue_root = env.resolve_share_path(queue_hint)
-            except Exception:
-                fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
-                queue_root = (fallback_home / ".agilab_service" / env.target / "queue").resolve(
-                    strict=False
-                )
-        queue_paths = AGI._service_apply_queue_root(queue_root, create=True)
-
-        # Do not replay stale requests from previous sessions after a restart.
-        for stale_dir in (queue_paths["pending"], queue_paths["running"]):
-            for stale_task in stale_dir.glob("*.task.pkl"):
-                try:
-                    stale_task.unlink()
-                except FileNotFoundError:
-                    continue
-        for heartbeat_file in queue_paths["heartbeats"].glob("*.json"):
-            try:
-                heartbeat_file.unlink()
-            except FileNotFoundError:
-                continue
-
-        return queue_paths
+        return service_runtime_support.init_service_queue(
+            AGI,
+            env,
+            service_queue_dir=service_queue_dir,
+        )
 
     @staticmethod
     def _service_queue_counts() -> Dict[str, int]:
-        counts: Dict[str, int] = {"pending": 0, "running": 0, "done": 0, "failed": 0}
-        mapping = {
-            "pending": AGI._service_queue_pending,
-            "running": AGI._service_queue_running,
-            "done": AGI._service_queue_done,
-            "failed": AGI._service_queue_failed,
-        }
-
-        for name, path in mapping.items():
-            if path and path.exists():
-                counts[name] = sum(1 for _ in path.glob("*.task.pkl"))
-        return counts
+        return service_runtime_support.service_queue_counts(AGI)
 
     @staticmethod
     def _service_cleanup_artifacts() -> Dict[str, int]:
-        """Trim stale service artifacts (done/failed tasks, old heartbeats)."""
-
-        def _cleanup_dir(
-                path: Optional[Path],
-                *,
-                pattern: str,
-                ttl_sec: float,
-                max_files: int,
-        ) -> int:
-            if path is None or not path.exists():
-                return 0
-
-            now = time.time()
-            kept: List[Tuple[float, Path]] = []
-            removed = 0
-
-            for file_path in path.glob(pattern):
-                try:
-                    mtime = file_path.stat().st_mtime
-                except FileNotFoundError:
-                    continue
-
-                if ttl_sec > 0 and (now - mtime) > ttl_sec:
-                    try:
-                        file_path.unlink()
-                        removed += 1
-                    except FileNotFoundError:
-                        continue
-                    continue
-
-                kept.append((mtime, file_path))
-
-            if max_files >= 0 and len(kept) > max_files:
-                kept.sort(key=lambda item: item[0], reverse=True)
-                for _, stale in kept[max_files:]:
-                    try:
-                        stale.unlink()
-                        removed += 1
-                    except FileNotFoundError:
-                        continue
-
-            return removed
-
-        cleaned_done = _cleanup_dir(
-            AGI._service_queue_done,
-            pattern="*.task.pkl",
-            ttl_sec=max(float(AGI._service_cleanup_done_ttl_sec), 0.0),
-            max_files=max(int(AGI._service_cleanup_done_max_files), 0),
-        )
-        cleaned_failed = _cleanup_dir(
-            AGI._service_queue_failed,
-            pattern="*.task.pkl",
-            ttl_sec=max(float(AGI._service_cleanup_failed_ttl_sec), 0.0),
-            max_files=max(int(AGI._service_cleanup_failed_max_files), 0),
-        )
-        cleaned_heartbeats = _cleanup_dir(
-            AGI._service_queue_heartbeats,
-            pattern="*.json",
-            ttl_sec=max(float(AGI._service_cleanup_heartbeat_ttl_sec), 0.0),
-            max_files=max(int(AGI._service_cleanup_heartbeat_max_files), 0),
-        )
-
-        return {
-            "done": cleaned_done,
-            "failed": cleaned_failed,
-            "heartbeats": cleaned_heartbeats,
-        }
+        return service_runtime_support.service_cleanup_artifacts(AGI)
 
     @staticmethod
     def _service_public_args(args: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """Drop AGI internal service keys before building a distribution plan."""
-
-        if not args:
-            return {}
-        return {
-            key: value
-            for key, value in args.items()
-            if not str(key).startswith("_agi_service_")
-        }
+        return service_runtime_support.service_public_args(args)
 
     @staticmethod
     def _service_safe_worker_name(worker: str) -> str:
-        safe = re.sub(r"[^a-zA-Z0-9_.-]+", "-", str(worker)).strip("-")
-        return safe or "worker"
+        return service_runtime_support.service_safe_worker_name(worker)
 
     @staticmethod
     def _service_heartbeat_timeout_value() -> float:
-        if AGI._service_heartbeat_timeout and AGI._service_heartbeat_timeout > 0:
-            return float(AGI._service_heartbeat_timeout)
-        poll = AGI._service_poll_interval
-        base = float(poll) if poll is not None else 1.0
-        AGI._service_heartbeat_timeout = max(5.0, base * 4.0)
-        return float(AGI._service_heartbeat_timeout)
+        return service_runtime_support.service_heartbeat_timeout_value(AGI)
 
     @staticmethod
     def _service_apply_runtime_config(
@@ -1421,170 +1002,36 @@ class AGI:
             cleanup_failed_max_files: Optional[int] = None,
             cleanup_heartbeat_max_files: Optional[int] = None,
     ) -> None:
-        if heartbeat_timeout is not None:
-            AGI._service_heartbeat_timeout = max(float(heartbeat_timeout), 0.1)
-        if cleanup_done_ttl_sec is not None:
-            AGI._service_cleanup_done_ttl_sec = max(float(cleanup_done_ttl_sec), 0.0)
-        if cleanup_failed_ttl_sec is not None:
-            AGI._service_cleanup_failed_ttl_sec = max(float(cleanup_failed_ttl_sec), 0.0)
-        if cleanup_heartbeat_ttl_sec is not None:
-            AGI._service_cleanup_heartbeat_ttl_sec = max(float(cleanup_heartbeat_ttl_sec), 0.0)
-        if cleanup_done_max_files is not None:
-            AGI._service_cleanup_done_max_files = max(int(cleanup_done_max_files), 0)
-        if cleanup_failed_max_files is not None:
-            AGI._service_cleanup_failed_max_files = max(int(cleanup_failed_max_files), 0)
-        if cleanup_heartbeat_max_files is not None:
-            AGI._service_cleanup_heartbeat_max_files = max(int(cleanup_heartbeat_max_files), 0)
+        service_runtime_support.service_apply_runtime_config(
+            AGI,
+            heartbeat_timeout=heartbeat_timeout,
+            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+            cleanup_done_max_files=cleanup_done_max_files,
+            cleanup_failed_max_files=cleanup_failed_max_files,
+            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
+        )
 
     @staticmethod
     def _service_state_payload(env: AgiEnv) -> Dict[str, Any]:
-        return {
-            "schema": "agi.service.state.v1",
-            "target": env.target,
-            "app": env.app,
-            "mode": AGI._mode,
-            "run_type": AGI._run_type,
-            "scheduler": AGI._scheduler,
-            "scheduler_ip": AGI._scheduler_ip,
-            "scheduler_port": getattr(AGI, "_scheduler_port", None),
-            "workers": AGI._workers,
-            "service_workers": list(AGI._service_workers),
-            "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else None,
-            "args": AGI._args or {},
-            "poll_interval": AGI._service_poll_interval,
-            "stop_timeout": AGI._service_stop_timeout,
-            "shutdown_on_stop": AGI._service_shutdown_on_stop,
-            "heartbeat_timeout": AGI._service_heartbeat_timeout_value(),
-            "cleanup_done_ttl_sec": AGI._service_cleanup_done_ttl_sec,
-            "cleanup_failed_ttl_sec": AGI._service_cleanup_failed_ttl_sec,
-            "cleanup_heartbeat_ttl_sec": AGI._service_cleanup_heartbeat_ttl_sec,
-            "cleanup_done_max_files": AGI._service_cleanup_done_max_files,
-            "cleanup_failed_max_files": AGI._service_cleanup_failed_max_files,
-            "cleanup_heartbeat_max_files": AGI._service_cleanup_heartbeat_max_files,
-            "started_at": AGI._service_started_at or time.time(),
-            "owner_pid": os.getpid(),
-        }
+        return service_runtime_support.service_state_payload(AGI, env)
 
     @staticmethod
     def _service_read_heartbeats() -> Dict[str, float]:
-        heartbeat_dir = AGI._service_queue_heartbeats
-        if heartbeat_dir is None or not heartbeat_dir.exists():
-            return {}
-
-        beats: Dict[str, float] = {}
-        for beat_file in heartbeat_dir.glob("*.json"):
-            try:
-                with open(beat_file, "r", encoding="utf-8") as stream:
-                    payload = json.load(stream)
-                if not isinstance(payload, dict):
-                    continue
-                worker = str(payload.get("worker", "")).strip()
-                timestamp = float(payload.get("timestamp", 0.0) or 0.0)
-                if not worker or timestamp <= 0:
-                    continue
-                previous = beats.get(worker)
-                beats[worker] = max(previous, timestamp) if previous else timestamp
-            except Exception:
-                continue
-        return beats
+        return service_runtime_support.service_read_heartbeats(AGI)
 
     @staticmethod
     def _service_read_heartbeat_payloads() -> Dict[str, Dict[str, Any]]:
-        heartbeat_dir = AGI._service_queue_heartbeats
-        if heartbeat_dir is None or not heartbeat_dir.exists():
-            return {}
-
-        payloads: Dict[str, Dict[str, Any]] = {}
-        for beat_file in heartbeat_dir.glob("*.json"):
-            try:
-                with open(beat_file, "r", encoding="utf-8") as stream:
-                    payload = json.load(stream)
-                if not isinstance(payload, dict):
-                    continue
-                worker = str(payload.get("worker", "")).strip()
-                timestamp = float(payload.get("timestamp", 0.0) or 0.0)
-                if not worker or timestamp <= 0:
-                    continue
-                previous = payloads.get(worker)
-                if previous is None or float(previous.get("timestamp", 0.0) or 0.0) < timestamp:
-                    payloads[worker] = payload
-            except Exception:
-                continue
-        return payloads
+        return service_runtime_support.service_read_heartbeat_payloads(AGI)
 
     @staticmethod
     def _service_worker_health(workers: List[str]) -> List[Dict[str, Any]]:
-        now = time.time()
-        timeout = AGI._service_heartbeat_timeout_value()
-        heartbeat_payloads = AGI._service_read_heartbeat_payloads()
-        unhealthy = AGI._service_unhealthy_workers(workers)
-        service_started_at = AGI._service_started_at or now
-        warmup_done = (now - service_started_at) >= timeout
-
-        report: List[Dict[str, Any]] = []
-        for worker in workers:
-            payload = heartbeat_payloads.get(worker, {})
-            timestamp = float(payload.get("timestamp", 0.0) or 0.0)
-            heartbeat_age = (now - timestamp) if timestamp > 0 else None
-            heartbeat_state = str(payload.get("state", "missing")).strip() or "missing"
-            future = AGI._service_futures.get(worker)
-            future_state = (
-                str(getattr(future, "status", "unknown")).lower()
-                if future is not None
-                else "detached"
-            )
-            reason = unhealthy.get(worker)
-            if reason:
-                healthy = False
-            elif heartbeat_age is None:
-                healthy = not warmup_done
-            else:
-                healthy = heartbeat_age <= timeout
-
-            report.append(
-                {
-                    "worker": worker,
-                    "future_state": future_state,
-                    "heartbeat_state": heartbeat_state,
-                    "heartbeat_age_sec": round(heartbeat_age, 3) if heartbeat_age is not None else None,
-                    "healthy": healthy,
-                    "reason": reason or "",
-                }
-            )
-
-        return report
+        return service_runtime_support.service_worker_health(AGI, workers)
 
     @staticmethod
     def _service_unhealthy_workers(workers: List[str]) -> Dict[str, str]:
-        reasons: Dict[str, str] = {}
-        if not workers:
-            return reasons
-
-        heartbeats = AGI._service_read_heartbeats()
-        timeout = AGI._service_heartbeat_timeout_value()
-        now = time.time()
-        service_started_at = AGI._service_started_at or now
-        warmup_done = (now - service_started_at) >= timeout
-
-        for worker in workers:
-            future = AGI._service_futures.get(worker)
-            if future is not None:
-                state = str(getattr(future, "status", "pending")).lower()
-                if state in {"finished", "error", "cancelled"}:
-                    reasons[worker] = f"loop-{state}"
-                    continue
-
-            beat_ts = heartbeats.get(worker)
-            if beat_ts is None:
-                if warmup_done:
-                    reasons[worker] = "missing-heartbeat"
-                continue
-
-            age = now - beat_ts
-            if age > timeout and warmup_done:
-                reasons[worker] = f"stale-heartbeat({age:.1f}s)"
-
-        return reasons
+        return service_runtime_support.service_unhealthy_workers(AGI, workers)
 
     @staticmethod
     async def _service_restart_workers(
@@ -1592,97 +1039,24 @@ class AGI:
             client: Client,
             workers_to_restart: List[str],
     ) -> List[str]:
-        if not workers_to_restart:
-            return []
-
-        connected = await AGI._service_connected_workers(client)
-        if connected:
-            AGI._service_workers = list(connected)
-
-        if AGI._service_queue_root is None:
-            AGI._init_service_queue(env)
-
-        AGI._service_worker_args = {
-            **(AGI._args or {}),
-            "_agi_service_mode": True,
-            "_agi_service_queue_dir": str(AGI._service_queue_root),
-        }
-
-        break_tasks = [
-            client.submit(
-                BaseWorker.break_loop,
-                workers=[worker],
-                allow_other_workers=False,
-                pure=False,
-                key=f"agi-serve-restart-break-{env.target}-{AGI._service_safe_worker_name(worker)}",
-            )
-            for worker in workers_to_restart
-        ]
-        if break_tasks:
-            try:
-                client.gather(break_tasks)
-            except Exception:
-                logger.debug("Ignoring break_loop error during service restart", exc_info=True)
-
-        init_futures: List[Any] = []
-        for worker in workers_to_restart:
-            if worker not in AGI._service_workers:
-                AGI._service_workers.append(worker)
-            worker_id = AGI._service_workers.index(worker)
-            init_futures.append(
-                client.submit(
-                    BaseWorker._new,
-                    env=0 if getattr(env, "debug", False) else None,
-                    app=env.target_worker,
-                    mode=AGI._mode,
-                    verbose=AGI.verbose,
-                    worker_id=worker_id,
-                    worker=worker,
-                    args=AGI._service_worker_args,
-                    workers=[worker],
-                    allow_other_workers=False,
-                    pure=False,
-                    key=f"agi-serve-restart-init-{env.target}-{AGI._service_safe_worker_name(worker)}",
-                )
-            )
-        if init_futures:
-            client.gather(init_futures)
-
-        restarted: List[str] = []
-        for worker in workers_to_restart:
-            future = client.submit(
-                BaseWorker.loop,
-                poll_interval=AGI._service_poll_interval,
-                workers=[worker],
-                allow_other_workers=False,
-                pure=False,
-                key=f"agi-serve-restart-loop-{env.target}-{AGI._service_safe_worker_name(worker)}",
-            )
-            AGI._service_futures[worker] = future
-            restarted.append(worker)
-
-        return restarted
+        return await service_runtime_support.service_restart_workers(
+            AGI,
+            env,
+            client,
+            workers_to_restart,
+            log=logger,
+        )
 
     @staticmethod
     async def _service_auto_restart_unhealthy(
             env: AgiEnv,
             client: Client,
     ) -> Dict[str, Any]:
-        connected = await AGI._service_connected_workers(client)
-        if connected:
-            AGI._service_workers = list(connected)
-        if not AGI._service_workers:
-            return {"restarted": [], "reasons": {}}
-
-        reasons = AGI._service_unhealthy_workers(AGI._service_workers)
-        if not reasons:
-            return {"restarted": [], "reasons": {}}
-
-        workers_to_restart = list(reasons.keys())
-        restarted = await AGI._service_restart_workers(env, client, workers_to_restart)
-        if restarted:
-            AGI._service_write_state(env, AGI._service_state_payload(env))
-        return {"restarted": restarted, "reasons": reasons}
+        return await service_runtime_support.service_auto_restart_unhealthy(
+            AGI,
+            env,
+            client,
+        )
 
     @staticmethod
     async def serve(
@@ -1707,458 +1081,31 @@ class AGI:
             health_output_path: Optional[Union[str, Path]] = None,
             **args: Any,
     ) -> Dict[str, Any]:
-        """Manage persistent worker services without invoking the run workplan.
-
-        ``action="start"`` provisions workers and submits ``BaseWorker.loop`` as a
-        long-lived service task pinned to each Dask worker. ``action="stop"``
-        signals the loop through ``BaseWorker.break_loop`` and optionally tears
-        down the Dask cluster when ``shutdown_on_stop`` is true.
-        """
-
-        command = (action or "start").lower()
-        health_only = (command == "health")
-        if health_only:
-            command = "status"
-        if command not in {"start", "stop", "status"}:
-            raise ValueError("action must be 'start', 'stop', 'status' or 'health'")
-
-        AGI._service_shutdown_on_stop = shutdown_on_stop
-        AGI._service_stop_timeout = stop_timeout
-        AGI._service_poll_interval = poll_interval
-        AGI._service_apply_runtime_config(
-            heartbeat_timeout=heartbeat_timeout,
-            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
-            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
-            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
-            cleanup_done_max_files=cleanup_done_max_files,
-            cleanup_failed_max_files=cleanup_failed_max_files,
-            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
-        )
-
-        if command == "status":
-            client = AGI._dask_client
-            if not AGI._service_futures and not AGI._service_workers:
-                recovered = await AGI._service_recover(env)
-                if recovered:
-                    client = AGI._dask_client
-            AGI._service_apply_runtime_config(
-                heartbeat_timeout=heartbeat_timeout,
-                cleanup_done_ttl_sec=cleanup_done_ttl_sec,
-                cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
-                cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
-                cleanup_done_max_files=cleanup_done_max_files,
-                cleanup_failed_max_files=cleanup_failed_max_files,
-                cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
-            )
-
-            restart_info: Dict[str, Any] = {"restarted": [], "reasons": {}}
-            if client is not None and AGI._service_workers:
-                restart_info = await AGI._service_auto_restart_unhealthy(env, client)
-
-            cleanup_info = AGI._service_cleanup_artifacts()
-            queue_state = AGI._service_queue_counts()
-            queue_dir = str(AGI._service_queue_root) if AGI._service_queue_root else None
-            workers_snapshot = list(AGI._service_workers)
-            worker_health = AGI._service_worker_health(workers_snapshot) if workers_snapshot else []
-
-            if not AGI._service_futures and not workers_snapshot:
-                client_status = getattr(client, "status", None) if client else None
-                return AGI._service_finalize_response(
-                    env,
-                    {
-                        "status": "idle",
-                        "workers": [],
-                        "pending": [],
-                        "client_status": client_status,
-                        "queue": queue_state,
-                        "queue_dir": queue_dir,
-                        "cleanup": cleanup_info,
-                        "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                        "worker_health": worker_health,
-                        "restarted_workers": restart_info["restarted"],
-                        "restart_reasons": restart_info["reasons"],
-                    },
-                    health_output_path=health_output_path,
-                    health_only=health_only,
-                )
-
-            if client is None:
-                pending = list(AGI._service_futures.keys())
-                return AGI._service_finalize_response(
-                    env,
-                    {
-                        "status": "error",
-                        "workers": workers_snapshot,
-                        "pending": pending,
-                        "client_status": "missing",
-                        "queue": queue_state,
-                        "queue_dir": queue_dir,
-                        "cleanup": cleanup_info,
-                        "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                        "worker_health": worker_health,
-                        "restarted_workers": restart_info["restarted"],
-                        "restart_reasons": restart_info["reasons"],
-                    },
-                    health_output_path=health_output_path,
-                    health_only=health_only,
-                )
-
-            if AGI._service_futures:
-                running_workers: List[str] = []
-                pending_workers: List[str] = []
-                for worker, future in AGI._service_futures.items():
-                    state = str(getattr(future, "status", "pending")).lower()
-                    if state in {"finished", "error", "cancelled"}:
-                        pending_workers.append(worker)
-                    else:
-                        running_workers.append(worker)
-
-                if running_workers and not pending_workers:
-                    status = "running"
-                elif running_workers:
-                    status = "degraded"
-                else:
-                    status = "stopped"
-            else:
-                running_workers = workers_snapshot
-                pending_workers = []
-                status = "running" if running_workers else "stopped"
-
-            return AGI._service_finalize_response(
-                env,
-                {
-                    "status": status,
-                    "workers": running_workers,
-                    "pending": pending_workers,
-                    "client_status": getattr(client, "status", None),
-                    "queue": queue_state,
-                    "queue_dir": queue_dir,
-                    "cleanup": cleanup_info,
-                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                    "worker_health": worker_health,
-                    "restarted_workers": restart_info["restarted"],
-                    "restart_reasons": restart_info["reasons"],
-                },
-                health_output_path=health_output_path,
-                health_only=health_only,
-            )
-
-        if command == "stop":
-            client = AGI._dask_client
-
-            if not AGI._service_futures and not AGI._service_workers:
-                recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
-                client = AGI._dask_client
-                AGI._service_apply_runtime_config(
-                    heartbeat_timeout=heartbeat_timeout,
-                    cleanup_done_ttl_sec=cleanup_done_ttl_sec,
-                    cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
-                    cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
-                    cleanup_done_max_files=cleanup_done_max_files,
-                    cleanup_failed_max_files=cleanup_failed_max_files,
-                    cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
-                )
-                if not recovered:
-                    logger.info("AGI.serve(stop): no active service loops to stop.")
-                    if shutdown_on_stop and client:
-                        await AGI._stop()
-                    if AGI._jobs:
-                        AGI._clean_job(True)
-                    AGI._service_clear_state(env)
-                    AGI._reset_service_queue_state()
-                    return AGI._service_finalize_response(
-                        env,
-                        {"status": "idle", "workers": [], "pending": []},
-                        health_output_path=health_output_path,
-                    )
-
-            if client is None:
-                logger.error(
-                    "AGI.serve(stop): service state exists but Dask client is unavailable"
-                )
-                pending = list(AGI._service_futures.keys()) or list(AGI._service_workers)
-                AGI._service_futures.clear()
-                AGI._service_workers = []
-                if AGI._jobs:
-                    AGI._clean_job(True)
-                AGI._service_clear_state(env)
-                AGI._reset_service_queue_state()
-                return AGI._service_finalize_response(
-                    env,
-                    {"status": "error", "workers": [], "pending": pending},
-                    health_output_path=health_output_path,
-                )
-
-            future_map = {future: worker for worker, future in AGI._service_futures.items()}
-            target_workers = list(AGI._service_futures.keys()) or list(AGI._service_workers)
-            if not target_workers:
-                target_workers = await AGI._service_connected_workers(client)
-                AGI._service_workers = list(target_workers)
-
-            if not target_workers:
-                if shutdown_on_stop:
-                    await AGI._stop()
-                AGI._service_futures.clear()
-                AGI._service_workers = []
-                AGI._service_clear_state(env)
-                AGI._reset_service_queue_state()
-                return AGI._service_finalize_response(
-                    env,
-                    {"status": "idle", "workers": [], "pending": []},
-                    health_output_path=health_output_path,
-                )
-
-            break_tasks = [
-                client.submit(
-                    BaseWorker.break_loop,
-                    workers=[worker],
-                    allow_other_workers=False,
-                    pure=False,
-                    key=f"agi-serve-break-{env.target}-{worker.replace(':', '-')}",
-                )
-                for worker in target_workers
-            ]
-            client.gather(break_tasks)
-
-            if future_map:
-                wait_kwargs: Dict[str, Any] = {}
-                if stop_timeout is not None:
-                    wait_kwargs["timeout"] = stop_timeout
-
-                done, not_done = wait(list(future_map.keys()), **wait_kwargs)
-
-                stopped_workers = [future_map[f] for f in done]
-                pending_workers = [future_map[f] for f in not_done]
-
-                if done:
-                    client.gather(list(done), errors="raise")
-
-                if pending_workers:
-                    logger.warning(
-                        "Service loop shutdown timed out on workers: %s", pending_workers
-                    )
-            else:
-                stopped_workers = list(target_workers)
-                pending_workers = []
-
-            AGI._service_futures.clear()
-            AGI._service_workers = []
-            AGI._service_clear_state(env)
-            AGI._reset_service_queue_state()
-
-            if shutdown_on_stop:
-                await AGI._stop()
-
-            if AGI._jobs:
-                AGI._clean_job(True)
-
-            status = "stopped" if not pending_workers else "partial"
-            return AGI._service_finalize_response(
-                env,
-                {"status": status, "workers": stopped_workers, "pending": pending_workers},
-                health_output_path=health_output_path,
-            )
-
-        # command == "start"
-        if AGI._service_futures:
-            raise RuntimeError(
-                "Service loop already running. Please call AGI.serve(..., action='stop') first."
-            )
-
-        recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
-        AGI._service_apply_runtime_config(
-            heartbeat_timeout=heartbeat_timeout,
-            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
-            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
-            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
-            cleanup_done_max_files=cleanup_done_max_files,
-            cleanup_failed_max_files=cleanup_failed_max_files,
-            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
-        )
-        if recovered:
-            restart_info: Dict[str, Any] = {"restarted": [], "reasons": {}}
-            if AGI._dask_client is not None:
-                restart_info = await AGI._service_auto_restart_unhealthy(env, AGI._dask_client)
-            cleanup_info = AGI._service_cleanup_artifacts()
-            worker_health = AGI._service_worker_health(list(AGI._service_workers))
-            return AGI._service_finalize_response(
-                env,
-                {
-                    "status": "running",
-                    "workers": list(AGI._service_workers),
-                    "pending": [],
-                    "queue": AGI._service_queue_counts(),
-                    "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else None,
-                    "cleanup": cleanup_info,
-                    "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                    "worker_health": worker_health,
-                    "restarted_workers": restart_info["restarted"],
-                    "restart_reasons": restart_info["reasons"],
-                    "recovered": True,
-                },
-                health_output_path=health_output_path,
-                health_only=health_only,
-            )
-
-        if not workers:
-            workers = _workers_default
-        elif not isinstance(workers, dict):
-            raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
-
-        AGI._jobs = bg.BackgroundJobManager()
-        AGI.env = env
-        AGI.target_path = env.manager_path
-        AGI._target = env.target
-        AGI._rapids_enabled = rapids_enabled
-
-        if env.verbose > 0:
-            logger.info(
-                "AGI service instance created for target %s with verbosity %s",
-                env.target,
-                env.verbose,
-            )
-
-        if mode is None:
-            AGI._mode = AGI.DASK_MODE
-        elif isinstance(mode, str):
-            pattern = r"^[dcrp]+$"
-            if not re.fullmatch(pattern, mode.lower()):
-                raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-            AGI._mode = env.mode2int(mode)
-        elif isinstance(mode, int):
-            AGI._mode = int(mode)
-        else:
-            raise ValueError("parameter <mode> must be an int or a string")
-
-        if not (AGI._mode & AGI.DASK_MODE):
-            raise ValueError("AGI.serve requires Dask mode (include 'd' in mode)")
-
-        if AGI._mode & AGI._RUN_MASK not in range(0, AGI.RAPIDS_MODE):
-            raise ValueError(f"mode {AGI._mode} not implemented")
-
-        AGI._mode_auto = False
-        AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-        AGI._run_type = AGI._run_types[0]
-        AGI._args = AGI._service_public_args(dict(args))
-        AGI.verbose = verbose
-        AGI._workers = workers
-        AGI._run_time = {}
-
-        AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
-        AGI._capacity_model_file = env.resources_path / "balancer_model.pkl"
-        path = Path(AGI._capacity_model_file)
-
-        if path.is_file():
-            with open(path, "rb") as f:
-                AGI._capacity_predictor = pickle.load(f)
-        else:
-            AGI._capacity_predictor = None
-            logger.info(
-                "Capacity model not found at %s; skipping capacity bootstrap for service mode.",
-                path,
-            )
-
-        AGI.agi_workers = {
-            "AgiDataWorker": "pandas-worker",
-            "PolarsWorker": "polars-worker",
-            "PandasWorker": "pandas-worker",
-            "FireducksWorker": "fireducks-worker",
-            "DagWorker": "dag-worker",
-        }
-        base_worker_cls = getattr(env, "base_worker_cls", None)
-        if not base_worker_cls:
-            target_worker_class = (
-                getattr(env, "target_worker_class", None) or "<worker class>"
-            )
-            worker_path = getattr(env, "worker_path", None) or "<worker path>"
-            supported = ", ".join(sorted(AGI.agi_workers.keys()))
-            raise ValueError(
-                f"Missing {target_worker_class} definition; expected {worker_path}. "
-                f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
-            )
-        try:
-            AGI.install_worker_group = [AGI.agi_workers[base_worker_cls]]
-        except KeyError as exc:
-            supported = ", ".join(sorted(AGI.agi_workers.keys()))
-            raise ValueError(
-                f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
-            ) from exc
-
-        client = AGI._dask_client
-        if client is None or getattr(client, "status", "") in {"closed", "closing"}:
-            await AGI._start(scheduler)
-            client = AGI._dask_client
-        else:
-            await AGI._sync()
-
-        if client is None:
-            raise RuntimeError("Failed to obtain Dask client for service start")
-
-        AGI._dask_workers = [
-            worker.split("/")[-1]
-            for worker in list(client.scheduler_info()["workers"].keys())
-        ]
-
-        dask_workers = list(AGI._dask_workers)
-        queue_paths = AGI._init_service_queue(env, service_queue_dir=service_queue_dir)
-        cleanup_info = AGI._service_cleanup_artifacts()
-        AGI._service_worker_args = {
-            **(AGI._args or {}),
-            "_agi_service_mode": True,
-            "_agi_service_queue_dir": str(queue_paths["root"]),
-        }
-
-        init_futures = [
-            client.submit(
-                BaseWorker._new,
-                env=0 if env.debug else None,
-                app=env.target_worker,
-                mode=AGI._mode,
-                verbose=AGI.verbose,
-                worker_id=index,
-                worker=worker,
-                args=AGI._service_worker_args,
-                workers=[worker],
-                allow_other_workers=False,
-                pure=False,
-                key=f"agi-worker-init-{env.target}-{worker.replace(':', '-')}",
-            )
-            for index, worker in enumerate(dask_workers)
-        ]
-        client.gather(init_futures)
-
-        service_futures: Dict[str, Any] = {}
-        for worker in dask_workers:
-            future = client.submit(
-                BaseWorker.loop,
-                poll_interval=poll_interval,
-                workers=[worker],
-                allow_other_workers=False,
-                pure=False,
-                key=f"agi-serve-loop-{env.target}-{worker.replace(':', '-')}",
-            )
-            service_futures[worker] = future
-
-        AGI._service_futures = service_futures
-        AGI._service_workers = dask_workers
-        AGI._service_started_at = time.time()
-        AGI._service_heartbeat_timeout = AGI._service_heartbeat_timeout_value()
-        AGI._service_write_state(env, AGI._service_state_payload(env))
-
-        logger.info("Service loops started for workers: %s", dask_workers)
-        return AGI._service_finalize_response(
+        return await service_runtime_support.serve(
+            AGI,
             env,
-            {
-                "status": "running",
-                "workers": dask_workers,
-                "pending": [],
-                "queue_dir": str(queue_paths["root"]),
-                "cleanup": cleanup_info,
-                "heartbeat_timeout_sec": AGI._service_heartbeat_timeout_value(),
-                "worker_health": AGI._service_worker_health(list(dask_workers)),
-            },
+            scheduler=scheduler,
+            workers=workers,
+            verbose=verbose,
+            mode=mode,
+            rapids_enabled=rapids_enabled,
+            action=action,
+            poll_interval=poll_interval,
+            shutdown_on_stop=shutdown_on_stop,
+            stop_timeout=stop_timeout,
+            service_queue_dir=service_queue_dir,
+            heartbeat_timeout=heartbeat_timeout,
+            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+            cleanup_done_max_files=cleanup_done_max_files,
+            cleanup_failed_max_files=cleanup_failed_max_files,
+            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
             health_output_path=health_output_path,
-            health_only=health_only,
+            background_job_manager_factory=bg.BackgroundJobManager,
+            wait_fn=wait,
+            log=logger,
+            **args,
         )
 
     @staticmethod
@@ -2171,103 +1118,16 @@ class AGI:
             task_name: Optional[str] = None,
             **args: Any,
     ) -> Dict[str, Any]:
-        """Queue a service task for each active worker loop."""
-
-        env = env or AGI.env
-        if env is None:
-            raise ValueError("env is required when AGI has not been initialised yet")
-
-        if not AGI._service_futures and not AGI._service_workers:
-            recovered = await AGI._service_recover(env)
-            if not recovered:
-                raise RuntimeError("Service is not running. Call AGI.serve(..., action='start') first.")
-
-        if AGI._dask_client is None or getattr(AGI._dask_client, "status", "") in {"closed", "closing"}:
-            raise RuntimeError("Dask client is unavailable while service loops are running.")
-
-        if AGI._service_queue_pending is None:
-            AGI._init_service_queue(env)
-
-        if workers is None:
-            workers = AGI._workers or _workers_default
-        elif not isinstance(workers, dict):
-            raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
-
-        effective_args = AGI._service_public_args(dict(args) if args else dict(AGI._args or {}))
-
-        if work_plan is None or work_plan_metadata is None:
-            AGI._workers, generated_plan, generated_metadata = await WorkDispatcher._do_distrib(
-                env,
-                workers,
-                effective_args,
-            )
-            if work_plan is None:
-                work_plan = generated_plan
-            if work_plan_metadata is None:
-                work_plan_metadata = generated_metadata
-
-        AGI._work_plan = work_plan
-        AGI._work_plan_metadata = work_plan_metadata
-
-        service_workers = list(AGI._service_workers or AGI._service_futures.keys())
-        if not service_workers and AGI._dask_client is not None:
-            service_workers = await AGI._service_connected_workers(AGI._dask_client)
-            AGI._service_workers = list(service_workers)
-        if not service_workers:
-            raise RuntimeError("No active service workers available for submission.")
-
-        AGI._service_submit_counter += 1
-        submit_seq = AGI._service_submit_counter
-        batch_id = task_id or f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
-        batch_name = task_name or "service-workplan"
-        cleanup_info = AGI._service_cleanup_artifacts()
-
-        pending_dir = AGI._service_queue_pending
-        queued_files: List[str] = []
-
-        for worker_idx, worker_addr in enumerate(service_workers):
-            safe_worker = AGI._service_safe_worker_name(worker_addr)
-
-            filename = (
-                f"{submit_seq:06d}-{batch_id}-{worker_idx:03d}-{safe_worker}.task.pkl"
-            )
-            task_path = pending_dir / filename
-            tmp_path = task_path.with_suffix(task_path.suffix + ".tmp")
-
-            payload = {
-                "schema": "agi.service.task.v1",
-                "task_id": batch_id,
-                "task_name": batch_name,
-                "created_at": time.time(),
-                "worker_idx": worker_idx,
-                "worker": str(worker_addr),
-                "plan": AGI._wrap_worker_chunk(work_plan or [], worker_idx),
-                "metadata": AGI._wrap_worker_chunk(work_plan_metadata or [], worker_idx),
-                "args": effective_args,
-            }
-
-            with open(tmp_path, "wb") as stream:
-                pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
-            os.replace(tmp_path, task_path)
-            queued_files.append(str(task_path))
-
-        logger.info(
-            "Queued service batch %s (%s) for %s workers in %s",
-            batch_id,
-            batch_name,
-            len(service_workers),
-            pending_dir,
+        return await service_runtime_support.submit(
+            AGI,
+            env=env,
+            workers=workers,
+            work_plan=work_plan,
+            work_plan_metadata=work_plan_metadata,
+            task_id=task_id,
+            task_name=task_name,
+            **args,
         )
-
-        return {
-            "status": "queued",
-            "task_id": batch_id,
-            "task_name": batch_name,
-            "workers": service_workers,
-            "queued_files": queued_files,
-            "queue_dir": str(AGI._service_queue_root) if AGI._service_queue_root else str(pending_dir.parent),
-            "cleanup": cleanup_info,
-        }
 
     @staticmethod
     async def _benchmark(
@@ -2279,94 +1139,16 @@ class AGI:
             rapids_enabled: Optional[bool] = None,
             **args: Any,
     ) -> str:
-        """
-        Run all modes to find the fastest one.
-
-        Returns:
-            dict: A dictionary where keys are each mode (from mode_range) and values are dicts
-                  with keys including:
-                    - "mode": an identifying string for the mode,
-                    - "timing": a human-readable formatted string of the runtime,
-                    - "time": the runtime in seconds (as a float),
-                    - "order": the rank order (an integer, 1 for fastest, etc.).
-        """
-        rapids_mode_mask = AGI._RAPIDS_SET if rapids_enabled else AGI._RAPIDS_RESET
-        if not BaseWorker._is_cython_installed(env):
-            await AGI.install(
-                env,
-                scheduler=scheduler,
-                workers=workers,
-                verbose=verbose,
-                modes_enabled=AGI.CYTHON_MODE,
-                **args,
-            )
-        AGI._mode_auto = True
-        runs = {}
-        if env.benchmark.exists():
-            os.remove(env.benchmark)
-        local_modes = [m for m in mode_range if not (m & AGI.DASK_MODE)]
-        dask_modes = [m for m in mode_range if m & AGI.DASK_MODE]
-
-        async def _record(run_value: str, key: int) -> None:
-            runtime = run_value.split()
-            if len(runtime) < 2:
-                raise ValueError(f"Unexpected run format: {run_value}")
-            runtime_float = float(runtime[1])
-            runs[key] = {
-                "mode": runtime[0],
-                "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
-                "seconds": runtime_float,
-            }
-
-        for m in local_modes:
-            run_mode = m & rapids_mode_mask
-            run = await AGI.run(
-                env,
-                scheduler=scheduler,
-                workers=workers,
-                mode=run_mode,
-                **args,
-            )
-            if isinstance(run, str):
-                await _record(run, m)
-
-        if dask_modes:
-            await AGI._benchmark_dask_modes(
-                env,
-                scheduler,
-                workers,
-                dask_modes,
-                rapids_mode_mask,
-                runs,
-                **args,
-            )
-
-        # Sort the runs by "seconds" (fastest to slowest) and assign order values.
-        ordered_runs = sorted(runs.items(), key=lambda item: item[1]["seconds"])
-        for idx, (mode_key, run_data) in enumerate(ordered_runs, start=1):
-            run_data["order"] = idx
-
-        # The fastest run is the first in the ordered list.
-        if not ordered_runs:
-            raise RuntimeError("No ordered runs available after sorting.")
-
-        best_mode_key, best_run_data = ordered_runs[0]
-
-        # Calculate delta based on "seconds"
-        for m in runs:
-            runs[m]["delta"] = runs[m]["seconds"] - best_run_data["seconds"]
-
-        AGI._best_mode[env.target] = best_run_data
-        AGI._mode_auto = False
-
-        # Convert numeric keys to strings for valid JSON output.
-        runs_str_keys = {str(k): v for k, v in runs.items()}
-
-        # Return a JSON-formatted string
-        with open(env.benchmark, "w") as f:
-            json.dump(runs_str_keys, f)
-
-        return json.dumps(runs_str_keys)
+        return await capacity_support.benchmark(
+            AGI,
+            env,
+            scheduler=scheduler,
+            workers=workers,
+            verbose=verbose,
+            mode_range=list(mode_range) if mode_range is not None else None,
+            rapids_enabled=bool(rapids_enabled),
+            **args,
+        )
 
     @staticmethod
     async def _benchmark_dask_modes(
@@ -2378,39 +1160,16 @@ class AGI:
         runs: Dict[int, Dict[str, Any]],
         **args: Any,
     ) -> None:
-        """Run all Dask-enabled modes without tearing down the cluster between runs."""
-        workers_dict = workers or _workers_default
-
-        AGI.env = env
-        AGI.target_path = env.manager_path
-        AGI._target = env.target
-        AGI._workers = workers_dict
-        AGI._args = args
-        AGI._rapids_enabled = bool(rapids_mode_mask == AGI._RAPIDS_SET)
-
-        first_mode = mode_range[0] & rapids_mode_mask
-        AGI._mode = first_mode
-        await AGI._start(scheduler)
-        try:
-            for m in mode_range:
-                run_mode = m & rapids_mode_mask
-                AGI._mode = run_mode
-                run = await AGI._distribute()
-                AGI._update_capacity()
-                if isinstance(run, str):
-                    runtime = run.split()
-                    if len(runtime) < 2:
-                        raise ValueError(f"Unexpected run format: {run}")
-                    runtime_float = float(runtime[1])
-                    runs[m] = {
-                        "mode": runtime[0],
-                        "timing": humanize.precisedelta(
-                            timedelta(seconds=runtime_float)
-                        ),
-                        "seconds": runtime_float,
-                    }
-        finally:
-            await AGI._stop()
+        await capacity_support.benchmark_dask_modes(
+            AGI,
+            env,
+            scheduler,
+            workers,
+            mode_range,
+            rapids_mode_mask,
+            runs,
+            **args,
+        )
 
     @staticmethod
     def get_default_local_ip() -> str:
@@ -2550,90 +1309,26 @@ class AGI:
             user: str = None,
             password: str = None
     ):
-        if AgiEnv.is_local(ip):
-            destination = remote_path
-            if not destination.is_absolute():
-                destination = Path(env.home_abs) / destination
-            logger.info(f"mkdir {destination.parent}")
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if local_path.is_dir():
-                shutil.copytree(local_path, destination, dirs_exist_ok=True)
-            else:
-                shutil.copyfile(local_path, destination)
-            return
-
-        if not user:
-            user = getattr(env, "user", None) or getpass.getuser()
-        if not password:
-            password = getattr(env, "password", None)
-
-        user_at_ip = f"{user}@{ip}" if user else ip
-        remote = f"{user_at_ip}:{remote_path}"
-
-        cmd, cmd_base = [], []
-
-        if password and os.name != "nt":
-            cmd_base = ["sshpass"]
-            cmd += cmd_base + ["-p", password]
-
-        scp_cmd = [
-            "scp",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-        ]
-        if local_path.is_dir():
-            scp_cmd.append("-r")
-        ssh_key_path = getattr(env, "ssh_key_path", None)
-        if ssh_key_path:
-            scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
-        scp_cmd.append(str(local_path))
-        scp_cmd.append(remote)
-        cmd_end = scp_cmd
-        cmd = cmd + cmd_end
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                logger.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
-                raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
-
-            logger.info(f"Sent file {local_path} to {remote}")
-
-        except Exception as e:
-            try:
-                cmd = cmd_base + cmd_end
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await process.communicate()
-
-                if process.returncode:
-                    logger.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
-                    raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
-
-                logger.info(f"Sent file {local_path} to {remote}")
-
-            except Exception as e:
-                raise
+        await transport_support.send_file(
+            env,
+            ip,
+            local_path,
+            remote_path,
+            user=user,
+            password=password,
+            log=logger,
+        )
 
     @staticmethod
     async def send_files(env: AgiEnv, ip: str, files: list[Path], remote_dir: Path, user: str = None):
-        tasks = []
-        for f in files:
-            remote_path = remote_dir / f.name
-            tasks.append(AGI.send_file(env, ip, f, remote_path, user=user))
-        await asyncio.gather(*tasks)
-        # logger.info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
+        await transport_support.send_files(
+            AGI,
+            env,
+            ip,
+            files,
+            remote_dir,
+            user=user,
+        )
 
     @staticmethod
     def _remove_dir_forcefully(path):
@@ -2847,241 +1542,34 @@ class AGI:
 
     @staticmethod
     async def _prepare_local_env() -> None:
-        """
-        Validate and prepare each remote node in the cluster:
-        - Verify each IP is valid and reachable.
-        - Detect and install Python interpreters if missing.
-        - Detect and install 'uv' CLI via pip if missing.
-        - Use 'uv' to install the specified Pytho
-        n version, create necessary directories, and install packages.
-        """
-        env = AGI.env
-        wenv_abs = env.wenv_abs
-        pyvers = env.python_version
-        env = AGI.env
-        ip = "127.0.0.1"
-        hw_rapids_capable = AGI._hardware_supports_rapids() and AGI._rapids_enabled
-        env.hw_rapids_capable = hw_rapids_capable
-
-        if hw_rapids_capable:
-            AgiEnv.set_env_var(ip, "hw_rapids_capable")
-        else:
-            AgiEnv.set_env_var(ip, "no_rapids_hw")
-
-        if env.verbose > 0:
-            logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
-
-        # # Install Python
-        cmd_prefix = await AGI._detect_export_cmd(ip)
-        AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-        uv = cmd_prefix + env.uv
-
-        logger.info(f"mkdir {wenv_abs}")
-        wenv_abs.mkdir(parents=True, exist_ok=True)
-
-        if _envar_truthy(env.envars, "AGI_INTERNET_ON"):
-            if os.name == "nt":
-                standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
-                if standalone_uv.exists():
-                    uv_parts = shlex.split(env.uv)
-                    if uv_parts:
-                        uv_parts[0] = str(standalone_uv)
-                        windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
-                    else:
-                        windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
-                    try:
-                        await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
-                    except RuntimeError as exc:
-                        logger.warning(
-                            "Failed to update standalone uv at %s (skipping self update): %s",
-                            standalone_uv,
-                            exc,
-                        )
-                else:
-                    logger.warning(
-                        "Standalone uv not found at %s; skipping 'uv self update' on Windows",
-                        standalone_uv,
-                    )
-            else:
-                try:
-                    await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
-                except RuntimeError as exc:
-                    logger.warning(
-                        "Failed to update uv (skipping self update): %s",
-                        exc,
-                    )
-
-            try:
-                await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
-            except RuntimeError as exc:
-                if "No download found for request" in str(exc):
-                    logger.warning(
-                        "uv could not download interpreter '%s'; assuming a system interpreter is available",
-                        pyvers,
-                    )
-                else:
-                    raise
-        else:
-            logger.warning("No internet connection detected; skipping uv update and assuming a system interpreter is available")
-
-        res = distributor_cli.python_version() or ""
-        pyvers = res.strip()
-        AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
-
-        if env.is_worker_env:
-             cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
-             await AgiEnv.run(cmd, wenv_abs)
-
-        # cmd = f"{uv} --project {wenv_abs} add agi-env agi-node"
-        # await AgiEnv.run(cmd, wenv_abs)
-
-        #cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
-        #await AgiEnv.run(cmd, wenv_abs)
+        await deployment_prepare_support.prepare_local_env(
+            AGI,
+            envar_truthy_fn=_envar_truthy,
+            detect_export_cmd_fn=AGI._detect_export_cmd,
+            set_env_var_fn=AgiEnv.set_env_var,
+            run_fn=AgiEnv.run,
+            python_version_fn=distributor_cli.python_version,
+            log=logger,
+        )
 
     @staticmethod
     async def _prepare_cluster_env(scheduler_addr: Optional[str]) -> None:
-        """
-        Validate and prepare each remote node in the cluster:
-        - Verify each IP is valid and reachable.
-        - Detect and install Python interpreters if missing.
-        - Detect and install 'uv' CLI via pip if missing.
-        - Use 'uv' to install the specified Pytho
-        n version, create necessary directories, and install packages.
-        """
-        list_ip = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
-        localhost_ip = socket.gethostbyname("localhost")
-        env = AGI.env
-        dist_rel = env.dist_rel
-        wenv_rel = env.wenv_rel
-        pyvers_worker = env.pyvers_worker
-
-        # You can remove this check or keep it if you expect no scheduler/workers (rare)
-        if not list_ip:
-            list_ip.add(localhost_ip)
-
-        # Validate IPs
-        for ip in list_ip:
-            if not env.is_local(ip) and not is_ip(ip):
-                raise ValueError(f"Invalid IP address: {ip}")
-
-        # Prepare each remote node (skip local)
-        AGI.list_ip = list_ip
-        for ip in list_ip:
-            if env.is_local(ip):
-                continue
-
-            # 1) Check if need to export path (linux and macos)
-            cmd_prefix = await AGI._detect_export_cmd(ip)
-            AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-            uv_is_installed = True
-
-            # 2) Check uv
-            agi_internet_on = 1 if _envar_truthy(env.envars, "AGI_INTERNET_ON") else 0
-            try:
-                await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
-            except ConnectionError:
-                raise
-            except Exception:
-                uv_is_installed = False
-                if agi_internet_on == 0:
-                    logger.error("Uv binary is not installed, please install it manually on the workers.")
-                    raise EnvironmentError("Uv binary is not installed, please install it manually on the workers.")
-
-                # Try Windows installer
-                try:
-                    await AGI.exec_ssh(ip,
-                                       'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
-                                       )
-                    uv_is_installed = True
-                except ConnectionError:
-                    raise
-                except Exception:
-                    uv_is_installed = False
-                    # Fallback to Unix installer
-                    await AGI.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                    # Rely on PATH export via cmd_prefix for subsequent commands
-                    # await AGI.exec_ssh(ip, 'source ~/.local/bin/env')
-                    uv_is_installed = True
-
-            if not uv_is_installed:
-                logger.error("Failed to install uv")
-                raise EnvironmentError("Failed to install uv")
-
-            if agi_internet_on == 1:
-                try:
-                    await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
-                except ConnectionError:
-                    raise
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to update uv on %s (skipping self update): %s",
-                        ip,
-                        exc,
-                    )
-            else:
-                logger.warning("You appears to be on a local network. Please be sure to have uv latest release.")
-
-            # 3) Install Python
-            cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-            uv = cmd_prefix + env.uv
-
-            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
-            await AGI.exec_ssh(ip, cmd)
-
-            try:
-                await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            except ProcessError as exc:
-                if "No download found for request" in str(exc):
-                    logger.warning(
-                        "[%s] uv could not download interpreter '%s'; assuming a system interpreter is available",
-                        ip,
-                        pyvers_worker,
-                    )
-                else:
-                    raise
-
-            await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
-                                 wenv_rel.parent)
-
-            await AGI._kill(ip, force=True)
-            await AGI._clean_dirs(ip)
-
-            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
-            await AGI.exec_ssh(ip, cmd)
-
-            files_to_send: list[Path] = []
-            staged_tmp_dir: Path | None = None
-            try:
-                pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
-                if pyproject_src.exists():
-                    # Ensure the receiving worker can install with `uv sync --extra ...` even when
-                    # the source pyproject doesn't declare worker extras (common for built-in apps).
-                    extras_to_seed = set(getattr(AGI, "agi_workers", {}).values())
-                    try:
-                        staged_tmp_dir = Path(mkdtemp(prefix=f"agilab_{env.target_worker}_pyproject_"))
-                        tmp_pyproject = staged_tmp_dir / "pyproject.toml"
-                        shutil.copy(pyproject_src, tmp_pyproject)
-                        _ensure_optional_extras(tmp_pyproject, extras_to_seed)
-                        staged_entries = _stage_uv_sources_for_copied_pyproject(
-                            src_pyproject=pyproject_src,
-                            dest_pyproject=tmp_pyproject,
-                            stage_root=staged_tmp_dir,
-                            log_rewrites=bool(getattr(env, "verbose", 0)),
-                        )
-                        files_to_send.append(tmp_pyproject)
-                        files_to_send.extend(staged_entries)
-                    except Exception:
-                        if staged_tmp_dir is not None:
-                            shutil.rmtree(staged_tmp_dir, ignore_errors=True)
-                            staged_tmp_dir = None
-                        # Fall back to the original file if anything goes wrong.
-                        files_to_send.append(pyproject_src)
-                if env.uvproject.exists():
-                    files_to_send.append(env.uvproject)
-                await AGI.send_files(env, ip, files_to_send, wenv_rel)
-            finally:
-                if staged_tmp_dir is not None:
-                    shutil.rmtree(staged_tmp_dir, ignore_errors=True)
+        await deployment_prepare_support.prepare_cluster_env(
+            AGI,
+            scheduler_addr,
+            envar_truthy_fn=_envar_truthy,
+            detect_export_cmd_fn=AGI._detect_export_cmd,
+            ensure_optional_extras_fn=_ensure_optional_extras,
+            stage_uv_sources_fn=_stage_uv_sources_for_copied_pyproject,
+            run_exec_ssh_fn=AGI.exec_ssh,
+            send_files_fn=AGI.send_files,
+            kill_fn=AGI._kill,
+            clean_dirs_fn=AGI._clean_dirs,
+            mkdtemp_fn=mkdtemp,
+            process_error_type=ProcessError,
+            set_env_var_fn=AgiEnv.set_env_var,
+            log=logger,
+        )
 
     @staticmethod
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
@@ -3927,12 +2415,12 @@ class AGI:
 
     @staticmethod
     async def _uninstall_modules() -> None:
-        """Uninstall specified modules."""
-        for module in AGI._module_to_clean:
-            cmd = f"{env.uv} pip uninstall {module} -y"
-            logger.info(f"Executing: {cmd}")
-            await AgiEnv.run(cmd, AGI.env.agi_env)
-        AGI._module_to_clean.clear()
+        await deployment_prepare_support.uninstall_modules(
+            AGI,
+            AGI.env,
+            run_fn=AgiEnv.run,
+            log=logger,
+        )
 
     @staticmethod
     def _format_elapsed(seconds: float) -> str:
@@ -3948,23 +2436,7 @@ class AGI:
 
     @staticmethod
     def _venv_todo(list_ip: Set[str]) -> None:
-        """
-
-        Args:
-          list_ip: return:
-
-        Returns:
-
-        """
-        t = time.time()
-
-        AGI._local_ip, AGI._remote_ip = [], []
-
-        for ip in list_ip:
-            (AGI._local_ip.append(ip) if AgiEnv.is_local(ip) else AGI._remote_ip.append(ip))
-        AGI._install_todo = 2 * len(AGI._remote_ip)
-        if AGI.env.verbose > 0:
-            logger.info(f"remote worker to install: {AGI._install_todo} ")
+        deployment_prepare_support.venv_todo(AGI, list_ip, log=logger)
 
     @staticmethod
     async def install(
@@ -4390,133 +2862,18 @@ class AGI:
 
     @staticmethod
     async def _build_lib_local():
-        """
-
-        Returns:
-
-        """
-        env = AGI.env
-        wenv = normalize_path(str(env.wenv_abs))
-        is_cy = AGI._mode & AGI.CYTHON_MODE
-        packages = "agi_dispatcher, "
-
-        baseworker = env.base_worker_cls
-        if baseworker.startswith("Agent"):
-            packages += "agent_worker"
-        elif baseworker.startswith("Dag"):
-            packages += "dag_worker"
-        elif baseworker.startswith("Pandas"):
-            packages += "pandas_worker"
-        elif baseworker.startswith("Polars"):
-            packages += "polars_worker"
-        elif baseworker.startswith("Fireducks"):
-            packages += "fireducks_worker"
-
-        app_path = env.active_app
-        wenv_abs = env.wenv_abs
-        module = env.setup_app_module
-
-        # build egg and unzip it into wenv
-        uv = env.uv
-        cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
-        if env.is_free_threading_available:
-            uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        module_cmd = f"python -m {module}"
-        app_path_arg = f"\"{app_path}\"" # shlex.quote(str(app_path))
-        wenv_arg = f"\"{wenv_abs}\"" # shlex.quote(str(wenv_abs))
-
-        worker_pyproject_dest = env.wenv_abs / env.worker_pyproject.name
-        worker_pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
-        if not worker_pyproject_src.exists():
-            raise FileNotFoundError(f"Missing pyproject.toml for worker environment: {worker_pyproject_src}")
-        shutil.copy(worker_pyproject_src, worker_pyproject_dest)
-        _ensure_optional_extras(worker_pyproject_dest, set(getattr(AGI, "agi_workers", {}).values()))
-        if env.uvproject.exists():
-            shutil.copy(env.uvproject, env.wenv_abs)
-        _stage_uv_sources_for_copied_pyproject(
-            src_pyproject=worker_pyproject_src,
-            dest_pyproject=worker_pyproject_dest,
-            stage_root=env.wenv_abs,
-            log_rewrites=bool(getattr(env, "verbose", 0)),
+        await deployment_build_support.build_lib_local(
+            AGI,
+            ensure_optional_extras_fn=_ensure_optional_extras,
+            stage_uv_sources_fn=_stage_uv_sources_for_copied_pyproject,
+            validate_worker_uv_sources_fn=_validate_worker_uv_sources,
+            run_fn=AgiEnv.run,
+            log=logger,
         )
-        _validate_worker_uv_sources(worker_pyproject_dest)
-
-        # install agi-env and agi-node
-        cmd = f"{env.uv} --project {app_path_arg} pip install agi-env "
-        await AgiEnv.run(cmd, app_path)
-
-        cmd = f"{env.uv} --project {app_path_arg} pip install agi-node "
-        await AgiEnv.run(cmd, app_path)
-
-        if env.verbose > 1:
-            cmd = (
-                f"{env.uv} --project {app_path_arg} run --no-sync "
-                f"{module_cmd} --app-path {app_path_arg} bdist_egg --packages \"{packages}\" -d {wenv_arg}"
-            )
-        else:
-            cmd = (
-                f"{env.uv} --project {app_path_arg} run --no-sync "
-                f"{module_cmd} --app-path {app_path_arg} -q bdist_egg --packages \"{packages}\" -d {wenv_arg}"
-            )
-
-        await AgiEnv.run(cmd, app_path)
-
-        dask_client = AGI._dask_client
-        if dask_client:
-            egg_files = list((wenv_abs / "dist").glob("*.egg"))
-            for egg_file in egg_files:
-                dask_client.upload_file(str(egg_file))
-
-        # compile in cython when cython is requested
-        if is_cy:
-            # cython compilation of wenv/src into wenv
-            if env.verbose > 1:
-                cmd = (
-                    f"{env.uv} --project {app_path_arg} run --no-sync "
-                    f"{module_cmd} --app-path {wenv_arg} build_ext -b {wenv_arg}"
-                )
-            else:
-                cmd = (
-                    f"{env.uv} --project {app_path_arg} run --no-sync "
-                    f"{module_cmd} --app-path {wenv_arg} -q build_ext -b {wenv_arg}"
-                )
-
-            res = await AgiEnv.run(cmd, app_path)
-            try:
-                worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
-            except StopIteration:
-                raise RuntimeError(cmd)
-
-            # platlib = sysconfig.get_path("platlib")
-            # platlib_idx = platlib.index('.venv')
-            # wenv_platlib = platlib[platlib_idx:]
-            # target_platlib = wenv_abs / wenv_platlib
-            # destination = os.path.join(target_platlib, os.path.basename(worker_lib))
-
-            python_dirs = env.pyvers_worker.split(".")
-            if python_dirs[-1][-1] == "t":
-                python_version = python_dirs[0] + "." + python_dirs[1] + "t"
-            else:
-                python_version = python_dirs[0] + "." + python_dirs[1]
-            destination_dir = wenv_abs / f".venv/lib/python{python_version}/site-packages"
-
-            # Copy the file while preserving metadata into the site-packages directory.
-            os.makedirs(destination_dir, exist_ok=True)
-            shutil.copy2(worker_lib, destination_dir / os.path.basename(worker_lib))
-            if res != "":
-                logger.info(res)
-
-        return
 
     @staticmethod
     async def _build_lib_remote() -> None:
-        """
-        workers init
-        """
-        # worker
-        if (AGI._dask_client.scheduler.pool.open == 0) and AGI.verbose:
-            runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
-            logger.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
+        await deployment_build_support.build_lib_remote(AGI, log=logger)
 
     @staticmethod
     async def _run() -> Any:
@@ -4781,192 +3138,15 @@ class AGI:
 
     @staticmethod
     async def _calibration() -> None:
-        """
-        balancer calibration
-        """
-        res_workers_info = AGI._dask_client.gather(
-            [
-                AGI._dask_client.run(
-                    # BaseWorker.get_logs_and_result,
-                    BaseWorker._get_worker_info,
-                    BaseWorker._worker_id,
-                    workers=AGI._dask_workers,
-                )
-            ]
-        )
-
-        infos = {}
-
-        for res in res_workers_info:
-            for worker, info in res.items():
-                if info:
-                    logger.info(f"{worker}:{info}")
-                infos[worker] = info
-
-        AGI.workers_info = infos
-        AGI._capacity = {}
-        workers_info = {}
-
-        for worker, info in AGI.workers_info.items():
-            ipport = worker.split("/")[-1]
-            infos = list(AGI.workers_info[worker].values())
-            infos.insert(0, [AGI._workers[ipport.split(":")[0]]])
-            data = np.array(infos).reshape(1, 6)
-            AGI._capacity[ipport] = AGI._capacity_predictor.predict(data)[0]
-            info["label"] = AGI._capacity[ipport]
-            workers_info[ipport] = info
-
-        AGI.workers_info = workers_info
-        if not AGI._capacity:
-            fallback_keys = list(workers_info.keys())
-            if not fallback_keys:
-                fallback_keys = [
-                    worker.split("://")[-1] for worker in (AGI._dask_workers or [])
-                ]
-            if not fallback_keys and AGI._workers:
-                for ip, count in AGI._workers.items():
-                    for idx in range(count):
-                        fallback_keys.append(f"{ip}:{idx}")
-            if not fallback_keys:
-                fallback_keys = ["localhost:0"]
-            logger.warning(
-                "Capacity predictor returned no data; assuming uniform capacity for %s worker(s).",
-                len(fallback_keys),
-            )
-            if not workers_info:
-                AGI.workers_info = {ipport: {"label": 1.0} for ipport in fallback_keys}
-            AGI._capacity = {ipport: 1.0 for ipport in fallback_keys}
-
-        cap_min = min(AGI._capacity.values()) if AGI._capacity else 1.0
-        workers_capacity = {}
-
-        for ipport, pred_cap in AGI._capacity.items():
-            workers_capacity[ipport] = round(pred_cap / cap_min, 1)
-
-        AGI._capacity = dict(
-            sorted(workers_capacity.items(), key=lambda item: item[1], reverse=True)
-        )
+        await capacity_support.calibration(AGI, log=logger)
 
     @staticmethod
     def _train_capacity(train_home: Path) -> None:
-        """train the balancer model
-
-        Args:
-          train_home:
-
-        Returns:
-
-        """
-        data_file = train_home / AGI._capacity_data_file
-        if data_file.exists():
-            balancer_csv = data_file
-        else:
-            raise FileNotFoundError(data_file)
-
-        schema = {
-            "nb_workers": pl.Int64,
-            "ram_total": pl.Float64,
-            "ram_available": pl.Float64,
-            "cpu_count": pl.Float64,  # Assuming CPU count can be a float
-            "cpu_frequency": pl.Float64,
-            "network_speed": pl.Float64,
-            "label": pl.Float64,
-        }
-
-        # Read the CSV file with correct parameters
-        df = pl.read_csv(
-            balancer_csv,
-            has_header=True,  # Correctly identifies the header row
-            skip_rows_after_header=2,  # Skips the next two rows after the header
-            schema_overrides=schema,  # Applies the defined schema
-            ignore_errors=False,  # Set to True if you want to skip malformed rows
-        )
-        # Get the list of column names
-        columns = df.columns
-
-        # Select all columns except the last one as features
-        X = df.select(columns[:-1]).to_numpy()
-
-        # Select the last column as the target variable
-        y = df.select(columns[-1]).to_numpy().ravel()
-
-        # Split the data into training and testing sets
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-        AGI._capacity_predictor = RandomForestRegressor().fit(X_train, y_train)
-
-        logger.info(
-            f"AGI.balancer_train_mode - Accuracy of the prediction of the workers capacity = "
-            f"{AGI._capacity_predictor.score(X_test, y_test)}"
-        )
-
-        capacity_model = os.path.join(train_home, AGI._capacity_model_file)
-        with open(capacity_model, "wb") as f:
-            pickle.dump(AGI._capacity_predictor, f)
+        capacity_support.train_capacity(AGI, train_home, log=logger)
 
     @staticmethod
     def _update_capacity() -> None:
-        """update the balancer model"""
-        workers_rt = {}
-        balancer_cols = [
-            "nb_workers",
-            "ram_total",
-            "ram_available",
-            "cpu_count",
-            "cpu_frequency",
-            "network_speed",
-            "label",
-        ]
-
-        for wrt in AGI._run_time:
-            if isinstance(wrt, str):
-                return
-
-            worker = list(wrt.keys())[0]
-
-            for w, info in AGI.workers_info.items():
-                if w == worker:
-                    info["run_time"] = wrt[w]
-                    workers_rt[w] = info
-
-        current_state = deepcopy(workers_rt)
-
-        for worker, data in workers_rt.items():
-            worker_cap = data["label"]  # Capacité actuelle du mycode_wprker
-            worker_rt = data["run_time"]  # Temps d'exécution du mycode_worker
-
-            # Calculer le delta de temps et mettre à jour la capacité pour chaque autre mycode_worker
-            for other_worker, other_data in current_state.items():
-                if other_worker != worker:
-                    other_rt = other_data[
-                        "run_time"
-                    ]  # Temps d'exécution de l'autre mycode_worker
-                    delta = worker_rt - other_rt
-                    workers_rt[worker]["label"] -= (
-                            0.1 * worker_cap * delta / worker_rt / (len(current_state) - 1)
-                    )
-                else:
-                    workers_rt[worker]["nb_workers"] = int(
-                        AGI._workers[worker.split(":")[0]]
-                    )
-
-        for w, data in workers_rt.items():
-            del data["run_time"]
-            df = pl.DataFrame(data)
-            df = df[balancer_cols]
-
-            if df[0, -1] and df[0, -1] != float("inf"):
-                with open(AGI._capacity_data_file, "a") as f:
-                    df.write_csv(
-                        f,
-                        include_header=False,
-                        line_terminator="\r",
-                    )
-            else:
-                raise RuntimeError(f"{w} workers BaseWorker.do_works failed")
-
-        AGI._train_capacity(Path(AGI.env.home_abs))
+        capacity_support.update_capacity(AGI)
 
     @staticmethod
     def _exec_bg(cmd: str, cwd: str) -> None:
@@ -4985,166 +3165,32 @@ class AGI:
 
     @asynccontextmanager
     async def get_ssh_connection(ip: str, timeout_sec: int = 5):
-
-        env = AGI.env
-        if AgiEnv.is_local(ip) and not env.user:
-            env.user = getpass.getuser()
-
-        if not env.user:
-            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
-
-        conn = AGI._ssh_connections.get(ip)
-        if conn and not conn.is_closed():
+        async with transport_support.get_ssh_connection(
+            AGI,
+            ip,
+            timeout_sec=timeout_sec,
+            discover_private_keys_fn=_discover_private_ssh_keys,
+            log=logger,
+        ) as conn:
             yield conn
-            return
-
-        agent_path = None
-        try:
-            client_keys = None
-            ssh_key_override = env.ssh_key_path
-            if ssh_key_override:
-                client_keys = [str(Path(ssh_key_override).expanduser())]
-            else:
-                # If a password is provided, disable key/agent auth unless explicitly overridden
-                if env.password:
-                    client_keys = []
-                    agent_path = None
-                else:
-                    ssh_dir = Path("~/.ssh").expanduser()
-                    keys = _discover_private_ssh_keys(ssh_dir)
-                    client_keys = keys if keys else None
-
-            conn = await asyncio.wait_for(
-                asyncssh.connect(
-                    ip,
-                    username=env.user,
-                    password=env.password,
-                    known_hosts=None,
-                    client_keys=client_keys,
-                    agent_path=agent_path,
-                ),
-                timeout=timeout_sec
-            )
-
-            AGI._ssh_connections[ip] = conn
-            yield conn
-
-        except asyncio.TimeoutError:
-            err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
-            logger.warning(err_msg)
-            raise ConnectionError(err_msg) from None
-
-        except asyncssh.PermissionDenied:
-            err_msg = f"Authentication failed for SSH user '{env.user}' on host {ip}."
-            logger.error(err_msg)
-            raise ConnectionError(err_msg) from None
-
-        except OSError as e:
-            original = str(e).strip() or repr(e)
-            if e.errno in {
-                errno.EHOSTUNREACH,
-                errno.ENETUNREACH,
-                getattr(errno, "EHOSTDOWN", None),
-                getattr(errno, "ENETDOWN", None),
-                getattr(errno, "ETIMEDOUT", None),
-            }:
-                err_msg = (
-                    f"Unable to connect to {ip} on SSH port 22. "
-                    "Please check that the device is powered on, network cable connected, and SSH service running."
-                )
-                if original:
-                    err_msg = f"{err_msg} (details: {original})"
-                logger.info(err_msg)
-            else:
-                err_msg = original
-                logger.error(err_msg)
-            raise ConnectionError(err_msg) from None
-
-        except asyncssh.Error as e:
-            base_msg = str(e).strip() or repr(e)
-            cmd = getattr(e, "command", None)
-            if cmd:
-                logger.error(cmd)
-            logger.error(base_msg)
-            raise ConnectionError(base_msg) from None
-
-        except Exception as e:
-            err_msg = f"Unexpected error while connecting to {ip}: {e}"
-            logger.error(err_msg)
-            raise ConnectionError(err_msg) from None
 
     @staticmethod
     async def exec_ssh(ip: str, cmd: str) -> str:
-        try:
-            async with AGI.get_ssh_connection(ip) as conn:
-                msg = f"[{ip}] {cmd}"
-                if AgiEnv.verbose > 0 or AgiEnv.debug:
-                    logger.info(msg)
-                result = await conn.run(cmd, check=True)
-                stdout = result.stdout
-                stderr = result.stderr
-                if isinstance(stdout, bytes):
-                    stdout = stdout.decode('utf-8', errors='replace')
-                if isinstance(stderr, bytes):
-                    stderr = stderr.decode('utf-8', errors='replace')
-                if stderr:
-                    logger.info(f"[{ip}] {stderr.strip()}")
-                if AgiEnv.verbose > 0 or AgiEnv.debug:
-                    if stdout:
-                        logger.info(f"[{ip}] {stdout.strip()}")
-                return (stdout or '').strip() + "\n" + (stderr or '').strip()
-
-        except ConnectionError:
-            raise
-
-        except ProcessError as e:
-            stdout = getattr(e, 'stdout', '')
-            stderr = getattr(e, 'stderr', '')
-            if isinstance(stdout, bytes):
-                stdout = stdout.decode('utf-8', errors='replace')
-            if isinstance(stderr, bytes):
-                stderr = stderr.decode('utf-8', errors='replace')
-            logger.error(f"Remote command stderr: {stderr.strip()}")
-            raise
-
-        except (asyncssh.Error, OSError) as e:
-            msg = str(e).strip() or repr(e)
-            friendly = f"Connection to {ip} failed: {msg}"
-            logger.info(friendly)
-            raise ConnectionError(friendly) from None
+        return await transport_support.exec_ssh(
+            AGI,
+            ip,
+            cmd,
+            process_error_cls=ProcessError,
+            log=logger,
+        )
 
     @staticmethod
     async def exec_ssh_async(ip: str, cmd: str) -> str:
-        """
-        Execute a remote command via SSH and return the last line of its stdout output.
-        """
-        async with AGI.get_ssh_connection(ip) as conn:
-            process = await conn.create_process(cmd)
-
-            # Read entire stdout output as bytes
-            stdout = await process.stdout.read()
-            await process.wait()
-
-            # Decode output safely
-            # stdout_str = stdout.decode('utf-8', errors='replace')
-
-            # Split output into lines and get the last non-empty line
-            lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-            if lines:
-                return lines[-1]
-            else:
-                return ""  # or None if no output
+        return await transport_support.exec_ssh_async(AGI, ip, cmd)
 
     @staticmethod
     async def _close_all_connections():
-        """
-        Ferme proprement toutes les connexions SSH ouvertes.
-        À appeler à la fin de ton programme ou avant arrêt.
-        """
-        for conn in AGI._ssh_connections.values():
-            conn.close()
-            await conn.wait_closed()
-        AGI._ssh_connections.clear()
+        await transport_support.close_all_connections(AGI)
 
 
 def _format_exception_chain(exc: BaseException) -> str:
