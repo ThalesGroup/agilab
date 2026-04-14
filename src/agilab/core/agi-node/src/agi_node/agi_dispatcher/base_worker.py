@@ -31,7 +31,6 @@ import io
 import json
 import os
 import pickle
-import re
 import shutil
 import stat
 import subprocess
@@ -59,6 +58,8 @@ from agi_env import AgiEnv, normalize_path
 
 from agi_env.agi_logger import AgiLogger
 from . import base_worker_path_support as path_support
+from . import base_worker_runtime_support as runtime_support
+from . import base_worker_service_support as service_support
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -303,7 +304,7 @@ class BaseWorker(abc.ABC):
         if clean and target.exists():
             try:
                 shutil.rmtree(target, ignore_errors=True, onerror=self._onerror)
-            except Exception as exc:  # pragma: no cover - defensive guard
+            except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
                 logger.warning(
                     "Issue while cleaning output directory %s: %s", target, exc
                 )
@@ -311,7 +312,7 @@ class BaseWorker(abc.ABC):
         try:
             logger.info(f"mkdir {target}")
             target.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except OSError as exc:  # pragma: no cover - defensive guard
             logger.warning(
                 "Issue while ensuring output directory %s exists: %s", target, exc
             )
@@ -436,7 +437,7 @@ class BaseWorker(abc.ABC):
         if is_active:
             try:
                 BaseWorker.break_loop()
-            except Exception:
+            except RuntimeError:
                 logger.debug("break_loop raised", exc_info=True)
 
     @staticmethod
@@ -485,46 +486,27 @@ class BaseWorker(abc.ABC):
                 # Some builtins don't expose signatures; fall back to simple mode
                 accepts_event = False
 
-        service_queue_dir = None
         worker_args = getattr(worker_inst, "args", None)
-        if worker_args is not None:
-            service_queue_dir = getattr(worker_args, "_agi_service_queue_dir", None)
-            if service_queue_dir is None and hasattr(worker_args, "get"):
-                service_queue_dir = worker_args.get("_agi_service_queue_dir")
+        queue_root = service_support.resolve_service_queue_root(
+            worker_args,
+            path_cls=Path,
+        )
 
         def _write_heartbeat(_state: str) -> None:
             return
 
-        if service_queue_dir:
-            queue_root = Path(str(service_queue_dir)).expanduser().resolve(strict=False)
-            heartbeat_dir = queue_root / "heartbeats"
-            heartbeat_dir.mkdir(parents=True, exist_ok=True)
-            safe_worker = re.sub(
-                r"[^a-zA-Z0-9_.-]+", "-", str(BaseWorker._worker or worker_id)
-            ).strip("-") or "worker"
-            heartbeat_file = heartbeat_dir / f"{worker_id:03d}-{safe_worker}.json"
-
-            def _write_heartbeat(state: str) -> None:
-                payload = {
-                    "worker_id": worker_id,
-                    "worker": str(BaseWorker._worker),
-                    "pid": os.getpid(),
-                    "timestamp": time.time(),
-                    "state": state,
-                }
-                tmp = heartbeat_file.with_suffix(heartbeat_file.suffix + ".tmp")
-                try:
-                    with open(tmp, "w", encoding="utf-8") as stream:
-                        json.dump(payload, stream)
-                    os.replace(tmp, heartbeat_file)
-                except Exception:
-                    with suppress(FileNotFoundError):
-                        tmp.unlink()
-                    logger.debug(
-                        "worker #%s: failed to write service heartbeat",
-                        worker_id,
-                        exc_info=True,
-                    )
+        if queue_root is not None:
+            _write_heartbeat = service_support.make_heartbeat_writer(
+                queue_root,
+                worker_id=worker_id,
+                worker_name=BaseWorker._worker,
+                logger_obj=logger,
+                path_cls=Path,
+                open_fn=open,
+                json_module=json,
+                os_module=os,
+                time_module=time,
+            )
 
         start_time = time.time()
         logger.info(
@@ -536,111 +518,25 @@ class BaseWorker(abc.ABC):
 
         try:
             if not callable(loop_fn):
-                if service_queue_dir:
-                    queue_root = Path(str(service_queue_dir)).expanduser().resolve(strict=False)
-                    queue_dirs = {
-                        "pending": queue_root / "pending",
-                        "running": queue_root / "running",
-                        "done": queue_root / "done",
-                        "failed": queue_root / "failed",
-                        "heartbeats": queue_root / "heartbeats",
-                    }
-                    for path in queue_dirs.values():
-                        path.mkdir(parents=True, exist_ok=True)
-
-                    def _dump_payload(path: Path, payload: dict[str, Any]) -> None:
-                        tmp = path.with_suffix(path.suffix + ".tmp")
-                        with open(tmp, "wb") as stream:
-                            pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
-                        os.replace(tmp, path)
-
-                    processed = 0
-                    failures = 0
-                    idle_wait = poll if poll > 0 else 0.05
-                    _write_heartbeat("running")
-
-                    while not stop_event.is_set():
-                        _write_heartbeat("running")
-                        claimed = False
-                        for pending_path in sorted(queue_dirs["pending"].glob("*.task.pkl")):
-                            try:
-                                with open(pending_path, "rb") as stream:
-                                    payload = pickle.load(stream)
-                            except FileNotFoundError:
-                                continue
-                            except Exception as exc:
-                                logger.error(
-                                    "worker #%s: cannot read service task %s: %s",
-                                    worker_id,
-                                    pending_path,
-                                    exc,
-                                )
-                                failed_path = queue_dirs["failed"] / pending_path.name
-                                with suppress(FileNotFoundError):
-                                    pending_path.replace(failed_path)
-                                continue
-
-                            target_idx = payload.get("worker_idx")
-                            target_worker = str(payload.get("worker", "") or "").strip()
-                            if target_idx is not None and target_idx != worker_id:
-                                continue
-                            if target_worker and target_worker != str(BaseWorker._worker):
-                                continue
-
-                            running_path = queue_dirs["running"] / pending_path.name
-                            try:
-                                pending_path.replace(running_path)
-                            except FileNotFoundError:
-                                continue
-
-                            claimed = True
-                            task_start = time.time()
-                            try:
-                                _write_heartbeat("processing")
-                                logs = BaseWorker._do_works(
-                                    payload.get("plan", []),
-                                    payload.get("metadata", []),
-                                )
-                                payload["status"] = "done"
-                                payload["finished_at"] = time.time()
-                                payload["runtime"] = time.time() - task_start
-                                payload["worker_id"] = worker_id
-                                payload["worker_name"] = BaseWorker._worker
-                                payload["logs"] = logs
-                                _dump_payload(queue_dirs["done"] / pending_path.name, payload)
-                                processed += 1
-                            except Exception as exc:
-                                payload["status"] = "failed"
-                                payload["finished_at"] = time.time()
-                                payload["runtime"] = time.time() - task_start
-                                payload["worker_id"] = worker_id
-                                payload["worker_name"] = BaseWorker._worker
-                                payload["error"] = str(exc)
-                                payload["traceback"] = traceback.format_exc()
-                                _dump_payload(queue_dirs["failed"] / pending_path.name, payload)
-                                failures += 1
-                                logger.exception(
-                                    "worker #%s: service task failed (%s)",
-                                    worker_id,
-                                    pending_path.name,
-                                )
-                            finally:
-                                _write_heartbeat("running")
-                                with suppress(FileNotFoundError):
-                                    running_path.unlink()
-                            break
-
-                        if not claimed:
-                            stop_event.wait(idle_wait)
-
-                    _write_heartbeat("stopped")
-
-                    return {
-                        "status": "stopped",
-                        "runtime": time.time() - start_time,
-                        "processed": processed,
-                        "failed": failures,
-                    }
+                if queue_root is not None:
+                    payload = service_support.run_service_queue(
+                        stop_event=stop_event,
+                        queue_root=queue_root,
+                        worker_id=worker_id,
+                        worker_name=BaseWorker._worker,
+                        poll=poll,
+                        do_works_fn=BaseWorker._do_works,
+                        write_heartbeat=_write_heartbeat,
+                        logger_obj=logger,
+                        path_cls=Path,
+                        open_fn=open,
+                        pickle_module=pickle,
+                        os_module=os,
+                        time_module=time,
+                        traceback_module=traceback,
+                    )
+                    payload["runtime"] = time.time() - start_time
+                    return payload
 
                 # No custom loop provided; block until break is requested.
                 stop_event.wait()
@@ -745,7 +641,7 @@ class BaseWorker(abc.ABC):
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
                 logger.info(cmd)
                 subprocess.run(cmd, shell=True, check=True)
-            except Exception as e:
+            except (OSError, subprocess.CalledProcessError) as e:
                 logger.error(f"Mount failed: {e}")
         return BaseWorker._join(BaseWorker.expand(path1), path2)
 
@@ -800,7 +696,7 @@ class BaseWorker(abc.ABC):
                 candidate = (Path.home() / candidate).expanduser()
             try:
                 candidate = candidate.resolve(strict=False)
-            except Exception:
+            except OSError:
                 candidate = Path(os.path.normpath(str(candidate)))
 
         if os.name == "nt":
@@ -816,7 +712,7 @@ class BaseWorker(abc.ABC):
                     cmd = f'net use Z: "{net_path}" /user:your-credentials'
                     logger.info(cmd)
                     subprocess.run(cmd, shell=True, check=True)
-                except Exception as exc:
+                except (OSError, subprocess.CalledProcessError) as exc:
                     logger.info("Failed to map network drive: %s", exc)
             return resolved_str
 
@@ -861,7 +757,7 @@ class BaseWorker(abc.ABC):
                 candidate = (Path(anchor) / candidate).expanduser()
             try:
                 output_path = candidate.resolve(strict=False)
-            except Exception:
+            except (OSError, RuntimeError):
                 output_path = Path(os.path.normpath(str(candidate)))
 
         normalized_output = normalize_path(output_path)
@@ -874,14 +770,14 @@ class BaseWorker(abc.ABC):
                 logger.info(f"mkdir {path_obj}")
                 path_obj.mkdir(parents=True, exist_ok=True)
                 return path_obj
-            except Exception as exc:
+            except (OSError, TypeError, ValueError) as exc:
                 raise OSError(f"Failed to create output directory {path_obj}: {exc}") from exc
 
         try:
             if reset_target:
                 try:
                     shutil.rmtree(normalized_output, ignore_errors=True, onerror=self._onerror)
-                except Exception as exc:
+                except (OSError, RuntimeError) as exc:
                     logger.info("Error removing directory: %s", exc)
             output_path = _ensure_output_dir(normalized_output)
             normalized_output = normalize_path(output_path)
@@ -908,7 +804,7 @@ class BaseWorker(abc.ABC):
                     output_path if 'output_path' in locals() else normalized_output,
                     normalized_output,
                 )
-            except Exception as exc:
+            except OSError as exc:
                 logger.error("Fallback output directory failed: %s", exc)
                 raise
 
@@ -947,32 +843,12 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
-        import io
-        import logging
-
-        log_stream = io.StringIO()
-        handler = logging.StreamHandler(log_stream)
-        root_logger = logging.getLogger()
-
-        # Set level according to verbosity
-        if verbosity >= 2:
-            level = logging.DEBUG
-        elif verbosity == 1:
-            level = logging.INFO
-        else:
-            level = logging.WARNING
-
-        root_logger.setLevel(level)
-        root_logger.addHandler(handler)
-
-        try:
-            result = func(*args, **kwargs)
-        finally:
-            root_logger.removeHandler(handler)
-
-        return log_stream.getvalue(), result
-
-
+        return runtime_support.capture_logs_and_result(
+            func,
+            *args,
+            verbosity=verbosity,
+            **kwargs,
+        )
 
     @staticmethod
     def _exec(cmd, path, worker):
@@ -984,75 +860,49 @@ class BaseWorker(abc.ABC):
           worker:
         Returns:
         """
-        import subprocess
-
-        path = normalize_path(path)
-
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, check=True, cwd=path
+        return runtime_support.exec_command(
+            cmd,
+            path,
+            worker,
+            normalize_path_fn=normalize_path,
+            logger_obj=logger,
         )
-        if result.returncode != 0:
-            if result.stderr.startswith("WARNING"):
-                logger.error(f"warning: worker {worker} - {cmd}")
-                logger.error(result.stderr)
-            else:
-                raise RuntimeError(
-                    f"error on node {worker} - {cmd} {result.stderr}"
-                )
-
-        return result
 
     @staticmethod
     def _log_import_error(module, target_class, target_module):
-        logger.error(f"file:  {__file__}")
-        logger.error(f"__import__('{module}', fromlist=['{target_class}'])")
-        logger.error(f"getattr('{target_module} {target_class}')")
-        logger.error(f"sys.path: {sys.path}")
+        runtime_support.log_import_error(
+            module,
+            target_class,
+            target_module,
+            logger_obj=logger,
+            file_path=__file__,
+            sys_path=sys.path,
+        )
 
     @staticmethod
     def _load_module(module_name, module_class):
-        try:
-            module = __import__(module_name, fromlist=[module_class])
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(f"module {module_name} is not installed")
-        return getattr(module, module_class)
+        return runtime_support.load_module(module_name, module_class)
 
     @staticmethod
     def _load_manager():
-        env = BaseWorker.env
-        module_name = env.module
-        module_class = env.target_class
-        module_name += '.' + module_name
-        if module_name in sys.modules:
-            del sys.modules[module_name]
-        return BaseWorker._load_module(module_name, module_class)
+        return runtime_support.load_manager(
+            BaseWorker.env,
+            load_module_fn=BaseWorker._load_module,
+            sys_modules=sys.modules,
+        )
 
     @staticmethod
     def _load_worker(mode):
-        env = BaseWorker.env
-        module_name = env.target_worker
-        module_class = env.target_worker_class
-        if module_name in sys.modules:
-            del sys.modules[module_name]
-        if mode & 2:
-            module_name += "_cy"
-        else:
-            module_name += '.' + module_name
-
-        return BaseWorker._load_module(module_name, module_class)
+        return runtime_support.load_worker(
+            BaseWorker.env,
+            mode,
+            load_module_fn=BaseWorker._load_module,
+            sys_modules=sys.modules,
+        )
 
     @staticmethod
     def _is_cython_installed(env):
-        module_class = env.target_worker_class
-        module_name = env.target_worker + "_cy"
-
-        try:
-           __import__(module_name, fromlist=[module_class])
-
-        except ModuleNotFoundError:
-            return False
-
-        return True
+        return runtime_support.is_cython_installed(env)
 
     @staticmethod
     async def _run(env=None, workers={"127.0.0.1": 1}, mode=0, verbose=None, args=None):
