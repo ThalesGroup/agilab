@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import textwrap
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -28,6 +29,86 @@ RUN_MODE_LABELS: tuple[str, ...] = (
 
 def _python_string(value: Any) -> str:
     return json.dumps(str(value))
+
+
+def strip_ansi(text: str) -> str:
+    if not text:
+        return ""
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    return ansi_escape.sub("", text)
+
+
+def is_dask_shutdown_noise(line: str) -> bool:
+    """
+    Return True when the line is one of the noisy Dask shutdown messages
+    that should not surface in the UI.
+    """
+    if not line:
+        return False
+    normalized = line.strip().lower()
+    noise_patterns = (
+        "stream is closed",
+        "streamclosederror",
+        "commclosederror",
+        "batched comm closed",
+        "closing scheduler",
+        "scheduler closing all comms",
+        "remove worker addr",
+        "close client connection",
+        "tornado.iostream.streamclosederror",
+        "nbytes = yield coro",
+        "value = future.result",
+        "convert_stream_closed_error",
+        "^",
+    )
+    if any(pattern in normalized for pattern in noise_patterns):
+        return True
+    if "traceback (most recent call last" in normalized:
+        return True
+    if normalized.startswith("the above exception was the direct cause"):
+        return True
+    if normalized.startswith("traceback"):
+        return True
+    if normalized.startswith("file \"") and (
+        "/site-packages/distributed/" in normalized
+        or "/site-packages/tornado/" in normalized
+    ):
+        return True
+    return False
+
+
+def filter_noise_lines(text: str) -> str:
+    return "\n".join(
+        line
+        for line in text.splitlines()
+        if not is_dask_shutdown_noise(line.strip())
+    )
+
+
+def format_log_block(text: str, *, newest_first: bool = True, max_lines: int = 250) -> str:
+    if not text:
+        return ""
+    lines = text.splitlines()
+    tail = lines[-max_lines:]
+    if newest_first:
+        tail = list(reversed(tail))
+    return "\n".join(tail)
+
+
+def filter_warning_messages(log: str) -> str:
+    """
+    Remove lines containing a specific warning about VIRTUAL_ENV mismatches.
+    """
+    filtered_lines = [
+        line
+        for line in log.splitlines()
+        if not (
+            "VIRTUAL_ENV=" in line
+            and "does not match the project environment path" in line
+            and ".venv" in line
+        )
+    ]
+    return "\n".join(filtered_lines)
 
 
 def serialize_args_payload(args: Mapping[str, Any]) -> str:

@@ -8,7 +8,6 @@ import sys
 import socket
 import runpy
 import ast
-import re
 import json
 import logging
 import subprocess
@@ -45,8 +44,13 @@ try:
         describe_run_mode,
         optional_python_expr,
         optional_string_expr,
+        filter_noise_lines,
+        filter_warning_messages,
+        format_log_block,
         reassign_distribution_plan,
+        is_dask_shutdown_noise,
         serialize_args_payload,
+        strip_ansi,
         update_distribution_payload,
         workplan_selection_key,
     )
@@ -65,10 +69,15 @@ except ModuleNotFoundError:
     build_run_snippet = _orchestrate_page_support_module.build_run_snippet
     compute_run_mode = _orchestrate_page_support_module.compute_run_mode
     describe_run_mode = _orchestrate_page_support_module.describe_run_mode
+    filter_noise_lines = _orchestrate_page_support_module.filter_noise_lines
+    filter_warning_messages = _orchestrate_page_support_module.filter_warning_messages
+    format_log_block = _orchestrate_page_support_module.format_log_block
     optional_python_expr = _orchestrate_page_support_module.optional_python_expr
     optional_string_expr = _orchestrate_page_support_module.optional_string_expr
     reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
+    is_dask_shutdown_noise = _orchestrate_page_support_module.is_dask_shutdown_noise
     serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
+    strip_ansi = _orchestrate_page_support_module.strip_ansi
     update_distribution_payload = _orchestrate_page_support_module.update_distribution_payload
     workplan_selection_key = _orchestrate_page_support_module.workplan_selection_key
 try:
@@ -260,7 +269,7 @@ def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -
         if clean_msg.lower().startswith("traceback (most recent call last"):
             update_log._skip_traceback = True
             return
-        if _is_dask_shutdown_noise(clean_msg):
+        if is_dask_shutdown_noise(clean_msg):
             return
     if clean_msg:
         st.session_state["log_text"] += clean_msg + "\n"
@@ -283,60 +292,6 @@ def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -
 update_log._skip_traceback = False
 
 
-
-def strip_ansi(text: str) -> str:
-    if not text:
-        return ""
-    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-    return ansi_escape.sub('', text)
-
-
-def _is_dask_shutdown_noise(line: str) -> bool:
-    """
-    Return True when the line is one of the noisy Dask shutdown messages
-    that we don’t want to surface in the UI.
-    """
-    if not line:
-        return False
-    normalized = line.strip().lower()
-    noise_patterns = (
-        "stream is closed",
-        "streamclosederror",
-        "commclosederror",
-        "batched comm closed",
-        "closing scheduler",
-        "scheduler closing all comms",
-        "remove worker addr",
-        "close client connection",
-        "tornado.iostream.streamclosederror",
-        "nbytes = yield coro",
-        "value = future.result",
-        "convert_stream_closed_error",
-        "^",
-    )
-    if any(pattern in normalized for pattern in noise_patterns):
-        return True
-    if "traceback (most recent call last" in normalized:
-        return True
-    if normalized.startswith("the above exception was the direct cause"):
-        return True
-    if normalized.startswith("traceback"):
-        return True
-    if normalized.startswith("file \"") and (
-        "/site-packages/distributed/" in normalized
-        or "/site-packages/tornado/" in normalized
-    ):
-        return True
-    return False
-
-
-def _filter_noise_lines(text: str) -> str:
-    lines = [
-        line
-        for line in text.splitlines()
-        if not _is_dask_shutdown_noise(line.strip())
-    ]
-    return "\n".join(lines)
 
 def _reset_traceback_skip() -> None:
     _TRACEBACK_SKIP["active"] = False
@@ -362,7 +317,7 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
             if lowered.startswith("traceback (most recent call last"):
                 skip = True
                 continue
-            if stripped and not _is_dask_shutdown_noise(stripped):
+            if stripped and not is_dask_shutdown_noise(stripped):
                 buffer.append(stripped)
         _TRACEBACK_SKIP["active"] = skip
     else:
@@ -463,17 +418,6 @@ INSTALL_LOG_HEIGHT = 320
 _TRACEBACK_SKIP = {"active": False}
 
 
-def _format_log_block(text: str, *, newest_first: bool = True) -> str:
-    """Return a trimmed/ordered view of the provided multiline text."""
-    if not text:
-        return ""
-    lines = text.splitlines()
-    tail = lines[-LOG_DISPLAY_MAX_LINES:]
-    if newest_first:
-        tail = list(reversed(tail))
-    return "\n".join(tail)
-
-
 def display_log(stdout, stderr):
     # Use cached log if stdout empty
     if not stdout.strip() and "log_text" in st.session_state:
@@ -482,8 +426,8 @@ def display_log(stdout, stderr):
     # Strip ANSI color codes from both stdout and stderr
     clean_stdout = strip_ansi(stdout or "")
     clean_stderr = strip_ansi(stderr or "")
-    clean_stdout = _filter_noise_lines(clean_stdout)
-    clean_stderr = _filter_noise_lines(clean_stderr)
+    clean_stdout = filter_noise_lines(clean_stdout)
+    clean_stderr = filter_noise_lines(clean_stderr)
 
     # Clean up extra blank lines
     clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
@@ -493,12 +437,25 @@ def display_log(stdout, stderr):
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        st.code(_format_log_block(combined, newest_first=False), language="python", height=400)
+        st.code(
+            format_log_block(combined, newest_first=False, max_lines=LOG_DISPLAY_MAX_LINES),
+            language="python",
+            height=400,
+        )
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        st.code(_format_log_block(clean_stderr, newest_first=False), language="python", height=400)
+        st.code(
+            format_log_block(clean_stderr, newest_first=False, max_lines=LOG_DISPLAY_MAX_LINES),
+            language="python",
+            height=400,
+        )
     else:
-        st.code(_format_log_block(clean_stdout, newest_first=False) or "No logs available", language="python", height=400)
+        st.code(
+            format_log_block(clean_stdout, newest_first=False, max_lines=LOG_DISPLAY_MAX_LINES)
+            or "No logs available",
+            language="python",
+            height=400,
+        )
 
 
 def safe_eval(expression: str, expected_type: Any, error_message: str) -> Any:
@@ -564,19 +521,6 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
         app_settings["args"] = args_override
     st.session_state.app_settings = app_settings
     st.session_state["args_project"] = env.app
-
-def filter_warning_messages(log: str) -> str:
-    """
-    Remove lines containing a specific warning about VIRTUAL_ENV mismatches.
-    """
-    filtered_lines = []
-    for line in log.splitlines():
-        if ("VIRTUAL_ENV=" in line and
-            "does not match the project environment path" in line and
-            ".venv" in line):
-            continue
-        filtered_lines.append(line)
-    return "\n".join(filtered_lines)
 
 # ===========================
 # Caching Functions for Performance
