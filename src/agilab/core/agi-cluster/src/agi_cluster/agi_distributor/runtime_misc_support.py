@@ -3,6 +3,7 @@ import inspect
 import json
 import re
 import traceback
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, List, Optional
@@ -77,9 +78,9 @@ def agi_version_missing_on_pypi(project_path: Path) -> bool:
             with urllib.request.urlopen(f"https://pypi.org/pypi/{pkg}/json", timeout=5) as response:
                 data = json.load(response)
             return ver not in data.get("releases", {})
-        except Exception:
+        except (urllib.error.URLError, OSError, TimeoutError, ValueError):
             return False
-    except Exception:
+    except (OSError, UnicodeError, ValueError):
         return False
 
 

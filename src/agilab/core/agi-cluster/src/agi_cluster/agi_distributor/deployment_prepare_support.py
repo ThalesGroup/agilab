@@ -144,6 +144,9 @@ async def prepare_cluster_env(
     if not list_ip:
         list_ip.add(localhost_ip)
 
+    remote_command_failures = tuple(dict.fromkeys((process_error_type, RuntimeError, OSError)))
+    staged_pyproject_fallback_errors = tuple(dict.fromkeys((process_error_type, OSError, RuntimeError, ValueError)))
+
     for ip in list_ip:
         if not env.is_local(ip) and not is_ip(ip):
             raise ValueError(f"Invalid IP address: {ip}")
@@ -162,7 +165,7 @@ async def prepare_cluster_env(
             await run_exec_ssh_fn(ip, f"{cmd_prefix}{env.uv} --version")
         except ConnectionError:
             raise
-        except Exception:
+        except remote_command_failures:
             uv_is_installed = False
             if agi_internet_on == 0:
                 log.error("Uv binary is not installed, please install it manually on the workers.")
@@ -176,7 +179,7 @@ async def prepare_cluster_env(
                 uv_is_installed = True
             except ConnectionError:
                 raise
-            except Exception:
+            except remote_command_failures:
                 uv_is_installed = False
                 await run_exec_ssh_fn(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
                 uv_is_installed = True
@@ -190,7 +193,7 @@ async def prepare_cluster_env(
                 await run_exec_ssh_fn(ip, f"{cmd_prefix}{env.uv} self update")
             except ConnectionError:
                 raise
-            except Exception as exc:
+            except remote_command_failures as exc:
                 log.warning("Failed to update uv on %s (skipping self update): %s", ip, exc)
         else:
             log.warning("You appears to be on a local network. Please be sure to have uv latest release.")
@@ -240,7 +243,7 @@ async def prepare_cluster_env(
                     )
                     files_to_send.append(tmp_pyproject)
                     files_to_send.extend(staged_entries)
-                except Exception:
+                except staged_pyproject_fallback_errors:
                     if staged_tmp_dir is not None:
                         shutil.rmtree(staged_tmp_dir, ignore_errors=True)
                         staged_tmp_dir = None
