@@ -79,6 +79,11 @@ from .pagelib_navigation_support import (
     resolve_default_selection,
     resolve_selected_df_path,
 )
+from .pagelib_preview_support import (
+    build_dataframe_preview,
+    resolve_export_target,
+    resolve_preview_nrows,
+)
 logger = logging.getLogger(__name__)
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
@@ -943,18 +948,10 @@ def run_lab(query, snippet, codex, *, env_overrides=None):
 @st.cache_data
 def cached_load_df(path, with_index=True, nrows=None):
     """Convenience wrapper that honors TABLE_MAX_ROWS for lightweight previews."""
-    if nrows is None:
-        df_max_rows = st.session_state.get("TABLE_MAX_ROWS") if "TABLE_MAX_ROWS" in st.session_state else None
-    else:
-        df_max_rows = nrows
-
-    if df_max_rows is not None:
-        try:
-            df_max_rows = int(df_max_rows)
-        except (TypeError, ValueError):
-            df_max_rows = None
-    if df_max_rows == 0:
-        df_max_rows = None
+    df_max_rows = resolve_preview_nrows(
+        nrows,
+        st.session_state.get("TABLE_MAX_ROWS") if "TABLE_MAX_ROWS" in st.session_state else None,
+    )
 
     return load_df(path, with_index=with_index, nrows=df_max_rows)
 
@@ -970,23 +967,15 @@ def render_dataframe_preview(
     **dataframe_kwargs,
 ) -> None:
     """Render a bounded dataframe preview to avoid oversized Streamlit payloads."""
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError("render_dataframe_preview expects a pandas DataFrame")
-
-    row_count, col_count = df.shape
-    preview = df.iloc[:max_rows, :max_cols]
+    preview, caption = build_dataframe_preview(
+        df,
+        max_rows=max_rows,
+        max_cols=max_cols,
+        truncation_label=truncation_label,
+    )
     st.dataframe(preview, width=width, hide_index=hide_index, **dataframe_kwargs)
-
-    truncated_rows = row_count > max_rows
-    truncated_cols = col_count > max_cols
-    if truncated_rows or truncated_cols:
-        label = truncation_label or "Preview truncated"
-        details: list[str] = []
-        if truncated_rows:
-            details.append(f"showing first {min(row_count, max_rows):,} of {row_count:,} rows")
-        if truncated_cols:
-            details.append(f"showing first {min(col_count, max_cols):,} of {col_count:,} columns")
-        st.caption(f"{label}: " + ", ".join(details) + ".")
+    if caption:
+        st.caption(caption)
 
 def get_first_match_and_keyword(string_list, keywords_to_find):
     """
@@ -1027,18 +1016,11 @@ def save_csv(df, path: Path, sep=",") -> bool:
         path (Path): The file path to save the CSV.
         sep (str): The separator to use in the CSV file.
     """
-    # Allow users to pass shortcuts like "~/file.csv" or "$HOME/file.csv".
-    path_str = str(path).strip()
-    if not path_str:
-        st.error("Please provide a filename for the export.")
+    path, error_message = resolve_export_target(path)
+    if error_message:
+        st.error(error_message)
         return False
-
-    expanded_path = os.path.expanduser(os.path.expandvars(path_str))
-    path = Path(expanded_path)
-
-    if path.is_dir():
-        st.error(f"{path} is a directory instead of a filename.")
-        return False
+    assert path is not None
     if df.shape[1] == 0:
         return False
     logger.info(f"mkdir {path.parent}")
