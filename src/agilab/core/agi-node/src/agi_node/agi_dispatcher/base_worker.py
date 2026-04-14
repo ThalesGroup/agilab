@@ -27,7 +27,6 @@ import asyncio
 from contextlib import suppress
 import getpass
 import inspect
-import io
 import json
 import os
 import pickle
@@ -57,6 +56,7 @@ from copy import deepcopy
 from agi_env import AgiEnv, normalize_path
 
 from agi_env.agi_logger import AgiLogger
+from . import base_worker_execution_support as execution_support
 from . import base_worker_path_support as path_support
 from . import base_worker_runtime_support as runtime_support
 from . import base_worker_service_support as service_support
@@ -919,57 +919,26 @@ class BaseWorker(abc.ABC):
         else:
             BaseWorker.env
 
-        if mode & 2:
-            wenv_abs = env.wenv_abs
-
-            # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
-            cython_libs = list((wenv_abs / "dist").glob("*cy*"))
-
-            # If a Cython library is found, normalize its path and set it as lib_path.
-            lib_path = (
-                str(Path(cython_libs[0].parent).resolve()) if cython_libs else None
-            )
-
-            if lib_path:
-                if lib_path not in sys.path:
-                    sys.path.insert(0, lib_path)
-            else:
-                logger.info(f"warning: no cython library found at {lib_path}")
-                raise RuntimeError("Cython mode requested but no compiled library found")
-
-            # Some workers rely on sibling worker distributions when loading optional
-            # Cython helpers. Ensure those dist folders are importable so helper imports
-            # succeed even if the package is only present as a sibling wenv.
-            sibling_root = wenv_abs.parent
-            if sibling_root.is_dir():
-                for extra_dist in sibling_root.glob("*_worker/dist"):
-                    try:
-                        extra_path = str(extra_dist.resolve())
-                    except FileNotFoundError:
-                        continue
-                    if extra_path and extra_path not in sys.path:
-                        sys.path.append(extra_path)
-
-
-        try:
+        def _load_dispatcher():
             from .agi_dispatcher import WorkDispatcher  # Local import to avoid circular dependency
 
-            workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(env, workers, args)
-        except Exception as err:
-            logger.error(traceback.format_exc())
-            if isinstance(err, RuntimeError):
-                raise
-            raise RuntimeError("Failed to build distribution plan") from err
+            return WorkDispatcher
 
-        if mode == 48:
-            return workers_plan
-
-        t = time.time()
-        BaseWorker._do_works(workers_plan, workers_plan_metadata)
-        runtime = time.time() - t
-        env._run_time = runtime
-
-        return f"{env.mode2str(mode)} {humanize.precisedelta(datetime.timedelta(seconds=runtime))}"
+        return await execution_support.run_worker(
+            env=env,
+            workers=workers,
+            mode=mode,
+            args=args,
+            do_works_fn=BaseWorker._do_works,
+            dispatcher_loader=_load_dispatcher,
+            sys_path=sys.path,
+            logger_obj=logger,
+            traceback_module=traceback,
+            time_module=time,
+            humanize_module=humanize,
+            datetime_module=datetime,
+            path_cls=Path,
+        )
 
     @staticmethod
     def _onerror(func, path, exc_info):
@@ -1014,44 +983,27 @@ class BaseWorker(abc.ABC):
           args: (Default value = None)
         Returns:
         """
-        try:
-
-            logger.info(f"venv: {sys.prefix}")
-            logger.info(f"worker #{worker_id}: {worker} from: {Path(__file__)}")
-
-            if env:
-                BaseWorker.env = env
-            else:
-                BaseWorker.env = AgiEnv(app=app, verbose=verbose)
-            BaseWorker._ensure_managed_pc_share_dir(BaseWorker.env)
-
-            # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
-            worker_class = BaseWorker._load_worker(mode)
-
-            # Instantiate the class with arguments
-            worker_inst = worker_class()
-            worker_inst._mode = mode
-            worker_inst.worker_id = worker_id
-            worker_inst._worker_id = worker_id
-            args_namespace = ArgsNamespace(**(args or {}))
-            worker_inst.args = args_namespace
-            worker_inst.verbose = verbose
-
-            # Instantiate the base class
-            BaseWorker.verbose = verbose
-            # BaseWorker._pool_init = worker_inst.pool_init
-            # BaseWorker._work_pool = worker_inst.work_pool
-            BaseWorker._insts[worker_id] = worker_inst
-            BaseWorker._built = False
-            BaseWorker._worker = Path(worker).name
-            BaseWorker._worker_id = worker_id
-            BaseWorker._t0 = time.time()
-            logger.info(f"worker #{worker_id}: {worker} starting...")
-            BaseWorker.start(worker_inst)
-
-        except Exception as e:
-            logger.error(traceback.format_exc())
-            raise
+        execution_support.initialize_worker(
+            env=env,
+            app=app,
+            mode=mode,
+            verbose=verbose,
+            worker_id=worker_id,
+            worker=worker,
+            args=args,
+            base_worker_cls=BaseWorker,
+            agi_env_factory=AgiEnv,
+            ensure_managed_pc_share_dir_fn=BaseWorker._ensure_managed_pc_share_dir,
+            load_worker_fn=BaseWorker._load_worker,
+            start_fn=BaseWorker.start,
+            args_namespace_cls=ArgsNamespace,
+            logger_obj=logger,
+            time_module=time,
+            traceback_module=traceback,
+            sys_module=sys,
+            file_path=__file__,
+            path_cls=Path,
+        )
 
     @staticmethod
     def _get_worker_info(worker_id):
@@ -1061,54 +1013,16 @@ class BaseWorker(abc.ABC):
           worker_id:
         Returns:
         """
-
-        worker = BaseWorker._worker
-
-        # Informations sur la RAM
-        ram = psutil.virtual_memory()
-        ram_total = [ram.total / 10 ** 9]
-        ram_available = [ram.available / 10 ** 9]
-
-        # Nombre de CPU
-        cpu_count = [psutil.cpu_count()]
-
-        # Fréquence de l'horloge du CPU
-        cpu_frequency = [psutil.cpu_freq().current / 10 ** 3]
-
-        # path = BaseWorker.share_path
-        if not BaseWorker._share_path:
-            path = tempfile.gettempdir()
-        else:
-            path = normalize_path(BaseWorker._share_path)
-        if not os.path.exists(path):
-            logger.info(f"mkdir {path}")
-            os.makedirs(path, exist_ok=True)
-
-        size = 10 * 1024 * 1024
-        file = os.path.join(path, f"{worker}".replace(":", "_"))
-        # start timer
-        start = time.time()
-        with open(file, "w") as af:
-            af.write("\x00" * size)
-
-        # how much time it took
-        elapsed = time.time() - start
-        time.sleep(1)
-        write_speed = [size / elapsed]
-
-        # delete the output-data file
-        os.remove(file)
-
-        # Retourner les informations sous forme de dictionnaire
-        system_info = {
-            "ram_total": ram_total,
-            "ram_available": ram_available,
-            "cpu_count": cpu_count,
-            "cpu_frequency": cpu_frequency,
-            "network_speed": write_speed,
-        }
-
-        return system_info
+        return execution_support.collect_worker_info(
+            share_path=BaseWorker._share_path,
+            worker=BaseWorker._worker,
+            normalize_path_fn=normalize_path,
+            logger_obj=logger,
+            psutil_module=psutil,
+            tempfile_module=tempfile,
+            os_module=os,
+            time_module=time,
+        )
 
     @staticmethod
     def _build(target_worker, dask_home, worker, mode=0, verbose=0):
@@ -1122,59 +1036,21 @@ class BaseWorker(abc.ABC):
             mode: (Default value = 0)
             verbose: (Default value = 0)
         """
-
-        # Log file dans le home_dir + nom du target_worker_trace.txt
-        if str(getpass.getuser()).startswith("T0"):
-            prefix = "~/MyApp/"
-        else:
-            prefix = "~/"
-        BaseWorker._home_dir = Path(prefix).expanduser().absolute()
-        BaseWorker._logs = BaseWorker._home_dir / f"{target_worker}_trace.txt"
-        BaseWorker._dask_home = dask_home
-        BaseWorker._worker = worker
-
-        logger.info(
-            f"worker #{BaseWorker._worker_id}: {worker} from: {Path(__file__)}"
+        execution_support.build_worker_artifacts(
+            target_worker=target_worker,
+            dask_home=dask_home,
+            worker=worker,
+            mode=mode,
+            verbose=verbose,
+            base_worker_cls=BaseWorker,
+            logger_obj=logger,
+            getuser_fn=getpass.getuser,
+            file_path=__file__,
+            sys_path=sys.path,
+            path_cls=Path,
+            os_module=os,
+            shutil_module=shutil,
         )
-
-        try:
-            logger.info("set verbose=3 to see something in this trace file ...")
-
-            if verbose > 2:
-                logger.info(f"home_dir: {BaseWorker._home_dir}")
-                logger.info(
-                    f"target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
-                )
-                for x in Path(dask_home).glob("*"):
-                    logger.info(f"{x}")
-
-            # Exemple supposé : définir egg_src (non défini dans ton code)
-            egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
-
-            extract_path = BaseWorker._home_dir / "wenv" / target_worker
-            extract_src = extract_path / "src"
-
-            if not mode & 2:
-                egg_dest = extract_path / (os.path.basename(egg_src) + ".egg")
-
-                logger.info(f"copy: {egg_src} to {egg_dest}")
-                shutil.copyfile(egg_src, egg_dest)
-
-                if str(egg_dest) in sys.path:
-                    sys.path.remove(str(egg_dest))
-                sys.path.insert(0, str(egg_dest))
-
-                logger.info("sys.path:")
-                for x in sys.path:
-                    logger.info(f"{x}")
-
-                logger.info("done!")
-
-        except Exception as err:
-            logger.error(
-                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {BaseWorker._logs} for details"
-            )
-            raise err
 
     @staticmethod
     def _expand_chunk(payload, worker_id):
@@ -1219,80 +1095,18 @@ class BaseWorker(abc.ABC):
         Returns:
             logs: str, the log output from this worker
         """
-        import logging as py_logging
-
-        log_stream = io.StringIO()
-        handler = py_logging.StreamHandler(log_stream)
-        root_logger = py_logging.getLogger()
-
-        # Avoid adding duplicate handlers
-        already_has_handler = any(
-            isinstance(h, py_logging.StreamHandler) and getattr(h, "stream", None) is log_stream
-            for h in root_logger.handlers
+        return execution_support.execute_worker_plan(
+            workers_plan=workers_plan,
+            workers_plan_metadata=workers_plan_metadata,
+            worker_id=BaseWorker._worker_id,
+            worker_name=BaseWorker._worker,
+            insts=BaseWorker._insts,
+            expand_chunk_fn=BaseWorker._expand_chunk,
+            logger_obj=logger,
+            traceback_module=traceback,
+            file_path=__file__,
+            path_cls=Path,
         )
-        if not already_has_handler:
-            root_logger.addHandler(handler)
-
-        try:
-            worker_id = BaseWorker._worker_id
-            if worker_id is not None:
-                expanded_plan, plan_chunk_len, plan_total_workers = BaseWorker._expand_chunk(
-                    workers_plan, worker_id
-                )
-                expanded_meta, meta_chunk_len, _ = BaseWorker._expand_chunk(
-                    workers_plan_metadata, worker_id
-                )
-
-                if expanded_plan is None:
-                    expanded_plan = workers_plan
-                if expanded_meta is None:
-                    expanded_meta = workers_plan_metadata
-
-                plan_entry = (
-                    expanded_plan[worker_id]
-                    if isinstance(expanded_plan, list)
-                    and len(expanded_plan) > worker_id
-                    else []
-                )
-                metadata_entry = (
-                    expanded_meta[worker_id]
-                    if isinstance(expanded_meta, list)
-                    and len(expanded_meta) > worker_id
-                    else []
-                )
-
-                logger.info(
-                    f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}"
-                )
-                logger.info(
-                    "work #%s / %s - plan batches=%s metadata batches=%s",
-                    worker_id + 1,
-                    plan_total_workers
-                    if plan_total_workers is not None
-                    else (len(expanded_plan) if isinstance(expanded_plan, list) else "?"),
-                    plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
-                    meta_chunk_len if meta_chunk_len is not None else len(metadata_entry),
-                )
-
-                BaseWorker._insts[worker_id].works(expanded_plan, expanded_meta)
-
-                logger.info(
-                    "worker #%s completed %s plan batches",
-                    worker_id,
-                    plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
-                )
-            else:
-                logger.error("this worker is not initialized")
-                raise Exception("failed to do_works")
-
-        except Exception as e:
-            logger.error(traceback.format_exc())
-            raise
-        finally:
-            root_logger.removeHandler(handler)
-
-        # Return the logs
-        return log_stream.getvalue()
 
 
 
