@@ -209,6 +209,13 @@ def temporary_env_overrides(overrides: Optional[Dict[str, Any]]):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = str(value)
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is sentinel:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = str(value)
 
 
 @contextmanager
@@ -302,14 +309,6 @@ def log_mlflow_artifacts(
         artifact_path = Path(artifact).expanduser()
         if artifact_path.exists():
             mlflow.log_artifact(str(artifact_path))
-
-        yield
-    finally:
-        for key, value in previous.items():
-            if value is sentinel:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = str(value)
 
 
 def python_for_venv(venv_root: str | Path | None, *, sys_executable: str | None = None) -> Path:
@@ -501,3 +500,178 @@ def wrap_code_with_mlflow_resume(code: str, *, step_run_id_env: str) -> str:
         "        except Exception:\n"
         "            pass\n"
     )
+
+
+def run_locked_step(
+    env: AgiEnv,
+    index_page_str: str,
+    steps_file: Path,
+    step: int,
+    entry: Dict[str, Any],
+    selected_map: Dict[int, str],
+    engine_map: Dict[int, str],
+    *,
+    normalize_runtime_path: Callable[[Any], str],
+    prepare_run_log_file: Callable[[str, AgiEnv, str], tuple[Optional[Path], Optional[str]]],
+    push_run_log: Callable[[str, str, Optional[Any]], None],
+    refresh_pipeline_run_lock: Callable[[Optional[Dict[str, Any]]], None],
+    acquire_pipeline_run_lock: Callable[[AgiEnv, str, Optional[Any]], Optional[Dict[str, Any]]],
+    release_pipeline_run_lock: Callable[[Optional[Dict[str, Any]], str, Optional[Any]], None],
+    get_run_placeholder: Callable[[str], Optional[Any]],
+    is_valid_runtime_root: Callable[[str | Path | None], bool],
+    python_for_venv: Callable[[str | Path | None], Path],
+    stream_run_command: Callable[..., str],
+    step_summary: Callable[[Optional[Dict[str, Any]], int], str],
+    label_for_step_runtime_fn: Callable[[str | Path | None], str] | Callable[..., str],
+    start_mlflow_run_fn: Callable[..., Any],
+    build_mlflow_process_env_fn: Callable[..., Dict[str, str]],
+    log_mlflow_artifacts_fn: Callable[..., None],
+    run_lab_fn: Callable[..., str],
+    python_for_step_fn: Callable[..., Path],
+    wrap_code_with_mlflow_resume_fn: Callable[[str], str],
+) -> None:
+    """Execute one immutable ORCHESTRATE-derived step."""
+    stored_placeholder = get_run_placeholder(index_page_str)
+    import streamlit as st
+
+    st.session_state[f"{index_page_str}__run_logs"] = []
+    if stored_placeholder is not None:
+        stored_placeholder.caption("Starting step execution…")
+    snippet_file = st.session_state.get("snippet_file")
+    if not snippet_file:
+        st.error("Snippet file is not configured. Reload the page and try again.")
+        return
+    lock_handle = acquire_pipeline_run_lock(env, index_page_str, stored_placeholder)
+    if lock_handle is None:
+        return
+
+    try:
+        selected_map_entry = normalize_runtime_path(selected_map.get(step, ""))
+        entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
+        venv_root = selected_map_entry or (entry_runtime_raw if is_valid_runtime_root(entry_runtime_raw) else "")
+        if not venv_root:
+            fallback = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+            if fallback and is_valid_runtime_root(fallback):
+                venv_root = fallback
+        if not venv_root:
+            fallback = normalize_runtime_path(getattr(env, "active_app", ""))
+            if is_valid_runtime_root(fallback):
+                venv_root = fallback
+
+        entry_engine = str(entry.get("R", "") or "")
+        engine = entry_engine or ("agi.run" if venv_root else "runpy")
+        if engine.startswith("agi.") and not venv_root:
+            fallback = normalize_runtime_path(getattr(env, "active_app", "") or "")
+            if is_valid_runtime_root(fallback):
+                venv_root = fallback
+        if venv_root:
+            selected_map[step] = venv_root
+            st.session_state["lab_selected_venv"] = venv_root
+            if engine == "runpy":
+                engine = "agi.run"
+
+        code_to_run = str(entry.get("C", ""))
+        engine_map[step] = engine
+        st.session_state["lab_selected_engine"] = engine
+
+        log_file_path, log_error = prepare_run_log_file(index_page_str, env, f"step_{step + 1}")
+        if log_file_path:
+            push_run_log(
+                index_page_str,
+                f"Run step {step + 1} started… logs will be saved to {log_file_path}",
+                stored_placeholder,
+            )
+        else:
+            push_run_log(
+                index_page_str,
+                f"Run step {step + 1} started… (unable to prepare log file: {log_error})",
+                stored_placeholder,
+            )
+
+        try:
+            refresh_pipeline_run_lock(lock_handle)
+            target_base = Path(steps_file).parent.resolve()
+            target_base.mkdir(parents=True, exist_ok=True)
+            env_label = label_for_step_runtime_fn(venv_root, engine=engine, code=code_to_run)
+            summary = step_summary({"Q": entry.get("Q", ""), "C": code_to_run}, 60)
+            step_tags = {
+                "agilab.component": "pipeline-step",
+                "agilab.app": str(getattr(env, "app", "") or ""),
+                "agilab.lab": Path(steps_file).parent.name,
+                "agilab.step_index": step + 1,
+                "agilab.engine": engine,
+                "agilab.runtime": venv_root or "",
+                "agilab.summary": summary,
+            }
+            step_params = {
+                "description": entry.get("D", ""),
+                "question": entry.get("Q", ""),
+                "model": entry.get("M", ""),
+                "runtime": venv_root or "",
+                "engine": engine,
+            }
+            with start_mlflow_run_fn(
+                env,
+                run_name=f"{getattr(env, 'app', 'agilab')}:{Path(steps_file).parent.name}:step_{step + 1}",
+                tags=step_tags,
+                params=step_params,
+            ) as step_tracking:
+                step_env = build_mlflow_process_env_fn(
+                    env,
+                    run_id=step_tracking["run"].info.run_id if step_tracking else None,
+                )
+                step_files: List[Any] = []
+                if engine == "runpy":
+                    run_output = run_lab_fn(
+                        [entry.get("D", ""), entry.get("Q", ""), code_to_run],
+                        snippet_file,
+                        env.copilot_file,
+                        env_overrides=step_env,
+                    )
+                    step_files.append(Path(snippet_file))
+                else:
+                    script_path = (target_base / "AGI_run.py").resolve()
+                    script_path.write_text(wrap_code_with_mlflow_resume_fn(code_to_run))
+                    step_files.append(script_path)
+                    python_cmd = python_for_step_fn(venv_root, engine=engine, code=code_to_run)
+                    run_output = stream_run_command(
+                        env,
+                        index_page_str,
+                        f"{python_cmd} {script_path}",
+                        cwd=target_base,
+                        placeholder=stored_placeholder,
+                        extra_env=step_env,
+                    )
+                refresh_pipeline_run_lock(lock_handle)
+                push_run_log(
+                    index_page_str,
+                    f"Step {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                    stored_placeholder,
+                )
+                preview = run_output.strip() if run_output else ""
+                if preview:
+                    push_run_log(
+                        index_page_str,
+                        f"Output (step {step + 1}):\n{preview}",
+                        stored_placeholder,
+                    )
+                elif engine == "runpy":
+                    push_run_log(
+                        index_page_str,
+                        f"Output (step {step + 1}): runpy executed (no captured stdout)",
+                        stored_placeholder,
+                    )
+                export_target = st.session_state.get("df_file_out", "")
+                if export_target:
+                    step_files.append(export_target)
+                if step_tracking:
+                    log_mlflow_artifacts_fn(
+                        step_tracking,
+                        text_artifacts={f"step_{step + 1}/stdout.txt": preview or ""},
+                        file_artifacts=step_files,
+                        tags={"agilab.status": "completed"},
+                    )
+        finally:
+            st.session_state.pop(f"{index_page_str}__run_log_file", None)
+    finally:
+        release_pipeline_run_lock(lock_handle, index_page_str, stored_placeholder)
