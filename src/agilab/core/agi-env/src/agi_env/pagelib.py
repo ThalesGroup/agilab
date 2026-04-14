@@ -14,7 +14,6 @@
 
 import re
 import json
-import glob
 import io
 from pathlib import Path
 from functools import lru_cache
@@ -59,6 +58,15 @@ from .source_analysis_support import (
     extract_base_info as _extract_base_info,
     get_full_attribute_name as _get_full_attribute_name,
     get_import_mapping as _get_import_mapping,
+)
+from .pagelib_data_support import (
+    find_files as _find_files_impl,
+    get_df_index as _get_df_index_impl,
+    get_first_match_and_keyword as _get_first_match_and_keyword_impl,
+    list_views as _list_views_impl,
+    load_df as _load_df_impl,
+    read_file_lines as _read_file_lines_impl,
+    scan_dir as _scan_dir_impl,
 )
 logger = logging.getLogger(__name__)
 
@@ -703,28 +711,13 @@ def find_files(directory, ext=".csv", recursive=True):
     Returns:
         List[Path]: List of Path objects that match the given extension.
     """
-    directory = Path(directory)
-    if not directory.is_dir():
-        diagnosis = diagnose_data_directory(directory)
-        message = diagnosis or (
-            f"{directory} is not a valid directory. "
-            "If this path resides on a shared file mount, the shared file server may be down."
-        )
-        raise NotADirectoryError(message)
-
-    # Normalize the extension to handle cases like 'csv' or '.csv'
-    ext = f".{ext.lstrip('.')}"
-    def _visible_only(paths):
-        return [
-            p
-            for p in paths
-            if not any(part.startswith(".") for part in p.relative_to(directory).parts)
-        ]
-
-    if recursive:
-        return _visible_only(directory.rglob(f"*{ext}"))
-    else:
-        return _visible_only(directory.glob(f"*/*{ext}"))
+    return _find_files_impl(
+        directory,
+        ext=ext,
+        recursive=recursive,
+        path_type=Path,
+        diagnose_data_directory_fn=diagnose_data_directory,
+    )
 
 
 
@@ -994,23 +987,7 @@ def get_first_match_and_keyword(string_list, keywords_to_find):
     Search is case-insensitive.
     Returns (None, None) if no keyword is found in any string.
     """
-    # Ensure inputs are iterable, though the loops will handle empty lists
-    if not string_list or not keywords_to_find:
-        return None, None
-
-    for text_string in string_list:
-        if not isinstance(text_string, str):
-            print(f"Warning: Item in string_list is not a string: {text_string}")
-            continue
-        for keyword_pattern in keywords_to_find:
-            if not isinstance(keyword_pattern, str) or not keyword_pattern:
-                print(f"Warning: Item in keywords_to_find is not a valid string: {keyword_pattern}")
-                continue
-            match = re.search(re.escape(keyword_pattern), text_string, re.IGNORECASE)
-            if match:
-                return text_string, keyword_pattern
-    # If we've gone through everything and found nothing...
-    return None, None
+    return _get_first_match_and_keyword_impl(string_list, keywords_to_find)
 @st.cache_data
 def load_df(path: Path, nrows=None, with_index=True, cache_buster=None):
     """
@@ -1026,85 +1003,7 @@ def load_df(path: Path, nrows=None, with_index=True, cache_buster=None):
     Returns:
         pd.DataFrame or None: The loaded DataFrame or None if no valid files are found.
     """
-    path = Path(path)
-    if not path.exists():
-        return None
-
-    df = None
-
-    if path.is_dir():
-        # Collect all CSV and Parquet files in the directory
-        files = sorted(
-            list(path.rglob("*.parquet")) + list(path.rglob("*.csv")) + list(path.rglob("*.json"))
-        )
-        if not files:
-            return None
-
-        # Separate Parquet, CSV, and JSON files
-        parquet_files = [f for f in files if f.suffix == ".parquet"]
-        csv_files = [f for f in files if f.suffix == ".csv"]
-        json_files = [f for f in files if f.suffix == ".json"]
-
-        if parquet_files:
-            # Concatenate all Parquet files with a default RangeIndex.
-            df = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
-        elif csv_files:
-            # Concatenate all CSV files.
-            frames = []
-            for f in csv_files:
-                try:
-                    frames.append(pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=None))
-                except UnicodeDecodeError:
-                    frames.append(pd.read_csv(f, nrows=nrows, encoding="latin-1", index_col=None))
-            df = pd.concat(frames, ignore_index=True)
-        elif json_files:
-            df = pd.concat([
-                pd.read_json(f, orient="records")
-                for f in json_files
-            ], ignore_index=True)
-    elif path.is_file():
-        if path.suffix == ".csv":
-            try:
-                df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=None)
-            except UnicodeDecodeError:
-                df = pd.read_csv(path, nrows=nrows, encoding="latin-1", index_col=None)
-        elif path.suffix == ".parquet":
-            df = pd.read_parquet(path)
-        elif path.suffix == ".json":
-            df = pd.read_json(path, orient="records")
-        else:
-            return None
-    else:
-        return None
-
-    # Remove any extra "index" column that might have been written from CSV files.
-    if "index" in df.columns:
-        df.drop(columns=["index"], inplace=True)
-
-    # Optionally, set the "date" column as the DataFrame's index.
-    if with_index and not df.empty:
-        col_name,keyword = get_first_match_and_keyword(df.columns.tolist(),["time","date"])
-        if col_name:
-            if keyword == "time":
-                df["index"] = pd.to_timedelta(df[col_name], unit='s')
-            elif keyword == "date":
-                df["index"] = pd.to_datetime(df[col_name], errors="coerce")
-            df.set_index("index", inplace=True,drop=True)
-        else:
-            df.set_index(df.columns[0], inplace=True, drop=False)
-        # ---------------- OLD CODE FOR INDEX ------------------
-        # if "date" in df.columns:
-        #     # Convert "date" column to datetime (if not already) and set it as index.
-        #     df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        # else:
-        #     # Fallback: use the first column as the index if "date" is not present.
-        #     df.set_index(df.columns[0], inplace=True)
-        # if "date" in df.columns:
-        #     df.set_index("date", inplace=True)
-        # elif "datetime" in df.columns:
-        #     df.set_index("datetime", inplace=True)
-
-    return df
+    return _load_df_impl(path, nrows=nrows, with_index=with_index, cache_buster=cache_buster, path_type=Path)
 
 
 
@@ -1153,15 +1052,7 @@ def get_df_index(df_files, df_file):
     Returns:
         int or None: The index if found, else None.
     """
-    df_file = Path(df_file) if df_file else None
-    if df_file and df_file.exists():
-        try:
-            return df_files.index(str(df_file))
-        except ValueError:
-            return None
-    elif df_files:
-        return 0
-    return None
+    return _get_df_index_impl(df_files, df_file)
 
 
 @lru_cache(maxsize=None)
@@ -1175,13 +1066,7 @@ def list_views(views_root):
     Returns:
         list: Sorted list of view file paths.
     """
-    pattern = os.path.join(views_root, "**", "*.py")
-    pages = [
-        py_file
-        for py_file in glob.glob(pattern, recursive=True)
-        if not py_file.endswith("__init__.py")
-    ]
-    return sorted(pages)
+    return _list_views_impl(views_root)
 
 
 def read_file_lines(filepath):
@@ -1194,9 +1079,7 @@ def read_file_lines(filepath):
     Returns:
         generator: Generator yielding lines from the file.
     """
-    with open(filepath, "r") as file:
-        for line in file:
-            yield line.rstrip("\n")
+    return _read_file_lines_impl(filepath)
 
 
 def handle_go_action(view_module, view_path):
@@ -1448,11 +1331,7 @@ def scan_dir(path):
     Returns:
         list: List of subdirectory names.
     """
-    return sorted(
-        [entry.name for entry in os.scandir(path) if entry.is_dir()]
-        if os.path.exists(path)
-        else []
-    )
+    return _scan_dir_impl(path)
 
 
 def sidebar_views():

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
+import importlib.util
 import os
 import sqlite3
 import subprocess
 import sys
 import time
-import tomllib
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -15,6 +14,50 @@ from typing import Any, Callable, Dict, List, Optional, Pattern, Type
 from agi_env import AgiEnv
 from agi_env import mlflow_store
 from agi_env.pagelib import run_lab
+
+try:
+    from agilab.pipeline_runtime_support import (
+        build_mlflow_process_env as _build_mlflow_process_env_impl,
+        ensure_safe_service_template as _ensure_safe_service_template_impl,
+        is_valid_runtime_root as _is_valid_runtime_root_impl,
+        label_for_step_runtime as _label_for_step_runtime_impl,
+        log_mlflow_artifacts as _log_mlflow_artifacts_impl,
+        python_for_venv as _python_for_venv_impl,
+        python_for_step as _python_for_step_impl,
+        safe_service_start_template as _safe_service_start_template_impl,
+        start_mlflow_run as _start_mlflow_run_impl,
+        stream_run_command as _stream_run_command_impl,
+        temporary_env_overrides as _temporary_env_overrides_impl,
+        to_bool_flag as _to_bool_flag_impl,
+        truncate_mlflow_text as _truncate_mlflow_text_impl,
+        uses_controller_python as _uses_controller_python_impl,
+        wrap_code_with_mlflow_resume as _wrap_code_with_mlflow_resume_impl,
+    )
+except ModuleNotFoundError:
+    _pipeline_runtime_support_path = Path(__file__).resolve().parent / "pipeline_runtime_support.py"
+    _pipeline_runtime_support_spec = importlib.util.spec_from_file_location(
+        "agilab_pipeline_runtime_support_fallback",
+        _pipeline_runtime_support_path,
+    )
+    if _pipeline_runtime_support_spec is None or _pipeline_runtime_support_spec.loader is None:
+        raise
+    _pipeline_runtime_support_module = importlib.util.module_from_spec(_pipeline_runtime_support_spec)
+    _pipeline_runtime_support_spec.loader.exec_module(_pipeline_runtime_support_module)
+    _build_mlflow_process_env_impl = _pipeline_runtime_support_module.build_mlflow_process_env
+    _ensure_safe_service_template_impl = _pipeline_runtime_support_module.ensure_safe_service_template
+    _is_valid_runtime_root_impl = _pipeline_runtime_support_module.is_valid_runtime_root
+    _label_for_step_runtime_impl = _pipeline_runtime_support_module.label_for_step_runtime
+    _log_mlflow_artifacts_impl = _pipeline_runtime_support_module.log_mlflow_artifacts
+    _python_for_venv_impl = _pipeline_runtime_support_module.python_for_venv
+    _python_for_step_impl = _pipeline_runtime_support_module.python_for_step
+    _safe_service_start_template_impl = _pipeline_runtime_support_module.safe_service_start_template
+    _start_mlflow_run_impl = _pipeline_runtime_support_module.start_mlflow_run
+    _stream_run_command_impl = _pipeline_runtime_support_module.stream_run_command
+    _temporary_env_overrides_impl = _pipeline_runtime_support_module.temporary_env_overrides
+    _to_bool_flag_impl = _pipeline_runtime_support_module.to_bool_flag
+    _truncate_mlflow_text_impl = _pipeline_runtime_support_module.truncate_mlflow_text
+    _uses_controller_python_impl = _pipeline_runtime_support_module.uses_controller_python
+    _wrap_code_with_mlflow_resume_impl = _pipeline_runtime_support_module.wrap_code_with_mlflow_resume
 
 MLFLOW_STEP_RUN_ID_ENV = "AGILAB_PIPELINE_MLFLOW_RUN_ID"
 MLFLOW_TEXT_LIMIT = 500
@@ -31,130 +74,12 @@ _MLFLOW_SCHEMA_RESET_MARKERS = (
 
 def to_bool_flag(value: Any, default: bool = False) -> bool:
     """Convert settings values to bool with tolerant parsing."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-    return default
+    return _to_bool_flag_impl(value, default)
 
 
 def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     """Build an idempotent AGI.serve(start) snippet for PIPELINE import."""
-    settings: Dict[str, Any] = {}
-    try:
-        app_settings_path = Path(env.app_settings_file)
-        if app_settings_path.exists():
-            with app_settings_path.open("rb") as stream:
-                loaded = tomllib.load(stream)
-            if isinstance(loaded, dict):
-                settings = loaded
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError, tomllib.TOMLDecodeError):
-        settings = {}
-
-    cluster = settings.get("cluster", {}) if isinstance(settings.get("cluster"), dict) else {}
-    run_args = settings.get("args", {}) if isinstance(settings.get("args"), dict) else {}
-
-    cluster_enabled = to_bool_flag(cluster.get("cluster_enabled"), False)
-    pool = to_bool_flag(cluster.get("pool"), False)
-    cython = to_bool_flag(cluster.get("cython"), False)
-    rapids = to_bool_flag(cluster.get("rapids"), False)
-    mode = int(pool) + int(cython) * 2 + int(cluster_enabled) * 4 + int(rapids) * 8
-    scheduler = cluster.get("scheduler") if cluster.get("scheduler") else None
-    workers = cluster.get("workers") if isinstance(cluster.get("workers"), dict) else None
-    verbose_raw = cluster.get("verbose", 1)
-    try:
-        verbose = int(verbose_raw)
-    except (TypeError, ValueError):
-        verbose = 1
-
-    def _safe_literal(value: Any) -> str:
-        """Serialize *value* to a Python literal safe for code generation.
-
-        Uses ``json.dumps`` for strings (prevents injection via crafted
-        values) and ``None``/``int`` for scalars.  Dicts and lists are
-        round-tripped through JSON so only basic types survive.
-        """
-        if value is None:
-            return "None"
-        if isinstance(value, bool):
-            return "True" if value else "False"
-        if isinstance(value, int):
-            return str(value)
-        if isinstance(value, str):
-            return json.dumps(value)
-        # Dicts / lists: round-trip through JSON to ensure only safe types
-        return json.dumps(value)
-
-    apps_path_lit = _safe_literal(str(env.apps_path))
-    app_lit = _safe_literal(str(env.app))
-    scheduler_lit = _safe_literal(scheduler)
-    workers_lit = _safe_literal(workers) if workers is None else f"json.loads({json.dumps(json.dumps(workers))})"
-    run_args_lit = _safe_literal(run_args) if run_args is None else f"json.loads({json.dumps(json.dumps(run_args))})"
-    needs_json = workers is not None or run_args is not None
-    json_import = "\nimport json" if needs_json else ""
-
-    return f"""{marker}
-import asyncio{json_import}
-from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv
-
-APPS_PATH = {apps_path_lit}
-APP = {app_lit}
-VERBOSE = {int(verbose)}
-MODE = {int(mode)}
-SCHEDULER = {scheduler_lit}
-WORKERS = {workers_lit}
-RUN_ARGS = {run_args_lit}
-
-async def safe_service_start():
-    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=VERBOSE)
-    if MODE & 4 == 0:
-        raise RuntimeError(
-            "Cluster (Dask) is disabled in app_settings.toml. "
-            "Enable cluster before starting AGI.serve."
-        )
-
-    status = await AGI.serve(
-        app_env,
-        action="status",
-        mode=MODE,
-        scheduler=SCHEDULER,
-        workers=WORKERS,
-        **RUN_ARGS,
-    )
-    state = str((status or {{}}).get("status", "")).lower()
-
-    if state in {{"running", "degraded"}}:
-        print("Service already running; start skipped.")
-        print(status)
-        return status
-
-    if state == "error":
-        await AGI.serve(
-            app_env,
-            action="stop",
-            mode=MODE,
-            scheduler=SCHEDULER,
-            workers=WORKERS,
-            **RUN_ARGS,
-        )
-
-    result = await AGI.serve(
-        app_env,
-        action="start",
-        mode=MODE,
-        scheduler=SCHEDULER,
-        workers=WORKERS,
-        **RUN_ARGS,
-    )
-    print(result)
-    return result
-
-if __name__ == "__main__":
-    asyncio.run(safe_service_start())
-"""
+    return _safe_service_start_template_impl(env, marker)
 
 
 def get_mlflow_module():
@@ -301,43 +226,20 @@ def build_mlflow_process_env(
     base_env: Optional[Dict[str, str]] = None,
 ) -> Dict[str, str]:
     """Inject the shared tracking URI into a child process environment."""
-    process_env = dict(base_env or os.environ.copy())
-    process_env["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri(env)
-    apps_path = getattr(env, "apps_path", None)
-    if apps_path:
-        process_env["APPS_PATH"] = str(apps_path)
-    if run_id:
-        process_env[MLFLOW_STEP_RUN_ID_ENV] = str(run_id)
-        # Standard env name so explicit mlflow clients in child code can reuse the step run.
-        process_env["MLFLOW_RUN_ID"] = str(run_id)
-    else:
-        process_env.pop(MLFLOW_STEP_RUN_ID_ENV, None)
-        process_env.pop("MLFLOW_RUN_ID", None)
-    return process_env
+    return _build_mlflow_process_env_impl(
+        env,
+        tracking_uri=mlflow_tracking_uri(env),
+        step_run_id_env=MLFLOW_STEP_RUN_ID_ENV,
+        run_id=run_id,
+        base_env=base_env,
+    )
 
 
 @contextmanager
 def temporary_env_overrides(overrides: Optional[Dict[str, Any]]):
     """Temporarily apply environment overrides for in-process step execution."""
-    if not overrides:
+    with _temporary_env_overrides_impl(overrides):
         yield
-        return
-
-    sentinel = object()
-    previous = {key: os.environ.get(key, sentinel) for key in overrides}
-    try:
-        for key, value in overrides.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = str(value)
-        yield
-    finally:
-        for key, value in previous.items():
-            if value is sentinel:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = str(value)
 
 
 @contextmanager
@@ -431,33 +333,7 @@ def log_mlflow_artifacts(
 
 def wrap_code_with_mlflow_resume(code: str) -> str:
     """Resume a controller-created MLflow run inside subprocess-executed user code."""
-    body = code if code.endswith("\n") else code + "\n"
-    indented = "".join(f"    {line}\n" for line in body.splitlines()) if body.strip() else "    pass\n"
-    return (
-        "import os\n"
-        "_agilab_mlflow = None\n"
-        "_agilab_active_run = None\n"
-        "try:\n"
-        "    import mlflow as _agilab_mlflow\n"
-        "    _agilab_tracking_uri = os.environ.get('MLFLOW_TRACKING_URI')\n"
-        "    if _agilab_tracking_uri:\n"
-        "        _agilab_mlflow.set_tracking_uri(_agilab_tracking_uri)\n"
-        f"    _agilab_run_id = os.environ.get('{MLFLOW_STEP_RUN_ID_ENV}') or os.environ.get('MLFLOW_RUN_ID')\n"
-        "    if _agilab_run_id:\n"
-        "        _agilab_active_run = _agilab_mlflow.start_run(run_id=_agilab_run_id)\n"
-        "except Exception:\n"
-        "    _agilab_mlflow = None\n"
-        "    _agilab_active_run = None\n"
-        "\n"
-        "try:\n"
-        f"{indented}"
-        "finally:\n"
-        "    if _agilab_active_run is not None and _agilab_mlflow is not None:\n"
-        "        try:\n"
-        "            _agilab_mlflow.end_run()\n"
-        "        except Exception:\n"
-        "            pass\n"
-    )
+    return _wrap_code_with_mlflow_resume_impl(code, step_run_id_env=MLFLOW_STEP_RUN_ID_ENV)
 
 
 def ensure_safe_service_template(
@@ -469,99 +345,38 @@ def ensure_safe_service_template(
     debug_log: Callable[[str, Any], None],
 ) -> Optional[Path]:
     """Create or update an autogenerated safe service snippet file near lab steps."""
-    template_path = steps_file.parent / template_filename
-    content = safe_service_start_template(env, marker)
-    try:
-        existing = template_path.read_text(encoding="utf-8") if template_path.exists() else None
-        if existing == content:
-            return template_path
-        if existing:
-            first_line = existing.splitlines()[0].strip()
-            if first_line and first_line != marker:
-                return template_path
-        template_path.parent.mkdir(parents=True, exist_ok=True)
-        template_path.write_text(content, encoding="utf-8")
-        return template_path
-    except OSError as exc:
-        debug_log("Unable to ensure safe service template at %s: %s", template_path, exc)
-        return None
+    return _ensure_safe_service_template_impl(
+        env,
+        steps_file,
+        template_filename=template_filename,
+        marker=marker,
+        debug_log=debug_log,
+    )
 
 
 def python_for_venv(venv_root: str | Path | None) -> Path:
     """Return a python executable for a runtime selection."""
-    if not venv_root:
-        return Path(sys.executable)
-
-    root = Path(venv_root).expanduser()
-    venv_candidates = [root]
-    project_venv = root / ".venv"
-    if project_venv.exists():
-        venv_candidates.insert(0, project_venv)
-
-    for venv in venv_candidates:
-        for candidate in (
-            venv / "bin" / "python",
-            venv / "bin" / "python3",
-            venv / "Scripts" / "python.exe",
-            venv / "Scripts" / "python",
-        ):
-            if candidate.exists():
-                return candidate
-
-    return Path(sys.executable)
+    return _python_for_venv_impl(venv_root, sys_executable=sys.executable)
 
 
 def uses_controller_python(engine: str | None, code: str | None) -> bool:
     """Return True when a step should execute in the current AGILab/controller env."""
-    if not str(engine or "").startswith("agi."):
-        return False
-    text = str(code or "")
-    return (
-        "from agi_cluster.agi_distributor import AGI" in text
-        or "import agi_cluster" in text
-        or "AGI.install(" in text
-        or "AGI.run(" in text
-        or "AGI.serve(" in text
-        or "AGI.get_distrib(" in text
-    )
+    return _uses_controller_python_impl(engine, code)
 
 
 def python_for_step(venv_root: str | Path | None, *, engine: str | None, code: str | None) -> Path:
     """Choose the python executable for one step."""
-    if uses_controller_python(engine, code):
-        return Path(sys.executable)
-    return python_for_venv(venv_root)
+    return _python_for_step_impl(venv_root, engine=engine, code=code, sys_executable=sys.executable)
 
 
 def label_for_step_runtime(venv_root: str | Path | None, *, engine: str | None, code: str | None) -> str:
     """Return a readable runtime label for the step log."""
-    if uses_controller_python(engine, code):
-        target = Path(venv_root).name if venv_root else str(getattr(Path(sys.executable), "name", "python"))
-        return f"controller env -> {target}"
-    return Path(venv_root).name if venv_root else "default env"
+    return _label_for_step_runtime_impl(venv_root, engine=engine, code=code, sys_executable=sys.executable)
 
 
 def is_valid_runtime_root(venv_root: str | Path | None) -> bool:
     """Return True when the runtime root points at an existing project/venv."""
-    if not venv_root:
-        return False
-    try:
-        root = Path(venv_root).expanduser()
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return False
-    if not root.exists():
-        return False
-    if (root / ".venv").exists():
-        return True
-    for candidate in (
-        root / "bin" / "python",
-        root / "bin" / "python3",
-        root / "Scripts" / "python.exe",
-        root / "Scripts" / "python",
-    ):
-        if candidate.exists():
-            return True
-    return False
+    return _is_valid_runtime_root_impl(venv_root)
 
 
 def stream_run_command(
@@ -578,57 +393,21 @@ def stream_run_command(
     timeout: Optional[int] = None,
 ) -> str:
     """Run a shell command and stream its output into the run log."""
-    process_env = os.environ.copy()
-    process_env["uv_IGNORE_ACTIVE_VENV"] = "1"
-    apps_root = getattr(env, "apps_path", None)
-    extra_python_paths: List[str] = []
-    if apps_root:
-        try:
-            apps_root = Path(apps_root).expanduser()
-            src_root = apps_root.parent.parent
-            if (src_root / "agilab").is_dir():
-                extra_python_paths.append(str(src_root))
-        except (OSError, RuntimeError, TypeError, ValueError):
-            pass
-    if extra_python_paths:
-        existing = process_env.get("PYTHONPATH")
-        joined = os.pathsep.join(extra_python_paths + ([existing] if existing else []))
-        process_env["PYTHONPATH"] = joined
-    if extra_env:
-        process_env.update({str(key): str(value) for key, value in extra_env.items() if value is not None})
-
-    lines: List[str] = []
-    with subprocess.Popen(
+    return _stream_run_command_impl(
+        env,
+        index_page,
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        shell=True,
-        cwd=Path(cwd).resolve(),
-        env=process_env,
-        text=True,
-        bufsize=1,
-    ) as proc:
-        try:
-            assert proc.stdout is not None
-            for raw_line in proc.stdout:
-                cleaned = ansi_escape_re.sub("", raw_line.rstrip())
-                if cleaned:
-                    lines.append(cleaned)
-                    push_run_log(index_page, cleaned, placeholder)
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            push_run_log(index_page, f"Command timed out after {timeout} seconds.", placeholder)
-        except subprocess.CalledProcessError as err:
-            proc.kill()
-            push_run_log(index_page, f"Command failed: {err}", placeholder)
-        combined = "\n".join(lines).strip()
-        lowered = combined.lower()
-        if "module not found" in lowered:
-            apps_root = env.apps_path
-            if apps_root and not (Path(apps_root) / ".venv").exists():
-                raise jump_exception_cls(combined)
-        return combined
+        cwd,
+        push_run_log=push_run_log,
+        ansi_escape_re=ansi_escape_re,
+        jump_exception_cls=jump_exception_cls,
+        placeholder=placeholder,
+        extra_env=extra_env,
+        timeout=timeout,
+        env_vars=os.environ.copy(),
+        popen_factory=subprocess.Popen,
+        path_separator=os.pathsep,
+    )
 
 
 def run_locked_step(
