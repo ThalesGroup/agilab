@@ -24,6 +24,7 @@ try:
         log_mlflow_artifacts as _log_mlflow_artifacts_impl,
         python_for_venv as _python_for_venv_impl,
         python_for_step as _python_for_step_impl,
+        run_locked_step as _run_locked_step_impl,
         safe_service_start_template as _safe_service_start_template_impl,
         start_mlflow_run as _start_mlflow_run_impl,
         stream_run_command as _stream_run_command_impl,
@@ -50,6 +51,7 @@ except ModuleNotFoundError:
     _log_mlflow_artifacts_impl = _pipeline_runtime_support_module.log_mlflow_artifacts
     _python_for_venv_impl = _pipeline_runtime_support_module.python_for_venv
     _python_for_step_impl = _pipeline_runtime_support_module.python_for_step
+    _run_locked_step_impl = _pipeline_runtime_support_module.run_locked_step
     _safe_service_start_template_impl = _pipeline_runtime_support_module.safe_service_start_template
     _start_mlflow_run_impl = _pipeline_runtime_support_module.start_mlflow_run
     _stream_run_command_impl = _pipeline_runtime_support_module.stream_run_command
@@ -89,12 +91,7 @@ def get_mlflow_module():
 
 def truncate_mlflow_text(value: Any, limit: int = MLFLOW_TEXT_LIMIT) -> str:
     """Convert arbitrary values into bounded MLflow-safe strings."""
-    text = "" if value is None else str(value)
-    if limit <= 0 or len(text) <= limit:
-        return text
-    if limit == 1:
-        return text[:1]
-    return text[: limit - 1] + "…"
+    return _truncate_mlflow_text_impl(value, limit)
 
 
 def resolve_mlflow_tracking_dir(env: AgiEnv) -> Path:
@@ -252,32 +249,17 @@ def start_mlflow_run(
     nested: bool = False,
 ):
     """Open an MLflow run against the sidebar tracking store when MLflow is available."""
-    mlflow = get_mlflow_module()
-    if mlflow is None:
-        yield None
-        return
-
-    tracking_uri = ensure_default_mlflow_experiment(env, mlflow)
-    clean_tags = {
-        str(key): truncate_mlflow_text(value, 5000)
-        for key, value in (tags or {}).items()
-        if value is not None
-    }
-    clean_params = {
-        str(key): truncate_mlflow_text(value, MLFLOW_TEXT_LIMIT)
-        for key, value in (params or {}).items()
-        if value is not None
-    }
-    run_kwargs: Dict[str, Any] = {"run_name": run_name}
-    if nested:
-        run_kwargs["nested"] = True
-
-    with mlflow.start_run(**run_kwargs) as run:
-        if clean_tags:
-            mlflow.set_tags(clean_tags)
-        if clean_params:
-            mlflow.log_params(clean_params)
-        yield {"mlflow": mlflow, "run": run, "tracking_uri": tracking_uri}
+    with _start_mlflow_run_impl(
+        env,
+        run_name=run_name,
+        tags=tags,
+        params=params,
+        nested=nested,
+        get_mlflow_module_fn=get_mlflow_module,
+        ensure_default_mlflow_experiment_fn=ensure_default_mlflow_experiment,
+        truncate_text_fn=truncate_mlflow_text,
+    ) as tracking:
+        yield tracking
 
 
 def log_mlflow_artifacts(
@@ -289,46 +271,14 @@ def log_mlflow_artifacts(
     metrics: Optional[Dict[str, float]] = None,
 ) -> None:
     """Log text/file artifacts plus final tags/metrics to an active MLflow run."""
-    if not tracking:
-        return
-
-    mlflow = tracking["mlflow"]
-    if tags:
-        mlflow.set_tags(
-            {
-                str(key): truncate_mlflow_text(value, 5000)
-                for key, value in tags.items()
-                if value is not None
-            }
-        )
-    if metrics:
-        for key, value in metrics.items():
-            if value is None:
-                continue
-            try:
-                mlflow.log_metric(str(key), float(value))
-            except Exception:
-                continue
-    for artifact_name, text in (text_artifacts or {}).items():
-        if text is None:
-            continue
-        payload = str(text)
-        if hasattr(mlflow, "log_text"):
-            mlflow.log_text(payload, artifact_name)
-        else:
-            with NamedTemporaryFile("w", encoding="utf-8", suffix=Path(artifact_name).suffix or ".txt", delete=False) as tmp:
-                tmp.write(payload)
-                tmp_path = Path(tmp.name)
-            try:
-                mlflow.log_artifact(str(tmp_path), artifact_path=str(Path(artifact_name).parent))
-            finally:
-                tmp_path.unlink(missing_ok=True)
-    for artifact in file_artifacts or []:
-        if not artifact:
-            continue
-        artifact_path = Path(artifact).expanduser()
-        if artifact_path.exists():
-            mlflow.log_artifact(str(artifact_path))
+    _log_mlflow_artifacts_impl(
+        tracking,
+        text_artifacts=text_artifacts,
+        file_artifacts=file_artifacts,
+        tags=tags,
+        metrics=metrics,
+        truncate_text_fn=truncate_mlflow_text,
+    )
 
 
 def wrap_code_with_mlflow_resume(code: str) -> str:
