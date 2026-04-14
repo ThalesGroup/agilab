@@ -258,13 +258,13 @@ filterwarnings = [
 ]
 
 addopts = [
-  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_cluster", "--cov=agi_node",
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
   "--cov-report=term-missing:skip-covered"
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
+source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
 
 [tool.coverage.report]
 omit = [

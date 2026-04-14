@@ -10,7 +10,6 @@ omit =
     src/agilab/pages/*.py
     src/agilab/core/*
     src/agilab/test/*
-    src/agilab/apps-pages/*
     src/agilab/agi_codex.py
     src/agilab/apps/__init__.py
     src/agilab/apps/install.py
