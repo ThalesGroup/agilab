@@ -9,6 +9,15 @@ from types import SimpleNamespace
 from streamlit.errors import StreamlitAPIException
 
 
+def _load_orchestrate_page_helpers_module():
+    module_path = Path("src/agilab/orchestrate_page_helpers.py")
+    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_tests", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _load_orchestrate_module():
     module_path = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_tests", module_path)
@@ -16,6 +25,71 @@ def _load_orchestrate_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_page_helpers_rerun_fragment_or_app_falls_back_on_streamlit_api_error():
+    module = _load_orchestrate_page_helpers_module()
+    calls: list[tuple[str, object | None]] = []
+
+    def _rerun(*, scope=None):
+        calls.append(("rerun", scope))
+        if scope == "fragment":
+            raise StreamlitAPIException("bad scope")
+
+    module.rerun_fragment_or_app(_rerun, StreamlitAPIException)
+
+    assert calls == [("rerun", "fragment"), ("rerun", None)]
+
+
+def test_page_helpers_delegate_scheduler_worker_and_safe_eval(monkeypatch):
+    module = _load_orchestrate_page_helpers_module()
+    captured = {}
+
+    def _fake_scheduler(value, *, is_valid_ip, on_error):
+        captured["scheduler"] = (value, is_valid_ip("127.0.0.1"))
+        on_error("scheduler-error")
+        return "scheduler"
+
+    def _fake_workers(value, *, is_valid_ip, on_error, default_workers=None):
+        captured["workers"] = (value, is_valid_ip("127.0.0.1"), default_workers)
+        on_error("workers-error")
+        return {"127.0.0.1": 2}
+
+    def _fake_safe_eval(expression, expected_type, error_message, *, on_error):
+        captured["safe_eval"] = (expression, expected_type, error_message)
+        on_error("safe-eval-error")
+        return 7
+
+    monkeypatch.setattr(module, "_parse_and_validate_scheduler_impl", _fake_scheduler)
+    monkeypatch.setattr(module, "_parse_and_validate_workers_impl", _fake_workers)
+    monkeypatch.setattr(module, "_safe_eval_impl", _fake_safe_eval)
+
+    errors: list[str] = []
+    assert module.parse_and_validate_scheduler("127.0.0.1:9000", is_valid_ip=lambda ip: ip == "127.0.0.1", on_error=errors.append) == "scheduler"
+    assert module.parse_and_validate_workers("127.0.0.1:2", is_valid_ip=lambda ip: ip == "127.0.0.1", on_error=errors.append, default_workers={"a": 1}) == {"127.0.0.1": 2}
+    assert module.safe_eval("1 + 1", int, "bad", on_error=errors.append) == 7
+
+    assert captured["scheduler"] == ("127.0.0.1:9000", True)
+    assert captured["workers"] == ("127.0.0.1:2", True, {"a": 1})
+    assert captured["safe_eval"] == ("1 + 1", int, "bad")
+    assert errors == ["scheduler-error", "workers-error", "safe-eval-error"]
+
+
+def test_page_helpers_looks_like_shared_path_delegates_project_root(monkeypatch, tmp_path):
+    module = _load_orchestrate_page_helpers_module()
+    captured = {}
+
+    def _fake_impl(path, *, project_root):
+        captured["value"] = (path, project_root)
+        return True
+
+    monkeypatch.setattr(module, "_looks_like_shared_path_impl", _fake_impl)
+
+    candidate = tmp_path / "clustershare"
+    project_root = tmp_path / "repo"
+
+    assert module.looks_like_shared_path(candidate, project_root) is True
+    assert captured["value"] == (candidate, project_root)
 
 
 def test_update_delete_confirm_state_sets_and_clears_flag(monkeypatch):
