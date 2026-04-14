@@ -19,13 +19,26 @@ try:
     from agilab.pipeline_runtime_support import (
         build_mlflow_process_env as _build_mlflow_process_env_impl,
         ensure_safe_service_template as _ensure_safe_service_template_impl,
+        ensure_default_mlflow_experiment as _ensure_default_mlflow_experiment_impl,
+        ensure_mlflow_backend_ready as _ensure_mlflow_backend_ready_impl,
+        ensure_mlflow_sqlite_schema_current as _ensure_mlflow_sqlite_schema_current_impl,
+        get_mlflow_module as _get_mlflow_module_impl,
         is_valid_runtime_root as _is_valid_runtime_root_impl,
+        legacy_mlflow_filestore_present as _legacy_mlflow_filestore_present_impl,
         label_for_step_runtime as _label_for_step_runtime_impl,
         log_mlflow_artifacts as _log_mlflow_artifacts_impl,
+        mlflow_tracking_uri as _mlflow_tracking_uri_impl,
         python_for_venv as _python_for_venv_impl,
         python_for_step as _python_for_step_impl,
+        repair_mlflow_default_experiment_db as _repair_mlflow_default_experiment_db_impl,
+        reset_mlflow_sqlite_backend as _reset_mlflow_sqlite_backend_impl,
         run_locked_step as _run_locked_step_impl,
+        resolve_mlflow_artifact_dir as _resolve_mlflow_artifact_dir_impl,
+        resolve_mlflow_backend_db as _resolve_mlflow_backend_db_impl,
+        resolve_mlflow_tracking_dir as _resolve_mlflow_tracking_dir_impl,
         safe_service_start_template as _safe_service_start_template_impl,
+        sqlite_identifier as _sqlite_identifier_impl,
+        sqlite_uri_for_path as _sqlite_uri_for_path_impl,
         start_mlflow_run as _start_mlflow_run_impl,
         stream_run_command as _stream_run_command_impl,
         temporary_env_overrides as _temporary_env_overrides_impl,
@@ -46,13 +59,26 @@ except ModuleNotFoundError:
     _pipeline_runtime_support_spec.loader.exec_module(_pipeline_runtime_support_module)
     _build_mlflow_process_env_impl = _pipeline_runtime_support_module.build_mlflow_process_env
     _ensure_safe_service_template_impl = _pipeline_runtime_support_module.ensure_safe_service_template
+    _ensure_default_mlflow_experiment_impl = _pipeline_runtime_support_module.ensure_default_mlflow_experiment
+    _ensure_mlflow_backend_ready_impl = _pipeline_runtime_support_module.ensure_mlflow_backend_ready
+    _ensure_mlflow_sqlite_schema_current_impl = _pipeline_runtime_support_module.ensure_mlflow_sqlite_schema_current
+    _get_mlflow_module_impl = _pipeline_runtime_support_module.get_mlflow_module
     _is_valid_runtime_root_impl = _pipeline_runtime_support_module.is_valid_runtime_root
+    _legacy_mlflow_filestore_present_impl = _pipeline_runtime_support_module.legacy_mlflow_filestore_present
     _label_for_step_runtime_impl = _pipeline_runtime_support_module.label_for_step_runtime
     _log_mlflow_artifacts_impl = _pipeline_runtime_support_module.log_mlflow_artifacts
+    _mlflow_tracking_uri_impl = _pipeline_runtime_support_module.mlflow_tracking_uri
     _python_for_venv_impl = _pipeline_runtime_support_module.python_for_venv
     _python_for_step_impl = _pipeline_runtime_support_module.python_for_step
+    _repair_mlflow_default_experiment_db_impl = _pipeline_runtime_support_module.repair_mlflow_default_experiment_db
+    _reset_mlflow_sqlite_backend_impl = _pipeline_runtime_support_module.reset_mlflow_sqlite_backend
     _run_locked_step_impl = _pipeline_runtime_support_module.run_locked_step
+    _resolve_mlflow_artifact_dir_impl = _pipeline_runtime_support_module.resolve_mlflow_artifact_dir
+    _resolve_mlflow_backend_db_impl = _pipeline_runtime_support_module.resolve_mlflow_backend_db
+    _resolve_mlflow_tracking_dir_impl = _pipeline_runtime_support_module.resolve_mlflow_tracking_dir
     _safe_service_start_template_impl = _pipeline_runtime_support_module.safe_service_start_template
+    _sqlite_identifier_impl = _pipeline_runtime_support_module.sqlite_identifier
+    _sqlite_uri_for_path_impl = _pipeline_runtime_support_module.sqlite_uri_for_path
     _start_mlflow_run_impl = _pipeline_runtime_support_module.start_mlflow_run
     _stream_run_command_impl = _pipeline_runtime_support_module.stream_run_command
     _temporary_env_overrides_impl = _pipeline_runtime_support_module.temporary_env_overrides
@@ -86,7 +112,7 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
 
 def get_mlflow_module():
     """Import MLflow lazily so callers can degrade gracefully when unavailable."""
-    return mlflow_store.get_mlflow_module()
+    return _get_mlflow_module_impl()
 
 
 def truncate_mlflow_text(value: Any, limit: int = MLFLOW_TEXT_LIMIT) -> str:
@@ -96,39 +122,35 @@ def truncate_mlflow_text(value: Any, limit: int = MLFLOW_TEXT_LIMIT) -> str:
 
 def resolve_mlflow_tracking_dir(env: AgiEnv) -> Path:
     """Resolve the shared MLflow root, falling back to HOME when unset."""
-    tracking_dir = mlflow_store.resolve_mlflow_tracking_dir(
-        env,
-        home_factory=Path.home,
-        path_cls=Path,
-    )
-    tracking_dir.mkdir(parents=True, exist_ok=True)
-    return tracking_dir.resolve()
+    return _resolve_mlflow_tracking_dir_impl(env, home_factory=Path.home, path_cls=Path)
 
 
 def resolve_mlflow_backend_db(env: AgiEnv) -> Path:
     """Return the SQLite backend file used for local MLflow tracking."""
-    return mlflow_store.resolve_mlflow_backend_db(
-        resolve_mlflow_tracking_dir(env),
+    return _resolve_mlflow_backend_db_impl(
+        env,
+        resolve_tracking_dir_fn=resolve_mlflow_tracking_dir,
         default_db_name=DEFAULT_MLFLOW_DB_NAME,
     )
 
 
 def resolve_mlflow_artifact_dir(env: AgiEnv) -> Path:
     """Return the local artifact root shared by MLflow runs."""
-    return mlflow_store.resolve_mlflow_artifact_dir(
-        resolve_mlflow_tracking_dir(env),
+    return _resolve_mlflow_artifact_dir_impl(
+        env,
+        resolve_tracking_dir_fn=resolve_mlflow_tracking_dir,
         default_artifact_dir=DEFAULT_MLFLOW_ARTIFACT_DIR,
     )
 
 
 def sqlite_uri_for_path(db_path: Path) -> str:
     """Return a SQLAlchemy SQLite URI for an absolute database path."""
-    return mlflow_store.sqlite_uri_for_path(db_path, os_name=os.name, path_cls=Path)
+    return _sqlite_uri_for_path_impl(db_path, os_name=os.name, path_cls=Path)
 
 
 def legacy_mlflow_filestore_present(tracking_dir: Path) -> bool:
     """Detect an old MLflow file store that should be migrated to SQLite."""
-    return mlflow_store.legacy_mlflow_filestore_present(
+    return _legacy_mlflow_filestore_present_impl(
         tracking_dir,
         default_db_name=DEFAULT_MLFLOW_DB_NAME,
         default_artifact_dir=DEFAULT_MLFLOW_ARTIFACT_DIR,
@@ -136,12 +158,12 @@ def legacy_mlflow_filestore_present(tracking_dir: Path) -> bool:
 
 
 def _sqlite_identifier(name: str) -> str:
-    return mlflow_store.sqlite_identifier(name)
+    return _sqlite_identifier_impl(name)
 
 
 def repair_mlflow_default_experiment_db(db_path: Path, artifact_uri: str | None = None) -> bool:
     """Repair stale SQLite stores where 'Default' exists but experiment id 0 does not."""
-    return mlflow_store.repair_mlflow_default_experiment_db(
+    return _repair_mlflow_default_experiment_db_impl(
         db_path,
         default_experiment_name=DEFAULT_MLFLOW_EXPERIMENT_NAME,
         sqlite_identifier_fn=_sqlite_identifier,
@@ -152,7 +174,7 @@ def repair_mlflow_default_experiment_db(db_path: Path, artifact_uri: str | None 
 
 def ensure_mlflow_sqlite_schema_current(db_path: Path) -> None:
     """Upgrade a local SQLite MLflow backend to the current schema once per process."""
-    mlflow_store.ensure_mlflow_sqlite_schema_current(
+    _ensure_mlflow_sqlite_schema_current_impl(
         db_path,
         checked_uris=_MLFLOW_SQLITE_UPGRADE_CHECKED,
         sqlite_uri_for_path_fn=sqlite_uri_for_path,
@@ -166,7 +188,7 @@ def ensure_mlflow_sqlite_schema_current(db_path: Path) -> None:
 
 def reset_mlflow_sqlite_backend(db_path: Path) -> Path | None:
     """Move aside a stale local MLflow SQLite store so MLflow can recreate it cleanly."""
-    return mlflow_store.reset_mlflow_sqlite_backend(
+    return _reset_mlflow_sqlite_backend_impl(
         db_path,
         checked_uris=_MLFLOW_SQLITE_UPGRADE_CHECKED,
         sqlite_uri_for_path_fn=sqlite_uri_for_path,
@@ -176,13 +198,9 @@ def reset_mlflow_sqlite_backend(db_path: Path) -> Path | None:
 
 def ensure_mlflow_backend_ready(env: AgiEnv) -> str:
     """Ensure the local MLflow backend is SQLite, migrating legacy file stores when needed."""
-    tracking_dir = resolve_mlflow_tracking_dir(env)
-    return mlflow_store.ensure_mlflow_backend_ready(
-        tracking_dir,
-        resolve_mlflow_backend_db_fn=lambda td: mlflow_store.resolve_mlflow_backend_db(
-            td,
-            default_db_name=DEFAULT_MLFLOW_DB_NAME,
-        ),
+    return _ensure_mlflow_backend_ready_impl(
+        env,
+        resolve_tracking_dir_fn=resolve_mlflow_tracking_dir,
         legacy_mlflow_filestore_present_fn=legacy_mlflow_filestore_present,
         sqlite_uri_for_path_fn=sqlite_uri_for_path,
         ensure_mlflow_sqlite_schema_current_fn=ensure_mlflow_sqlite_schema_current,
@@ -193,23 +211,26 @@ def ensure_mlflow_backend_ready(env: AgiEnv) -> str:
         repair_mlflow_default_experiment_db_fn=repair_mlflow_default_experiment_db,
         run_cmd=subprocess.run,
         sys_executable=sys.executable,
+        default_db_name=DEFAULT_MLFLOW_DB_NAME,
+        default_artifact_dir=DEFAULT_MLFLOW_ARTIFACT_DIR,
     )
 
 
 def mlflow_tracking_uri(env: AgiEnv) -> str:
     """Return the shared MLflow tracking URI used by AGILab pipeline tracking."""
-    return ensure_mlflow_backend_ready(env)
+    return _mlflow_tracking_uri_impl(env, ensure_mlflow_backend_ready_fn=ensure_mlflow_backend_ready)
 
 
 def ensure_default_mlflow_experiment(env: AgiEnv, mlflow: Any | None = None) -> str | None:
     """Create the default experiment when the backend store is still empty."""
-    tracking_dir = resolve_mlflow_tracking_dir(env)
-    return mlflow_store.ensure_default_mlflow_experiment(
-        tracking_dir,
-        get_mlflow_module_fn=lambda: mlflow or get_mlflow_module(),
-        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: resolve_mlflow_artifact_dir(env),
-        resolve_mlflow_backend_db_fn=lambda _tracking_dir: resolve_mlflow_backend_db(env),
-        ensure_mlflow_backend_ready_fn=lambda _tracking_dir: mlflow_tracking_uri(env),
+    return _ensure_default_mlflow_experiment_impl(
+        env,
+        mlflow=mlflow,
+        resolve_tracking_dir_fn=resolve_mlflow_tracking_dir,
+        get_mlflow_module_fn=get_mlflow_module,
+        resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir,
+        resolve_mlflow_backend_db_fn=resolve_mlflow_backend_db,
+        ensure_mlflow_backend_ready_fn=mlflow_tracking_uri,
         reset_mlflow_sqlite_backend_fn=reset_mlflow_sqlite_backend,
         default_experiment_name=DEFAULT_MLFLOW_EXPERIMENT_NAME,
         schema_reset_markers=_MLFLOW_SCHEMA_RESET_MARKERS,
