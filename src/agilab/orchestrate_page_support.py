@@ -28,6 +28,22 @@ RUN_MODE_LABELS: tuple[str, ...] = (
     "15: rapids and dask and pool and cython",
 )
 
+_INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
+    # ("connection to", "timed out"),
+    # ("failed to connect",),
+    # ("connection refused",),
+    # ("no route to host",),
+    # ("ssh_exchange_identification",),
+    # ("broken pipe",),
+    ("error",),
+)
+
+_INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
+    tuple(pattern.lower() for pattern in tokens if pattern)
+    for tokens in _INSTALL_LOG_FATAL_PATTERNS
+    if tokens
+)
+
 
 def _python_string(value: Any) -> str:
     return json.dumps(str(value))
@@ -380,3 +396,18 @@ def app_install_status(env: Any) -> dict[str, Any]:
         "manager_venv": manager_venv,
         "worker_venv": worker_venv,
     }
+
+
+def log_indicates_install_failure(lines: list[str]) -> bool:
+    """Return True when install logs likely indicate transport failure."""
+    if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
+        return False
+
+    snippet = "\n".join(lines[-200:]).lower()
+    for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER:
+        for token in pattern:
+            if token not in snippet:
+                break
+        else:
+            return True
+    return False

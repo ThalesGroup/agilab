@@ -59,6 +59,7 @@ try:
         reassign_distribution_plan,
         is_dask_shutdown_noise,
         serialize_args_payload,
+        log_indicates_install_failure as _orchestrate_log_indicates_install_failure,
         strip_ansi,
         update_distribution_payload,
         workplan_selection_key,
@@ -92,6 +93,7 @@ except ModuleNotFoundError:
     _orchestrate_init_session_state = _orchestrate_page_support_module.init_session_state
     _orchestrate_app_install_status = _orchestrate_page_support_module.app_install_status
     _orchestrate_is_app_installed = _orchestrate_page_support_module.is_app_installed
+    _orchestrate_log_indicates_install_failure = _orchestrate_page_support_module.log_indicates_install_failure
     _orchestrate_resolve_share_candidate = _orchestrate_page_support_module.resolve_share_candidate
     _orchestrate_update_delete_confirm_state = _orchestrate_page_support_module.update_delete_confirm_state
     serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
@@ -337,39 +339,9 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
                 buffer.append(stripped)
 
 
-_INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
-    #("connection to", "timed out"),
-    #("failed to connect",),
-    #("connection refused",),
-    #("no route to host",),
-    #("ssh_exchange_identification",),
-    #("broken pipe",),
-    ("error",),
-)
-_INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
-    tuple(token.lower() for token in pattern if token)
-    for pattern in _INSTALL_LOG_FATAL_PATTERNS
-    if pattern
-)
-
-
 def _log_indicates_install_failure(lines: list[str]) -> bool:
-    """
-    Return True when install logs contain fatal phrases that do not always
-    propagate through stderr (e.g., SSH transport errors).
-    We reuse a single lower-cased tail snippet so substring checks stay O(1) per token.
-    """
-    if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
-        return False
-
-    snippet = "\n".join(lines[-200:]).lower()
-    for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER:
-        for token in pattern:
-            if token not in snippet:
-                break
-        else:
-            return True
-    return False
+    """Delegate to support helper for shared install-failure heuristics."""
+    return _orchestrate_log_indicates_install_failure(lines)
 
 
 def _looks_like_shared_path(path: Path) -> bool:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import importlib
 import importlib.metadata as importlib_metadata
 import importlib.util
@@ -9,7 +8,6 @@ import logging
 import os
 import re
 import sys
-import traceback
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -69,7 +67,15 @@ try:
         DEFAULT_GPT_OSS_ENDPOINT,
         _API_KEY_PATTERNS,
         _OLLAMA_CODE_MODEL_RE,
+        _BLOCKED_BUILTINS,
+        _BLOCKED_DUNDER_ATTRS,
+        _BLOCKED_MODULES,
+        _SAFE_BUILTINS,
+        _UnsafeCodeError,
         extract_code,
+        _build_autofix_prompt,
+        _exec_code_on_df,
+        _validate_code_safety,
         format_for_responses as _format_for_responses,
         format_uoaic_question as _format_uoaic_question,
         normalize_gpt_oss_endpoint as _normalize_gpt_oss_endpoint,
@@ -96,7 +102,15 @@ except ModuleNotFoundError:
     DEFAULT_GPT_OSS_ENDPOINT = _pipeline_ai_support_module.DEFAULT_GPT_OSS_ENDPOINT
     _API_KEY_PATTERNS = _pipeline_ai_support_module._API_KEY_PATTERNS
     _OLLAMA_CODE_MODEL_RE = _pipeline_ai_support_module._OLLAMA_CODE_MODEL_RE
+    _BLOCKED_BUILTINS = _pipeline_ai_support_module._BLOCKED_BUILTINS
+    _BLOCKED_DUNDER_ATTRS = _pipeline_ai_support_module._BLOCKED_DUNDER_ATTRS
+    _BLOCKED_MODULES = _pipeline_ai_support_module._BLOCKED_MODULES
+    _SAFE_BUILTINS = _pipeline_ai_support_module._SAFE_BUILTINS
+    _UnsafeCodeError = _pipeline_ai_support_module._UnsafeCodeError
     extract_code = _pipeline_ai_support_module.extract_code
+    _build_autofix_prompt = _pipeline_ai_support_module._build_autofix_prompt
+    _exec_code_on_df = _pipeline_ai_support_module._exec_code_on_df
+    _validate_code_safety = _pipeline_ai_support_module._validate_code_safety
     _format_for_responses = _pipeline_ai_support_module.format_for_responses
     _format_uoaic_question = _pipeline_ai_support_module.format_uoaic_question
     _normalize_gpt_oss_endpoint = _pipeline_ai_support_module.normalize_gpt_oss_endpoint
@@ -291,129 +305,6 @@ def chat_ollama_local(
         raise JumpToMain(exc)
 
     return text, model
-
-
-_BLOCKED_BUILTINS = frozenset({
-    "eval", "exec", "compile", "__import__", "open", "breakpoint",
-    "globals", "locals", "vars", "dir", "getattr", "setattr", "delattr",
-    "input", "memoryview", "exit", "quit",
-})
-
-_SAFE_BUILTINS = {
-    "abs": abs, "all": all, "any": any, "bool": bool, "dict": dict,
-    "enumerate": enumerate, "filter": filter, "float": float,
-    "frozenset": frozenset, "hasattr": hasattr, "hash": hash,
-    "int": int, "isinstance": isinstance, "issubclass": issubclass,
-    "len": len, "list": list, "map": map, "max": max, "min": min,
-    "print": print, "range": range, "repr": repr, "reversed": reversed,
-    "round": round, "set": set, "slice": slice, "sorted": sorted,
-    "str": str, "sum": sum, "tuple": tuple, "type": type, "zip": zip,
-    "True": True, "False": False, "None": None,
-    # Standard exception types so sandboxed code can raise/catch errors
-    "Exception": Exception, "ValueError": ValueError, "TypeError": TypeError,
-    "KeyError": KeyError, "IndexError": IndexError, "RuntimeError": RuntimeError,
-    "AttributeError": AttributeError, "ZeroDivisionError": ZeroDivisionError,
-    "StopIteration": StopIteration, "NotImplementedError": NotImplementedError,
-    "ArithmeticError": ArithmeticError, "LookupError": LookupError,
-    "OverflowError": OverflowError,
-}
-
-_BLOCKED_DUNDER_ATTRS = frozenset({
-    "__class__", "__subclasses__", "__bases__", "__mro__",
-    "__globals__", "__code__", "__func__", "__self__",
-    "__builtins__", "__import__", "__loader__", "__spec__",
-})
-
-_BLOCKED_MODULES = frozenset({
-    "os", "sys", "subprocess", "shutil", "signal", "socket",
-    "http", "urllib", "requests", "ftplib", "smtplib", "ctypes",
-    "importlib", "pickle", "shelve", "marshal", "code", "codeop",
-    "compileall", "py_compile", "io", "pathlib", "tempfile",
-    "multiprocessing", "threading", "webbrowser",
-})
-
-
-class _UnsafeCodeError(Exception):
-    """Raised when LLM-generated code fails the safety audit."""
-
-
-def _validate_code_safety(code: str) -> None:
-    """Parse *code* and reject patterns that could escape the sandbox.
-
-    Raises ``_UnsafeCodeError`` with a human-readable explanation when a
-    dangerous construct is detected.
-    """
-    try:
-        tree = ast.parse(code, filename="<lab_step>")
-    except SyntaxError as exc:
-        raise _UnsafeCodeError(f"Syntax error in generated code: {exc}") from exc
-
-    for node in ast.walk(tree):
-        # Block all import statements
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            names = []
-            if isinstance(node, ast.Import):
-                names = [alias.name for alias in node.names]
-            else:
-                names = [node.module or ""]
-            raise _UnsafeCodeError(
-                f"Import statements are not allowed in pipeline code: {', '.join(names)}"
-            )
-
-        # Block calls to dangerous builtins
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name) and func.id in _BLOCKED_BUILTINS:
-                raise _UnsafeCodeError(
-                    f"Call to blocked builtin '{func.id}' is not allowed."
-                )
-
-        # Block access to dangerous dunder attributes
-        if isinstance(node, ast.Attribute):
-            if node.attr in _BLOCKED_DUNDER_ATTRS:
-                raise _UnsafeCodeError(
-                    f"Access to '{node.attr}' is not allowed."
-                )
-            # Block access to known dangerous modules via attribute chains
-            if isinstance(node.value, ast.Name) and node.value.id in _BLOCKED_MODULES:
-                raise _UnsafeCodeError(
-                    f"Access to module '{node.value.id}' is not allowed."
-                )
-
-
-def _exec_code_on_df(code: str, df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], str]:
-    """Execute code against a copy of df. Returns (new_df, error).
-
-    The code is first validated via AST inspection to reject dangerous
-    constructs (imports, dunder access, blocked builtins) before execution.
-    The runtime namespace is restricted to pandas, numpy, and a safe
-    subset of Python builtins.
-    """
-    try:
-        _validate_code_safety(code)
-    except _UnsafeCodeError as exc:
-        return None, f"Safety check failed: {exc}"
-
-    import numpy as np  # local import to keep module-level namespace clean
-
-    df_local = df.copy()
-    restricted_globals: Dict[str, Any] = {
-        "__builtins__": _SAFE_BUILTINS,
-        "pd": pd,
-        "np": np,
-    }
-    local_vars: Dict[str, Any] = {"df": df_local}
-    try:
-        compiled = compile(code, "<lab_step>", "exec")
-        exec(compiled, restricted_globals, local_vars)
-    except _UnsafeCodeError:
-        raise
-    except Exception:
-        return None, traceback.format_exc()
-    updated = local_vars.get("df")
-    if isinstance(updated, pd.DataFrame):
-        return updated, ""
-    return None, "Code did not produce a DataFrame named `df`."
 
 
 UOAIC_PROVIDER = "universal-offline-ai-chatbot"
@@ -940,28 +831,6 @@ def ask_gpt(
         code.strip() if code else "",
         detail,
     ]
-
-
-def _build_autofix_prompt(
-    *,
-    original_request: str,
-    failing_code: str,
-    traceback_text: str,
-    attempt: int,
-) -> str:
-    clipped_trace = (traceback_text or "").strip()
-    if len(clipped_trace) > 4000:
-        clipped_trace = clipped_trace[-4000:]
-    clipped_code = (failing_code or "").strip()
-    if len(clipped_code) > 6000:
-        clipped_code = clipped_code[:6000]
-    return (
-        f"{CODE_STRICT_INSTRUCTIONS}\n\n"
-        f"You generated Python code for the following request:\n{original_request.strip()}\n\n"
-        f"The code failed when executed (attempt {attempt}). Fix it.\n\n"
-        f"Traceback:\n{clipped_trace}\n\n"
-        f"Failing code:\n```python\n{clipped_code}\n```"
-    )
 
 
 def _maybe_autofix_generated_code(
