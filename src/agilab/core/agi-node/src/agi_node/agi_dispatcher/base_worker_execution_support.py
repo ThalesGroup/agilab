@@ -7,6 +7,17 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable
 
+BUILD_ARTIFACT_EXCEPTIONS = (
+    FileNotFoundError,
+    IsADirectoryError,
+    NotADirectoryError,
+    PermissionError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+)
+
 
 def add_cython_dist_paths(
     env: Any,
@@ -69,6 +80,7 @@ async def run_worker(
             args,
         )
     except Exception as err:
+        # Distribution planning crosses dispatcher/app code and can fail arbitrarily.
         logger_obj.error(traceback_module.format_exc())
         if isinstance(err, RuntimeError):
             raise
@@ -137,6 +149,7 @@ def initialize_worker(
         logger_obj.info("worker #%s: %s starting...", worker_id, worker)
         start_fn(worker_inst)
     except Exception:
+        # Worker loading/constructor/startup executes app code; keep one logging boundary here.
         logger_obj.error(traceback_module.format_exc())
         raise
 
@@ -250,7 +263,7 @@ def build_worker_artifacts(
                 logger_obj.info("%s", entry)
 
             logger_obj.info("done!")
-    except Exception as err:
+    except BUILD_ARTIFACT_EXCEPTIONS:
         logger_obj.error(
             "worker<%s> - fail to build %s from %s, see %s for details",
             worker,
@@ -258,7 +271,7 @@ def build_worker_artifacts(
             dask_home,
             base_worker_cls._logs,
         )
-        raise err
+        raise
 
 
 def execute_worker_plan(
@@ -334,8 +347,9 @@ def execute_worker_plan(
             )
         else:
             logger_obj.error("this worker is not initialized")
-            raise Exception("failed to do_works")
+            raise RuntimeError("failed to do_works")
     except Exception:
+        # ``works(...)`` executes arbitrary worker code; keep the runtime logging boundary here.
         logger_obj.error(traceback_module.format_exc())
         raise
     finally:

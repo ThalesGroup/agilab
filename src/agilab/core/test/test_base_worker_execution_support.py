@@ -283,7 +283,7 @@ def test_baseworker_run_cython_without_compiled_library_raises(tmp_path):
 def test_baseworker_build_uses_managed_pc_home_prefix(monkeypatch, tmp_path):
     monkeypatch.setattr(base_worker_mod.getpass, "getuser", lambda: "T012345")
 
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         BaseWorker._build("demo_worker", str(tmp_path), "tcp://127.0.0.1:8787", mode=0, verbose=0)
 
     assert BaseWorker._home_dir == Path("~/MyApp/").expanduser().absolute()
@@ -427,3 +427,11 @@ def test_baseworker_expand_chunk_scalar_and_do_works_fallback_paths(monkeypatch)
 
     assert worker_calls == [(["p"], ["m"])]
     assert isinstance(logs, str)
+
+
+def test_baseworker_do_works_requires_initialized_worker_context():
+    BaseWorker._worker_id = None
+    BaseWorker._insts = {}
+
+    with pytest.raises(RuntimeError, match="failed to do_works"):
+        BaseWorker._do_works(["p"], ["m"])

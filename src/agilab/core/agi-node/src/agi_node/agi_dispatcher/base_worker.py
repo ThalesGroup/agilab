@@ -573,7 +573,7 @@ class BaseWorker(abc.ABC):
             _write_heartbeat("stopped")
             return {"status": "stopped", "runtime": time.time() - start_time}
 
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:  # pragma: no cover - worker loop is app-defined
             logger.exception("Service loop failed: %s", exc)
             raise
 
@@ -587,7 +587,7 @@ class BaseWorker(abc.ABC):
             if callable(stop_hook):
                 try:
                     stop_hook()
-                except Exception:  # pragma: no cover - defensive logging
+                except Exception:  # pragma: no cover - worker stop hook is app-defined
                     logger.exception("Worker stop hook raised inside service loop", exc_info=True)
 
             logger.info(
@@ -954,7 +954,7 @@ class BaseWorker(abc.ABC):
             try:
                 os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
                 func(path)
-            except Exception as e:
+            except OSError as e:
                 logger.error(f"warning failed to grant write access to {path}: {e}")
         else:
             # not a permission problem—re-raise so you see real errors

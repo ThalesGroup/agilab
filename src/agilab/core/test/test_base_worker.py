@@ -868,6 +868,21 @@ def test_baseworker_onerror_handles_permission_and_non_permission(tmp_path, monk
         BaseWorker._onerror(lambda _path: None, str(target), (RuntimeError, RuntimeError("boom"), None))
 
 
+def test_baseworker_onerror_propagates_non_oserror_from_retry(tmp_path, monkeypatch):
+    target = tmp_path / "locked.txt"
+    target.write_text("x", encoding="utf-8")
+
+    monkeypatch.setattr(base_worker_mod.os, "access", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(base_worker_mod.os, "chmod", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(ValueError, match="bad callback"):
+        BaseWorker._onerror(
+            lambda _path: (_ for _ in ()).throw(ValueError("bad callback")),
+            str(target),
+            (PermissionError, PermissionError("denied"), None),
+        )
+
+
 def test_baseworker_setup_data_directories_fallback_to_home_and_failure(monkeypatch, tmp_path):
     worker = DummyWorker()
     share_root = tmp_path / "share"
