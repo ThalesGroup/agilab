@@ -59,13 +59,14 @@ def test_python_site_version_handles_free_thread_suffix(pyvers_worker, expected)
     assert deployment_build_support._python_site_version(pyvers_worker) == expected
 
 
-def test_project_uv_adds_free_threading_prefix():
+def test_project_uv_adds_free_threading_prefix(monkeypatch):
     env = SimpleNamespace(
         is_free_threading_available=True,
         envars={"127.0.0.1_CMD_PREFIX": "env TEST=1"},
         uv="uv",
     )
 
+    monkeypatch.setattr(deployment_build_support, "python_supports_free_threading", lambda: True)
     assert deployment_build_support._project_uv(env) == "env TEST=1 PYTHON_GIL=0 uv"
 
 
@@ -133,7 +134,7 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_build_lib_local_uses_free_threading_uv_prefix(tmp_path):
+async def test_build_lib_local_uses_free_threading_uv_prefix(monkeypatch, tmp_path):
     env = _build_env(tmp_path, free_threading=True)
     (env.wenv_abs / "dist" / "demo.egg").write_text("egg", encoding="utf-8")
     commands = []
@@ -146,6 +147,7 @@ async def test_build_lib_local_uses_free_threading_uv_prefix(tmp_path):
     AGI._mode = AGI.PYTHON_MODE
     AGI._dask_client = None
     AGI.agi_workers = {"pandas": "pandas-worker"}
+    monkeypatch.setattr(deployment_build_support, "python_supports_free_threading", lambda: True)
 
     await deployment_build_support.build_lib_local(
         AGI,
