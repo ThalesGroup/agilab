@@ -178,3 +178,9 @@ def test_filter_warning_messages_removes_virtual_env_mismatch():
         orchestrate_page_support.filter_warning_messages(log)
         == "normal warning\nfinal"
     )
+
+
+def test_log_indicates_install_failure():
+    assert not orchestrate_page_support.log_indicates_install_failure(["all good", "installation complete"])
+    assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "error", "connection"])
+    assert not orchestrate_page_support.log_indicates_install_failure([])
