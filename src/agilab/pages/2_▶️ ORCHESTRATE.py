@@ -54,6 +54,8 @@ try:
         update_delete_confirm_state as _orchestrate_update_delete_confirm_state,
         toggle_select_all as _orchestrate_toggle_select_all,
         update_select_all as _orchestrate_update_select_all,
+        update_log as _orchestrate_update_log,
+        display_log as _orchestrate_display_log,
         optional_python_expr,
         optional_string_expr,
         capture_dataframe_preview_state as _orchestrate_capture_dataframe_preview_state,
@@ -110,6 +112,8 @@ except ModuleNotFoundError:
     _orchestrate_restore_dataframe_preview_state = _orchestrate_page_support_module.restore_dataframe_preview_state
     _orchestrate_toggle_select_all = _orchestrate_page_support_module.toggle_select_all
     _orchestrate_update_select_all = _orchestrate_page_support_module.update_select_all
+    _orchestrate_update_log = _orchestrate_page_support_module.update_log
+    _orchestrate_display_log = _orchestrate_page_support_module.display_log
 try:
     from agilab.orchestrate_cluster import (
         OrchestrateClusterDeps,
@@ -275,43 +279,21 @@ def _update_delete_confirm_state(
     )
 
 def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -> None:
-    """
-    Append a cleaned message to the accumulated log and update the live display.
-    Keeps only the last max_lines lines in the log.
-    """
-    if "log_text" not in st.session_state:
-        st.session_state["log_text"] = ""
-
-    clean_msg = strip_ansi(message).rstrip()
-    if st.session_state.get('cluster_verbose', 1) < 2:
-        if getattr(update_log, '_skip_traceback', False):
-            if not clean_msg:
-                update_log._skip_traceback = False
-            return
-        if clean_msg.lower().startswith("traceback (most recent call last"):
-            update_log._skip_traceback = True
-            return
-        if is_dask_shutdown_noise(clean_msg):
-            return
-    if clean_msg:
-        st.session_state["log_text"] += clean_msg + "\n"
-
-    # Keep only last max_lines lines to avoid huge memory/logs
-    lines = st.session_state["log_text"].splitlines()
-    if len(lines) > max_lines:
-        lines = lines[-max_lines:]
-        st.session_state["log_text"] = "\n".join(lines) + "\n"
-
-    display_lines = lines[-LOG_DISPLAY_MAX_LINES:]
-    live_view = "\n".join(display_lines)
-
-    # Calculate height in pixels roughly: 20px per line, capped at 500px (but keep a usable minimum)
-    line_count = max(len(display_lines), 1)
-    height_px = min(max(20 * line_count, LIVE_LOG_MIN_HEIGHT), 500)
-
-    live_log_placeholder.code(live_view, language="python", height=height_px)
-
-update_log._skip_traceback = False
+    _orchestrate_update_log(
+        st.session_state,
+        live_log_placeholder,
+        message,
+        max_lines=max_lines,
+        cluster_verbose=st.session_state.get("cluster_verbose", 1),
+        traceback_state=_TRACEBACK_SKIP,
+        strip_ansi_fn=strip_ansi,
+        is_dask_shutdown_noise_fn=is_dask_shutdown_noise,
+        log_display_max_lines=LOG_DISPLAY_MAX_LINES,
+        live_log_min_height=LIVE_LOG_MIN_HEIGHT,
+        max_log_height=500,
+    )
+    update_log._skip_traceback = bool(_TRACEBACK_SKIP["active"])
+    return None
 
 
 
@@ -376,43 +358,24 @@ _TRACEBACK_SKIP = {"active": False}
 
 
 def display_log(stdout, stderr):
-    # Use cached log if stdout empty
-    if not stdout.strip() and "log_text" in st.session_state:
-        stdout = st.session_state["log_text"]
+    _orchestrate_display_log(
+        stdout,
+        stderr,
+        session_state=st.session_state,
+        strip_ansi_fn=strip_ansi,
+        filter_warning_messages_fn=lambda text: filter_warning_messages(filter_noise_lines(text)),
+        format_log_block_fn=lambda text: format_log_block(
+            text,
+            newest_first=False,
+            max_lines=LOG_DISPLAY_MAX_LINES,
+        ),
+        warning_fn=lambda message: st.warning(message),
+        error_fn=lambda message: st.error(message),
+        code_fn=lambda *args, **kwargs: st.code(*args, **kwargs),
+        log_display_height=400,
+    )
 
-    # Strip ANSI color codes from both stdout and stderr
-    clean_stdout = strip_ansi(stdout or "")
-    clean_stderr = strip_ansi(stderr or "")
-    clean_stdout = filter_noise_lines(clean_stdout)
-    clean_stderr = filter_noise_lines(clean_stderr)
-
-    # Clean up extra blank lines
-    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
-    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
-
-    combined = "\n".join([clean_stdout, clean_stderr]).strip()
-
-    if "warning:" in combined.lower():
-        st.warning("Warnings occurred during cluster installation:")
-        st.code(
-            format_log_block(combined, newest_first=False, max_lines=LOG_DISPLAY_MAX_LINES),
-            language="python",
-            height=400,
-        )
-    elif clean_stderr:
-        st.error("Errors occurred during cluster installation:")
-        st.code(
-            format_log_block(clean_stderr, newest_first=False, max_lines=LOG_DISPLAY_MAX_LINES),
-            language="python",
-            height=400,
-        )
-    else:
-        st.code(
-            format_log_block(clean_stdout, newest_first=False, max_lines=LOG_DISPLAY_MAX_LINES)
-            or "No logs available",
-            language="python",
-            height=400,
-        )
+update_log._skip_traceback = False
 
 
 def safe_eval(expression: str, expected_type: Any, error_message: str) -> Any:
