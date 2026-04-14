@@ -176,7 +176,7 @@ def chat_universal_offline(
 
     try:
         response = chain.invoke({"query": query_text})
-    except Exception as exc:
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
         error_sink(f"Universal Offline AI Chatbot invocation failed: {exc}")
         raise RuntimeError(exc) from exc
 
