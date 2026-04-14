@@ -18,7 +18,6 @@ import importlib
 from typing import Any, Optional
 from datetime import datetime
 
-import textwrap
 # Third-Party imports
 import tomllib       # For reading TOML files
 import tomli_w       # For writing TOML files
@@ -37,6 +36,41 @@ except ModuleNotFoundError:
     _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
     _page_docs_spec.loader.exec_module(_page_docs_module)
     render_page_docs_access = _page_docs_module.render_page_docs_access
+try:
+    from agilab.orchestrate_page_support import (
+        build_distribution_snippet,
+        build_install_snippet,
+        build_run_snippet,
+        compute_run_mode,
+        describe_run_mode,
+        optional_python_expr,
+        optional_string_expr,
+        reassign_distribution_plan,
+        serialize_args_payload,
+        update_distribution_payload,
+        workplan_selection_key,
+    )
+except ModuleNotFoundError:
+    _orchestrate_page_support_path = Path(__file__).resolve().parents[1] / "orchestrate_page_support.py"
+    _orchestrate_page_support_spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_page_support_fallback",
+        _orchestrate_page_support_path,
+    )
+    if _orchestrate_page_support_spec is None or _orchestrate_page_support_spec.loader is None:
+        raise
+    _orchestrate_page_support_module = importlib.util.module_from_spec(_orchestrate_page_support_spec)
+    _orchestrate_page_support_spec.loader.exec_module(_orchestrate_page_support_module)
+    build_distribution_snippet = _orchestrate_page_support_module.build_distribution_snippet
+    build_install_snippet = _orchestrate_page_support_module.build_install_snippet
+    build_run_snippet = _orchestrate_page_support_module.build_run_snippet
+    compute_run_mode = _orchestrate_page_support_module.compute_run_mode
+    describe_run_mode = _orchestrate_page_support_module.describe_run_mode
+    optional_python_expr = _orchestrate_page_support_module.optional_python_expr
+    optional_string_expr = _orchestrate_page_support_module.optional_string_expr
+    reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
+    serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
+    update_distribution_payload = _orchestrate_page_support_module.update_distribution_payload
+    workplan_selection_key = _orchestrate_page_support_module.workplan_selection_key
 try:
     from agilab.orchestrate_cluster import (
         OrchestrateClusterDeps,
@@ -986,32 +1020,19 @@ async def page() -> None:
         if show_install:
             enabled = cluster_params.get("cluster_enabled", False)
             raw_scheduler = cluster_params.get("scheduler", "")
-            scheduler = f'"{str(raw_scheduler)}"' if enabled and raw_scheduler else "None"
+            scheduler = optional_string_expr(enabled, raw_scheduler)
             raw_workers = cluster_params.get("workers", "")
-            workers = str(raw_workers) if enabled and raw_workers else "None"
+            workers = optional_python_expr(enabled, raw_workers)
             raw_workers_data_path = cluster_params.get("workers_data_path", "")
-            workers_data_path = f'"{str(raw_workers_data_path)}"' if enabled and raw_workers_data_path else "None"
-            cmd = f"""
-import asyncio
-from pathlib import Path
-from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv
-
-APPS_PATH = "{env.apps_path}"
-APP = "{env.app}"
-
-async def main():
-    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={verbose})
-    res = await AGI.install(app_env, 
-                            modes_enabled={st.session_state.mode},
-                            scheduler={scheduler}, 
-                            workers={workers},
-                            workers_data_path={workers_data_path})
-    print(res)
-    return res
-
-if __name__ == "__main__":
-    asyncio.run(main())"""
+            workers_data_path = optional_string_expr(enabled, raw_workers_data_path)
+            cmd = build_install_snippet(
+                env=env,
+                verbose=verbose,
+                mode=st.session_state.mode,
+                scheduler=scheduler,
+                workers=workers,
+                workers_data_path=workers_data_path,
+            )
             st.code(cmd, language="python")
 
             install_expanded = st.session_state.get("_install_logs_expanded", True)
@@ -1147,10 +1168,7 @@ if __name__ == "__main__":
                         icon="⚠️",
                     )
 
-            args_serialized = ", ".join(
-                [f'{key}="{value}"' if isinstance(value, str) else f"{key}={value}"
-                 for key, value in st.session_state.app_settings["args"].items()]
-            )
+            args_serialized = serialize_args_payload(st.session_state.app_settings["args"])
             st.session_state["args_serialized"] = args_serialized
             if st.session_state.get("args_reload_required"):
                 del st.session_state["app_settings"]
@@ -1159,29 +1177,16 @@ if __name__ == "__main__":
             cluster_params = st.session_state.app_settings["cluster"]
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
-            scheduler = f'"{str(scheduler)}"' if enabled and scheduler else "None"
+            scheduler = optional_string_expr(enabled, scheduler)
             workers = cluster_params.get("workers", {})
-            workers = str(workers) if enabled and workers else "None"
-            cmd = f"""
-import asyncio
-from pathlib import Path
-from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv
-
-APPS_PATH = "{env.apps_path}"
-APP = "{env.app}"
-
-async def main():
-    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={verbose})
-    res = await AGI.get_distrib(app_env,
-                               scheduler={scheduler}, 
-                               workers={workers},
-                               {st.session_state.args_serialized})
-    print(res)
-    return res
-
-if __name__ == "__main__":
-    asyncio.run(main())"""
+            workers = optional_python_expr(enabled, workers)
+            cmd = build_distribution_snippet(
+                env=env,
+                verbose=verbose,
+                scheduler=scheduler,
+                workers=workers,
+                args_serialized=st.session_state.args_serialized,
+            )
             st.code(cmd, language="python")
             if st.button("CHECK distribute", key="preview_btn", type="primary"):
                 st.session_state.preview_tree = True
@@ -1238,26 +1243,25 @@ if __name__ == "__main__":
                                 with cols[0 if count % ncols == 0 else 2]:
                                     b1, b2 = st.columns(2)
                                     b1.text(f"{partition_key.title()} {partition} ({weights_key}: {size} {weights_unit})")
-                                    key = f"worker_partition_{partition}_{i}_{j}"
+                                    key = workplan_selection_key(partition, i, j)
                                     b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
                                 count += 1
                         if st.button("Apply", key="apply_btn", type="primary"):
-                            new_work_plan_metadata = [[] for _ in workers]
-                            new_work_plan = [[] for _ in workers]
-                            for i, (chunks, files_tree) in enumerate(zip(work_plan_metadata, work_plan)):
-                                for j, (chunk, files) in enumerate(zip(chunks, files_tree)):
-                                    key = f"worker_partition{chunk[0]}"
-                                    selected_worker = st.session_state.get(key)
-                                    if selected_worker and selected_worker in workers:
-                                        idx = workers.index(selected_worker)
-                                        new_work_plan_metadata[idx].append(chunk)
-                                        new_work_plan[idx].append(files)
+                            new_work_plan_metadata, new_work_plan = reassign_distribution_plan(
+                                workers=workers,
+                                work_plan_metadata=work_plan_metadata,
+                                work_plan=work_plan,
+                                selections=st.session_state,
+                            )
                             # Read & update the original JSON dict (avoid writing to the workers list)
                             with open(dist_tree_path, "r") as f:
                                 data = json.load(f)
-                            data["target_args"] = st.session_state.app_settings["args"]
-                            data["work_plan_metadata"] = new_work_plan_metadata
-                            data["work_plan"] = new_work_plan
+                            data = update_distribution_payload(
+                                data,
+                                target_args=st.session_state.app_settings["args"],
+                                work_plan_metadata=new_work_plan_metadata,
+                                work_plan=new_work_plan,
+                            )
                             with open(dist_tree_path, "w") as f:
                                 json.dump(data, f)
                             st.rerun()
@@ -1295,8 +1299,8 @@ if __name__ == "__main__":
         cluster_params = st.session_state.app_settings["cluster"]
         cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
         enabled = cluster_enabled
-        scheduler = f'"{cluster_params.get("scheduler")}"' if enabled and cluster_params.get("scheduler") else "None"
-        workers = str(cluster_params.get("workers")) if enabled and cluster_params.get("workers") else "None"
+        scheduler = optional_string_expr(enabled, cluster_params.get("scheduler"))
+        workers = optional_python_expr(enabled, cluster_params.get("workers"))
 
         if show_run_panel:
             with st.expander("Optimize execution"):
@@ -1326,56 +1330,28 @@ if __name__ == "__main__":
                     benchmark_enabled = False
                     st.warning("Benchmark requires Cluster, Pool, and Cython to be enabled together.")
 
-                def _compute_mode():
-                    return (
-                        int(cluster_params.get("pool", False))
-                        + int(cluster_params.get("cython", False)) * 2
-                        + int(cluster_enabled) * 4
-                        + int(cluster_params.get("rapids", False)) * 8
-                    )
-
                 if benchmark_enabled:
                     run_mode = None
-                    info_label = "Run mode benchmark (all modes)"
                 else:
-                    run_mode = _compute_mode()
-                    run_mode_label = [
-                        "0: python", "1: pool of process", "2: cython", "3: pool and cython",
-                        "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
-                        "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
-                        "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
-                        "15: rapids and dask and pool and cython",
-                    ]
-                    info_label = f"Run mode {run_mode_label[run_mode]}"
+                    run_mode = compute_run_mode(cluster_params, cluster_enabled)
+
+                info_label = describe_run_mode(run_mode, benchmark_enabled)
 
                 st.session_state["mode"] = run_mode
                 st.info(info_label)
 
                 verbose = cluster_params.get("verbose", 1)
                 enabled = cluster_enabled
-                scheduler = f'"{cluster_params.get("scheduler")}"' if enabled and cluster_params.get("scheduler") else "None"
-                workers = str(cluster_params.get("workers")) if enabled and cluster_params.get("workers") else "None"
-                cmd = textwrap.dedent(f"""
-    import asyncio
-    from pathlib import Path
-    from agi_cluster.agi_distributor import AGI
-    from agi_env import AgiEnv
-
-    APPS_PATH = "{env.apps_path}"
-    APP = "{env.app}"
-
-    async def main():
-        app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={verbose})
-        res = await AGI.run(app_env, 
-                            mode={run_mode if run_mode is not None else "None"}, 
-                            scheduler={scheduler}, 
-                            workers={workers}, 
-                            {st.session_state.args_serialized})
-        print(res)
-        return res
-
-    if __name__ == "__main__":
-        asyncio.run(main())""")
+                scheduler = optional_string_expr(enabled, cluster_params.get("scheduler"))
+                workers = optional_python_expr(enabled, cluster_params.get("workers"))
+                cmd = build_run_snippet(
+                    env=env,
+                    verbose=verbose,
+                    run_mode=run_mode,
+                    scheduler=scheduler,
+                    workers=workers,
+                    args_serialized=st.session_state.args_serialized,
+                )
                 st.code(cmd, language="python")
 
                 expand_benchmark = st.session_state.pop("_benchmark_expand", False)
