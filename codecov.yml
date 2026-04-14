@@ -1,9 +1,10 @@
 flags:
   agi-gui:
-    # App-layer surface only: Streamlit pages plus orchestration/pipeline helpers.
+    # App-layer surface only: Streamlit pages, apps-pages bundles, and orchestration/pipeline helpers.
     # The README "agilab" badge is the repo-wide aggregate; this flag isolates the GUI/app layer.
     paths:
       - src/agilab/pages
+      - src/agilab/apps-pages
       - src/agilab/orchestrate_cluster.py
       - src/agilab/orchestrate_distribution.py
       - src/agilab/orchestrate_execute.py

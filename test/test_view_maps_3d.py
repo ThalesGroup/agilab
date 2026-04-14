@@ -11,6 +11,17 @@ PAGE_PATH = "src/agilab/apps-pages/view_maps_3d/src/view_maps_3d/view_maps_3d.py
 MODULE_PATH = Path(PAGE_PATH)
 
 
+class _State(dict):
+    def __getattr__(self, item):
+        try:
+            return self[item]
+        except KeyError as exc:
+            raise AttributeError(item) from exc
+
+    def __setattr__(self, item, value):
+        self[item] = value
+
+
 def _load_view_maps_3d_module():
     spec = importlib.util.spec_from_file_location("view_maps_3d_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
@@ -54,6 +65,39 @@ def test_view_maps_3d_lists_dataset_files_sorted_without_duplicates(monkeypatch,
     assert listed == [b, a]
 
 
+def test_view_maps_3d_initializes_visible_dataset_files(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    datadir = tmp_path / "datasets"
+    visible = datadir / "visible.csv"
+    hidden = datadir / ".shadow" / "ignored.csv"
+
+    monkeypatch.setattr(module, "_list_dataset_files", lambda base_dir, ext_choice="all": [visible, hidden])
+    state = _State(datadir=datadir)
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+
+    module.initialize_csv_files()
+
+    assert state["dataset_files"] == [visible]
+    assert state["csv_files"] == [visible]
+    assert state["df_file"] == "visible.csv"
+
+
+def test_view_maps_3d_initializes_visible_beam_files(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    beamdir = tmp_path / "beams"
+    visible = beamdir / "beam.csv"
+    hidden = beamdir / ".shadow" / "ignored.csv"
+
+    monkeypatch.setattr(module, "find_files", lambda base: [visible, hidden])
+    state = _State(beamdir=beamdir)
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+
+    module.initialize_beam_files()
+
+    assert state["beam_csv_files"] == [visible]
+    assert state["beam_file"] == "beam.csv"
+
+
 def test_view_maps_3d_converts_hex_and_geojson_helpers() -> None:
     module = _load_view_maps_3d_module()
     geojson_data = {
@@ -83,6 +127,33 @@ def test_view_maps_3d_converts_hex_and_geojson_helpers() -> None:
     assert list(df.columns) == ["polygon_index", "longitude", "latitude"]
     assert len(df) == 8
     assert set(df["polygon_index"]) == {0, 1}
+
+
+def test_view_maps_3d_get_palette_and_update_beamdir(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    messages: list[str] = []
+    monkeypatch.setattr(module.st, "error", lambda message: messages.append(message))
+
+    assert module.get_palette("Plotly")
+    assert module.get_palette("NoSuchPalette") == []
+    assert messages and "Palette 'NoSuchPalette' not found." in messages[-1]
+
+    state = _State(
+        beamdir="old",
+        beam_file="old.csv",
+        beam_csv_files=["old.csv"],
+        input_beamdir=str(tmp_path / "new_beams"),
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(module, "initialize_beam_files", lambda: calls.append("called"))
+
+    module.update_beamdir("beamdir", "input_beamdir")
+
+    assert "beam_file" not in state
+    assert "beam_csv_files" not in state
+    assert state["beamdir"] == str(tmp_path / "new_beams")
+    assert calls == ["called"]
 
 
 def test_view_maps_3d_update_datadir_clears_cached_dataset_state(monkeypatch) -> None:
