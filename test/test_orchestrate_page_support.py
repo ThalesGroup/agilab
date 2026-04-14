@@ -136,3 +136,45 @@ def test_update_distribution_payload_replaces_target_args_and_plan():
         "work_plan_metadata": [[("A", 1)]],
         "work_plan": [[["a.csv"]]],
     }
+
+
+def test_strip_ansi_removes_escape_sequences():
+    assert orchestrate_page_support.strip_ansi("\x1b[31merror\x1b[0m") == "error"
+
+
+def test_is_dask_shutdown_noise_matches_known_lines():
+    assert orchestrate_page_support.is_dask_shutdown_noise("Stream is closed")
+    assert orchestrate_page_support.is_dask_shutdown_noise("File \"/usr/local/lib/python3.11/site-packages/distributed/comm.py\", line 1")
+    assert orchestrate_page_support.is_dask_shutdown_noise("Traceback (most recent call last):")
+
+
+def test_filter_noise_lines_removes_shutdown_lines_and_keeps_others():
+    text = "\n".join(
+        [
+            "normal message",
+            "StreamClosedError",
+            "another line",
+            "stream is closed",
+        ]
+    )
+    assert orchestrate_page_support.filter_noise_lines(text) == "normal message\nanother line"
+
+
+def test_format_log_block_orders_latest_first_and_limits():
+    text = "\n".join(f"line {i}" for i in range(1, 6))
+    assert orchestrate_page_support.format_log_block(text, newest_first=True, max_lines=3) == "line 5\nline 4\nline 3"
+    assert orchestrate_page_support.format_log_block(text, newest_first=False, max_lines=3) == "line 3\nline 4\nline 5"
+
+
+def test_filter_warning_messages_removes_virtual_env_mismatch():
+    log = "\n".join(
+        [
+            "normal warning",
+            "VIRTUAL_ENV=/tmp/.venv does not match the project environment path",
+            "final",
+        ]
+    )
+    assert (
+        orchestrate_page_support.filter_warning_messages(log)
+        == "normal warning\nfinal"
+    )
