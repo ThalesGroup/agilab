@@ -628,14 +628,14 @@ def _ensure_uoaic_runtime(
 
     try:
         embedding_model = embedding.get_embedding_model()
-    except Exception as exc:
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
         raise RuntimeError(f"Failed to load the embedding model for Universal Offline AI Chatbot: {exc}") from exc
     db_directory = Path(db_path)
     if rebuild_requested or not db_directory.exists():
         with spinner("Building Universal Offline AI Chatbot knowledge base…"):
             try:
                 documents = loader.load_pdf_files(str(data_path))
-            except Exception as exc:
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 raise RuntimeError(f"Unable to load PDF documents from {data_path}: {exc}") from exc
 
             if not documents:
@@ -645,17 +645,17 @@ def _ensure_uoaic_runtime(
                 chunks = chunker.create_chunks(documents)
                 db_directory.parent.mkdir(parents=True, exist_ok=True)
                 vectorstore.build_vector_db(chunks, embedding_model, str(db_path))
-            except Exception as exc:
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 raise RuntimeError(f"Failed to build the Universal Offline vector store: {exc}") from exc
 
     with spinner("Loading Universal Offline AI Chatbot artifacts…"):
         try:
             db = vectorstore.load_vector_db(str(db_path), embedding_model)
-        except Exception as exc:
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
             raise RuntimeError(f"Failed to load the Universal Offline vector store at {db_path}: {exc}") from exc
         try:
             llm = model_loader.load_llm()
-        except Exception as exc:
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             raise RuntimeError(f"Failed to load the local Ollama model used by Universal Offline AI Chatbot: {exc}") from exc
 
         model_label = ""
@@ -670,7 +670,7 @@ def _ensure_uoaic_runtime(
         prompt_template = prompts.set_custom_prompt(prompts.CUSTOM_PROMPT_TEMPLATE)
         try:
             chain = qa_chain.setup_qa_chain(llm, db, prompt_template)
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             raise RuntimeError(f"Failed to initialise the Universal Offline AI Chatbot chain: {exc}") from exc
 
     runtime = {
@@ -802,7 +802,7 @@ def _exec_code_on_df(code: str, df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame
         exec(compiled, restricted_globals, local_vars)
     except _UnsafeCodeError:
         raise
-    except Exception:
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError, NameError, KeyError, IndexError, ArithmeticError, OverflowError, LookupError):
         return None, traceback.format_exc()
     updated = local_vars.get("df")
     if isinstance(updated, pd.DataFrame):
