@@ -44,6 +44,7 @@ from agi_cluster.agi_distributor import (
     deployment_orchestration_support,
     deployment_prepare_support,
     deployment_remote_support,
+    runtime_distribution_support,
     service_runtime_support,
     transport_support,
 )
@@ -1949,124 +1950,28 @@ class AGI:
 
     @staticmethod
     def _dask_env_prefix() -> str:
-        level = AGI._dask_log_level
-        if not level:
-            return ""
-        env_vars = [
-            f"DASK_DISTRIBUTED__LOGGING__distributed={level}",
-        ]
-        return "".join(f"{var} " for var in env_vars)
+        return runtime_distribution_support.dask_env_prefix(AGI)
 
     @staticmethod
     async def _start(scheduler: Optional[str]) -> bool:
-        """_start(
-        Start Dask workers locally and remotely,
-        launching remote workers detached in background,
-        compatible with Windows and POSIX.
-        """
-        env = AGI.env
-        dask_env = AGI._dask_env_prefix()
-
-        # Start scheduler first
-        if not await AGI._start_scheduler(scheduler):
-            return False
-
-        for i, (ip, n) in enumerate(AGI._workers.items()):
-            is_local = env.is_local(ip)
-            cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-            if not cmd_prefix:
-                try:
-                    cmd_prefix = await AGI._detect_export_cmd(ip) or ""
-                except Exception:
-                    cmd_prefix = ""
-                if cmd_prefix:
-                    AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-
-            for j in range(n):
-                try:
-                    logger.info(f"Starting worker #{i}.{j} on [{ip}]")
-                    pid_file = f"dask_worker_{i}_{j}.pid"
-                    if is_local:
-                        wenv_abs = env.wenv_abs
-                        cmd = (
-                            f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_abs} run --no-sync '
-                            f'dask worker '
-                            f'tcp://{AGI._scheduler} --no-nanny '
-                            f'--pid-file {wenv_abs / pid_file}'
-                        )
-                        # Run locally in background (non-blocking)
-                        AGI._exec_bg(cmd, str(wenv_abs))
-                    else:
-                        wenv_rel = env.wenv_rel
-                        cmd = (
-                            f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync '
-                            f'dask worker '
-                            f'tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
-                        )
-                        asyncio.create_task(AGI.exec_ssh_async(ip, cmd))
-                        logger.info(f"Launched remote worker in background on {ip}: {cmd}")
-
-                except Exception as e:
-                    logger.error(f"Failed to start worker on {ip}: {e}")
-                    raise
-
-                if AGI._worker_init_error:
-                    raise FileNotFoundError(f"Please run AGI.install([{ip}])")
-
-        await AGI._sync(timeout=AGI._TIMEOUT)
-
-        if not AGI._mode_auto or (AGI._mode_auto and AGI._mode == 0):
-            await AGI._build_lib_remote()
-            if AGI._mode & AGI.DASK_MODE:
-                # load lib
-                for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
-                    AGI._dask_client.upload_file(str(egg_file))
+        return await runtime_distribution_support.start(
+            AGI,
+            scheduler,
+            set_env_var_fn=AgiEnv.set_env_var,
+            create_task_fn=asyncio.create_task,
+            log=logger,
+        )
 
     @staticmethod
     async def _sync(timeout: int = 60) -> None:
-        if not isinstance(AGI._dask_client, Client):
-            return
-        start = time.time()
-        expected_workers = sum(AGI._workers.values())
-
-        while True:
-            try:
-                info = AGI._dask_client.scheduler_info()
-                workers_info = info.get("workers")
-                if workers_info is None:
-                    logger.info("Scheduler info 'workers' not ready yet.")
-                    await asyncio.sleep(3)
-                    if time.time() - start > timeout:
-                        logger.error(f"Timeout waiting for scheduler workers info.")
-                        raise TimeoutError("Timed out waiting for scheduler workers info")
-                    continue
-
-                runners = list(workers_info.keys())
-                current_count = len(runners)
-                remaining = expected_workers - current_count
-
-                if runners:
-                    logger.info(f"Current workers connected: {runners}")
-                logger.info(f"Waiting for number of workers to attach: {remaining} remaining...")
-
-                if current_count >= expected_workers:
-                    break
-
-                if remaining <= 0:
-                    break
-
-                if time.time() - start > timeout:
-                    logger.error("Timeout waiting for all workers. {remaining} workers missing.")
-                    raise TimeoutError("Timed out waiting for all workers to attach")
-                await asyncio.sleep(3)
-
-            except Exception as e:
-                logger.info(f"Exception in _sync: {e}")
-                await asyncio.sleep(1)
-                if time.time() - start > timeout:
-                    raise TimeoutError(f"Timeout waiting for all workers due to exception: {e}")
-
-        logger.info("All workers successfully attached to scheduler")
+        await runtime_distribution_support.sync(
+            AGI,
+            timeout=timeout,
+            client_type=Client,
+            sleep_fn=asyncio.sleep,
+            time_fn=time.time,
+            log=logger,
+        )
 
     @staticmethod
     async def _build_lib_local():
@@ -2143,206 +2048,38 @@ class AGI:
 
     @staticmethod
     async def _distribute() -> str:
-        """
-        workers run calibration and targets job
-        """
-        env = AGI.env
-
-        # AGI distribute work on cluster
-        AGI._dask_workers = [
-            worker.split("/")[-1]
-            for worker in list(AGI._dask_client.scheduler_info()["workers"].keys())
-        ]
-        logger.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
-
-        AGI._workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(
-            env, AGI._workers, AGI._args
+        return await runtime_distribution_support.distribute(
+            AGI,
+            work_dispatcher_cls=WorkDispatcher,
+            base_worker_cls=BaseWorker,
+            time_fn=time.time,
+            log=logger,
         )
-        AGI._work_plan = workers_plan
-        AGI._work_plan_metadata = workers_plan_metadata
-
-        AGI._scale_cluster()
-
-        if AGI._mode == AGI._INSTALL_MODE:
-            workers_plan
-
-        dask_workers = list(AGI._dask_workers)
-        client = AGI._dask_client
-
-        AGI._dask_client.gather(
-            [
-                client.submit(
-                    BaseWorker._new,
-                    env=0 if env.debug else None,
-                    app=env.target_worker,
-                    mode=AGI._mode,
-                    verbose=AGI.verbose,
-                    worker_id=dask_workers.index(worker),
-                    worker=worker,
-                    args=AGI._args,
-                    workers=[worker],
-                )
-                for worker in dask_workers
-            ]
-        )
-
-        await AGI._calibration()
-
-        t = time.time()
-
-        futures = {}
-        for worker_idx, worker_addr in enumerate(dask_workers):
-            plan_payload = AGI._wrap_worker_chunk(workers_plan or [], worker_idx)
-            metadata_payload = AGI._wrap_worker_chunk(workers_plan_metadata or [], worker_idx)
-            futures[worker_addr] = client.submit(
-                BaseWorker._do_works,
-                plan_payload,
-                metadata_payload,
-                workers=[worker_addr],
-            )
-
-        gathered_logs = client.gather(list(futures.values())) if futures else []
-        worker_logs: Dict[str, str] = {}
-        for idx, worker_addr in enumerate(futures.keys()):
-            log_value = gathered_logs[idx] if idx < len(gathered_logs) else ""
-            worker_logs[worker_addr] = log_value or ""
-        if AGI.debug and not worker_logs:
-            worker_logs = {worker: "" for worker in dask_workers}
-
-        # LOG ONLY, no print:
-        for worker, log in worker_logs.items():
-            logger.info(f"\n=== Worker {worker} logs ===\n{log}")
-
-        runtime = time.time() - t
-        logger.info(f"{env.mode2str(AGI._mode)} {runtime}")
-        return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
     async def _main(scheduler: Optional[str]) -> Any:
-        cond_clean = True
-
-        AGI._jobs = bg.BackgroundJobManager()
-
-        if (AGI._mode & AGI._DEPLOYEMENT_MASK) == AGI._SIMULATE_MODE:
-            # case simulate mode #0b11xxxx
-            res = await AGI._run()
-
-        elif AGI._mode >= AGI._INSTALL_MODE:
-            # case install modes
-            t = time.time()
-
-            AGI._clean_dirs_local()
-            await AGI._prepare_local_env()
-
-            if AGI._mode & AGI.DASK_MODE:
-                await AGI._prepare_cluster_env(scheduler)
-
-            await AGI._deploy_application(scheduler)
-
-            res = time.time() - t
-
-        elif (AGI._mode & AGI._DEPLOYEMENT_MASK) == AGI._SIMULATE_MODE:
-            # case simulate mode #0b11xxxx
-            res = await AGI._run()
-
-        elif AGI._mode & AGI.DASK_MODE:
-
-            await AGI._start(scheduler)
-
-            res = await AGI._distribute()
-            AGI._update_capacity()
-
-            # stop the cluster
-            await AGI._stop()
-        else:
-            # case local run
-            res = await AGI._run()
-
-        AGI._clean_job(cond_clean)
-
-        return res
+        return await runtime_distribution_support.main(
+            AGI,
+            scheduler,
+            background_job_manager_factory=bg.BackgroundJobManager,
+            time_fn=time.time,
+        )
 
     @staticmethod
     def _clean_job(cond_clean: bool) -> None:
-        """
-
-        Args:
-          cond_clean:
-
-        Returns:
-
-        """
-        # clean background job
-        if AGI._jobs and cond_clean:
-            if AGI.verbose:
-                AGI._jobs.flush()
-            else:
-                with open(os.devnull, "w") as f, redirect_stdout(f), redirect_stderr(f):
-                    AGI._jobs.flush()
+        runtime_distribution_support.clean_job(AGI, cond_clean)
 
     @staticmethod
     def _scale_cluster() -> None:
-        """Remove unnecessary workers"""
-        if AGI._dask_workers:
-            nb_kept_workers = {}
-            workers_to_remove = []
-            for dask_worker in AGI._dask_workers:
-                ip = dask_worker.split(":")[0]
-                if ip in AGI._workers:
-                    if ip not in nb_kept_workers:
-                        nb_kept_workers[ip] = 0
-                    if nb_kept_workers[ip] >= AGI._workers[ip]:
-                        workers_to_remove.append(dask_worker)
-                    else:
-                        nb_kept_workers[ip] += 1
-                else:
-                    workers_to_remove.append(dask_worker)
-
-            if workers_to_remove:
-                logger.info(f"unused workers: {len(workers_to_remove)}")
-                for worker in workers_to_remove:
-                    AGI._dask_workers.remove(worker)
+        runtime_distribution_support.scale_cluster(AGI, log=logger)
 
     @staticmethod
     async def _stop() -> None:
-        """Stop the Dask workers and scheduler"""
-        env = AGI.env
-        logger.info("stop Agi core")
-
-        retire_attempts = 0
-        while retire_attempts < AGI._TIMEOUT:
-            try:
-                scheduler_info = await AGI._dask_client.scheduler_info()
-            except Exception as exc:
-                logger.debug("Unable to fetch scheduler info during shutdown: %s", exc)
-                break
-
-            workers = scheduler_info.get("workers") or {}
-            if not workers:
-                break
-
-            retire_attempts += 1
-            try:
-                await AGI._dask_client.retire_workers(
-                    workers=list(workers.keys()),
-                    close_workers=True,
-                    remove=True,
-                )
-            except Exception as exc:
-                logger.debug("retire_workers failed: %s", exc)
-                break
-
-            await asyncio.sleep(1)
-
-        try:
-            if (
-                AGI._mode_auto and (AGI._mode == 7 or AGI._mode == 15)
-            ) or not AGI._mode_auto:
-                await AGI._dask_client.shutdown()
-        except Exception as exc:
-            logger.debug("Dask client shutdown raised: %s", exc)
-
-        await AGI._close_all_connections()
+        await runtime_distribution_support.stop(
+            AGI,
+            sleep_fn=asyncio.sleep,
+            log=logger,
+        )
 
     @staticmethod
     async def _calibration() -> None:
@@ -2358,18 +2095,7 @@ class AGI:
 
     @staticmethod
     def _exec_bg(cmd: str, cwd: str) -> None:
-        """
-        Execute background command
-        Args:
-            cmd: the command to be run
-            cwd: the current working directory
-
-        Returns:
-            """
-        job = AGI._jobs.new(cmd, cwd=cwd)
-        job_id = getattr(job, "num", 0)
-        if not AGI._jobs.result(job_id):
-            raise RuntimeError(f"running {cmd} at {cwd}")
+        runtime_distribution_support.exec_bg(AGI, cmd, cwd)
 
     @asynccontextmanager
     async def get_ssh_connection(ip: str, timeout_sec: int = 5):
