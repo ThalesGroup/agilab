@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import ast
+import importlib
+import importlib.metadata as importlib_metadata
+import sys
 import os
 import re
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from contextlib import contextmanager, nullcontext
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 import pandas as pd
 
@@ -321,6 +325,228 @@ def normalize_user_path(raw_path: str) -> str:
     except (OSError, RuntimeError):
         resolved = candidate.absolute()
     return normalize_path(resolved)
+
+
+def _resolve_uoaic_path(raw_path: str, base_dir: Optional[Path] = None) -> Path:
+    """Resolve a path in relation to an optional base directory."""
+    path_str = (raw_path or "").strip()
+    if not path_str:
+        raise ValueError("Path is empty.")
+
+    candidate = Path(path_str).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+
+    base = base_dir if base_dir is not None else Path.cwd()
+    return (base / candidate).resolve()
+
+
+def _load_uoaic_modules() -> Tuple[Any, ...]:
+    """Import Universal Offline AI Chatbot modules with detailed diagnostics."""
+    try:
+        dist = importlib_metadata.distribution("universal-offline-ai-chatbot")
+    except importlib_metadata.PackageNotFoundError as exc:
+        raise RuntimeError(
+            "Install `universal-offline-ai-chatbot` (e.g. `uv pip install \"agilab[offline]\"`) "
+            "to enable the local (Ollama) assistant."
+        ) from exc
+
+    site_root = Path(dist.locate_file(""))
+    if site_root.is_file():
+        site_root = site_root.parent
+    candidate_dirs = {
+        site_root,
+        site_root.parent if site_root.name.endswith(".dist-info") else site_root,
+        (site_root.parent if site_root.name.endswith(".dist-info") else site_root) / "src",
+    }
+    for path in candidate_dirs:
+        if path and path.exists():
+            str_path = str(path.resolve())
+            if str_path not in sys.path:
+                sys.path.append(str_path)
+
+    module_names = (
+        "src.chunker",
+        "src.embedding",
+        "src.loader",
+        "src.model_loader",
+        "src.prompts",
+        "src.qa_chain",
+        "src.vectorstore",
+    )
+
+    imported_modules: List[Any] = []
+    for name in module_names:
+        try:
+            imported_modules.append(importlib.import_module(name))
+            continue
+        except ImportError as exc:
+            # Fallback: load the module directly from files inside the wheel
+            short = name.split(".")[-1]
+            file_path: Optional[Path] = None
+            files = getattr(dist, "files", None)
+            if files:
+                for entry in files:
+                    if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
+                        file_path = Path(dist.locate_file(entry))
+                        break
+            if not file_path:
+                try:
+                    rec = dist.read_text("RECORD") or ""
+                except (OSError, RuntimeError):
+                    rec = ""
+                for line in rec.splitlines():
+                    if line.startswith("src/") and line.endswith(".py") and line.split(",", 1)[0].endswith(f"src/{short}.py"):
+                        rel = line.split(",", 1)[0]
+                        file_path = Path(dist.locate_file(rel))
+                        break
+
+            if file_path and file_path.exists():
+                alias = f"uoaic_{short}"
+                try:
+                    spec = importlib.util.spec_from_file_location(alias, str(file_path))
+                    if spec and spec.loader:
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        imported_modules.append(module)
+                        continue
+                except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
+                    # Fall through to messaging below.
+                    pass
+
+            missing = getattr(exc, "name", "") or ""
+            if missing and missing != name:
+                raise RuntimeError(
+                    f"Missing dependency `{missing}` required by universal-offline-ai-chatbot. "
+                    "Install the offline extras with `uv pip install \"agilab[offline]\"` or "
+                    "`uv pip install universal-offline-ai-chatbot`."
+                ) from exc
+
+            raise RuntimeError(
+                "Failed to load Universal Offline AI Chatbot module files. Ensure the package is installed in "
+                "the same environment running Streamlit. You can force a reinstall with "
+                "`uv pip install --force-reinstall universal-offline-ai-chatbot`."
+            ) from exc
+
+    return tuple(imported_modules)
+
+
+def _ensure_uoaic_runtime(
+    envars: Dict[str, str],
+    *,
+    session_state: Dict[str, Any],
+    resolve_uoaic_path: Callable[[str, Optional[Path]], Path],
+    load_uoaic_modules: Callable[[], Tuple[Any, ...]],
+    runtime_state_key: str,
+    data_state_key: str,
+    db_state_key: str,
+    rebuild_state_key: str,
+    data_env_key: str,
+    db_env_key: str,
+    model_env_key: str,
+    default_db_dirname: str,
+    spinner: Callable[[str], Any] = nullcontext,
+    base_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Build or reuse Universal Offline AI Chatbot runtime artifacts."""
+    data_path_raw = (
+        session_state.get(data_state_key)
+        or envars.get(data_env_key)
+        or os.getenv(data_env_key, "")
+    )
+    if not data_path_raw:
+        raise ValueError("Configure the Universal Offline data directory in the sidebar to enable this provider.")
+
+    try:
+        data_path = resolve_uoaic_path(data_path_raw, base_dir=base_dir)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid Universal Offline data directory: {exc}") from exc
+    normalized_data = normalize_path(data_path)
+    session_state[data_state_key] = normalized_data
+    envars[data_env_key] = normalized_data
+
+    db_path_raw = (
+        session_state.get(db_state_key)
+        or envars.get(db_env_key)
+        or os.getenv(db_env_key, "")
+    )
+    if not db_path_raw:
+        db_path_raw = normalize_path(Path(data_path) / default_db_dirname)
+
+    try:
+        db_path = resolve_uoaic_path(db_path_raw, base_dir=base_dir)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid Universal Offline vector store directory: {exc}") from exc
+    normalized_db = normalize_path(db_path)
+    session_state[db_state_key] = normalized_db
+    envars[db_env_key] = normalized_db
+
+    runtime = session_state.get(runtime_state_key)
+    if runtime and runtime.get("data_path") == normalized_data and runtime.get("db_path") == normalized_db:
+        return runtime
+
+    rebuild_requested = bool(session_state.pop(rebuild_state_key, False))
+    chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore = load_uoaic_modules()
+
+    try:
+        embedding_model = embedding.get_embedding_model()
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load the embedding model for Universal Offline AI Chatbot: {exc}") from exc
+    db_directory = Path(db_path)
+    if rebuild_requested or not db_directory.exists():
+        with spinner("Building Universal Offline AI Chatbot knowledge base…"):
+            try:
+                documents = loader.load_pdf_files(str(data_path))
+            except Exception as exc:
+                raise RuntimeError(f"Unable to load PDF documents from {data_path}: {exc}") from exc
+
+            if not documents:
+                raise RuntimeError(f"No PDF documents found in {data_path}. Add PDFs and rebuild the index.")
+
+            try:
+                chunks = chunker.create_chunks(documents)
+                db_directory.parent.mkdir(parents=True, exist_ok=True)
+                vectorstore.build_vector_db(chunks, embedding_model, str(db_path))
+            except Exception as exc:
+                raise RuntimeError(f"Failed to build the Universal Offline vector store: {exc}") from exc
+
+    with spinner("Loading Universal Offline AI Chatbot artifacts…"):
+        try:
+            db = vectorstore.load_vector_db(str(db_path), embedding_model)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to load the Universal Offline vector store at {db_path}: {exc}") from exc
+        try:
+            llm = model_loader.load_llm()
+        except Exception as exc:
+            raise RuntimeError(f"Failed to load the local Ollama model used by Universal Offline AI Chatbot: {exc}") from exc
+
+        model_label = ""
+        for attr in ("model_name", "model", "model_id", "model_path", "name"):
+            value = getattr(llm, attr, None)
+            if value:
+                model_label = str(value)
+                break
+        if not model_label:
+            model_label = str(envars.get(model_env_key) or "universal-offline")
+
+        prompt_template = prompts.set_custom_prompt(prompts.CUSTOM_PROMPT_TEMPLATE)
+        try:
+            chain = qa_chain.setup_qa_chain(llm, db, prompt_template)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialise the Universal Offline AI Chatbot chain: {exc}") from exc
+
+    runtime = {
+        "data_path": normalized_data,
+        "db_path": normalized_db,
+        "chain": chain,
+        "embedding_model": embedding_model,
+        "vector_store": db,
+        "llm": llm,
+        "prompt": prompt_template,
+        "model_label": model_label,
+    }
+    session_state[runtime_state_key] = runtime
+    return runtime
 
 
 _BLOCKED_BUILTINS = frozenset({

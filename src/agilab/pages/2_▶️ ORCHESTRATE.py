@@ -46,6 +46,7 @@ try:
         clear_cached_distribution as _orchestrate_clear_cached_distribution,
         clear_log as _orchestrate_clear_log,
         clear_mount_table_cache as _orchestrate_clear_mount_table_cache,
+        append_log_lines as _orchestrate_append_log_lines,
         init_session_state as _orchestrate_init_session_state,
         app_install_status as _orchestrate_app_install_status,
         is_app_installed as _orchestrate_is_app_installed,
@@ -90,6 +91,7 @@ except ModuleNotFoundError:
     _orchestrate_clear_cached_distribution = _orchestrate_page_support_module.clear_cached_distribution
     _orchestrate_clear_log = _orchestrate_page_support_module.clear_log
     _orchestrate_clear_mount_table_cache = _orchestrate_page_support_module.clear_mount_table_cache
+    _orchestrate_append_log_lines = _orchestrate_page_support_module.append_log_lines
     _orchestrate_init_session_state = _orchestrate_page_support_module.init_session_state
     _orchestrate_app_install_status = _orchestrate_page_support_module.app_install_status
     _orchestrate_is_app_installed = _orchestrate_page_support_module.is_app_installed
@@ -311,32 +313,14 @@ def _reset_traceback_skip() -> None:
 
 
 def _append_log_lines(buffer: list[str], payload: str) -> None:
-    """
-    Append cleaned lines from ``payload`` to ``buffer`` while filtering out
-    Dask shutdown chatter. Suppresses multi-line tracebacks emitted during
-    scheduler shutdown by skipping until the next blank line (only when verbosity < 2).
-    """
-    filtered = strip_ansi(payload or "")
-    if st.session_state.get('cluster_verbose', 1) < 2:
-        skip = _TRACEBACK_SKIP["active"]
-        for raw_line in filtered.splitlines():
-            stripped = raw_line.rstrip()
-            lowered = stripped.lower()
-            if skip:
-                if not stripped:
-                    skip = False
-                continue
-            if lowered.startswith("traceback (most recent call last"):
-                skip = True
-                continue
-            if stripped and not is_dask_shutdown_noise(stripped):
-                buffer.append(stripped)
-        _TRACEBACK_SKIP["active"] = skip
-    else:
-        for raw_line in filtered.splitlines():
-            stripped = raw_line.rstrip()
-            if stripped:
-                buffer.append(stripped)
+    """Delegate to support helper to keep log filtering behavior centralized."""
+    _orchestrate_append_log_lines(
+        buffer,
+        payload,
+        cluster_verbose=st.session_state.get("cluster_verbose", 1),
+        traceback_state=_TRACEBACK_SKIP,
+        is_dask_shutdown_noise_fn=is_dask_shutdown_noise,
+    )
 
 
 def _log_indicates_install_failure(lines: list[str]) -> bool:

@@ -4,7 +4,7 @@ import json
 import re
 import os
 import textwrap
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -310,6 +310,43 @@ def _build_agi_snippet(
             asyncio.run(main())
         """
     ).strip()
+
+
+def append_log_lines(
+    buffer: list[str],
+    payload: str,
+    *,
+    cluster_verbose: int,
+    traceback_state: MutableMapping[str, bool],
+    is_dask_shutdown_noise_fn: Callable[[str], bool] = is_dask_shutdown_noise,
+) -> None:
+    """
+    Append filtered log lines to a mutable log buffer.
+
+    At low verbosity, skip traceback sections and Dask shutdown noise while
+    preserving skip state across calls through ``traceback_state``.
+    """
+    filtered = strip_ansi(payload or "")
+    if cluster_verbose < 2:
+        skip = bool(traceback_state.get("active", False))
+        for raw_line in filtered.splitlines():
+            stripped = raw_line.rstrip()
+            lowered = stripped.lower()
+            if skip:
+                if not stripped:
+                    skip = False
+                continue
+            if lowered.startswith("traceback (most recent call last"):
+                skip = True
+                continue
+            if stripped and not is_dask_shutdown_noise_fn(stripped):
+                buffer.append(stripped)
+        traceback_state["active"] = skip
+    else:
+        for raw_line in filtered.splitlines():
+            stripped = raw_line.rstrip()
+            if stripped:
+                buffer.append(stripped)
 
 
 def init_session_state(session_state: Mapping[str, Any], defaults: Mapping[str, Any]) -> None:

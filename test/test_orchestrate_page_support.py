@@ -184,3 +184,16 @@ def test_log_indicates_install_failure():
     assert not orchestrate_page_support.log_indicates_install_failure(["all good", "installation complete"])
     assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "error", "connection"])
     assert not orchestrate_page_support.log_indicates_install_failure([])
+
+
+def test_append_log_lines_filters_tracebacks_and_dask_noise():
+    buffer: list[str] = []
+    state = {"active": False}
+    orchestrate_page_support.append_log_lines(
+        buffer,
+        "\n".join(["normal", "Traceback (most recent call last):", "stream is closed", "", "next"]),
+        cluster_verbose=1,
+        traceback_state=state,
+    )
+    assert buffer == ["normal", "next"]
+    assert state["active"] is False
