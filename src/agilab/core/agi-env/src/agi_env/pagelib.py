@@ -68,6 +68,17 @@ from .pagelib_data_support import (
     read_file_lines as _read_file_lines_impl,
     scan_dir as _scan_dir_impl,
 )
+from .pagelib_navigation_support import (
+    active_app_candidates,
+    build_project_selection,
+    build_sidebar_dataframe_selection,
+    clear_dataframe_selection_state,
+    copy_widget_value,
+    ensure_csv_files_state,
+    normalize_query_param_value,
+    resolve_default_selection,
+    resolve_selected_df_path,
+)
 logger = logging.getLogger(__name__)
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
@@ -1141,18 +1152,8 @@ def initialize_csv_files():
     """
     Initialize CSV files in the data directory.
     """
-    dataset_key = "dataset_files"
-    if "csv_files" not in st.session_state or not st.session_state["csv_files"]:
-        st.session_state["csv_files"] = find_files(st.session_state.datadir)
-    # Keep dataset_files in sync for legacy consumers
-    if dataset_key not in st.session_state:
-        st.session_state[dataset_key] = list(st.session_state["csv_files"])
-    if "df_file" not in st.session_state or not st.session_state["df_file"]:
-        csv_files_rel = [
-            Path(file).relative_to(st.session_state.datadir).as_posix()
-            for file in st.session_state.csv_files
-        ]
-        st.session_state["df_file"] = csv_files_rel[0] if csv_files_rel else None
+    discovered_files = st.session_state.get("csv_files") or find_files(st.session_state.datadir)
+    ensure_csv_files_state(st.session_state, Path(st.session_state.datadir), discovered_files)
 
 
 def update_var(var_key, widget_key):
@@ -1164,7 +1165,7 @@ def update_var(var_key, widget_key):
     Returns:
         Description of the return value.
     """
-    st.session_state[var_key] = st.session_state[widget_key]
+    copy_widget_value(st.session_state, var_key, widget_key)
 
 
 def update_datadir(var_key, widget_key):
@@ -1175,9 +1176,7 @@ def update_datadir(var_key, widget_key):
         var_key: The key of the variable to update.
         widget_key: The key of the widget whose value will be used.
     """
-    for key in ("df_file", "csv_files", "dataset_files"):
-        if key in st.session_state:
-            del st.session_state[key]
+    clear_dataframe_selection_state(st.session_state)
     update_var(var_key, widget_key)
     initialize_csv_files()
 
@@ -1200,36 +1199,23 @@ def select_project(projects, current_project):
         except (OSError, TypeError, RuntimeError):
             pass
 
-    search_term = st.sidebar.text_input("Filter projects", key="project_filter").strip().lower()
-
-    if search_term:
-        filtered_projects = [p for p in projects if search_term in p.lower()]
-        total_matches = len(filtered_projects)
-    else:
-        filtered_projects = projects
-        total_matches = len(projects)
-
-    shortlist = list(filtered_projects[:50])
-
-    if current_project and current_project in filtered_projects and current_project not in shortlist:
-        shortlist = [current_project] + [p for p in shortlist if p != current_project]
+    search_term = st.sidebar.text_input("Filter projects", key="project_filter")
+    selection_state = build_project_selection(projects, current_project, search_term, limit=50)
+    shortlist = selection_state.shortlist
 
     if not shortlist:
         st.sidebar.info("No projects match that filter.")
         return
 
-    if search_term and total_matches > len(shortlist):
-        st.sidebar.caption(f"Showing first {len(shortlist)} of {total_matches} matches")
-
-    try:
-        default_index = shortlist.index(current_project)
-    except ValueError:
-        default_index = 0
+    if selection_state.needs_caption:
+        st.sidebar.caption(
+            f"Showing first {len(shortlist)} of {selection_state.total_matches} matches"
+        )
 
     selection = st.sidebar.selectbox(
         "Project name",
         shortlist,
-        index=default_index,
+        index=selection_state.default_index,
         key="project_selectbox",
     )
 
@@ -1244,41 +1230,15 @@ def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bo
     Returns (current_project_name, project_changed)
     """
     project_changed = False
-    requested = st.query_params.get("active_app")
-    if isinstance(requested, list):
-        requested_val = requested[-1] if requested else None
-    elif requested is not None:
-        requested_val = requested
-    else:
-        requested_val = None
-
-    def _candidates(name: str) -> list[Path]:
-        base = preferred_base or Path(env.apps_path)
-        builtin_base = Path(env.apps_path) / "builtin"
-        cands = [
-            Path(name).expanduser(),
-            base / name,
-            base / f"{name}_project",
-            Path(env.apps_path) / name,
-            Path(env.apps_path) / f"{name}_project",
-            builtin_base / name,
-            builtin_base / f"{name}_project",
-        ]
-        for proj_name in env.projects or []:
-            if proj_name == name or proj_name.replace("_project", "") == name:
-                cands.extend(
-                    [
-                        Path(env.apps_path) / proj_name,
-                        Path(env.apps_path) / f"{proj_name}_project",
-                        builtin_base / proj_name,
-                        builtin_base / f"{proj_name}_project",
-                    ]
-                )
-                break
-        return cands
+    requested_val = normalize_query_param_value(st.query_params.get("active_app"))
 
     if requested_val and requested_val != env.app:
-        for cand in _candidates(str(requested_val)):
+        for cand in active_app_candidates(
+            requested_val,
+            Path(env.apps_path),
+            env.projects or [],
+            preferred_base=preferred_base,
+        ):
             if not cand.exists():
                 continue
             try:
@@ -1349,14 +1309,15 @@ def sidebar_views():
     # st.session_state.setdefault("index_page", str(module_path.relative_to(env.AGILAB_EXPORT_ABS)))
     # index_page = st.session_state.get("index_page", env.target)
 
+    _selected_lab, lab_index = resolve_default_selection(
+        modules,
+        st.session_state.get("lab_dir"),
+        env.target,
+    )
     st.session_state["lab_dir"] = st.sidebar.selectbox(
         "Lab directory",
         modules,
-        index=modules.index(
-            st.session_state["lab_dir"]
-            if "lab_dir" in st.session_state
-            else env.target
-        ),
+        index=lab_index,
         on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
         key="lab_dir_selectbox",
     )
@@ -1367,36 +1328,29 @@ def sidebar_views():
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files
 
-    df_files_rel = sorted(
-        (Path(file).relative_to(Agi_export_abs) for file in df_files),
-        key=str,
+    sidebar_state = build_sidebar_dataframe_selection(
+        Agi_export_abs,
+        st.session_state["lab_dir_selectbox"],
+        df_files,
+        st.session_state.get("index_page"),
+        env.target,
     )
-    if "index_page" not in st.session_state:
-        index_page = df_files_rel[0] if df_files_rel else env.target
-        st.session_state["index_page"] = index_page
-    else:
-        index_page = st.session_state["index_page"]
-    index_page_str = str(index_page)
-    key_df = index_page_str + "df"
-    index = next(
-        (i for i, f in enumerate(df_files_rel) if f.name == "default_df"),
-        0,
-    )
-    module_path = lab_dir.relative_to(Agi_export_abs)
-    st.session_state["module_path"] = module_path
+    st.session_state["index_page"] = sidebar_state.index_page
+    index_page_str = str(sidebar_state.index_page)
+    st.session_state["module_path"] = sidebar_state.module_path
     st.sidebar.selectbox(
         "Dataframe",
-        df_files_rel,
-        key=key_df,
-        index=index,
+        sidebar_state.df_files_rel,
+        key=sidebar_state.key_df,
+        index=sidebar_state.default_index,
         on_change=lambda: on_df_change(
-            module_path,
+            sidebar_state.module_path,
             index_page_str,
             st.session_state.get("df_file"),
         ),
     )
-    if st.session_state[key_df]:
-        st.session_state["df_file"] = Agi_export_abs / st.session_state[key_df]
+    if st.session_state[sidebar_state.key_df]:
+        st.session_state["df_file"] = Agi_export_abs / st.session_state[sidebar_state.key_df]
     else:
         st.session_state["df_file"] = None
 
@@ -1424,16 +1378,13 @@ def on_df_change(module_dir, index_page, df_file=None, steps_file=None):
         select_df_key = index_page_str + "df"
 
     selected_df = st.session_state.get(select_df_key)
-    selected_path = None
-    if selected_df:
-        selected_path = Path(selected_df)
-        if not selected_path.is_absolute():
-            env = st.session_state.get("env")
-            export_root = Path(env.AGILAB_EXPORT_ABS) if env else None
-            if export_root:
-                selected_path = export_root / selected_path
-    elif df_file:
-        selected_path = Path(df_file)
+    env = st.session_state.get("env")
+    export_root = Path(env.AGILAB_EXPORT_ABS) if env else None
+    selected_path = resolve_selected_df_path(
+        selected_df,
+        fallback_df_file=df_file,
+        export_root=export_root,
+    )
 
     if selected_path is not None:
         st.session_state[index_page_str + "df_file"] = selected_path
