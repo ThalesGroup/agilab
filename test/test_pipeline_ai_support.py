@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -61,6 +62,82 @@ def test_normalize_ollama_endpoint_strips_generate_path_and_uses_env(monkeypatch
     )
 
 
+class _FakeURLOpenResponse:
+    def __init__(self, payload: str):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return None
+
+    def read(self):
+        return self.payload.encode("utf-8")
+
+
+def test_ollama_available_models_parses_models_and_removes_duplicates(monkeypatch):
+    models_payload = {
+        "models": [
+            {"name": "mistral"},
+            {"name": "mistral"},
+            {"name": "llama"},
+        ]
+    }
+
+    monkeypatch.setattr(
+        pipeline_ai_support.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: _FakeURLOpenResponse(json.dumps(models_payload)),
+    )
+
+    models = pipeline_ai_support._ollama_available_models("http://127.0.0.1:11434")
+
+    assert models == ["mistral", "llama"]
+
+
+def test_default_ollama_model_prefers_code_model_when_requested():
+    def _fake_available(_endpoint: str):
+        return ["mistral", "codestral:latest", "llama"]
+
+    original = pipeline_ai_support._ollama_available_models
+    pipeline_ai_support._ollama_available_models = _fake_available
+    try:
+        assert pipeline_ai_support._default_ollama_model("http://127.0.0.1:11434", prefer_code=True) == "codestral:latest"
+        assert pipeline_ai_support._default_ollama_model(
+            "http://127.0.0.1:11434",
+            preferred="llama",
+        ) == "llama"
+    finally:
+        pipeline_ai_support._ollama_available_models = original
+
+
+def test_ollama_generate_parses_generate_response_and_forwards_payload(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = str(getattr(request, "full_url", ""))
+        captured["method"] = getattr(request, "method", "")
+        captured["data"] = request.data.decode("utf-8")
+        return _FakeURLOpenResponse('{"response":"ok"}')
+
+    monkeypatch.setattr(pipeline_ai_support.urllib.request, "urlopen", fake_urlopen)
+
+    text = pipeline_ai_support._ollama_generate(
+        endpoint="http://127.0.0.1:11434",
+        model="mistral",
+        prompt="hello",
+        num_ctx=256,
+        num_predict=128,
+        seed=1,
+    )
+
+    assert text == "ok"
+    assert "/api/generate" in captured["url"]
+    payload = json.loads(captured["data"])
+    assert payload["model"] == "mistral"
+    assert payload["options"]["num_ctx"] == 256
+    assert payload["options"]["num_predict"] == 128
 def test_prompt_to_plaintext_flattens_list_content_and_unknown_roles():
     text = pipeline_ai_support.prompt_to_plaintext(
         [

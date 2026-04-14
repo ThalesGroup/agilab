@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib
 import importlib.metadata as importlib_metadata
 import importlib.util
-import json
 import logging
 import os
 import re
@@ -79,6 +78,8 @@ try:
         _validate_code_safety,
         format_uoaic_question as _format_uoaic_question_impl,
         format_for_responses as _format_for_responses,
+        _ollama_available_models as _ollama_available_models_impl,
+        _ollama_generate as _ollama_generate_impl,
         normalize_gpt_oss_endpoint as _normalize_gpt_oss_endpoint,
         normalize_identifier as _normalize_identifier,
         normalize_ollama_endpoint as _normalize_ollama_endpoint,
@@ -114,6 +115,8 @@ except ModuleNotFoundError:
     _validate_code_safety = _pipeline_ai_support_module._validate_code_safety
     _format_uoaic_question_impl = _pipeline_ai_support_module.format_uoaic_question
     _format_for_responses = _pipeline_ai_support_module.format_for_responses
+    _ollama_available_models_impl = _pipeline_ai_support_module._ollama_available_models
+    _ollama_generate_impl = _pipeline_ai_support_module._ollama_generate
     _normalize_gpt_oss_endpoint = _pipeline_ai_support_module.normalize_gpt_oss_endpoint
     _normalize_identifier = _pipeline_ai_support_module.normalize_identifier
     _normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
@@ -212,38 +215,7 @@ JumpToMain = RuntimeError
 
 @st.cache_data(show_spinner=False)
 def _ollama_available_models(endpoint: str) -> List[str]:
-    """Return the list of models available on the Ollama server."""
-
-    base = _normalize_ollama_endpoint(endpoint)
-    url = f"{base}/api/tags"
-    req = urllib.request.Request(url, method="GET")
-    try:
-        with urllib.request.urlopen(req, timeout=10.0) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError):
-        return []
-
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, json.JSONDecodeError):
-        return []
-
-    models: List[str] = []
-    if isinstance(parsed, dict):
-        for entry in parsed.get("models") or []:
-            if isinstance(entry, dict):
-                name = entry.get("name")
-                if name:
-                    models.append(str(name))
-    # Preserve order but drop duplicates/empties
-    deduped: List[str] = []
-    seen: set[str] = set()
-    for name in models:
-        if name in seen:
-            continue
-        seen.add(name)
-        deduped.append(name)
-    return deduped
+    return _ollama_available_models_impl(endpoint)
 
 
 def _default_ollama_model(
@@ -276,58 +248,18 @@ def _ollama_generate(
     seed: Optional[int] = None,
     timeout_s: float = 120.0,
 ) -> str:
-    """Call Ollama's /api/generate endpoint and return the response text."""
-    base = _normalize_ollama_endpoint(endpoint)
-    url = f"{base}/api/generate"
-
-    options: Dict[str, Any] = {
-        "temperature": float(temperature),
-        "top_p": float(top_p),
-    }
-    if num_ctx is not None:
-        options["num_ctx"] = int(num_ctx)
-    if num_predict is not None:
-        options["num_predict"] = int(num_predict)
-    if seed is not None:
-        options["seed"] = int(seed)
-
-    payload = {
-        "model": str(model).strip(),
-        "prompt": str(prompt),
-        "stream": False,
-        "options": options,
-    }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+    return _ollama_generate_impl(
+        endpoint=endpoint,
+        model=model,
+        prompt=prompt,
+        temperature=temperature,
+        top_p=top_p,
+        num_ctx=num_ctx,
+        num_predict=num_predict,
+        seed=seed,
+        timeout_s=timeout_s,
+        endpoint_var_name=UOAIC_OLLAMA_ENDPOINT_ENV,
     )
-
-    try:
-        with urllib.request.urlopen(req, timeout=float(timeout_s)) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
-        detail = ""
-        try:
-            detail = exc.read().decode("utf-8", errors="replace")
-        except (OSError, ValueError):
-            pass
-        raise RuntimeError(f"Ollama error {exc.code}: {detail or exc.reason}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(
-            f"Unable to reach Ollama at {url}. Start Ollama or update {UOAIC_OLLAMA_ENDPOINT_ENV}."
-        ) from exc
-
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Ollama returned invalid JSON: {raw[:2000]}") from exc
-
-    if not isinstance(parsed, dict):
-        raise RuntimeError(f"Ollama returned unexpected payload: {type(parsed).__name__}")
-    return str(parsed.get("response") or "").strip()
 
 
 def chat_ollama_local(
@@ -593,7 +525,7 @@ def chat_online(
     # Create client (supports OpenAI/Azure/proxy)
     try:
         client, model_name, is_azure = make_openai_client_and_model(envars, api_key)
-    except Exception as e:
+    except (RuntimeError, TypeError, ValueError, AttributeError, ImportError, OSError) as e:
         st.error("Failed to initialise OpenAI/Azure client. Check your SDK install and environment variables.")
         logger.error(f"Client init error: {_redact_sensitive(str(e))}")
         raise JumpToMain(e)
@@ -638,7 +570,7 @@ def chat_online(
             st.error(f"OpenAI/Azure error: {msg}")
         logger.error(f"OpenAI error: {msg}")
         raise JumpToMain(e)
-    except Exception as e:
+    except (RuntimeError, TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
         msg = _redact_sensitive(str(e))
         st.error(f"Unexpected client error: {msg}")
         logger.error(f"General error in chat_online: {msg}")
