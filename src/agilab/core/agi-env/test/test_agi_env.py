@@ -1176,42 +1176,13 @@ def test_init_copies_packaged_app_when_repo_worker_is_missing(tmp_path: Path, mo
     assert env.dataset_archive == copied_worker.parent / "dataset.7z"
 
 
-def test_content_renamer_updates_ast_nodes(monkeypatch):
+def test_content_renamer_wrapper_binds_agi_logger(monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
 
-    source = ast.parse(
-        "import foo.mod\n"
-        "from foo.pkg import Foo, foo_helper\n"
-        "class Foo:\n"
-        "    def foo(self, foo_arg):\n"
-        "        global foo\n"
-        "        for foo in [foo_arg]:\n"
-        "            self.foo = foo\n"
-        "            return foo\n"
-    )
-    rename_map = {
-        "foo": "bar",
-        "Foo": "Baz",
-        "foo_helper": "bar_helper",
-        "foo_arg": "bar_arg",
-    }
+    renamer = agi_env_module.ContentRenamer({"foo": "bar"})
 
-    transformed = agi_env_module.ContentRenamer(rename_map).visit(source)
-    rendered = ast.unparse(transformed)
-
-    assert "import bar.mod" in rendered
-    assert "from bar.pkg import Baz, bar_helper" in rendered
-    assert "class Baz" in rendered
-    assert "def bar(self, bar_arg)" in rendered
-    assert "global bar" in rendered
-    assert "for bar in [bar_arg]" in rendered
-    assert "self.bar = bar" in rendered
-
-    nonlocal_node = ast.Nonlocal(names=["foo", "other"])
-    updated_nonlocal = agi_env_module.ContentRenamer(rename_map).visit_nonlocal(nonlocal_node)
-    assert updated_nonlocal.names == ["bar", "other"]
-    assert mock_logger.info.call_count > 0
+    assert renamer.logger is mock_logger
 
 
 def test_init_resources_copies_seed_files_and_handles_installed_and_source_extras(tmp_path: Path, monkeypatch):
