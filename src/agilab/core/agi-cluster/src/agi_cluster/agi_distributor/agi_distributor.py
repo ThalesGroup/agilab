@@ -16,7 +16,6 @@ from typing import List, Optional, Tuple, Set  # Ajoute Tuple et Set
 import asyncio
 import inspect
 import getpass
-import io
 import logging
 import os
 import pickle
@@ -39,6 +38,7 @@ from types import SimpleNamespace
 from agi_cluster.agi_distributor import cli as distributor_cli
 from agi_cluster.agi_distributor import (
     capacity_support,
+    cleanup_support,
     deployment_build_support,
     deployment_local_support,
     deployment_orchestration_support,
@@ -46,6 +46,7 @@ from agi_cluster.agi_distributor import (
     deployment_remote_support,
     entrypoint_support,
     runtime_distribution_support,
+    scheduler_io_support,
     service_runtime_support,
     transport_support,
 )
@@ -524,7 +525,6 @@ def _agi__version_missing_on_pypi(project_path):
 # --- end added helper ---
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
-from contextlib import redirect_stdout, redirect_stderr
 import errno
 
 # External Libraries
@@ -1093,132 +1093,41 @@ class AGI:
 
     @staticmethod
     def get_default_local_ip() -> str:
-        """
-        Get the default local IP address of the machine.
-
-        Returns:
-            str: The default local IP address.
-
-        Raises:
-            Exception: If unable to determine the local IP address.
-        """
-        """ """
-        try:
-            # Attempt to connect to a non-local address and capture the local endpoint's IP
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(("8.8.8.8", 80))
-                return s.getsockname()[0]
-        except Exception:
-            return "Unable to determine local IP"
+        return scheduler_io_support.get_default_local_ip(
+            socket_factory=socket.socket,
+        )
 
     @staticmethod
     def find_free_port(start: int = 5000, end: int = 10000, attempts: int = 100) -> int:
-        for _ in range(attempts):
-            port = random.randint(start, end)
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                # set SO_REUSEADDR to avoid 'address already in use' issues during testing
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                try:
-                    sock.bind(("localhost", port))
-                    # if binding succeeds, the port is free; close socket and return port
-                    return port
-                except OSError:
-                    # port is already in use, try another
-                    continue
-        raise RuntimeError("No free port found in the specified range.")
+        return scheduler_io_support.find_free_port(
+            start=start,
+            end=end,
+            attempts=attempts,
+            randint_fn=random.randint,
+            socket_factory=socket.socket,
+        )
 
     @staticmethod
     def _get_scheduler(ip_sched: Optional[Union[str, Dict[str, int]]] = None) -> Tuple[str, int]:
-        """get scheduler ip V4 address
-        when no scheduler provided, scheduler address is localhost or the first address if workers are not local.
-        port is random
-
-        Args:
-          ip_sched:
-
-        Returns:
-
-        """
-        port = AGI.find_free_port()
-        if not ip_sched:
-            if AGI._workers:
-                ip = list(AGI._workers)[0]
-            else:
-                ip = socket.gethostbyname("localhost")
-        elif isinstance(ip_sched, dict):
-            # end-user already has provided a port
-            ip, port = list(ip_sched.items())[0]
-        elif not isinstance(ip_sched, str):
-            raise ValueError("Scheduler ip address is not valid")
-        else:
-            ip = ip_sched
-        AGI._scheduler = f"{ip}:{port}"
-        return ip, port
+        return scheduler_io_support.get_scheduler(
+            AGI,
+            ip_sched,
+            find_free_port_fn=AGI.find_free_port,
+            gethostbyname_fn=socket.gethostbyname,
+        )
 
     @staticmethod
     def _get_stdout(func: Any, *args: Any, **kwargs: Any) -> Tuple[str, Any]:
-        """to get the stdout stream
-
-        Args:
-          func: param args:
-          kwargs: return: the return of the func
-          *args:
-          **kwargs:
-
-        Returns:
-          : the return of the func
-
-        """
-        f = io.StringIO()
-        with redirect_stdout(f):
-            result = func(*args, **kwargs)
-        return f.getvalue(), result
+        return scheduler_io_support.get_stdout(func, *args, **kwargs)
 
     @staticmethod
     def _read_stderr(output_stream: Any) -> None:
-        """Read remote stderr robustly on Linux (UTF-8), Windows OEM (CP850), then ANSI (CP1252)."""
-
-        def decode_bytes(bs: bytes) -> str:
-            # try UTF-8, then OEM (CP850) for console accents, then ANSI (CP1252)
-            for enc in ('utf-8', 'cp850', 'cp1252'):
-                try:
-                    return bs.decode(enc)
-                except Exception:
-                    continue
-            # final fallback
-            return bs.decode('cp850', errors='replace')
-
-        chan = getattr(output_stream, 'channel', None)
-        if chan is None:
-            # simple iteration fallback
-            for raw in output_stream:
-                if isinstance(raw, bytes):
-                    decoded = decode_bytes(raw)
-                else:
-                    decoded = decode_bytes(raw.encode('latin-1', errors='replace'))
-                line = decoded.strip()
-                logger.info(line)
-                AGI._worker_init_error = line.endswith('[ProjectError]')
-            return
-
-        # non-blocking channel read
-        while True:
-            if chan.recv_stderr_ready():
-                try:
-                    raw = chan.recv_stderr(1024)
-                except Exception:
-                    continue
-                if not raw:
-                    break
-                decoded = decode_bytes(raw)
-                for part in decoded.splitlines():
-                    line = part.strip()
-                    logger.info(line)
-                    AGI._worker_init_error = line.endswith('[ProjectError]')
-            elif chan.exit_status_ready():
-                break
-            else:
-                time.sleep(0.1)
+        scheduler_io_support.read_stderr(
+            AGI,
+            output_stream,
+            sleep_fn=time.sleep,
+            log=logger,
+        )
 
     @staticmethod
     async def send_file(
@@ -1252,177 +1161,63 @@ class AGI:
 
     @staticmethod
     def _remove_dir_forcefully(path):
-        import shutil
-        import os
-        import time
-
-        def onerror(func, path, exc_info):
-            import stat
-            if not os.access(path, os.W_OK):
-                os.chmod(path, stat.S_IWUSR)
-                func(path)
-            else:
-                logger.info(f"{path} not removed due to {exc_info[1]}")
-
-        try:
-            shutil.rmtree(path, onerror=onerror)
-        except Exception as e:
-            logger.error(f"Exception while deleting {path}: {e}")
-            time.sleep(1)
-            try:
-                shutil.rmtree(path, onerror=onerror)
-            except Exception as e2:
-                logger.error(f"Second failure deleting {path}: {e2}")
-                raise
+        cleanup_support.remove_dir_forcefully(
+            path,
+            rmtree_fn=shutil.rmtree,
+            sleep_fn=time.sleep,
+            access_fn=os.access,
+            chmod_fn=os.chmod,
+            log=logger,
+        )
 
     @staticmethod
     async def _kill(ip: Optional[str] = None, current_pid: Optional[int] = None, force: bool = True) -> Optional[Any]:
-        """
-        Terminate 'uv' and Dask processes on the given host and clean up pid files.
-
-        Args:
-            ip (str, optional): IP address of the host to kill processes on. Defaults to local host.
-            current_pid (int, optional): PID of this process to exclude. Defaults to this process.
-            force (bool, optional): Whether to kill all 'dask' processes by name. Defaults to True.
-        Returns:
-            The result of the last kill command (dict or None).
-        """
-        env = AGI.env
-        uv = env.uv
-        localhost = socket.gethostbyname("localhost")
-        ip = ip or localhost
-        current_pid = current_pid or os.getpid()
-
-        # 1) Collect PIDs from any pid files and remove those files
-        pids_to_kill: list[int] = []
-        for pid_file in Path(env.wenv_abs.parent).glob("*.pid"):
-            try:
-                text = pid_file.read_text().strip()
-                pid = int(text)
-                if pid != current_pid:
-                    pids_to_kill.append(pid)
-            except Exception:
-                logger.warning(f"Could not read PID from {pid_file}, skipping")
-            try:
-                pid_file.unlink()
-            except Exception as e:
-                logger.warning(f"Failed to remove pid file {pid_file}: {e}")
-
-        cmds: list[str] = []
-        cli_rel = env.wenv_rel.parent / "cli.py"
-        cli_abs = env.wenv_abs.parent / cli_rel.name
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        kill_prefix = f'{cmd_prefix}{uv} run --no-sync python'
-        if env.is_local(ip):
-            if not (cli_abs).exists():
-                shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli_abs)
-            if force:
-                exclude_arg = f" {current_pid}" if current_pid else ""
-                cmd = f"{kill_prefix} '{cli_abs}' kill{exclude_arg}"
-                cmds.append(cmd)
-        else:
-            if force:
-                cmd = f"{kill_prefix} '{cli_rel.as_posix()}' kill"
-                cmds.append(cmd)
-
-        last_res = None
-        for cmd in cmds:
-            # choose working directory based on local vs remote
-            cwd = env.agi_cluster if ip == localhost else str(env.wenv_abs)
-            if env.is_local(ip):
-                if env.debug:
-                    sys.argv = cmd.split('python ')[1].split(" ")
-                    runpy.run_path(sys.argv[0], run_name="__main__")
-                else:
-                    await AgiEnv.run(cmd, cwd)
-            else:
-                last_res = await AGI.exec_ssh(ip, cmd)
-
-            # handle tuple or dict result
-            if isinstance(last_res, dict):
-                out = last_res.get("stdout", "")
-                err = last_res.get("stderr", "")
-                logger.info(out)
-                if err:
-                    logger.error(err)
-
-        return last_res
+        return await cleanup_support.kill_processes(
+            AGI,
+            ip=ip,
+            current_pid=current_pid,
+            force=force,
+            gethostbyname_fn=socket.gethostbyname,
+            run_fn=AgiEnv.run,
+            copy_fn=shutil.copy,
+            run_path_fn=runpy.run_path,
+            sys_module=sys,
+            path_cls=Path,
+            log=logger,
+        )
 
     @staticmethod
     async def _wait_for_port_release(ip: str, port: int, timeout: float = 5.0, interval: float = 0.2) -> bool:
-        """Poll until no process is listening on (ip, port)."""
-        ip = ip or socket.gethostbyname("localhost")
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.bind((ip, port))
-            except OSError:
-                await asyncio.sleep(interval)
-            else:
-                sock.close()
-                return True
-            finally:
-                try:
-                    sock.close()
-                except Exception:
-                    pass
-        return False
+        return await cleanup_support.wait_for_port_release(
+            ip,
+            port,
+            timeout=timeout,
+            interval=interval,
+            gethostbyname_fn=socket.gethostbyname,
+            socket_factory=socket.socket,
+            sleep_fn=asyncio.sleep,
+            monotonic_fn=time.monotonic,
+        )
 
     @staticmethod
     def _clean_dirs_local() -> None:
-        """Clean up local worker env directory
-
-        Args:
-          wenv: worker environment dictionary
-
-        Returns:
-
-        """
-        me = getpass.getuser()
-        self_pid = os.getpid()
-        for p in psutil.process_iter(['pid', 'username', 'cmdline']):
-            try:
-                if (
-                        p.info['username'] and p.info['username'].endswith(me)
-                        and p.info['pid'] and p.info['pid'] != self_pid
-                        and p.info['cmdline']
-                        and any('dask' in s.lower() for s in p.info['cmdline'])
-                ):
-                    p.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-
-        for d in [
-            f"{gettempdir()}/dask-scratch-space",
-            f"{AGI.env.wenv_abs}",
-        ]:
-            try:
-                shutil.rmtree(d, ignore_errors=True)
-            except (OSError, TypeError):
-                pass
+        cleanup_support.clean_dirs_local(
+            AGI,
+            process_iter_fn=psutil.process_iter,
+            getuser_fn=getpass.getuser,
+            getpid_fn=os.getpid,
+            rmtree_fn=shutil.rmtree,
+            gettempdir_fn=gettempdir,
+        )
 
     @staticmethod
     async def _clean_dirs(ip: str) -> None:
-        """Clean up remote worker
-
-        Args:
-          ip: address of remote worker
-
-        Returns:
-
-        """
-        env = AGI.env
-        uv = env.uv
-        wenv_abs = env.wenv_abs
-        if wenv_abs.exists():
-            AGI._remove_dir_forcefully(str(wenv_abs))
-        os.makedirs(wenv_abs / "src", exist_ok=True)
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        wenv = env.wenv_rel
-        cli = wenv.parent / 'cli.py'
-        cmd = (f"{cmd_prefix}{uv} run --no-sync -p {env.python_version} python {cli.as_posix()} clean {wenv}")
-        await AGI.exec_ssh(ip, cmd)
+        await cleanup_support.clean_dirs(
+            AGI,
+            ip,
+            makedirs_fn=os.makedirs,
+            remove_dir_forcefully_fn=AGI._remove_dir_forcefully,
+        )
 
     @staticmethod
     async def _clean_nodes(scheduler_addr: Optional[str], force: bool = True) -> Set[str]:
@@ -1715,61 +1510,13 @@ class AGI:
 
     @staticmethod
     async def _run() -> Any:
-        """
-
-        Returns:
-
-        """
-        env = AGI.env
-        env.hw_rapids_capable = env.envars.get("127.0.0.1", "hw_rapids_capable")
-
-        # check first that install is done
-        if not (env.wenv_abs / ".venv").exists():
-            logger.info("Worker installation not found")
-            raise FileNotFoundError("Worker installation (.venv) not found")
-        _validate_worker_uv_sources(env.wenv_abs / "pyproject.toml")
-
-        pid_file = "dask_worker_0.pid"
-        current_pid = os.getpid()
-        with open(pid_file, "w") as f:
-            f.write(str(current_pid))
-
-        await AGI._kill(current_pid=current_pid, force=True)
-
-        if AGI._mode & AGI.CYTHON_MODE:
-            wenv_abs = env.wenv_abs
-            cython_lib_path = Path(wenv_abs)
-
-        logger.info(f"debug={env.debug}")
-
-        if env.debug:
-            BaseWorker._new(env=env, mode=AGI._mode, verbose=env.verbose, args=AGI._args)
-            res = await BaseWorker._run(env=env, mode=AGI._mode, workers=AGI._workers, verbose=env.verbose,
-                                       args=AGI._args)
-        else:
-            cmd = (
-                f"{env.uv} run --preview-features python-upgrade --no-sync --project {env.wenv_abs} python -c \""
-                f"from agi_node.agi_dispatcher import  BaseWorker\n"
-                f"import asyncio\n"
-                f"async def main():\n"
-                f"  BaseWorker._new(app='{env.target_worker}', mode={AGI._mode}, verbose={env.verbose}, args={AGI._args})\n"
-                f"  res = await BaseWorker._run(mode={AGI._mode}, workers={AGI._workers}, args={AGI._args})\n"
-                f"  print(res)\n"
-                f"if __name__ == '__main__':\n"
-                f"  asyncio.run(main())\""
-            )
-
-            res = await AgiEnv.run_async(cmd, env.wenv_abs)
-
-        if res:
-            if isinstance(res, list):
-                return res
-            else:
-                res_lines = res.split('\n')
-                if len(res_lines) < 2:
-                    return res
-                else:
-                    return res.split('\n')[-2]
+        return await runtime_distribution_support.run_local(
+            AGI,
+            base_worker_cls=BaseWorker,
+            validate_worker_uv_sources_fn=_validate_worker_uv_sources,
+            run_async_fn=AgiEnv.run_async,
+            log=logger,
+        )
 
     @staticmethod
     async def _distribute() -> str:

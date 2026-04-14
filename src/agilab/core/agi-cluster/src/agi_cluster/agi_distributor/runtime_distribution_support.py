@@ -20,6 +20,63 @@ def dask_env_prefix(agi_cls: Any) -> str:
     return "".join(f"{var} " for var in env_vars)
 
 
+async def run_local(
+    agi_cls: Any,
+    *,
+    base_worker_cls: Any,
+    validate_worker_uv_sources_fn: Callable[[Path], None],
+    run_async_fn: Callable[[str, Path], Any],
+    log: Any = logger,
+) -> Any:
+    env = agi_cls.env
+    env.hw_rapids_capable = env.envars.get("127.0.0.1", "hw_rapids_capable")
+
+    if not (env.wenv_abs / ".venv").exists():
+        log.info("Worker installation not found")
+        raise FileNotFoundError("Worker installation (.venv) not found")
+    validate_worker_uv_sources_fn(env.wenv_abs / "pyproject.toml")
+
+    pid_file = "dask_worker_0.pid"
+    current_pid = os.getpid()
+    with open(pid_file, "w", encoding="utf-8") as stream:
+        stream.write(str(current_pid))
+
+    await agi_cls._kill(current_pid=current_pid, force=True)
+
+    log.info("debug=%s", env.debug)
+    if env.debug:
+        base_worker_cls._new(env=env, mode=agi_cls._mode, verbose=env.verbose, args=agi_cls._args)
+        res = await base_worker_cls._run(
+            env=env,
+            mode=agi_cls._mode,
+            workers=agi_cls._workers,
+            verbose=env.verbose,
+            args=agi_cls._args,
+        )
+    else:
+        cmd = (
+            f"{env.uv} run --preview-features python-upgrade --no-sync --project {env.wenv_abs} python -c \""
+            f"from agi_node.agi_dispatcher import  BaseWorker\n"
+            f"import asyncio\n"
+            f"async def main():\n"
+            f"  BaseWorker._new(app='{env.target_worker}', mode={agi_cls._mode}, verbose={env.verbose}, args={agi_cls._args})\n"
+            f"  res = await BaseWorker._run(mode={agi_cls._mode}, workers={agi_cls._workers}, args={agi_cls._args})\n"
+            f"  print(res)\n"
+            f"if __name__ == '__main__':\n"
+            f"  asyncio.run(main())\""
+        )
+        res = await run_async_fn(cmd, env.wenv_abs)
+
+    if not res:
+        return None
+    if isinstance(res, list):
+        return res
+    res_lines = res.split("\n")
+    if len(res_lines) < 2:
+        return res
+    return res_lines[-2]
+
+
 async def start(
     agi_cls: Any,
     scheduler: Optional[str],
