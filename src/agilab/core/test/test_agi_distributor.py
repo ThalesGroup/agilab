@@ -286,6 +286,10 @@ def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
     (ssh_dir / "known_hosts").write_text("remote ssh-ed25519 AAAA\n", encoding="utf-8")
     (ssh_dir / "authorized_keys").write_text("ssh-ed25519 AAAA comment\n", encoding="utf-8")
     (ssh_dir / "id_ed25519.pub").write_text("ssh-ed25519 AAAA comment\n", encoding="utf-8")
+    (ssh_dir / "id_rsa").write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\nmock\n-----END RSA PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
     (ssh_dir / "id_ed25519").write_text(
         "-----BEGIN OPENSSH PRIVATE KEY-----\nmock\n-----END OPENSSH PRIVATE KEY-----\n",
         encoding="utf-8",
@@ -294,7 +298,7 @@ def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
 
     keys = agi_distributor_module._discover_private_ssh_keys(ssh_dir)
 
-    assert keys == [str(ssh_dir / "id_ed25519")]
+    assert keys == [str(ssh_dir / "id_ed25519"), str(ssh_dir / "id_rsa")]
 
 
 def test_private_key_discovery_handles_missing_dir_and_unreadable_files(tmp_path, monkeypatch):
@@ -1190,7 +1194,7 @@ async def test_send_file_remote_success_and_command_construction(monkeypatch, tm
 
 
 @pytest.mark.asyncio
-async def test_send_file_remote_retries_without_sshpass_on_first_failure(monkeypatch, tmp_path):
+async def test_send_file_remote_retries_with_password_auth_on_first_failure(monkeypatch, tmp_path):
     local_file = tmp_path / "src.bin"
     local_file.write_text("x", encoding="utf-8")
     env = SimpleNamespace(user="alice", password="secret", ssh_key_path=None)
@@ -1219,7 +1223,7 @@ async def test_send_file_remote_retries_without_sshpass_on_first_failure(monkeyp
     assert calls[0][0] == "sshpass"
     assert calls[1][0] == "sshpass"
     assert "-p" in calls[0]
-    assert "-p" not in calls[1]
+    assert "-p" in calls[1]
 
 
 @pytest.mark.asyncio

@@ -64,7 +64,7 @@ def discover_private_ssh_keys(ssh_dir: Path) -> List[str]:
         return []
 
     keys = []
-    for file in ssh_dir.iterdir():
+    for file in sorted(ssh_dir.iterdir(), key=lambda candidate: candidate.name):
         if is_private_ssh_key_file(file):
             keys.append(str(file))
     return keys
@@ -100,12 +100,10 @@ async def send_file(
     user_at_ip = f"{user}@{ip}" if user else ip
     remote = f"{user_at_ip}:{remote_path}"
 
-    cmd_base: list[str] = []
-    cmd: list[str] = []
+    auth_prefix: list[str] = []
 
     if password and os.name != "nt":
-        cmd_base = ["sshpass"]
-        cmd += cmd_base + ["-p", password]
+        auth_prefix = ["sshpass", "-p", password]
 
     scp_cmd = [
         "scp",
@@ -121,8 +119,7 @@ async def send_file(
         scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
     scp_cmd.append(str(local_path))
     scp_cmd.append(remote)
-    cmd_end = scp_cmd
-    cmd = cmd + cmd_end
+    cmd = auth_prefix + scp_cmd
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -139,7 +136,6 @@ async def send_file(
         log.info(f"Sent file {local_path} to {remote}")
 
     except Exception:
-        cmd = cmd_base + cmd_end
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
