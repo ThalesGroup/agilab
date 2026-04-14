@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from dask.distributed import Client, wait
 
+from agi_cluster.agi_distributor import runtime_misc_support
 from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
@@ -612,8 +613,7 @@ async def serve(
     path = Path(agi_cls._capacity_model_file)
 
     if path.is_file():
-        with open(path, "rb") as stream:
-            agi_cls._capacity_predictor = pickle.load(stream)
+        agi_cls._capacity_predictor = runtime_misc_support.load_capacity_predictor(path, log=log)
     else:
         agi_cls._capacity_predictor = None
         log.info(
