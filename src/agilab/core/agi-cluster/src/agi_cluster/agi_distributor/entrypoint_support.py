@@ -12,42 +12,18 @@ from typing import Any, Callable, Dict, List, Optional, Union
 logger = logging.getLogger(__name__)
 
 
-async def run(
-    agi_cls: Any,
-    env: Any,
-    scheduler: Optional[str] = None,
-    workers: Optional[Dict[str, int]] = None,
-    workers_data_path: Optional[str] = None,
-    verbose: int = 0,
-    mode: Optional[Union[int, List[int], str]] = None,
-    rapids_enabled: bool = False,
-    *,
+def _normalize_workers(
+    workers: Optional[Dict[str, int]],
     workers_default: Dict[str, int],
-    process_error_type: type[BaseException],
-    format_exception_chain_fn: Callable[[BaseException], str],
-    traceback_format_exc_fn: Callable[[], str],
-    log: Any = logger,
-    **args: Any,
-) -> Any:
-    agi_cls.env = env
-
+) -> Dict[str, int]:
     if not workers:
-        workers = workers_default
-    elif not isinstance(workers, dict):
+        return workers_default
+    if not isinstance(workers, dict):
         raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
+    return workers
 
-    agi_cls.target_path = env.manager_path
-    agi_cls._target = env.target
-    agi_cls._rapids_enabled = rapids_enabled
-    if env.verbose > 0:
-        log.info("AGI instance created for target %s with verbosity %s", env.target, env.verbose)
 
-    if mode is None or isinstance(mode, list):
-        mode_range = range(8) if mode is None else sorted(mode)
-        return await agi_cls._benchmark(
-            env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
-        )
-
+def _configure_mode(agi_cls: Any, env: Any, mode: Union[int, str]) -> None:
     if isinstance(mode, str):
         pattern = r"^[dcrp]+$"
         if not re.fullmatch(pattern, mode.lower()):
@@ -63,7 +39,28 @@ async def run(
         if agi_cls._mode & agi_cls._RUN_MASK not in range(0, agi_cls.RAPIDS_MODE):
             raise ValueError(f"mode {agi_cls._mode} not implemented")
     else:
-        agi_cls._run_type = agi_cls._run_types[(agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) >> agi_cls.DASK_MODE]
+        agi_cls._run_type = agi_cls._run_types[
+            (agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) >> agi_cls.DASK_MODE
+        ]
+
+
+def _initialize_run_state(
+    agi_cls: Any,
+    env: Any,
+    *,
+    workers: Dict[str, int],
+    workers_data_path: Optional[str],
+    verbose: int,
+    rapids_enabled: bool,
+    args: Dict[str, Any],
+    log: Any = logger,
+) -> None:
+    agi_cls.env = env
+    agi_cls.target_path = env.manager_path
+    agi_cls._target = env.target
+    agi_cls._rapids_enabled = rapids_enabled
+    if env.verbose > 0:
+        log.info("AGI instance created for target %s with verbosity %s", env.target, env.verbose)
 
     agi_cls._args = args
     agi_cls.verbose = verbose
@@ -71,15 +68,19 @@ async def run(
     agi_cls._workers_data_path = workers_data_path
     agi_cls._run_time = {}
 
+
+def _load_capacity_predictor(agi_cls: Any, env: Any) -> None:
     agi_cls._capacity_data_file = env.resources_path / "balancer_df.csv"
     agi_cls._capacity_model_file = env.resources_path / "balancer_model.pkl"
-    path = Path(agi_cls._capacity_model_file)
-    if path.is_file():
-        with open(path, "rb") as stream:
+    capacity_model_file = Path(agi_cls._capacity_model_file)
+    if capacity_model_file.is_file():
+        with open(capacity_model_file, "rb") as stream:
             agi_cls._capacity_predictor = pickle.load(stream)
     else:
         agi_cls._train_capacity(Path(env.home_abs))
 
+
+def _resolve_install_worker_group(agi_cls: Any, env: Any) -> None:
     agi_workers = {
         "AgiDataWorker": "pandas-worker",
         "PolarsWorker": "polars-worker",
@@ -104,6 +105,46 @@ async def run(
         raise ValueError(
             f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
         ) from exc
+
+
+async def run(
+    agi_cls: Any,
+    env: Any,
+    scheduler: Optional[str] = None,
+    workers: Optional[Dict[str, int]] = None,
+    workers_data_path: Optional[str] = None,
+    verbose: int = 0,
+    mode: Optional[Union[int, List[int], str]] = None,
+    rapids_enabled: bool = False,
+    *,
+    workers_default: Dict[str, int],
+    process_error_type: type[BaseException],
+    format_exception_chain_fn: Callable[[BaseException], str],
+    traceback_format_exc_fn: Callable[[], str],
+    log: Any = logger,
+    **args: Any,
+) -> Any:
+    workers = _normalize_workers(workers, workers_default)
+    _initialize_run_state(
+        agi_cls,
+        env,
+        workers=workers,
+        workers_data_path=workers_data_path,
+        verbose=verbose,
+        rapids_enabled=rapids_enabled,
+        args=args,
+        log=log,
+    )
+
+    if mode is None or isinstance(mode, list):
+        mode_range = range(8) if mode is None else sorted(mode)
+        return await agi_cls._benchmark(
+            env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
+        )
+
+    _configure_mode(agi_cls, env, mode)
+    _load_capacity_predictor(agi_cls, env)
+    _resolve_install_worker_group(agi_cls, env)
 
     try:
         return await agi_cls._main(scheduler)
@@ -257,18 +298,14 @@ async def detect_export_cmd(
     return ""
 
 
-async def start_scheduler(
+async def _prepare_scheduler_nodes(
     agi_cls: Any,
     scheduler: Optional[str],
     *,
-    set_env_var_fn: Callable[..., Any],
-    create_task_fn: Callable[..., Any] = asyncio.create_task,
-    sleep_fn: Callable[[float], Any] = asyncio.sleep,
+    cli_rel: Path,
     log: Any = logger,
-) -> bool:
+) -> Optional[str]:
     env = agi_cls.env
-    cli_rel = env.wenv_rel.parent / "cli.py"
-
     if (agi_cls._mode_auto and agi_cls._mode == agi_cls.DASK_MODE) or not agi_cls._mode_auto:
         env.hw_rapids_capable = True
         if agi_cls._mode & agi_cls.DASK_MODE:
@@ -293,29 +330,34 @@ async def start_scheduler(
 
         if agi_cls._scheduler_ip not in agi_cls._workers:
             await agi_cls._kill(agi_cls._scheduler_ip, os.getpid(), force=True)
+    return scheduler
 
-    toml_local = env.active_app / "pyproject.toml"
-    wenv_rel = env.wenv_rel
-    wenv_abs = env.wenv_abs
 
-    if env.is_local(agi_cls._scheduler_ip):
-        released = await agi_cls._wait_for_port_release(agi_cls._scheduler_ip, agi_cls._scheduler_port)
-        if not released:
-            new_port = agi_cls.find_free_port()
-            log.warning(
-                "Scheduler port %s:%s still busy. Switching scheduler port to %s.",
-                agi_cls._scheduler_ip,
-                agi_cls._scheduler_port,
-                new_port,
-            )
-            agi_cls._scheduler_port = new_port
-            agi_cls._scheduler = f"{agi_cls._scheduler_ip}:{agi_cls._scheduler_port}"
-        elif agi_cls._mode_auto:
-            new_port = agi_cls.find_free_port()
-            agi_cls._scheduler_ip, agi_cls._scheduler_port = agi_cls._get_scheduler(
-                {agi_cls._scheduler_ip: new_port}
-            )
+async def _ensure_local_scheduler_port(agi_cls: Any, *, log: Any = logger) -> None:
+    released = await agi_cls._wait_for_port_release(agi_cls._scheduler_ip, agi_cls._scheduler_port)
+    if not released:
+        new_port = agi_cls.find_free_port()
+        log.warning(
+            "Scheduler port %s:%s still busy. Switching scheduler port to %s.",
+            agi_cls._scheduler_ip,
+            agi_cls._scheduler_port,
+            new_port,
+        )
+        agi_cls._scheduler_port = new_port
+        agi_cls._scheduler = f"{agi_cls._scheduler_ip}:{agi_cls._scheduler_port}"
+    elif agi_cls._mode_auto:
+        new_port = agi_cls.find_free_port()
+        agi_cls._scheduler_ip, agi_cls._scheduler_port = agi_cls._get_scheduler(
+            {agi_cls._scheduler_ip: new_port}
+        )
 
+
+async def _resolve_scheduler_cmd_prefix(
+    agi_cls: Any,
+    *,
+    set_env_var_fn: Callable[..., Any],
+) -> str:
+    env = agi_cls.env
     cmd_prefix = env.envars.get(f"{agi_cls._scheduler_ip}_CMD_PREFIX", "")
     if not cmd_prefix:
         try:
@@ -324,7 +366,21 @@ async def start_scheduler(
             cmd_prefix = ""
         if cmd_prefix:
             set_env_var_fn(f"{agi_cls._scheduler_ip}_CMD_PREFIX", cmd_prefix)
+    return cmd_prefix
 
+
+async def _launch_scheduler_process(
+    agi_cls: Any,
+    *,
+    cmd_prefix: str,
+    create_task_fn: Callable[..., Any],
+    sleep_fn: Callable[[float], Any],
+    log: Any = logger,
+) -> None:
+    env = agi_cls.env
+    toml_local = env.active_app / "pyproject.toml"
+    wenv_rel = env.wenv_rel
+    wenv_abs = env.wenv_abs
     dask_env = agi_cls._dask_env_prefix()
     if env.is_local(agi_cls._scheduler_ip):
         await sleep_fn(1)
@@ -341,23 +397,58 @@ async def start_scheduler(
         result = agi_cls._exec_bg(cmd, env.app)
         if result:
             log.info(result)
-    else:
-        cmd = (
-            f"{cmd_prefix}{env.uv} run --no-sync python -c "
-            f"\"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-        )
-        await agi_cls.exec_ssh(agi_cls._scheduler_ip, cmd)
+        return
 
-        toml_wenv = wenv_rel / "pyproject.toml"
-        await agi_cls.send_file(env, agi_cls._scheduler_ip, toml_local, toml_wenv)
+    cmd = (
+        f"{cmd_prefix}{env.uv} run --no-sync python -c "
+        f"\"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+    )
+    await agi_cls.exec_ssh(agi_cls._scheduler_ip, cmd)
 
-        cmd = (
-            f"{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync "
-            f"dask scheduler "
-            f"--port {agi_cls._scheduler_port} "
-            f"--host {agi_cls._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
-        )
-        create_task_fn(agi_cls.exec_ssh_async(agi_cls._scheduler_ip, cmd))
+    toml_wenv = wenv_rel / "pyproject.toml"
+    await agi_cls.send_file(env, agi_cls._scheduler_ip, toml_local, toml_wenv)
+
+    cmd = (
+        f"{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync "
+        f"dask scheduler "
+        f"--port {agi_cls._scheduler_port} "
+        f"--host {agi_cls._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
+    )
+    create_task_fn(agi_cls.exec_ssh_async(agi_cls._scheduler_ip, cmd))
+
+
+async def start_scheduler(
+    agi_cls: Any,
+    scheduler: Optional[str],
+    *,
+    set_env_var_fn: Callable[..., Any],
+    create_task_fn: Callable[..., Any] = asyncio.create_task,
+    sleep_fn: Callable[[float], Any] = asyncio.sleep,
+    log: Any = logger,
+) -> bool:
+    env = agi_cls.env
+    cli_rel = env.wenv_rel.parent / "cli.py"
+    await _prepare_scheduler_nodes(
+        agi_cls,
+        scheduler,
+        cli_rel=cli_rel,
+        log=log,
+    )
+
+    if env.is_local(agi_cls._scheduler_ip):
+        await _ensure_local_scheduler_port(agi_cls, log=log)
+
+    cmd_prefix = await _resolve_scheduler_cmd_prefix(
+        agi_cls,
+        set_env_var_fn=set_env_var_fn,
+    )
+    await _launch_scheduler_process(
+        agi_cls,
+        cmd_prefix=cmd_prefix,
+        create_task_fn=create_task_fn,
+        sleep_fn=sleep_fn,
+        log=log,
+    )
 
     await sleep_fn(1)
     try:
