@@ -343,12 +343,21 @@ def _resolve_uoaic_path(raw_path: str, base_dir: Optional[Path] = None) -> Path:
 
 def _load_uoaic_modules(
     *,
-    distribution_fn: Callable[[str], Any] = importlib_metadata.distribution,
-    import_module_fn: Callable[[str], Any] = importlib.import_module,
-    spec_from_file_location_fn: Callable[[str, str], Any] = importlib.util.spec_from_file_location,
-    module_from_spec_fn: Callable[[Any], Any] = importlib.util.module_from_spec,
+    distribution_fn: Callable[[str], Any] | None = None,
+    import_module_fn: Callable[[str], Any] | None = None,
+    spec_from_file_location_fn: Callable[[str, str], Any] | None = None,
+    module_from_spec_fn: Callable[[Any], Any] | None = None,
 ) -> Tuple[Any, ...]:
     """Import Universal Offline AI Chatbot modules with detailed diagnostics."""
+    if distribution_fn is None:
+        distribution_fn = importlib_metadata.distribution
+    if import_module_fn is None:
+        import_module_fn = importlib.import_module
+    if spec_from_file_location_fn is None:
+        spec_from_file_location_fn = importlib.util.spec_from_file_location
+    if module_from_spec_fn is None:
+        module_from_spec_fn = importlib.util.module_from_spec
+
     try:
         dist = distribution_fn("universal-offline-ai-chatbot")
     except importlib_metadata.PackageNotFoundError as exc:
