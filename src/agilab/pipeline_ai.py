@@ -6,6 +6,7 @@ import importlib.util
 import logging
 import os
 import re
+import sys
 from contextlib import nullcontext
 import urllib.error
 import urllib.request
@@ -208,6 +209,27 @@ except ModuleNotFoundError:
     _load_uoaic_modules_impl = _pipeline_ai_uoaic_module.load_uoaic_modules
     _render_universal_offline_controls_impl = _pipeline_ai_uoaic_module.render_universal_offline_controls
     _resolve_uoaic_path_impl = _pipeline_ai_uoaic_module.resolve_uoaic_path
+
+try:
+    from agilab.pipeline_ai_controls import (
+        PipelineAiControlDeps,
+        configure_assistant_engine as _configure_assistant_engine_impl,
+        gpt_oss_controls as _gpt_oss_controls_impl,
+    )
+except ModuleNotFoundError:
+    _pipeline_ai_controls_path = Path(__file__).resolve().parent / "pipeline_ai_controls.py"
+    _pipeline_ai_controls_spec = importlib.util.spec_from_file_location(
+        "agilab_pipeline_ai_controls_fallback",
+        _pipeline_ai_controls_path,
+    )
+    if _pipeline_ai_controls_spec is None or _pipeline_ai_controls_spec.loader is None:
+        raise
+    _pipeline_ai_controls_module = importlib.util.module_from_spec(_pipeline_ai_controls_spec)
+    sys.modules[_pipeline_ai_controls_spec.name] = _pipeline_ai_controls_module
+    _pipeline_ai_controls_spec.loader.exec_module(_pipeline_ai_controls_module)
+    PipelineAiControlDeps = _pipeline_ai_controls_module.PipelineAiControlDeps
+    _configure_assistant_engine_impl = _pipeline_ai_controls_module.configure_assistant_engine
+    _gpt_oss_controls_impl = _pipeline_ai_controls_module.gpt_oss_controls
 
 logger = logging.getLogger(__name__)
 JumpToMain = RuntimeError
@@ -709,170 +731,31 @@ def _maybe_autofix_generated_code(
 
 def configure_assistant_engine(env: AgiEnv) -> str:
     """Render assistant-provider controls and persist provider-specific settings."""
-    provider_options = {
-        "OpenAI (online)": "openai",
-        "GPT-OSS (local)": "gpt-oss",
-        "Ollama (local)": UOAIC_PROVIDER,
-    }
-    stored_provider = st.session_state.get("lab_llm_provider")
-    current_provider = stored_provider or env.envars.get("LAB_LLM_PROVIDER", "openai")
-    provider_labels = list(provider_options.keys())
-    provider_to_label = {v: k for k, v in provider_options.items()}
-    current_label = provider_to_label.get(current_provider, provider_labels[0])
-    current_index = provider_labels.index(current_label) if current_label in provider_labels else 0
-    selected_label = st.sidebar.selectbox(
-        "Assistant engine",
-        provider_labels,
-        index=current_index,
+    return _configure_assistant_engine_impl(
+        env,
+        deps=PipelineAiControlDeps(
+            session_state=st.session_state,
+            sidebar=st.sidebar,
+            activate_gpt_oss_fn=activate_gpt_oss,
+            get_default_openai_model_fn=get_default_openai_model,
+        ),
+        uoaic_provider=UOAIC_PROVIDER,
+        uoaic_runtime_key=UOAIC_RUNTIME_KEY,
     )
-    selected_provider = provider_options[selected_label]
-    previous_provider = st.session_state.get("lab_llm_provider")
-    st.session_state["lab_llm_provider"] = selected_provider
-    env.envars["LAB_LLM_PROVIDER"] = selected_provider
-    if previous_provider != selected_provider and previous_provider == UOAIC_PROVIDER:
-        st.session_state.pop(UOAIC_RUNTIME_KEY, None)
-    if previous_provider != selected_provider:
-        index_page = st.session_state.get("index_page") or st.session_state.get("lab_dir")
-        if index_page is not None:
-            index_page_str = str(index_page)
-            row = st.session_state.get(index_page_str)
-            if isinstance(row, list) and len(row) > 3:
-                row[3] = ""
-        st.session_state.setdefault("_experiment_reload_required", True)
-
-        if selected_provider == "openai":
-            env.envars["OPENAI_MODEL"] = get_default_openai_model()
-        elif selected_provider == "gpt-oss":
-            oss_model = (
-                st.session_state.get("gpt_oss_model")
-                or env.envars.get("GPT_OSS_MODEL")
-                or os.getenv("GPT_OSS_MODEL", "gpt-oss-120b")
-            )
-            env.envars["OPENAI_MODEL"] = oss_model
-        else:
-            env.envars.pop("OPENAI_MODEL", None)
-
-    if selected_provider == "gpt-oss":
-        default_endpoint = (
-            st.session_state.get("gpt_oss_endpoint")
-            or env.envars.get("GPT_OSS_ENDPOINT")
-            or os.getenv("GPT_OSS_ENDPOINT", "http://127.0.0.1:8000")
-        )
-        endpoint = st.sidebar.text_input(
-            "GPT-OSS endpoint",
-            value=default_endpoint,
-            help="Point to a running GPT-OSS responses API (e.g. start with `python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`).",
-        ).strip() or default_endpoint
-        st.session_state["gpt_oss_endpoint"] = endpoint
-        env.envars["GPT_OSS_ENDPOINT"] = endpoint
-    else:
-        st.session_state.pop("gpt_oss_endpoint", None)
-
-    return selected_provider
 
 
 
 def gpt_oss_controls(env: AgiEnv) -> None:
     """Ensure GPT-OSS responses service is reachable and provide quick controls."""
-    if st.session_state.get("lab_llm_provider") != "gpt-oss":
-        return
-
-    endpoint = (
-        st.session_state.get("gpt_oss_endpoint")
-        or env.envars.get("GPT_OSS_ENDPOINT")
-        or os.getenv("GPT_OSS_ENDPOINT", "")
+    _gpt_oss_controls_impl(
+        env,
+        deps=PipelineAiControlDeps(
+            session_state=st.session_state,
+            sidebar=st.sidebar,
+            activate_gpt_oss_fn=activate_gpt_oss,
+            get_default_openai_model_fn=get_default_openai_model,
+        ),
     )
-    backend_choices = ["stub", "transformers", "metal", "triton", "ollama", "vllm"]
-    backend_default = (
-        st.session_state.get("gpt_oss_backend")
-        or env.envars.get("GPT_OSS_BACKEND")
-        or os.getenv("GPT_OSS_BACKEND")
-        or "stub"
-    )
-    if backend_default not in backend_choices:
-        backend_choices = [backend_default] + [opt for opt in backend_choices if opt != backend_default]
-    backend = st.sidebar.selectbox(
-        "GPT-OSS backend",
-        backend_choices,
-        index=backend_choices.index(backend_default if backend_default in backend_choices else backend_choices[0]),
-        help="Select the inference backend for a local GPT-OSS server. "
-             "Use 'transformers' for Hugging Face checkpoints or leave on 'stub' for a mock service.",
-    )
-    st.session_state["gpt_oss_backend"] = backend
-    env.envars["GPT_OSS_BACKEND"] = backend
-    if st.session_state.get("gpt_oss_server_started") and st.session_state.get("gpt_oss_backend_active") not in (None, backend):
-        st.sidebar.warning("Restart GPT-OSS server to apply the new backend.")
-
-    checkpoint_default = (
-        st.session_state.get("gpt_oss_checkpoint")
-        or env.envars.get("GPT_OSS_CHECKPOINT")
-        or os.getenv("GPT_OSS_CHECKPOINT")
-        or ("gpt2" if backend == "transformers" else "")
-    )
-    checkpoint = st.sidebar.text_input(
-        "GPT-OSS checkpoint / model",
-        value=checkpoint_default,
-        help="Provide a Hugging Face model ID or local checkpoint path when using a local backend.",
-    ).strip()
-    if checkpoint:
-        st.session_state["gpt_oss_checkpoint"] = checkpoint
-        env.envars["GPT_OSS_CHECKPOINT"] = checkpoint
-    else:
-        st.session_state.pop("gpt_oss_checkpoint", None)
-        env.envars.pop("GPT_OSS_CHECKPOINT", None)
-
-    extra_args_default = (
-        st.session_state.get("gpt_oss_extra_args")
-        or env.envars.get("GPT_OSS_EXTRA_ARGS")
-        or os.getenv("GPT_OSS_EXTRA_ARGS")
-        or ""
-    )
-    extra_args = st.sidebar.text_input(
-        "GPT-OSS extra flags",
-        value=extra_args_default,
-        help="Optional additional flags appended to the launch command (e.g. `--temperature 0.1`).",
-    ).strip()
-    if extra_args:
-        st.session_state["gpt_oss_extra_args"] = extra_args
-        env.envars["GPT_OSS_EXTRA_ARGS"] = extra_args
-    else:
-        st.session_state.pop("gpt_oss_extra_args", None)
-        env.envars.pop("GPT_OSS_EXTRA_ARGS", None)
-
-    if st.session_state.get("gpt_oss_server_started"):
-        active_checkpoint = st.session_state.get("gpt_oss_checkpoint_active", "")
-        active_extra = st.session_state.get("gpt_oss_extra_args_active", "")
-        if checkpoint != active_checkpoint or extra_args != active_extra:
-            st.sidebar.warning("Restart GPT-OSS server to apply updated checkpoint or flags.")
-
-    auto_local = endpoint.startswith("http://127.0.0.1") or endpoint.startswith("http://localhost")
-
-    autostart_failed = st.session_state.get("gpt_oss_autostart_failed")
-
-    if auto_local and not st.session_state.get("gpt_oss_server_started") and not autostart_failed:
-        if activate_gpt_oss(env):
-            endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
-
-    if st.session_state.get("gpt_oss_server_started"):
-        endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
-        backend_active = st.session_state.get("gpt_oss_backend_active", backend)
-        st.sidebar.success(f"GPT-OSS server running ({backend_active}) at {endpoint}")
-        return
-
-    if st.sidebar.button("Start GPT-OSS server", key="gpt_oss_start_btn"):
-        if activate_gpt_oss(env):
-            endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
-            backend_active = st.session_state.get("gpt_oss_backend_active", backend)
-            st.sidebar.success(f"GPT-OSS server running ({backend_active}) at {endpoint}")
-            return
-
-    if endpoint:
-        st.sidebar.info(f"Using GPT-OSS endpoint: {endpoint}")
-    else:
-        st.sidebar.warning(
-            "Configure a GPT-OSS endpoint or install the package with `pip install gpt-oss` "
-            "to start a local server."
-        )
 
 
 def universal_offline_controls(env: AgiEnv) -> None:
