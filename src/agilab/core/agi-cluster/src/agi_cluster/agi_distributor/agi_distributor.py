@@ -27,7 +27,6 @@ import sys
 import time
 import shlex
 import warnings
-import posixpath
 from copy import deepcopy
 from datetime import timedelta
 from ipaddress import ip_address as is_ip
@@ -46,9 +45,11 @@ from agi_cluster.agi_distributor import (
     deployment_remote_support,
     entrypoint_support,
     runtime_distribution_support,
+    runtime_misc_support,
     scheduler_io_support,
     service_runtime_support,
     transport_support,
+    uv_source_support,
 )
 
 from agi_env import normalize_path
@@ -60,58 +61,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _envar_truthy(envars: dict, key: str) -> bool:
-    """Return True when an env var value is truthy.
-
-    Accepts common boolean-ish representations and defaults to False when unset
-    or unparsable.
-    """
-    try:
-        raw = envars.get(key)
-    except Exception:
-        return False
-    if raw is None:
-        return False
-    if isinstance(raw, bool):
-        return raw
-    if isinstance(raw, (int, float)):
-        try:
-            return int(raw) == 1
-        except (TypeError, ValueError):
-            return False
-    value = str(raw).strip().lower()
-    return value in {"1", "true", "yes", "on"}
+    return uv_source_support.envar_truthy(envars, key)
 
 
 def _ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
-    """Ensure ``[project.optional-dependencies]`` contains the requested extras.
-
-    Some worker environments are bootstrapped from a manager ``pyproject.toml`` that
-    doesn't declare worker-only extras (e.g. ``polars-worker``). ``uv sync --extra``
-    fails hard when the extra doesn't exist, even if it would be empty.
-    """
-    if not extras:
-        return
-
-    try:
-        doc = tomlkit.parse(pyproject_file.read_text())
-    except FileNotFoundError:
-        doc = tomlkit.document()
-
-    project_tbl = doc.get("project")
-    if project_tbl is None:
-        project_tbl = tomlkit.table()
-
-    optional_tbl = project_tbl.get("optional-dependencies")
-    if optional_tbl is None or not isinstance(optional_tbl, tomlkit.items.Table):
-        optional_tbl = tomlkit.table()
-
-    for extra in sorted({e for e in extras if isinstance(e, str) and e.strip()}):
-        if extra not in optional_tbl:
-            optional_tbl[extra] = tomlkit.array()
-
-    project_tbl["optional-dependencies"] = optional_tbl
-    doc["project"] = project_tbl
-    pyproject_file.write_text(tomlkit.dumps(doc))
+    uv_source_support.ensure_optional_extras(pyproject_file, extras)
 
 
 def _is_private_ssh_key_file(path: Path) -> bool:
@@ -128,115 +82,16 @@ def _rewrite_uv_sources_paths_for_copied_pyproject(
     dest_pyproject: Path,
     log_rewrites: bool = False,
 ) -> None:
-    """Rewrite ``[tool.uv.sources.*].path`` entries after copying a worker ``pyproject.toml``.
-
-    Some worker projects use relative ``path = "../.."`` sources to depend on sibling
-    worker packages (e.g. ``ilp_worker``). When the worker pyproject is copied into
-    ``~/wenv/<app>_worker``, those relative paths no longer resolve, causing ``uv add``
-    to fail with "Distribution not found at: file://...".
-
-    This helper keeps the original source intent by resolving the path entries relative
-    to the *source* pyproject location, then rewriting the copied pyproject to use
-    paths relative to the destination directory.
-    """
-
-    try:
-        src_data = tomlkit.parse(src_pyproject.read_text())
-        dest_data = tomlkit.parse(dest_pyproject.read_text())
-    except FileNotFoundError:
-        return
-
-    src_sources = (
-        src_data.get("tool", {}).get("uv", {}).get("sources")
-        if isinstance(src_data, dict)
-        else None
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        log_rewrites=log_rewrites,
+        log=logger,
     )
-    dest_sources = (
-        dest_data.get("tool", {}).get("uv", {}).get("sources")
-        if isinstance(dest_data, dict)
-        else None
-    )
-    if not isinstance(src_sources, dict) or not isinstance(dest_sources, dict):
-        return
-
-    dest_dir = dest_pyproject.parent
-    rewrites: list[tuple[str, str, str]] = []
-
-    for name, src_meta in src_sources.items():
-        if not isinstance(src_meta, dict):
-            continue
-        src_path_value = src_meta.get("path")
-        if not isinstance(src_path_value, str) or not src_path_value.strip():
-            continue
-
-        src_path = Path(src_path_value).expanduser()
-        if not src_path.is_absolute():
-            src_path = (src_pyproject.parent / src_path).resolve(strict=False)
-        else:
-            src_path = src_path.resolve(strict=False)
-        if not src_path.exists():
-            continue
-
-        dest_meta = dest_sources.get(name)
-        if not isinstance(dest_meta, dict):
-            continue
-        dest_path_value = dest_meta.get("path")
-
-        dest_path = None
-        if isinstance(dest_path_value, str) and dest_path_value.strip():
-            dest_path = Path(dest_path_value).expanduser()
-            if not dest_path.is_absolute():
-                dest_path = (dest_dir / dest_path).resolve(strict=False)
-            else:
-                dest_path = dest_path.resolve(strict=False)
-
-        # Keep valid existing paths (e.g. already rewritten by a previous run).
-        if dest_path is not None and dest_path.exists():
-            continue
-
-        try:
-            new_path_value = os.path.relpath(src_path, start=dest_dir)
-        except Exception:
-            new_path_value = str(src_path)
-
-        if dest_path_value != new_path_value:
-            dest_meta["path"] = new_path_value
-            rewrites.append((name, str(dest_path_value or ""), new_path_value))
-
-    if not rewrites:
-        return
-
-    dest_pyproject.write_text(tomlkit.dumps(dest_data))
-    if log_rewrites:
-        for name, old, new in rewrites:
-            logger.info("Rewrote uv source '%s' path: %s -> %s", name, old or "<unset>", new)
 
 
 def _copy_uv_source_tree(src_path: Path, dest_path: Path) -> None:
-    """Copy a local uv source dependency into a self-contained staging area."""
-
-    if dest_path.exists():
-        if dest_path.is_dir():
-            shutil.rmtree(dest_path, ignore_errors=True)
-        else:
-            try:
-                dest_path.unlink()
-            except FileNotFoundError:
-                pass
-
-    if src_path.is_dir():
-        ignore = shutil.ignore_patterns(
-            ".venv",
-            "__pycache__",
-            ".pytest_cache",
-            ".mypy_cache",
-            "build",
-            "dist",
-        )
-        shutil.copytree(src_path, dest_path, ignore=ignore, dirs_exist_ok=True)
-    else:
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_path, dest_path)
+    uv_source_support.copy_uv_source_tree(src_path, dest_path)
 
 
 def _stage_uv_sources_for_copied_pyproject(
@@ -246,133 +101,21 @@ def _stage_uv_sources_for_copied_pyproject(
     stage_root: Path,
     log_rewrites: bool = False,
 ) -> list[Path]:
-    """Stage local ``tool.uv.sources.*.path`` entries next to the copied pyproject.
-
-    Rewriting a copied worker ``pyproject.toml`` to point back to the developer
-    checkout works only when that checkout is available from the worker host.
-    For local-source app dependencies such as ``ilp_worker``, we instead copy the
-    referenced source trees into ``stage_root/_uv_sources`` and rewrite the copied
-    pyproject to point at those staged copies. This makes the worker env payload
-    self-contained for both local and remote installs.
-    """
-
-    try:
-        src_data = tomlkit.parse(src_pyproject.read_text())
-        dest_data = tomlkit.parse(dest_pyproject.read_text())
-    except FileNotFoundError:
-        return []
-
-    src_sources = (
-        src_data.get("tool", {}).get("uv", {}).get("sources")
-        if isinstance(src_data, dict)
-        else None
+    return uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        stage_root=stage_root,
+        log_rewrites=log_rewrites,
+        log=logger,
     )
-    dest_sources = (
-        dest_data.get("tool", {}).get("uv", {}).get("sources")
-        if isinstance(dest_data, dict)
-        else None
-    )
-    if not isinstance(src_sources, dict) or not isinstance(dest_sources, dict):
-        return []
-
-    dest_dir = dest_pyproject.parent
-    staged_root = stage_root / "_uv_sources"
-    rewrites: list[tuple[str, str, str]] = []
-    staged_any = False
-
-    for name, src_meta in src_sources.items():
-        if not isinstance(src_meta, dict):
-            continue
-        src_path_value = src_meta.get("path")
-        if not isinstance(src_path_value, str) or not src_path_value.strip():
-            continue
-
-        src_path = Path(src_path_value).expanduser()
-        if not src_path.is_absolute():
-            src_path = (src_pyproject.parent / src_path).resolve(strict=False)
-        else:
-            src_path = src_path.resolve(strict=False)
-        if not src_path.exists():
-            continue
-
-        dest_meta = dest_sources.get(name)
-        if not isinstance(dest_meta, dict):
-            continue
-
-        staged_target = staged_root / name
-        _copy_uv_source_tree(src_path, staged_target)
-        staged_any = True
-
-        try:
-            new_path_value = os.path.relpath(staged_target, start=dest_dir)
-        except Exception:
-            new_path_value = str(staged_target)
-
-        old_path_value = dest_meta.get("path")
-        if old_path_value != new_path_value:
-            dest_meta["path"] = new_path_value
-            rewrites.append((name, str(old_path_value or ""), new_path_value))
-
-    if rewrites:
-        dest_pyproject.write_text(tomlkit.dumps(dest_data))
-        if log_rewrites:
-            for name, old, new in rewrites:
-                logger.info("Staged uv source '%s' path: %s -> %s", name, old or "<unset>", new)
-
-    return [staged_root] if staged_any and staged_root.exists() else []
 
 
 def _missing_uv_source_paths(pyproject_path: Path) -> list[tuple[str, str]]:
-    """Return unresolved ``tool.uv.sources.*.path`` entries from a copied pyproject."""
-
-    try:
-        data = tomlkit.parse(pyproject_path.read_text())
-    except FileNotFoundError:
-        return []
-
-    sources = (
-        data.get("tool", {}).get("uv", {}).get("sources")
-        if isinstance(data, dict)
-        else None
-    )
-    if not isinstance(sources, dict):
-        return []
-
-    missing: list[tuple[str, str]] = []
-    root = pyproject_path.parent
-    for name, meta in sources.items():
-        if not isinstance(meta, dict):
-            continue
-        path_value = meta.get("path")
-        if not isinstance(path_value, str) or not path_value.strip():
-            continue
-        candidate = Path(path_value).expanduser()
-        if not candidate.is_absolute():
-            candidate = (root / candidate).resolve(strict=False)
-        else:
-            candidate = candidate.resolve(strict=False)
-        if not candidate.exists():
-            missing.append((str(name), path_value))
-
-    return missing
+    return uv_source_support.missing_uv_source_paths(pyproject_path)
 
 
 def _validate_worker_uv_sources(pyproject_path: Path) -> None:
-    """Fail fast when a copied worker pyproject still points at missing local sources."""
-
-    missing = _missing_uv_source_paths(pyproject_path)
-    if not missing:
-        return
-
-    details = ", ".join(f"{name} -> {path}" for name, path in missing[:4])
-    if len(missing) > 4:
-        details += f", +{len(missing) - 4} more"
-    raise RuntimeError(
-        "Worker environment is using unresolved local uv sources "
-        f"from {pyproject_path}: {details}. "
-        "This worker install is stale or incomplete. Rerun AGI.install for the app "
-        "after updating AGILab so worker dependencies are staged into _uv_sources."
-    )
+    uv_source_support.validate_worker_uv_sources(pyproject_path)
 
 
 def _worker_site_packages_dir(
@@ -381,105 +124,40 @@ def _worker_site_packages_dir(
     *,
     windows: bool = False,
 ) -> Path | PurePosixPath:
-    """Return the worker venv site-packages path for the given Python version."""
-
-    if windows:
-        return wenv_root / ".venv" / "Lib" / "site-packages"
-
-    parts = str(pyvers).split(".")
-    major = parts[0] if parts else "3"
-    minor_raw = parts[1] if len(parts) > 1 else "13"
-    suffix = "t" if minor_raw.endswith("t") else ""
-    minor = minor_raw[:-1] if suffix else minor_raw
-    return wenv_root / ".venv" / "lib" / f"python{major}.{minor}{suffix}" / "site-packages"
+    return uv_source_support.worker_site_packages_dir(
+        wenv_root=wenv_root,
+        pyvers=pyvers,
+        windows=windows,
+    )
 
 
 def _staged_uv_sources_pth_content(
     site_packages_dir: Path | PurePosixPath,
     uv_sources_root: Path | PurePosixPath,
 ) -> str:
-    """Return a relative `.pth` entry that exposes staged uv sources."""
-
-    if isinstance(site_packages_dir, PurePosixPath) or isinstance(uv_sources_root, PurePosixPath):
-        rel = posixpath.relpath(
-            PurePosixPath(uv_sources_root).as_posix(),
-            start=PurePosixPath(site_packages_dir).as_posix(),
-        )
-    else:
-        rel = os.path.relpath(str(uv_sources_root), start=str(site_packages_dir))
-    return f"{rel}\n"
+    return uv_source_support.staged_uv_sources_pth_content(
+        site_packages_dir=site_packages_dir,
+        uv_sources_root=uv_sources_root,
+    )
 
 
 def _write_staged_uv_sources_pth(
     site_packages_dir: Path,
     uv_sources_root: Path,
 ) -> Optional[Path]:
-    """Write a `.pth` file so staged uv-source trees are importable at runtime."""
-
-    pth_path = site_packages_dir / "agilab_uv_sources.pth"
-    if not uv_sources_root.exists():
-        try:
-            pth_path.unlink()
-        except FileNotFoundError:
-            pass
-        return None
-
-    site_packages_dir.mkdir(parents=True, exist_ok=True)
-    pth_path.write_text(
-        _staged_uv_sources_pth_content(site_packages_dir, uv_sources_root),
-        encoding="utf-8",
+    return uv_source_support.write_staged_uv_sources_pth(
+        site_packages_dir=site_packages_dir,
+        uv_sources_root=uv_sources_root,
     )
-    return pth_path
 
 # ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
 # ---------------------------------------------------------------------------
 def _ensure_asyncio_run_signature() -> None:
-    """Ensure ``asyncio.run`` accepts the ``loop_factory`` argument.
-
-    PyCharm's debugger replaces ``asyncio.run`` with a shim that only accepts
-    ``main`` and ``debug``.  Python 3.13 introduced a ``loop_factory`` keyword
-    that ``distributed`` relies on; without it, AGI runs fail with
-    ``TypeError``.  When we detect the truncated signature (and the replacement
-    originates from ``pydevd``), we wrap it so ``loop_factory`` works again.
-    """
-
-    current = asyncio.run
-    try:
-        params = inspect.signature(current).parameters
-    except (TypeError, ValueError):  # pragma: no cover - unable to introspect
-        return
-    if "loop_factory" in params:
-        return
-
-    if "pydevd" not in getattr(current, "__module__", ""):
-        return
-
-    original = current
-
-    def _patched_run(main, *, debug=None, loop_factory=None):
-        if loop_factory is None:
-            return original(main, debug=debug)
-
-        loop = loop_factory()
-        try:
-            try:
-                asyncio.set_event_loop(loop)
-            except RuntimeError:
-                pass
-            if debug is not None:
-                loop.set_debug(debug)
-            return loop.run_until_complete(main)
-        finally:
-            try:
-                loop.close()
-            finally:
-                try:
-                    asyncio.set_event_loop(None)
-                except RuntimeError:
-                    pass
-
-    asyncio.run = _patched_run
+    runtime_misc_support.ensure_asyncio_run_signature(
+        asyncio_module=asyncio,
+        inspect_signature_fn=inspect.signature,
+    )
 
 
 _ensure_asyncio_run_signature()
@@ -487,39 +165,7 @@ _ensure_asyncio_run_signature()
 
 # --- Added minimal TestPyPI fallback for uv sync ---
 def _agi__version_missing_on_pypi(project_path):
-    """Return True if any pinned 'agi*' or 'agilab' dependency version in pyproject.toml
-    is not available on pypi.org (so we should use TestPyPI fallback)."""
-    try:
-        import json, urllib.request, re
-        pyproj = (project_path / 'pyproject.toml')
-        if not pyproj.exists():
-            return False
-        text = pyproj.read_text(encoding='utf-8', errors='ignore')
-        # naive scan for lines like: agi-core = "==1.2.3" or "1.2.3"
-        deps = re.findall(r'^(?:\s*)(ag(?:i[-_].+|ilab))\s*=\s*["\']([^"\']+)["\']', text, flags=re.MULTILINE)
-        if not deps:
-            return False
-        # extract exact pins
-        pairs = []
-        for name, spec in deps:
-            m = re.match(r'^(?:==\s*)?(\d+(?:\.\d+){1,2})$', spec.strip())
-            if m:
-                version = m.group(1)
-                pairs.append((name.replace('_', '-'), version))
-        if not pairs:
-            return False
-        # check first pair only to keep it minimal/fast
-        pkg, ver = pairs[0]
-        try:
-            with urllib.request.urlopen(f'https://pypi.org/pypi/{pkg}/json', timeout=5) as r:
-                data = json.load(r)
-            exists = ver in data.get('releases', {})
-            return not exists
-        except Exception:
-            # If pypi query fails, don't force fallback.
-            return False
-    except Exception:
-        return False
+    return runtime_misc_support.agi_version_missing_on_pypi(project_path)
 
 
 # --- end added helper ---
@@ -536,12 +182,10 @@ import numpy as np
 import polars as pl
 import psutil
 from dask.distributed import Client, wait
-import json
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
 import runpy
-import tomlkit
 from packaging.requirements import Requirement
 from importlib.metadata import PackageNotFoundError, version as pkg_version
 
@@ -1600,60 +1244,4 @@ class AGI:
 
 
 def _format_exception_chain(exc: BaseException) -> str:
-    """Return a compact representation of the exception chain, capturing root causes."""
-    messages: List[str] = []
-    norms: List[str] = []
-    visited = set()
-    current: Optional[BaseException] = exc
-
-    def _normalize(text: str) -> str:
-        text = text.strip()
-        if not text:
-            return ""
-        lowered = text.lower()
-        for token in ("error:", "exception:", "warning:", "runtimeerror:", "valueerror:", "typeerror:"):
-            if lowered.startswith(token):
-                return text[len(token):].strip()
-        if ": " in text:
-            head, tail = text.split(": ", 1)
-            if head.endswith(("Error", "Exception", "Warning")):
-                return tail.strip()
-        return text
-
-    while current and id(current) not in visited:
-        visited.add(id(current))
-        tb_exc = traceback.TracebackException.from_exception(current)
-        text = "".join(tb_exc.format_exception_only()).strip()
-        if not text:
-            text = f"{current.__class__.__name__}: {current}"
-        if text:
-            norm = _normalize(text)
-            if messages:
-                last_norm = norms[-1]
-                if not norm:
-                    norm = text
-                if norm == last_norm:
-                    pass
-                elif last_norm.endswith(norm):
-                    messages[-1] = text
-                    norms[-1] = norm
-                elif norm.endswith(last_norm):
-                    # Current message is a superset; keep existing shorter variant.
-                    pass
-                else:
-                    messages.append(text)
-                    norms.append(norm)
-            else:
-                messages.append(text)
-                norms.append(norm if norm else text)
-
-        if current.__cause__ is not None:
-            current = current.__cause__
-        elif current.__context__ is not None and not getattr(current, "__suppress_context__", False):
-            current = current.__context__
-        else:
-            break
-
-    if not messages:
-        return str(exc).strip() or repr(exc)
-    return " -> ".join(messages)
+    return runtime_misc_support.format_exception_chain(exc)
