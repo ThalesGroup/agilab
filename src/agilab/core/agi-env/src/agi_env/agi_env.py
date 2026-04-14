@@ -99,10 +99,19 @@ from agi_env.share_runtime_support import (
     resolve_share_path as resolve_relative_share_path,
     share_target_name,
 )
+from agi_env.rename_gitignore_support import (
+    is_relative_to as is_path_relative_to,
+    load_gitignore_spec,
+    replace_text_content,
+)
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
     get_full_attribute_name as build_full_attribute_name,
     get_import_mapping as build_import_mapping,
+)
+from agi_env.worker_source_support import (
+    get_base_classes as discover_base_classes,
+    get_base_worker_cls as discover_base_worker_cls,
 )
 import inspect as _inspect
 try:
@@ -1581,40 +1590,22 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def get_base_worker_cls(self, module_path, class_name):
         """Return the base worker class name and module for ``class_name``."""
-
-        base_info_list = self.get_base_classes(module_path, class_name)
-        try:
-            base_class, module_name = next((base, mod) for base, mod in base_info_list if base.endswith("Worker"))
-            return base_class, module_name
-        except StopIteration:
-            return None, None
+        return discover_base_worker_cls(
+            module_path,
+            class_name,
+            logger=AgiEnv.logger,
+            get_base_classes_fn=self.get_base_classes,
+        )
 
     def get_base_classes(self, module_path, class_name):
         """Inspect ``module_path`` AST to retrieve base classes of ``class_name``."""
-
-        try:
-            with open(module_path, "r", encoding="utf-8") as file:
-                source = file.read()
-        except (IOError, FileNotFoundError) as e:
-            AgiEnv.logger.error(f"Error reading module file {module_path}: {e}")
-            return []
-
-        try:
-            tree = ast.parse(source)
-        except SyntaxError as e:
-            AgiEnv.logger.error(f"Syntax error parsing {module_path}: {e}")
-            raise RuntimeError(f"Syntax error parsing {module_path}: {e}")
-
-        import_mapping = self.get_import_mapping(source)
-        base_classes = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == class_name:
-                for base in node.bases:
-                    base_info = self.extract_base_info(base, import_mapping)
-                    if base_info:
-                        base_classes.append(base_info)
-                break
-        return base_classes
+        return discover_base_classes(
+            module_path,
+            class_name,
+            logger=AgiEnv.logger,
+            import_mapping_fn=self.get_import_mapping,
+            extract_base_info_fn=self.extract_base_info,
+        )
 
     def get_import_mapping(self, source):
         """Build a mapping of names to modules from ``import`` statements in ``source``."""
@@ -2817,18 +2808,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 file.write_text(new_txt, encoding="utf-8")
 
     def replace_content(self, txt: str, rename_map: dict) -> str:
-        boundary = r"(?<![0-9A-Za-z_]){token}(?![0-9A-Za-z_])"
-        for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
-            token = re.escape(old)
-            pattern = re.compile(boundary.format(token=token))
-            txt = pattern.sub(new, txt)
-        return txt
+        return replace_text_content(txt, rename_map)
 
     def read_gitignore(self, gitignore_path: Path) -> 'PathSpec':
-        from pathspec import PathSpec
-        from pathspec.patterns import GitWildMatchPattern
-        lines = gitignore_path.read_text(encoding="utf-8").splitlines()
-        return PathSpec.from_lines(GitWildMatchPattern, lines)
+        return load_gitignore_spec(gitignore_path)
 
     def unzip_data(
         self,
@@ -3298,9 +3281,4 @@ class ContentRenamer(ast.NodeTransformer):
         my_pid = os.getpid()
 def _is_relative_to(path: Path, other: Path) -> bool:
     """Return ``True`` if ``path`` lies under ``other`` (without requiring Python 3.9)."""
-
-    try:
-        path.relative_to(other)
-        return True
-    except ValueError:
-        return False
+    return is_path_relative_to(path, other)
