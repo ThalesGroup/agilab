@@ -5,8 +5,11 @@ import importlib
 import importlib.metadata as importlib_metadata
 import sys
 import os
+import json
 import re
 import traceback
+import urllib.error
+import urllib.request
 from pathlib import Path
 from contextlib import contextmanager, nullcontext
 from typing import Any, Dict, List, Optional, Tuple, Callable
@@ -81,6 +84,126 @@ def normalize_ollama_endpoint(raw_endpoint: Optional[str]) -> str:
     if endpoint.endswith("/api/generate"):
         endpoint = endpoint[: -len("/api/generate")]
     return endpoint
+
+
+def _ollama_available_models(endpoint: str) -> List[str]:
+    """Return the list of models available on the Ollama server."""
+
+    base = normalize_ollama_endpoint(endpoint)
+    url = f"{base}/api/tags"
+    req = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError):
+        return []
+
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return []
+
+    models: List[str] = []
+    if isinstance(parsed, dict):
+        for entry in parsed.get("models") or []:
+            if isinstance(entry, dict):
+                name = entry.get("name")
+                if name:
+                    models.append(str(name))
+    # Preserve order but drop duplicates/empties
+    deduped: List[str] = []
+    seen: set[str] = set()
+    for name in models:
+        if name in seen:
+            continue
+        seen.add(name)
+        deduped.append(name)
+    return deduped
+
+
+def _default_ollama_model(
+    endpoint: str,
+    *,
+    preferred: str = "mistral:instruct",
+    prefer_code: bool = False,
+) -> str:
+    models = _ollama_available_models(endpoint)
+    if models and prefer_code:
+        for name in models:
+            if _OLLAMA_CODE_MODEL_RE.search(name):
+                return name
+    if preferred and preferred in models:
+        return preferred
+    if models:
+        return models[0]
+    return preferred
+
+
+def _ollama_generate(
+    *,
+    endpoint: str,
+    model: str,
+    prompt: str,
+    temperature: float = 0.1,
+    top_p: float = 0.9,
+    num_ctx: Optional[int] = None,
+    num_predict: Optional[int] = None,
+    seed: Optional[int] = None,
+    timeout_s: float = 120.0,
+    endpoint_var_name: str = "UOAIC_OLLAMA_ENDPOINT_ENV",
+) -> str:
+    """Call Ollama's /api/generate endpoint and return the response text."""
+    base = normalize_ollama_endpoint(endpoint)
+    url = f"{base}/api/generate"
+
+    options: Dict[str, Any] = {
+        "temperature": float(temperature),
+        "top_p": float(top_p),
+    }
+    if num_ctx is not None:
+        options["num_ctx"] = int(num_ctx)
+    if num_predict is not None:
+        options["num_predict"] = int(num_predict)
+    if seed is not None:
+        options["seed"] = int(seed)
+
+    payload = {
+        "model": str(model).strip(),
+        "prompt": str(prompt),
+        "stream": False,
+        "options": options,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=float(timeout_s)) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+        raise RuntimeError(f"Ollama error {exc.code}: {detail or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            f"Unable to reach Ollama at {url}. Start Ollama or update {endpoint_var_name}."
+        ) from exc
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Ollama returned invalid JSON: {raw[:2000]}") from exc
+
+    if not isinstance(parsed, dict):
+        raise RuntimeError(f"Ollama returned unexpected payload: {type(parsed).__name__}")
+    return str(parsed.get("response") or "").strip()
 
 
 def prompt_to_plaintext(prompt: List[Dict[str, str]], question: str) -> str:
