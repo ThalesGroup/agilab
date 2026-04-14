@@ -88,6 +88,10 @@ from .pagelib_resource_support import (
     about_content_payload,
     load_json_resource,
 )
+from .pagelib_session_support import (
+    clear_project_session_state,
+    reset_project_sections,
+)
 logger = logging.getLogger(__name__)
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
@@ -101,8 +105,6 @@ _MLFLOW_SCHEMA_RESET_MARKERS = (
     "No such revision or branch",
     "duplicate column name:",
 )
-
-
 def background_services_enabled() -> bool:
     """Return False under automated UI tests or when explicitly disabled."""
     disable_flag = os.getenv("AGILAB_DISABLE_BACKGROUND_SERVICES", "").strip().lower()
@@ -207,22 +209,11 @@ def _ensure_default_mlflow_experiment(tracking_dir: Path) -> str | None:
     )
 
 
-
-# Apply the custom CSS
-custom_css = (
-    "<style> .stButton > button { max-width: 150px;  /* Adjust the max-width as needed */"
-    "font-size: 14px;  /* Adjust the font-size as needed */)"
-    "white-space: nowrap;  /* Prevent text from wrapping */"
-    "overflow: hidden;  /* Hide overflow text */"
-    "text-overflow: ellipsis;  /* Show ellipsis for overflow text */} "
-    " .stToggleSwitch label {"
-    "max-width: 150px;  /* Adjust the max-width as needed */"
-    "font-size: 14px;  /* Adjust the font-size as needed */"
-    "white-space: nowrap;  /* Prevent text from wrapping */"
-    "overflow: hidden;  /* Hide overflow text */"
-    "text-overflow: ellipsis;  /* Show ellipsis for overflow text */"
-    "display: inline-block;} </style>"
-)
+def _next_free_port() -> int:
+    port = get_random_port()
+    while is_port_in_use(port):
+        port = get_random_port()
+    return port
 
 
 def run_with_output(env, cmd, cwd="./", timeout=None):
@@ -587,104 +578,33 @@ def on_project_change(project, switch_to_select=False):
     """
     Callback function to handle project changes.
 
-    This function is optimized for speed and efficiency by minimizing attribute lookups, using tuples for fixed key collections, and leveraging 'del' for key removal.
+    Reset project-scoped session state, switch the active app, and re-seed the
+    sidebar state for the newly selected project.
     """
     env = st.session_state["env"]
-    # Define the keys to clear as a tuple for immutability and minor performance gains
-    keys_to_clear = (
-        "is_args_from_ui",
-        "args_default",
-        "toggle_edit",
-        "toggle_edit_ui",
-        "app_args_form_refresh_nonce",
-        "df_file_selectbox",
-        "app_settings",
-        "input_datadir",
-        "preview_tree",
-        "loaded_df",
-        "wenv_abs",
-        "projects",
-        "log_text",
-        "run_log_cache",
-        # Pipeline/Analysis shared UI state that must track project changes.
-        "lab_dir_selectbox",
-        "lab_dir",
-        "index_page",
-        "steps_file",
-        "df_file",
-        "df_file_in",
-        "df_file_out",
-        "steps_files",
-        "df_files",
-        "df_dir",
-        "lab_prompt",
-        "lab_selected_venv",
-        "pipeline_config_snapshot",
-    )
-
-    # Define the prefixes as a tuple for efficient checking
-    prefixes = ("arg_name", "arg_value", "view_checkbox")
-
-    # Assign st.session_state to a local variable to minimize attribute lookups
     session_state = st.session_state
-
-    # Clear specific session state variables using 'del' within a try-except block
-    for key in keys_to_clear:
-        try:
-            del session_state[key]
-        except KeyError:
-            pass  # If the key doesn't exist, do nothing
-
-    # Collect keys to delete that start with specified prefixes
-    keys_to_delete = [
-        key
-        for key in session_state
-        if key.startswith(prefixes) or ":app_args_form:" in key
-    ]
-
-    # Delete the collected keys using 'del' for better performance
-    for key in keys_to_delete:
-        del session_state[key]
+    clear_project_session_state(session_state)
 
     try:
-
-        # Change the app/project
         env.change_app(env.apps_path / project)
-        
-
         module = env.target
         try:
             store_last_active_app(env.active_app)
         except (OSError, RuntimeError):
             pass
 
-        # Update session state with new module and data directory paths
         session_state.module_rel = Path(module)
         session_state.datadir = env.AGILAB_EXPORT_ABS / module
         session_state.datadir_str = str(session_state.datadir)
-        st.session_state.df_export_file = str(session_state.datadir / "export.csv")
+        session_state.df_export_file = str(session_state.datadir / "export.csv")
 
-        # Optional: Set a flag to switch the sidebar tab if needed
         session_state.switch_to_select = switch_to_select
         session_state.project_changed = True
 
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
         st.error(f"An error occurred while changing the project: {e}")
 
-    section_labels = (
-        "PYTHON‑ENV",
-        "PYTHON-ENV-EXTRA",
-        "MANAGER",
-        "WORKER",
-        "EXPORT‑APP‑FILTER",
-        "APP‑SETTINGS",
-        "ARGS‑UI",
-        "PRE‑PROMPT",
-    )
-    for label in section_labels:
-        session_state[label] = False
-
-
+    reset_project_sections(session_state)
 
 
 def is_port_in_use(target_port):
@@ -1277,16 +1197,11 @@ def sidebar_views():
     """
     Create sidebar controls for selecting modules and DataFrames.
     """
-    # Set module and paths
     env = st.session_state["env"]
-    Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
-    modules = st.session_state.get(
-        "modules", scan_dir(Agi_export_abs)
-    )  # Use the target from Agienv
-    # st.session_state.setdefault("index_page", str(module_path.relative_to(env.AGILAB_EXPORT_ABS)))
-    # index_page = st.session_state.get("index_page", env.target)
+    export_root = Path(env.AGILAB_EXPORT_ABS)
+    modules = st.session_state.get("modules", scan_dir(export_root))
 
-    _selected_lab, lab_index = resolve_default_selection(
+    _, lab_index = resolve_default_selection(
         modules,
         st.session_state.get("lab_dir"),
         env.target,
@@ -1299,14 +1214,14 @@ def sidebar_views():
         key="lab_dir_selectbox",
     )
 
-    lab_dir = Agi_export_abs / st.session_state["lab_dir_selectbox"]
-    st.session_state.df_dir = Agi_export_abs / lab_dir
+    lab_dir = export_root / st.session_state["lab_dir_selectbox"]
+    st.session_state.df_dir = lab_dir
 
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files
 
     sidebar_state = build_sidebar_dataframe_selection(
-        Agi_export_abs,
+        export_root,
         st.session_state["lab_dir_selectbox"],
         df_files,
         st.session_state.get("index_page"),
@@ -1325,9 +1240,9 @@ def sidebar_views():
             index_page_str,
             st.session_state.get("df_file"),
         ),
-    )
+        )
     if st.session_state[sidebar_state.key_df]:
-        st.session_state["df_file"] = Agi_export_abs / st.session_state[sidebar_state.key_df]
+        st.session_state["df_file"] = export_root / st.session_state[sidebar_state.key_df]
     else:
         st.session_state["df_file"] = None
 
@@ -1389,9 +1304,7 @@ def activate_mlflow(env=None):
     tracking_dir.mkdir(parents=True, exist_ok=True)
     env.MLFLOW_TRACKING_DIR = str(tracking_dir)
 
-    port = get_random_port()
-    while is_port_in_use(port):
-        port = get_random_port()
+    port = _next_free_port()
 
     try:
         backend_uri = _ensure_default_mlflow_experiment(tracking_dir) or _ensure_mlflow_backend_ready(tracking_dir)
@@ -1477,9 +1390,7 @@ def activate_gpt_oss(env=None):
     if extra_args:
         env.envars["GPT_OSS_EXTRA_ARGS"] = extra_args
 
-    port = get_random_port()
-    while is_port_in_use(port):
-        port = get_random_port()
+    port = _next_free_port()
 
     cmd = (
         f"{shlex.quote(python_exec)} -m gpt_oss.responses_api.serve "

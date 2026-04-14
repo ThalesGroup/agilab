@@ -1,1 +1,3 @@
-from .dag_worker import *
+from .dag_worker import DagWorker
+
+__all__ = ["DagWorker"]

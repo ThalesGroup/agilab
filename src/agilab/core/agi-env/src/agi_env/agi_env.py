@@ -30,7 +30,7 @@ Notes on singleton and pre‑init behavior
 """
 try:
     from IPython.core.ultratb import FormattedTB
-except Exception:  # Optional dependency; fallback if absent
+except (ImportError, AttributeError):  # Optional dependency; fallback if absent
     FormattedTB = None  # type: ignore
 import ast
 import errno
@@ -108,6 +108,7 @@ from agi_env.rename_gitignore_support import (
     replace_text_content,
 )
 from agi_env.content_renamer_support import ContentRenamer as BaseContentRenamer
+from agi_env.credential_store_support import read_cluster_credentials
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
     get_full_attribute_name as build_full_attribute_name,
@@ -325,11 +326,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             val = kwargs.pop('active_app')
             try:
                 active_app_override = Path(val)
-            except Exception:
+            except (TypeError, ValueError):
                 active_app_override = None
             try:
                 app = Path(val).name
-            except Exception:
+            except (TypeError, ValueError):
                 app = str(val) if val is not None else None
         else:
             active_app_override = None
@@ -365,7 +366,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 elif apps_path.parents[1].name == "src":
                     return 1
 
-            except Exception:
+            except (AttributeError, IndexError, OSError, RuntimeError, TypeError, ValueError):
                 pass
 
             return 0
@@ -445,7 +446,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             apps_path = Path(_env_apps_path).expanduser()
             try:
                 apps_path = apps_path.resolve()
-            except Exception:
+            except OSError:
                 pass
         elif apps_path is not None:
             apps_path = Path(apps_path).expanduser()
@@ -457,7 +458,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             # Use the provided active_app path as the anchor when no apps_path is supplied.
             try:
                 candidate_parent = active_app_override.parent.resolve()
-            except Exception:
+            except OSError:
                 candidate_parent = active_app_override.parent
 
             # If the active_app sits under apps/builtin/<app>, keep apps_path at apps/
@@ -473,13 +474,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if env_is_source is not None:
             try:
                 is_agilab_installed = not bool(int(env_is_source))
-            except Exception:
+            except (TypeError, ValueError):
                 is_agilab_installed = str(env_is_source).lower() in {"false", "0", "no", ""}  # default False-ish
             self.is_source_env = not is_agilab_installed
         if env_is_worker is not None:
             try:
                 self.is_worker_env = bool(int(env_is_worker))
-            except Exception:
+            except (TypeError, ValueError):
                 self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
 
         install_type = _resolve_install_type(apps_path, agilab_pck, self.envars, active_app_override)
@@ -527,7 +528,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 base_dir = apps_path if apps_path is not None else Path()
                 try:
                     base_dir = base_dir.resolve()
-                except Exception:
+                except OSError:
                     pass
                 active_app = base_dir / app
 
@@ -537,7 +538,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     try:
                         if candidate_builtin.exists():
                             active_app = candidate_builtin
-                    except Exception:
+                    except OSError:
                         pass
 
         if not app.endswith('_project') and not app.endswith('_worker'):
@@ -550,7 +551,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.app = app
         try:
             self.active_app = active_app.resolve()
-        except Exception:
+        except OSError:
             self.active_app = active_app
         self.apps_path = apps_path
         self.apps_repository_root: Path | None = None
@@ -634,7 +635,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         try:
             if self.builtin_apps_path and self.active_app.resolve().is_relative_to(self.builtin_apps_path.resolve()):
                 is_builtin_app = True
-        except Exception:
+        except (OSError, ValueError):
             is_builtin_app = False
 
         can_link_repo = (
@@ -646,11 +647,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if can_link_repo:
             try:
                 apps_root_candidate = apps_path.resolve(strict=False)
-            except Exception:
+            except OSError:
                 apps_root_candidate = apps_path
             try:
                 active_parent = self.active_app.parent.resolve(strict=False)
-            except Exception:
+            except OSError:
                 active_parent = self.active_app.parent
             if apps_root_candidate != active_parent:
                 can_link_repo = False
@@ -669,7 +670,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 if apps_path is not None:
                     try:
                         same_tree = apps_path.resolve(strict=False) == link_source.resolve()
-                    except Exception:
+                    except OSError:
                         same_tree = False
 
                 if not same_tree:
@@ -691,7 +692,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 try:
                     if apps_root.resolve() != active_app.parent.resolve():
                         self.copy_existing_projects(apps_root, active_app.parent)
-                except Exception:
+                except OSError:
                     pass
 
 
@@ -702,11 +703,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self._init_resources(resources_root / self._agi_resources)
         try:
             self.TABLE_MAX_ROWS = int(str(envars.get("TABLE_MAX_ROWS", 1000000) or "").strip() or 1000000)
-        except Exception:
+        except (TypeError, ValueError):
             self.TABLE_MAX_ROWS = 1000000
         try:
             self.GUI_SAMPLING = int(str(envars.get("GUI_SAMPLING", 20) or "").strip() or 20)
-        except Exception:
+        except (TypeError, ValueError):
             self.GUI_SAMPLING = 20
 
         self._configure_worker_runtime(
@@ -734,7 +735,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.AGI_CLUSTER_SHARE = share_dir_override
             try:
                 envars["AGI_CLUSTER_SHARE"] = share_dir_override
-            except Exception:
+            except TypeError:
                 pass
 
         cluster_enabled = resolve_cluster_enabled_from_settings(
@@ -835,7 +836,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if needs_extract:
                 try:
                     self.unzip_data(Path(dataset_archive), self.app_data_rel, force_extract=True)
-                except Exception as exc:  # pragma: no cover - defensive guard
+                except (OSError, RuntimeError, ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
                     AgiEnv.logger.warning(
                         "Failed to extract packaged dataset %s: %s",
                         dataset_archive,
@@ -970,7 +971,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     continue
                 try:
                     self.active_app = candidate_app.resolve(strict=False)
-                except Exception:
+                except OSError:
                     self.active_app = candidate_app
                 self.app_src = self.active_app / "src"
                 self.manager_pyproject = self.active_app / "pyproject.toml"
@@ -1009,7 +1010,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     if not self.is_worker_env and packaged_app.exists():
                         try:
                             same_app = packaged_app.resolve(strict=False) == self.active_app.resolve(strict=False)
-                        except Exception:  # pragma: no cover - defensive guard
+                        except OSError:  # pragma: no cover - defensive guard
                             same_app = False
 
                         if not same_app:
@@ -1021,7 +1022,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                                     packaged_app,
                                     self.active_app,
                                 )
-                            except Exception as exc:
+                            except (OSError, shutil.Error) as exc:
                                 AgiEnv.logger.warning(
                                     "Unable to copy packaged worker app from %s to %s: %s",
                                     packaged_app,
@@ -1048,7 +1049,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                                 project_worker_dir,
                                 dest_worker_dir,
                             )
-                        except Exception as exc:
+                        except (OSError, shutil.Error) as exc:
                             AgiEnv.logger.warning(
                                 "Failed to copy worker sources from %s: %s",
                                 project_worker_dir,
@@ -1178,13 +1179,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if getattr(cls, "resources_path", None) is None:
             try:
                 cls.resources_path = Path.home() / ".agilab"
-            except Exception:
+            except (OSError, RuntimeError):
                 cls.resources_path = Path(".agilab").resolve()
         if getattr(cls, "envars", None) is None or not isinstance(cls.envars, dict):
             try:
                 env_path = cls.resources_path / ".env"
                 cls.envars = _load_dotenv_values(env_path, verbose=False)
-            except Exception:
+            except (OSError, RuntimeError, TypeError, ValueError):
                 cls.envars = {}
 
     @staticmethod
@@ -1291,7 +1292,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 continue
             try:
                 base = Path(path)
-            except Exception:
+            except (TypeError, ValueError):
                 continue
             if not base.exists():
                 continue
@@ -1442,7 +1443,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def init_envars_app(self, envars):
         """Cache frequently used environment variables and ensure directories exist."""
 
-        self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
+        self.CLUSTER_CREDENTIALS = read_cluster_credentials(
+            envars.get("CLUSTER_CREDENTIALS", None),
+            environ=os.environ,
+            default_account=getpass.getuser(),
+            logger=AgiEnv.logger,
+        )
+        if self.CLUSTER_CREDENTIALS:
+            envars["CLUSTER_CREDENTIALS"] = self.CLUSTER_CREDENTIALS
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         self.OPENAI_MODEL = envars.get("OPENAI_MODEL") or get_default_openai_model()
         AGILAB_LOG_OVERRIDE = _clean_envar_value(envars, "AGI_LOG_DIR", fallback_to_process=True)
@@ -1501,7 +1509,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return
             try:
                 shutil.copy2(src_item, dst_item)
-            except Exception as e:
+            except (OSError, shutil.Error) as e:
                 logger = AgiEnv.logger
                 if logger:
                     logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
@@ -1657,7 +1665,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             logger = AgiEnv.logger
             if logger:
                 logger.info(f"Symlink created: @{dest.name} -> {src}")
-        except Exception as e:
+        except OSError as e:
             logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
@@ -1670,7 +1678,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             try:
                 # Accept Path-like or string; compare by final directory name
                 return Path(str(value)).name
-            except Exception:
+            except (TypeError, ValueError):
                 return str(value)
 
         # Normalize *both* current and requested app identifiers
@@ -1690,7 +1698,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             current_app_path = Path(str(current_app))
             if current_app_path.name:
                 apps_path = current_app_path.parent
-        except Exception:
+        except (TypeError, ValueError):
             apps_path = None
 
         if apps_path is None:
@@ -1707,10 +1715,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 app=requested_name,
                 verbose=AgiEnv.verbose,
             )
-        except Exception:
-            if active_app.exists():
+        finally:
+            if sys.exc_info()[0] is not None and active_app.exists():
                 shutil.rmtree(active_app, ignore_errors=True)
-            raise
 
     @staticmethod
     def is_local(ip):
@@ -1890,7 +1897,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass  # Success if no exception
-        except Exception:
+        except OSError:
             AgiEnv.logger.error(f"No internet connection detected. Aborting.")
             return False
         AgiEnv.logger.info(f"Internet connection is OK.")

@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "About_agilab.py"
 SPEC = importlib.util.spec_from_file_location("agilab_about_helpers", MODULE_PATH)
@@ -71,3 +72,30 @@ def test_refresh_env_from_file_ignores_bad_envars_mapping(tmp_path, monkeypatch)
     about_agilab._refresh_env_from_file(env)
 
     assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+
+
+def test_refresh_env_from_file_keeps_runtime_cluster_credentials_when_sentinel(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("CLUSTER_CREDENTIALS=__KEYRING__\n", encoding="utf-8")
+    monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
+    monkeypatch.setenv("CLUSTER_CREDENTIALS", "runtime:user")
+    about_agilab.st.session_state.pop("env_file_mtime_ns", None)
+
+    env = SimpleNamespace(
+        envars={},
+        apps_path="old/path",
+    )
+
+    about_agilab._refresh_env_from_file(env)
+
+    assert env.envars["CLUSTER_CREDENTIALS"] == "runtime:user"
+
+
+def test_resolve_share_dir_path_accepts_relative_value(tmp_path):
+    resolved = about_agilab._resolve_share_dir_path("shares/data", home_path=tmp_path)
+    assert resolved == (tmp_path / "shares" / "data").resolve(strict=False)
+
+
+def test_resolve_share_dir_path_rejects_invalid_value(tmp_path):
+    with pytest.raises(ValueError, match="AGI_SHARE_DIR"):
+        about_agilab._resolve_share_dir_path("\0bad-path", home_path=tmp_path)
