@@ -41,6 +41,12 @@ def test_fix_windows_drive_handles_regex_failure(monkeypatch):
     assert process_support.fix_windows_drive(r"C:Users\\agi") == r"C:Users\\agi"
 
 
+def test_fix_windows_drive_returns_non_string_inputs_unchanged(monkeypatch):
+    monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
+    marker = object()
+    assert process_support.fix_windows_drive(marker) is marker
+
+
 def test_normalize_path_windows_resolve_fallback(monkeypatch):
     original_os_name = os.name
     original_resolve = Path.resolve
@@ -166,6 +172,17 @@ def test_format_command_failure_message_falls_back_to_command_and_appends_hint()
     assert message == "Command failed with exit code 7: demo command\ncheck worker manifest"
 
 
+def test_format_command_failure_message_uses_last_detail_and_strips_error_prefix():
+    message = process_support.format_command_failure_message(
+        3,
+        "demo command",
+        lines=["noise", "ValueError: useful detail"],
+        diagnostic_hint=None,
+    )
+
+    assert message == "Command failed with exit code 3: useful detail"
+
+
 def test_command_failure_hint_detects_networked_pip_errors():
     hint = process_support.command_failure_hint(
         "pip install demo",
@@ -174,6 +191,7 @@ def test_command_failure_hint_detects_networked_pip_errors():
 
     assert "network access is required" in hint
     assert process_support.command_failure_hint("python -m pytest", ["Failed to establish a new connection"]) is None
+    assert process_support.command_failure_hint("pip install demo", ["normal failure"]) is None
 
 
 def test_inject_uv_preview_flag_and_apply_inline_path_export(monkeypatch):
@@ -189,6 +207,14 @@ def test_inject_uv_preview_flag_and_apply_inline_path_export(monkeypatch):
     assert cmd == "uv self update"
     assert env["PATH"].startswith(str(Path("~/.local/bin").expanduser()))
     assert "/usr/bin" in env["PATH"]
+
+
+def test_apply_inline_path_export_returns_input_for_non_string_or_non_matching_commands():
+    env = {"PATH": "/usr/bin"}
+
+    marker = object()
+    assert process_support.apply_inline_path_export(marker, env) is marker
+    assert process_support.apply_inline_path_export("uv self update", env) == "uv self update"
 
 
 def test_inject_uv_preview_flag_handles_regex_failure(monkeypatch):
