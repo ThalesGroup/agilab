@@ -509,7 +509,7 @@ def _create_default_experiment_if_missing(
     )
 
 
-def _activate_default_mlflow_experiment(
+def _prepare_default_mlflow_experiment_selection(
     mlflow,
     *,
     backend_uri: str,
@@ -519,6 +519,21 @@ def _activate_default_mlflow_experiment(
     mlflow.set_tracking_uri(backend_uri)
     _create_default_experiment_if_missing(
         mlflow,
+        default_experiment_name=default_experiment_name,
+        artifact_uri=artifact_uri,
+    )
+
+
+def _activate_default_mlflow_experiment(
+    mlflow,
+    *,
+    backend_uri: str,
+    default_experiment_name: str,
+    artifact_uri: str,
+) -> None:
+    _prepare_default_mlflow_experiment_selection(
+        mlflow,
+        backend_uri=backend_uri,
         default_experiment_name=default_experiment_name,
         artifact_uri=artifact_uri,
     )

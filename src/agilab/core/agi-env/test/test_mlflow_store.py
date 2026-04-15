@@ -1021,6 +1021,34 @@ def test_create_default_experiment_if_missing_propagates_unexpected_create_bug()
         )
 
 
+def test_prepare_default_mlflow_experiment_selection_sets_tracking_then_ensures_experiment():
+    calls: list[tuple[str, object]] = []
+
+    class _FakeMlflow:
+        def set_tracking_uri(self, uri):
+            calls.append(("set_tracking_uri", uri))
+
+        def get_experiment_by_name(self, name):
+            calls.append(("get_experiment_by_name", name))
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            calls.append(("create_experiment", (name, artifact_location)))
+
+    mlflow_store._prepare_default_mlflow_experiment_selection(
+        _FakeMlflow(),
+        backend_uri="sqlite:///mlflow.db",
+        default_experiment_name="Default",
+        artifact_uri="file:///artifacts",
+    )
+
+    assert calls == [
+        ("set_tracking_uri", "sqlite:///mlflow.db"),
+        ("get_experiment_by_name", "Default"),
+        ("create_experiment", ("Default", "file:///artifacts")),
+    ]
+
+
 def test_activate_default_mlflow_experiment_orders_tracking_create_and_select():
     calls: list[tuple[str, object]] = []
 
