@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import patch
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -78,53 +75,13 @@ def _write_relay_run(
     )
 
 
-def _load_relay_module(tmp_path: Path, monkeypatch):
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(exist_ok=True)
-    project_dir = apps_dir / "uav_relay_queue_project"
-    (project_dir / "src" / "uav_relay_queue").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='uav-relay-queue-project'\n", encoding="utf-8")
-    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
-    (project_dir / "src" / "uav_relay_queue" / "__init__.py").write_text("", encoding="utf-8")
-
-    artifact_dir = tmp_path / "export" / "uav_relay_queue" / "queue_analysis"
-    artifact_dir.mkdir(parents=True)
-    _write_relay_run(
-        artifact_dir,
-        "run_a",
-        scenario="demo",
-        routing_policy="queue_aware",
-        source_rate_pps=10.0,
-        random_seed=1,
-        bottleneck_relay="relay-a",
-        pdr=0.9,
-        mean_e2e_delay_ms=10.0,
-        mean_queue_wait_ms=5.0,
-        max_queue_depth_pkts=2,
-        notes="demo",
-    )
-
-    spec = importlib.util.spec_from_file_location("view_uav_relay_queue_analysis_test_module", PAGE_PATH)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
-    with patch.object(sys, "argv", argv):
-        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
-        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
-        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
-        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-        monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        with patch("streamlit.set_page_config", lambda *args, **kwargs: None), patch(
-            "streamlit.sidebar.text_input",
-            lambda _label, value="", **_kwargs: value,
-        ), patch(
-            "streamlit.sidebar.multiselect",
-            lambda _label, options, default=None, **_kwargs: list(default or options[:1]),
-        ), patch(
-            "streamlit.sidebar.selectbox",
-            lambda _label, options, index=0, **_kwargs: options[index] if options else None,
-        ):
-            spec.loader.exec_module(module)
+def _load_relay_helpers() -> ModuleType:
+    source = Path(PAGE_PATH).read_text(encoding="utf-8")
+    prefix = source.split('\nst.set_page_config(layout="wide")\n', 1)[0]
+    module = ModuleType("view_uav_relay_queue_analysis_test_module")
+    module.__file__ = str(Path(PAGE_PATH).resolve())
+    module.__package__ = None
+    exec(compile(prefix, str(Path(PAGE_PATH)), "exec"), module.__dict__)
     return module
 
 
@@ -324,7 +281,7 @@ def test_view_uav_relay_queue_analysis_reports_missing_delivered_source_packets(
 
 
 def test_view_uav_relay_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
-    module = _load_relay_module(tmp_path, monkeypatch)
+    module = _load_relay_helpers()
 
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"
