@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Before Code"
+  short_description: "Force a short plan and validation pass before editing"
+  default_prompt: "Use $plan-before-code for this task. Inspect first, write a short plan before coding, validate assumptions before edits, then verify the result."

@@ -58,7 +58,7 @@ benchmarkable, and shareable workflows.
 - **Persistent service mode** through `AGI.serve` (`start` / `status` / `health` / `stop`) with machine-readable health gates.
 - **Production-style orchestration** using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
 - **Free-threaded Python aware** when both the selected environment and worker declare support.
-- **Agent-friendly developer workflow** through `AGENTS.md`, `.codex/skills`, run configs, and Codex helpers.
+- **Agent-friendly developer workflow** through `AGENTS.md`, repo skill trees (`.claude/skills` and `.codex/skills`), run configs, and agent helpers.
 - **Ready-to-adapt examples** for applied AI/ML scenarios such as flight simulation, network traffic, industrial IoT,
   and optimization workloads.
 
@@ -270,7 +270,7 @@ Full published artifacts:
 Star AGILAB if you care about one or more of these:
 
 - **Reproducible AI/ML workflows** instead of hand-wired notebooks, shell scripts, and scattered env setup.
-- **Agent-friendly engineering** with repo-native guidance through `AGENTS.md`, `.codex/skills`, and documented Codex workflows.
+- **Agent-friendly engineering** with repo-native guidance through `AGENTS.md`, shared repo skill trees, and documented agent workflows.
 - **Free-threaded Python readiness** where environment and worker compatibility is explicit rather than accidental.
 - **Execution model benchmarking** that shows whether the same workload wins with process-based or in-process/threaded execution paths.
 - **One control path** from app selection to orchestration, pipeline inspection, analysis, and service mode.
@@ -296,7 +296,7 @@ Star AGILAB if you care about one or more of these:
 | Persistent operation | Use `AGI.serve` with health gates and structured status snapshots for long-lived workloads. |
 | Free-threaded Python support | Opt into free-threaded Python when both the chosen environment and worker declare compatibility. |
 | Execution model visibility | Benchmark the same workload across worker/runtime paths and make the winning execution model explicit. |
-| Agentic development | Use repo-native guidance through `AGENTS.md`, `.codex/skills`, and Codex workflow helpers instead of ad hoc prompts. |
+| Agentic development | Use repo-native guidance through `AGENTS.md`, shared repo skill trees, and workflow helpers instead of ad hoc prompts. |
 | Modular adoption | Install the full stack or adopt `agi-env`, `agi-node`, `agi-cluster`, and `agi-core` separately. |
 
 ## AGILAB vs manual orchestration
@@ -339,7 +339,7 @@ For development mode, the strongly recommended tools are:
 - Community-only workflows can still work through CLI wrappers and manual entry points,
   but Pro is required for the full IDE-oriented setup flow.
 - **Codex CLI** configured from repository-specific guidance (`AGENTS.md` and
-  repository `.codex/skills`/workflow settings).
+  repository skill trees/workflow settings).
 
 For a professional Codex workflow, use the repo helper:
 
