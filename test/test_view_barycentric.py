@@ -177,6 +177,22 @@ def test_maybe_smooth_long_column_updates_valid_values(monkeypatch) -> None:
     assert pd.isna(df["long"].iloc[5])
 
 
+def test_maybe_smooth_long_column_handles_missing_column_and_filter_errors(monkeypatch) -> None:
+    module = _load_module()
+    no_long = pd.DataFrame({"lat": [1.0, 2.0, 3.0]})
+    module._maybe_smooth_long_column(no_long)
+    assert list(no_long.columns) == ["lat"]
+
+    df = pd.DataFrame({"long": [1.0, 2.0, 3.0, 4.0, 5.0]})
+    monkeypatch.setattr(
+        module,
+        "savgol_filter",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad window")),
+    )
+    module._maybe_smooth_long_column(df)
+    assert df["long"].tolist() == [1.0, 2.0, 3.0, 4.0, 5.0]
+
+
 def test_normalize_data_fills_missing_values() -> None:
     module = _load_module()
     df = pd.DataFrame({"x": [1.0, None], "y": [2.0, 4.0]})
@@ -346,6 +362,77 @@ def test_bary_visualisation_supports_colored_and_plain_modes(monkeypatch) -> Non
     assert np.allclose(barycentric_table.sum(axis=1).to_numpy(), np.ones(len(barycentric_table)))
 
 
+def test_bary_visualisation_handles_categorical_colors_and_jump(monkeypatch) -> None:
+    module = _load_module()
+
+    class FakeCollection:
+        def __init__(self, points, labels, colors=None):
+            self.points = points
+            self.labels = labels
+            self.colors = colors
+            self.attrs = SimpleNamespace(
+                markers_colormap={},
+                markers_opacity=None,
+                markers_size=None,
+                markers_border_width=None,
+            )
+
+    class FakeSimplex:
+        def __init__(self, n_points, name, labels):
+            self.attrs = SimpleNamespace(
+                lines_visible=True,
+                markers_size=None,
+                markers_colormap={},
+                width=None,
+                height=None,
+                text_size=None,
+            )
+
+        def plot(self, *args, **kwargs):
+            return None
+
+    class _Jump(RuntimeError):
+        pass
+
+    session_state = _State(
+        loaded_df=pd.DataFrame(
+            {
+                "slot": [1, 2],
+                "value": [3.0, 4.0],
+                "color_name": ["blue", "red"],
+            }
+        )
+    )
+
+    monkeypatch.setattr(module, "Collection", FakeCollection)
+    monkeypatch.setattr(module, "ModifiedSimplex", FakeSimplex)
+    monkeypatch.setattr(module, "JumpToMain", lambda exc: (_ for _ in ()).throw(_Jump(str(exc))))
+
+    def fail_write(_value):
+        raise ValueError("write failed")
+
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            header=lambda *_args, **_kwargs: None,
+            write=fail_write,
+            selectbox=lambda label, label_visibility=None, options=None: options[0],
+        ),
+    )
+
+    with pytest.raises(_Jump):
+        module.__bary_visualisation(
+            pd.DataFrame({"alpha": [1.0, 2.0], "beta": [3.0, 4.0]}),
+            selected_format="png",
+            selected_name="demo",
+            selected_x1="slot",
+            selected_x2="value",
+            color="color_name",
+        )
+
+
 def test_page_handles_load_failure(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     datadir = tmp_path / "data"
@@ -465,3 +552,261 @@ def test_page_with_single_distinct_axis_shows_info(monkeypatch, tmp_path: Path) 
     module.page(env)
 
     assert any("only 1 distinct value" in message for message in infos)
+
+
+def test_page_warns_when_no_files_or_no_selection(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("", encoding="utf-8")
+    warnings: list[str] = []
+
+    class _StopCalled(RuntimeError):
+        pass
+
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+    )
+
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(datadir=str(datadir)),
+            sidebar=sidebar,
+            warning=warnings.append,
+            error=lambda *args, **kwargs: None,
+            stop=lambda: (_ for _ in ()).throw(_StopCalled()),
+        ),
+    )
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    with pytest.raises(_StopCalled):
+        module.page(env)
+    assert any("dataset is required" in message.lower() for message in warnings)
+
+    warnings.clear()
+    data_file = datadir / "dataset.csv"
+    data_file.write_text("a,b\n1,2\n", encoding="utf-8")
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(datadir=str(datadir)),
+            sidebar=sidebar,
+            warning=warnings.append,
+            error=lambda *args, **kwargs: None,
+        ),
+    )
+    module.page(env)
+    assert any("Please select a dataset" in message for message in warnings)
+
+
+def test_page_warns_when_loaded_df_invalid(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    data_file = datadir / "dataset.csv"
+    data_file.write_text("a,b\n1,2\n", encoding="utf-8")
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("", encoding="utf-8")
+    warnings: list[str] = []
+
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: pd.DataFrame())
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(datadir=str(datadir), df_file="dataset.csv"),
+            sidebar=sidebar,
+            warning=warnings.append,
+            error=lambda *args, **kwargs: None,
+        ),
+    )
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+    assert any("dataset is empty" in message.lower() for message in warnings)
+
+
+def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    errors: list[str] = []
+
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(session_state=_State(), error=errors.append),
+    )
+    monkeypatch.setattr(module.sys, "argv", ["view_barycentric.py", "--active-app", str(tmp_path / "missing_app")])
+    with pytest.raises(SystemExit):
+        module.main()
+    assert any("provided --active-app path not found" in message.lower() for message in errors)
+
+    errors.clear()
+    active_app = tmp_path / "apps" / "demo_project"
+    active_app.mkdir(parents=True)
+
+    class FakeEnv:
+        def __init__(self, apps_path, app, verbose):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.TABLE_MAX_ROWS = 10
+            self.GUI_SAMPLING = 1
+            self.is_source_env = True
+            self.is_worker_env = False
+
+    monkeypatch.setattr(module, "AgiEnv", FakeEnv)
+    monkeypatch.setattr(module, "page", lambda env: (_ for _ in ()).throw(RuntimeError("page boom")))
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(session_state=_State(), error=errors.append),
+    )
+    monkeypatch.setattr(module.sys, "argv", ["view_barycentric.py", "--active-app", str(active_app)])
+    module.main()
+    assert any("page boom" in message for message in errors)
+
+
+def test_view_barycentric_repo_path_and_visible_file_helpers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    app_root = src_root / "agilab" / "apps-pages" / "view_barycentric" / "src" / "view_barycentric"
+    app_root.mkdir(parents=True)
+    module_path = app_root / "view_barycentric.py"
+    module_path.write_text("# stub\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+    module._ensure_repo_on_path()
+
+    assert str(src_root) in module.sys.path
+    assert str(repo_root) in module.sys.path
+
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    visible = datadir / "visible.csv"
+    hidden = datadir / ".shadow" / "hidden.csv"
+    outside = tmp_path / "outside.csv"
+    visible.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("[broken", encoding="utf-8")
+    warnings: list[str] = []
+    session_state = _State(datadir=str(datadir), df_file="outside.csv")
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+    )
+
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [visible, hidden, outside])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: pd.DataFrame())
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            sidebar=sidebar,
+            warning=warnings.append,
+            error=lambda *args, **kwargs: None,
+        ),
+    )
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert session_state["csv_files"] == [visible, outside]
+    assert any("dataset is empty" in message.lower() for message in warnings)
+
+
+def test_view_barycentric_page_persists_and_calls_visualisation(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    data_file = datadir / "dataset.csv"
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("", encoding="utf-8")
+    saved_payloads: list[dict] = []
+    visualisation_calls: list[tuple[pd.DataFrame, str, str, str, str, str]] = []
+
+    dataset = pd.DataFrame(
+        {
+            "axis_a": [0, 0, 1, 1, 2, 2, 3, 3, 4, 4],
+            "axis_b": [10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+            "color_axis": ["blue"] * 10,
+            "textual": ["x"] * 10,
+        }
+    )
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: session_state["df_file"],
+        error=lambda *args, **kwargs: None,
+    )
+
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: dataset.copy())
+    monkeypatch.setattr(module, "_maybe_smooth_long_column", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "__bary_visualisation",
+        lambda df, selected_format, selected_name, selected_x1, selected_x2, color=None: visualisation_calls.append(
+            (df.copy(), selected_format, selected_name, selected_x1, selected_x2, color)
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_dump_toml_payload",
+        lambda payload, fh: (saved_payloads.append(payload), fh.write(b"[view_barycentric]\n")),
+    )
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            sidebar=sidebar,
+            warning=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+            slider=lambda *args, **kwargs: 10,
+            markdown=lambda *args, **kwargs: None,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            selectbox=lambda label, options, **kwargs: {
+                "Correlated variables pair": "axis_a",
+                "Correlated variables": "axis_b",
+                "Color": "color_axis",
+                "Format": "png",
+            }.get(label, options[0] if options else None),
+            text_input=lambda *args, **kwargs: "figure",
+            info=lambda *args, **kwargs: None,
+        ),
+    )
+
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert visualisation_calls
+    pivot_df, selected_format, selected_name, selected_x1, selected_x2, color = visualisation_calls[0]
+    assert selected_format == "png"
+    assert selected_name == "figure"
+    assert (selected_x1, selected_x2, color) == ("axis_a", "axis_b", "color_axis")
+    assert pivot_df.shape[1] > 1
+    assert saved_payloads and saved_payloads[0]["view_barycentric"]["df_file"] == "dataset.csv"

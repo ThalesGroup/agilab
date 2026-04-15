@@ -435,12 +435,13 @@ def page(env):
         st.stop()  # Stop further processing
 
     # Prepare list of CSV files relative to the data directory
-    csv_files_rel = sorted(
-        [
-            Path(file).relative_to(datadir).as_posix()
-            for file in st.session_state["csv_files"]
-        ]
-    )
+    csv_files_rel = []
+    for file in st.session_state["csv_files"]:
+        try:
+            csv_files_rel.append(Path(file).relative_to(datadir).as_posix())
+        except Exception:
+            continue
+    csv_files_rel = sorted(csv_files_rel)
     settings_file = st.session_state.get("df_file")
     if settings_file and settings_file in csv_files_rel:
         default_idx = csv_files_rel.index(settings_file)
@@ -539,7 +540,11 @@ def page(env):
                 settings = toml.load(env.app_settings_file)
                 current_filename = Path(__file__).stem
                 # set default values
-                if current_filename in settings:
+                if (
+                    current_filename in settings
+                    and isinstance(settings[current_filename], dict)
+                    and "variables" in settings[current_filename]
+                ):
                     st.session_state["variables"] = settings[current_filename][
                         "variables"
                     ]
