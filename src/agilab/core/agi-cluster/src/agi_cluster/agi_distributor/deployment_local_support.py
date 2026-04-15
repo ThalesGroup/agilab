@@ -9,13 +9,15 @@ from pathlib import Path
 from typing import Any, Callable
 
 import tomlkit
-from packaging.requirements import Requirement
+from packaging.requirements import InvalidRequirement, Requirement
 
 from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
 FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
+DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
+PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)
 
 
 def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
@@ -123,7 +125,7 @@ def _update_pyproject_dependencies(
     for item in deps:
         try:
             req = Requirement(str(item))
-        except Exception:
+        except DEPENDENCY_PARSE_EXCEPTIONS:
             continue
         existing_keys.add((req.name.lower(), tuple(sorted(req.extras))))
 
@@ -173,7 +175,7 @@ def _gather_dependency_specs(projects: list[Path | None]) -> tuple[dict[str, dic
         seen_pyprojects.add(resolved_pyproject)
         try:
             project_doc = tomlkit.parse(resolved_pyproject.read_text())
-        except Exception:
+        except PYPROJECT_PARSE_EXCEPTIONS:
             continue
         deps = project_doc.get("project", {}).get("dependencies")
         if not deps:
@@ -182,7 +184,7 @@ def _gather_dependency_specs(projects: list[Path | None]) -> tuple[dict[str, dic
         for dep in deps:
             try:
                 req = Requirement(str(dep))
-            except Exception:
+            except DEPENDENCY_PARSE_EXCEPTIONS:
                 continue
             if req.marker and not req.marker.evaluate():
                 continue

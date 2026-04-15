@@ -105,6 +105,57 @@ def test_update_pyproject_dependencies_filters_to_worker_sources(tmp_path):
     assert "pip==24.0" not in content
 
 
+def test_update_pyproject_dependencies_skips_invalid_existing_specs(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "worker"
+dependencies = ["numpy["]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    worker_source = str(tmp_path / "worker" / "pyproject.toml")
+    dependency_info = {
+        "scipy": {
+            "name": "scipy",
+            "extras": set(),
+            "specifiers": [">=1.15.2,<1.17"],
+            "sources": {worker_source},
+        },
+    }
+
+    deployment_local_support._update_pyproject_dependencies(
+        pyproject,
+        dependency_info,
+        worker_pyprojects={worker_source},
+        pinned_versions={"scipy": "1.16.1"},
+        filter_to_worker=True,
+    )
+
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'dependencies = ["numpy[", "scipy==1.16.1"]' in content
+
+
+def test_update_pyproject_dependencies_propagates_unexpected_requirement_bug(monkeypatch, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='worker'\ndependencies=['numpy>=1']\n", encoding="utf-8")
+
+    def _boom(_text):
+        raise ValueError("unexpected requirement mapper bug")
+
+    monkeypatch.setattr(deployment_local_support, "Requirement", _boom)
+
+    with pytest.raises(ValueError, match="unexpected requirement mapper bug"):
+        deployment_local_support._update_pyproject_dependencies(
+            pyproject,
+            dependency_info={},
+            worker_pyprojects=set(),
+            pinned_versions=None,
+        )
+
+
 def test_gather_dependency_specs_skips_agi_packages_and_keeps_exact_pins(tmp_path):
     first = tmp_path / "project_a"
     second = tmp_path / "project_b"
@@ -136,6 +187,53 @@ dependencies = ["scipy==1.16.1", "pandas[performance]>=2"]
     assert dependency_info["scipy"]["has_exact"] is True
     assert dependency_info["scipy"]["specifiers"] == ["==1.16.1"]
     assert dependency_info["pandas"]["extras"] == {"performance"}
+
+
+def test_gather_dependency_specs_skips_invalid_pyproject_and_dependency_entries(tmp_path):
+    good = tmp_path / "good"
+    bad = tmp_path / "bad"
+    weird = tmp_path / "weird"
+    for path in (good, bad, weird):
+        path.mkdir(parents=True, exist_ok=True)
+
+    (good / "pyproject.toml").write_text(
+        """
+[project]
+name = "good"
+dependencies = ["numpy>=1.0"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (bad / "pyproject.toml").write_text("[project\nname='broken'\n", encoding="utf-8")
+    (weird / "pyproject.toml").write_text(
+        """
+[project]
+name = "weird"
+dependencies = ["numpy["]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    dependency_info, worker_pyprojects = deployment_local_support._gather_dependency_specs([good, bad, weird])
+
+    assert str((good / "pyproject.toml").resolve()) in worker_pyprojects
+    assert str((bad / "pyproject.toml").resolve()) not in worker_pyprojects
+    assert str((weird / "pyproject.toml").resolve()) in worker_pyprojects
+    assert set(dependency_info) == {"numpy"}
+
+
+def test_gather_dependency_specs_propagates_unexpected_parse_bug(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    project.mkdir(parents=True, exist_ok=True)
+    (project / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    def _boom(_text):
+        raise ValueError("unexpected parse bug")
+
+    monkeypatch.setattr(deployment_local_support.tomlkit, "parse", _boom)
+
+    with pytest.raises(ValueError, match="unexpected parse bug"):
+        deployment_local_support._gather_dependency_specs([project])
 
 
 @pytest.mark.asyncio
