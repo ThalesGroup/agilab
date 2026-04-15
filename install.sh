@@ -5,28 +5,28 @@ set -o pipefail
 LOG_DIR="$HOME/log/install_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"
-# Collapse repeated blank lines before writing to the terminal and install log.
-# Some build/setup subprocesses emit long runs of empty lines which make the
-# streamed installer output hard to read.
+exec 3>&1
 exec > >(
-    awk '
-        BEGIN { blank = 1 }
-        {
-            line = $0
-            sub(/\r$/, "", line)
-            if (line ~ /^[[:space:]]*$/) {
-                if (!blank) {
-                    print ""
-                    fflush()
+    tee >(
+        awk '
+            BEGIN { blank = 1 }
+            {
+                line = $0
+                sub(/\r$/, "", line)
+                if (line ~ /^[[:space:]]*$/) {
+                    if (!blank) {
+                        print ""
+                        fflush()
+                    }
+                    blank = 1
+                    next
                 }
-                blank = 1
-                next
+                print $0
+                fflush()
+                blank = 0
             }
-            print $0
-            fflush()
-            blank = 0
-        }
-    ' | tee -a "$LOG_FILE"
+        ' >> "$LOG_FILE"
+    ) >&3
 ) 2>&1
 
 START_TIME=$(date +%s)
