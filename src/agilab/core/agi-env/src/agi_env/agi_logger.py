@@ -22,6 +22,14 @@ COLORS = {
 }
 ANSI_SGR_RE = re.compile(r'\x1b\[[0-9;]*m')
 RECORD_FILENAME_FALLBACK_EXCEPTIONS = (OSError, TypeError, ValueError)
+RECORD_CLASSNAME_FALLBACK_EXCEPTIONS = (
+    AttributeError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+LOG_MESSAGE_FALLBACK_EXCEPTIONS = (AttributeError, TypeError, ValueError)
 
 
 def _record_filename(record: logging.LogRecord) -> str:
@@ -72,7 +80,7 @@ def _resolve_record_classname(record: logging.LogRecord) -> str:
                     return frame.f_locals['self'].__class__.__name__
                 return record.module or record.pathname
             frame = frame.f_back
-    except Exception:
+    except RECORD_CLASSNAME_FALLBACK_EXCEPTIONS:
         return '<no-class>'
     return '<no-class>'
 
@@ -83,7 +91,7 @@ def _render_log_message(record: logging.LogRecord) -> str:
     except RecursionError:
         msg_obj = getattr(record, "msg", None)
         return f"<log-message-recursion type={type(msg_obj).__name__}>"
-    except Exception as exc:  # pragma: no cover - defensive formatting guard
+    except LOG_MESSAGE_FALLBACK_EXCEPTIONS as exc:  # pragma: no cover - defensive formatting guard
         msg_obj = getattr(record, "msg", None)
         return f"<log-message-format-error type={type(msg_obj).__name__} error={exc}>"
 
