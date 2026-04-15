@@ -787,3 +787,151 @@ def test_view_maps_3d_renders_valid_dataset_without_beams(
 
     assert not at.exception
     assert any("Cartography-3D Visualisation" in title.value for title in at.title)
+
+
+def test_view_maps_3d_default_app_and_initializer_fallbacks(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+
+    fake_module_path = tmp_path / "repo" / "src" / "agilab" / "apps-pages" / "view_maps_3d.py"
+    fake_module_path.parent.mkdir(parents=True)
+    fake_module_path.write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setattr(module, "__file__", str(fake_module_path))
+
+    assert module._default_app() is None
+
+    apps_dir = fake_module_path.parents[4] / "apps"
+    apps_dir.mkdir(parents=True, exist_ok=True)
+    (apps_dir / "not_an_app").mkdir()
+    assert module._default_app() is None
+
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    module.st = _FakeStreamlit()
+    module.st.session_state.datadir = datadir
+    module.st.session_state["df_file"] = "keep.csv"
+    outside_dataset = tmp_path / "outside.csv"
+    outside_dataset.write_text("x\n1\n", encoding="utf-8")
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [outside_dataset])
+    module.initialize_csv_files()
+    assert module.st.session_state["dataset_files"] == [outside_dataset]
+    assert module.st.session_state["csv_files"] == [outside_dataset]
+
+    beamdir = tmp_path / "beamdir"
+    beamdir.mkdir()
+    module.st.session_state.beamdir = beamdir
+    module.st.session_state["beam_file"] = "keep_beam.csv"
+    outside_beam = tmp_path / "outside_beam.csv"
+    outside_beam.write_text("x\n1\n", encoding="utf-8")
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [outside_beam])
+    module.initialize_beam_files()
+    assert module.st.session_state["beam_csv_files"] == [outside_beam]
+
+
+def test_view_maps_3d_page_handles_selection_and_load_fallbacks(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    export_root = tmp_path / "export"
+    datadir = export_root / "demo_map_3d"
+    datadir.mkdir(parents=True)
+    visible_file = datadir / "flight.csv"
+    visible_file.write_text("metric,lat,long,alt\n1,43.0,1.0,1000\n", encoding="utf-8")
+    hidden_file = datadir / ".hidden" / "hidden.csv"
+    hidden_file.parent.mkdir(parents=True)
+    hidden_file.write_text("metric,lat,long,alt\n2,44.0,2.0,1100\n", encoding="utf-8")
+
+    share_root = tmp_path / "share"
+    beamdir = share_root / "demo_map_3d"
+    beamdir.mkdir(parents=True)
+    beam_file = beamdir / "beam.csv"
+    beam_file.write_text("beam,lat,long\n1,43.0,1.0\n", encoding="utf-8")
+    hidden_beam = beamdir / ".hidden" / "beam.csv"
+    hidden_beam.parent.mkdir(parents=True)
+    hidden_beam.write_text("beam,lat,long\n1,43.0,1.0\n", encoding="utf-8")
+
+    settings_path = tmp_path / "broken_settings.toml"
+    settings_path.write_text("{ not = toml", encoding="utf-8")
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="demo_map_3d",
+        projects=["demo_map_3d"],
+        AGILAB_EXPORT_ABS=export_root,
+        share_root_path=lambda: share_root,
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): "flight",
+            ("sidebar.button", module._vm3d_key("df_regex_select_all")): True,
+            ("sidebar.multiselect", module._vm3d_key("beam_files")): "beam.csv",
+        }
+    )
+    fake_st.session_state["env"] = env
+    fake_st.session_state["df_files_selected"] = ["flight.csv"]
+    fake_st.session_state["beam_files"] = "beam.csv"
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [visible_file, hidden_file])
+    monkeypatch.setattr(
+        module,
+        "find_files",
+        lambda base, *args, **kwargs: [beam_file, hidden_beam] if Path(base) == beamdir else [],
+    )
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: pd.DataFrame())
+
+    module.page()
+
+    assert any("Some selected files failed to load" in message for message in fake_st.calls["sidebar.warning"])
+    assert any("No selected dataframes could be loaded." in message for message in fake_st.calls["error"])
+    assert fake_st.session_state[module._vm3d_key("df_files_selected")] == ["flight.csv"]
+    assert fake_st.session_state["beam_files"] == []
+
+
+def test_view_maps_3d_page_handles_persist_and_default_color_fallbacks(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    export_root = tmp_path / "export"
+    datadir = export_root / "demo_map_3d"
+    datadir.mkdir(parents=True)
+    dataset_path = datadir / "flight.csv"
+    dataset_path.write_text("cluster_id,metric,lat,long,alt\n0,0,43.0,1.0,1000\n", encoding="utf-8")
+    dataset_df = pd.DataFrame(
+        {
+            "cluster_id": [idx % 2 for idx in range(25)],
+            "metric": list(range(25)),
+            "lat": [43.0 + idx * 0.01 for idx in range(25)],
+            "long": [1.0 + idx * 0.01 for idx in range(25)],
+            "alt": [1000 + idx * 10 for idx in range(25)],
+        }
+    )
+
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text('view_maps_3d = "bad"\n', encoding="utf-8")
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="demo_map_3d",
+        projects=["demo_map_3d"],
+        AGILAB_EXPORT_ABS=export_root,
+        share_root_path=lambda: tmp_path / "missing_share",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("multiselect", "Select Layers"): ["Terrain"],
+            ("selectbox", "discrete"): "missing_column",
+        }
+    )
+    fake_st.session_state["env"] = env
+    fake_st.session_state["coltype"] = "discrete"
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [dataset_path])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: dataset_df.copy())
+    monkeypatch.setattr(
+        module,
+        "_dump_toml_payload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("cannot write")),
+    )
+
+    module.page()
+
+    assert settings_path.exists()
+    assert settings_path.read_text(encoding="utf-8") == ""
+    assert fake_st.session_state[module._vm3d_key("table_max_rows")] >= 10
+    assert any(fake_st.calls["pydeck_chart"])
