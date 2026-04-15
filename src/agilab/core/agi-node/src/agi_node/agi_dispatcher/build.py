@@ -502,6 +502,64 @@ def _build_setup_kwargs(
     }
 
 
+def _configure_build_ext_modules(
+    *,
+    active_app: Path,
+    build_dir: str,
+    remaining_args: list[str],
+    worker_module: str,
+    pyvers_worker: str,
+    find_sys_prefix_fn=None,
+    sanitize_build_ext_link_settings_fn=None,
+    build_ext_compile_config_fn=None,
+    ensure_hacl_dir_fn=None,
+    build_worker_extension_fn=None,
+    cythonize_worker_extension_fn=None,
+    log=None,
+) -> list:
+    if find_sys_prefix_fn is None:
+        find_sys_prefix_fn = find_sys_prefix
+    if sanitize_build_ext_link_settings_fn is None:
+        sanitize_build_ext_link_settings_fn = _sanitize_build_ext_link_settings
+    if build_ext_compile_config_fn is None:
+        build_ext_compile_config_fn = _build_ext_compile_config
+    if ensure_hacl_dir_fn is None:
+        ensure_hacl_dir_fn = _ensure_hacl_dir
+    if build_worker_extension_fn is None:
+        build_worker_extension_fn = _build_worker_extension
+    if cythonize_worker_extension_fn is None:
+        cythonize_worker_extension_fn = _cythonize_worker_extension
+    if log is None:
+        log = AgiEnv.logger or logger
+
+    log.info(f"cwd: {active_app}")
+    log.info(f"build_dir: {build_dir}")
+    src_rel = Path("src") / worker_module / f"{worker_module}.pyx"
+    prefix = Path(find_sys_prefix_fn("~/MyApp"))
+    library_dirs, extra_link_args = sanitize_build_ext_link_settings_fn(None, None)
+    extra_compile_args, define_macros, compil_directives = build_ext_compile_config_fn(
+        sys_platform=sys.platform,
+        pyvers_worker=pyvers_worker,
+    )
+    ensure_hacl_dir_fn()
+    mod = build_worker_extension_fn(
+        worker_module=worker_module,
+        src_rel=src_rel,
+        prefix=prefix,
+        extra_compile_args=extra_compile_args,
+        define_macros=define_macros,
+        library_dirs=library_dirs,
+        extra_link_args=extra_link_args,
+    )
+    ext_modules = cythonize_worker_extension_fn(
+        extension=mod,
+        compiler_directives=compil_directives,
+        quiet=bool(remaining_args and ("-q" in remaining_args or "--quiet" in remaining_args)),
+    )
+    log.info(f"Cython extension configured: {worker_module}_cy")
+    return ext_modules
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -629,39 +687,13 @@ def main(argv: list[str] | None = None) -> None:
 
     # Change directory to build_dir BEFORE setup if build_ext
     if cmd == 'build_ext':
-        AgiEnv.logger.info(f"cwd: {active_app}")
-        #os.chdir(opts.build_dir)
-        AgiEnv.logger.info(f"build_dir: {opts.build_dir}")
-        src_rel = Path("src") / worker_module / f"{worker_module}.pyx"
-        prefix = Path(find_sys_prefix("~/MyApp"))
-
-        # Seed from existing values if any; otherwise start empty
-        library_dirs, extra_link_args = _sanitize_build_ext_link_settings(
-            library_dirs if 'library_dirs' in locals() else None,
-            extra_link_args if 'extra_link_args' in locals() else None,
-        )
-
-        extra_compile_args, define_macros, compil_directives = _build_ext_compile_config(
-            sys_platform=sys.platform,
+        ext_modules = _configure_build_ext_modules(
+            active_app=active_app,
+            build_dir=opts.build_dir,
+            remaining_args=opts.remaining,
+            worker_module=worker_module,
             pyvers_worker=env.pyvers_worker,
         )
-        _ensure_hacl_dir()
-        mod = _build_worker_extension(
-            worker_module=worker_module,
-            src_rel=src_rel,
-            prefix=prefix,
-            extra_compile_args=extra_compile_args,
-            define_macros=define_macros,
-            library_dirs=library_dirs,
-            extra_link_args=extra_link_args,
-        )
-
-        ext_modules = _cythonize_worker_extension(
-            extension=mod,
-            compiler_directives=compil_directives,
-            quiet=bool(opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining)),
-        )
-        AgiEnv.logger.info(f"Cython extension configured: {worker_module}_cy")
 
     elif not env.is_worker_env:
         # For bdist_egg copy modules under src
