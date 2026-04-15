@@ -171,3 +171,24 @@ def test_read_stderr_channel_handles_recv_exception():
     )
 
     assert agi_cls._worker_init_error is False
+
+
+def test_read_stderr_channel_propagates_unexpected_value_error():
+    class _Chan:
+        def recv_stderr_ready(self):
+            return True
+
+        def recv_stderr(self, _size):
+            raise ValueError("unexpected recv bug")
+
+        def exit_status_ready(self):
+            return False
+
+    agi_cls = SimpleNamespace(_worker_init_error=False)
+
+    with pytest.raises(ValueError, match="unexpected recv bug"):
+        scheduler_io_support.read_stderr(
+            agi_cls,
+            SimpleNamespace(channel=_Chan()),
+            sleep_fn=lambda *_a, **_k: None,
+        )
