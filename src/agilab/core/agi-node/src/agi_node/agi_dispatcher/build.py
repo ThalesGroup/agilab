@@ -41,14 +41,17 @@ from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
 
-try:
-    from pathlib import Path as _Path
+def _ensure_hacl_dir(log=logger, path_factory=Path) -> None:
+    hacl_dir = path_factory("Modules/_hacl")
+    log.info(f"mkdir {hacl_dir}")
+    try:
+        hacl_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Non-fatal if directory can't be created (e.g., read-only env)
+        pass
 
-    logger.info(f"mkdir {_Path('Modules/_hacl')}")
-    _Path('Modules/_hacl').mkdir(parents=True, exist_ok=True)
-except Exception:
-    # Non-fatal if directory can't be created (e.g., read-only env)
-    pass
+
+_ensure_hacl_dir()
 
 def _relative_to_home(path: Path) -> Path:
     try:

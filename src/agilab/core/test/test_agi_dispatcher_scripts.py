@@ -1332,6 +1332,48 @@ def test_build_module_runs_main_when_invoked_as_script_and_tolerates_hacl_mkdir_
         runpy.run_module("agi_node.agi_dispatcher.build", run_name="__main__")
 
 
+def test_build_ensure_hacl_dir_ignores_oserror():
+    calls = []
+    logs = []
+
+    class DummyPath:
+        def __init__(self, raw_path):
+            self.raw_path = raw_path
+            calls.append(raw_path)
+
+        def __str__(self):
+            return self.raw_path
+
+        def mkdir(self, parents=False, exist_ok=False):
+            raise OSError("mkdir denied")
+
+    build_mod._ensure_hacl_dir(
+        log=SimpleNamespace(info=lambda message: logs.append(message)),
+        path_factory=DummyPath,
+    )
+
+    assert calls == ["Modules/_hacl"]
+    assert logs == ["mkdir Modules/_hacl"]
+
+
+def test_build_ensure_hacl_dir_propagates_unexpected_mkdir_bug():
+    class DummyPath:
+        def __init__(self, raw_path):
+            self.raw_path = raw_path
+
+        def __str__(self):
+            return self.raw_path
+
+        def mkdir(self, parents=False, exist_ok=False):
+            raise RuntimeError("mkdir bug")
+
+    with pytest.raises(RuntimeError, match="mkdir bug"):
+        build_mod._ensure_hacl_dir(
+            log=SimpleNamespace(info=lambda *_args, **_kwargs: None),
+            path_factory=DummyPath,
+        )
+
+
 def test_build_parse_custom_args_and_remaining():
     opts = build_mod.parse_custom_args(
         ["build_ext", "--packages", "a,b", "-b", "/tmp/out", "--flag"],
