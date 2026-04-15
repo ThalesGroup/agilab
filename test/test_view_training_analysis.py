@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 
@@ -97,3 +98,99 @@ def test_view_training_analysis_builds_one_trace_per_run_and_metric() -> None:
     assert colors_by_run["routing_2"] != colors_by_run["routing_12"]
     assert colors_by_run["routing_2"] != colors_by_run["routing_20"]
     assert colors_by_run["routing_12"] != colors_by_run["routing_20"]
+
+
+def test_view_training_analysis_normalizes_page_settings_and_paths(tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._coerce_str_list(" a; b\n a , c ") == ["a", "b", "c"]
+    assert module._get_first_nonempty_setting(
+        [{"unused": " "}, {"primary": "  "}, {"secondary": " chosen "}],
+        "primary",
+        "secondary",
+    ) == "chosen"
+
+    share_dir = tmp_path / "share"
+    export_dir = tmp_path / "export"
+    env = SimpleNamespace(share_root_path=lambda: str(share_dir), AGILAB_EXPORT_ABS=str(export_dir))
+    assert module._resolve_base_path(env, "AGI_SHARE_DIR", "").resolve() == share_dir.resolve()
+    assert module._resolve_base_path(env, "AGILAB_EXPORT", "").resolve() == export_dir.resolve()
+    assert module._resolve_base_path(env, "CUSTOM", "~/custom-root") == Path("~/custom-root").expanduser()
+
+    assert module._relative_label(tmp_path / "base" / "child", tmp_path / "base") == "child"
+    assert module._relative_label(tmp_path / "outside", tmp_path / "base") == "outside"
+    assert module._default_selected_tags(["a", "b", "c"], ["x", "b"]) == ["b"]
+    assert module._default_selected_tags(["a", "b", "c", "d", "e"], []) == ["a", "b", "c", "d"]
+
+
+def test_view_training_analysis_loads_and_persists_app_settings(tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(app_settings_file=settings_path)
+
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(env)
+    assert module.st.session_state["app_settings"] == {}
+
+    settings_path.write_text("[view_training_analysis]\ntrainer = \"alpha\"\n", encoding="utf-8")
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(env)
+    assert module.st.session_state["app_settings"]["view_training_analysis"]["trainer"] == "alpha"
+
+    module.st.session_state["app_settings"] = {"view_training_analysis": {"trainer": "beta"}}
+    module._persist_app_settings(env)
+    assert "view_training_analysis" in settings_path.read_text(encoding="utf-8")
+
+    module.st = SimpleNamespace(session_state={})
+    page_state = module._get_page_state()
+    page_state["trainer"] = "gamma"
+    assert module.st.session_state["app_settings"][module.PAGE_KEY]["trainer"] == "gamma"
+
+    module.st = SimpleNamespace(session_state={"app_settings": {"pages": {module.PAGE_KEY: {"tags": ["x"]}}}})
+    assert module._get_page_defaults() == {"tags": ["x"]}
+
+
+def test_view_training_analysis_event_helpers_and_scalar_frame(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    events_root = tmp_path / "events"
+    nested = events_root / "trainer" / "tensorboard" / "run_1"
+    nested.mkdir(parents=True)
+    event_b = nested / "events.out.tfevents.2"
+    event_a = nested / "events.out.tfevents.1"
+    event_a.write_text("", encoding="utf-8")
+    event_b.write_text("", encoding="utf-8")
+    assert module._event_files(events_root) == [event_a.resolve(), event_b.resolve()]
+
+    class _Event:
+        def __init__(self, step, wall_time, value):
+            self.step = step
+            self.wall_time = wall_time
+            self.value = value
+
+    class _Accumulator:
+        def __init__(self, run_dir_str):
+            self.run_dir_str = run_dir_str
+
+        def Reload(self):
+            return None
+
+        def Tags(self):
+            return {"scalars": ["metric/b", "metric/a"]}
+
+        def Scalars(self, tag):
+            if tag == "metric/a":
+                return [_Event(2, 12.0, 0.2), _Event(1, 10.0, 0.1)]
+            return [_Event(1, 11.0, 1.1)]
+
+    monkeypatch.setattr(module, "_load_event_accumulator", lambda: _Accumulator)
+    module._load_scalar_frame.clear()
+    df = module._load_scalar_frame(str(events_root))
+
+    assert df[["tag", "step", "value"]].to_dict("records") == [
+        {"tag": "metric/a", "step": 1, "value": 0.1},
+        {"tag": "metric/a", "step": 2, "value": 0.2},
+        {"tag": "metric/b", "step": 1, "value": 1.1},
+    ]
+    assert df["relative_time_s"].tolist() == [0.0, 2.0, 1.0]
+    assert str(df["timestamp"].iloc[0]) == "1970-01-01 00:00:10"
