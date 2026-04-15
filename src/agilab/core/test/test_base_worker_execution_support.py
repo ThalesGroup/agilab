@@ -461,6 +461,77 @@ def test_baseworker_get_worker_info_creates_temp_share_dir(monkeypatch, tmp_path
     assert info["network_speed"][0] > 0
 
 
+def test_resolve_worker_info_path_uses_tempdir_and_creates_missing_dir(tmp_path):
+    created_dirs: list[tuple[str, bool]] = []
+    logged: list[str] = []
+    resolved_path = execution_support._resolve_worker_info_path(
+        share_path=None,
+        normalize_path_fn=lambda path: f"normalized::{path}",
+        logger_obj=SimpleNamespace(
+            info=lambda message, *args: logged.append(str(message % args if args else message))
+        ),
+        tempfile_module=SimpleNamespace(gettempdir=lambda: str(tmp_path / "temp-share")),
+        os_module=SimpleNamespace(
+            path=SimpleNamespace(exists=lambda _path: False),
+            makedirs=lambda path, exist_ok=True: created_dirs.append((path, exist_ok)),
+        ),
+    )
+
+    assert resolved_path == str(tmp_path / "temp-share")
+    assert created_dirs == [(str(tmp_path / "temp-share"), True)]
+    assert logged == [f"mkdir {tmp_path / 'temp-share'}"]
+
+
+def test_resolve_worker_info_path_normalizes_share_path_and_skips_existing_dir():
+    resolved_path = execution_support._resolve_worker_info_path(
+        share_path="clustershare",
+        normalize_path_fn=lambda path: f"normalized::{path}",
+        logger_obj=SimpleNamespace(info=lambda *_args, **_kwargs: pytest.fail("unexpected log")),
+        tempfile_module=SimpleNamespace(gettempdir=lambda: pytest.fail("unexpected tempdir")),
+        os_module=SimpleNamespace(
+            path=SimpleNamespace(exists=lambda _path: True),
+            makedirs=lambda *_args, **_kwargs: pytest.fail("unexpected mkdir"),
+        ),
+    )
+
+    assert resolved_path == "normalized::clustershare"
+
+
+def test_measure_worker_write_speed_writes_probe_file_and_removes_it():
+    removed_paths: list[str] = []
+    written_payloads: list[str] = []
+    time_values = iter([1.0, 3.0])
+
+    class _FakeStream:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def write(self, payload):
+            written_payloads.append(payload)
+
+    write_speed = execution_support._measure_worker_write_speed(
+        path="/tmp/share",
+        worker="127.0.0.1:8787",
+        time_module=SimpleNamespace(
+            time=lambda: next(time_values),
+            sleep=lambda *_args, **_kwargs: None,
+        ),
+        os_module=SimpleNamespace(
+            path=SimpleNamespace(join=base_worker_mod.os.path.join),
+            remove=lambda path: removed_paths.append(path),
+        ),
+        open_fn=lambda *_args, **_kwargs: _FakeStream(),
+        size=8,
+    )
+
+    assert written_payloads == ["\x00" * 8]
+    assert removed_paths == ["/tmp/share/127.0.0.1_8787"]
+    assert write_speed == [4.0]
+
+
 def test_baseworker_build_verbose_non_managed_path_updates_sys_path(monkeypatch, tmp_path):
     monkeypatch.setattr(base_worker_mod.getpass, "getuser", lambda: "demo")
     copied: list[tuple[str, Path]] = []
