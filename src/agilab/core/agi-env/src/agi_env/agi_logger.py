@@ -21,12 +21,13 @@ COLORS = {
     "msg": "\033[39m"         # white
 }
 ANSI_SGR_RE = re.compile(r'\x1b\[[0-9;]*m')
+RECORD_FILENAME_FALLBACK_EXCEPTIONS = (OSError, TypeError, ValueError)
 
 
 def _record_filename(record: logging.LogRecord) -> str:
     try:
         return os.path.basename(getattr(record, "pathname", "")) or f"{record.module}.py"
-    except Exception:
+    except RECORD_FILENAME_FALLBACK_EXCEPTIONS:
         return f"{getattr(record, 'module', '<?>')}.py"
 
 

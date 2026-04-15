@@ -3,12 +3,14 @@ import logging
 from pathlib import Path
 
 import agi_env.agi_logger as agi_logger_module
+import pytest
 from agi_env.agi_logger import (
     AgiLogger,
     BuildNoiseFilter,
     ClassNameFilter,
     LogFormatter,
     MaxLevelFilter,
+    _record_filename,
 )
 
 
@@ -235,6 +237,55 @@ def test_log_formatter_keeps_build_noise_when_verbose():
     assert "build output" in plain
 
 
+def test_record_filename_falls_back_to_module_name_on_expected_path_error(monkeypatch):
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": "/tmp/not-build.py",
+            "lineno": 1,
+            "msg": "build output",
+            "args": (),
+            "funcName": "run",
+            "module": "build",
+        }
+    )
+
+    monkeypatch.setattr(
+        agi_logger_module.os.path,
+        "basename",
+        lambda *_: (_ for _ in ()).throw(OSError("path failed")),
+    )
+
+    assert _record_filename(record) == "build.py"
+
+
+def test_record_filename_propagates_unexpected_basename_bug(monkeypatch):
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": "/tmp/not-build.py",
+            "lineno": 1,
+            "msg": "build output",
+            "args": (),
+            "funcName": "run",
+            "module": "build",
+        }
+    )
+
+    monkeypatch.setattr(
+        agi_logger_module.os.path,
+        "basename",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("basename bug")),
+    )
+
+    with pytest.raises(RuntimeError, match="basename bug"):
+        _record_filename(record)
+
+
 def test_log_formatter_falls_back_to_module_filename_when_basename_breaks(monkeypatch):
     formatter = LogFormatter(verbose=0)
     record = logging.makeLogRecord(
@@ -254,7 +305,7 @@ def test_log_formatter_falls_back_to_module_filename_when_basename_breaks(monkey
     monkeypatch.setattr(
         agi_logger_module.os.path,
         "basename",
-        lambda *_: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda *_: (_ for _ in ()).throw(OSError("boom")),
     )
 
     plain = AgiLogger.decolorize(formatter.format(record))
