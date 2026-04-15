@@ -1451,6 +1451,19 @@ def test_build_keep_lflag(tmp_path):
     assert build_mod._keep_lflag("-L/definitely/missing/path") is False
 
 
+def test_build_sanitize_build_ext_link_settings(tmp_path):
+    existing = tmp_path / "libs"
+    existing.mkdir(parents=True, exist_ok=True)
+
+    library_dirs, extra_link_args = build_mod._sanitize_build_ext_link_settings(
+        [str(existing), "/definitely/missing/library"],
+        [f"-L{existing}", "-L/definitely/missing/library", "-Wl,--as-needed"],
+    )
+
+    assert library_dirs == [str(existing)]
+    assert extra_link_args == [f"-L{existing}", "-Wl,--as-needed"]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
