@@ -12,6 +12,7 @@ from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
+import agi_env.credential_store_support as credential_store_support
 from pydantic import BaseModel, ValidationError, model_validator
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
@@ -221,7 +222,7 @@ def _assert_docs_actions_present(at: AppTest) -> None:
     assert "Open Local Documentation" in labels
 
 @pytest.fixture
-def mock_ui_env(tmp_path):
+def mock_ui_env(tmp_path, monkeypatch):
     # Set up temporary directories for apps and config
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
@@ -283,6 +284,11 @@ def load_args_from_toml(path):
 
     # Mock CLI argv for AGILAB main page
     test_argv = ["About_agilab.py", "--apps-path", str(apps_dir), "--active-app", "flight_project"]
+    monkeypatch.setattr(
+        credential_store_support,
+        "_load_keyring_module",
+        lambda keyring_module=None: None,
+    )
     
     # Patch sys.argv and env variables
     with patch("sys.argv", test_argv):
