@@ -1020,6 +1020,23 @@ def test_lookup_default_mlflow_experiment_uses_object_lookup_contract():
     assert calls == ["Default"]
 
 
+def test_create_default_mlflow_experiment_from_object_uses_object_create_contract():
+    calls: list[tuple[str, object]] = []
+
+    class _FakeMlflow:
+        def create_experiment(self, name, artifact_location=None):
+            calls.append(("create_experiment", (name, artifact_location)))
+
+    mlflow_store._create_default_mlflow_experiment_from_object(
+        _FakeMlflow(),
+        get_experiment_fn=lambda _name: None,
+        default_experiment_name="Default",
+        artifact_uri="file:///artifacts",
+    )
+
+    assert calls == [("create_experiment", ("Default", "file:///artifacts"))]
+
+
 def test_create_default_experiment_if_missing_propagates_unexpected_create_bug():
     class _FakeMlflow:
         def get_experiment_by_name(self, _name):
