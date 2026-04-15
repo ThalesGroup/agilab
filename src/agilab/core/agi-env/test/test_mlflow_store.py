@@ -468,6 +468,19 @@ def test_move_mlflow_sqlite_backend_files_moves_present_files_only(tmp_path: Pat
     assert not Path(f"{backup_path}-journal").exists()
 
 
+def test_resolve_mlflow_artifact_uri_delegates_to_artifact_dir_resolver(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    calls: list[Path] = []
+
+    artifact_uri = mlflow_store._resolve_mlflow_artifact_uri(
+        tracking_dir,
+        resolve_mlflow_artifact_dir_fn=lambda path: calls.append(Path(path)) or (tracking_dir / "artifacts"),
+    )
+
+    assert artifact_uri == (tracking_dir / "artifacts").as_uri()
+    assert calls == [tracking_dir]
+
+
 def test_migrate_legacy_mlflow_filestore_if_needed_skips_when_backend_exists_or_no_legacy(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
