@@ -1050,3 +1050,232 @@ def test_view_maps_network_layout_and_tuple_helpers(monkeypatch, tmp_path: Path)
     assert module.convert_to_tuples("not-a-list") == []
     assert module.convert_to_tuples(123) == []
     assert len(warnings) == 2
+
+
+def test_view_maps_network_handles_settings_and_active_app_error_paths(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    errors: list[str] = []
+
+    def stop_now():
+        raise RuntimeError("stop")
+
+    module.st = SimpleNamespace(error=errors.append, stop=stop_now, session_state={})
+    monkeypatch.setattr(module.sys, "argv", [MODULE_PATH.name, "--active-app", str(tmp_path / "missing_app")])
+
+    with pytest.raises(RuntimeError, match="stop"):
+        module._resolve_active_app()
+
+    assert any("Provided --active-app path not found" in message for message in errors)
+
+    invalid_settings = tmp_path / "invalid.toml"
+    invalid_settings.write_text("[broken", encoding="utf-8")
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=invalid_settings))
+    assert module.st.session_state["app_settings"] == {}
+
+    module.st = SimpleNamespace(session_state={"app_settings": {"view_maps_network": "bad"}})
+    assert module._get_view_maps_settings() == {}
+    assert module.st.session_state["app_settings"]["view_maps_network"] == {}
+
+    persist_path = tmp_path / "persist.toml"
+    module.st = SimpleNamespace(session_state={"app_settings": "bad"})
+    module._persist_app_settings(SimpleNamespace(app_settings_file=persist_path))
+    assert not persist_path.exists()
+
+    warnings: list[str] = []
+    module.st = SimpleNamespace(session_state={"app_settings": {"view_maps_network": {}}})
+    monkeypatch.setattr(module.logger, "warning", lambda message: warnings.append(message))
+    monkeypatch.setattr(
+        module,
+        "_dump_toml",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("cannot write")),
+    )
+    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml"))
+    assert any("Unable to persist app_settings" in message for message in warnings)
+
+
+def test_view_maps_network_heatmap_loader_error_paths(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    with pytest.raises(FileNotFoundError):
+        module._load_cloud_heatmap_points(str(tmp_path / "missing.npz"))
+    with pytest.raises(FileNotFoundError):
+        module._load_cloud_heatmap_grid(str(tmp_path / "missing.npz"))
+
+    no_heatmap = tmp_path / "no_heatmap.npz"
+    np.savez(no_heatmap, x_min=np.asarray(0.0), z_min=np.asarray(0.0), step=np.asarray(1.0), center=np.asarray([0.0, 0.0]))
+    with pytest.raises(ValueError, match="Missing 'heatmap'"):
+        module._load_cloud_heatmap_points(str(no_heatmap))
+    with pytest.raises(ValueError, match="Missing 'heatmap'"):
+        module._load_cloud_heatmap_grid(str(no_heatmap))
+
+    missing_step = tmp_path / "missing_step.npz"
+    np.savez(
+        missing_step,
+        heatmap=np.asarray([[1.0]], dtype=np.float32),
+        x_min=np.asarray(0.0),
+        z_min=np.asarray(0.0),
+        center=np.asarray([0.0, 0.0]),
+    )
+    with pytest.raises(ValueError, match="Missing required key"):
+        module._load_cloud_heatmap_points(str(missing_step))
+    with pytest.raises(ValueError, match="Missing required key"):
+        module._load_cloud_heatmap_grid(str(missing_step))
+
+    bad_shape = tmp_path / "bad_shape.npz"
+    np.savez(
+        bad_shape,
+        heatmap=np.asarray([1.0, 2.0], dtype=np.float32),
+        x_min=np.asarray(0.0),
+        z_min=np.asarray(0.0),
+        step=np.asarray(1.0),
+        center=np.asarray([0.0, 0.0]),
+    )
+    with pytest.raises(ValueError, match="Expected 2D heatmap"):
+        module._load_cloud_heatmap_points(str(bad_shape))
+    with pytest.raises(ValueError, match="Expected 2D heatmap"):
+        module._load_cloud_heatmap_grid(str(bad_shape))
+
+    bad_center = tmp_path / "bad_center.npz"
+    np.savez(
+        bad_center,
+        heatmap=np.asarray([[1.0]], dtype=np.float32),
+        x_min=np.asarray(0.0),
+        z_min=np.asarray(0.0),
+        step=np.asarray(1.0),
+        center=np.asarray([0.0]),
+    )
+    with pytest.raises(ValueError, match="Invalid center"):
+        module._load_cloud_heatmap_points(str(bad_center))
+    with pytest.raises(ValueError, match="Invalid center"):
+        module._load_cloud_heatmap_grid(str(bad_center))
+
+    zero_heatmap = tmp_path / "zero_heatmap.npz"
+    _write_heatmap_npz(zero_heatmap, heatmap=np.zeros((2, 2), dtype=np.float32))
+    assert module._load_cloud_heatmap_points(str(zero_heatmap), min_weight=0.1).empty
+
+    invalid_coords = tmp_path / "invalid_coords.npz"
+    _write_heatmap_npz(
+        invalid_coords,
+        heatmap=np.asarray([[3.0]], dtype=np.float32),
+        center=(module.EARTH_RADIUS_M * 4.0, module.EARTH_RADIUS_M * 4.0),
+    )
+    assert module._load_cloud_heatmap_points(str(invalid_coords), stride=1, min_weight=0.0).empty
+
+
+def test_view_maps_network_heatmap_stats_and_timeline_edge_cases(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_grid",
+        lambda _path: (_ for _ in ()).throw(RuntimeError("broken grid")),
+    )
+    failed_stats = module._sample_cloud_heatmap_stats("broken.npz", 0.0, 0.0)
+    assert all(math.isnan(value) for value in failed_stats.values())
+
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_grid",
+        lambda _path: {
+            "heatmap": np.asarray([[1.0]], dtype=np.float32),
+            "x_min": 0.0,
+            "z_min": 0.0,
+            "step": 1.0,
+            "center_x": 0.0,
+            "center_z": 0.0,
+        },
+    )
+    out_of_bounds = module._sample_cloud_heatmap_stats("grid.npz", 45.0, 45.0)
+    assert all(math.isnan(value) for value in out_of_bounds.values())
+
+    samples = module._decision_time_samples(
+        pd.DataFrame(),
+        pd.DataFrame(),
+        ["bad", 1],
+    )
+    assert samples.to_dict("records") == [{"time_index": 1, "sample_time_s": 1.0}]
+
+    assert module._selected_nodes_heatmap_timeline(
+        pd.DataFrame({"id_col": ["A"]}),
+        "unused.npz",
+        {"A"},
+    ).empty
+
+    fallback_timeline = pd.DataFrame(
+        {
+            "node_id": ["A", "A", "A"],
+            "map_time": ["bad", "still-bad", "again"],
+            "heatmap_value": [1.0, 2.0, 3.0],
+        }
+    )
+    downsampled = module._downsample_heatmap_timeline(fallback_timeline, step_s=2)
+    assert downsampled["map_time"].tolist() == ["again", "still-bad"]
+
+    empty_fig = module._plot_selected_nodes_heatmap_timeline(pd.DataFrame(), "SAT")
+    assert empty_fig.layout.height == 240
+
+    three_nodes = pd.DataFrame(
+        {
+            "node_id": ["A", "B", "C"],
+            "map_time": [0, 1, 2],
+            "heatmap_value": [1.0, 2.0, 3.0],
+            "raw_heatmap_value": [1.0, 2.0, 3.0],
+            "local_mean": [1.0, 2.0, 3.0],
+            "local_max": [1.0, 2.0, 3.0],
+            "lat": [10.0, 11.0, 12.0],
+            "long": [20.0, 21.0, 22.0],
+        }
+    )
+    multi_fig = module._plot_selected_nodes_heatmap_timeline(three_nodes, "SAT")
+    assert "selected planes" in multi_fig.layout.title.text
+
+
+def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    warnings: list[str] = []
+    module.st = SimpleNamespace(
+        session_state={
+            "show_cloud_heatmap": False,
+            "show_trajectory_traces": False,
+            "show_topology_links": False,
+        },
+        sidebar=SimpleNamespace(warning=warnings.append),
+    )
+
+    assert module._cloud_heatmap_layers() == []
+    assert module._trajectory_trace_layers(pd.DataFrame({"id_col": ["A"], "long": [1.0], "lat": [2.0]})) == []
+    assert module._topology_link_layers(["satcom_link"], pd.DataFrame(), pd.DataFrame(), {}) == []
+
+    module.st = SimpleNamespace(
+        session_state={
+            "show_cloud_heatmap": True,
+            "cloud_heatmap_stride": 1,
+            "cloud_heatmap_min_weight": 0.0,
+            "cloud_heatmap_sat_path": "sat_map.npz",
+            "cloud_heatmap_ivdl_path": "",
+            "show_trajectory_traces": True,
+            "show_topology_links": True,
+        },
+        sidebar=SimpleNamespace(warning=warnings.append),
+    )
+    monkeypatch.setattr(module, "_load_cloud_heatmap_points", lambda *args, **kwargs: pd.DataFrame())
+    assert module._cloud_heatmap_layers() == []
+
+    long_track = pd.DataFrame(
+        {
+            "id_col": ["A"] * 700,
+            "time_col": list(range(700)),
+            "long": [float(i) for i in range(700)],
+            "lat": [float(i) for i in range(700)],
+        }
+    )
+    trace_layers = module._trajectory_trace_layers(long_track)
+    assert len(trace_layers) == 1
+    assert len(trace_layers[0].data[0]["path"]) == 600
+
+    monkeypatch.setattr(module, "create_edges_geomap", lambda *args, **kwargs: pd.DataFrame())
+    assert module._topology_link_layers(["satcom_link"], pd.DataFrame(), pd.DataFrame(), {}) == []
+    assert module._svg_data_url("<svg />").startswith("data:image/svg+xml")
+    assert module._label_for_link("custom_link") == "CUSTOM"
+    assert module._coerce_slider_value(["alpha", "beta"], object()) == "alpha"
