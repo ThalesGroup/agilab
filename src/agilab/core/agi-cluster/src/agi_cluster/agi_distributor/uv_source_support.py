@@ -9,6 +9,8 @@ import tomlkit
 
 
 logger = logging.getLogger(__name__)
+ENV_LOOKUP_EXCEPTIONS = (AttributeError, RuntimeError, TypeError)
+RELPATH_FALLBACK_EXCEPTIONS = (OSError, ValueError)
 
 
 def _iter_local_uv_source_paths(pyproject_path: Path) -> list[tuple[str, Path]]:
@@ -49,7 +51,7 @@ def envar_truthy(envars: dict, key: str) -> bool:
     """Return True when an env var value is truthy."""
     try:
         raw = envars.get(key)
-    except Exception:
+    except ENV_LOOKUP_EXCEPTIONS:
         return False
     if raw is None:
         return False
@@ -152,7 +154,7 @@ def rewrite_uv_sources_paths_for_copied_pyproject(
 
         try:
             new_path_value = os.path.relpath(src_path, start=dest_dir)
-        except Exception:
+        except RELPATH_FALLBACK_EXCEPTIONS:
             new_path_value = str(src_path)
 
         if dest_path_value != new_path_value:
@@ -247,7 +249,7 @@ def _stage_uv_source_dependency(
             continue
         try:
             new_path_value = os.path.relpath(staged_nested_target, start=staged_target)
-        except Exception:
+        except RELPATH_FALLBACK_EXCEPTIONS:
             new_path_value = str(staged_nested_target)
         old_path_value = staged_meta.get("path")
         if old_path_value != new_path_value:
@@ -314,7 +316,7 @@ def stage_uv_sources_for_copied_pyproject(
 
         try:
             new_path_value = os.path.relpath(staged_target, start=dest_dir)
-        except Exception:
+        except RELPATH_FALLBACK_EXCEPTIONS:
             new_path_value = str(staged_target)
 
         old_path_value = dest_meta.get("path")
