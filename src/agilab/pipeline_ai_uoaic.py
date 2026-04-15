@@ -14,7 +14,7 @@ try:
         _ensure_uoaic_runtime as _ensure_uoaic_runtime_impl,
         format_uoaic_question as _format_uoaic_question,
         _load_uoaic_modules as _load_uoaic_modules_impl,
-        normalize_ollama_endpoint,
+        normalize_ollama_endpoint as _normalize_ollama_endpoint,
         normalize_user_path as _normalize_user_path,
         _resolve_uoaic_path as _resolve_uoaic_path_impl,
     )

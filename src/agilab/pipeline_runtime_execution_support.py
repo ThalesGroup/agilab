@@ -67,6 +67,8 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     scheduler_lit = _safe_literal(scheduler)
     workers_lit = _safe_literal(workers) if workers is None else f"json.loads({json.dumps(json.dumps(workers))})"
     run_args_lit = _safe_literal(run_args) if run_args is None else f"json.loads({json.dumps(json.dumps(run_args))})"
+    workers_preview = "" if workers is None else f"# WORKERS = {workers!r}\n"
+    run_args_preview = "" if run_args is None else f"# RUN_ARGS = {run_args!r}\n"
     needs_json = workers is not None or run_args is not None
     json_import = "\nimport json" if needs_json else ""
 
@@ -80,8 +82,8 @@ APP = {app_lit}
 VERBOSE = {int(verbose)}
 MODE = {int(mode)}
 SCHEDULER = {scheduler_lit}
-WORKERS = {workers_lit}
-RUN_ARGS = {run_args_lit}
+{workers_preview}WORKERS = {workers_lit}
+{run_args_preview}RUN_ARGS = {run_args_lit}
 
 async def safe_service_start():
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=VERBOSE)

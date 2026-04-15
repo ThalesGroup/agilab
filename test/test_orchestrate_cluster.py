@@ -156,6 +156,27 @@ def test_describe_share_path_handles_missing_and_resolved_paths(tmp_path):
     assert orchestrate_cluster._describe_share_path(env_resolved).startswith("clustershare → ")
 
 
+def test_describe_share_path_handles_share_root_errors_and_unresolved_same_path():
+    env_error = SimpleNamespace(
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert orchestrate_cluster._describe_share_path(env_error) == "clustershare"
+
+    class _BrokenResolvePath:
+        def __str__(self):
+            return "clustershare"
+
+        def resolve(self, strict=False):
+            raise OSError("bad resolve")
+
+    env_broken_resolve = SimpleNamespace(
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: _BrokenResolvePath(),
+    )
+    assert orchestrate_cluster._describe_share_path(env_broken_resolve) == "clustershare"
+
+
 def test_cluster_credentials_value_formats_password_and_key_modes():
     assert orchestrate_cluster._cluster_credentials_value(" agi ", use_ssh_key=True) == "agi"
     assert (
@@ -329,3 +350,96 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
     assert ("AGI_SSH_KEY_PATH", "") in env_calls
     assert fake_st.session_state["mode"] is None
     assert fake_st.infos[-1] == "Run mode benchmark (all modes)"
+
+
+def test_render_cluster_settings_ui_password_auth_uses_stored_user_for_credentials(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython": False,
+            "cluster_pool": False,
+            "cluster_rapids": False,
+            "cluster_use_key__demo_project": False,
+            "cluster_user__demo_project": "   ",
+            "cluster_password__demo_project": "secret",
+        },
+        session_state={
+            "app_settings": {"cluster": {"user": " agi "}},
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    env_calls: list[tuple[str, str]] = []
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda key, value: env_calls.append((key, value)),
+        agi_env_envars={"CLUSTER_CREDENTIALS": ""},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: tmp_path / "share",
+        user="",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["user"] == "agi"
+    assert env.user == "agi"
+    assert env.password == "secret"
+    assert ("CLUSTER_CREDENTIALS", "agi:secret") in env_calls
+
+
+def test_render_cluster_settings_ui_ssh_key_mode_uses_env_default_key_when_input_blank(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython": False,
+            "cluster_pool": False,
+            "cluster_rapids": False,
+            "cluster_use_key__demo_project": True,
+            "cluster_ssh_key__demo_project": "   ",
+        },
+        session_state={
+            "app_settings": {"cluster": {"cluster_enabled": True}},
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    env_calls: list[tuple[str, str]] = []
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda key, value: env_calls.append((key, value)),
+        agi_env_envars={"AGI_SSH_KEY_PATH": ""},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: tmp_path / "share",
+        user="agi",
+        password="stale",
+        ssh_key_path=" ~/.ssh/id_demo ",
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["ssh_key_path"] == "~/.ssh/id_demo"
+    assert env.password is None
+    assert env.ssh_key_path == "~/.ssh/id_demo"
+    assert ("AGI_SSH_KEY_PATH", "~/.ssh/id_demo") in env_calls
