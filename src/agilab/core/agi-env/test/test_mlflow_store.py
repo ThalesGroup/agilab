@@ -642,6 +642,53 @@ def test_mlflow_schema_reset_error_helper_matches_default_phrase_and_markers():
     ) is False
 
 
+def test_create_default_experiment_helper_skips_missing_creator_and_ignores_existing_race():
+    mlflow_store._create_default_experiment(
+        None,
+        get_experiment_fn=lambda _name: (_ for _ in ()).throw(
+            AssertionError("lookup should not run when there is no create function")
+        ),
+        default_experiment_name="Default",
+        artifact_uri="file:///artifacts",
+    )
+
+    calls: list[tuple[str, object]] = []
+    created = {"value": False}
+
+    def _get_experiment(name):
+        calls.append(("get_experiment", name))
+        if created["value"]:
+            return object()
+        return None
+
+    def _create_experiment(name, artifact_location=None):
+        calls.append(("create_experiment", (name, artifact_location)))
+        created["value"] = True
+        raise RuntimeError("already exists")
+
+    mlflow_store._create_default_experiment(
+        _create_experiment,
+        get_experiment_fn=_get_experiment,
+        default_experiment_name="Default",
+        artifact_uri="file:///artifacts",
+    )
+
+    assert calls == [
+        ("create_experiment", ("Default", "file:///artifacts")),
+        ("get_experiment", "Default"),
+    ]
+
+
+def test_create_default_experiment_helper_propagates_unexpected_create_bug():
+    with pytest.raises(RuntimeError, match="unexpected create bug"):
+        mlflow_store._create_default_experiment(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected create bug")),
+            get_experiment_fn=lambda _name: None,
+            default_experiment_name="Default",
+            artifact_uri="file:///artifacts",
+        )
+
+
 def test_create_default_experiment_if_missing_skips_create_when_lookup_finds_experiment():
     calls: list[tuple[str, object]] = []
 
