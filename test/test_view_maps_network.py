@@ -1279,3 +1279,318 @@ def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(monkeypa
     assert module._svg_data_url("<svg />").startswith("data:image/svg+xml")
     assert module._label_for_link("custom_link") == "CUSTOM"
     assert module._coerce_slider_value(["alpha", "beta"], object()) == "alpha"
+
+
+def test_view_maps_network_declared_path_and_position_fallbacks(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    base = tmp_path / "share"
+    base.mkdir()
+    existing_default = base / "existing_default.txt"
+    existing_default.write_text("ok", encoding="utf-8")
+
+    assert module._choose_existing_declared_path("missing.txt", "existing_default.txt", [base]) == str(existing_default)
+    assert module._choose_existing_declared_path("current_only.txt", "", [base]) == str(base / "current_only.txt")
+    assert module._choose_existing_declared_path("", "fallback_only.txt", [base]) == str(base / "fallback_only.txt")
+    assert module._choose_existing_declared_path("", "", [base]) == ""
+    assert module._resolve_edges_file_path("", [base]) is None
+
+    semantic_from_source = pd.Series({"source_file": str(tmp_path / "uswc_forward_04-S004.csv")})
+    assert module._preferred_node_id_from_row(semantic_from_source) == "4004"
+    assert module._preferred_node_id_from_row(pd.Series({"node_id": 7})) == "7"
+    assert module._preferred_node_id_from_row(pd.Series({}), source_path="plain_name.csv") == ""
+
+    raw_traj = tmp_path / "plain_name.csv"
+    pd.DataFrame(
+        [
+            {"time_s": 0.0, "latitude": 10.0, "longitude": 20.0},
+            {"time_s": 1.0, "latitude": 11.0, "longitude": 21.0},
+        ]
+    ).to_csv(raw_traj, index=False)
+
+    positions = module.load_positions_at_time(str(raw_traj), 0.4)
+    assert positions["flight_id"].tolist() == ["plain_name"]
+    assert positions["time_s"].tolist() == [0.0]
+    assert module.load_positions_at_time("", 0.0).empty
+
+
+def test_view_maps_network_allocation_and_edge_loader_branches(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    alloc_dict_path = tmp_path / "alloc_dict.json"
+    alloc_dict_path.write_text('{"source": "1", "destination": "2", "time_index": 5}', encoding="utf-8")
+    loaded_dict = module.load_allocations(alloc_dict_path)
+    assert loaded_dict["time_index"].tolist() == [5]
+    assert loaded_dict["source"].tolist() == ["1"]
+
+    broken_csv = tmp_path / "broken.csv"
+    broken_csv.write_text("source,destination\n1,2\n", encoding="utf-8")
+    monkeypatch.setattr(module.pd, "read_csv", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("csv boom")))
+    assert module.load_allocations(broken_csv).empty
+
+    broken_parquet = tmp_path / "broken.parquet"
+    broken_parquet.write_text("parquet", encoding="utf-8")
+    monkeypatch.setattr(module.pd, "read_parquet", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("parquet boom")))
+    assert module.load_allocations(broken_parquet).empty
+
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{not-json}", encoding="utf-8")
+    assert module.load_allocations(bad_json).empty
+    assert module.load_allocations(tmp_path / "missing.json").empty
+
+    legacy_ndjson = tmp_path / "edges.ndjson"
+    legacy_ndjson.write_text(
+        '{"from": "1", "to": "2", "type": "legacy"}\n'
+        '{"from": "2", "to": "3", "type": "ivdl"}\n'
+        '{"from": "", "to": "4", "type": "satcom"}\n',
+        encoding="utf-8",
+    )
+    assert module.load_edges_file(legacy_ndjson) == {
+        "legacy_link": [("1", "2")],
+        "ivbl_link": [("2", "3")],
+    }
+
+    gml_like_json = tmp_path / "topology.json"
+    graph = nx.Graph()
+    graph.add_edge("A", "B")
+    graph.add_edge("B", "C", bearer="leg")
+    nx.write_gml(graph, gml_like_json)
+    assert module.load_edges_file(gml_like_json) == {
+        "link": [("A", "B")],
+        "legacy_link": [("B", "C")],
+    }
+    assert module.load_edges_file(tmp_path / "missing_edges.json") == {}
+
+
+def test_view_maps_network_allocation_pair_preview_and_layer_fallback_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    alloc_path = tmp_path / "alloc_steps.parquet"
+    alloc_path.write_text("alloc", encoding="utf-8")
+    allocation_rows = pd.DataFrame(
+        [
+            {"source": "1", "destination": "2", "routed": "off", "path": [("1", "2")]},
+            {"source": "1", "destination": "2", "routed": False, "path": [("1", "2")]},
+            {"source": "1", "destination": "2", "routed": 0, "path": [("1", "2")]},
+            {"source": "1", "destination": "2", "routed": True, "path": [("1",)]},
+            {"source": "1", "destination": "1", "routed": True, "path": [("1", "1")]},
+            {"source": "1", "destination": "2", "routed": True, "bearers": []},
+            {"source": "2", "destination": "3", "routed": True, "path": [("2", "3")]},
+            {"source": "1", "destination": "2", "routed": True, "bearers": ["satcom"]},
+        ]
+    )
+    monkeypatch.setattr(module, "load_allocations", lambda _path: allocation_rows)
+    monkeypatch.setattr(
+        module,
+        "_filter_allocation_rows_for_selected_nodes",
+        lambda df, *_args, **_kwargs: df,
+    )
+
+    assert module._allocation_routed_edge_pairs({"1", "2", "3"}, allocation_paths=[alloc_path]) == {
+        ("1", "2"),
+        ("2", "3"),
+    }
+
+    assert module._preview_edge_count(pd.DataFrame({"edge_col": [None, np.nan, " "]}), "edge_col") == 0
+    monkeypatch.setattr(
+        module,
+        "convert_to_tuples",
+        lambda _value: (_ for _ in ()).throw(ValueError("bad tuples")),
+    )
+    assert module._preview_edge_count(pd.DataFrame({"edge_col": ["[(1, 2)]"]}), "edge_col") == 0
+
+    assert module.build_allocation_layers(pd.DataFrame(), pd.DataFrame({"flight_id": []})) == []
+
+    positions = pd.DataFrame(
+        {
+            "flight_id": ["1", "2"],
+            "long": [1.0, 2.0],
+            "lat": [10.0, 20.0],
+            "alt": [100.0, 200.0],
+        }
+    )
+    ivdl_layers = module.build_allocation_layers(
+        pd.DataFrame(
+            [
+                {
+                    "source": "1",
+                    "destination": "2",
+                    "bandwidth": 3.0,
+                    "delivered_bandwidth": 0.0,
+                    "bearers": ["ivdl"],
+                }
+            ]
+        ),
+        positions,
+    )
+    assert len(ivdl_layers) == 1
+    assert ivdl_layers[0].data[0]["color"] == [255, 140, 0]
+    assert ivdl_layers[0].data[0]["width"] == 2
+
+
+def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    assert module._selected_pair_bearer_timeline(pd.DataFrame(), {"1", "2"}, "RL").empty
+    assert module._selected_pair_bearer_timeline(pd.DataFrame({"time_index": [1]}), {"1", "2"}, "RL").empty
+
+    pair_df = pd.DataFrame(
+        [
+            {
+                "time_index": 1,
+                "source": "1",
+                "destination": "2",
+                "bearers": ["satcom"],
+                "routed": True,
+                "delivered_bandwidth": 3.0,
+                "latency": 10.0,
+            },
+            {
+                "time_index": 1,
+                "source": "1",
+                "destination": "2",
+                "bearers": ["optical"],
+                "routed": True,
+                "delivered_bandwidth": 2.0,
+                "latency": 20.0,
+            },
+            {
+                "time_index": 2,
+                "source": "1",
+                "destination": "2",
+                "bearers": None,
+                "routed": False,
+                "delivered_bandwidth": 0.0,
+                "latency": 30.0,
+            },
+            {
+                "time_index": np.nan,
+                "source": "1",
+                "destination": "2",
+                "bearers": ["satcom"],
+                "routed": True,
+            },
+            {
+                "time_index": 3,
+                "source": "",
+                "destination": "2",
+                "bearers": ["satcom"],
+                "routed": True,
+            },
+        ]
+    )
+    timeline = module._selected_pair_bearer_timeline(pair_df, {"1", "2"}, "RL")
+    assert timeline.to_dict("records") == [
+        {
+            "method": "RL",
+            "pair_label": "1 → 2",
+            "time_index": 1,
+            "bearer_state": "SAT",
+            "bearer_path": "optical | satcom",
+            "routed": True,
+            "delivered_bandwidth": 5.0,
+            "latency": 15.0,
+            "series_label": "RL | 1 → 2",
+        },
+        {
+            "method": "RL",
+            "pair_label": "1 → 2",
+            "time_index": 2,
+            "bearer_state": "Not routed",
+            "bearer_path": "",
+            "routed": False,
+            "delivered_bandwidth": 0.0,
+            "latency": 30.0,
+            "series_label": "RL | 1 → 2",
+        },
+    ]
+
+    focus_df = pd.DataFrame(
+        [{"time_index": 4, "source": "3", "destination": "4", "delivered_bandwidth": 7.0, "latency": 9.0}]
+    )
+    focus_timeline = module._selected_pair_bearer_timeline(focus_df, {"3"}, "custom", focus_pair=(3, 4))
+    assert focus_timeline.to_dict("records") == [
+        {
+            "method": "custom",
+            "pair_label": "3 → 4",
+            "time_index": 4,
+            "bearer_state": "Routed",
+            "bearer_path": "",
+            "routed": True,
+            "delivered_bandwidth": 7.0,
+            "latency": 9.0,
+            "series_label": "custom | 3 → 4",
+        }
+    ]
+
+    empty_fig = module._plot_selected_pair_bearer_timeline(pd.DataFrame())
+    assert empty_fig.layout.height == 240
+
+    single_pair_fig = module._plot_selected_pair_bearer_timeline(timeline)
+    assert single_pair_fig.layout.title.text == "Bearer switching for 1 → 2 over decision steps"
+
+    multi_pair_fig = module._plot_selected_pair_bearer_timeline(pd.concat([timeline, focus_timeline], ignore_index=True))
+    assert len(multi_pair_fig.data) == 2
+    assert multi_pair_fig.layout.title.text == "Bearer switching for selected source-destination pairs"
+    assert multi_pair_fig.layout.legend.title.text == "Method / demand"
+    assert multi_pair_fig.data[1].line.color == "#666"
+    assert "Routed" in tuple(multi_pair_fig.layout.yaxis.ticktext)
+
+    metrics_df = pd.DataFrame(
+        {
+            "metric": [
+                None,
+                np.nan,
+                "{'satcom_link': [1, 'bad', 2.5], 'optical_link': 4}",
+                {"ivbl_link": {5, "skip"}, "legacy_link": "bad"},
+                "not-a-dict",
+            ]
+        }
+    )
+    assert module.extract_metrics(metrics_df, "missing") == {}
+    assert module.extract_metrics(metrics_df, "metric") == {
+        "satcom_link": [1.0, 2.5],
+        "optical_link": [4.0],
+        "ivbl_link": [5.0],
+    }
+
+    graph_df = pd.DataFrame(
+        {
+            "satcom_link": ["[(1, 2)]"],
+            "capacity_metric": [{"satcom_link": [4.0]}],
+        }
+    )
+    pos = {"1": (0.0, 0.0), "2": (1.0, 1.0)}
+    fig = module.create_network_graph(
+        graph_df,
+        pos,
+        True,
+        True,
+        ["satcom_link"],
+        "capacity_metric",
+        color_map={"1": "rgb(1,2,3)", "2": [4, 5, 6, 255]},
+        symbol_map={"1": "triangle-up", "2": "circle"},
+        link_color_map={"satcom_link": "rgb(10,20,30)"},
+        node_roles={"1": "src", "2": "dst"},
+        show_node_labels=True,
+        allowed_edge_pairs={("1", "2")},
+    )
+    assert any(trace.name == "SAT" for trace in fig.data)
+    assert any(annotation["text"] == "<b>src</b>" for annotation in fig.layout.annotations)
+    assert any(annotation["text"] == "<b>dst</b>" for annotation in fig.layout.annotations)
+
+    monkeypatch.setattr(module, "normalize_values", lambda _metrics: {"satcom_link": ["bad"]})
+    fallback_width_fig = module.create_network_graph(
+        graph_df,
+        pos,
+        False,
+        True,
+        ["satcom_link"],
+        "capacity_metric",
+        link_color_map={"satcom_link": "rgb(10,20,30)"},
+    )
+    assert fallback_width_fig.data[0].line.width == 5.0
