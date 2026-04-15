@@ -40,35 +40,47 @@ def _is_build_noise_record(record: logging.LogRecord) -> bool:
         or "distutils" in pathname
     )
 
+
+def _resolve_record_classname(record: logging.LogRecord) -> str:
+    try:
+        record_path = os.path.normcase(os.path.realpath(record.pathname))
+        frame = sys._getframe(0)
+        while frame:
+            code = frame.f_code
+            frame_path = os.path.normcase(os.path.realpath(code.co_filename))
+            same_file = frame_path == record_path
+            if not same_file:
+                try:
+                    same_file = os.path.samefile(frame_path, record_path)
+                except OSError:
+                    same_file = False
+            if not same_file:
+                same_file = os.path.basename(frame_path) == os.path.basename(record_path)
+            if same_file and code.co_name == record.funcName:
+                if 'self' in frame.f_locals:
+                    return frame.f_locals['self'].__class__.__name__
+                return record.module or record.pathname
+            frame = frame.f_back
+    except Exception:
+        return '<no-class>'
+    return '<no-class>'
+
+
+def _render_log_message(record: logging.LogRecord) -> str:
+    try:
+        return record.getMessage()
+    except RecursionError:
+        msg_obj = getattr(record, "msg", None)
+        return f"<log-message-recursion type={type(msg_obj).__name__}>"
+    except Exception as exc:  # pragma: no cover - defensive formatting guard
+        msg_obj = getattr(record, "msg", None)
+        return f"<log-message-format-error type={type(msg_obj).__name__} error={exc}>"
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
     def filter(self, record):
-        try:
-            record_path = os.path.normcase(os.path.realpath(record.pathname))
-            frame = sys._getframe(0)
-            while frame:
-                code = frame.f_code
-                frame_path = os.path.normcase(os.path.realpath(code.co_filename))
-                same_file = frame_path == record_path
-                if not same_file:
-                    try:
-                        same_file = os.path.samefile(frame_path, record_path)
-                    except OSError:
-                        same_file = False
-                if not same_file:
-                    same_file = os.path.basename(frame_path) == os.path.basename(record_path)
-                if same_file and code.co_name == record.funcName:
-                    if 'self' in frame.f_locals:
-                        record.classname = frame.f_locals['self'].__class__.__name__
-                    else:
-                        record.classname = record.module or record.pathname
-                    break
-                frame = frame.f_back
-            else:
-                record.classname = '<no-class>'
-        except Exception:
-            record.classname = '<no-class>'
+        record.classname = _resolve_record_classname(record)
         return True
 
 class MaxLevelFilter(logging.Filter):
@@ -115,22 +127,7 @@ class LogFormatter(logging.Formatter):
         else:
             functionName_str = className + "." + functionName + RESET
 
-        # Message: guard against recursive __str__/format paths coming from
-        # third-party log payloads (can happen on remote workers).
-        try:
-            rendered_message = record.getMessage()
-        except RecursionError:
-            msg_obj = getattr(record, "msg", None)
-            rendered_message = (
-                f"<log-message-recursion type={type(msg_obj).__name__}>"
-            )
-        except Exception as exc:  # pragma: no cover - defensive formatting guard
-            msg_obj = getattr(record, "msg", None)
-            rendered_message = (
-                f"<log-message-format-error type={type(msg_obj).__name__} error={exc}>"
-            )
-
-        message = COLORS["msg"] + rendered_message + RESET
+        message = COLORS["msg"] + _render_log_message(record) + RESET
         if not hasattr(record, "subprocess"):
             return levelname + venv_str + '.' + functionName_str + ' ' + message
         return f"{message}"
