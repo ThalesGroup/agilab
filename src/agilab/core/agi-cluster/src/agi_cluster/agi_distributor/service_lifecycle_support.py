@@ -16,6 +16,21 @@ from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 logger = logging.getLogger(__name__)
 
+_SERVICE_RECOVERABLE_EXCEPTIONS = (
+    ConnectionError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+_SERVICE_BREAK_LOOP_EXCEPTIONS = (
+    ConnectionError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+)
+
 
 def wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
     """Wrap one worker chunk so BaseWorker can reconstruct legacy payloads."""
@@ -209,7 +224,7 @@ async def service_recover(
 
         return True
 
-    except Exception as exc:
+    except _SERVICE_RECOVERABLE_EXCEPTIONS as exc:
         log.warning("Failed to recover persistent AGI service: %s", exc)
         if allow_stale_cleanup:
             agi_cls._service_clear_state(env)
@@ -247,7 +262,7 @@ async def service_restart_workers(
     if break_tasks:
         try:
             client.gather(break_tasks)
-        except Exception:
+        except _SERVICE_BREAK_LOOP_EXCEPTIONS:
             log.debug("Ignoring break_loop error during service restart", exc_info=True)
 
     restarted = _submit_service_worker_inits(

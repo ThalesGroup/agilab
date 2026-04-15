@@ -291,6 +291,35 @@ async def test_service_restart_workers_restarts_and_tracks_futures(monkeypatch, 
 
 
 @pytest.mark.asyncio
+async def test_service_restart_workers_propagates_unexpected_break_loop_bug(monkeypatch, tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._args = {"sample": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI._service_poll_interval = 0.2
+    AGI._service_queue_root = None
+    AGI._service_workers = []
+    AGI._service_futures = {}
+
+    class _RestartClient:
+        def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        def submit(self, fn, *args, **kwargs):
+            return _FakeFuture(status="running")
+
+        def gather(self, futures, errors="raise"):
+            raise ValueError("unexpected break gather bug")
+
+    def _fake_init_queue(_env):
+        return AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    monkeypatch.setattr(AGI, "_init_service_queue", staticmethod(_fake_init_queue))
+
+    with pytest.raises(ValueError, match="unexpected break gather bug"):
+        await AGI._service_restart_workers(env, _RestartClient(), ["127.0.0.1:8787"])
+
+
+@pytest.mark.asyncio
 async def test_service_auto_restart_unhealthy_returns_empty_without_workers(monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
     AGI._service_workers = []
@@ -390,6 +419,31 @@ async def test_service_recover_without_stale_cleanup_keeps_state_on_failure(monk
     recovered = await AGI._service_recover(env, allow_stale_cleanup=False)
     assert recovered is False
     assert state_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_service_recover_propagates_unexpected_attribute_error(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "workers": {"127.0.0.1": 1},
+            "args": {"sample": 1},
+        },
+    )
+
+    def _boom(_args):
+        raise AttributeError("unexpected args mapper bug")
+
+    monkeypatch.setattr(AGI, "_service_public_args", staticmethod(_boom))
+
+    with pytest.raises(AttributeError, match="unexpected args mapper bug"):
+        await AGI._service_recover(env, allow_stale_cleanup=True)
 
 
 @pytest.mark.asyncio
