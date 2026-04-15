@@ -57,6 +57,17 @@ def test_normalize_path_windows_resolve_fallback(monkeypatch):
     monkeypatch.setattr(Path, "resolve", original_resolve, raising=False)
 
 
+def test_normalize_path_windows_unsupported_operation_fallback(monkeypatch):
+    monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
+
+    def _patched_resolve(self, *args, **kwargs):
+        raise process_support.UnsupportedOperation("windows path unsupported on host")
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+
+    assert process_support.normalize_path("demo").endswith("demo")
+
+
 def test_normalize_path_windows_propagates_unexpected_runtime_bug(monkeypatch):
     monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
 

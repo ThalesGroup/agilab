@@ -31,6 +31,8 @@
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_training_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_training_analysis.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_uav_queue_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_uav_queue_analysis.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_uav_relay_queue_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_uav_relay_queue_analysis.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing_training_project.iml" filepath="$PROJECT_DIR$/.idea/modules/routing_training_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/uav_graph_routing_project.iml" filepath="$PROJECT_DIR$/.idea/modules/uav_graph_routing_project.iml" />
         </modules>
     </component>
 </project>

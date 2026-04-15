@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, UnsupportedOperation
 from unittest import mock
 
 import pytest
@@ -138,6 +138,32 @@ def test_copy_existing_projects_propagates_unexpected_copytree_bug(tmp_path: Pat
             ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
             logger=logger,
         )
+
+
+def test_copy_existing_projects_swallow_unsupported_operation_from_resolve(tmp_path: Path, monkeypatch):
+    src_apps = tmp_path / "src"
+    dst_apps = tmp_path / "dst"
+    nested = src_apps / "group" / "alpha_project"
+    nested.mkdir(parents=True)
+    (nested / "main.py").write_text("print('ok')\n", encoding="utf-8")
+    logger = mock.Mock()
+    original_resolve = Path.resolve
+
+    def _unsupported_resolve(self, *args, **kwargs):
+        if self in {src_apps, dst_apps}:
+            raise UnsupportedOperation("resolve unsupported on host")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _unsupported_resolve, raising=False)
+
+    copy_existing_projects(
+        src_apps,
+        dst_apps,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        logger=logger,
+    )
+
+    assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
 
 
 def test_clone_project_handles_operational_failures_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
