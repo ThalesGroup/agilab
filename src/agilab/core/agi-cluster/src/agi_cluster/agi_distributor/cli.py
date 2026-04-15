@@ -43,6 +43,10 @@ BASELINE_TARGET_S = float(os.environ.get("CLI_BASELINE_TARGET_S", "0.15"))  # ta
 
 logger = logging.getLogger(__name__)
 
+_PROCESS_LIST_EXCEPTIONS = (OSError, subprocess.SubprocessError)
+_CLEAN_EXCEPTIONS = (OSError,)
+_UNZIP_EXCEPTIONS = (OSError, zipfile.BadZipFile)
+
 # ---------------- helpers ----------------
 def clean(wenv=None):
     try:
@@ -54,7 +58,7 @@ def clean(wenv=None):
             logger.info(f"Cleaning {wenv}")
             shutil.rmtree(wenv, ignore_errors=True)
             logger.info(f"Removed {wenv}")
-    except Exception as e:
+    except _CLEAN_EXCEPTIONS as e:
         logger.error(f"Error during cleanup: {e}")
 
 def get_processes_containing(substring: str):
@@ -73,9 +77,9 @@ def get_processes_containing(substring: str):
                     pid_str, cmd = line.strip().split(None, 1)
                     if substring in cmd.lower():
                         pids.add(int(pid_str))
-                except Exception:
+                except ValueError:
                     continue
-        except Exception as e:
+        except _PROCESS_LIST_EXCEPTIONS as e:
             logger.warning(f"Unix ps failed: {e}")
     else:
         try:
@@ -90,9 +94,9 @@ def get_processes_containing(substring: str):
                     if substring in name.lower():
                         try:
                             pids.add(int(pid_str))
-                        except Exception:
+                        except ValueError:
                             continue
-        except Exception as e:
+        except _PROCESS_LIST_EXCEPTIONS as e:
             logger.warning(f"Windows tasklist failed: {e}")
     return pids
 
@@ -112,9 +116,9 @@ def get_child_pids(parent_pids):
                     pid = int(pid_str); ppid = int(ppid_str)
                     if ppid in parent_pids:
                         children.add(pid)
-                except Exception:
+                except ValueError:
                     continue
-        except Exception as e:
+        except _PROCESS_LIST_EXCEPTIONS as e:
             logger.warning(f"ps for child processes failed: {e}")
     return children
 
@@ -128,7 +132,7 @@ def _is_alive(pid: int) -> bool:
     except PermissionError:
         # Probably alive but not permitted; assume alive so we attempt SIGKILL next.
         return True
-    except Exception:
+    except OSError:
         # Unknown; be conservative.
         return True
 
@@ -143,7 +147,7 @@ def kill_pids(pids, sig):
         except PermissionError:
             logger.warning(f"No permission to kill process {pid}")
             survivors.add(pid)
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"Failed to kill PID {pid} with signal {sig}: {e}")
             survivors.add(pid)
     return survivors
@@ -184,11 +188,11 @@ def kill(exclude_pids=None):
                 file_pids.add(pid)
             else:
                 logger.info(f"Skipping excluded pid {pid} from file {pid_file}")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.warning(f"Could not read pid from {pid_file}: {e}")
         try:
             pid_file.unlink()
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"Could not remove pid file {pid_file}: {e}")
 
     if file_pids:
@@ -215,7 +219,7 @@ def unzip(wenv=None):
             with zipfile.ZipFile(e) as zf:
                 zf.extractall(root_src)
         logger.info(f"Unzipped: {eggs}")
-    except Exception as e:
+    except _UNZIP_EXCEPTIONS as e:
         logger.error(f"Error during unzip: {e}")
 
 # ---------------- fast threaded test ----------------
@@ -306,7 +310,7 @@ if __name__ == "__main__":
             for pid_str in arg.split(","):
                 try:
                     exclude_pids.add(int(pid_str))
-                except Exception:
+                except ValueError:
                     logger.warning(f"Invalid PID to exclude: {pid_str}")
         kill(exclude_pids=exclude_pids)
 
