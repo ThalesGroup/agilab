@@ -1,12 +1,14 @@
 import os
 import builtins
 import runpy
+import shutil
 import subprocess
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile
 
+import py7zr
 import pytest
 
 from agi_node.agi_dispatcher import build as build_mod
@@ -840,14 +842,26 @@ def test_post_main_reports_optional_dataset_seeding_exception(tmp_path, monkeypa
         agilab_pck=tmp_path,
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=lambda *_args, **_kwargs: None,
-        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        share_root_path=lambda: (_ for _ in ()).throw(
+            RuntimeError("agi_share_path is not configured; cannot resolve shared storage path.")
+        ),
     )
     monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
 
     result = post_mod.main([str(tmp_path / "demo_project")])
 
     assert result == 0
-    assert "optional dataset seeding skipped: boom" in capsys.readouterr().out
+    assert "optional dataset seeding skipped: agi_share_path is not configured" in capsys.readouterr().out
+
+
+def test_post_optional_dataset_seeding_error_classifier():
+    assert post_mod._is_optional_dataset_seeding_error(OSError("disk denied")) is True
+    assert post_mod._is_optional_dataset_seeding_error(shutil.Error("copy failed")) is True
+    assert post_mod._is_optional_dataset_seeding_error(py7zr.Bad7zFile("bad archive")) is True
+    assert post_mod._is_optional_dataset_seeding_error(
+        RuntimeError("agi_share_path is not configured; cannot resolve shared storage path.")
+    ) is True
+    assert post_mod._is_optional_dataset_seeding_error(RuntimeError("unexpected bug")) is False
 
 
 def test_post_main_returns_zero_when_deduplicate_cleanup_fails(tmp_path, monkeypatch, capsys):
@@ -1234,7 +1248,7 @@ def test_post_main_ignores_symlink_resolution_errors_before_returning(tmp_path, 
     assert post_mod.main([str(tmp_path / "demo_project")]) == 0
 
 
-def test_post_main_reports_unexpected_symlink_resolution_bug(tmp_path, monkeypatch, capsys):
+def test_post_main_propagates_unexpected_symlink_resolution_bug(tmp_path, monkeypatch):
     dataset_archive = tmp_path / "dataset.7z"
     dataset_archive.write_text("x", encoding="utf-8")
     dest_arg = tmp_path / "share-dest"
@@ -1273,8 +1287,8 @@ def test_post_main_reports_unexpected_symlink_resolution_bug(tmp_path, monkeypat
     monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
     monkeypatch.setattr(post_mod.Path, "resolve", _patched_resolve, raising=False)
 
-    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
-    assert "optional dataset seeding skipped: resolve bug" in capsys.readouterr().out
+    with pytest.raises(RuntimeError, match="resolve bug"):
+        post_mod.main([str(tmp_path / "demo_project")])
 
 
 def test_post_main_returns_zero_when_preferred_link_fails_without_trajectory_fallback(tmp_path, monkeypatch):

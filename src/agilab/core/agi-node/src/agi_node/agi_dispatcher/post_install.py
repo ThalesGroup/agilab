@@ -203,6 +203,15 @@ def _folder_looks_large(folder: Path) -> bool:
     return False
 
 
+def _is_optional_dataset_seeding_error(exc: Exception) -> bool:
+    if isinstance(exc, (OSError, shutil.Error, py7zr.Bad7zFile)):
+        return True
+    return (
+        isinstance(exc, RuntimeError)
+        and "agi_share_path is not configured" in str(exc)
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
@@ -331,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
         if copied:
             print(f"[post_install] copied {copied} trajectory file(s) into {sat_folder}")
     except Exception as exc:
+        if not _is_optional_dataset_seeding_error(exc):
+            raise
         print(f"[post_install] optional dataset seeding skipped: {exc}")
     return 0
 
