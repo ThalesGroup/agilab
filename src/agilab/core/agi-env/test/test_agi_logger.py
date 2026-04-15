@@ -1,9 +1,11 @@
+import io
 import logging
 from pathlib import Path
 
 import agi_env.agi_logger as agi_logger_module
 from agi_env.agi_logger import (
     AgiLogger,
+    BuildNoiseFilter,
     ClassNameFilter,
     LogFormatter,
     MaxLevelFilter,
@@ -133,8 +135,8 @@ def test_max_level_filter_blocks_higher_levels():
     assert filt.filter(error_record) is False
 
 
-def test_log_formatter_suppresses_build_noise_when_quiet():
-    formatter = LogFormatter(verbose=0)
+def test_build_noise_filter_suppresses_build_noise_when_quiet():
+    filt = BuildNoiseFilter(verbose=0)
     record = logging.makeLogRecord(
         {
             "name": "agilab.test",
@@ -148,7 +150,48 @@ def test_log_formatter_suppresses_build_noise_when_quiet():
         }
     )
 
-    assert formatter.format(record) == ""
+    assert filt.filter(record) is False
+
+
+def test_build_noise_filter_keeps_build_noise_when_verbose():
+    filt = BuildNoiseFilter(verbose=2)
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": "/tmp/build.py",
+            "lineno": 1,
+            "msg": "build output",
+            "args": (),
+            "funcName": "run",
+        }
+    )
+
+    assert filt.filter(record) is True
+
+
+def test_build_noise_filter_prevents_blank_line_emission():
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    formatter = LogFormatter(verbose=0)
+    handler.setFormatter(formatter)
+    handler.addFilter(BuildNoiseFilter(verbose=0))
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": "/tmp/build.py",
+            "lineno": 1,
+            "msg": "build output",
+            "args": (),
+            "funcName": "run",
+        }
+    )
+
+    handler.handle(record)
+    assert stream.getvalue() == ""
 
 
 def test_log_formatter_uses_unknown_venv_when_prefix_missing(monkeypatch):
@@ -214,7 +257,9 @@ def test_log_formatter_falls_back_to_module_filename_when_basename_breaks(monkey
         lambda *_: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
-    assert formatter.format(record) == ""
+    plain = AgiLogger.decolorize(formatter.format(record))
+    assert "build.py" in plain
+    assert "build output" in plain
 
 
 def test_log_formatter_handles_general_message_format_error():
@@ -266,6 +311,10 @@ def test_agi_logger_configure_and_set_level():
         logger = AgiLogger.configure(verbose=1, base_name="demo-base", force=True)
         assert logger.name == "demo-base"
         assert AgiLogger.get_logger().name == "demo-base"
+        assert any(
+            any(isinstance(filt, BuildNoiseFilter) for filt in handler.filters)
+            for handler in logging.getLogger().handlers
+        )
 
         AgiLogger.set_level(logging.DEBUG)
         assert logging.getLogger().level == logging.DEBUG

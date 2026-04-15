@@ -22,6 +22,23 @@ COLORS = {
 }
 ANSI_SGR_RE = re.compile(r'\x1b\[[0-9;]*m')
 
+
+def _record_filename(record: logging.LogRecord) -> str:
+    try:
+        return os.path.basename(getattr(record, "pathname", "")) or f"{record.module}.py"
+    except Exception:
+        return f"{getattr(record, 'module', '<?>')}.py"
+
+
+def _is_build_noise_record(record: logging.LogRecord) -> bool:
+    filename = _record_filename(record)
+    pathname = getattr(record, "pathname", "")
+    return (
+        filename == "build.py"
+        or "setuptools" in pathname
+        or "distutils" in pathname
+    )
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -62,6 +79,16 @@ class MaxLevelFilter(logging.Filter):
     def filter(self, record):
         return record.levelno <= self.max_level
 
+
+class BuildNoiseFilter(logging.Filter):
+    """Drop build-tool records entirely when running in quiet mode."""
+
+    def __init__(self, verbose: int = 0):
+        self.verbose = verbose
+
+    def filter(self, record):
+        return self.verbose >= 2 or not _is_build_noise_record(record)
+
 class LogFormatter(logging.Formatter):
     """Formatter that adds colours and collapses build-tool noise when quiet."""
 
@@ -82,14 +109,7 @@ class LogFormatter(logging.Formatter):
         # Classname / function (collapse to just 'build.py' if the source file is build.py)
         className = getattr(record, "classname", record.name)
         functionName = getattr(record, "funcName", record.funcName)
-        try:
-            filename = os.path.basename(getattr(record, "pathname", "")) or f"{record.module}.py"
-        except Exception:
-            filename = f"{getattr(record, 'module', '<?>')}.py"
-        if (filename == "build.py" or "setuptools" in getattr(record, "pathname", "")
-                or "distutils" in getattr(record, "pathname", "")):
-            if self.verbose < 2:
-                return ""
+        if _is_build_noise_record(record):
             functionName_str =  "build.py" + RESET
         else:
             functionName_str = className + "." + functionName + RESET
@@ -155,12 +175,14 @@ class AgiLogger:
             stdout_handler.setLevel(logging.INFO)
             stdout_handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
             stdout_handler.addFilter(ClassNameFilter())
+            stdout_handler.addFilter(BuildNoiseFilter(verbose=verbose))
             stdout_handler.addFilter(MaxLevelFilter(logging.WARNING))
 
             stderr_handler = logging.StreamHandler(sys.stderr)
             stderr_handler.setLevel(logging.ERROR)
             stderr_handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
             stderr_handler.addFilter(ClassNameFilter())
+            stderr_handler.addFilter(BuildNoiseFilter(verbose=verbose))
 
             root.addHandler(stdout_handler)
             root.addHandler(stderr_handler)
