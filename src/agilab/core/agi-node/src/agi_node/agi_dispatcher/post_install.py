@@ -212,6 +212,41 @@ def _is_optional_dataset_seeding_error(exc: Exception) -> bool:
     )
 
 
+def _resolve_post_install_app_arg(
+    app_arg: str | Path,
+    *,
+    home_path_fn=None,
+) -> Path:
+    if home_path_fn is None:
+        home_path_fn = Path.home
+
+    candidate = Path(app_arg).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    return home_path_fn() / "wenv" / candidate
+
+
+def _prepare_post_install_context(
+    app_arg: Path,
+    *,
+    build_env_fn=None,
+    dataset_archive_candidates_fn=None,
+) -> tuple[AgiEnv, str, Path, Path | None]:
+    if build_env_fn is None:
+        build_env_fn = _build_env
+    if dataset_archive_candidates_fn is None:
+        dataset_archive_candidates_fn = _dataset_archive_candidates
+
+    env = build_env_fn(app_arg)
+    target_name = env.share_target_name
+    dest_arg = env.resolve_share_path(target_name)
+    dataset_archive = next(
+        (candidate for candidate in dataset_archive_candidates_fn(env) if candidate.exists()),
+        None,
+    )
+    return env, target_name, dest_arg, dataset_archive
+
+
 def _seed_optional_dataset(
     *,
     env: AgiEnv,
@@ -324,20 +359,9 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) != 1:
         _usage()
         return 1
-    candidate = Path(args[0]).expanduser()
-    # Use robust absolute-path detection across platforms (Windows, POSIX)
-    if candidate.is_absolute():
-        app_arg = candidate
-    else:
-        app_arg = Path.home() / "wenv" / candidate
 
-    env = _build_env(app_arg)
-    target_name = env.share_target_name
-    dest_arg = env.resolve_share_path(target_name)
-    dataset_archive = next(
-        (candidate for candidate in _dataset_archive_candidates(env) if candidate.exists()),
-        None,
-    )
+    app_arg = _resolve_post_install_app_arg(args[0])
+    env, target_name, dest_arg, dataset_archive = _prepare_post_install_context(app_arg)
     if dataset_archive is None:
         print(
             f"[post_install] dataset archive not found for '{target_name}'. "
