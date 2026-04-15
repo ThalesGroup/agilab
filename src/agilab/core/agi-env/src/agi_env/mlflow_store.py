@@ -274,6 +274,34 @@ def ensure_mlflow_backend_ready(
     return sqlite_uri_for_path_fn(db_path)
 
 
+def _is_existing_experiment_conflict(
+    exc: Exception,
+    *,
+    get_experiment_fn,
+    default_experiment_name: str,
+) -> bool:
+    refreshed = (
+        get_experiment_fn(default_experiment_name)
+        if callable(get_experiment_fn)
+        else None
+    )
+    if refreshed is not None:
+        return True
+    return "already exists" in str(exc).lower()
+
+
+def _is_schema_reset_error(
+    exc: Exception,
+    *,
+    schema_reset_markers: tuple[str, ...],
+) -> bool:
+    details = str(exc)
+    return (
+        "Detected out-of-date database schema" in details
+        or any(marker in details for marker in schema_reset_markers)
+    )
+
+
 def ensure_default_mlflow_experiment(
     tracking_dir: Path,
     *,
@@ -305,16 +333,18 @@ def ensure_default_mlflow_experiment(
                     try:
                         create_experiment(default_experiment_name, artifact_location=artifact_uri)
                     except Exception as exc:
-                        refreshed = get_experiment(default_experiment_name) if callable(get_experiment) else None
-                        if refreshed is None and "already exists" not in str(exc).lower():
+                        if not _is_existing_experiment_conflict(
+                            exc,
+                            get_experiment_fn=get_experiment,
+                            default_experiment_name=default_experiment_name,
+                        ):
                             raise
             mlflow.set_experiment(default_experiment_name)
             return backend_uri
         except Exception as exc:
-            details = str(exc)
-            if attempt == 0 and (
-                "Detected out-of-date database schema" in details
-                or any(marker in details for marker in schema_reset_markers)
+            if attempt == 0 and _is_schema_reset_error(
+                exc,
+                schema_reset_markers=schema_reset_markers,
             ):
                 reset_mlflow_sqlite_backend_fn(db_path)
                 continue
