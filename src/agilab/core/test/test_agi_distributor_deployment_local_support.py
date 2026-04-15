@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+import tomlkit
 
 from agi_cluster.agi_distributor import deployment_local_support, uv_source_support
 
@@ -69,6 +70,99 @@ def test_force_remove_propagates_non_filesystem_errors(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="boom"):
         deployment_local_support._force_remove(target)
+
+
+def test_force_remove_onerror_handles_oserror_and_skips_logger_when_missing(monkeypatch, tmp_path):
+    target = tmp_path / "stubborn"
+    child = target / "child"
+    target.mkdir(parents=True, exist_ok=True)
+    chmod_calls = []
+    subprocess_calls = []
+
+    def _broken_remove(_path):
+        raise OSError("still locked")
+
+    def _fake_rmtree(_path, onerror):
+        onerror(_broken_remove, str(child), (OSError, OSError("locked"), None))
+
+    monkeypatch.setattr(deployment_local_support.shutil, "rmtree", _fake_rmtree)
+    monkeypatch.setattr(
+        deployment_local_support.os,
+        "chmod",
+        lambda path, mode: chmod_calls.append((path, mode)),
+    )
+    monkeypatch.setattr(
+        deployment_local_support.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess_calls.append((args, kwargs)),
+    )
+
+    deployment_local_support._force_remove(target)
+
+    assert chmod_calls == [(str(child), deployment_local_support.stat.S_IWRITE)]
+    assert subprocess_calls
+
+
+def test_cleanup_editable_ignores_missing_entries():
+    removed = []
+
+    class _Entry:
+        def __init__(self, name, *, missing=False):
+            self.name = name
+            self.missing = missing
+
+        def unlink(self):
+            if self.missing:
+                raise FileNotFoundError(self.name)
+            removed.append(self.name)
+
+    class _SitePackages:
+        def glob(self, pattern):
+            if pattern == "__editable__.agi_env*.pth":
+                return [_Entry("env.pth")]
+            if pattern == "__editable__.agi_cluster*.pth":
+                return [_Entry("cluster.pth", missing=True)]
+            return []
+
+    deployment_local_support._cleanup_editable(_SitePackages())
+
+    assert removed == ["env.pth"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_pip_uses_project_scoped_uv_command(tmp_path):
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    await deployment_local_support._ensure_pip("uv", tmp_path, run_fn=_fake_run)
+
+    assert calls == [
+        (f"uv run --project '{tmp_path}' python -m ensurepip --upgrade", tmp_path),
+    ]
+
+
+def test_format_dependency_spec_and_repo_helpers_cover_edge_cases(tmp_path):
+    assert (
+        deployment_local_support._format_dependency_spec(
+            "pandas",
+            {"performance"},
+            [">=2", "<3"],
+        )
+        == "pandas[performance]>=2,<3"
+    )
+    assert deployment_local_support._is_within_repo(tmp_path / "child", None) is False
+
+    class _BrokenPath:
+        def resolve(self):
+            raise RuntimeError("resolve failed")
+
+    assert deployment_local_support._is_within_repo(_BrokenPath(), tmp_path) is False
+
+
+def test_infer_repo_root_from_runtime_returns_none_for_short_path():
+    assert deployment_local_support._infer_repo_root_from_runtime("too-short.py") is None
 
 
 def test_update_pyproject_dependencies_filters_to_worker_sources(tmp_path):
@@ -136,6 +230,55 @@ dependencies = ["numpy["]
 
     content = pyproject.read_text(encoding="utf-8")
     assert 'dependencies = ["numpy[", "scipy==1.16.1"]' in content
+
+
+def test_update_pyproject_dependencies_bootstraps_missing_file_and_pinned_extras(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+
+    deployment_local_support._update_pyproject_dependencies(
+        pyproject,
+        {
+            "pandas": {
+                "name": "pandas",
+                "extras": {"performance"},
+                "specifiers": [">=2"],
+                "sources": {"worker"},
+            },
+        },
+        worker_pyprojects=set(),
+        pinned_versions={"pandas": "2.2.3"},
+    )
+
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'dependencies = ["pandas[performance]==2.2.3"]' in content
+
+
+def test_update_pyproject_dependencies_normalizes_non_array_dependencies(monkeypatch, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+    project_doc = tomlkit.document()
+    project_tbl = tomlkit.table()
+    project_tbl["dependencies"] = ("numpy>=1",)
+    project_doc["project"] = project_tbl
+
+    monkeypatch.setattr(deployment_local_support.tomlkit, "parse", lambda _text: project_doc)
+
+    deployment_local_support._update_pyproject_dependencies(
+        pyproject,
+        {
+            "scipy": {
+                "name": "scipy",
+                "extras": set(),
+                "specifiers": [">=1.15"],
+                "sources": {"worker"},
+            },
+        },
+        worker_pyprojects=set(),
+        pinned_versions=None,
+    )
+
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'dependencies = ["numpy>=1", "scipy>=1.15"]' in content
 
 
 def test_update_pyproject_dependencies_propagates_unexpected_requirement_bug(monkeypatch, tmp_path):
@@ -234,6 +377,26 @@ def test_gather_dependency_specs_propagates_unexpected_parse_bug(monkeypatch, tm
 
     with pytest.raises(ValueError, match="unexpected parse bug"):
         deployment_local_support._gather_dependency_specs([project])
+
+
+def test_gather_dependency_specs_skips_none_missing_duplicate_and_false_marker_entries(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir(parents=True, exist_ok=True)
+    (project / "pyproject.toml").write_text(
+        """
+[project]
+name = "demo"
+dependencies = ["numpy>=1.0", "scipy>=1.0; python_version < '2'"]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    dependency_info, worker_pyprojects = deployment_local_support._gather_dependency_specs(
+        [None, project, tmp_path / "missing", project]
+    )
+
+    assert worker_pyprojects == {str((project / "pyproject.toml").resolve())}
+    assert set(dependency_info) == {"numpy"}
 
 
 @pytest.mark.asyncio
