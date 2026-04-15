@@ -208,14 +208,14 @@ if not routing_df.empty:
     st.subheader("Route usage")
     route_metrics = routing_df.set_index("relay")[["packets_delivered", "packets_dropped"]]
     st.bar_chart(route_metrics)
-    st.dataframe(routing_df, use_container_width=True, hide_index=True)
+    st.dataframe(routing_df, width="stretch", hide_index=True)
 
 source_packets = packet_df.loc[packet_df["origin_kind"] == "source"].copy()
 delivered_packets = source_packets.loc[source_packets["status"] == "delivered"].copy()
 if not delivered_packets.empty:
     st.subheader("Highest-delay source packets")
     slowest = delivered_packets.sort_values("e2e_delay_ms", ascending=False).head(30)
-    st.dataframe(slowest, use_container_width=True, hide_index=True)
+    st.dataframe(slowest, width="stretch", hide_index=True)
 else:
     st.info("No delivered source packet is available in this run.")
 
