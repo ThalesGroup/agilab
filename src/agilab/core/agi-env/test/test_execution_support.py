@@ -39,6 +39,49 @@ class _FakeProc:
         return stdout, stderr
 
 
+def test_spawn_process_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
+    async def _raise_exec(*_args, **_kwargs):
+        raise ValueError("bad command split")
+
+    async def _fake_shell(*_args, **_kwargs):
+        return _FakeProc(stdout_lines=[b"stdout line\n", b""], stderr_lines=[b""])
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+
+    proc = asyncio.run(
+        execution_support._spawn_process(
+            cmd="echo hi",
+            cwd=tmp_path,
+            process_env={"PYTHONUNBUFFERED": "1"},
+            shell_executable="/bin/bash",
+        )
+    )
+
+    assert isinstance(proc, _FakeProc)
+
+
+def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
+    async def _raise_exec(*_args, **_kwargs):
+        raise RuntimeError("exec bug")
+
+    async def _unexpected_shell(*_args, **_kwargs):
+        raise AssertionError("shell fallback should not run")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _unexpected_shell)
+
+    with pytest.raises(RuntimeError, match="exec bug"):
+        asyncio.run(
+            execution_support._spawn_process(
+                cmd="echo hi",
+                cwd=tmp_path,
+                process_env={"PYTHONUNBUFFERED": "1"},
+                shell_executable="/bin/bash",
+            )
+        )
+
+
 def test_run_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
     async def _raise_exec(*_args, **_kwargs):
         raise ValueError("bad command split")
