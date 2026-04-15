@@ -1,17 +1,86 @@
 from __future__ import annotations
 
+import builtins
+import importlib
 import importlib.util
 import os
+import sys
 import tempfile
 from pathlib import Path, PosixPath
 from types import SimpleNamespace
+import types
 
 from streamlit.errors import StreamlitAPIException
+
+
+class _CaptureCodeSink:
+    def __init__(self) -> None:
+        self.calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def code(self, *args: object, **kwargs: object) -> None:
+        self.calls.append((args, kwargs))
+
+    def __call__(self, *args: object, **kwargs: object) -> None:
+        self.calls.append((args, kwargs))
+
+
+def _import_agilab_module(module_name: str):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root_str]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root_str not in package_path:
+            pkg.__path__ = [package_root_str, *package_path]
+    importlib.invalidate_caches()
+    return importlib.import_module(module_name)
 
 
 def _load_orchestrate_page_helpers_module():
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_tests", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, names_to_fail: set[str]):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root_str]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root_str not in package_path:
+            pkg.__path__ = [package_root_str, *package_path]
+
+    real_import = builtins.__import__
+
+    def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in names_to_fail:
+            raise ModuleNotFoundError(f"forced missing {name}")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+
+    module_path = Path("src/agilab/orchestrate_page_helpers.py")
+    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_fallback_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -27,6 +96,9 @@ def _load_orchestrate_module():
     return module
 
 
+orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_support")
+
+
 def test_page_helpers_rerun_fragment_or_app_falls_back_on_streamlit_api_error():
     module = _load_orchestrate_page_helpers_module()
     calls: list[tuple[str, object | None]] = []
@@ -39,6 +111,22 @@ def test_page_helpers_rerun_fragment_or_app_falls_back_on_streamlit_api_error():
     module.rerun_fragment_or_app(_rerun, StreamlitAPIException)
 
     assert calls == [("rerun", "fragment"), ("rerun", None)]
+
+
+def test_page_helpers_fallback_loader_handles_missing_support_imports(monkeypatch):
+    module = _load_orchestrate_page_helpers_module_with_import_failures(
+        monkeypatch,
+        {"agilab.orchestrate_page_support", "agilab.orchestrate_support"},
+    )
+
+    payload: dict[str, object] = {}
+    module.init_session_state(payload, {"answer": 42})
+
+    assert payload["answer"] == 42
+    resolved = module.resolve_share_candidate("clustershare", "/home/agi")
+    assert resolved.name == "clustershare"
+    assert str(resolved).endswith("/home/agi/clustershare")
+    assert module.looks_like_shared_path(Path("/mnt/share"), Path("/repo")) is True
 
 
 def test_page_helpers_delegate_scheduler_worker_and_safe_eval(monkeypatch):
@@ -75,6 +163,117 @@ def test_page_helpers_delegate_scheduler_worker_and_safe_eval(monkeypatch):
     assert errors == ["scheduler-error", "workers-error", "safe-eval-error"]
 
 
+def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_path):
+    module = _load_orchestrate_page_helpers_module()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        module,
+        "_init_session_state_impl",
+        lambda session_state, defaults: session_state.update(defaults),
+    )
+    monkeypatch.setattr(
+        module,
+        "_clear_log_impl",
+        lambda session_state: session_state.clear(),
+    )
+    monkeypatch.setattr(
+        module,
+        "_update_log_impl",
+        lambda *args, **kwargs: captured.setdefault("update_log", (args, kwargs)),
+    )
+    monkeypatch.setattr(
+        module,
+        "_append_log_lines_impl",
+        lambda *args, **kwargs: captured.setdefault("append_log_lines", (args, kwargs)),
+    )
+    monkeypatch.setattr(module, "_log_indicates_install_failure_impl", lambda lines: lines == ["failed"])
+    monkeypatch.setattr(module, "_clear_cached_distribution_impl", lambda load_distribution_fn: load_distribution_fn())
+    monkeypatch.setattr(module, "_clear_mount_table_cache_impl", lambda mount_table: mount_table.cache_clear())
+    monkeypatch.setattr(
+        module,
+        "_resolve_share_candidate_impl",
+        lambda path_value, home_abs, *, path_type=Path: path_type(home_abs) / str(path_value),
+    )
+    monkeypatch.setattr(
+        module,
+        "_display_log_impl",
+        lambda *args, **kwargs: captured.setdefault("display_log", (args, kwargs)),
+    )
+    monkeypatch.setattr(module, "_toggle_select_all_impl", lambda session_state: session_state.__setitem__("all", True))
+    monkeypatch.setattr(module, "_update_select_all_impl", lambda session_state: session_state.__setitem__("updated", True))
+    monkeypatch.setattr(module, "_capture_dataframe_preview_state_impl", lambda session_state: {"preview": dict(session_state)})
+    monkeypatch.setattr(module, "_restore_dataframe_preview_state_impl", lambda session_state, payload: session_state.update(payload))
+    monkeypatch.setattr(module, "_is_app_installed_impl", lambda env: getattr(env, "ready", False))
+    monkeypatch.setattr(module, "_app_install_status_impl", lambda env: {"ready": getattr(env, "ready", False)})
+
+    session_state = {"x": 1}
+    module.init_session_state(session_state, {"answer": 42})
+    assert session_state["answer"] == 42
+    module.clear_log(session_state)
+    assert session_state == {}
+
+    traceback_state = {"active": True}
+    module.update_log(
+        session_state,
+        "placeholder",
+        "message",
+        max_lines=10,
+        cluster_verbose=1,
+        traceback_state=traceback_state,
+        strip_ansi_fn=str,
+        is_dask_shutdown_noise_fn=lambda _line: False,
+        log_display_max_lines=50,
+        live_log_min_height=120,
+    )
+    module.reset_traceback_skip(traceback_state)
+    assert traceback_state["active"] is False
+
+    module.append_log_lines(
+        [],
+        "payload",
+        cluster_verbose=1,
+        traceback_state={"active": False},
+        is_dask_shutdown_noise_fn=lambda _line: False,
+    )
+    assert module.log_indicates_install_failure(["failed"]) is True
+
+    query_params: dict[str, object] = {}
+    module.set_active_app_query_param(query_params, "demo_project", streamlit_api_exception=StreamlitAPIException)
+    assert query_params["active_app"] == "demo_project"
+
+    calls = {"distribution": 0, "mount": 0}
+    module.clear_cached_distribution(lambda: calls.__setitem__("distribution", calls["distribution"] + 1))
+    module.clear_mount_table_cache(SimpleNamespace(cache_clear=lambda: calls.__setitem__("mount", calls["mount"] + 1)))
+    assert calls == {"distribution": 1, "mount": 1}
+
+    assert module.resolve_share_candidate("clustershare", "/home/agi") == Path("/home/agi/clustershare")
+    assert module.benchmark_display_date(tmp_path / "missing", "already-set") == "already-set"
+
+    module.display_log(
+        "stdout",
+        "stderr",
+        session_state={},
+        strip_ansi_fn=str,
+    )
+    toggle_state: dict[str, object] = {}
+    module.toggle_select_all(toggle_state)
+    module.update_select_all(toggle_state)
+    assert toggle_state == {"all": True, "updated": True}
+
+    preview = module.capture_dataframe_preview_state({"a": 1})
+    restored: dict[str, object] = {}
+    module.restore_dataframe_preview_state(restored, {"restored": 1})
+    assert preview == {"preview": {"a": 1}}
+    assert restored == {"restored": 1}
+    assert module.is_app_installed(SimpleNamespace(ready=True)) is True
+    assert module.app_install_status(SimpleNamespace(ready=True)) == {"ready": True}
+
+    assert "update_log" in captured
+    assert "append_log_lines" in captured
+    assert "display_log" in captured
+
+
 def test_page_helpers_looks_like_shared_path_delegates_project_root(monkeypatch, tmp_path):
     module = _load_orchestrate_page_helpers_module()
     captured = {}
@@ -90,6 +289,381 @@ def test_page_helpers_looks_like_shared_path_delegates_project_root(monkeypatch,
 
     assert module.looks_like_shared_path(candidate, project_root) is True
     assert captured["value"] == (candidate, project_root)
+
+
+def test_orchestrate_page_support_snippet_and_mode_helpers():
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project")
+
+    install_snippet = orchestrate_page_support.build_install_snippet(
+        env=env,
+        verbose=2,
+        mode=7,
+        scheduler='"127.0.0.1:8786"',
+        workers="{'127.0.0.1': 1}",
+        workers_data_path='"/tmp/share"',
+    )
+    run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=3,
+        run_mode=15,
+        scheduler='"127.0.0.1:8786"',
+        workers="{'127.0.0.1': 2}",
+        args_serialized='foo="bar", n=2',
+    )
+    distrib_snippet = orchestrate_page_support.build_distribution_snippet(
+        env=env,
+        verbose=1,
+        scheduler="None",
+        workers="None",
+        args_serialized="",
+    )
+
+    assert 'APP = "demo_project"' in install_snippet
+    assert "modes_enabled=7" in install_snippet
+    assert 'workers_data_path="/tmp/share"' in install_snippet
+    assert "mode=15" in run_snippet
+    assert 'foo="bar", n=2' in run_snippet
+    assert "get_distrib" in distrib_snippet
+    assert "workers=None" in distrib_snippet
+    assert ",\n        \n" not in distrib_snippet
+
+    payload = orchestrate_page_support.serialize_args_payload(
+        {"dataset": "flight/source", "limit": 5, "enabled": True}
+    )
+    assert payload == 'dataset="flight/source", limit=5, enabled=True'
+    assert orchestrate_page_support.optional_string_expr(True, "tcp://127.0.0.1:8786") == '"tcp://127.0.0.1:8786"'
+    assert orchestrate_page_support.optional_string_expr(False, "ignored") == "None"
+    assert orchestrate_page_support.optional_python_expr(True, {"127.0.0.1": 1}) == "{'127.0.0.1': 1}"
+    assert orchestrate_page_support.optional_python_expr(False, {"127.0.0.1": 1}) == "None"
+
+    run_mode = orchestrate_page_support.compute_run_mode(
+        {"pool": True, "cython": True, "rapids": True},
+        cluster_enabled=True,
+    )
+    assert run_mode == 15
+    assert orchestrate_page_support.describe_run_mode(run_mode, False) == "Run mode 15: rapids and dask and pool and cython"
+    assert orchestrate_page_support.describe_run_mode(None, True) == "Run mode benchmark (all modes)"
+
+
+def test_orchestrate_page_support_distribution_plan_helpers():
+    workers = ["10.0.0.1-1", "10.0.0.2-1"]
+    work_plan_metadata = [[("A", 2)], [("B", 3)]]
+    work_plan = [[["a.csv"]], [["b.csv"]]]
+    selection_key = orchestrate_page_support.workplan_selection_key("A", 0, 0)
+
+    new_metadata, new_plan = orchestrate_page_support.reassign_distribution_plan(
+        workers=workers,
+        work_plan_metadata=work_plan_metadata,
+        work_plan=work_plan,
+        selections={selection_key: "10.0.0.2-1"},
+    )
+    assert new_metadata == [[], [("A", 2), ("B", 3)]]
+    assert new_plan == [[], [["a.csv"], ["b.csv"]]]
+
+    unchanged_metadata, unchanged_plan = orchestrate_page_support.reassign_distribution_plan(
+        workers=workers,
+        work_plan_metadata=work_plan_metadata,
+        work_plan=work_plan,
+        selections={},
+    )
+    assert unchanged_metadata == [[("A", 2)], [("B", 3)]]
+    assert unchanged_plan == [[["a.csv"]], [["b.csv"]]]
+
+    updated = orchestrate_page_support.update_distribution_payload(
+        {"workers": {"127.0.0.1": 1}, "unchanged": True},
+        target_args={"foo": "bar"},
+        work_plan_metadata=[[("A", 1)]],
+        work_plan=[[["a.csv"]]],
+    )
+    assert updated == {
+        "workers": {"127.0.0.1": 1},
+        "unchanged": True,
+        "target_args": {"foo": "bar"},
+        "work_plan_metadata": [[("A", 1)]],
+        "work_plan": [[["a.csv"]]],
+    }
+
+
+def test_orchestrate_page_support_log_filters_and_display_helpers():
+    assert orchestrate_page_support.strip_ansi("\x1b[31merror\x1b[0m") == "error"
+    assert orchestrate_page_support.is_dask_shutdown_noise("Stream is closed")
+    assert orchestrate_page_support.is_dask_shutdown_noise('File "/usr/local/lib/python3.11/site-packages/distributed/comm.py", line 1')
+    assert orchestrate_page_support.is_dask_shutdown_noise("Traceback (most recent call last):")
+
+    text = "\n".join(["normal message", "StreamClosedError", "another line", "stream is closed"])
+    assert orchestrate_page_support.filter_noise_lines(text) == "normal message\nanother line"
+
+    block = "\n".join(f"line {i}" for i in range(1, 6))
+    assert orchestrate_page_support.format_log_block(block, newest_first=True, max_lines=3) == "line 5\nline 4\nline 3"
+    assert orchestrate_page_support.format_log_block(block, newest_first=False, max_lines=3) == "line 3\nline 4\nline 5"
+
+    log = "\n".join(
+        [
+            "normal warning",
+            "VIRTUAL_ENV=/tmp/.venv does not match the project environment path .venv",
+            "final",
+        ]
+    )
+    assert orchestrate_page_support.filter_warning_messages(log) == "normal warning\nfinal"
+    assert not orchestrate_page_support.log_indicates_install_failure(["all good", "installation complete"])
+    assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "error", "connection"])
+
+    buffer: list[str] = []
+    state = {"active": False}
+    orchestrate_page_support.append_log_lines(
+        buffer,
+        "\n".join(["normal", "Traceback (most recent call last):", "stream is closed", "", "next"]),
+        cluster_verbose=1,
+        traceback_state=state,
+    )
+    assert buffer == ["normal", "next"]
+    assert state["active"] is False
+
+    sink = _CaptureCodeSink()
+    session_state: dict[str, object] = {}
+    traceback_state = {"active": False}
+    for i in range(1, 5):
+        orchestrate_page_support.update_log(
+            session_state,
+            sink,
+            f"line {i}",
+            max_lines=3,
+            cluster_verbose=2,
+            traceback_state=traceback_state,
+            strip_ansi_fn=orchestrate_page_support.strip_ansi,
+            is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+            log_display_max_lines=2,
+            live_log_min_height=160,
+        )
+    assert session_state["log_text"] == "line 2\nline 3\nline 4\n"
+    assert sink.calls[-1][0][0] == "line 3\nline 4"
+
+    warnings: list[str] = []
+    errors: list[str] = []
+    code_sink = _CaptureCodeSink()
+    orchestrate_page_support.display_log(
+        stdout="normal output\nwarning: deprecated option\n",
+        stderr="",
+        session_state={},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda value: value,
+        format_log_block_fn=lambda value: value,
+        warning_fn=warnings.append,
+        error_fn=errors.append,
+        code_fn=code_sink,
+        log_display_height=300,
+    )
+    assert warnings == ["Warnings occurred during cluster installation:"]
+    assert errors == []
+
+    warnings.clear()
+    errors.clear()
+    code_sink = _CaptureCodeSink()
+    orchestrate_page_support.display_log(
+        stdout="",
+        stderr="something failed",
+        session_state={"log_text": "fallback log"},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda value: value,
+        format_log_block_fn=lambda value: value,
+        warning_fn=warnings.append,
+        error_fn=errors.append,
+        code_fn=code_sink,
+        log_display_height=300,
+    )
+    assert warnings == []
+    assert errors == ["Errors occurred during cluster installation:"]
+    assert code_sink.calls[-1][0][0] == "something failed"
+
+
+def test_orchestrate_page_support_dataframe_state_helpers():
+    session_state: dict[str, object] = {
+        "loaded_df": {"rows": 1},
+        "loaded_graph": {"nodes": 3},
+        "loaded_source_path": "/tmp/source.csv",
+        "df_cols": ["a", "b"],
+        "selected_cols": ["a"],
+        "check_all": False,
+        "_force_export_open": True,
+        "dataframe_deleted": False,
+        "export_col_0": True,
+        "export_col_1": False,
+    }
+    captured = orchestrate_page_support.capture_dataframe_preview_state(session_state)
+    assert captured["loaded_df"] == {"rows": 1}
+    assert captured["df_cols"] == ["a", "b"]
+    assert captured["selected_cols"] == ["a"]
+
+    target: dict[str, object] = {}
+    orchestrate_page_support.restore_dataframe_preview_state(
+        target,
+        payload={
+            "loaded_df": "restored_df",
+            "loaded_graph": "restored_graph",
+            "loaded_source_path": "/tmp/restored.csv",
+            "df_cols": ["x", "y"],
+            "selected_cols": ["y"],
+            "check_all": True,
+            "force_export_open": False,
+            "dataframe_deleted": True,
+        },
+    )
+    assert target["loaded_df"] == "restored_df"
+    assert target["loaded_graph"] == "restored_graph"
+    assert target["loaded_source_path"] == "/tmp/restored.csv"
+    assert target["df_cols"] == ["x", "y"]
+    assert target["selected_cols"] == ["x", "y"]
+    assert target["check_all"] is True
+    assert target["_force_export_open"] is False
+    assert target["dataframe_deleted"] is True
+    assert target["export_col_0"] is True
+    assert target["export_col_1"] is True
+
+    select_state: dict[str, object] = {
+        "df_cols": ["a", "b", "c"],
+        "selected_cols": ["a"],
+        "check_all": False,
+    }
+    orchestrate_page_support.toggle_select_all(select_state)
+    assert select_state["selected_cols"] == []
+    select_state["check_all"] = True
+    orchestrate_page_support.toggle_select_all(select_state)
+    assert select_state["selected_cols"] == ["a", "b", "c"]
+    select_state.update({"export_col_0": True, "export_col_1": True, "export_col_2": False})
+    orchestrate_page_support.update_select_all(select_state)
+    assert select_state["check_all"] is False
+    assert select_state["selected_cols"] == ["a", "b"]
+
+
+def test_orchestrate_page_support_additional_edge_branches(tmp_path):
+    assert orchestrate_page_support.is_dask_shutdown_noise("") is False
+    assert orchestrate_page_support.is_dask_shutdown_noise(
+        "The above exception was the direct cause of the following exception:"
+    ) is True
+    assert orchestrate_page_support.is_dask_shutdown_noise("Traceback") is True
+    assert orchestrate_page_support.format_log_block("", newest_first=False, max_lines=3) == ""
+    assert orchestrate_page_support.describe_run_mode(-1, False) == "Run mode unknown"
+    snippet = orchestrate_page_support.build_distribution_snippet(
+        env=SimpleNamespace(apps_path="/tmp/apps", app="demo_project"),
+        verbose=1,
+        scheduler='"127.0.0.1:8786"',
+        workers="{'127.0.0.1': 1}",
+        args_serialized='foo="bar"',
+    )
+    assert 'foo="bar"' in snippet
+
+    metadata, plan = orchestrate_page_support.reassign_distribution_plan(
+        workers=["10.0.0.1-1"],
+        work_plan_metadata=[[("A", 1)], [("B", 2)]],
+        work_plan=[[["a.csv"]], [["b.csv"]]],
+        selections={
+            orchestrate_page_support.workplan_selection_key("B", 1, 0): "missing-worker",
+        },
+    )
+    assert metadata == [[("A", 1)]]
+    assert plan == [[["a.csv"]]]
+
+    buffer: list[str] = []
+    orchestrate_page_support.append_log_lines(
+        buffer,
+        "first\n\nsecond",
+        cluster_verbose=2,
+        traceback_state={"active": False},
+    )
+    assert buffer == ["first", "second"]
+
+    trace_state = {"active": True}
+    sink = _CaptureCodeSink()
+    session_state = {"log_text": "before\n"}
+    orchestrate_page_support.update_log(
+        session_state,
+        sink,
+        "",
+        max_lines=10,
+        cluster_verbose=1,
+        traceback_state=trace_state,
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+        log_display_max_lines=5,
+        live_log_min_height=100,
+    )
+    assert trace_state["active"] is False
+    orchestrate_page_support.update_log(
+        session_state,
+        sink,
+        "Traceback (most recent call last):",
+        max_lines=10,
+        cluster_verbose=1,
+        traceback_state=trace_state,
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+        log_display_max_lines=5,
+        live_log_min_height=100,
+    )
+    assert trace_state["active"] is True
+    orchestrate_page_support.update_log(
+        session_state,
+        sink,
+        "StreamClosedError",
+        max_lines=10,
+        cluster_verbose=1,
+        traceback_state={"active": False},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+        log_display_max_lines=5,
+        live_log_min_height=100,
+    )
+    assert session_state["log_text"] == "before\n"
+
+    code_sink = _CaptureCodeSink()
+    orchestrate_page_support.display_log(
+        stdout="",
+        stderr="",
+        session_state={},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda value: value,
+        format_log_block_fn=lambda value: value,
+        warning_fn=lambda _message: None,
+        error_fn=lambda _message: None,
+        code_fn=code_sink,
+        log_display_height=250,
+    )
+    assert code_sink.calls[-1][0][0] == "No logs available"
+
+    session_state = {"log_text": "busy"}
+    orchestrate_page_support.clear_log(session_state)
+    assert session_state["log_text"] == ""
+
+    orchestrate_page_support.clear_cached_distribution(lambda: None)
+    orchestrate_page_support.clear_mount_table_cache(object())
+    stamped = tmp_path / "benchmark.txt"
+    stamped.write_text("x", encoding="utf-8")
+    assert orchestrate_page_support.benchmark_display_date(stamped, "preset") == "preset"
+    auto_date = orchestrate_page_support.benchmark_display_date(stamped, "")
+    assert auto_date
+    assert auto_date.count(":") == 2
+    assert orchestrate_page_support.benchmark_display_date(tmp_path / "missing", "") == ""
+    assert orchestrate_page_support.log_indicates_install_failure([]) is False
+
+    restored = {
+        "export_col_0": True,
+        "loaded_graph": "stale",
+        "loaded_source_path": "stale",
+    }
+    orchestrate_page_support.restore_dataframe_preview_state(restored, {})
+    assert "loaded_graph" not in restored
+    assert "loaded_source_path" not in restored
+    assert "export_col_0" not in restored
+    assert restored["selected_cols"] == []
+
+    toggle_state = {"check_all": False, "df_cols": ["a", "b"]}
+    orchestrate_page_support.toggle_select_all(toggle_state)
+    assert toggle_state["selected_cols"] == []
+
+    update_state = {"df_cols": "oops", "export_col_0": True}
+    orchestrate_page_support.update_select_all(update_state)
+    assert update_state["check_all"] is True
+    assert update_state["selected_cols"] == []
 
 
 def test_update_delete_confirm_state_sets_and_clears_flag(monkeypatch):
