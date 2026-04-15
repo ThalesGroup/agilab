@@ -54,6 +54,24 @@ def test_read_agilab_installation_marker_logs_permission_and_missing_errors(tmp_
     assert mock_logger.error.call_count >= 2
 
 
+def test_read_agilab_installation_marker_propagates_unexpected_runtime_bug(tmp_path: Path, monkeypatch):
+    install_root = tmp_path / "agilab_install"
+    install_root.mkdir()
+    marker = tmp_path / ".agilab-path"
+    marker.write_text(str(install_root), encoding="utf-8")
+    original_exists = installation_support.Path.exists
+
+    def _runtime_exists(self):
+        if self == install_root:
+            raise RuntimeError("exists bug")
+        return original_exists(self)
+
+    monkeypatch.setattr(installation_support.Path, "exists", _runtime_exists, raising=False)
+
+    with pytest.raises(RuntimeError, match="exists bug"):
+        installation_support.read_agilab_installation_marker(marker)
+
+
 def test_read_agilab_installation_marker_returns_false_when_marker_missing(tmp_path: Path):
     marker = tmp_path / ".agilab-path"
 
@@ -100,4 +118,3 @@ def test_locate_agilab_installation_path_falls_back_to_repo_and_parent(tmp_path:
         find_spec=lambda _name: None,
     )
     assert located == fallback_root
-
