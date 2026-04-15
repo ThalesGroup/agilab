@@ -361,6 +361,23 @@ def _create_default_experiment(
             raise
 
 
+def _retry_default_mlflow_activation_after_schema_reset(
+    exc: Exception,
+    *,
+    attempt: int,
+    db_path: Path,
+    reset_mlflow_sqlite_backend_fn,
+    schema_reset_markers: tuple[str, ...],
+) -> bool:
+    if attempt != 0 or not _is_schema_reset_error(
+        exc,
+        schema_reset_markers=schema_reset_markers,
+    ):
+        return False
+    reset_mlflow_sqlite_backend_fn(db_path)
+    return True
+
+
 def _create_default_experiment_if_missing(
     mlflow,
     *,
@@ -420,11 +437,13 @@ def _activate_default_mlflow_experiment_with_schema_retry(
             )
             return backend_uri
         except Exception as exc:
-            if attempt == 0 and _is_schema_reset_error(
+            if _retry_default_mlflow_activation_after_schema_reset(
                 exc,
+                attempt=attempt,
+                db_path=db_path,
+                reset_mlflow_sqlite_backend_fn=reset_mlflow_sqlite_backend_fn,
                 schema_reset_markers=schema_reset_markers,
             ):
-                reset_mlflow_sqlite_backend_fn(db_path)
                 continue
             raise
     return backend_uri

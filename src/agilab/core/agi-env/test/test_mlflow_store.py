@@ -689,6 +689,41 @@ def test_create_default_experiment_helper_propagates_unexpected_create_bug():
         )
 
 
+def test_retry_default_mlflow_activation_after_schema_reset_resets_once():
+    reset_calls: list[Path] = []
+    db_path = Path("/tmp/mlflow.db")
+
+    assert mlflow_store._retry_default_mlflow_activation_after_schema_reset(
+        RuntimeError("schema-reset needed"),
+        attempt=0,
+        db_path=db_path,
+        reset_mlflow_sqlite_backend_fn=lambda path: reset_calls.append(Path(path)),
+        schema_reset_markers=("schema-reset",),
+    ) is True
+    assert reset_calls == [db_path]
+
+
+def test_retry_default_mlflow_activation_after_schema_reset_skips_non_schema_or_late_errors():
+    reset_calls: list[Path] = []
+    db_path = Path("/tmp/mlflow.db")
+
+    assert mlflow_store._retry_default_mlflow_activation_after_schema_reset(
+        RuntimeError("other failure"),
+        attempt=0,
+        db_path=db_path,
+        reset_mlflow_sqlite_backend_fn=lambda path: reset_calls.append(Path(path)),
+        schema_reset_markers=("schema-reset",),
+    ) is False
+    assert mlflow_store._retry_default_mlflow_activation_after_schema_reset(
+        RuntimeError("schema-reset needed"),
+        attempt=1,
+        db_path=db_path,
+        reset_mlflow_sqlite_backend_fn=lambda path: reset_calls.append(Path(path)),
+        schema_reset_markers=("schema-reset",),
+    ) is False
+    assert reset_calls == []
+
+
 def test_create_default_experiment_if_missing_skips_create_when_lookup_finds_experiment():
     calls: list[tuple[str, object]] = []
 
