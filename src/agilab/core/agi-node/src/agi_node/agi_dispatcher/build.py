@@ -434,6 +434,46 @@ def _ensure_worker_cython_source(
     subprocess_run(pre_cmd, check=True)
 
 
+def _resolve_build_output(
+    outdir,
+    *,
+    home_abs: str | Path,
+    log=None,
+) -> tuple[Path, str, str]:
+    if log is None:
+        log = AgiEnv.logger or logger
+    if not outdir:
+        log.error("Cannot determine target package name.")
+        raise RuntimeError("Cannot determine target package name")
+
+    outdir_path = Path(outdir)
+    target_name = outdir_path.name.removesuffix("_worker").removesuffix("_project")
+    target_module = target_name.replace("-", "_")
+
+    normalized_outdir = outdir_path
+    if normalized_outdir.suffix and not normalized_outdir.is_dir():
+        log.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
+        normalized_outdir = normalized_outdir.parent
+
+    try:
+        out_arg = normalized_outdir.relative_to(Path(home_abs)).as_posix()
+    except ValueError:
+        out_arg = str(normalized_outdir)
+
+    return outdir_path, out_arg, target_module
+
+
+def _build_setuptools_argv(
+    *,
+    prog_name: str,
+    command: str,
+    home_abs: str | Path,
+    out_arg: str,
+) -> list[object]:
+    flag = "-b" if command == "build_ext" else "-d"
+    return [prog_name, command, flag, Path(home_abs) / out_arg / "dist"]
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -513,16 +553,7 @@ def main(argv: list[str] | None = None) -> None:
     packages = opts.packages
     # install_type removed
 
-    outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
-    if not outdir:
-        AgiEnv.logger.error("Cannot determine target package name.")
-        raise RuntimeError("Cannot determine target package name")
-
-    outdir = Path(outdir)
-    name = outdir.name.removesuffix("_worker").removesuffix("_project")
-
-    target_pkg = outdir.with_name(name)
-    target_module = name.replace("-", "_")
+    raw_outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
 
     verbose = 0 if quiet else 2
     env = AgiEnv(
@@ -530,17 +561,10 @@ def main(argv: list[str] | None = None) -> None:
         verbose=verbose,
     )
 
-    p = Path(outdir)
-    if p.suffix and not p.is_dir():
-        AgiEnv.logger.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
-        p = p.parent
-    try:
-        out_arg = p.relative_to(Path(env.home_abs)).as_posix()
-    except ValueError:
-        out_arg = str(p)
-
-    # Rebuild sys.argv for setuptools with correct flags
-    flag = '-b' if cmd == 'build_ext' else '-d'
+    outdir, out_arg, target_module = _resolve_build_output(
+        raw_outdir,
+        home_abs=env.home_abs,
+    )
 
     # ext_path only relevant for build_ext
     ext_path = None
@@ -555,7 +579,12 @@ def main(argv: list[str] | None = None) -> None:
             raise
         _ensure_worker_cython_source(env)
 
-    sys.argv = [prog_name, cmd, flag, Path(env.home_abs) / out_arg / "dist"]
+    sys.argv = _build_setuptools_argv(
+        prog_name=prog_name,
+        command=cmd,
+        home_abs=env.home_abs,
+        out_arg=out_arg,
+    )
     worker_module = target_module + "_worker"
     links_created: list[Path] = []
     ext_modules = []

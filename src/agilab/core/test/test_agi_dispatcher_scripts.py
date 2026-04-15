@@ -1623,6 +1623,50 @@ def test_ensure_worker_cython_source_runs_pre_install_when_pyx_missing(tmp_path)
     assert log_lines and "Ensuring Cython source via pre_install" in str(log_lines[0][0])
 
 
+def test_resolve_build_output_normalizes_filelike_path_and_relative_home(tmp_path):
+    worker_home = tmp_path / "home"
+    filelike_out = worker_home / "exports" / "demo_worker.whl"
+    filelike_out.parent.mkdir(parents=True, exist_ok=True)
+    warnings_seen = []
+
+    outdir, out_arg, target_module = build_mod._resolve_build_output(
+        filelike_out,
+        home_abs=worker_home,
+        log=SimpleNamespace(
+            warning=lambda *args: warnings_seen.append(" ".join(str(arg) for arg in args)),
+            error=lambda *_args: None,
+        ),
+    )
+
+    assert outdir == filelike_out
+    assert out_arg == "exports"
+    assert target_module == "demo_worker.whl".replace("-", "_")
+    assert any("looks like a file" in line for line in warnings_seen)
+
+
+def test_build_setuptools_argv_handles_relative_and_absolute_out_arg(tmp_path):
+    relative_argv = build_mod._build_setuptools_argv(
+        prog_name="build.py",
+        command="build_ext",
+        home_abs=tmp_path / "home",
+        out_arg="exports",
+    )
+    absolute_argv = build_mod._build_setuptools_argv(
+        prog_name="build.py",
+        command="bdist_egg",
+        home_abs=tmp_path / "home",
+        out_arg=str(tmp_path / "external" / "demo_worker"),
+    )
+
+    assert relative_argv == ["build.py", "build_ext", "-b", tmp_path / "home" / "exports" / "dist"]
+    assert absolute_argv == [
+        "build.py",
+        "bdist_egg",
+        "-d",
+        tmp_path / "external" / "demo_worker" / "dist",
+    ]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
