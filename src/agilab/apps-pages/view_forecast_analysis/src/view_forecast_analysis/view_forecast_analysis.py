@@ -174,7 +174,7 @@ if "date" in predictions.columns and {"y_true", "y_pred"}.issubset(predictions.c
     st.line_chart(chart_df)
 
 st.subheader("Predictions table")
-st.dataframe(predictions, use_container_width=True, hide_index=True)
+st.dataframe(predictions, width="stretch", hide_index=True)
 
 notes = str(metrics.get("notes", "") or "").strip()
 if notes:
