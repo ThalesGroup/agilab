@@ -1569,6 +1569,60 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     assert cleanup_calls == [links_created]
 
 
+def test_resolve_worker_python_path_prefers_home_and_falls_back_to_cwd(tmp_path, monkeypatch):
+    worker_home = tmp_path / "home"
+    cwd_root = tmp_path / "cwd"
+    home_candidate = worker_home / "workers" / "demo_worker.py"
+    cwd_candidate = cwd_root / "workers" / "demo_worker.py"
+    cwd_candidate.parent.mkdir(parents=True, exist_ok=True)
+    cwd_candidate.write_text("value = 1\n", encoding="utf-8")
+    monkeypatch.chdir(cwd_root)
+
+    env = SimpleNamespace(worker_path="workers/demo_worker.py", home_abs=str(worker_home))
+    original_resolve = build_mod.Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == home_candidate:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(build_mod.Path, "resolve", _patched_resolve, raising=False)
+
+    assert build_mod._resolve_worker_python_path(env) == cwd_candidate.resolve()
+
+
+def test_ensure_worker_cython_source_runs_pre_install_when_pyx_missing(tmp_path):
+    worker_py = tmp_path / "workers" / "demo_worker.py"
+    worker_py.parent.mkdir(parents=True, exist_ok=True)
+    worker_py.write_text("value = 1\n", encoding="utf-8")
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    run_calls = []
+    log_lines = []
+
+    build_mod._ensure_worker_cython_source(
+        SimpleNamespace(worker_path=str(worker_py), home_abs=str(tmp_path), verbose=2),
+        resolve_pre_install_script_fn=lambda _env: pre_script,
+        subprocess_run=lambda cmd, check=True: run_calls.append((cmd, check)),
+        log=SimpleNamespace(info=lambda *args: log_lines.append(args)),
+    )
+
+    assert run_calls == [
+        (
+            [
+                build_mod.sys.executable,
+                str(pre_script),
+                "remove_decorators",
+                "--worker_path",
+                str(worker_py),
+                "--verbose",
+            ],
+            True,
+        )
+    ]
+    assert log_lines and "Ensuring Cython source via pre_install" in str(log_lines[0][0])
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
