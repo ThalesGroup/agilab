@@ -958,6 +958,35 @@ def test_activate_default_mlflow_experiment_orders_tracking_create_and_select():
     ]
 
 
+def test_activate_default_mlflow_experiment_once_resolves_backend_then_activates(monkeypatch, tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    calls: list[tuple[str, object]] = []
+
+    def _fake_activate(_mlflow, *, backend_uri, default_experiment_name, artifact_uri):
+        calls.append(
+            (
+                "activate",
+                (backend_uri, default_experiment_name, artifact_uri),
+            )
+        )
+
+    monkeypatch.setattr(mlflow_store, "_activate_default_mlflow_experiment", _fake_activate)
+
+    backend_uri = mlflow_store._activate_default_mlflow_experiment_once(
+        object(),
+        tracking_dir=tracking_dir,
+        artifact_uri="file:///artifacts",
+        ensure_mlflow_backend_ready_fn=lambda path: calls.append(("backend", Path(path))) or "sqlite:///mlflow.db",
+        default_experiment_name="Default",
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert calls == [
+        ("backend", tracking_dir),
+        ("activate", ("sqlite:///mlflow.db", "Default", "file:///artifacts")),
+    ]
+
+
 def test_activate_default_mlflow_experiment_with_schema_retry_resets_once(monkeypatch, tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     db_path = tracking_dir / "mlflow.db"
