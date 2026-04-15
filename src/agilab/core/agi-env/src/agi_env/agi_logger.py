@@ -41,6 +41,25 @@ def _is_build_noise_record(record: logging.LogRecord) -> bool:
     )
 
 
+def _is_same_log_record_file(
+    frame_path: str,
+    record_path: str,
+    *,
+    samefile_fn=os.path.samefile,
+    basename_fn=os.path.basename,
+) -> bool:
+    if frame_path == record_path:
+        return True
+
+    try:
+        if samefile_fn(frame_path, record_path):
+            return True
+    except OSError:
+        pass
+
+    return basename_fn(frame_path) == basename_fn(record_path)
+
+
 def _resolve_record_classname(record: logging.LogRecord) -> str:
     try:
         record_path = os.path.normcase(os.path.realpath(record.pathname))
@@ -48,15 +67,7 @@ def _resolve_record_classname(record: logging.LogRecord) -> str:
         while frame:
             code = frame.f_code
             frame_path = os.path.normcase(os.path.realpath(code.co_filename))
-            same_file = frame_path == record_path
-            if not same_file:
-                try:
-                    same_file = os.path.samefile(frame_path, record_path)
-                except OSError:
-                    same_file = False
-            if not same_file:
-                same_file = os.path.basename(frame_path) == os.path.basename(record_path)
-            if same_file and code.co_name == record.funcName:
+            if _is_same_log_record_file(frame_path, record_path) and code.co_name == record.funcName:
                 if 'self' in frame.f_locals:
                     return frame.f_locals['self'].__class__.__name__
                 return record.module or record.pathname
