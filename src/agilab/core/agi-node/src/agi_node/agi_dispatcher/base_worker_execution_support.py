@@ -174,6 +174,43 @@ def _resolve_initialized_worker_env(
     return resolved_env
 
 
+def _start_initialized_worker(
+    *,
+    mode: int,
+    worker_id: int,
+    worker: str,
+    args: dict[str, Any] | None,
+    verbose: int,
+    base_worker_cls: Any,
+    load_worker_fn: Callable[[int], Any],
+    start_fn: Callable[[Any], None],
+    args_namespace_cls: type,
+    logger_obj: Any,
+    time_module: Any,
+    path_cls: type[Path] = Path,
+) -> Any:
+    worker_inst = _configure_initialized_worker(
+        mode=mode,
+        worker_id=worker_id,
+        args=args,
+        verbose=verbose,
+        load_worker_fn=load_worker_fn,
+        args_namespace_cls=args_namespace_cls,
+    )
+    _register_initialized_worker(
+        base_worker_cls=base_worker_cls,
+        worker_id=worker_id,
+        worker=worker,
+        worker_inst=worker_inst,
+        verbose=verbose,
+        started_at=time_module.time(),
+        path_cls=path_cls,
+    )
+    logger_obj.info("worker #%s: %s starting...", worker_id, worker)
+    start_fn(worker_inst)
+    return worker_inst
+
+
 def initialize_worker(
     *,
     env: Any,
@@ -213,26 +250,20 @@ def initialize_worker(
             agi_env_factory=agi_env_factory,
             ensure_managed_pc_share_dir_fn=ensure_managed_pc_share_dir_fn,
         )
-
-        worker_inst = _configure_initialized_worker(
+        _start_initialized_worker(
             mode=mode,
             worker_id=worker_id,
+            worker=worker,
             args=args,
             verbose=verbose,
-            load_worker_fn=load_worker_fn,
-            args_namespace_cls=args_namespace_cls,
-        )
-        _register_initialized_worker(
             base_worker_cls=base_worker_cls,
-            worker_id=worker_id,
-            worker=worker,
-            worker_inst=worker_inst,
-            verbose=verbose,
-            started_at=time_module.time(),
+            load_worker_fn=load_worker_fn,
+            start_fn=start_fn,
+            args_namespace_cls=args_namespace_cls,
+            logger_obj=logger_obj,
+            time_module=time_module,
             path_cls=path_cls,
         )
-        logger_obj.info("worker #%s: %s starting...", worker_id, worker)
-        start_fn(worker_inst)
     except Exception:
         # Worker loading/constructor/startup executes app code; keep one logging boundary here.
         logger_obj.error(traceback_module.format_exc())

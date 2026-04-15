@@ -267,6 +267,62 @@ def test_resolve_initialized_worker_env_reuses_or_builds_env():
     assert ensured_envs == [created_env]
 
 
+def test_start_initialized_worker_configures_registers_logs_and_starts(monkeypatch):
+    worker_inst = SimpleNamespace()
+    calls: list[tuple[str, object]] = []
+    logger_messages: list[str] = []
+    logger = SimpleNamespace(
+        info=lambda message, *args: logger_messages.append(str(message % args if args else message))
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_configure_initialized_worker",
+        lambda **kwargs: calls.append(("configure", kwargs)) or worker_inst,
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_register_initialized_worker",
+        lambda **kwargs: calls.append(("register", kwargs)),
+    )
+
+    started = execution_support._start_initialized_worker(
+        mode=4,
+        worker_id=3,
+        worker="tcp://192.168.20.130:1234",
+        args={"alpha": 1},
+        verbose=2,
+        base_worker_cls=BaseWorker,
+        load_worker_fn=lambda _mode: pytest.fail("unexpected direct load_worker_fn execution"),
+        start_fn=lambda inst: calls.append(("start", inst)),
+        args_namespace_cls=base_worker_mod.ArgsNamespace,
+        logger_obj=logger,
+        time_module=SimpleNamespace(time=lambda: 12.5),
+        path_cls=Path,
+    )
+
+    assert started is worker_inst
+    assert [entry[0] for entry in calls] == ["configure", "register", "start"]
+    configure_kwargs = calls[0][1]
+    assert configure_kwargs["mode"] == 4
+    assert configure_kwargs["worker_id"] == 3
+    assert configure_kwargs["args"] == {"alpha": 1}
+    assert configure_kwargs["verbose"] == 2
+    assert configure_kwargs["args_namespace_cls"] is base_worker_mod.ArgsNamespace
+
+    register_kwargs = calls[1][1]
+    assert register_kwargs == {
+        "base_worker_cls": BaseWorker,
+        "worker_id": 3,
+        "worker": "tcp://192.168.20.130:1234",
+        "worker_inst": worker_inst,
+        "verbose": 2,
+        "started_at": 12.5,
+        "path_cls": Path,
+    }
+    assert calls[2] == ("start", worker_inst)
+    assert logger_messages == ["worker #3: tcp://192.168.20.130:1234 starting..."]
+
+
 def test_baseworker_run_cython_mode_adds_paths_and_executes_plan(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "demo_worker"
     cy_dist = wenv_abs / "dist"
