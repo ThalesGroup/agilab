@@ -323,6 +323,81 @@ def test_start_initialized_worker_configures_registers_logs_and_starts(monkeypat
     assert logger_messages == ["worker #3: tcp://192.168.20.130:1234 starting..."]
 
 
+def test_initialize_worker_runtime_orchestrates_startup_helpers(monkeypatch):
+    calls: list[tuple[str, object]] = []
+    started_worker = SimpleNamespace(name="worker")
+
+    monkeypatch.setattr(
+        execution_support,
+        "_log_worker_startup_context",
+        lambda **kwargs: calls.append(("log", kwargs)),
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_resolve_initialized_worker_env",
+        lambda **kwargs: calls.append(("env", kwargs)) or SimpleNamespace(name="env"),
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_start_initialized_worker",
+        lambda **kwargs: calls.append(("start", kwargs)) or started_worker,
+    )
+
+    result = execution_support._initialize_worker_runtime(
+        env=None,
+        app="demo_project",
+        mode=4,
+        verbose=2,
+        worker_id=3,
+        worker="tcp://192.168.20.130:1234",
+        args={"alpha": 1},
+        base_worker_cls=BaseWorker,
+        agi_env_factory=lambda **_kwargs: pytest.fail("unexpected env factory direct call"),
+        ensure_managed_pc_share_dir_fn=lambda _env: pytest.fail("unexpected share-dir call"),
+        load_worker_fn=lambda _mode: pytest.fail("unexpected direct load worker"),
+        start_fn=lambda _inst: pytest.fail("unexpected direct start call"),
+        args_namespace_cls=base_worker_mod.ArgsNamespace,
+        logger_obj=SimpleNamespace(),
+        time_module=SimpleNamespace(time=lambda: 12.5),
+        sys_module=SimpleNamespace(prefix="/tmp/venv"),
+        file_path="/tmp/worker.py",
+        path_cls=Path,
+    )
+
+    assert result is started_worker
+    assert [name for name, _ in calls] == ["log", "env", "start"]
+    assert calls[0][1] == {
+        "worker_id": 3,
+        "worker": "tcp://192.168.20.130:1234",
+        "file_path": "/tmp/worker.py",
+        "logger_obj": calls[0][1]["logger_obj"],
+        "sys_module": calls[0][1]["sys_module"],
+        "path_cls": Path,
+    }
+    assert calls[1][1] == {
+        "env": None,
+        "app": "demo_project",
+        "verbose": 2,
+        "base_worker_cls": BaseWorker,
+        "agi_env_factory": calls[1][1]["agi_env_factory"],
+        "ensure_managed_pc_share_dir_fn": calls[1][1]["ensure_managed_pc_share_dir_fn"],
+    }
+    assert calls[2][1] == {
+        "mode": 4,
+        "worker_id": 3,
+        "worker": "tcp://192.168.20.130:1234",
+        "args": {"alpha": 1},
+        "verbose": 2,
+        "base_worker_cls": BaseWorker,
+        "load_worker_fn": calls[2][1]["load_worker_fn"],
+        "start_fn": calls[2][1]["start_fn"],
+        "args_namespace_cls": base_worker_mod.ArgsNamespace,
+        "logger_obj": calls[2][1]["logger_obj"],
+        "time_module": calls[2][1]["time_module"],
+        "path_cls": Path,
+    }
+
+
 def test_baseworker_run_cython_mode_adds_paths_and_executes_plan(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "demo_worker"
     cy_dist = wenv_abs / "dist"
