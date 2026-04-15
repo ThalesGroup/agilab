@@ -555,6 +555,24 @@ def test_install_worker_egg_deduplicates_sys_path_and_returns_destination(tmp_pa
     assert "done!" in logged
 
 
+def test_expand_worker_payload_preserves_original_when_chunk_expand_returns_none():
+    expanded_payload, chunk_len, total_workers = execution_support._expand_worker_payload(
+        ["plan-a"],
+        1,
+        expand_chunk_fn=lambda payload, worker_id: (None, worker_id + 2, len(payload)),
+    )
+
+    assert expanded_payload == ["plan-a"]
+    assert chunk_len == 3
+    assert total_workers == 1
+
+
+def test_select_worker_batch_entry_uses_worker_slot_or_empty_list():
+    assert execution_support._select_worker_batch_entry([["a"], ["b"]], 1) == ["b"]
+    assert execution_support._select_worker_batch_entry([["a"]], 3) == []
+    assert execution_support._select_worker_batch_entry({"not": "a list"}, 0) == []
+
+
 def test_baseworker_expand_chunk_scalar_and_do_works_fallback_paths(monkeypatch):
     reconstructed, chunk_len, total = BaseWorker._expand_chunk(
         {
