@@ -26,6 +26,7 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
 - `plan-before-code`: Enforce a short planning and validation pass before multi-step code changes.
 - `report-qa-docx`: Review DOCX reports for missing figures, duplicate sections, stale wording, and caption drift.
+- `repo-skill-maintenance`: Maintain the shared `.claude/skills` and `.codex/skills` trees safely, with targeted sync and validation.
 - `scientific-svg-figures`: Publication-grade scientific and technical SVG figure workflow for reports, slides, docs, and DOCX/PDF export.
 - `slides`: Create and edit `.pptx` decks with PptxGenJS and bundled validation/render helpers.
 - `slides-docx-align`: Keep slide decks aligned with DOCX report content while preserving each artifact’s role.
