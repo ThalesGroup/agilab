@@ -150,3 +150,38 @@ def test_prepare_main_execution_skips_build_ext_preflight_for_bdist_egg(tmp_path
     assert worker_module == "demo_worker"
     assert ext_modules == []
     assert links_created == [tmp_path / "pkg_link"]
+
+
+def test_execute_main_setup_orchestrates_readme_setup_and_finalize(tmp_path):
+    env = object()
+    call_order = []
+    setup_kwargs_calls = []
+    setup_calls = []
+    finalize_calls = []
+
+    build_mod._execute_main_setup(
+        env=env,
+        cmd="bdist_egg",
+        out_arg="exports/demo_worker",
+        worker_module="demo_worker",
+        ext_modules=["ext_mod"],
+        links_created=[tmp_path / "pkg_link"],
+        ensure_build_readme_fn=lambda: call_order.append("readme"),
+        build_setup_kwargs_fn=lambda **kwargs: (
+            call_order.append("kwargs") or setup_kwargs_calls.append(kwargs) or {"name": "demo_worker", "ext_modules": ["ext_mod"]}
+        ),
+        setup_fn=lambda **kwargs: call_order.append("setup") or setup_calls.append(kwargs),
+        finalize_setup_artifacts_fn=lambda **kwargs: call_order.append("finalize") or finalize_calls.append(kwargs),
+    )
+
+    assert call_order == ["readme", "kwargs", "setup", "finalize"]
+    assert setup_kwargs_calls == [{"worker_module": "demo_worker", "ext_modules": ["ext_mod"]}]
+    assert setup_calls == [{"name": "demo_worker", "ext_modules": ["ext_mod"]}]
+    assert finalize_calls == [
+        {
+            "env": env,
+            "cmd": "bdist_egg",
+            "out_arg": "exports/demo_worker",
+            "links_created": [tmp_path / "pkg_link"],
+        }
+    ]

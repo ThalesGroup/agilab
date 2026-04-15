@@ -834,6 +834,38 @@ def _prepare_main_execution(
     return env, out_arg, worker_module, ext_modules, links_created
 
 
+def _execute_main_setup(
+    *,
+    env,
+    cmd: str,
+    out_arg: str,
+    worker_module: str,
+    ext_modules: list,
+    links_created: list[Path],
+    ensure_build_readme_fn=None,
+    build_setup_kwargs_fn=None,
+    setup_fn=None,
+    finalize_setup_artifacts_fn=None,
+) -> None:
+    if ensure_build_readme_fn is None:
+        ensure_build_readme_fn = _ensure_build_readme
+    if build_setup_kwargs_fn is None:
+        build_setup_kwargs_fn = _build_setup_kwargs
+    if setup_fn is None:
+        setup_fn = setup
+    if finalize_setup_artifacts_fn is None:
+        finalize_setup_artifacts_fn = _finalize_setup_artifacts
+
+    ensure_build_readme_fn()
+    setup_fn(**build_setup_kwargs_fn(worker_module=worker_module, ext_modules=ext_modules))
+    finalize_setup_artifacts_fn(
+        env=env,
+        cmd=cmd,
+        out_arg=out_arg,
+        links_created=links_created,
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     prog_name, active_app, opts, quiet, cmd, packages, raw_outdir = _resolve_main_inputs(
         argv,
@@ -850,13 +882,12 @@ def main(argv: list[str] | None = None) -> None:
         packages=packages,
     )
 
-    _ensure_build_readme()
-    setup(**_build_setup_kwargs(worker_module=worker_module, ext_modules=ext_modules))
-
-    _finalize_setup_artifacts(
+    _execute_main_setup(
         env=env,
         cmd=cmd,
         out_arg=out_arg,
+        worker_module=worker_module,
+        ext_modules=ext_modules,
         links_created=links_created,
     )
 
