@@ -11,6 +11,18 @@ from agi_cluster.agi_distributor import runtime_misc_support
 
 logger = logging.getLogger(__name__)
 
+_SCHEDULER_CONNECT_EXCEPTIONS = (
+    ConnectionError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+)
+_EXPORT_CMD_LOOKUP_EXCEPTIONS = (
+    ConnectionError,
+    OSError,
+    RuntimeError,
+)
+
 
 def _normalize_workers(
     workers: Optional[Dict[str, int]],
@@ -228,7 +240,7 @@ async def connect_scheduler_with_retry(
                 heartbeat_interval=heartbeat_interval,
                 timeout=remaining,
             )
-        except Exception as exc:
+        except _SCHEDULER_CONNECT_EXCEPTIONS as exc:
             last_exc = exc
             sleep_for = min(1.0 * attempt, 5.0)
             log.debug(
@@ -255,7 +267,7 @@ async def detect_export_cmd(
 
     try:
         os_id = await agi_cls.exec_ssh(ip, "uname -s")
-    except Exception:
+    except _EXPORT_CMD_LOOKUP_EXCEPTIONS:
         os_id = ""
 
     if any(name in os_id for name in ("Linux", "Darwin", "BSD")):
@@ -327,7 +339,7 @@ async def _resolve_scheduler_cmd_prefix(
     if not cmd_prefix:
         try:
             cmd_prefix = await agi_cls._detect_export_cmd(agi_cls._scheduler_ip) or ""
-        except Exception:
+        except _EXPORT_CMD_LOOKUP_EXCEPTIONS:
             cmd_prefix = ""
         if cmd_prefix:
             set_env_var_fn(f"{agi_cls._scheduler_ip}_CMD_PREFIX", cmd_prefix)
@@ -423,7 +435,7 @@ async def start_scheduler(
             heartbeat_interval=5000,
         )
         agi_cls._dask_client = client
-    except Exception as exc:
+    except _SCHEDULER_CONNECT_EXCEPTIONS as exc:
         log.error("Dask Client instantiation trouble, run aborted due to:")
         log.info(exc)
         if isinstance(exc, RuntimeError):

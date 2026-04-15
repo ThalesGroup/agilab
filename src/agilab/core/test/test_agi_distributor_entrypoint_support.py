@@ -193,6 +193,23 @@ async def test_connect_scheduler_with_retry_times_out():
 
 
 @pytest.mark.asyncio
+async def test_connect_scheduler_with_retry_propagates_unexpected_value_error():
+    async def _fake_client(_address, heartbeat_interval=5000, timeout=1.0):
+        raise ValueError("programmer bug")
+
+    async def _fake_sleep(_delay):
+        return None
+
+    with pytest.raises(ValueError, match="programmer bug"):
+        await entrypoint_support.connect_scheduler_with_retry(
+            "tcp://127.0.0.1:8786",
+            timeout=2.0,
+            client_factory=_fake_client,
+            sleep_fn=_fake_sleep,
+        )
+
+
+@pytest.mark.asyncio
 async def test_detect_export_cmd_local_and_remote(monkeypatch):
     assert await entrypoint_support.detect_export_cmd(
         AGI,
@@ -228,7 +245,39 @@ async def test_detect_export_cmd_returns_empty_for_non_posix(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_start_scheduler_wraps_non_runtime_error(monkeypatch, tmp_path):
+async def test_detect_export_cmd_propagates_unexpected_value_error(monkeypatch):
+    async def _fake_exec(_ip, _cmd):
+        raise ValueError("bad command builder")
+
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+    with pytest.raises(ValueError, match="bad command builder"):
+        await entrypoint_support.detect_export_cmd(
+            AGI,
+            "10.0.0.4",
+            is_local_fn=lambda _ip: False,
+            local_export_bin="LOCAL_PREFIX ",
+        )
+
+
+@pytest.mark.asyncio
+async def test_resolve_scheduler_cmd_prefix_propagates_unexpected_value_error(monkeypatch):
+    AGI.env = SimpleNamespace(envars={})
+    AGI._scheduler_ip = "10.0.0.9"
+
+    async def _fake_detect(_ip):
+        raise ValueError("bad detect")
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+
+    with pytest.raises(ValueError, match="bad detect"):
+        await entrypoint_support._resolve_scheduler_cmd_prefix(
+            AGI,
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_wraps_retryable_connect_error(monkeypatch, tmp_path):
     app_path = tmp_path / "app"
     app_path.mkdir()
     cluster_pck = tmp_path / "cluster"
@@ -269,7 +318,7 @@ async def test_start_scheduler_wraps_non_runtime_error(monkeypatch, tmp_path):
         return ""
 
     async def _fake_connect_scheduler_with_retry(*_args, **_kwargs):
-        raise ValueError("client boom")
+        raise ConnectionError("client boom")
 
     async def _fake_sleep(*_args, **_kwargs):
         return None
@@ -284,6 +333,72 @@ async def test_start_scheduler_wraps_non_runtime_error(monkeypatch, tmp_path):
     monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
 
     with pytest.raises(RuntimeError, match="Failed to instantiate Dask Client"):
+        await entrypoint_support.start_scheduler(
+            AGI,
+            "127.0.0.1",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+            create_task_fn=lambda coro: coro,
+            sleep_fn=_fake_sleep,
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_propagates_unexpected_connect_bug(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    cluster_pck = tmp_path / "cluster"
+    (cluster_pck / "agi_distributor").mkdir(parents=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_rel=Path("wenv/demo_worker"),
+        wenv_abs=tmp_path / "wenv" / "demo_worker",
+        active_app=app_path,
+        cluster_pck=cluster_pck,
+        envars={},
+        uv="uv",
+        export_local_bin="",
+        app="demo",
+        hw_rapids_capable=False,
+        is_local=lambda ip: True,
+    )
+    env.wenv_abs.mkdir(parents=True)
+    AGI.env = env
+    AGI._mode_auto = True
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._TIMEOUT = 1
+    AGI._worker_init_error = False
+    AGI._scheduler = "127.0.0.1:8799"
+
+    async def _fake_send_file(*_args, **_kwargs):
+        return None
+
+    async def _fake_kill(*_args, **_kwargs):
+        return None
+
+    async def _fake_wait_for_port_release(*_args, **_kwargs):
+        return True
+
+    async def _fake_detect_export_cmd(*_args, **_kwargs):
+        return ""
+
+    async def _fake_connect_scheduler_with_retry(*_args, **_kwargs):
+        raise ValueError("client bug")
+
+    async def _fake_sleep(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd))
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect_scheduler_with_retry))
+    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
+    monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
+
+    with pytest.raises(ValueError, match="client bug"):
         await entrypoint_support.start_scheduler(
             AGI,
             "127.0.0.1",
