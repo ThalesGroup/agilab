@@ -2093,6 +2093,80 @@ def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatc
     assert setup_calls and setup_calls[0]["name"] == "demo_worker"
 
 
+def test_resolve_pre_install_script_falls_back_to_installed_module(tmp_path, monkeypatch):
+    missing_pre_script = tmp_path / "missing_pre_install.py"
+    fallback_script = tmp_path / "fallback_pre_install.py"
+    fallback_script.write_text("print('fallback')\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        build_mod,
+        "_load_pre_install_module",
+        lambda: SimpleNamespace(__file__=str(fallback_script)),
+    )
+
+    env = SimpleNamespace(pre_install=str(missing_pre_script))
+
+    assert build_mod._resolve_pre_install_script(env) == fallback_script.resolve()
+
+
+def test_build_main_build_ext_uses_fallback_pre_install_module(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    (app_dir / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    worker_file = worker_home / "workers" / "demo_worker.py"
+    worker_file.parent.mkdir(parents=True, exist_ok=True)
+    worker_file.write_text("value = 1\n", encoding="utf-8")
+    fallback_pre_script = tmp_path / "fallback_pre_install.py"
+    fallback_pre_script.write_text("print('ok')\n", encoding="utf-8")
+    out_dir = worker_home / "demo_worker"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = str(worker_file.relative_to(worker_home))
+            self.pre_install = str(tmp_path / "missing_pre_install.py")
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(
+        build_mod,
+        "_load_pre_install_module",
+        lambda: SimpleNamespace(__file__=str(fallback_pre_script)),
+    )
+    monkeypatch.setattr(build_mod, "find_sys_prefix", lambda _base: str(tmp_path / "prefix"))
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": ["demo_worker"])
+
+    run_calls = []
+    monkeypatch.setattr(build_mod.subprocess, "run", lambda cmd, check=True: run_calls.append((cmd, check)))
+    monkeypatch.setattr(build_mod, "cythonize", lambda modules, **_kwargs: ["ext_mod"])
+    monkeypatch.setattr(build_mod, "setup", lambda **_kwargs: None)
+
+    build_mod.main(
+        [
+            "--app-path",
+            str(app_dir),
+            "build_ext",
+            "-b",
+            str(out_dir),
+            "--quiet",
+        ]
+    )
+
+    assert run_calls
+    assert run_calls[0][0][1] == str(fallback_pre_script.resolve())
+
+
 def test_build_main_build_ext_rejects_missing_outdir(tmp_path, monkeypatch):
     app_dir = tmp_path / "demo_project"
     app_dir.mkdir(parents=True, exist_ok=True)

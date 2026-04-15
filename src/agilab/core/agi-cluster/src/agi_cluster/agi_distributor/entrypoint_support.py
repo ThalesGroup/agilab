@@ -1,15 +1,27 @@
 import asyncio
 import logging
 import os
-import pickle
-import re
 import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from agi_cluster.agi_distributor import runtime_misc_support
+
 
 logger = logging.getLogger(__name__)
+
+_SCHEDULER_CONNECT_EXCEPTIONS = (
+    ConnectionError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+)
+_EXPORT_CMD_LOOKUP_EXCEPTIONS = (
+    ConnectionError,
+    OSError,
+    RuntimeError,
+)
 
 
 def _normalize_workers(
@@ -24,21 +36,13 @@ def _normalize_workers(
 
 
 def _configure_mode(agi_cls: Any, env: Any, mode: Union[int, str]) -> None:
-    if isinstance(mode, str):
-        pattern = r"^[dcrp]+$"
-        if not re.fullmatch(pattern, mode.lower()):
-            raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-        agi_cls._mode = env.mode2int(mode)
-    elif isinstance(mode, int):
-        agi_cls._mode = int(mode)
-    else:
-        raise ValueError("parameter <mode> must be an int, a list of int or a string")
-
-    agi_cls._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-    if agi_cls._mode:
-        if agi_cls._mode & agi_cls._RUN_MASK not in range(0, agi_cls.RAPIDS_MODE):
-            raise ValueError(f"mode {agi_cls._mode} not implemented")
-    else:
+    runtime_misc_support.configure_runtime_mode(
+        agi_cls,
+        env,
+        mode,
+        invalid_type_message="parameter <mode> must be an int, a list of int or a string",
+    )
+    if not agi_cls._mode:
         agi_cls._run_type = agi_cls._run_types[
             (agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) >> agi_cls.DASK_MODE
         ]
@@ -55,56 +59,29 @@ def _initialize_run_state(
     args: Dict[str, Any],
     log: Any = logger,
 ) -> None:
-    agi_cls.env = env
-    agi_cls.target_path = env.manager_path
-    agi_cls._target = env.target
-    agi_cls._rapids_enabled = rapids_enabled
-    if env.verbose > 0:
-        log.info("AGI instance created for target %s with verbosity %s", env.target, env.verbose)
-
-    agi_cls._args = args
-    agi_cls.verbose = verbose
-    agi_cls._workers = workers
-    agi_cls._workers_data_path = workers_data_path
-    agi_cls._run_time = {}
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers=workers,
+        verbose=verbose,
+        rapids_enabled=rapids_enabled,
+        args=args,
+        workers_data_path=workers_data_path,
+        log=log,
+    )
 
 
 def _load_capacity_predictor(agi_cls: Any, env: Any) -> None:
-    agi_cls._capacity_data_file = env.resources_path / "balancer_df.csv"
-    agi_cls._capacity_model_file = env.resources_path / "balancer_model.pkl"
-    capacity_model_file = Path(agi_cls._capacity_model_file)
-    if capacity_model_file.is_file():
-        with open(capacity_model_file, "rb") as stream:
-            agi_cls._capacity_predictor = pickle.load(stream)
-    else:
-        agi_cls._train_capacity(Path(env.home_abs))
+    runtime_misc_support.bootstrap_capacity_predictor(
+        agi_cls,
+        env,
+        retrain_fn=lambda: agi_cls._train_capacity(Path(env.home_abs)),
+        log=logger,
+    )
 
 
 def _resolve_install_worker_group(agi_cls: Any, env: Any) -> None:
-    agi_workers = {
-        "AgiDataWorker": "pandas-worker",
-        "PolarsWorker": "polars-worker",
-        "PandasWorker": "pandas-worker",
-        "FireducksWorker": "fireducks-worker",
-        "DagWorker": "dag-worker",
-    }
-    agi_cls.agi_workers = agi_workers
-    base_worker_cls = getattr(env, "base_worker_cls", None)
-    if not base_worker_cls:
-        target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
-        worker_path = getattr(env, "worker_path", None) or "<worker path>"
-        supported = ", ".join(sorted(agi_workers.keys()))
-        raise ValueError(
-            f"Missing {target_worker_class} definition; expected {worker_path}. "
-            f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
-        )
-    try:
-        agi_cls.install_worker_group = [agi_workers[base_worker_cls]]
-    except KeyError as exc:
-        supported = ", ".join(sorted(agi_workers.keys()))
-        raise ValueError(
-            f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
-        ) from exc
+    runtime_misc_support.configure_install_worker_group(agi_cls, env)
 
 
 async def run(
@@ -263,7 +240,7 @@ async def connect_scheduler_with_retry(
                 heartbeat_interval=heartbeat_interval,
                 timeout=remaining,
             )
-        except Exception as exc:
+        except _SCHEDULER_CONNECT_EXCEPTIONS as exc:
             last_exc = exc
             sleep_for = min(1.0 * attempt, 5.0)
             log.debug(
@@ -290,7 +267,7 @@ async def detect_export_cmd(
 
     try:
         os_id = await agi_cls.exec_ssh(ip, "uname -s")
-    except Exception:
+    except _EXPORT_CMD_LOOKUP_EXCEPTIONS:
         os_id = ""
 
     if any(name in os_id for name in ("Linux", "Darwin", "BSD")):
@@ -362,7 +339,7 @@ async def _resolve_scheduler_cmd_prefix(
     if not cmd_prefix:
         try:
             cmd_prefix = await agi_cls._detect_export_cmd(agi_cls._scheduler_ip) or ""
-        except Exception:
+        except _EXPORT_CMD_LOOKUP_EXCEPTIONS:
             cmd_prefix = ""
         if cmd_prefix:
             set_env_var_fn(f"{agi_cls._scheduler_ip}_CMD_PREFIX", cmd_prefix)
@@ -458,7 +435,7 @@ async def start_scheduler(
             heartbeat_interval=5000,
         )
         agi_cls._dask_client = client
-    except Exception as exc:
+    except _SCHEDULER_CONNECT_EXCEPTIONS as exc:
         log.error("Dask Client instantiation trouble, run aborted due to:")
         log.info(exc)
         if isinstance(exc, RuntimeError):

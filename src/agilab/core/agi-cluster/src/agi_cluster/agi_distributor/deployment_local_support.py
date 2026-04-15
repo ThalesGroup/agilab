@@ -15,6 +15,7 @@ from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
+FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 
 
 def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
@@ -26,12 +27,12 @@ def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
         os.chmod(p, stat.S_IWRITE)
         try:
             func(p)
-        except Exception:
+        except OSError:
             pass
 
     try:
         shutil.rmtree(path, onerror=_on_err)
-    except Exception:
+    except FORCE_REMOVE_EXCEPTIONS:
         pass
 
     if path.exists():
@@ -76,7 +77,7 @@ def _is_within_repo(path: Path, root: Path | None) -> bool:
         return False
     try:
         return path.resolve().is_relative_to(root.resolve())
-    except Exception:
+    except (OSError, RuntimeError):
         return False
 
 
@@ -523,7 +524,7 @@ async def deploy_local_worker(
             for candidate in active_src.rglob("Trajectory.7z"):
                 if candidate.is_file():
                     archives.append(candidate)
-    except Exception:
+    except OSError:
         pass
 
     if archives:
@@ -560,7 +561,7 @@ async def deploy_local_worker(
                                 sat_trajectory_root,
                             )
                             continue
-                    except Exception:
+                    except OSError:
                         pass
 
                 key = str(archive_path)

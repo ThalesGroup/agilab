@@ -85,6 +85,12 @@ BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 AGILAB_REPO="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 APPS_REPOSITORY="${APPS_REPOSITORY:-}"
+CORE_EDITABLE_PACKAGES=(
+  --with-editable "$AGILAB_REPO/core/agi-env"
+  --with-editable "$AGILAB_REPO/core/agi-node"
+  --with-editable "$AGILAB_REPO/core/agi-cluster"
+  --with-editable "$AGILAB_REPO/core/agi-core"
+)
 
 PAGES_TARGET_BASE=""
 APPS_TARGET_BASE=""
@@ -124,6 +130,27 @@ discover_repo_dir() {
   local name="$2"
   local candidate
   [[ -z "$root" ]] && return 1
+
+  # Prefer the direct repository child first. Recursive discovery is only a
+  # fallback for older layouts that keep the real tree under a nested mirror.
+  for candidate in "$root/$name" "$root/src/agilab/$name"; do
+    [[ -d "$candidate" ]] || continue
+    if [[ "$name" == "apps" ]]; then
+      if find "$candidate" -maxdepth 1 -type d -name '*_project' -print -quit | grep -q .; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    elif [[ "$name" == "apps-pages" ]]; then
+      if find "$candidate" -maxdepth 1 -type d ! -name '.venv' -print -quit | grep -q .; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    else
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
   while IFS= read -r candidate; do
     [[ -z "$candidate" ]] && continue
     if [[ "$name" == "apps" ]]; then
@@ -349,9 +376,9 @@ fi
 
 echo -e "${BLUE}Using APPS_REPOSITORY:${NC} $APPS_REPOSITORY"
 echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE"
-echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
+echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE"
 echo -e "${BLUE}(Pages) Destination base:${NC} $PAGES_DEST_BASE"
-echo -e "${BLUE}(Pages) Link target base:${NC} $PAGES_TARGET_BASE\n"
+echo -e "${BLUE}(Pages) Link target base:${NC} $PAGES_TARGET_BASE"
 
 # --- BUILTIN_PAGES: allow manual override via env ----------------------------
 # You can set BUILTIN_PAGES or BUILTIN_PAGES_OVERRIDE to a comma/space/newline
@@ -708,8 +735,6 @@ if [[ -n "$INSTALLED_APPS_FILE" ]]; then
   echo -e "${BLUE}Installed apps manifest:${NC} $INSTALLED_APPS_FILE"
 fi
 
-echo
-
 # --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
 if (( SKIP_REPOSITORY_APPS == 0 )); then
   repo_agilab_dir="$(dirname "$APPS_TARGET_BASE")"
@@ -874,8 +899,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
         if pushd -- "$app_dir_rel" >/dev/null; then
         ran_app_test=0
         if [[ -f app_test.py ]]; then
-          echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
-          "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+          echo "${UV_PREVIEW[@]} run -p \"$AGI_PYTHON_VERSION\" ${CORE_EDITABLE_PACKAGES[*]} python app_test.py"
+          "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py
           ran_app_test=1
         else
             if app_has_collectable_pytests .; then
@@ -935,7 +960,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       popd >/dev/null
       continue
     fi
-    if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . --with pytest --with pytest-cov pytest; then
+    if "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
         rc=$?

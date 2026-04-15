@@ -1176,6 +1176,59 @@ def test_init_copies_packaged_app_when_repo_worker_is_missing(tmp_path: Path, mo
     assert env.dataset_archive == copied_worker.parent / "dataset.7z"
 
 
+def test_init_ignores_free_threaded_request_when_runtime_lacks_support(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    share_root = fake_home / ".local" / "share" / "agilab"
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (fake_home / "clustershare").mkdir()
+    (fake_home / "localshare").mkdir()
+    env_dir = fake_home / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / ".env").write_text(
+        "IS_SOURCE_ENV=no\nIS_WORKER_ENV=0\nAGI_CLUSTER_ENABLED=0\nAGI_PYTHON_FREE_THREADED=1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "demo_project"
+    (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
+    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+
+    wenv_worker = fake_home / "wenv" / "demo_worker" / "src" / "demo_worker"
+    wenv_worker.mkdir(parents=True, exist_ok=True)
+    (wenv_worker / "demo_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
+        encoding="utf-8",
+    )
+    (wenv_worker / "pyproject.toml").write_text(
+        "[project]\nname='demo-worker'\n\n[tool.freethread_info]\nis_app_freethreaded = true\n",
+        encoding="utf-8",
+    )
+
+    site_root = tmp_path / "site-packages"
+    _configure_fake_installed_specs(monkeypatch, site_root)
+
+    AgiEnv.reset()
+    mock_logger = mock.Mock()
+    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
+         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
+         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
+         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
+         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None), \
+         mock.patch.object(AgiEnv, "_ensure_repository_app_link", lambda self: False), \
+         mock.patch.object(agi_env_module, "python_supports_free_threading", lambda: False):
+        env = AgiEnv(apps_path=repo_apps, app="demo_project", verbose=0)
+
+    assert env.is_free_threading_available is False
+    assert env.uv_worker == env.uv
+
+
 def test_content_renamer_wrapper_binds_agi_logger(monkeypatch):
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
