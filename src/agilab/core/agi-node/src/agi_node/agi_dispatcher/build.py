@@ -607,6 +607,55 @@ def _prepare_build_ext_command(
     ensure_worker_cython_source_fn(env)
 
 
+def _prepare_setup_artifacts(
+    *,
+    env,
+    cmd: str,
+    active_app: Path,
+    build_dir: str | None,
+    remaining_args: list[str],
+    packages: list[str],
+    worker_module: str,
+    purge_worker_venv_artifacts_fn=None,
+    configure_build_ext_modules_fn=None,
+    prepare_bdist_egg_sources_fn=None,
+    log=None,
+) -> tuple[list, list[Path]]:
+    if purge_worker_venv_artifacts_fn is None:
+        purge_worker_venv_artifacts_fn = _purge_worker_venv_artifacts
+    if configure_build_ext_modules_fn is None:
+        configure_build_ext_modules_fn = _configure_build_ext_modules
+    if prepare_bdist_egg_sources_fn is None:
+        prepare_bdist_egg_sources_fn = _prepare_bdist_egg_sources
+    if log is None:
+        log = logger
+
+    links_created: list[Path] = []
+    ext_modules: list = []
+
+    if not env.is_worker_env:
+        purged_venvs = purge_worker_venv_artifacts_fn(env.active_app, worker_module)
+        if purged_venvs:
+            log.info(
+                "Purged nested worker virtualenv artifacts before %s: %s",
+                cmd,
+                ", ".join(str(path) for path in purged_venvs),
+            )
+
+    if cmd == "build_ext":
+        ext_modules = configure_build_ext_modules_fn(
+            active_app=active_app,
+            build_dir=build_dir,
+            remaining_args=remaining_args,
+            worker_module=worker_module,
+            pyvers_worker=env.pyvers_worker,
+        )
+    elif not env.is_worker_env:
+        links_created = prepare_bdist_egg_sources_fn(env=env, packages=packages)
+
+    return ext_modules, links_created
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -709,31 +758,15 @@ def main(argv: list[str] | None = None) -> None:
         out_arg=out_arg,
     )
     worker_module = target_module + "_worker"
-    links_created: list[Path] = []
-    ext_modules = []
-    purged_venvs: list[Path] = []
-
-    if not env.is_worker_env:
-        purged_venvs = _purge_worker_venv_artifacts(env.active_app, worker_module)
-        if purged_venvs:
-            logger.info(
-                "Purged nested worker virtualenv artifacts before %s: %s",
-                cmd,
-                ", ".join(str(path) for path in purged_venvs),
-            )
-
-    # Change directory to build_dir BEFORE setup if build_ext
-    if cmd == 'build_ext':
-        ext_modules = _configure_build_ext_modules(
-            active_app=active_app,
-            build_dir=opts.build_dir,
-            remaining_args=opts.remaining,
-            worker_module=worker_module,
-            pyvers_worker=env.pyvers_worker,
-        )
-
-    elif not env.is_worker_env:
-        links_created = _prepare_bdist_egg_sources(env=env, packages=packages)
+    ext_modules, links_created = _prepare_setup_artifacts(
+        env=env,
+        cmd=cmd,
+        active_app=active_app,
+        build_dir=opts.build_dir,
+        remaining_args=opts.remaining,
+        packages=packages,
+        worker_module=worker_module,
+    )
 
     _ensure_build_readme()
     setup(**_build_setup_kwargs(worker_module=worker_module, ext_modules=ext_modules))
