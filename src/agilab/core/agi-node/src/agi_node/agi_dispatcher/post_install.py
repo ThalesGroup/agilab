@@ -276,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
                         if _try_link_dir(sat_folder, preferred_candidate):
                             print(f"[post_install] relinked {sat_folder} -> {preferred_candidate}")
                         return 0
-                except Exception:
+                except OSError:
                     pass
 
             if _has_samples(sat_folder):
@@ -285,14 +285,14 @@ def main(argv: list[str] | None = None) -> int:
                 if _dir_is_duplicate_of(sat_folder, preferred_candidate):
                     try:
                         shutil.rmtree(sat_folder, ignore_errors=False)
-                    except Exception:
+                    except OSError:
                         return 0
                     if _try_link_dir(sat_folder, preferred_candidate):
                         print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
                 if _folder_looks_large(sat_folder):
                     try:
                         shutil.rmtree(sat_folder, ignore_errors=False)
-                    except Exception:
+                    except OSError:
                         return 0
                     if _try_link_dir(sat_folder, preferred_candidate):
                         print(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
