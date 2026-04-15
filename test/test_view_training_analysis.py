@@ -4,8 +4,10 @@ import importlib.util
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
 
 MODULE_PATH = Path(
@@ -19,6 +21,14 @@ def _load_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class _StopCalled(RuntimeError):
+    pass
+
+
+def _stop() -> None:
+    raise _StopCalled()
 
 
 def test_view_training_analysis_discovers_trainers_and_runs(tmp_path: Path) -> None:
@@ -194,3 +204,140 @@ def test_view_training_analysis_event_helpers_and_scalar_frame(monkeypatch, tmp_
     ]
     assert df["relative_time_s"].tolist() == [0.0, 2.0, 1.0]
     assert str(df["timestamp"].iloc[0]) == "1970-01-01 00:00:10"
+
+
+def test_view_training_analysis_resolve_active_app(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    active_app = tmp_path / "apps" / "demo_project"
+    active_app.mkdir(parents=True)
+
+    with patch("sys.argv", [MODULE_PATH.name, "--active-app", str(active_app)]):
+        assert module._resolve_active_app() == active_app.resolve()
+
+
+def test_view_training_analysis_main_warns_when_data_root_missing(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+    )
+    warnings_seen: list[str] = []
+    captions: list[str] = []
+
+    sidebar = SimpleNamespace(
+        radio=lambda *args, **kwargs: "Custom",
+        text_input=lambda *args, **kwargs: str(tmp_path / "missing-root"),
+        caption=lambda value: captions.append(value),
+    )
+    module.st = SimpleNamespace(
+        session_state={
+            "env": env,
+            "base_dir_choice": "Custom",
+            "input_datadir": str(tmp_path / "missing-root"),
+            "datadir_rel": "",
+        },
+        sidebar=sidebar,
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda value: captions.append(value),
+        warning=warnings_seen.append,
+        stop=_stop,
+    )
+    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert any("Data root does not exist yet" in message for message in warnings_seen)
+    written = settings_path.read_text(encoding="utf-8")
+    assert "base_dir_choice = \"Custom\"" in written
+    assert "view_training_analysis" in written
+
+
+def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    data_root = export_root / "trainer_data"
+    data_root.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    trainer_dir = data_root / "trainer_a"
+    run_a = trainer_dir / "tensorboard" / "run_a"
+    run_b = trainer_dir / "tensorboard" / "run_b"
+    plotted: list[tuple[object, str]] = []
+    subheaders: list[str] = []
+
+    def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
+        if label == "Trainer output":
+            return options[0]
+        if label == "X axis":
+            return "step"
+        return options[index]
+
+    def sidebar_multiselect(label, options, default=None, key=None):
+        if label == "TensorBoard run folders":
+            return list(options)
+        if label == "TensorBoard variables":
+            return ["metric/a"]
+        return list(default or [])
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": env,
+            "base_dir_choice": "AGILAB_EXPORT",
+            "datadir_rel": "trainer_data",
+            "input_datadir": "",
+        },
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: "trainer_data",
+            caption=lambda *args, **kwargs: None,
+            selectbox=sidebar_selectbox,
+            multiselect=sidebar_multiselect,
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=subheaders.append,
+        plotly_chart=lambda fig, width=None: plotted.append((fig, width)),
+        stop=_stop,
+    )
+    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_discover_tensorboard_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
+
+    def fake_load_scalar_frame(run_dir_str: str) -> pd.DataFrame:
+        run_label = Path(run_dir_str).name
+        return pd.DataFrame(
+            {
+                "tag": ["metric/a", "metric/b"],
+                "step": [1, 2],
+                "wall_time": [10.0, 11.0],
+                "relative_time_s": [0.0, 1.0],
+                "timestamp": pd.to_datetime([10.0, 11.0], unit="s"),
+                "value": [1.0, 2.0],
+                "run_label": [run_label, run_label],
+            }
+        )
+
+    monkeypatch.setattr(module, "_load_scalar_frame", fake_load_scalar_frame)
+    monkeypatch.setattr(module, "_build_scalar_figure", lambda df, tags, axis: {"tags": tags, "axis": axis, "rows": len(df)})
+
+    module.main()
+
+    assert subheaders == ["Scalar plots"]
+    assert plotted == [({"tags": ["metric/a"], "axis": "step", "rows": 4}, "stretch")]
+    written = settings_path.read_text(encoding="utf-8")
+    assert "trainer_rel = \"trainer_a\"" in written
+    assert "selected_tags = [" in written
+    assert "\"metric/a\"" in written
