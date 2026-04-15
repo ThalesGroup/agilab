@@ -30,6 +30,75 @@ def wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
     }
 
 
+def _prepare_service_worker_args(agi_cls: Any, env: AgiEnv) -> Dict[str, Any]:
+    if agi_cls._service_queue_root is None:
+        agi_cls._init_service_queue(env)
+    agi_cls._service_worker_args = {
+        **(agi_cls._args or {}),
+        "_agi_service_mode": True,
+        "_agi_service_queue_dir": str(agi_cls._service_queue_root),
+    }
+    return dict(agi_cls._service_worker_args)
+
+
+def _submit_service_worker_inits(
+    agi_cls: Any,
+    env: AgiEnv,
+    client: Client,
+    workers: List[str],
+    *,
+    key_prefix: str,
+) -> List[str]:
+    worker_args = _prepare_service_worker_args(agi_cls, env)
+    init_futures: List[Any] = []
+    initialized: List[str] = []
+    for worker in workers:
+        if worker not in agi_cls._service_workers:
+            agi_cls._service_workers.append(worker)
+        worker_id = agi_cls._service_workers.index(worker)
+        init_futures.append(
+            client.submit(
+                BaseWorker._new,
+                env=0 if getattr(env, "debug", False) else None,
+                app=env.target_worker,
+                mode=agi_cls._mode,
+                verbose=agi_cls.verbose,
+                worker_id=worker_id,
+                worker=worker,
+                args=worker_args,
+                workers=[worker],
+                allow_other_workers=False,
+                pure=False,
+                key=f"{key_prefix}-init-{env.target}-{agi_cls._service_safe_worker_name(worker)}",
+            )
+        )
+        initialized.append(worker)
+    if init_futures:
+        client.gather(init_futures)
+    return initialized
+
+
+def _submit_service_loops(
+    agi_cls: Any,
+    env: AgiEnv,
+    client: Client,
+    workers: List[str],
+    *,
+    key_prefix: str,
+) -> Dict[str, Any]:
+    service_futures: Dict[str, Any] = {}
+    for worker in workers:
+        service_futures[worker] = client.submit(
+            BaseWorker.loop,
+            poll_interval=agi_cls._service_poll_interval,
+            workers=[worker],
+            allow_other_workers=False,
+            pure=False,
+            key=f"{key_prefix}-loop-{env.target}-{agi_cls._service_safe_worker_name(worker)}",
+        )
+    return service_futures
+
+
 async def service_recover(
     agi_cls: Any,
     env: AgiEnv,
@@ -110,11 +179,7 @@ async def service_recover(
             agi_cls._service_apply_queue_root(Path(queue_dir), create=True)
         else:
             agi_cls._init_service_queue(env)
-        agi_cls._service_worker_args = {
-            **(agi_cls._args or {}),
-            "_agi_service_mode": True,
-            "_agi_service_queue_dir": str(agi_cls._service_queue_root),
-        }
+        _prepare_service_worker_args(agi_cls, env)
 
         scheduler_addr = state.get("scheduler") or agi_cls._scheduler
         if not scheduler_addr:
@@ -169,15 +234,6 @@ async def service_restart_workers(
     if connected:
         agi_cls._service_workers = list(connected)
 
-    if agi_cls._service_queue_root is None:
-        agi_cls._init_service_queue(env)
-
-    agi_cls._service_worker_args = {
-        **(agi_cls._args or {}),
-        "_agi_service_mode": True,
-        "_agi_service_queue_dir": str(agi_cls._service_queue_root),
-    }
-
     break_tasks = [
         client.submit(
             BaseWorker.break_loop,
@@ -194,43 +250,22 @@ async def service_restart_workers(
         except Exception:
             log.debug("Ignoring break_loop error during service restart", exc_info=True)
 
-    init_futures: List[Any] = []
-    for worker in workers_to_restart:
-        if worker not in agi_cls._service_workers:
-            agi_cls._service_workers.append(worker)
-        worker_id = agi_cls._service_workers.index(worker)
-        init_futures.append(
-            client.submit(
-                BaseWorker._new,
-                env=0 if getattr(env, "debug", False) else None,
-                app=env.target_worker,
-                mode=agi_cls._mode,
-                verbose=agi_cls.verbose,
-                worker_id=worker_id,
-                worker=worker,
-                args=agi_cls._service_worker_args,
-                workers=[worker],
-                allow_other_workers=False,
-                pure=False,
-                key=f"agi-serve-restart-init-{env.target}-{agi_cls._service_safe_worker_name(worker)}",
-            )
+    restarted = _submit_service_worker_inits(
+        agi_cls,
+        env,
+        client,
+        workers_to_restart,
+        key_prefix="agi-serve-restart",
+    )
+    agi_cls._service_futures.update(
+        _submit_service_loops(
+            agi_cls,
+            env,
+            client,
+            restarted,
+            key_prefix="agi-serve-restart",
         )
-    if init_futures:
-        client.gather(init_futures)
-
-    restarted: List[str] = []
-    for worker in workers_to_restart:
-        future = client.submit(
-            BaseWorker.loop,
-            poll_interval=agi_cls._service_poll_interval,
-            workers=[worker],
-            allow_other_workers=False,
-            pure=False,
-            key=f"agi-serve-restart-loop-{env.target}-{agi_cls._service_safe_worker_name(worker)}",
-        )
-        agi_cls._service_futures[worker] = future
-        restarted.append(worker)
-
+    )
     return restarted
 
 
@@ -618,42 +653,21 @@ async def serve(
     dask_workers = list(agi_cls._dask_workers)
     queue_paths = agi_cls._init_service_queue(env, service_queue_dir=service_queue_dir)
     cleanup_info = agi_cls._service_cleanup_artifacts()
-    agi_cls._service_worker_args = {
-        **(agi_cls._args or {}),
-        "_agi_service_mode": True,
-        "_agi_service_queue_dir": str(queue_paths["root"]),
-    }
-
-    init_futures = [
-        client.submit(
-            BaseWorker._new,
-            env=0 if env.debug else None,
-            app=env.target_worker,
-            mode=agi_cls._mode,
-            verbose=agi_cls.verbose,
-            worker_id=index,
-            worker=worker,
-            args=agi_cls._service_worker_args,
-            workers=[worker],
-            allow_other_workers=False,
-            pure=False,
-            key=f"agi-worker-init-{env.target}-{worker.replace(':', '-')}",
-        )
-        for index, worker in enumerate(dask_workers)
-    ]
-    client.gather(init_futures)
-
-    service_futures: Dict[str, Any] = {}
-    for worker in dask_workers:
-        future = client.submit(
-            BaseWorker.loop,
-            poll_interval=poll_interval,
-            workers=[worker],
-            allow_other_workers=False,
-            pure=False,
-            key=f"agi-serve-loop-{env.target}-{worker.replace(':', '-')}",
-        )
-        service_futures[worker] = future
+    _prepare_service_worker_args(agi_cls, env)
+    _submit_service_worker_inits(
+        agi_cls,
+        env,
+        client,
+        dask_workers,
+        key_prefix="agi-worker",
+    )
+    service_futures = _submit_service_loops(
+        agi_cls,
+        env,
+        client,
+        dask_workers,
+        key_prefix="agi-serve",
+    )
 
     agi_cls._service_futures = service_futures
     agi_cls._service_workers = dask_workers
