@@ -13,6 +13,7 @@
 
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 import py7zr
@@ -52,7 +53,7 @@ def _try_link_dir(link_path: Path, target_path: Path) -> bool:
 
     try:
         link_path.parent.mkdir(parents=True, exist_ok=True)
-    except Exception:
+    except OSError:
         return False
 
     # If link_path already points to the right place, keep it.
@@ -60,11 +61,11 @@ def _try_link_dir(link_path: Path, target_path: Path) -> bool:
         try:
             if link_path.resolve(strict=False) == target_path.resolve(strict=False):
                 return True
-        except Exception:
+        except OSError:
             pass
         try:
             link_path.unlink()
-        except Exception:
+        except OSError:
             return False
 
     if link_path.exists():
@@ -81,26 +82,24 @@ def _try_link_dir(link_path: Path, target_path: Path) -> bool:
                     shutil.rmtree(link_path, ignore_errors=True)
             else:
                 return False
-        except Exception:
+        except OSError:
             return False
 
     try:
         os.symlink(str(target_path), str(link_path), target_is_directory=True)
         return True
-    except Exception:
+    except OSError:
         pass
 
     if os.name == "nt":
         try:
-            import subprocess
-
             subprocess.check_call(
                 ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             return True
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return False
 
     return False

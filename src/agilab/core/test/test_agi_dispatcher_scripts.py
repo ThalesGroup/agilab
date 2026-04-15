@@ -398,6 +398,24 @@ def test_post_try_link_dir_returns_false_on_setup_and_symlink_failures(tmp_path,
     assert post_mod._try_link_dir(existing, target_path) is False
 
 
+def test_post_try_link_dir_propagates_unexpected_setup_bug(tmp_path, monkeypatch):
+    link_path = tmp_path / "dataset" / "sat"
+    target_path = tmp_path / "trajectory"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / "a.csv").write_text("1", encoding="utf-8")
+    (target_path / "b.csv").write_text("2", encoding="utf-8")
+
+    monkeypatch.setattr(
+        post_mod.Path,
+        "mkdir",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mkdir bug")),
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="mkdir bug"):
+        post_mod._try_link_dir(link_path, target_path)
+
+
 def test_post_try_link_dir_returns_false_when_broken_symlink_cannot_be_removed(tmp_path, monkeypatch):
     link_path = tmp_path / "dataset" / "sat"
     wrong_target = tmp_path / "wrong-target"
