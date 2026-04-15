@@ -459,14 +459,6 @@ def _sample_cloud_heatmap_stats(
     col0 = max(0, col - radius)
     col1 = min(heatmap.shape[1], col + radius + 1)
     window = np.asarray(heatmap[row0:row1, col0:col1], dtype=np.float32)
-    if window.size == 0:
-        return {
-            "raw_value": raw_value,
-            "proxy_value": raw_value,
-            "local_mean": raw_value,
-            "local_max": raw_value,
-        }
-
     local_mean = float(np.nanmean(window))
     local_max = float(np.nanmax(window))
     return {
@@ -540,9 +532,6 @@ def _selected_nodes_heatmap_timeline(
             keep = np.linspace(0, len(group) - 1, max_points, dtype=int)
             group = group.iloc[keep]
         sampled_groups.append(group)
-    if not sampled_groups:
-        return pd.DataFrame()
-
     sampled_traj = pd.concat(sampled_groups, ignore_index=True)
     rows: list[dict[str, Any]] = []
     for _, row in sampled_traj.iterrows():
@@ -626,8 +615,6 @@ def _plot_selected_nodes_heatmap_timeline(
 
     for idx, node_id in enumerate(node_ids):
         subset = timeline_df[timeline_df["node_id"].astype(str) == node_id].sort_values("map_time")
-        if subset.empty:
-            continue
         color = mcolors.rgb2hex(cmap(idx % max(1, len(node_ids))))
         fig.add_trace(
             go.Scatter(
@@ -2661,8 +2648,6 @@ def _plot_selected_node_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
 
     for bearer in sorted(bearer_values):
         subset = timeline_df[timeline_df["bearer_path"] == bearer]
-        if subset.empty:
-            continue
         fig.add_trace(
             go.Scatter(
                 x=subset["time_index"],
@@ -2807,8 +2792,6 @@ def _plot_selected_pair_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
         title_text = f"Bearer switching for {pair_labels[0]} over decision steps"
     elif pair_labels:
         title_text = "Bearer switching for selected source-destination pairs"
-    else:
-        title_text = "Bearer switching over decision steps"
     method_colors = {"RL": "#1f77b4", "ILP": "#ff7f0e"}
     dash_cycle = ["solid", "dash", "dot", "dashdot"]
     pair_dash: dict[str, str] = {}
@@ -2817,8 +2800,6 @@ def _plot_selected_pair_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
 
     for series_label in series_labels:
         subset = timeline_df[timeline_df["series_label"] == series_label].sort_values("time_index")
-        if subset.empty:
-            continue
         method = str(subset["method"].iloc[0])
         pair_label = str(subset["pair_label"].iloc[0])
         fig.add_trace(
@@ -3166,16 +3147,6 @@ def normalize_values(metrics, scale=10):
     for link_type, values in metrics.items():
         normalized[link_type] = [(value - min_value) * scale_factor for value in values]
     return normalized
-
-def update_var(var_key, widget_key):
-    st.session_state[var_key] = st.session_state[widget_key]
-
-def update_datadir(var_key, widget_key):
-    if "df_file" in st.session_state:
-        del st.session_state["df_file"]
-    if "csv_files" in st.session_state:
-        del st.session_state["csv_files"]
-    update_var(var_key, widget_key)
 
 def page():
     if "project" not in st.session_state:

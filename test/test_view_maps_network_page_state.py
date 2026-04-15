@@ -51,6 +51,108 @@ def _write_traj_csv(path: Path, *, plane_id: int, plane_label: str, lat: float, 
     ).to_csv(path, index=False)
 
 
+def _create_pair_overlay_project(
+    tmp_path: Path,
+    create_temp_app_project,
+    *,
+    target_name: str,
+) -> tuple[Path, Path]:
+    share_root = tmp_path / "clustershare"
+    datadir = share_root / "flight_trajectory"
+    routing_dir = share_root / target_name / "pipeline" / "trainer_routing"
+    baseline_dir = share_root / target_name / "pipeline" / "trainer_ilp_stepper"
+    for directory in (datadir, routing_dir, baseline_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame(
+        [
+            {"plane_label": "1001", "time_s": 0.0, "latitude": 48.0, "longitude": 2.0},
+            {"plane_label": "1001", "time_s": 1.0, "latitude": 48.2, "longitude": 2.2},
+            {"plane_label": "2002", "time_s": 0.0, "latitude": 49.0, "longitude": 3.0},
+            {"plane_label": "2002", "time_s": 1.0, "latitude": 49.2, "longitude": 3.2},
+        ]
+    ).to_csv(datadir / "network.csv", index=False)
+
+    routing_path = routing_dir / "allocations_steps.parquet"
+    pd.DataFrame(
+        [
+            {
+                "source": 1001,
+                "destination": 2002,
+                "time_index": 0,
+                "t_now_s": 0.0,
+                "routed": True,
+                "bearers": ["satcom"],
+                "delivered_bandwidth": 2.0,
+                "latency": 10.0,
+            },
+            {
+                "source": 3003,
+                "destination": 4004,
+                "time_index": 0,
+                "t_now_s": 0.0,
+                "routed": True,
+                "bearers": ["legacy"],
+                "delivered_bandwidth": 1.0,
+                "latency": 20.0,
+            },
+        ]
+    ).to_parquet(routing_path, index=False)
+
+    baseline_path = baseline_dir / "allocations_steps.json"
+    baseline_path.write_text(
+        json.dumps(
+            [
+                {
+                    "source": 1001,
+                    "destination": 2002,
+                    "time_index": 0,
+                    "t_now_s": 0.0,
+                    "routed": True,
+                    "bearers": ["optical"],
+                    "delivered_bandwidth": 3.0,
+                    "latency": 9.0,
+                },
+                {
+                    "source": 3003,
+                    "destination": 4004,
+                    "time_index": 0,
+                    "t_now_s": 0.0,
+                    "routed": True,
+                    "bearers": ["legacy"],
+                    "delivered_bandwidth": 1.0,
+                    "latency": 20.0,
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    app_settings_text = (
+        "[view_maps_network]\n"
+        'base_dir_choice = "Custom"\n'
+        f'input_datadir = "{share_root.as_posix()}"\n'
+        'datadir_rel = "flight_trajectory"\n'
+        'file_ext_choice = "csv"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "network.csv"\n'
+        'id_col = "plane_label"\n'
+        'time_col = "time_s"\n'
+        'selected_flights_filter = ["1001", "2002"]\n'
+        f'allocations_file = "{routing_path.as_posix()}"\n'
+        f'baseline_allocations_file = "{baseline_path.as_posix()}"\n'
+        'cloud_heatmap_sat_path = ""\n'
+        'cloud_heatmap_ivdl_path = ""\n'
+    )
+    project_dir = create_temp_app_project(
+        f"{target_name}_project",
+        package_name=target_name,
+        app_settings_text=app_settings_text,
+        pyproject_name=f"{target_name.replace('_', '-')}-project",
+    )
+    return project_dir, share_root
+
+
 def test_view_maps_network_renders_sb3_style_page_state_without_cloud_or_alloc_warnings(
     tmp_path: Path,
     create_temp_app_project,
@@ -507,3 +609,64 @@ def test_view_maps_network_page_graph_only_keeps_sparse_nodes_visible(
     assert not filtered_warnings
     assert any("Edge counts (preview): satcom_link=9" in caption for caption in captions)
     assert any("6 / 6 flights shown" in caption for caption in captions)
+
+
+def test_view_maps_network_page_pair_overlay_handles_missing_live_sources(
+    tmp_path: Path,
+    create_temp_app_project,
+    run_page_app_test,
+) -> None:
+    project_dir, _share_root = _create_pair_overlay_project(
+        tmp_path,
+        create_temp_app_project,
+        target_name="demo_pair_missing_live",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(["1001", "2002"]).run()
+    at.selectbox(key="alloc_demand_pair_focus").set_value((1001, 2002)).run()
+    at.selectbox(key="traj_glob_choice").set_value("(none)").run()
+
+    assert not at.exception
+    infos = [info.value for info in at.info]
+    selectboxes = {widget.label: widget.value for widget in at.selectbox}
+
+    assert selectboxes["Trajectory data picker (for map overlay)"] == "(none)"
+    assert any("No live overlay: select trajectory data" in message for message in infos)
+    assert any("No SAT cloud heatmap path configured" in message for message in infos)
+
+
+def test_view_maps_network_page_pair_overlay_handles_mismatch_and_bad_trajectory_globs(
+    tmp_path: Path,
+    create_temp_app_project,
+    run_page_app_test,
+) -> None:
+    project_dir, _share_root = _create_pair_overlay_project(
+        tmp_path,
+        create_temp_app_project,
+        target_name="demo_pair_bad_traj",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(["1001", "2002"]).run()
+    at.selectbox(key="alloc_demand_pair_focus").set_value((3003, 4004)).run()
+
+    mismatch_infos = [info.value for info in at.info]
+    assert any("Ignoring Focus demand because it does not match" in message for message in mismatch_infos)
+
+    at.selectbox(key="alloc_demand_pair_focus").set_value((1001, 2002)).run()
+    at.selectbox(key="traj_glob_choice").set_value("(custom glob…)").run()
+    at.text_input(key="traj_glob_custom").set_value(str(tmp_path / "missing" / "*.csv")).run()
+
+    missing_glob_infos = [info.value for info in at.info]
+    assert any("trajectory glob matched 0 files" in message for message in missing_glob_infos)
+
+    bad_positions = tmp_path / "bad_positions.csv"
+    pd.DataFrame([{"plane_label": "1001", "latitude": 48.0, "longitude": 2.0}]).to_csv(
+        bad_positions,
+        index=False,
+    )
+    at.text_input(key="traj_glob_custom").set_value(str(bad_positions)).run()
+
+    bad_traj_infos = [info.value for info in at.info]
+    assert any("No node positions found for this timestep" in message for message in bad_traj_infos)

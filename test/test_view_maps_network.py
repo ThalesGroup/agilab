@@ -1639,6 +1639,106 @@ def test_view_maps_network_layout_color_and_shift_time_branches(monkeypatch, tmp
     assert module.st.session_state[module.TIME_VALUE_KEY] == 20
 
 
+def test_view_maps_network_graph_path_and_state_helper_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    graph_df = pd.DataFrame(
+        {
+            "satcom_link": ["[(1, 1), (1, 99), (1, 2)]"],
+            "capacity_metric": [{"satcom_link": [4.0]}],
+        }
+    )
+    fig = module.create_network_graph(
+        graph_df,
+        {"1": (0.0, 0.0), "2": (1.0, 1.0)},
+        True,
+        True,
+        ["optical_link", "satcom_link"],
+        "capacity_metric",
+        color_map={"1": "#123456", "2": "#654321"},
+        symbol_map={"1": "circle", "2": "circle"},
+        link_color_map={"satcom_link": "#abcdef", "optical_link": "#000000"},
+    )
+    sat_traces = [trace for trace in fig.data if trace.name == "SAT"]
+    assert len(sat_traces) == 1
+
+    metrics_df = pd.DataFrame(
+        {
+            "metric": [
+                ["not", "a", "dict"],
+                {"satcom_link": None, "optical_link": [1, "bad", 2]},
+                {"legacy_link": float("nan")},
+            ]
+        }
+    )
+    assert module.extract_metrics(metrics_df, "metric") == {"optical_link": [1.0, 2.0]}
+    assert module.normalize_values({}) == {}
+
+    module.st = SimpleNamespace(
+        session_state={
+            module.TIME_OPTIONS_KEY: [10, 20, 30],
+            module.TIME_VALUE_KEY: 20,
+            "widget_value": "copied",
+        }
+    )
+    module.increment_time()
+    module.decrement_time()
+    module.update_var("copied_value", "widget_value")
+    assert module.st.session_state[module.TIME_INDEX_KEY] == 1
+    assert module.st.session_state[module.TIME_VALUE_KEY] == 20
+    assert module.st.session_state["copied_value"] == "copied"
+
+
+def test_view_maps_network_path_fallback_and_resolution_exception_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    duplicate_file = tmp_path / "allocations_steps.json"
+    duplicate_file.write_text("{}", encoding="utf-8")
+
+    cloud_root = tmp_path / "cloud_root"
+    cloud_file = cloud_root / "dataset" / "sat_map.npz"
+    cloud_file.parent.mkdir(parents=True, exist_ok=True)
+    _write_heatmap_npz(cloud_file)
+
+    original_resolve = Path.resolve
+    original_iterdir = Path.iterdir
+
+    def _patched_resolve(self: Path, strict: bool = False):
+        if self == duplicate_file or self == cloud_file:
+            raise RuntimeError("resolve failure")
+        if self.name == "pipeline" and self.parent == tmp_path / "alloc_base":
+            raise RuntimeError("resolve failure")
+        return original_resolve(self, strict=strict)
+
+    def _patched_iterdir(self: Path):
+        if self == cloud_root:
+            raise RuntimeError("iterdir failure")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve)
+    monkeypatch.setattr(Path, "iterdir", _patched_iterdir)
+
+    assert module._candidate_files_from_globs([str(duplicate_file), str(duplicate_file)]) == [duplicate_file]
+    assert module._candidate_cloudmap_paths([cloud_root], ("sat_map.npz",)) == [cloud_file]
+
+    alloc_base = tmp_path / "alloc_base"
+    alloc_base.mkdir()
+    preferred_root, roots = module._allocation_search_roots(
+        base_path=alloc_base,
+        datadir_path=alloc_base,
+        export_base=alloc_base,
+        local_share_root=tmp_path,
+        target_name="",
+    )
+    assert preferred_root == alloc_base
+    assert roots
+    assert len(roots) == len({str(path) for path in roots})
+
+    assert module._semantic_node_id_from_text("node_" + ("9" * 5000)) is None
+
+
 def test_view_maps_network_traj_heatmap_and_edge_geomap_fallback_branches(
     monkeypatch, tmp_path: Path
 ) -> None:
