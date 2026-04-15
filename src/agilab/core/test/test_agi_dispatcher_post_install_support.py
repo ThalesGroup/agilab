@@ -132,3 +132,38 @@ def test_execute_post_install_handles_optional_runtime_seed_failure(tmp_path):
 
     assert result == 0
     assert lines[-1] == "[post_install] optional dataset seeding skipped: agi_share_path is not configured"
+
+
+def test_resolve_preferred_sat_dataset_prefers_packaged_dataset(tmp_path):
+    share_root = tmp_path / "share-root"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    fallback = share_root / "sat_trajectory" / "dataframe" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    fallback.mkdir(parents=True, exist_ok=True)
+    for folder in (preferred, fallback):
+        (folder / "a.csv").write_text("1", encoding="utf-8")
+        (folder / "b.csv").write_text("2", encoding="utf-8")
+
+    sat_trajectory_root, preferred_candidate = post_mod._resolve_preferred_sat_dataset(
+        SimpleNamespace(share_root_path=lambda: share_root),
+    )
+
+    assert sat_trajectory_root == (share_root / "sat_trajectory").resolve(strict=False)
+    assert preferred_candidate == preferred
+
+
+def test_resolve_preferred_sat_dataset_logs_share_root_failure(tmp_path):
+    lines = []
+
+    sat_trajectory_root, preferred_candidate = post_mod._resolve_preferred_sat_dataset(
+        SimpleNamespace(
+            share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("agi_share_path is not configured"))
+        ),
+        print_fn=lines.append,
+    )
+
+    assert sat_trajectory_root is None
+    assert preferred_candidate is None
+    assert lines == [
+        "[post_install] optional dataset seeding shared-root lookup skipped: agi_share_path is not configured"
+    ]
