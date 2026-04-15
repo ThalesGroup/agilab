@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import pytest
 
 PAGE_PATH = (
     "src/agilab/apps-pages/view_uav_relay_queue_analysis/"
@@ -71,6 +76,46 @@ def _write_relay_run(
         "relay-b,24,1\n",
         encoding="utf-8",
     )
+
+
+def _load_relay_module(tmp_path: Path, monkeypatch):
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir(exist_ok=True)
+    project_dir = apps_dir / "uav_relay_queue_project"
+    (project_dir / "src" / "uav_relay_queue").mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text("[project]\nname='uav-relay-queue-project'\n", encoding="utf-8")
+    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
+    (project_dir / "src" / "uav_relay_queue" / "__init__.py").write_text("", encoding="utf-8")
+
+    artifact_dir = tmp_path / "export" / "uav_relay_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+    _write_relay_run(
+        artifact_dir,
+        "run_a",
+        scenario="demo",
+        routing_policy="queue_aware",
+        source_rate_pps=10.0,
+        random_seed=1,
+        bottleneck_relay="relay-a",
+        pdr=0.9,
+        mean_e2e_delay_ms=10.0,
+        mean_queue_wait_ms=5.0,
+        max_queue_depth_pkts=2,
+        notes="demo",
+    )
+
+    spec = importlib.util.spec_from_file_location("view_uav_relay_queue_analysis_test_module", PAGE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        spec.loader.exec_module(module)
+    return module
 
 
 def test_view_uav_relay_queue_analysis_renders_exported_artifacts(
@@ -266,3 +311,90 @@ def test_view_uav_relay_queue_analysis_reports_missing_delivered_source_packets(
     assert not at.exception
     assert any("No delivered source packet is available in this run." in info.value for info in at.info)
     assert any(subheader.value == "Notes" for subheader in at.subheader)
+
+
+def test_view_uav_relay_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
+    module = _load_relay_module(tmp_path, monkeypatch)
+
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    module_path = src_root / "agilab" / "apps-pages" / "view_uav_relay_queue_analysis" / "src" / "view_uav_relay_queue_analysis" / "view_uav_relay_queue_analysis.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+    module._ensure_repo_on_path()
+    assert str(src_root) in module.sys.path
+    assert str(repo_root) in module.sys.path
+
+    errors: list[str] = []
+    def stop_now():
+        raise RuntimeError("stop")
+    module.st = SimpleNamespace(error=errors.append, stop=stop_now)
+    monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
+    with pytest.raises(RuntimeError, match="stop"):
+        module._resolve_active_app()
+    assert any("Provided --active-app path not found" in message for message in errors)
+
+    assert module._discover_files(tmp_path / "missing", "[") == []
+    assert module._safe_metric(object()) == "n/a"
+    assert module._relative_summary_label(Path("/tmp/run.json"), tmp_path / "artifact_root") == "run.json"
+    assert module._coerce_selection("missing", ["a", "b"], fallback="a") == ["a"]
+    assert module._coerce_selection(object(), ["a", "b"]) == ["b"]
+    assert module._build_comparison_frame({}, tmp_path, "missing").empty
+
+    broken_queue = tmp_path / "broken_summary_metrics.json"
+    broken_queue.write_text("{}", encoding="utf-8")
+    (tmp_path / "broken_queue_timeseries.csv").write_text("time_s,relay\n0.0,a\n", encoding="utf-8")
+    assert module._build_max_queue_comparison_frame({"broken": broken_queue}).empty
+
+
+def test_view_uav_relay_queue_analysis_warns_when_summary_glob_is_empty(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_relay_queue_project",
+        package_name="uav_relay_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-relay-queue-project",
+    )
+    artifact_dir = tmp_path / "export" / "uav_relay_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
+
+    assert not at.exception
+    assert any("No summary metrics file found" in warning.value for warning in at.warning)
+
+
+def test_view_uav_relay_queue_analysis_requires_a_selected_run(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_relay_queue_project",
+        package_name="uav_relay_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-relay-queue-project",
+    )
+    artifact_dir = tmp_path / "export" / "uav_relay_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+    _write_relay_run(
+        artifact_dir,
+        "single_run",
+        scenario="demo",
+        routing_policy="queue_aware",
+        source_rate_pps=10.0,
+        random_seed=1,
+        bottleneck_relay="relay-a",
+        pdr=0.9,
+        mean_e2e_delay_ms=10.0,
+        mean_queue_wait_ms=5.0,
+        max_queue_depth_pkts=2,
+        notes="demo",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
+    at.multiselect(key="uav_relay_queue_selected_runs").set_value([]).run()
+
+    assert not at.exception
+    assert any("Select at least one run in the sidebar." in info.value for info in at.info)
