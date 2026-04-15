@@ -340,6 +340,27 @@ def _is_schema_reset_error(
     )
 
 
+def _create_default_experiment(
+    create_experiment_fn,
+    *,
+    get_experiment_fn,
+    default_experiment_name: str,
+    artifact_uri: str,
+) -> None:
+    if not callable(create_experiment_fn):
+        return
+
+    try:
+        create_experiment_fn(default_experiment_name, artifact_location=artifact_uri)
+    except Exception as exc:
+        if not _is_existing_experiment_conflict(
+            exc,
+            get_experiment_fn=get_experiment_fn,
+            default_experiment_name=default_experiment_name,
+        ):
+            raise
+
+
 def _create_default_experiment_if_missing(
     mlflow,
     *,
@@ -353,17 +374,12 @@ def _create_default_experiment_if_missing(
     if experiment is not None:
         return
 
-    create_experiment = getattr(mlflow, "create_experiment", None)
-    if callable(create_experiment):
-        try:
-            create_experiment(default_experiment_name, artifact_location=artifact_uri)
-        except Exception as exc:
-            if not _is_existing_experiment_conflict(
-                exc,
-                get_experiment_fn=get_experiment,
-                default_experiment_name=default_experiment_name,
-            ):
-                raise
+    _create_default_experiment(
+        getattr(mlflow, "create_experiment", None),
+        get_experiment_fn=get_experiment,
+        default_experiment_name=default_experiment_name,
+        artifact_uri=artifact_uri,
+    )
 
 
 def _activate_default_mlflow_experiment(
