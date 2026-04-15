@@ -246,6 +246,19 @@ def _migrate_legacy_mlflow_filestore_if_needed(
         )
 
 
+def _finalize_mlflow_backend(
+    tracking_dir: Path,
+    *,
+    db_path: Path,
+    ensure_mlflow_sqlite_schema_current_fn,
+    resolve_mlflow_artifact_dir_fn,
+    repair_mlflow_default_experiment_db_fn,
+) -> None:
+    ensure_mlflow_sqlite_schema_current_fn(db_path)
+    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+    repair_mlflow_default_experiment_db_fn(db_path, artifact_uri=artifact_uri)
+
+
 def reset_mlflow_sqlite_backend(
     db_path: Path,
     *,
@@ -289,9 +302,13 @@ def ensure_mlflow_backend_ready(
         run_cmd=run_cmd,
         sys_executable=sys_executable,
     )
-    ensure_mlflow_sqlite_schema_current_fn(db_path)
-    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-    repair_mlflow_default_experiment_db_fn(db_path, artifact_uri=artifact_uri)
+    _finalize_mlflow_backend(
+        tracking_dir,
+        db_path=db_path,
+        ensure_mlflow_sqlite_schema_current_fn=ensure_mlflow_sqlite_schema_current_fn,
+        resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir_fn,
+        repair_mlflow_default_experiment_db_fn=repair_mlflow_default_experiment_db_fn,
+    )
     return sqlite_uri_for_path_fn(db_path)
 
 

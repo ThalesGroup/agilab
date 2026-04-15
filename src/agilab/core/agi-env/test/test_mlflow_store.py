@@ -470,6 +470,28 @@ def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_
         )
 
 
+def test_finalize_mlflow_backend_runs_schema_then_repairs_default_experiment(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    db_path = tracking_dir / "mlflow.db"
+    events: list[tuple[str, object, object | None]] = []
+
+    mlflow_store._finalize_mlflow_backend(
+        tracking_dir,
+        db_path=db_path,
+        ensure_mlflow_sqlite_schema_current_fn=lambda path: events.append(("schema", Path(path), None)),
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        repair_mlflow_default_experiment_db_fn=lambda path, artifact_uri=None: events.append(
+            ("repair", Path(path), artifact_uri)
+        ),
+    )
+
+    assert events == [
+        ("schema", db_path, None),
+        ("repair", db_path, (tracking_dir / "artifacts").as_uri()),
+    ]
+
+
 def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_experiment(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
