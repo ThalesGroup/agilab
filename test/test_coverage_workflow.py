@@ -18,7 +18,12 @@ def _agi_gui_run_block() -> str:
 
 def test_agi_gui_coverage_lists_all_root_view_tests() -> None:
     run_block = _agi_gui_run_block()
-    listed_tests = set(re.findall(r"test/test_view[\w_]+\.py", run_block))
+    listed_tests: set[str] = set()
+    for token in re.findall(r"test/test_view[^\s\\]+\.py", run_block):
+        if "*" in token:
+            listed_tests.update(path.as_posix() for path in Path().glob(token))
+        else:
+            listed_tests.add(token)
     expected_tests = {path.as_posix() for path in Path("test").glob("test_view*.py")}
 
     missing = sorted(expected_tests - listed_tests)
