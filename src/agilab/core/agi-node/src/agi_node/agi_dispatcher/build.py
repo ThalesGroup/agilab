@@ -164,7 +164,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
         if AgiEnv._is_managed_pc:
             try:
                 AgiEnv.create_junction_windows(src_abs, dest)
-            except Exception as link_err:
+            except OSError as link_err:
                 AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
                 raise
         else:
@@ -172,13 +172,13 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
                 AgiEnv.create_symlink(src_abs, dest)
                 created_links.append(dest)
                 AgiEnv.logger.info(f"Symlink created: {dest} -> {src_abs}")
-            except Exception as symlink_err:
+            except OSError as symlink_err:
                 AgiEnv.logger.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
                 try:
                     os.link(src_abs, dest)
                     created_links.append(dest)
                     AgiEnv.logger.info(f"Hard link created: {dest} -> {src_abs}")
-                except Exception as link_err:
+                except OSError as link_err:
                     AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
                     raise
     else:
