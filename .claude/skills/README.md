@@ -3,9 +3,9 @@
 This repository includes a set of **Claude Code Agent Skills** under `.claude/skills/`.
 Each skill is a folder containing a `SKILL.md` entrypoint and any supporting assets.
 
-These skills are Claude-equivalent mirrors of the `.codex/skills/` set used by Codex.
-The `SKILL.md` format is shared (YAML front-matter + markdown body), so updates to
-either tree can be ported to the other with minimal changes.
+These shared repo skills are authored under `.claude/skills/` and mirrored into
+`.codex/skills/` for Codex consumption. The `SKILL.md` format is shared, so one
+canonical source can serve both agents.
 
 ## How Skills Are Used
 
@@ -25,6 +25,7 @@ either tree can be ported to the other with minimal changes.
 - `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_steps.toml` naming/IO-flow clarification.
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
 - `svg-diagrams`: Author robust repo-native SVG diagrams with in-box text.
+- `scientific-svg-figures`: Create publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows.
 
 ## Adding A New Skill
 
@@ -32,10 +33,21 @@ either tree can be ported to the other with minimal changes.
 2. Add `.claude/skills/<skill-name>/SKILL.md` with YAML front-matter:
    - `name`, `description`, `license`, optional `metadata`.
 3. Keep the skill self-contained; include scripts/examples only when they materially help.
-4. Mirror the new skill to `.codex/skills/<skill-name>/` if you want Codex parity.
+4. Run `python3 tools/sync_agent_skills.py --skills <skill-name>` to mirror it into `.codex/skills/`.
 
 ## Keeping Codex and Claude trees in sync
 
-Both trees carry the same skill content. When editing one, update the other if the
-change is repo policy (not agent-specific). Agent-specific sections (for example,
-framework-specific behavior in `agilab-runbook/SKILL.md`) may legitimately diverge.
+Shared repo skills are now maintained with this contract:
+
+- Canonical shared source: `.claude/skills/`
+- Codex mirror: `.codex/skills/`
+- Personal Codex-only skills: `~/.codex/skills/`
+
+Use:
+
+- `python3 tools/sync_agent_skills.py --skills scientific-svg-figures` to sync one skill
+- `python3 tools/sync_agent_skills.py --all` only after intentionally reconciling older Claude/Codex skill drift
+- `python3 tools/codex_skills.py --root .codex/skills validate --strict`
+- `python3 tools/codex_skills.py --root .codex/skills generate`
+
+Do not hand-edit both trees for the same shared skill. Edit `.claude/skills/`, sync the specific skill into `.codex/skills/`, then regenerate the Codex index. Keep `~/.codex/skills/` for personal or machine-local skills only.
