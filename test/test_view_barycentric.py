@@ -8,17 +8,94 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 
 MODULE_PATH = Path("src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py")
 
+BARVIZ_STUB = """
+from types import SimpleNamespace
+
+
+class Attributes:
+    def __init__(self, attrs=None, defaults=None):
+        attrs = attrs or {}
+        self.renderer = attrs.get("renderer", "streamlit")
+        self.width = attrs.get("width", 640)
+        self.height = attrs.get("height", 480)
+        self.save_scale = attrs.get("save_scale", 1)
+        self.markers_colormap = attrs.get("markers_colormap", {"cmax": None})
+        self.lines_colormap = attrs.get("lines_colormap", {"cmax": None})
+        self.lines_visible = attrs.get("lines_visible", True)
+        self.markers_size = attrs.get("markers_size", None)
+        self.markers_opacity = attrs.get("markers_opacity", None)
+        self.markers_border_width = attrs.get("markers_border_width", None)
+        self.text_size = attrs.get("text_size", None)
+
+
+class _SimplexBase:
+    def __init__(self, points=None, name="unknown", colors=None, labels=None, attrs=None):
+        self.points = points
+        self.name = name
+        self.colors = colors or []
+        self.labels = labels or []
+        self.nbp = len(points) if points is not None else 0
+        self.attrs = Attributes(attrs or {}, {})
+
+    def get_skeleton(self):
+        return "skeleton"
+
+
+class Simplex(_SimplexBase):
+    version = "1.0"
+    _attributes_default = {}
+
+
+class Collection:
+    def __init__(self, points, labels, colors=None):
+        self.points = points
+        self.labels = labels
+        self.colors = colors
+        self.attrs = SimpleNamespace(
+            markers_colormap={},
+            markers_opacity=None,
+            markers_size=None,
+            markers_border_width=None,
+        )
+
+
+class Scrawler:
+    def __init__(self, simplex):
+        self.simplex = simplex
+
+    def _trace_collection(self, item):
+        return [item]
+
+    def _get_layout(self):
+        return {"title": "layout"}
+
+    def update_center(self, observed_point):
+        self.observed_point = observed_point
+
+    def plot_save(self, save_as):
+        self.saved_path = save_as
+"""
+
+
+class _State(dict):
+    def __getattr__(self, item):
+        try:
+            return self[item]
+        except KeyError as exc:
+            raise AttributeError(item) from exc
+
+    def __setattr__(self, item, value):
+        self[item] = value
+
 
 def _load_module():
     fake_barviz = ModuleType("barviz")
-    fake_barviz.Simplex = type("Simplex", (), {})
-    fake_barviz.Collection = type("Collection", (), {})
-    fake_barviz.Scrawler = type("Scrawler", (), {})
-    fake_barviz.Attributes = type("Attributes", (), {})
+    exec(BARVIZ_STUB, fake_barviz.__dict__)
 
     fake_sklearn = ModuleType("sklearn")
     fake_preprocessing = ModuleType("sklearn.preprocessing")
@@ -57,13 +134,7 @@ def _seed_fake_page_deps(monkeypatch, tmp_path: Path) -> None:
     scipy_pkg = fake_root / "scipy"
     sklearn_pkg.mkdir(parents=True, exist_ok=True)
     scipy_pkg.mkdir(parents=True, exist_ok=True)
-    (fake_root / "barviz.py").write_text(
-        "class Simplex: ...\n"
-        "class Collection: ...\n"
-        "class Scrawler: ...\n"
-        "class Attributes: ...\n",
-        encoding="utf-8",
-    )
+    (fake_root / "barviz.py").write_text(BARVIZ_STUB, encoding="utf-8")
     (sklearn_pkg / "__init__.py").write_text("", encoding="utf-8")
     (sklearn_pkg / "preprocessing.py").write_text(
         "class StandardScaler:\n"
@@ -126,6 +197,192 @@ def test_modified_simplex_creates_expected_points() -> None:
     assert np.isclose(points[-1][1], -1.0)
 
 
+def test_modified_simplex_initializes_defaults_with_stubbed_barviz() -> None:
+    module = _load_module()
+
+    simplex = module.ModifiedSimplex(n_points=4, name="demo")
+
+    assert simplex.points.shape == (4, 3)
+    assert simplex.labels == ["P0", "P1", "P2", "P3"]
+    assert simplex.colors == [0, 1, 2, 3]
+    assert simplex.attrs.markers_colormap["cmax"] == 3
+    assert simplex.attrs.lines_colormap["cmax"] == 3
+
+
+def test_modified_scrawler_plot_updates_center_and_saves(monkeypatch) -> None:
+    module = _load_module()
+    charts: list[tuple[object, dict, str]] = []
+    saved: list[str] = []
+    centers: list[tuple[int, int, int]] = []
+
+    scrawler = module.ModifiedScrawler.__new__(module.ModifiedScrawler)
+    simplex = module.Simplex(
+        points=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+        name="demo",
+        attrs={"renderer": "plotly"},
+    )
+    scrawler.simplex = simplex
+
+    monkeypatch.setattr(
+        scrawler,
+        "_trace_collection",
+        lambda item: [module.go.Scatter(x=[0], y=[0], name=str(item))],
+    )
+    monkeypatch.setattr(scrawler, "_get_layout", lambda: {"title": "demo"})
+    monkeypatch.setattr(scrawler, "plot_save", lambda save_as: saved.append(save_as))
+    monkeypatch.setattr(scrawler, "update_center", lambda observed_point: centers.append(observed_point))
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(plotly_chart=lambda fig, config=None, renderer=None: charts.append((fig, config, renderer))),
+    )
+
+    scrawler.plot("payload", save_as="figure.svg", observed_point=(1, 2, 3), format="svg")
+
+    assert centers == [(1, 2, 3)]
+    assert saved == ["figure.svg"]
+    assert charts[0][1]["toImageButtonOptions"]["format"] == "svg"
+    assert charts[0][2] == "plotly"
+    assert scrawler.fig.data
+
+
+def test_bary_visualisation_supports_colored_and_plain_modes(monkeypatch) -> None:
+    module = _load_module()
+
+    class FakeCollection:
+        def __init__(self, points, labels, colors=None):
+            self.points = points
+            self.labels = labels
+            self.colors = colors
+            self.attrs = SimpleNamespace(
+                markers_colormap={},
+                markers_opacity=None,
+                markers_size=None,
+                markers_border_width=None,
+            )
+
+    plotted: dict[str, object] = {}
+
+    class FakeSimplex:
+        def __init__(self, n_points, name, labels):
+            self.attrs = SimpleNamespace(
+                lines_visible=True,
+                markers_size=None,
+                markers_colormap={},
+                width=None,
+                height=None,
+                text_size=None,
+            )
+            self.labels = labels
+
+        def plot(self, collection, format="png"):
+            plotted["collection"] = collection
+            plotted["format"] = format
+
+    writes: list[object] = []
+    headers: list[str] = []
+    state = _State(
+        loaded_df=pd.DataFrame(
+            {
+                "slot": [1, 2],
+                "value": [3.0, 4.0],
+                "numeric_color": [10.0, 20.0],
+            }
+        )
+    )
+    monkeypatch.setattr(module, "Collection", FakeCollection)
+    monkeypatch.setattr(module, "ModifiedSimplex", FakeSimplex)
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=state,
+            header=headers.append,
+            write=lambda value: writes.append(value),
+            selectbox=lambda label, label_visibility=None, options=None: options[0],
+        ),
+    )
+
+    bary_df = pd.DataFrame({"alpha": [1.0, 2.0], "beta": [3.0, 4.0]})
+    module.__bary_visualisation(
+        bary_df,
+        selected_format="png",
+        selected_name="demo",
+        selected_x1="slot",
+        selected_x2="value",
+        color="numeric_color",
+    )
+
+    assert headers == ["slot per value"]
+    assert plotted["format"] == "png"
+    assert plotted["collection"].attrs.markers_colormap["colorscale"] == "Blues"
+    assert isinstance(writes[0], pd.DataFrame)
+    assert isinstance(writes[-1], pd.DataFrame)
+
+    writes.clear()
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=state,
+            header=headers.append,
+            write=lambda value: writes.append(value),
+            selectbox=lambda label, label_visibility=None, options=None: options[1],
+        ),
+    )
+
+    module.__bary_visualisation(
+        bary_df,
+        selected_format="svg",
+        selected_name="demo",
+        selected_x1="slot",
+        selected_x2="value",
+        color=None,
+    )
+
+    assert plotted["format"] == "svg"
+    assert plotted["collection"].attrs.markers_colormap["colorscale"] == ["blue", "blue"]
+    barycentric_table = writes[-1]
+    assert np.allclose(barycentric_table.sum(axis=1).to_numpy(), np.ones(len(barycentric_table)))
+
+
+def test_page_handles_load_failure(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    data_file = datadir / "dataset.csv"
+    data_file.write_text("a,b\n1,2\n", encoding="utf-8")
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("", encoding="utf-8")
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: None,
+        error=errors.append,
+    )
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")))
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            sidebar=sidebar,
+            warning=warnings.append,
+            error=errors.append,
+        ),
+    )
+
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert any("Error loading data: boom" in message for message in errors)
+    assert any("could not be loaded" in message for message in warnings)
+
+
 def test_view_barycentric_warns_when_data_dir_missing(
     tmp_path: Path, monkeypatch, create_temp_app_project, run_page_app_test
 ) -> None:
@@ -143,3 +400,68 @@ def test_view_barycentric_warns_when_data_dir_missing(
     assert not at.exception
     assert any("Barycentric Graph" in title.value for title in at.title)
     assert any("A valid data directory is required to proceed." in warning.value for warning in at.warning)
+
+
+def test_page_with_single_distinct_axis_shows_info(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "bary-data"
+    datadir.mkdir()
+    data_file = datadir / "dataset.csv"
+    data_file.write_text("constant_axis,value_axis,color_axis\n", encoding="utf-8")
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        "[view_barycentric]\n"
+        "variables = ['constant_axis', 'value_axis', 'color_axis']\n",
+        encoding="utf-8",
+    )
+
+    dataset = pd.DataFrame(
+        {
+            "constant_axis": [1] * 100,
+            "value_axis": np.arange(100),
+            "color_axis": np.arange(100),
+        }
+    )
+    infos: list[str] = []
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: session_state["df_file"],
+        error=lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: dataset.copy())
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            sidebar=sidebar,
+            warning=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+            slider=lambda *args, **kwargs: 10,
+            markdown=lambda *args, **kwargs: None,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            selectbox=lambda label, options, **kwargs: {
+                "Correlated variables pair": "constant_axis",
+                "Correlated variables": "value_axis",
+                "Color": "color_axis",
+                "Format": "png",
+            }.get(label, options[0] if options else None),
+            text_input=lambda *args, **kwargs: "figure",
+            info=infos.append,
+        ),
+    )
+
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert any("only 1 distinct value" in message for message in infos)
