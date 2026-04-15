@@ -219,6 +219,55 @@ def test_baseworker_run_cython_mode_adds_paths_and_executes_plan(monkeypatch, tm
     assert result.startswith("mode-2 ")
 
 
+def test_resolve_primary_cython_dist_path_and_append_sibling_worker_dist_paths(tmp_path):
+    wenv_abs = tmp_path / "demo_worker"
+    cy_dist = wenv_abs / "dist"
+    cy_dist.mkdir(parents=True)
+    (cy_dist / "demo_cy_stub").mkdir()
+
+    resolved = execution_support._resolve_primary_cython_dist_path(wenv_abs)
+    assert resolved == str(cy_dist.resolve())
+
+    sibling_dist = tmp_path / "other_worker" / "dist"
+    sibling_dist.mkdir(parents=True)
+    sys_path = [str(cy_dist.resolve())]
+    execution_support._append_sibling_worker_dist_paths(
+        tmp_path,
+        sys_path=sys_path,
+    )
+
+    assert sys_path == [
+        str(cy_dist.resolve()),
+        str(sibling_dist.resolve()),
+    ]
+
+
+def test_resolve_primary_cython_dist_path_handles_missing_primary_and_skips_missing_sibling(tmp_path, monkeypatch):
+    assert execution_support._resolve_primary_cython_dist_path(tmp_path / "missing_worker") is None
+
+    sibling_root = tmp_path / "siblings"
+    sibling_root.mkdir()
+    missing_dist = sibling_root / "broken_worker" / "dist"
+    missing_dist.mkdir(parents=True)
+
+    original_resolve = Path.resolve
+
+    def _fake_resolve(self, *args, **kwargs):
+        if self == missing_dist:
+            raise FileNotFoundError("gone")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _fake_resolve)
+
+    sys_path: list[str] = []
+    execution_support._append_sibling_worker_dist_paths(
+        sibling_root,
+        sys_path=sys_path,
+    )
+
+    assert sys_path == []
+
+
 def test_baseworker_run_plan_mode_and_distribution_failures(monkeypatch, tmp_path):
     env = SimpleNamespace(
         wenv_abs=tmp_path / "demo_worker",
