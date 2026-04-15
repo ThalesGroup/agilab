@@ -136,7 +136,7 @@ def _dataset_archive_candidates(env: AgiEnv) -> list[Path]:
     for item in candidates:
         try:
             key = item.resolve(strict=False)
-        except Exception:
+        except OSError:
             key = item
         if key in seen:
             continue

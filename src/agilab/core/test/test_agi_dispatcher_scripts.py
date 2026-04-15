@@ -528,6 +528,25 @@ def test_post_dataset_archive_candidates_handles_resolve_failure(monkeypatch, tm
     assert candidates[0] == DummyEnv.dataset_archive
 
 
+def test_post_dataset_archive_candidates_propagates_unexpected_resolve_bug(monkeypatch, tmp_path):
+    class DummyEnv:
+        share_target_name = "mycode"
+        dataset_archive = tmp_path / "dataset.7z"
+        agilab_pck = tmp_path
+
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == DummyEnv.dataset_archive:
+            raise RuntimeError("resolve bug")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(post_mod.Path, "resolve", _patched_resolve, raising=False)
+
+    with pytest.raises(RuntimeError, match="resolve bug"):
+        post_mod._dataset_archive_candidates(DummyEnv())
+
+
 def test_post_dataset_archive_candidates_skips_non_path_and_duplicate_packaged_archive(tmp_path):
     packaged = tmp_path / "apps" / "mycode_project" / "src" / "mycode_worker" / "dataset.7z"
 
