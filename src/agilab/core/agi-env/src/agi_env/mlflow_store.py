@@ -309,7 +309,10 @@ def _finalize_mlflow_backend(
     repair_mlflow_default_experiment_db_fn,
 ) -> None:
     ensure_mlflow_sqlite_schema_current_fn(db_path)
-    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+    artifact_uri = _resolve_mlflow_artifact_uri(
+        tracking_dir,
+        resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir_fn,
+    )
     repair_mlflow_default_experiment_db_fn(db_path, artifact_uri=artifact_uri)
 
 
@@ -344,6 +347,14 @@ def _move_mlflow_sqlite_backend_files(
         candidate = Path(f"{db_path}{sidecar}")
         if candidate.exists():
             candidate.replace(Path(f"{backup_path}{sidecar}"))
+
+
+def _resolve_mlflow_artifact_uri(
+    tracking_dir: Path,
+    *,
+    resolve_mlflow_artifact_dir_fn,
+) -> str:
+    return resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
 
 
 def ensure_mlflow_backend_ready(
@@ -533,7 +544,10 @@ def _resolve_default_mlflow_activation_context(
     mlflow = get_mlflow_module_fn()
     if mlflow is None:
         return None
-    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+    artifact_uri = _resolve_mlflow_artifact_uri(
+        tracking_dir,
+        resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir_fn,
+    )
     db_path = resolve_mlflow_backend_db_fn(tracking_dir)
     return mlflow, artifact_uri, db_path
 
