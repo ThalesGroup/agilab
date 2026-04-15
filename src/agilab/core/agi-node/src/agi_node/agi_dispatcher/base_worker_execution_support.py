@@ -178,26 +178,66 @@ def initialize_worker(
             base_worker_cls.env = agi_env_factory(app=app, verbose=verbose)
         ensure_managed_pc_share_dir_fn(base_worker_cls.env)
 
-        worker_class = load_worker_fn(mode)
-        worker_inst = worker_class()
-        worker_inst._mode = mode
-        worker_inst.worker_id = worker_id
-        worker_inst._worker_id = worker_id
-        worker_inst.args = args_namespace_cls(**(args or {}))
-        worker_inst.verbose = verbose
-
-        base_worker_cls.verbose = verbose
-        base_worker_cls._insts[worker_id] = worker_inst
-        base_worker_cls._built = False
-        base_worker_cls._worker = path_cls(worker).name
-        base_worker_cls._worker_id = worker_id
-        base_worker_cls._t0 = time_module.time()
+        worker_inst = _configure_initialized_worker(
+            mode=mode,
+            worker_id=worker_id,
+            args=args,
+            verbose=verbose,
+            load_worker_fn=load_worker_fn,
+            args_namespace_cls=args_namespace_cls,
+        )
+        _register_initialized_worker(
+            base_worker_cls=base_worker_cls,
+            worker_id=worker_id,
+            worker=worker,
+            worker_inst=worker_inst,
+            verbose=verbose,
+            started_at=time_module.time(),
+            path_cls=path_cls,
+        )
         logger_obj.info("worker #%s: %s starting...", worker_id, worker)
         start_fn(worker_inst)
     except Exception:
         # Worker loading/constructor/startup executes app code; keep one logging boundary here.
         logger_obj.error(traceback_module.format_exc())
         raise
+
+
+def _configure_initialized_worker(
+    *,
+    mode: int,
+    worker_id: int,
+    args: dict[str, Any] | None,
+    verbose: int,
+    load_worker_fn: Callable[[int], Any],
+    args_namespace_cls: type,
+) -> Any:
+    worker_class = load_worker_fn(mode)
+    worker_inst = worker_class()
+    worker_inst._mode = mode
+    worker_inst.worker_id = worker_id
+    worker_inst._worker_id = worker_id
+    worker_inst.args = args_namespace_cls(**(args or {}))
+    worker_inst.verbose = verbose
+    return worker_inst
+
+
+def _register_initialized_worker(
+    *,
+    base_worker_cls: Any,
+    worker_id: int,
+    worker: str,
+    worker_inst: Any,
+    verbose: int,
+    started_at: float,
+    path_cls: type[Path] = Path,
+) -> None:
+    base_worker_cls.verbose = verbose
+    base_worker_cls._insts[worker_id] = worker_inst
+    base_worker_cls._built = False
+    base_worker_cls._worker = path_cls(worker).name
+    base_worker_cls._worker_id = worker_id
+    base_worker_cls._t0 = started_at
 
 
 def _resolve_worker_info_path(

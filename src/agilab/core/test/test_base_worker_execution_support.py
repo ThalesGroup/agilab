@@ -170,6 +170,47 @@ def test_new_sets_worker_ids_on_instance(monkeypatch):
     assert BaseWorker._insts[3]._worker_id == 3
 
 
+def test_configure_initialized_worker_sets_runtime_fields():
+    class SpawnedWorker:
+        pass
+
+    worker_inst = execution_support._configure_initialized_worker(
+        mode=4,
+        worker_id=3,
+        args={"alpha": 1},
+        verbose=2,
+        load_worker_fn=lambda _mode: SpawnedWorker,
+        args_namespace_cls=base_worker_mod.ArgsNamespace,
+    )
+
+    assert isinstance(worker_inst, SpawnedWorker)
+    assert worker_inst._mode == 4
+    assert worker_inst.worker_id == 3
+    assert worker_inst._worker_id == 3
+    assert worker_inst.verbose == 2
+    assert worker_inst.args.alpha == 1
+
+
+def test_register_initialized_worker_updates_base_worker_state():
+    worker_inst = SimpleNamespace()
+
+    execution_support._register_initialized_worker(
+        base_worker_cls=BaseWorker,
+        worker_id=5,
+        worker="tcp://192.168.20.130:1234",
+        worker_inst=worker_inst,
+        verbose=3,
+        started_at=12.5,
+    )
+
+    assert BaseWorker.verbose == 3
+    assert BaseWorker._insts[5] is worker_inst
+    assert BaseWorker._built is False
+    assert BaseWorker._worker == "192.168.20.130:1234"
+    assert BaseWorker._worker_id == 5
+    assert BaseWorker._t0 == 12.5
+
+
 def test_baseworker_run_cython_mode_adds_paths_and_executes_plan(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "demo_worker"
     cy_dist = wenv_abs / "dist"
