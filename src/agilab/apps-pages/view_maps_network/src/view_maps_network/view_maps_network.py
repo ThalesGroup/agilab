@@ -3937,7 +3937,7 @@ def page():
         env.share_root_path(),
     ]
     sat_cloud_default = _get_first_nonempty_setting(
-        [vm_settings, page_vm_settings],
+        [page_vm_settings, vm_settings],
         "cloud_heatmap_sat_path",
         "cloudmap_sat_path",
     )
@@ -3946,7 +3946,7 @@ def page():
         sat_candidates = _candidate_cloudmap_paths(cloudmap_candidate_bases, ("CloudMapSat.npz",))
         sat_cloud_default = str(sat_candidates[0]) if sat_candidates else DEFAULT_CLOUDMAP_SAT
     ivdl_cloud_default = _get_first_nonempty_setting(
-        [vm_settings, page_vm_settings],
+        [page_vm_settings, vm_settings],
         "cloud_heatmap_ivdl_path",
         "cloudmap_ivdl_path",
     )
