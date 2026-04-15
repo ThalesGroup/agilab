@@ -256,6 +256,67 @@ def test_bootstrap_capacity_predictor_sets_paths_and_logs_missing_model(tmp_path
     ]
 
 
+def test_initialize_runtime_state_sets_common_runtime_fields():
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(manager_path=Path("/tmp/manager"), target="demo", verbose=1)
+    calls = {"info": []}
+    log = SimpleNamespace(info=lambda message, target, verbose: calls["info"].append((message, target, verbose)))
+
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers={"127.0.0.1": 1},
+        verbose=2,
+        rapids_enabled=True,
+        args={"secret": 1},
+        workers_data_path="/tmp/data",
+        args_transform_fn=lambda args: {"public": args["secret"]},
+        log=log,
+        log_message="runtime for %s v%s",
+    )
+
+    assert agi_cls.env is env
+    assert agi_cls.target_path == env.manager_path
+    assert agi_cls._target == "demo"
+    assert agi_cls._rapids_enabled is True
+    assert agi_cls._args == {"public": 1}
+    assert agi_cls.verbose == 2
+    assert agi_cls._workers == {"127.0.0.1": 1}
+    assert agi_cls._workers_data_path == "/tmp/data"
+    assert agi_cls._run_time == {}
+    assert calls["info"] == [("runtime for %s v%s", "demo", 1)]
+
+
+def test_configure_runtime_mode_supports_default_dask_mode():
+    agi_cls = SimpleNamespace(_RUN_MASK=0b001111, RAPIDS_MODE=16, DASK_MODE=4)
+    env = SimpleNamespace(mode2int=lambda value: {"d": 4}[value])
+
+    mode = runtime_misc_support.configure_runtime_mode(
+        agi_cls,
+        env,
+        None,
+        default_mode=agi_cls.DASK_MODE,
+        require_dask=True,
+    )
+
+    assert mode == 4
+    assert agi_cls._mode == 4
+    assert agi_cls._run_types[0] == "run --no-sync"
+
+
+def test_configure_runtime_mode_rejects_invalid_type_with_custom_message():
+    agi_cls = SimpleNamespace(_RUN_MASK=0b001111, RAPIDS_MODE=16, DASK_MODE=4)
+    env = SimpleNamespace(mode2int=lambda value: value)
+
+    with pytest.raises(ValueError, match="parameter <mode> must be an int, a list of int or a string"):
+        runtime_misc_support.configure_runtime_mode(
+            agi_cls,
+            env,
+            ["d"],
+            invalid_type_message="parameter <mode> must be an int, a list of int or a string",
+        )
+
+
 def test_resolve_install_worker_group_supports_sb3_alias_without_import():
     assert (
         runtime_misc_support.resolve_install_worker_group(
