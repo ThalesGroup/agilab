@@ -241,6 +241,46 @@ def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(tmp_pat
     assert checked_uris == {"sqlite:///mlflow.db"}
 
 
+def test_resolve_mlflow_schema_upgrade_uri_covers_skip_and_success_cases(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    db_path.write_text("db", encoding="utf-8")
+    has_table_calls: list[Path] = []
+
+    assert mlflow_store._resolve_mlflow_schema_upgrade_uri(
+        tmp_path / "missing.db",
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        has_alembic_version_table_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("alembic probe should not run for a missing database")
+        ),
+    ) is None
+
+    assert mlflow_store._resolve_mlflow_schema_upgrade_uri(
+        db_path,
+        checked_uris={"sqlite:///mlflow.db"},
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        has_alembic_version_table_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("alembic probe should not run for an already checked database")
+        ),
+    ) is None
+
+    assert mlflow_store._resolve_mlflow_schema_upgrade_uri(
+        db_path,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        has_alembic_version_table_fn=lambda path, **_kwargs: has_table_calls.append(Path(path)) or False,
+    ) is None
+
+    assert mlflow_store._resolve_mlflow_schema_upgrade_uri(
+        db_path,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        has_alembic_version_table_fn=lambda path, **_kwargs: has_table_calls.append(Path(path)) or True,
+    ) == "sqlite:///mlflow.db"
+
+    assert has_table_calls == [db_path, db_path]
+
+
 def test_handle_mlflow_schema_upgrade_result_covers_success_reset_and_failure(tmp_path: Path):
     db_path = tmp_path / "mlflow.db"
     reset_calls: list[Path] = []

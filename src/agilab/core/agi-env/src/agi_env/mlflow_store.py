@@ -183,17 +183,14 @@ def ensure_mlflow_sqlite_schema_current(
     run_cmd=subprocess.run,
     sys_executable: str = sys.executable,
 ) -> None:
-    if not db_path.exists():
-        return
-
-    db_uri = sqlite_uri_for_path_fn(db_path)
-    if db_uri in checked_uris:
-        return
-
-    if not _mlflow_sqlite_has_alembic_version_table(
+    db_uri = _resolve_mlflow_schema_upgrade_uri(
         db_path,
+        checked_uris=checked_uris,
+        sqlite_uri_for_path_fn=sqlite_uri_for_path_fn,
+        has_alembic_version_table_fn=_mlflow_sqlite_has_alembic_version_table,
         connect_fn=connect_fn,
-    ):
+    )
+    if db_uri is None:
         return
 
     result = run_cmd(
@@ -209,6 +206,30 @@ def ensure_mlflow_sqlite_schema_current(
         reset_backend_fn=reset_backend_fn,
     ):
         checked_uris.add(db_uri)
+
+
+def _resolve_mlflow_schema_upgrade_uri(
+    db_path: Path,
+    *,
+    checked_uris: set[str],
+    sqlite_uri_for_path_fn,
+    has_alembic_version_table_fn,
+    connect_fn=sqlite3.connect,
+) -> str | None:
+    if not db_path.exists():
+        return None
+
+    db_uri = sqlite_uri_for_path_fn(db_path)
+    if db_uri in checked_uris:
+        return None
+
+    if not has_alembic_version_table_fn(
+        db_path,
+        connect_fn=connect_fn,
+    ):
+        return None
+
+    return db_uri
 
 
 def _mlflow_sqlite_has_alembic_version_table(
