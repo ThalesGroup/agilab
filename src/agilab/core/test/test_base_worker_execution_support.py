@@ -211,6 +211,62 @@ def test_register_initialized_worker_updates_base_worker_state():
     assert BaseWorker._t0 == 12.5
 
 
+def test_log_worker_startup_context_reports_prefix_and_worker_origin():
+    logged: list[str] = []
+    logger = SimpleNamespace(
+        info=lambda message, *args: logged.append(str(message % args if args else message))
+    )
+
+    execution_support._log_worker_startup_context(
+        worker_id=3,
+        worker="local-worker",
+        file_path="/tmp/worker.py",
+        logger_obj=logger,
+        sys_module=SimpleNamespace(prefix="/tmp/venv"),
+    )
+
+    assert logged == [
+        "venv: /tmp/venv",
+        "worker #3: local-worker from: /tmp/worker.py",
+    ]
+
+
+def test_resolve_initialized_worker_env_reuses_or_builds_env():
+    ensured_envs: list[object] = []
+    existing_env = SimpleNamespace(name="existing")
+
+    resolved_existing = execution_support._resolve_initialized_worker_env(
+        env=existing_env,
+        app="demo_project",
+        verbose=2,
+        base_worker_cls=BaseWorker,
+        agi_env_factory=lambda **_kwargs: pytest.fail("unexpected env factory"),
+        ensure_managed_pc_share_dir_fn=lambda env: ensured_envs.append(env),
+    )
+
+    assert resolved_existing is existing_env
+    assert BaseWorker.env is existing_env
+    assert ensured_envs == [existing_env]
+
+    created_env = SimpleNamespace(name="created")
+    factory_calls: list[dict[str, object]] = []
+    ensured_envs.clear()
+
+    resolved_created = execution_support._resolve_initialized_worker_env(
+        env=None,
+        app="demo_project",
+        verbose=2,
+        base_worker_cls=BaseWorker,
+        agi_env_factory=lambda **kwargs: factory_calls.append(kwargs) or created_env,
+        ensure_managed_pc_share_dir_fn=lambda env: ensured_envs.append(env),
+    )
+
+    assert resolved_created is created_env
+    assert BaseWorker.env is created_env
+    assert factory_calls == [{"app": "demo_project", "verbose": 2}]
+    assert ensured_envs == [created_env]
+
+
 def test_baseworker_run_cython_mode_adds_paths_and_executes_plan(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "demo_worker"
     cy_dist = wenv_abs / "dist"

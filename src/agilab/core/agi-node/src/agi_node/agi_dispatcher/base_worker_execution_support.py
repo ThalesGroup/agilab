@@ -146,6 +146,34 @@ async def _build_distribution_plan(
         raise RuntimeError("Failed to build distribution plan") from err
 
 
+def _log_worker_startup_context(
+    *,
+    worker_id: int,
+    worker: str,
+    file_path: str,
+    logger_obj: Any,
+    sys_module: Any,
+    path_cls: type[Path] = Path,
+) -> None:
+    logger_obj.info("venv: %s", sys_module.prefix)
+    logger_obj.info("worker #%s: %s from: %s", worker_id, worker, path_cls(file_path))
+
+
+def _resolve_initialized_worker_env(
+    *,
+    env: Any,
+    app: str | None,
+    verbose: int,
+    base_worker_cls: Any,
+    agi_env_factory: Callable[..., Any],
+    ensure_managed_pc_share_dir_fn: Callable[[Any], None],
+) -> Any:
+    resolved_env = env if env else agi_env_factory(app=app, verbose=verbose)
+    base_worker_cls.env = resolved_env
+    ensure_managed_pc_share_dir_fn(base_worker_cls.env)
+    return resolved_env
+
+
 def initialize_worker(
     *,
     env: Any,
@@ -169,14 +197,22 @@ def initialize_worker(
     path_cls: type[Path] = Path,
 ) -> None:
     try:
-        logger_obj.info("venv: %s", sys_module.prefix)
-        logger_obj.info("worker #%s: %s from: %s", worker_id, worker, path_cls(file_path))
-
-        if env:
-            base_worker_cls.env = env
-        else:
-            base_worker_cls.env = agi_env_factory(app=app, verbose=verbose)
-        ensure_managed_pc_share_dir_fn(base_worker_cls.env)
+        _log_worker_startup_context(
+            worker_id=worker_id,
+            worker=worker,
+            file_path=file_path,
+            logger_obj=logger_obj,
+            sys_module=sys_module,
+            path_cls=path_cls,
+        )
+        _resolve_initialized_worker_env(
+            env=env,
+            app=app,
+            verbose=verbose,
+            base_worker_cls=base_worker_cls,
+            agi_env_factory=agi_env_factory,
+            ensure_managed_pc_share_dir_fn=ensure_managed_pc_share_dir_fn,
+        )
 
         worker_inst = _configure_initialized_worker(
             mode=mode,
