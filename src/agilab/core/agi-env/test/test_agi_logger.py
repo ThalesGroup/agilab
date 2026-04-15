@@ -10,6 +10,7 @@ from agi_env.agi_logger import (
     ClassNameFilter,
     LogFormatter,
     MaxLevelFilter,
+    _is_same_log_record_file,
     _record_filename,
     _render_log_message,
     _resolve_record_classname,
@@ -148,6 +149,32 @@ def test_resolve_record_classname_handles_frame_lookup_exception(monkeypatch):
     monkeypatch.setattr(agi_logger_module.sys, "_getframe", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
 
     assert _resolve_record_classname(record) == "<no-class>"
+
+
+def test_is_same_log_record_file_matches_exact_path_without_samefile_probe():
+    assert _is_same_log_record_file(
+        "/tmp/a.py",
+        "/tmp/a.py",
+        samefile_fn=lambda *_: (_ for _ in ()).throw(AssertionError("samefile should not run")),
+    ) is True
+
+
+def test_is_same_log_record_file_falls_back_to_basename_when_samefile_fails():
+    assert _is_same_log_record_file(
+        "/tmp/source/build.py",
+        "/var/cache/build.py",
+        samefile_fn=lambda *_: (_ for _ in ()).throw(OSError("samefile failed")),
+    ) is True
+
+
+def test_is_same_log_record_file_propagates_unexpected_basename_bug():
+    with pytest.raises(RuntimeError, match="basename bug"):
+        _is_same_log_record_file(
+            "/tmp/source/a.py",
+            "/var/cache/b.py",
+            samefile_fn=lambda *_: False,
+            basename_fn=lambda *_: (_ for _ in ()).throw(RuntimeError("basename bug")),
+        )
 
 
 def test_max_level_filter_blocks_higher_levels():
