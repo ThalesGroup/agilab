@@ -10,6 +10,7 @@ from agi_env.agi_logger import (
     ClassNameFilter,
     LogFormatter,
     MaxLevelFilter,
+    _configure_root_handlers,
     _build_stream_handler,
     _is_same_log_record_file,
     _record_filename,
@@ -475,6 +476,29 @@ def test_build_stream_handler_omits_max_level_filter_when_not_requested():
 
     assert handler.level == logging.ERROR
     assert not any(isinstance(filt, MaxLevelFilter) for filt in handler.filters)
+
+
+def test_configure_root_handlers_replaces_existing_handlers_and_installs_stream_handlers():
+    root = logging.Logger("demo-root")
+    old_handler = logging.StreamHandler(io.StringIO())
+    root.addHandler(old_handler)
+
+    stdout_stream = io.StringIO()
+    stderr_stream = io.StringIO()
+    stdout_handler, stderr_handler = _configure_root_handlers(
+        root,
+        verbose=1,
+        stdout_stream=stdout_stream,
+        stderr_stream=stderr_stream,
+    )
+
+    assert root.level == logging.INFO
+    assert root.handlers == [stdout_handler, stderr_handler]
+    assert old_handler not in root.handlers
+    assert stdout_handler.stream is stdout_stream
+    assert stderr_handler.stream is stderr_stream
+    assert any(isinstance(filt, MaxLevelFilter) for filt in stdout_handler.filters)
+    assert not any(isinstance(filt, MaxLevelFilter) for filt in stderr_handler.filters)
 
 
 def test_agi_logger_configure_and_set_level():
