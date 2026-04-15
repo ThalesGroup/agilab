@@ -115,11 +115,6 @@ def build_subprocess_env(
     process_env.pop("PYTHONPATH", None)
     process_env.pop("PYTHONHOME", None)
     if extra_paths:
-        current = process_env.get("PYTHONPATH", "")
-        if current:
-            for part in current.split(os.pathsep):
-                if part and part not in extra_paths:
-                    extra_paths.append(part)
         process_env["PYTHONPATH"] = os.pathsep.join(extra_paths)
     return process_env
 
