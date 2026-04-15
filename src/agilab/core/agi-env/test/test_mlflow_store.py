@@ -1005,6 +1005,21 @@ def test_create_default_experiment_if_missing_skips_create_when_lookup_finds_exp
     assert calls == [("get_experiment_by_name", "Default")]
 
 
+def test_lookup_default_mlflow_experiment_uses_object_lookup_contract():
+    calls: list[str] = []
+
+    class _FakeMlflow:
+        def get_experiment_by_name(self, name):
+            calls.append(name)
+            return object()
+
+    assert mlflow_store._lookup_default_mlflow_experiment(
+        _FakeMlflow(),
+        default_experiment_name="Default",
+    ) is not None
+    assert calls == ["Default"]
+
+
 def test_create_default_experiment_if_missing_propagates_unexpected_create_bug():
     class _FakeMlflow:
         def get_experiment_by_name(self, _name):

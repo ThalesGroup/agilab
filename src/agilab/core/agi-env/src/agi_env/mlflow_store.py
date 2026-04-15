@@ -488,6 +488,17 @@ def _retry_default_mlflow_activation_after_schema_reset(
     return True
 
 
+def _lookup_default_mlflow_experiment(
+    mlflow,
+    *,
+    default_experiment_name: str,
+):
+    return _lookup_experiment_by_name(
+        default_experiment_name,
+        get_experiment_fn=getattr(mlflow, "get_experiment_by_name", None),
+    )
+
+
 def _create_default_experiment_if_missing(
     mlflow,
     *,
@@ -495,9 +506,9 @@ def _create_default_experiment_if_missing(
     artifact_uri: str,
 ) -> None:
     get_experiment = getattr(mlflow, "get_experiment_by_name", None)
-    if _lookup_experiment_by_name(
-        default_experiment_name,
-        get_experiment_fn=get_experiment,
+    if _lookup_default_mlflow_experiment(
+        mlflow,
+        default_experiment_name=default_experiment_name,
     ) is not None:
         return
 
