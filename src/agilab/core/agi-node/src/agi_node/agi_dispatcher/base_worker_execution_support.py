@@ -346,6 +346,47 @@ def _log_build_worker_context(
         logger_obj.info("%s", entry)
 
 
+def _resolve_worker_home_dir(
+    *,
+    getuser_fn: Callable[[], str],
+    path_cls: type[Path] = Path,
+) -> Path:
+    prefix = "~/MyApp/" if str(getuser_fn()).startswith("T0") else "~/"
+    return path_cls(prefix).expanduser().absolute()
+
+
+def _configure_build_worker_state(
+    *,
+    target_worker: str,
+    dask_home: str,
+    worker: str,
+    base_worker_cls: Any,
+    getuser_fn: Callable[[], str],
+    path_cls: type[Path] = Path,
+) -> Path:
+    home_dir = _resolve_worker_home_dir(
+        getuser_fn=getuser_fn,
+        path_cls=path_cls,
+    )
+    base_worker_cls._home_dir = home_dir
+    base_worker_cls._logs = home_dir / f"{target_worker}_trace.txt"
+    base_worker_cls._dask_home = dask_home
+    base_worker_cls._worker = worker
+    return home_dir
+
+
+def _resolve_worker_egg_install_paths(
+    *,
+    home_dir: Path,
+    target_worker: str,
+    dask_home: str,
+    path_cls: type[Path] = Path,
+) -> tuple[str, Path]:
+    egg_src = dask_home + "/some_egg_file"
+    extract_path = path_cls(home_dir) / "wenv" / target_worker
+    return egg_src, extract_path
+
+
 def _install_worker_egg(
     *,
     egg_src: str,
@@ -389,11 +430,14 @@ def build_worker_artifacts(
     os_module: Any = os,
     shutil_module: Any = shutil,
 ) -> None:
-    prefix = "~/MyApp/" if str(getuser_fn()).startswith("T0") else "~/"
-    base_worker_cls._home_dir = path_cls(prefix).expanduser().absolute()
-    base_worker_cls._logs = base_worker_cls._home_dir / f"{target_worker}_trace.txt"
-    base_worker_cls._dask_home = dask_home
-    base_worker_cls._worker = worker
+    home_dir = _configure_build_worker_state(
+        target_worker=target_worker,
+        dask_home=dask_home,
+        worker=worker,
+        base_worker_cls=base_worker_cls,
+        getuser_fn=getuser_fn,
+        path_cls=path_cls,
+    )
 
     logger_obj.info(
         "worker #%s: %s from: %s",
@@ -415,8 +459,12 @@ def build_worker_artifacts(
             path_cls=path_cls,
         )
 
-        egg_src = dask_home + "/some_egg_file"
-        extract_path = base_worker_cls._home_dir / "wenv" / target_worker
+        egg_src, extract_path = _resolve_worker_egg_install_paths(
+            home_dir=home_dir,
+            target_worker=target_worker,
+            dask_home=dask_home,
+            path_cls=path_cls,
+        )
 
         if not mode & 2:
             _install_worker_egg(

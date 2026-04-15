@@ -640,6 +640,45 @@ def test_log_build_worker_context_only_logs_for_verbose_builds(tmp_path):
     assert any("entry.txt" in message for message in logged)
 
 
+def test_resolve_worker_home_dir_covers_managed_and_default_prefixes():
+    managed_home = execution_support._resolve_worker_home_dir(
+        getuser_fn=lambda: "T012345",
+    )
+    default_home = execution_support._resolve_worker_home_dir(
+        getuser_fn=lambda: "demo",
+    )
+
+    assert managed_home == Path("~/MyApp/").expanduser().absolute()
+    assert default_home == Path("~/").expanduser().absolute()
+
+
+def test_configure_build_worker_state_updates_base_worker_class_attrs():
+    home_dir = execution_support._configure_build_worker_state(
+        target_worker="demo_worker",
+        dask_home="/tmp/dask-home",
+        worker="local-worker",
+        base_worker_cls=BaseWorker,
+        getuser_fn=lambda: "demo",
+    )
+
+    assert home_dir == Path("~/").expanduser().absolute()
+    assert BaseWorker._home_dir == home_dir
+    assert BaseWorker._logs == home_dir / "demo_worker_trace.txt"
+    assert BaseWorker._dask_home == "/tmp/dask-home"
+    assert BaseWorker._worker == "local-worker"
+
+
+def test_resolve_worker_egg_install_paths_uses_home_wenv_target():
+    egg_src, extract_path = execution_support._resolve_worker_egg_install_paths(
+        home_dir=Path("/tmp/home"),
+        target_worker="demo_worker",
+        dask_home="/tmp/dask-home",
+    )
+
+    assert egg_src == "/tmp/dask-home/some_egg_file"
+    assert extract_path == Path("/tmp/home") / "wenv" / "demo_worker"
+
+
 def test_install_worker_egg_deduplicates_sys_path_and_returns_destination(tmp_path):
     copied: list[tuple[str, Path]] = []
     logged: list[str] = []
