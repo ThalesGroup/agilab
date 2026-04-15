@@ -212,6 +212,107 @@ def _is_optional_dataset_seeding_error(exc: Exception) -> bool:
     )
 
 
+def _seed_optional_dataset(
+    *,
+    env: AgiEnv,
+    dataset_archive: Path,
+    dest_arg: str | Path,
+) -> int:
+    dataset_root = Path(dest_arg) / "dataset"
+    sat_folder = dataset_root / "sat"
+
+    # Prefer reusing trajectories produced by sat_trajectory to avoid duplicating data.
+    share_root = env.share_root_path()
+    sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
+    # Prefer the packaged sat_trajectory dataset for deterministic installs/tests.
+    # The generated `dataframe/Trajectory` output can be very large (e.g. long
+    # propagation horizons) and may significantly slow down downstream consumers.
+    sat_trajectory_candidates = [
+        sat_trajectory_root / "dataset" / "Trajectory",
+        sat_trajectory_root / "dataframe" / "Trajectory",
+    ]
+    preferred_candidate = next(
+        (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
+        None,
+    )
+    preserve_existing = os.environ.get("AGILAB_PRESERVE_LINK_SIM_SAT", "0") not in {
+        "",
+        "0",
+        "false",
+        "False",
+    }
+
+    if preferred_candidate is not None:
+        if sat_folder.is_symlink():
+            try:
+                current_target = sat_folder.resolve(strict=False)
+                preferred_target = preferred_candidate.resolve(strict=False)
+                if current_target == preferred_target:
+                    return 0
+                # If the existing link points to sat_trajectory output, relink it to the
+                # preferred deterministic dataset (avoids accidentally binding to large
+                # generated trajectories).
+                if sat_trajectory_root in current_target.parents and sat_trajectory_root in preferred_target.parents:
+                    if _try_link_dir(sat_folder, preferred_candidate):
+                        print(f"[post_install] relinked {sat_folder} -> {preferred_candidate}")
+                    return 0
+            except OSError:
+                pass
+
+        if _has_samples(sat_folder):
+            if preserve_existing:
+                return 0
+            if _dir_is_duplicate_of(sat_folder, preferred_candidate):
+                try:
+                    shutil.rmtree(sat_folder, ignore_errors=False)
+                except OSError:
+                    return 0
+                if _try_link_dir(sat_folder, preferred_candidate):
+                    print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
+            if _folder_looks_large(sat_folder):
+                try:
+                    shutil.rmtree(sat_folder, ignore_errors=False)
+                except OSError:
+                    return 0
+                if _try_link_dir(sat_folder, preferred_candidate):
+                    print(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
+                return 0
+            return 0
+
+        if _try_link_dir(sat_folder, preferred_candidate):
+            print(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
+            return 0
+    elif _has_samples(sat_folder):
+        return 0
+
+    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
+    trajectory_folder = dataset_root / "Trajectory"
+
+    if not _has_samples(trajectory_folder) and trajectory_archive.exists():
+        print(f"[post_install] extracting optional trajectories: {trajectory_archive}")
+        _extract_archive(trajectory_archive, dataset_root)
+
+    if not _has_samples(trajectory_folder):
+        return 0
+
+    if _try_link_dir(sat_folder, trajectory_folder):
+        print(f"[post_install] linked {sat_folder} -> {trajectory_folder}")
+        return 0
+
+    # Last resort: copy (may duplicate data, but keeps the app runnable).
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for src in _iter_data_files(trajectory_folder):
+        dest = sat_folder / src.name
+        if dest.exists():
+            continue
+        shutil.copy2(src, dest)
+        copied += 1
+    if copied:
+        print(f"[post_install] copied {copied} trajectory file(s) into {sat_folder}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
@@ -247,103 +348,19 @@ def main(argv: list[str] | None = None) -> int:
     # the base dataset smaller. If present, extract it into the dataset folder and
     # mirror files into `dataset/sat` when that folder is empty.
     try:
-        dataset_root = Path(dest_arg) / "dataset"
-        sat_folder = dataset_root / "sat"
-
-        # Prefer reusing trajectories produced by sat_trajectory to avoid duplicating data.
-        share_root = env.share_root_path()
-        sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
-        # Prefer the packaged sat_trajectory dataset for deterministic installs/tests.
-        # The generated `dataframe/Trajectory` output can be very large (e.g. long
-        # propagation horizons) and may significantly slow down downstream consumers.
-        sat_trajectory_candidates = [
-            sat_trajectory_root / "dataset" / "Trajectory",
-            sat_trajectory_root / "dataframe" / "Trajectory",
-        ]
-        preferred_candidate = next(
-            (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
-            None,
+        return _seed_optional_dataset(
+            env=env,
+            dataset_archive=dataset_archive,
+            dest_arg=dest_arg,
         )
-        preserve_existing = os.environ.get("AGILAB_PRESERVE_LINK_SIM_SAT", "0") not in {
-            "",
-            "0",
-            "false",
-            "False",
-        }
-
-        if preferred_candidate is not None:
-            if sat_folder.is_symlink():
-                try:
-                    current_target = sat_folder.resolve(strict=False)
-                    preferred_target = preferred_candidate.resolve(strict=False)
-                    if current_target == preferred_target:
-                        return 0
-                    # If the existing link points to sat_trajectory output, relink it to the
-                    # preferred deterministic dataset (avoids accidentally binding to large
-                    # generated trajectories).
-                    if sat_trajectory_root in current_target.parents and sat_trajectory_root in preferred_target.parents:
-                        if _try_link_dir(sat_folder, preferred_candidate):
-                            print(f"[post_install] relinked {sat_folder} -> {preferred_candidate}")
-                        return 0
-                except OSError:
-                    pass
-
-            if _has_samples(sat_folder):
-                if preserve_existing:
-                    return 0
-                if _dir_is_duplicate_of(sat_folder, preferred_candidate):
-                    try:
-                        shutil.rmtree(sat_folder, ignore_errors=False)
-                    except OSError:
-                        return 0
-                    if _try_link_dir(sat_folder, preferred_candidate):
-                        print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
-                if _folder_looks_large(sat_folder):
-                    try:
-                        shutil.rmtree(sat_folder, ignore_errors=False)
-                    except OSError:
-                        return 0
-                    if _try_link_dir(sat_folder, preferred_candidate):
-                        print(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
-                    return 0
-                return 0
-
-            if _try_link_dir(sat_folder, preferred_candidate):
-                print(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
-                return 0
-        elif _has_samples(sat_folder):
-            return 0
-
-        trajectory_archive = dataset_archive.parent / "Trajectory.7z"
-        trajectory_folder = dataset_root / "Trajectory"
-
-        if not _has_samples(trajectory_folder) and trajectory_archive.exists():
-            print(f"[post_install] extracting optional trajectories: {trajectory_archive}")
-            _extract_archive(trajectory_archive, dataset_root)
-
-        if not _has_samples(trajectory_folder):
-            return 0
-
-        if _try_link_dir(sat_folder, trajectory_folder):
-            print(f"[post_install] linked {sat_folder} -> {trajectory_folder}")
-            return 0
-
-        # Last resort: copy (may duplicate data, but keeps the app runnable).
-        sat_folder.mkdir(parents=True, exist_ok=True)
-        copied = 0
-        for src in _iter_data_files(trajectory_folder):
-            dest = sat_folder / src.name
-            if dest.exists():
-                continue
-            shutil.copy2(src, dest)
-            copied += 1
-        if copied:
-            print(f"[post_install] copied {copied} trajectory file(s) into {sat_folder}")
-    except Exception as exc:
+    except (OSError, shutil.Error, py7zr.Bad7zFile) as exc:
+        print(f"[post_install] optional dataset seeding skipped: {exc}")
+        return 0
+    except RuntimeError as exc:
         if not _is_optional_dataset_seeding_error(exc):
             raise
         print(f"[post_install] optional dataset seeding skipped: {exc}")
-    return 0
+        return 0
 
 
 if __name__ == "__main__":
