@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -34,7 +35,7 @@ def test_normalize_path_and_windows_drive_fix(monkeypatch):
 
 def test_fix_windows_drive_handles_regex_failure(monkeypatch):
     monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
-    fake_re = SimpleNamespace(match=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    fake_re = SimpleNamespace(match=lambda *_args, **_kwargs: (_ for _ in ()).throw(re.error("boom")))
     monkeypatch.setattr(process_support, "re", fake_re, raising=False)
 
     assert process_support.fix_windows_drive(r"C:Users\\agi") == r"C:Users\\agi"
@@ -47,13 +48,25 @@ def test_normalize_path_windows_resolve_fallback(monkeypatch):
 
     def _patched_resolve(self, *args, **kwargs):
         if self == Path("demo"):
-            raise RuntimeError("boom")
+            raise OSError("boom")
         return original_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
     assert process_support.normalize_path("demo").endswith("demo")
     monkeypatch.setattr(process_support.os, "name", original_os_name, raising=False)
     monkeypatch.setattr(Path, "resolve", original_resolve, raising=False)
+
+
+def test_normalize_path_windows_propagates_unexpected_runtime_bug(monkeypatch):
+    monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
+
+    def _patched_resolve(self, *args, **kwargs):
+        raise RuntimeError("resolve bug")
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+
+    with pytest.raises(RuntimeError, match="resolve bug"):
+        process_support.normalize_path("demo")
 
 
 def test_build_subprocess_env_strips_uv_run_recursion_depth(tmp_path: Path):
@@ -166,3 +179,51 @@ def test_inject_uv_preview_flag_and_apply_inline_path_export(monkeypatch):
     assert env["PATH"].startswith(str(Path("~/.local/bin").expanduser()))
     assert "/usr/bin" in env["PATH"]
 
+
+def test_inject_uv_preview_flag_handles_regex_failure(monkeypatch):
+    monkeypatch.setattr(
+        process_support.re,
+        "sub",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(re.error("regex failure")),
+    )
+
+    assert process_support.inject_uv_preview_flag("uv pip install demo") == "uv pip install demo"
+
+
+def test_inject_uv_preview_flag_propagates_unexpected_runtime_bug(monkeypatch):
+    monkeypatch.setattr(
+        process_support.re,
+        "sub",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("regex bug")),
+    )
+
+    with pytest.raises(RuntimeError, match="regex bug"):
+        process_support.inject_uv_preview_flag("uv pip install demo")
+
+
+def test_apply_inline_path_export_handles_operational_failure(monkeypatch):
+    monkeypatch.setattr(
+        process_support.os.path,
+        "expanduser",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("expanduser failed")),
+    )
+
+    env = {"PATH": "/usr/bin"}
+    cmd = 'export PATH="~/.local/bin:$PATH"; uv self update'
+
+    assert process_support.apply_inline_path_export(cmd, env) == cmd
+    assert env["PATH"] == "/usr/bin"
+
+
+def test_apply_inline_path_export_propagates_unexpected_runtime_bug(monkeypatch):
+    monkeypatch.setattr(
+        process_support.os.path,
+        "expanduser",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("expanduser bug")),
+    )
+
+    with pytest.raises(RuntimeError, match="expanduser bug"):
+        process_support.apply_inline_path_export(
+            'export PATH="~/.local/bin:$PATH"; uv self update',
+            {"PATH": "/usr/bin"},
+        )
