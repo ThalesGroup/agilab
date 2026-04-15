@@ -147,6 +147,14 @@ def _configure_root_handlers(
     root.addHandler(stderr_handler)
     return stdout_handler, stderr_handler
 
+
+def _configure_asyncssh_logger(asyncssh_logger: logging.Logger) -> logging.Logger:
+    asyncssh_logger.setLevel(logging.WARNING)
+    asyncssh_logger.propagate = False
+    if not any(isinstance(handler, logging.NullHandler) for handler in asyncssh_logger.handlers):
+        asyncssh_logger.addHandler(logging.NullHandler())
+    return asyncssh_logger
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -209,10 +217,7 @@ class AgiLogger:
             if cls._configured and not force:
                 return logging.getLogger(base_name or cls._base_name)
 
-            alog = logging.getLogger("asyncssh")
-            alog.setLevel(logging.WARNING)  # or logging.ERROR to hide warnings too
-            alog.propagate = False  # don't bubble up to the root handlers
-            alog.addHandler(logging.NullHandler())  # optional: ensures no handler = no outp
+            _configure_asyncssh_logger(logging.getLogger("asyncssh"))
 
             if base_name:
                 cls._base_name = base_name
