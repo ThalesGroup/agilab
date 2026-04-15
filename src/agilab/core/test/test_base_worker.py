@@ -57,12 +57,12 @@ def test_baseworker_helper_edge_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(
         base_worker_mod,
         "normalize_path",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("boom")),
     )
     assert BaseWorker._normalized_path("~/demo") == Path("~/demo").expanduser()
 
     env = SimpleNamespace(
-        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("no share")),
         agi_share_path_abs=None,
         agi_share_path=Path("clustershare"),
         home_abs=tmp_path,
@@ -191,7 +191,7 @@ def test_baseworker_share_root_path_none_absolute_and_home_fallback(tmp_path):
     assert BaseWorker._share_root_path(None) is None
 
     env_absolute = SimpleNamespace(
-        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("no share")),
         agi_share_path_abs=tmp_path / "absolute-share",
         agi_share_path=Path("clustershare"),
         home_abs=tmp_path / "home",
@@ -199,7 +199,7 @@ def test_baseworker_share_root_path_none_absolute_and_home_fallback(tmp_path):
     assert BaseWorker._share_root_path(env_absolute) == tmp_path / "absolute-share"
 
     env_home = SimpleNamespace(
-        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("no share")),
         agi_share_path_abs=None,
         agi_share_path=None,
         home_abs=tmp_path / "home",
@@ -210,7 +210,7 @@ def test_baseworker_share_root_path_none_absolute_and_home_fallback(tmp_path):
 def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
-            raise RuntimeError("boom")
+            raise OSError("boom")
 
     env = SimpleNamespace(
         AGILAB_SHARE_HINT=Path("clustershare/link_sim"),
@@ -237,7 +237,7 @@ def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tm
     monkeypatch.setattr(
         BaseWorker,
         "_normalized_path",
-        classmethod(lambda cls, value: (_ for _ in ()).throw(RuntimeError("normalize failed"))),
+        classmethod(lambda cls, value: (_ for _ in ()).throw(OSError("normalize failed"))),
     )
     fallback = BaseWorker._resolve_data_dir(env, Path("dataset") / "inputs")
     assert fallback == (tmp_path / "share" / "dataset" / "inputs").expanduser().resolve(strict=False)
@@ -522,6 +522,46 @@ def test_baseworker_can_create_path_returns_false_on_permission_error(monkeypatc
         lambda self, *args, **kwargs: (_ for _ in ()).throw(PermissionError("denied")),
     )
     assert BaseWorker._can_create_path(tmp_path / "output" / "data.csv") is False
+
+
+def test_baseworker_path_support_runtime_bugs_propagate(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        base_worker_mod,
+        "normalize_path",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("normalize bug")),
+    )
+    with pytest.raises(RuntimeError, match="normalize bug"):
+        BaseWorker._normalized_path("~/demo")
+
+    env = SimpleNamespace(
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("share bug")),
+        agi_share_path_abs=None,
+        agi_share_path=Path("clustershare"),
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+    with pytest.raises(RuntimeError, match="share bug"):
+        BaseWorker._share_root_path(env)
+
+    class _BrokenRuntimePath:
+        def __fspath__(self):
+            raise RuntimeError("alias bug")
+
+    env_alias = SimpleNamespace(
+        AGILAB_SHARE_HINT=Path("clustershare/link_sim"),
+        AGILAB_SHARE_REL=_BrokenRuntimePath(),
+        agi_share_path=Path("clustershare"),
+    )
+    with pytest.raises(RuntimeError, match="alias bug"):
+        BaseWorker._collect_share_aliases(env_alias, tmp_path / "share")
+
+    monkeypatch.setattr(
+        Path,
+        "unlink",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(RuntimeError("cleanup bug")),
+    )
+    with pytest.raises(RuntimeError, match="cleanup bug"):
+        BaseWorker._can_create_path(tmp_path / "output" / "data.csv")
 
 
 def test_baseworker_expand_chunk_and_missing_input_folder(tmp_path):
