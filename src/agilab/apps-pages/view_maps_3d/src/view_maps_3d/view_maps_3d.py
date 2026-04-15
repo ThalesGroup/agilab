@@ -456,6 +456,8 @@ def page():
     except Exception:
         persisted = {}
     view_settings = persisted.get("view_maps_3d", {}) if isinstance(persisted, dict) else {}
+    if not isinstance(view_settings, dict):
+        view_settings = {}
 
     # Lazy imports and efficient session state initialization
     if "datadir" not in st.session_state:
