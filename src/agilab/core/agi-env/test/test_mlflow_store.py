@@ -544,6 +544,74 @@ def test_mlflow_schema_reset_error_helper_matches_default_phrase_and_markers():
     ) is False
 
 
+def test_create_default_experiment_if_missing_skips_create_when_lookup_finds_experiment():
+    calls: list[tuple[str, object]] = []
+
+    class _FakeMlflow:
+        def get_experiment_by_name(self, name):
+            calls.append(("get_experiment_by_name", name))
+            return object()
+
+        def create_experiment(self, name, artifact_location=None):
+            calls.append(("create_experiment", (name, artifact_location)))
+
+    mlflow_store._create_default_experiment_if_missing(
+        _FakeMlflow(),
+        default_experiment_name="Default",
+        artifact_uri="file:///artifacts",
+    )
+
+    assert calls == [("get_experiment_by_name", "Default")]
+
+
+def test_create_default_experiment_if_missing_propagates_unexpected_create_bug():
+    class _FakeMlflow:
+        def get_experiment_by_name(self, _name):
+            return None
+
+        def create_experiment(self, _name, artifact_location=None):
+            raise RuntimeError("unexpected create bug")
+
+    with pytest.raises(RuntimeError, match="unexpected create bug"):
+        mlflow_store._create_default_experiment_if_missing(
+            _FakeMlflow(),
+            default_experiment_name="Default",
+            artifact_uri="file:///artifacts",
+        )
+
+
+def test_activate_default_mlflow_experiment_orders_tracking_create_and_select():
+    calls: list[tuple[str, object]] = []
+
+    class _FakeMlflow:
+        def set_tracking_uri(self, uri):
+            calls.append(("set_tracking_uri", uri))
+
+        def get_experiment_by_name(self, name):
+            calls.append(("get_experiment_by_name", name))
+            return None
+
+        def create_experiment(self, name, artifact_location=None):
+            calls.append(("create_experiment", (name, artifact_location)))
+
+        def set_experiment(self, name):
+            calls.append(("set_experiment", name))
+
+    mlflow_store._activate_default_mlflow_experiment(
+        _FakeMlflow(),
+        backend_uri="sqlite:///mlflow.db",
+        default_experiment_name="Default",
+        artifact_uri="file:///artifacts",
+    )
+
+    assert calls == [
+        ("set_tracking_uri", "sqlite:///mlflow.db"),
+        ("get_experiment_by_name", "Default"),
+        ("create_experiment", ("Default", "file:///artifacts")),
+        ("set_experiment", "Default"),
+    ]
+
+
 def test_ensure_default_mlflow_experiment_creates_or_reuses_default_experiment(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
