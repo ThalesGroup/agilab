@@ -582,6 +582,55 @@ def _detach_worker_log_capture(
     handler.close()
 
 
+def _execute_initialized_worker_plan(
+    *,
+    workers_plan: Any,
+    workers_plan_metadata: Any,
+    worker_id: int,
+    worker_name: str | None,
+    insts: dict[int, Any],
+    expand_chunk_fn: Callable[[Any, int | None], tuple[Any, Any, Any]],
+    logger_obj: Any,
+    file_path: str,
+    path_cls: type[Path] = Path,
+) -> int:
+    expanded_plan, plan_chunk_len, plan_total_workers = _expand_worker_payload(
+        workers_plan,
+        worker_id,
+        expand_chunk_fn=expand_chunk_fn,
+    )
+    expanded_meta, meta_chunk_len, _ = _expand_worker_payload(
+        workers_plan_metadata,
+        worker_id,
+        expand_chunk_fn=expand_chunk_fn,
+    )
+
+    plan_entry = _select_worker_batch_entry(expanded_plan, worker_id)
+    metadata_entry = _select_worker_batch_entry(expanded_meta, worker_id)
+    plan_batch_count = _log_worker_plan_progress(
+        worker_id=worker_id,
+        worker_name=worker_name,
+        file_path=file_path,
+        expanded_plan=expanded_plan,
+        plan_total_workers=plan_total_workers,
+        plan_chunk_len=plan_chunk_len,
+        plan_entry=plan_entry,
+        meta_chunk_len=meta_chunk_len,
+        metadata_entry=metadata_entry,
+        logger_obj=logger_obj,
+        path_cls=path_cls,
+    )
+
+    insts[worker_id].works(expanded_plan, expanded_meta)
+
+    logger_obj.info(
+        "worker #%s completed %s plan batches",
+        worker_id,
+        plan_batch_count,
+    )
+    return plan_batch_count
+
+
 def execute_worker_plan(
     *,
     workers_plan: Any,
@@ -606,39 +655,16 @@ def execute_worker_plan(
 
     try:
         if worker_id is not None:
-            expanded_plan, plan_chunk_len, plan_total_workers = _expand_worker_payload(
-                workers_plan,
-                worker_id,
-                expand_chunk_fn=expand_chunk_fn,
-            )
-            expanded_meta, meta_chunk_len, _ = _expand_worker_payload(
-                workers_plan_metadata,
-                worker_id,
-                expand_chunk_fn=expand_chunk_fn,
-            )
-
-            plan_entry = _select_worker_batch_entry(expanded_plan, worker_id)
-            metadata_entry = _select_worker_batch_entry(expanded_meta, worker_id)
-            plan_batch_count = _log_worker_plan_progress(
+            _execute_initialized_worker_plan(
+                workers_plan=workers_plan,
+                workers_plan_metadata=workers_plan_metadata,
                 worker_id=worker_id,
                 worker_name=worker_name,
-                file_path=file_path,
-                expanded_plan=expanded_plan,
-                plan_total_workers=plan_total_workers,
-                plan_chunk_len=plan_chunk_len,
-                plan_entry=plan_entry,
-                meta_chunk_len=meta_chunk_len,
-                metadata_entry=metadata_entry,
+                insts=insts,
+                expand_chunk_fn=expand_chunk_fn,
                 logger_obj=logger_obj,
+                file_path=file_path,
                 path_cls=path_cls,
-            )
-
-            insts[worker_id].works(expanded_plan, expanded_meta)
-
-            logger_obj.info(
-                "worker #%s completed %s plan batches",
-                worker_id,
-                plan_batch_count,
             )
         else:
             logger_obj.error("this worker is not initialized")
