@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
 PAGE_PATH = "src/agilab/apps-pages/view_maps_3d/src/view_maps_3d/view_maps_3d.py"
 MODULE_PATH = Path(PAGE_PATH)
@@ -177,3 +178,82 @@ def test_view_maps_3d_update_datadir_clears_cached_dataset_state(monkeypatch) ->
         assert key not in session_state
     assert session_state["datadir"] == "/tmp/new-datadir"
     assert initialize_calls == ["called"]
+
+
+def test_view_maps_3d_generates_palette_maps_and_basic_state_updates(monkeypatch) -> None:
+    module = _load_view_maps_3d_module()
+
+    randint_values = iter([101, 102, 103, 104, 105, 106])
+    monkeypatch.setattr(module.random, "randint", lambda low, high: next(randint_values))
+    assert module.generate_random_colors(2) == [[101, 102, 103], [104, 105, 106]]
+
+    color_map = module.get_category_color_map(
+        pd.DataFrame({"kind": ["A", "B", "C"]}),
+        "kind",
+        "Plotly",
+    )
+    assert set(color_map) == {"A", "B", "C"}
+    assert all(len(rgb) == 3 for rgb in color_map.values())
+
+    state = _State(input_value="fresh")
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    module.update_var("saved_value", "input_value")
+    module.continious()
+    assert state["saved_value"] == "fresh"
+    assert state["coltype"] == "continious"
+    module.discrete()
+    assert state["coltype"] == "discrete"
+    assert module._vm3d_key("dataset") == "view_maps_3d:dataset"
+
+
+def test_view_maps_3d_moves_data_and_downsamples_deterministically(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+
+    messages: list[str] = []
+    update_calls: list[tuple[str, str]] = []
+    beamdir = tmp_path / "beamdir"
+    beamdir.mkdir()
+    state = _State(beamdir=str(beamdir))
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(session_state=state, sidebar=SimpleNamespace(success=messages.append)),
+    )
+    monkeypatch.setattr(module, "update_beamdir", lambda var_key, widget_key: update_calls.append((var_key, widget_key)))
+
+    module.move_to_data("beam.csv", "a,b\n1,2\n")
+
+    written = (beamdir / "beam.csv").read_text(encoding="utf-8")
+    assert written == "a,b\n1,2\n"
+    assert messages == [f"File moved to {beamdir / 'beam.csv'}"]
+    assert update_calls == [("beamdir", "input_beamdir")]
+
+    df = pd.DataFrame({"value": [10, 20, 30, 40]}, index=[9, 8, 7, 6])
+    downsampled = module.downsample_df_deterministic(df, 2)
+    assert downsampled.to_dict("records") == [{"value": 10}, {"value": 30}]
+    with pytest.raises(ValueError, match="positive integer"):
+        module.downsample_df_deterministic(df, 0)
+
+
+def test_view_maps_3d_lists_multiple_extensions_and_preserves_existing_dataset_choice(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    datadir = tmp_path / "datasets"
+    csv_file = datadir / "b.csv"
+    parquet_file = datadir / "a.parquet"
+    json_file = datadir / "c.json"
+
+    def fake_find_files(base, ext=None):
+        mapping = {
+            ".csv": [csv_file, csv_file],
+            ".parquet": [parquet_file],
+            ".json": [json_file],
+        }
+        return mapping.get(ext, [])
+
+    monkeypatch.setattr(module, "find_files", fake_find_files)
+    assert module._list_dataset_files(datadir, "all") == [parquet_file, csv_file, json_file]
+
+    state = _State(datadir=datadir, dataset_files=[csv_file], csv_files=[csv_file], df_file="already.csv")
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    module.initialize_csv_files()
+    assert state["df_file"] == "already.csv"
