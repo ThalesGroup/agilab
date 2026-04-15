@@ -294,6 +294,7 @@ jobs:
             test/test_view_maps_3d.py \
             test/test_view_maps_network.py \
             test/test_view_maps_network_edge_selection.py \
+            test/test_view_maps_network_semantic_ids.py \
             test/test_view_training_analysis.py \
             test/test_view_uav_queue_analysis.py \
             test/test_view_uav_relay_queue_analysis.py \

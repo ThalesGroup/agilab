@@ -207,6 +207,51 @@ def test_view_maps_network_prefers_existing_absolute_edges_file(monkeypatch, tmp
     assert module.load_edges_file(resolved) == {"optical_link": [("A", "B")]}
 
 
+def test_view_maps_network_extracts_semantic_node_id_from_label(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    assert module._semantic_node_id_from_text("uswc_forward_02-S002") == "2002"
+    assert module._semantic_node_id_from_text("SES-10") == "10"
+    assert module._semantic_node_id_from_text("NSS-11") == "11"
+
+
+def test_view_maps_network_prefers_semantic_ids_over_local_plane_counters(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    traj_path = tmp_path / "uswc_forward_03-S003_2026-03-31_15-30-46.csv"
+    pd.DataFrame(
+        [
+            {
+                "time_s": 0,
+                "plane_id": 2,
+                "plane_label": "uswc_forward_03-S003",
+                "latitude": 50.0,
+                "longitude": 2.0,
+                "alt_m": 130.0,
+            }
+        ]
+    ).to_csv(traj_path, index=False)
+
+    positions = module.load_positions_at_time(str(traj_path), 0.0)
+
+    assert not positions.empty
+    assert positions.iloc[0]["flight_id"] == "3003"
+
+
+def test_view_maps_network_prefers_semantic_ids_when_normalizing_rows(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    row = pd.Series(
+        {
+            "plane_id": 1,
+            "plane_label": "uswc_forward_02-S002",
+            "source_file": "pipeline/uswc_forward_02-S002_2026-04-01_15-27-48.csv",
+        }
+    )
+
+    assert module._preferred_node_id_from_row(row) == "2002"
+
+
 def test_view_maps_network_loads_heatmap_points_and_stats(monkeypatch, tmp_path: Path) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     npz_path = tmp_path / "heatmap.npz"
@@ -508,3 +553,293 @@ def test_view_maps_network_resolves_candidates_and_declared_paths(monkeypatch, t
     _write_heatmap_npz(cloud_path)
     cloud_candidates = module._candidate_cloudmap_paths([cloud_root], ("sat_map.npz",))
     assert cloud_candidates == [cloud_path]
+
+
+def test_view_maps_network_normalizes_and_resolves_node_ids(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    series = pd.Series([1, 2.0, " plane_3 ", None, "nan", "<NA>", "uav_4"])
+    normalized = module._normalize_node_id_series(series)
+    assert normalized.tolist() == ["1", "2", "plane_3", "", "", "", "uav_4"]
+
+    assert module._normalize_node_id_value(5.0) == "5"
+    assert module._normalize_node_id_value("  ") == ""
+    assert module._normalize_node_id_value("node_7") == "node_7"
+
+    assert module._candidate_node_ids("plane_3")[:2] == ["plane_3", "3"]
+    assert module._resolve_node_id("plane_3", {"3", "node_9"}) == "3"
+    assert module._resolve_node_id("missing", {"3"}) is None
+
+    assert module._coerce_list_cell(None) == []
+    assert module._coerce_list_cell((1, 2)) == [1, 2]
+    assert module._coerce_list_cell("[1, 2, 3]") == [1, 2, 3]
+
+
+def test_view_maps_network_builds_visible_nodes_and_endpoint_roles(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    alloc_df = pd.DataFrame(
+        {
+            "source": ["plane_1", "1"],
+            "destination": ["2", "2"],
+            "path": [[("1", "2"), ("2", "3")], None],
+        }
+    )
+    visible = module._allocation_visible_node_ids(alloc_df)
+    assert visible == {"plane_1", "1", "2", "3"}
+
+    roles = module._allocation_endpoint_roles(alloc_df.iloc[[1]])
+    assert roles == {"1": "src", "2": "dst"}
+    assert module._allocation_endpoint_roles(alloc_df, focus_pair=(8, 9)) == {"8": "src", "9": "dst"}
+
+    assert module._format_node_label("2", roles) == "2 (dst)"
+    assert module._format_node_label("  ", roles) == ""
+
+
+def test_view_maps_network_builds_map_label_layers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    positions_df = pd.DataFrame(
+        {
+            "flight_id": ["1", "2", None],
+            "long": [1.0, 2.0, 3.0],
+            "lat": [10.0, 20.0, 30.0],
+        }
+    )
+    layers = module._build_map_label_layers(positions_df, node_roles={"1": "src"})
+    assert [layer.type for layer in layers] == ["TextLayer", "TextLayer"]
+    assert layers[0].data == [
+        {"flight_id": "1", "long": 1.0, "lat": 10.0, "alt": 0.0, "node_id_text": "1"},
+        {"flight_id": "2", "long": 2.0, "lat": 20.0, "alt": 0.0, "node_id_text": "2"},
+    ]
+    assert layers[1].data == [
+        {
+            "flight_id": "1",
+            "long": 1.0,
+            "lat": 10.0,
+            "alt": 0.0,
+            "node_id_text": "1",
+            "node_role": "SRC",
+        }
+    ]
+
+    assert module._build_map_label_layers(pd.DataFrame()) == []
+
+
+def test_view_maps_network_filters_and_expands_allocations(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    alloc_df = pd.DataFrame(
+        {
+            "source": ["1", "1", "1", "4"],
+            "destination": ["2", "2", "3", "5"],
+            "t_now_s": [5.0, 9.0, 9.0, 9.0],
+            "time_index": [1, 2, 2, 2],
+            "path": [[("1", "2"), ("2", "3")], [("1", "2")], None, [("4", "5")]],
+            "routed": [True, True, False, True],
+            "bearers": [[], ["satcom"], ["satcom"], ["satcom"]],
+        }
+    )
+
+    filtered_by_time = module._filter_allocation_rows_for_selected_nodes(
+        alloc_df,
+        {"1", "2"},
+        sample_time=8.8,
+    )
+    assert filtered_by_time["t_now_s"].tolist() == [9.0]
+
+    filtered_by_step = module._filter_allocation_rows_for_selected_nodes(
+        alloc_df,
+        {"1", "2"},
+        step_hint=1,
+    )
+    assert filtered_by_step["time_index"].tolist() == [1]
+
+    fake_path_a = tmp_path / "alloc_a.parquet"
+    fake_path_b = tmp_path / "alloc_b.parquet"
+    fake_path_a.write_text("a", encoding="utf-8")
+    fake_path_b.write_text("b", encoding="utf-8")
+    load_map = {fake_path_a: alloc_df, fake_path_b: alloc_df.iloc[[1, 2]].copy()}
+    monkeypatch.setattr(module, "load_allocations", lambda path: load_map[path])
+
+    expanded = module._expanded_node_ids_from_allocations(
+        {"1", "2"},
+        sample_time=9.0,
+        allocation_paths=[fake_path_a, fake_path_b],
+    )
+    assert expanded == {"1", "2"}
+
+    roles = module._endpoint_roles_from_allocations(
+        {"1", "2"},
+        sample_time=9.0,
+        allocation_paths=[fake_path_a],
+    )
+    assert roles == {"1": "src", "2": "dst"}
+
+    routed_pairs = module._allocation_routed_edge_pairs(
+        {"1", "2"},
+        sample_time=9.0,
+        allocation_paths=[fake_path_a, fake_path_b],
+    )
+    assert routed_pairs == {("1", "2")}
+
+    missing_pairs = module._allocation_routed_edge_pairs({"1", "2"}, allocation_paths=[tmp_path / "missing.parquet"])
+    assert missing_pairs is None
+
+
+def test_view_maps_network_detects_allocation_files_and_edge_counts(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    base = tmp_path / "alloc_share"
+    visible = base / "pipeline"
+    hidden = base / ".hidden" / "pipeline"
+    visible.mkdir(parents=True)
+    hidden.mkdir(parents=True)
+    alloc_main = visible / "allocations_steps.parquet"
+    alloc_extra = visible / "allocations_extra.jsonl"
+    alloc_hidden = hidden / "allocations_steps.csv"
+    alloc_main.write_text("main", encoding="utf-8")
+    alloc_extra.write_text("extra", encoding="utf-8")
+    alloc_hidden.write_text("hidden", encoding="utf-8")
+
+    candidates = module._candidate_allocation_paths([base])
+    assert alloc_main in candidates
+    assert alloc_extra in candidates
+    assert alloc_hidden not in candidates
+
+    assert module._is_baseline_alloc_path(Path("demo_baseline_allocations.parquet"))
+    assert module._is_baseline_alloc_path(Path("demo_ilp_allocations.parquet"))
+    assert not module._is_baseline_alloc_path(Path("demo_allocations.parquet"))
+
+    df = pd.DataFrame({"satcom_link": ["[(1, 2), (2, 3)]", None]})
+    assert module._preview_edge_count(df, "satcom_link") == 2
+    assert module._preview_edge_count(df, "missing") == 0
+
+
+def test_view_maps_network_color_and_link_helpers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    assert module._parse_rgb_like("rgb(10,20,30)") == (10, 20, 30, 255)
+    assert module._parse_rgb_like("rgba(0.1,0.2,0.3,0.5)") == (26, 51, 76, 128)
+    assert module._parse_rgb_like("bad") is None
+
+    assert module._color_to_rgb("rgb(4,5,6)") == [4, 5, 6, 255]
+    assert module._to_plotly_color([7, 8, 9, 10]) == "rgb(7,8,9)"
+    assert module._to_plotly_color("rgba(10,20,30,0.5)") == "rgba(10,20,30,0.502)"
+    assert module.hex_to_rgba("#112233") == [17, 34, 51, 255]
+    assert module.hex_to_rgba(None) == [136, 136, 136, 255]
+
+    link_df = pd.DataFrame(
+        {
+            "flight_id": ["1"],
+            "long": [1.0],
+            "lat": [2.0],
+            "satcom_link": ["[(1, 2)]"],
+            "custom_link": [[(2, 3)]],
+            "noise": ["hello"],
+        }
+    )
+    assert module._detect_link_columns(link_df) == ["satcom_link", "custom_link"]
+
+
+def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    warnings: list[str] = []
+    module.st = SimpleNamespace(
+        warning=warnings.append,
+        session_state={"show_terrain": False, "show_cloud_heatmap": False, "show_trajectory_traces": False},
+    )
+
+    current_positions = pd.DataFrame(
+        {
+            "flight_id": ["1", "2", "3"],
+            "id_col": ["1", "2", "3"],
+            "long": [0.0, 1.0, 2.0],
+            "lat": [10.0, 11.0, 12.0],
+            "alt": [100.0, 200.0, 300.0],
+            "color": [[1, 2, 3, 255], [4, 5, 6, 255], [7, 8, 9, 255]],
+        }
+    )
+    df = pd.DataFrame({"flight_id": ["1"], "satcom_link": ["[(1, 2), (2, 3)]"], "long": [0.0], "lat": [10.0], "alt": [100.0]})
+
+    edges = module.create_edges_geomap(df.copy(), "satcom_link", current_positions)
+    assert edges.to_dict("records") == [
+        {
+            "source": [0.0, 10.0, 100.0],
+            "target": [1.0, 11.0, 200.0],
+            "label": "SAT",
+            "midpoint": [0.5, 10.5, 150.0],
+        },
+        {
+            "source": [1.0, 11.0, 200.0],
+            "target": [2.0, 12.0, 300.0],
+            "label": "SAT",
+            "midpoint": [1.5, 11.5, 250.0],
+        },
+    ]
+
+    assert module.parse_edges(["[(1, 2), (2, 3)]", [(3, 4)]]) == [("1", "2"), ("2", "3"), ("3", "4")]
+    assert module.filter_edges(df, ["satcom_link"], {("1", "2")}) == {"satcom_link": [("1", "2")]}
+
+    layers = module.create_layers_geomap(
+        ["satcom_link"],
+        df.copy(),
+        current_positions,
+        {"satcom_link": "rgb(10,20,30)"},
+        marker_style="Dots",
+        show_node_labels=True,
+    )
+    assert [layer.type for layer in layers] == ["LineLayer", "TextLayer", "PointCloudLayer", "TextLayer"]
+    assert warnings == []
+
+
+def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    assert module._pick_ci_column(pd.DataFrame([{"SRC": 1, "dst": 2}]), ("source", "src")) == "SRC"
+    assert module._pick_ci_column(pd.DataFrame(), ("source",)) is None
+
+    assert module._parse_allocations_cell("[{'source': 1, 'destination': 2}]") == [{"source": 1, "destination": 2}]
+    assert module._parse_allocations_cell({"source": 1}) == [{"source": 1}]
+    assert module._parse_allocations_cell(None) == []
+
+    stepped = module._coerce_alloc_time_index(pd.DataFrame({"decision": [1, None, 3]}))
+    assert stepped["time_index"].tolist() == [1, 1, 3]
+
+    alloc_frame = pd.DataFrame(
+        {
+            "decision": [7],
+            "time_s": [1.5],
+            "allocations": ["[{'src': '1', 'dst': '2', 'routed': True, 'path': [(1, 2)]}]"],
+        }
+    )
+    normalized = module._normalize_allocations_frame(alloc_frame)
+    assert normalized.to_dict("records") == [
+        {
+            "src": "1",
+            "dst": "2",
+            "routed": True,
+            "path": [(1, 2)],
+            "time_index": 7,
+            "t_now_s": 1.5,
+        }
+    ]
+
+    jsonl_path = tmp_path / "allocations.jsonl"
+    jsonl_path.write_text('{"source": "1", "destination": "2", "time_index": 4}\n', encoding="utf-8")
+    loaded = module.load_allocations(jsonl_path)
+    assert loaded["time_index"].tolist() == [4]
+    assert loaded["source"].tolist() == ["1"]
+
+    nearest = module._nearest_row(pd.DataFrame({"time_s": [1.0, 2.5, 9.0], "value": [1, 2, 3]}), 2.0)
+    assert nearest["value"].tolist() == [2]
+
+    latest_root = tmp_path / "latest_allocs"
+    latest_root.mkdir()
+    older = latest_root / "allocations_steps.csv"
+    newer = latest_root / "baseline_allocations_steps.csv"
+    older.write_text("a", encoding="utf-8")
+    newer.write_text("b", encoding="utf-8")
+    newer.touch()
+    assert module._find_latest_allocations(latest_root) in {older, newer}
+    assert module._find_latest_allocations(latest_root, include=("baseline",)) == newer
