@@ -577,6 +577,35 @@ def test_ensure_mlflow_backend_ready_skips_migration_when_backend_already_exists
     assert repair_calls == [(db_path, (tracking_dir / "artifacts").as_uri())]
 
 
+def test_resolve_default_mlflow_activation_context_handles_missing_module_and_resolves_paths(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+
+    assert mlflow_store._resolve_default_mlflow_activation_context(
+        tracking_dir,
+        get_mlflow_module_fn=lambda: None,
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: (_ for _ in ()).throw(
+            AssertionError("artifact dir should not be resolved without mlflow")
+        ),
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: (_ for _ in ()).throw(
+            AssertionError("backend db should not be resolved without mlflow")
+        ),
+    ) is None
+
+    fake_mlflow = object()
+    activation_context = mlflow_store._resolve_default_mlflow_activation_context(
+        tracking_dir,
+        get_mlflow_module_fn=lambda: fake_mlflow,
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: tracking_dir / "mlflow.db",
+    )
+
+    assert activation_context == (
+        fake_mlflow,
+        (tracking_dir / "artifacts").as_uri(),
+        tracking_dir / "mlflow.db",
+    )
+
+
 def test_ensure_default_mlflow_experiment_handles_missing_mlflow_module(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     assert mlflow_store.ensure_default_mlflow_experiment(
