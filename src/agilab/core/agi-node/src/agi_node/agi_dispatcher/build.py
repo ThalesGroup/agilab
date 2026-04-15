@@ -247,6 +247,19 @@ def _keep_lflag(arg: str) -> bool:
     return Path(cand).exists()
 
 
+def _sanitize_build_ext_link_settings(
+    library_dirs: list[str] | None = None,
+    extra_link_args: list[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    sanitized_library_dirs = [
+        path for path in (list(library_dirs) if library_dirs else []) if Path(path).exists()
+    ]
+    sanitized_extra_link_args = [
+        arg for arg in (list(extra_link_args) if extra_link_args else []) if _keep_lflag(arg)
+    ]
+    return sanitized_library_dirs, sanitized_extra_link_args
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -412,16 +425,10 @@ def main(argv: list[str] | None = None) -> None:
         prefix = Path(find_sys_prefix("~/MyApp"))
 
         # Seed from existing values if any; otherwise start empty
-        library_dirs = list(library_dirs) if 'library_dirs' in locals() else []
-        extra_link_args = list(extra_link_args) if 'extra_link_args' in locals() else []
-
-        # Filter out non-existent directories and bogus -L flags
-        library_dirs = [d for d in library_dirs if Path(d).exists()]
-
-        def _keep_lflag(arg: str) -> bool:
-            return not arg.startswith("-L") or Path(arg[2:]).exists()
-
-        extra_link_args = [arg for arg in extra_link_args if _keep_lflag(arg)]
+        library_dirs, extra_link_args = _sanitize_build_ext_link_settings(
+            library_dirs if 'library_dirs' in locals() else None,
+            extra_link_args if 'extra_link_args' in locals() else None,
+        )
 
         # Compile flags: only add the Clang-specific one on macOS
         extra_compile_args = []
