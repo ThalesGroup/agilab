@@ -12,6 +12,9 @@ import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
+PATH_RESOLVE_EXCEPTIONS = (OSError,)
+PROJECT_COPY_EXCEPTIONS = (OSError, shutil.Error)
+
 
 def create_rename_map(target_project: Path, dest_project: Path) -> dict[str, str]:
     """Create a mapping of old to new names for project clone operations."""
@@ -68,7 +71,7 @@ def copy_existing_projects(
     try:
         if src_apps.resolve(strict=False) == dst_apps.resolve(strict=False):
             return
-    except Exception:
+    except PATH_RESOLVE_EXCEPTIONS:
         pass
 
     ensure_dir_fn(dst_apps)
@@ -114,7 +117,7 @@ def copy_existing_projects(
                     "*.egg-info",
                 ),
             )
-        except Exception as exc:
+        except PROJECT_COPY_EXCEPTIONS as exc:
             logger.error(f"Warning: Could not copy {item} → {dst_item}: {exc}")
 
 
@@ -189,7 +192,7 @@ def clone_project(
         if not dest_root.exists():
             logger.info(f"mkdir {dest_root}")
             dest_root.mkdir(parents=True, exist_ok=False)
-    except Exception as exc:
+    except OSError as exc:
         logger.error(f"Could not create '{dest_root}': {exc}")
         return
 
@@ -202,7 +205,7 @@ def clone_project(
     try:
         if src_data_dir.exists() and not dest_data_dir.exists():
             copytree_fn(src_data_dir, dest_data_dir)
-    except Exception as exc:
+    except PROJECT_COPY_EXCEPTIONS as exc:
         logger.info(f"Unable to copy data directory '{src_data_dir}' to '{dest_data_dir}': {exc}")
 
 
