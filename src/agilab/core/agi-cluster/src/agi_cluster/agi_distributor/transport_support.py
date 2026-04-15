@@ -261,12 +261,6 @@ async def get_ssh_connection(
         log.error(base_msg)
         raise ConnectionError(base_msg) from None
 
-    except Exception as exc:
-        # AsyncSSH/connect can surface unexpected wrapper exceptions; normalize once here.
-        err_msg = f"Unexpected error while connecting to {ip}: {exc}"
-        log.error(err_msg)
-        raise ConnectionError(err_msg) from None
-
 
 async def exec_ssh(
     agi_cls: Any,
