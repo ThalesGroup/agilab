@@ -1700,6 +1700,57 @@ def test_build_setup_kwargs_uses_find_packages_and_ext_modules():
     }
 
 
+def test_configure_build_ext_modules_orchestrates_helper_calls(tmp_path):
+    build_extension_calls = []
+    cythonize_calls = []
+    log_lines = []
+
+    result = build_mod._configure_build_ext_modules(
+        active_app=tmp_path / "demo_project",
+        build_dir=str(tmp_path / "out"),
+        remaining_args=["--quiet"],
+        worker_module="demo_worker",
+        pyvers_worker="3.13t",
+        find_sys_prefix_fn=lambda _base: str(tmp_path / "prefix"),
+        sanitize_build_ext_link_settings_fn=lambda _lib, _link: (["/tmp/lib"], ["-Wl,--as-needed"]),
+        build_ext_compile_config_fn=lambda **_kwargs: (
+            ["-Wfoo"],
+            [("CYTHON_FALLTHROUGH", ""), ("Py_GIL_DISABLED", "1")],
+            {"freethreading_compatible": True},
+        ),
+        ensure_hacl_dir_fn=lambda: log_lines.append(("ensure_hacl_dir",)),
+        build_worker_extension_fn=lambda **kwargs: (
+            build_extension_calls.append(kwargs) or "ext_def"
+        ),
+        cythonize_worker_extension_fn=lambda **kwargs: (
+            cythonize_calls.append(kwargs) or ["ext_mod"]
+        ),
+        log=SimpleNamespace(info=lambda *args: log_lines.append(args)),
+    )
+
+    assert result == ["ext_mod"]
+    assert build_extension_calls == [
+        {
+            "worker_module": "demo_worker",
+            "src_rel": Path("src") / "demo_worker" / "demo_worker.pyx",
+            "prefix": tmp_path / "prefix",
+            "extra_compile_args": ["-Wfoo"],
+            "define_macros": [("CYTHON_FALLTHROUGH", ""), ("Py_GIL_DISABLED", "1")],
+            "library_dirs": ["/tmp/lib"],
+            "extra_link_args": ["-Wl,--as-needed"],
+        }
+    ]
+    assert cythonize_calls == [
+        {
+            "extension": "ext_def",
+            "compiler_directives": {"freethreading_compatible": True},
+            "quiet": True,
+        }
+    ]
+    assert any(args[0] == "cwd: " + str(tmp_path / "demo_project") for args in log_lines if args)
+    assert any(args[0] == "build_dir: " + str(tmp_path / "out") for args in log_lines if args)
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
