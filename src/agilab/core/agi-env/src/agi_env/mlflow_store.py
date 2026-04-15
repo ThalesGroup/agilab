@@ -17,6 +17,17 @@ import sqlite3
 import subprocess
 import sys
 
+try:
+    from mlflow.exceptions import MlflowException
+except ImportError:  # pragma: no cover - optional dependency
+    MlflowException = None  # type: ignore[assignment]
+
+MLFLOW_RUNTIME_EXCEPTIONS = tuple(
+    exc_type
+    for exc_type in (RuntimeError, sqlite3.Error, MlflowException)
+    if exc_type is not None
+)
+
 
 def get_mlflow_module():
     try:
@@ -361,7 +372,7 @@ def _create_default_experiment(
 
     try:
         create_experiment_fn(default_experiment_name, artifact_location=artifact_uri)
-    except Exception as exc:
+    except MLFLOW_RUNTIME_EXCEPTIONS as exc:
         if not _is_existing_experiment_conflict(
             exc,
             get_experiment_fn=get_experiment_fn,
@@ -445,7 +456,7 @@ def _activate_default_mlflow_experiment_with_schema_retry(
                 artifact_uri=artifact_uri,
             )
             return backend_uri
-        except Exception as exc:
+        except MLFLOW_RUNTIME_EXCEPTIONS as exc:
             if _retry_default_mlflow_activation_after_schema_reset(
                 exc,
                 attempt=attempt,
