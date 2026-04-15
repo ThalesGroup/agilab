@@ -23,3 +23,19 @@ def test_format_percent_truncates_for_ci_stability() -> None:
     assert module.format_percent(83.5298) == "83%"
     assert module.format_percent(83.4999) == "83%"
     assert module.format_percent(86.5596) == "86%"
+
+
+def test_selected_component_items_preserves_requested_subset_order() -> None:
+    module = _load_module()
+
+    selected = module.selected_component_items(["agi-gui", "agi-env"])
+
+    assert [name for name, _ in selected] == ["agi-gui", "agi-env"]
+
+
+def test_selected_component_items_defaults_to_all_components() -> None:
+    module = _load_module()
+
+    selected = module.selected_component_items(None)
+
+    assert [name for name, _ in selected] == list(module.COMPONENTS)
