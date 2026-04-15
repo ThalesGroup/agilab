@@ -6,6 +6,9 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+PATH_FALLBACK_EXCEPTIONS = (OSError, TypeError, ValueError)
+SHARE_ROOT_FALLBACK_EXCEPTIONS = PATH_FALLBACK_EXCEPTIONS + (AttributeError,)
+
 
 def remap_managed_pc_path(
     value: Path | str,
@@ -23,7 +26,7 @@ def remap_managed_pc_path(
 
     try:
         return path_cls(str(path_cls(value)).replace(str(home), str(managed_root)))
-    except Exception:
+    except PATH_FALLBACK_EXCEPTIONS:
         return path_cls(value)
 
 
@@ -47,7 +50,7 @@ def ensure_managed_pc_share_dir(
         env.agi_share_path = path_cls(
             str(path_cls(agi_share_path)).replace(str(home), str(managed_root))
         )
-    except Exception:
+    except PATH_FALLBACK_EXCEPTIONS:
         return
 
 
@@ -60,7 +63,7 @@ def normalized_path(
     path_obj = path_cls(value)
     try:
         return path_cls(normalize_path_fn(path_obj)).expanduser()
-    except Exception:
+    except PATH_FALLBACK_EXCEPTIONS:
         return path_obj.expanduser()
 
 
@@ -76,7 +79,7 @@ def share_root_path(
         base = path_cls(env.share_root_path()).expanduser()
         if base:
             return base
-    except Exception:
+    except SHARE_ROOT_FALLBACK_EXCEPTIONS:
         pass
 
     for candidate in (env.agi_share_path_abs, env.agi_share_path):
@@ -110,12 +113,12 @@ def resolve_data_dir(
     remapped = remap_managed_pc_path_fn(raw)
     try:
         resolved = normalized_path_fn(remapped)
-    except Exception:
+    except PATH_FALLBACK_EXCEPTIONS:
         resolved = path_cls(remapped).expanduser()
 
     try:
         return resolved.resolve(strict=False)
-    except Exception:
+    except OSError:
         return path_cls(os.path.normpath(str(resolved)))
 
 
@@ -159,7 +162,7 @@ def can_create_path(path: Path, *, path_cls: type[Path] = Path) -> bool:
     else:
         return True
     finally:
-        with suppress(Exception):
+        with suppress(OSError):
             probe.unlink()
 
 
@@ -178,12 +181,12 @@ def collect_share_aliases(
         if env.AGILAB_SHARE_REL:
             try:
                 aliases.add(path_cls(env.AGILAB_SHARE_REL).name)
-            except Exception:
+            except PATH_FALLBACK_EXCEPTIONS:
                 pass
         if env.agi_share_path:
             try:
                 aliases.add(path_cls(env.agi_share_path).name)
-            except Exception:
+            except PATH_FALLBACK_EXCEPTIONS:
                 pass
     return {alias for alias in aliases if alias}
 
@@ -239,10 +242,11 @@ def candidate_named_dataset_roots(
     unique_roots: list[Path] = []
     seen_roots: set[str] = set()
     for candidate in candidates:
+        normalized = normalized_path_fn(candidate)
         try:
-            normalized = normalized_path_fn(candidate).resolve(strict=False)
-        except Exception:
-            normalized = normalized_path_fn(candidate)
+            normalized = normalized.resolve(strict=False)
+        except OSError:
+            pass
         key = str(normalized)
         if key not in seen_roots:
             seen_roots.add(key)
