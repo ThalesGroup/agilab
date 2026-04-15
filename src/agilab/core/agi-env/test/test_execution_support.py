@@ -30,8 +30,10 @@ class _FakeProc:
         self.stdout = _FakeStream(stdout_lines)
         self.stderr = _FakeStream(stderr_lines)
         self.returncode = returncode
+        self.wait_calls = 0
 
     async def wait(self):
+        self.wait_calls += 1
         return self.returncode
 
     async def communicate(self):
@@ -81,6 +83,29 @@ def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatc
                 shell_executable="/bin/bash",
             )
         )
+
+
+def test_stream_process_output_collects_lines_and_waits_for_proc():
+    proc = _FakeProc(stdout_lines=[b"stdout line\n", b""], stderr_lines=[b"stderr line\n", b""])
+    seen_out: list[str] = []
+    seen_err: list[str] = []
+    result: list[str] = []
+
+    asyncio.run(
+        execution_support._stream_process_output(
+            proc,
+            timeout=1,
+            out_cb=seen_out.append,
+            err_cb=seen_err.append,
+            result=result,
+            wait_for_exit=True,
+        )
+    )
+
+    assert seen_out == ["stdout line"]
+    assert seen_err == ["stderr line"]
+    assert result == ["stdout line", "stderr line"]
+    assert proc.wait_calls == 1
 
 
 def test_raise_process_error_wraps_non_runtime_and_logs_traceback():

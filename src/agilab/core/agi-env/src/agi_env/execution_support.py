@@ -106,6 +106,24 @@ async def _spawn_process(
         )
 
 
+async def _stream_process_output(
+    proc: asyncio.subprocess.Process,
+    *,
+    timeout: float | None,
+    out_cb: Callable[..., Any],
+    err_cb: Callable[..., Any],
+    result: list[str],
+    wait_for_exit: bool = False,
+) -> None:
+    coroutines: list[Awaitable[Any]] = [
+        _read_stream(proc.stdout, callback=out_cb, result=result),
+        _read_stream(proc.stderr, callback=err_cb, result=result),
+    ]
+    if wait_for_exit:
+        coroutines.append(proc.wait())
+    await asyncio.wait_for(asyncio.gather(*coroutines), timeout=timeout)
+
+
 def _raise_process_error(
     err: Exception,
     *,
@@ -189,12 +207,12 @@ async def run(
         )
 
         out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
-        await asyncio.wait_for(
-            asyncio.gather(
-                _read_stream(proc.stdout, callback=out_cb, result=result),
-                _read_stream(proc.stderr, callback=err_cb, result=result),
-            ),
+        await _stream_process_output(
+            proc,
             timeout=timeout,
+            out_cb=out_cb,
+            err_cb=err_cb,
+            result=result,
         )
         returncode = await proc.wait()
         if returncode != 0:
@@ -257,18 +275,18 @@ async def run_bg(
     )
 
     out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
-    tasks = [
-        asyncio.create_task(_read_stream(proc.stdout, callback=out_cb, result=result)),
-        asyncio.create_task(_read_stream(proc.stderr, callback=err_cb, result=result)),
-    ]
-
     try:
-        await asyncio.wait_for(proc.wait(), timeout=timeout)
+        await _stream_process_output(
+            proc,
+            timeout=timeout,
+            out_cb=out_cb,
+            err_cb=err_cb,
+            result=result,
+            wait_for_exit=True,
+        )
     except asyncio.TimeoutError as err:
         proc.kill()
         raise RuntimeError(f"Timeout expired for command: {cmd}") from err
-
-    await asyncio.gather(*tasks)
     stdout, stderr = await proc.communicate()
     returncode = proc.returncode
 
@@ -318,13 +336,13 @@ async def run_async(
         )
 
         out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
-        await asyncio.wait_for(
-            asyncio.gather(
-                _read_stream(proc.stdout, callback=out_cb, result=result),
-                _read_stream(proc.stderr, callback=err_cb, result=result),
-                proc.wait(),
-            ),
+        await _stream_process_output(
+            proc,
             timeout=timeout,
+            out_cb=out_cb,
+            err_cb=err_cb,
+            result=result,
+            wait_for_exit=True,
         )
     except Exception as err:
         _raise_process_error(
