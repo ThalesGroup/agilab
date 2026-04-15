@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import agi_env.env_config_support as env_config_module
+import pytest
 
 
 def test_clean_envar_value_handles_blank_values_and_process_fallback(monkeypatch):
@@ -39,7 +40,7 @@ def test_load_dotenv_values_discards_blank_assignments(tmp_path: Path):
 def test_clean_envar_value_handles_mapping_errors_and_dotenv_none(monkeypatch, tmp_path: Path):
     class BadMapping(dict):
         def get(self, key, default=None):
-            raise RuntimeError("boom")
+            raise TypeError("boom")
 
     monkeypatch.setenv("AGI_DEMO", " process-value ")
     assert (
@@ -57,6 +58,15 @@ def test_clean_envar_value_handles_mapping_errors_and_dotenv_none(monkeypatch, t
         lambda **_kwargs: {"A": " ", "B": None, "C": " 1 "},
     )
     assert env_config_module.load_dotenv_values(tmp_path / ".env") == {"C": " 1 "}
+
+
+def test_clean_envar_value_propagates_unexpected_mapping_runtime_bug():
+    class BadRuntimeMapping(dict):
+        def get(self, key, default=None):
+            raise RuntimeError("mapping bug")
+
+    with pytest.raises(RuntimeError, match="mapping bug"):
+        env_config_module.clean_envar_value(BadRuntimeMapping(), "AGI_DEMO")
 
 
 def test_write_env_updates_creates_parent_and_preserves_unquoted_values(tmp_path: Path):
