@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import networkx as nx
 import numpy as np
+import pytest
 
 from agi_env import AgiEnv
 import pandas as pd
@@ -930,3 +931,86 @@ def test_view_maps_network_selected_node_bearer_timeline_and_allocation_layers(
     assert layers[0].type == "LineLayer"
     assert len(layers[0].data) == 3
     assert {row["demand"] for row in layers[0].data} == {"1→2", "1→3"}
+
+
+def test_view_maps_network_bearer_plot_and_map_layer_wrapper(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    empty_fig = module._plot_selected_node_bearer_timeline(pd.DataFrame())
+    assert len(empty_fig.data) == 0
+    assert empty_fig.layout.height == 220
+
+    timeline_df = pd.DataFrame(
+        [
+            {"method": "alloc", "node_id": "1", "time_index": 1, "bearer_path": "SAT", "peers": "2", "row_label": "alloc | 1"},
+            {"method": "alloc", "node_id": "2", "time_index": 1, "bearer_path": "OPT", "peers": "1", "row_label": "alloc | 2"},
+        ]
+    )
+    fig = module._plot_selected_node_bearer_timeline(timeline_df)
+    assert len(fig.data) == 2
+    assert fig.layout.legend.title.text == "Bearer"
+    assert fig.layout.yaxis.categoryarray == ("alloc | 2", "alloc | 1")
+
+    warnings: list[str] = []
+    module.st = SimpleNamespace(
+        warning=warnings.append,
+        session_state={"show_terrain": False},
+    )
+    monkeypatch.setattr(module, "_cloud_heatmap_layers", lambda: [])
+    monkeypatch.setattr(module, "_trajectory_trace_layers", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "_topology_link_layers", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "_build_map_label_layers", lambda *_args, **_kwargs: ["labels"])
+
+    missing_layers = module.create_layers_geomap(
+        ["satcom_link"],
+        pd.DataFrame({"flight_id": ["1"], "long": [0.0]}),
+        pd.DataFrame(),
+        {},
+    )
+    assert missing_layers == []
+    assert warnings == ["Missing required columns for map view: ['lat', 'alt']."]
+
+    current_positions = pd.DataFrame(
+        {
+            "flight_id": ["1"],
+            "id_col": ["1"],
+            "long": [0.0],
+            "lat": [10.0],
+            "alt": [100.0],
+            "bearing_deg": [45.0],
+            "color": [[1, 2, 3, 255]],
+        }
+    )
+    df = current_positions.copy()
+    plane_layers = module.create_layers_geomap(
+        ["satcom_link"],
+        df,
+        current_positions,
+        {"satcom_link": "rgb(1,2,3)"},
+        marker_style="Plane",
+        show_node_labels=True,
+    )
+    assert plane_layers[-2].type == "IconLayer"
+    assert plane_layers[-1] == "labels"
+
+
+def test_view_maps_network_layout_and_tuple_helpers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    warnings: list[str] = []
+    module.st = SimpleNamespace(warning=warnings.append)
+
+    spiral = module.spiral_layout(module.nx.path_graph(["A", "B", "C"]), scale=2.0, center=(1.0, 2.0))
+    assert set(spiral) == {"A", "B", "C"}
+    assert spiral["A"] == (1.0, 2.0)
+
+    spring_layout = module.get_fixed_layout(pd.DataFrame({"flight_id": ["A", "B", "C"]}), layout="spring")
+    assert set(spring_layout) == {"A", "B", "C"}
+    with pytest.raises(ValueError, match="Unsupported layout type"):
+        module.get_fixed_layout(pd.DataFrame({"flight_id": ["A"]}), layout="unknown")
+
+    assert module.convert_to_tuples("[(1, 2), (2, 3)]") == [(1, 2), (2, 3)]
+    assert module.convert_to_tuples((1, 2)) == [(1, 2)]
+    assert module.convert_to_tuples([(1, 2), (2, 3)]) == [(1, 2), (2, 3)]
+    assert module.convert_to_tuples("not-a-list") == []
+    assert module.convert_to_tuples(123) == []
+    assert len(warnings) == 2
