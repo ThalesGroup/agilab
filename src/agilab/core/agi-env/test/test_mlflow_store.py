@@ -241,6 +241,35 @@ def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(tmp_pat
     assert checked_uris == {"sqlite:///mlflow.db"}
 
 
+def test_handle_mlflow_schema_upgrade_result_covers_success_reset_and_failure(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    reset_calls: list[Path] = []
+
+    assert mlflow_store._handle_mlflow_schema_upgrade_result(
+        SimpleNamespace(returncode=0, stdout="", stderr=""),
+        db_path=db_path,
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda path: reset_calls.append(Path(path)),
+    ) is True
+    assert reset_calls == []
+
+    assert mlflow_store._handle_mlflow_schema_upgrade_result(
+        SimpleNamespace(returncode=1, stdout="schema-reset needed", stderr=""),
+        db_path=db_path,
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda path: reset_calls.append(Path(path)),
+    ) is False
+    assert reset_calls == [db_path]
+
+    with pytest.raises(RuntimeError, match="Failed to upgrade the local MLflow SQLite schema"):
+        mlflow_store._handle_mlflow_schema_upgrade_result(
+            SimpleNamespace(returncode=1, stdout="", stderr="upgrade failed badly"),
+            db_path=db_path,
+            schema_reset_markers=("schema-reset",),
+            reset_backend_fn=lambda _path: None,
+        )
+
+
 def test_ensure_mlflow_sqlite_schema_current_resets_or_raises_on_upgrade_failure(tmp_path: Path):
     db_path = tmp_path / "mlflow.db"
     conn = sqlite3.connect(db_path)
