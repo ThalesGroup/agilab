@@ -66,3 +66,31 @@ def test_source_symbol_helpers_raise_for_missing_invalid_or_unreadable_sources(t
         source_analysis_module.get_functions_and_attributes(source_path, class_name="Missing")
     with pytest.raises(ValueError, match="Class 'Missing' not found"):
         source_analysis_module.get_class_methods(source_path, "Missing")
+
+
+def test_get_functions_and_attributes_handles_expected_read_failures_and_propagates_runtime_bug(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source_path = tmp_path / "symbols.py"
+    source_path.write_text("def demo():\n    return 1\n", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def _oserror_read_text(self, *args, **kwargs):
+        if self == source_path:
+            raise OSError("read failed")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _oserror_read_text, raising=False)
+    with pytest.raises(IOError, match="read failed"):
+        source_analysis_module.get_functions_and_attributes(source_path)
+
+    def _runtime_read_text(self, *args, **kwargs):
+        if self == source_path:
+            raise RuntimeError("read bug")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _runtime_read_text, raising=False)
+    with pytest.raises(RuntimeError, match="read bug"):
+        source_analysis_module.get_functions_and_attributes(source_path)

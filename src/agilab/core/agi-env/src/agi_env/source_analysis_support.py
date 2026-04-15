@@ -11,6 +11,8 @@ from .source_analysis_ast import (
     get_import_mapping,
 )
 
+SOURCE_READ_EXCEPTIONS = (OSError, UnicodeError)
+
 
 def get_functions_and_attributes(
     src_path: Union[str, Path],
@@ -24,7 +26,7 @@ def get_functions_and_attributes(
 
     try:
         content = path.read_text(encoding="utf-8")
-    except Exception as exc:
+    except SOURCE_READ_EXCEPTIONS as exc:
         raise IOError(f"Error reading the file {path}: {exc}")
 
     try:
