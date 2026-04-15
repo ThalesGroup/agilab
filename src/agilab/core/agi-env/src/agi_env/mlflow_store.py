@@ -500,6 +500,24 @@ def _activate_default_mlflow_experiment(
     mlflow.set_experiment(default_experiment_name)
 
 
+def _activate_default_mlflow_experiment_once(
+    mlflow,
+    *,
+    tracking_dir: Path,
+    artifact_uri: str,
+    ensure_mlflow_backend_ready_fn,
+    default_experiment_name: str,
+) -> str:
+    backend_uri = ensure_mlflow_backend_ready_fn(tracking_dir)
+    _activate_default_mlflow_experiment(
+        mlflow,
+        backend_uri=backend_uri,
+        default_experiment_name=default_experiment_name,
+        artifact_uri=artifact_uri,
+    )
+    return backend_uri
+
+
 def _activate_default_mlflow_experiment_with_schema_retry(
     mlflow,
     *,
@@ -512,13 +530,13 @@ def _activate_default_mlflow_experiment_with_schema_retry(
     schema_reset_markers: tuple[str, ...],
 ) -> str:
     for attempt in range(2):
-        backend_uri = ensure_mlflow_backend_ready_fn(tracking_dir)
         try:
-            _activate_default_mlflow_experiment(
+            backend_uri = _activate_default_mlflow_experiment_once(
                 mlflow,
-                backend_uri=backend_uri,
-                default_experiment_name=default_experiment_name,
+                tracking_dir=tracking_dir,
                 artifact_uri=artifact_uri,
+                ensure_mlflow_backend_ready_fn=ensure_mlflow_backend_ready_fn,
+                default_experiment_name=default_experiment_name,
             )
             return backend_uri
         except MLFLOW_RUNTIME_EXCEPTIONS as exc:
