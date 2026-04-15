@@ -472,6 +472,28 @@ def _log_worker_plan_progress(
     return plan_batch_count
 
 
+def _attach_worker_log_capture(
+    *,
+    logging_module: Any = logging,
+    io_module: Any = io,
+    root_logger: logging.Logger | None = None,
+) -> tuple[Any, Any, Any]:
+    log_stream = io_module.StringIO()
+    handler = logging_module.StreamHandler(log_stream)
+    active_root_logger = root_logger or logging_module.getLogger()
+    active_root_logger.addHandler(handler)
+    return log_stream, handler, active_root_logger
+
+
+def _detach_worker_log_capture(
+    *,
+    active_root_logger: Any,
+    handler: Any,
+) -> None:
+    active_root_logger.removeHandler(handler)
+    handler.close()
+
+
 def execute_worker_plan(
     *,
     workers_plan: Any,
@@ -488,10 +510,11 @@ def execute_worker_plan(
     path_cls: type[Path] = Path,
     root_logger: logging.Logger | None = None,
 ) -> str:
-    log_stream = io_module.StringIO()
-    handler = logging_module.StreamHandler(log_stream)
-    active_root_logger = root_logger or logging_module.getLogger()
-    active_root_logger.addHandler(handler)
+    log_stream, handler, active_root_logger = _attach_worker_log_capture(
+        logging_module=logging_module,
+        io_module=io_module,
+        root_logger=root_logger,
+    )
 
     try:
         if worker_id is not None:
@@ -537,8 +560,10 @@ def execute_worker_plan(
         logger_obj.error(traceback_module.format_exc())
         raise
     finally:
-        active_root_logger.removeHandler(handler)
-        handler.close()
+        _detach_worker_log_capture(
+            active_root_logger=active_root_logger,
+            handler=handler,
+        )
 
     return log_stream.getvalue()
 
