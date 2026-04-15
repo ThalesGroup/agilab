@@ -55,6 +55,12 @@ def parse_args() -> argparse.Namespace:
         default=str(REPO_ROOT / "coverage-agilab.combined.xml"),
         help="Fallback Cobertura XML used when a component-specific report is missing.",
     )
+    parser.add_argument(
+        "--components",
+        nargs="+",
+        choices=sorted(COMPONENTS),
+        help="Only refresh the selected coverage badge component(s).",
+    )
     return parser.parse_args()
 
 
@@ -168,10 +174,16 @@ def compute_aggregate_percent(components: tuple[str, ...]) -> float | None:
     return covered * 100.0 / total
 
 
+def selected_component_items(requested: list[str] | None) -> list[tuple[str, dict[str, object]]]:
+    if not requested:
+        return list(COMPONENTS.items())
+    return [(name, COMPONENTS[name]) for name in requested]
+
+
 def main() -> int:
     args = parse_args()
     combined_xml = Path(args.combined_xml)
-    for name, config in COMPONENTS.items():
+    for name, config in selected_component_items(args.components):
         percent = None
         if "aggregate" in config:
             percent = compute_aggregate_percent(config["aggregate"])
