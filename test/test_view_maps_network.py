@@ -843,3 +843,90 @@ def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkey
     newer.touch()
     assert module._find_latest_allocations(latest_root) in {older, newer}
     assert module._find_latest_allocations(latest_root, include=("baseline",)) == newer
+
+
+def test_view_maps_network_loaders_and_bearer_helpers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    parquet_path = tmp_path / "edges.parquet"
+    pd.DataFrame(
+        [
+            {"src": "1", "dst": "2", "link_type": "satcom"},
+            {"src": "2", "dst": "3", "link_type": "optical"},
+        ]
+    ).to_parquet(parquet_path)
+    assert module.load_edges_file(parquet_path) == {
+        "satcom_link": [("1", "2")],
+        "optical_link": [("2", "3")],
+    }
+
+    bad_csv = tmp_path / "traj_bad.csv"
+    bad_csv.write_bytes("col\n\xff\n".encode("latin-1"))
+    loaded_bad = module._load_traj_file(str(bad_csv))
+    assert not loaded_bad.empty
+
+    assert module._bearer_path_label(["SAT", "OPT"]) == "SAT → OPT"
+    assert module._bearer_path_label("['SAT', 'OPT']") == "SAT → OPT"
+    assert module._bearer_tokens("SAT -> OPT") == ["SAT", "OPT"]
+    assert module._bearer_tokens(("LEG", "IVDL")) == ["LEG", "IVDL"]
+    assert module._canonical_bearer_state("optical", True) == "OPT"
+    assert module._canonical_bearer_state("satcom", True) == "SAT"
+    assert module._canonical_bearer_state("legacy", True) == "Legacy"
+    assert module._canonical_bearer_state(None, False) == "Not routed"
+
+
+def test_view_maps_network_selected_node_bearer_timeline_and_allocation_layers(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    timeline_df = pd.DataFrame(
+        {
+            "time_index": [1, 2, 3],
+            "source": ["1", "1", "3"],
+            "destination": ["2", "3", "2"],
+            "bearers": [["satcom"], "optical", None],
+            "routed": [True, True, False],
+        }
+    )
+    timeline = module._selected_node_bearer_timeline(timeline_df, {"1", "2"}, "alloc")
+    assert timeline.to_dict("records") == [
+        {"method": "alloc", "node_id": "1", "time_index": 1, "bearer_path": "SAT", "peers": "2", "row_label": "alloc | 1"},
+        {"method": "alloc", "node_id": "1", "time_index": 2, "bearer_path": "OPT", "peers": "3", "row_label": "alloc | 1"},
+        {"method": "alloc", "node_id": "2", "time_index": 1, "bearer_path": "SAT", "peers": "1", "row_label": "alloc | 2"},
+        {"method": "alloc", "node_id": "2", "time_index": 3, "bearer_path": "Not routed", "peers": "3", "row_label": "alloc | 2"},
+    ]
+
+    positions = pd.DataFrame(
+        {
+            "flight_id": ["1", "2", "3"],
+            "long": [0.0, 1.0, 2.0],
+            "lat": [10.0, 11.0, 12.0],
+            "alt": [100.0, 200.0, 300.0],
+        }
+    )
+    alloc_df = pd.DataFrame(
+        [
+            {
+                "source": "1",
+                "destination": "2",
+                "bandwidth": 5.0,
+                "delivered_bandwidth": 10.0,
+                "path": [("1", "2"), ("2", "3")],
+                "bearers": ["satcom", "optical"],
+            },
+            {
+                "source": "1",
+                "destination": "3",
+                "bandwidth": 1.0,
+                "delivered_bandwidth": 0.0,
+                "path": None,
+                "bearers": ["legacy"],
+            },
+        ]
+    )
+    layers = module.build_allocation_layers(alloc_df, positions, color=[10, 20, 30])
+    assert len(layers) == 1
+    assert layers[0].type == "LineLayer"
+    assert len(layers[0].data) == 3
+    assert {row["demand"] for row in layers[0].data} == {"1→2", "1→3"}
