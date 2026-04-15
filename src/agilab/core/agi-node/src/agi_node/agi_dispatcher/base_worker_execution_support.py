@@ -211,6 +211,59 @@ def _start_initialized_worker(
     return worker_inst
 
 
+def _initialize_worker_runtime(
+    *,
+    env: Any,
+    app: str | None,
+    mode: int,
+    verbose: int,
+    worker_id: int,
+    worker: str,
+    args: dict[str, Any] | None,
+    base_worker_cls: Any,
+    agi_env_factory: Callable[..., Any],
+    ensure_managed_pc_share_dir_fn: Callable[[Any], None],
+    load_worker_fn: Callable[[int], Any],
+    start_fn: Callable[[Any], None],
+    args_namespace_cls: type,
+    logger_obj: Any,
+    time_module: Any,
+    sys_module: Any,
+    file_path: str,
+    path_cls: type[Path] = Path,
+) -> Any:
+    _log_worker_startup_context(
+        worker_id=worker_id,
+        worker=worker,
+        file_path=file_path,
+        logger_obj=logger_obj,
+        sys_module=sys_module,
+        path_cls=path_cls,
+    )
+    _resolve_initialized_worker_env(
+        env=env,
+        app=app,
+        verbose=verbose,
+        base_worker_cls=base_worker_cls,
+        agi_env_factory=agi_env_factory,
+        ensure_managed_pc_share_dir_fn=ensure_managed_pc_share_dir_fn,
+    )
+    return _start_initialized_worker(
+        mode=mode,
+        worker_id=worker_id,
+        worker=worker,
+        args=args,
+        verbose=verbose,
+        base_worker_cls=base_worker_cls,
+        load_worker_fn=load_worker_fn,
+        start_fn=start_fn,
+        args_namespace_cls=args_namespace_cls,
+        logger_obj=logger_obj,
+        time_module=time_module,
+        path_cls=path_cls,
+    )
+
+
 def initialize_worker(
     *,
     env: Any,
@@ -234,34 +287,24 @@ def initialize_worker(
     path_cls: type[Path] = Path,
 ) -> None:
     try:
-        _log_worker_startup_context(
-            worker_id=worker_id,
-            worker=worker,
-            file_path=file_path,
-            logger_obj=logger_obj,
-            sys_module=sys_module,
-            path_cls=path_cls,
-        )
-        _resolve_initialized_worker_env(
+        _initialize_worker_runtime(
             env=env,
             app=app,
-            verbose=verbose,
-            base_worker_cls=base_worker_cls,
-            agi_env_factory=agi_env_factory,
-            ensure_managed_pc_share_dir_fn=ensure_managed_pc_share_dir_fn,
-        )
-        _start_initialized_worker(
             mode=mode,
+            verbose=verbose,
             worker_id=worker_id,
             worker=worker,
             args=args,
-            verbose=verbose,
             base_worker_cls=base_worker_cls,
+            agi_env_factory=agi_env_factory,
+            ensure_managed_pc_share_dir_fn=ensure_managed_pc_share_dir_fn,
             load_worker_fn=load_worker_fn,
             start_fn=start_fn,
             args_namespace_cls=args_namespace_cls,
             logger_obj=logger_obj,
             time_module=time_module,
+            sys_module=sys_module,
+            file_path=file_path,
             path_cls=path_cls,
         )
     except Exception:
