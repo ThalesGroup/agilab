@@ -1,0 +1,602 @@
+from __future__ import annotations
+
+import builtins
+import sqlite3
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from agi_env import mlflow_store
+
+
+def test_get_mlflow_module_handles_missing_and_present_module(monkeypatch: pytest.MonkeyPatch):
+    original_import = builtins.__import__
+
+    def _missing_mlflow(name, *args, **kwargs):
+        if name == "mlflow":
+            raise ImportError("missing mlflow")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _missing_mlflow)
+    assert mlflow_store.get_mlflow_module() is None
+
+    fake_mlflow = object()
+
+    def _present_mlflow(name, *args, **kwargs):
+        if name == "mlflow":
+            return fake_mlflow
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _present_mlflow)
+    assert mlflow_store.get_mlflow_module() is fake_mlflow
+
+
+def test_mlflow_path_helpers_and_legacy_detection(tmp_path: Path):
+    home_abs = tmp_path / "home"
+    env = SimpleNamespace(home_abs=home_abs, MLFLOW_TRACKING_DIR="runs")
+    tracking_dir = mlflow_store.resolve_mlflow_tracking_dir(env)
+    assert tracking_dir == (home_abs / "runs").resolve()
+
+    absolute_tracking = tmp_path / "absolute-tracking"
+    env = SimpleNamespace(home_abs=home_abs, MLFLOW_TRACKING_DIR=str(absolute_tracking))
+    assert mlflow_store.resolve_mlflow_tracking_dir(env) == absolute_tracking.resolve()
+
+    default_env = SimpleNamespace(home_abs=home_abs, MLFLOW_TRACKING_DIR=None)
+    assert mlflow_store.resolve_mlflow_tracking_dir(default_env) == (home_abs / ".mlflow").resolve()
+
+    db_path = mlflow_store.resolve_mlflow_backend_db(tracking_dir, default_db_name="mlflow.db")
+    assert db_path == tracking_dir / "mlflow.db"
+
+    artifact_dir = mlflow_store.resolve_mlflow_artifact_dir(tracking_dir, default_artifact_dir="artifacts")
+    assert artifact_dir == (tracking_dir / "artifacts").resolve()
+    assert artifact_dir.is_dir()
+
+    posix_uri = mlflow_store.sqlite_uri_for_path(db_path, os_name="posix")
+    nt_uri = mlflow_store.sqlite_uri_for_path(db_path, os_name="nt")
+    assert posix_uri.startswith("sqlite:////")
+    assert nt_uri.startswith("sqlite:///")
+
+    tracking_dir.mkdir(parents=True, exist_ok=True)
+    assert mlflow_store.legacy_mlflow_filestore_present(
+        tracking_dir,
+        default_db_name="mlflow.db",
+        default_artifact_dir="artifacts",
+    ) is False
+
+    (tracking_dir / "123").mkdir()
+    assert mlflow_store.legacy_mlflow_filestore_present(
+        tracking_dir,
+        default_db_name="mlflow.db",
+        default_artifact_dir="artifacts",
+    ) is True
+
+    (tracking_dir / "123").rename(tracking_dir / "meta.yaml")
+    assert mlflow_store.legacy_mlflow_filestore_present(
+        tracking_dir,
+        default_db_name="mlflow.db",
+        default_artifact_dir="artifacts",
+    ) is True
+
+    assert mlflow_store.legacy_mlflow_filestore_present(
+        tmp_path / "missing-tracking",
+        default_db_name="mlflow.db",
+        default_artifact_dir="artifacts",
+    ) is False
+
+    assert mlflow_store.sqlite_identifier('bad"name') == '"bad""name"'
+
+
+def test_repair_mlflow_default_experiment_db_updates_default_experiment_and_artifacts(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE experiments (experiment_id INTEGER PRIMARY KEY, name TEXT, workspace TEXT, artifact_location TEXT)"
+        )
+        conn.execute("CREATE TABLE metrics (experiment_id INTEGER, value REAL)")
+        conn.execute(
+            "INSERT INTO experiments (experiment_id, name, workspace, artifact_location) VALUES (5, ?, ?, ?)",
+            ("Default", "default", "old://artifact"),
+        )
+        conn.execute("INSERT INTO metrics (experiment_id, value) VALUES (5, 1.0)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    repaired = mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name="Default",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+        artifact_uri="file:///new-artifacts",
+    )
+
+    assert repaired is True
+    conn = sqlite3.connect(db_path)
+    try:
+        experiment = conn.execute(
+            "SELECT experiment_id, artifact_location FROM experiments WHERE name = ?",
+            ("Default",),
+        ).fetchone()
+        metric = conn.execute("SELECT experiment_id FROM metrics").fetchone()
+    finally:
+        conn.close()
+
+    assert experiment == (0, "file:///new-artifacts")
+    assert metric == (0,)
+
+
+def test_repair_mlflow_default_experiment_db_returns_false_for_missing_tables_or_rows(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    assert mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name="Default",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+    ) is False
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE experiments (name TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name="Default",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+    ) is False
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DROP TABLE experiments")
+        conn.execute("CREATE TABLE experiments (experiment_id INTEGER PRIMARY KEY, name TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name="Missing",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+    ) is False
+
+
+def test_repair_mlflow_default_experiment_db_returns_false_on_sqlite_error(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    db_path.write_text("placeholder", encoding="utf-8")
+
+    def _broken_connect(_path):
+        raise sqlite3.Error("broken sqlite")
+
+    assert mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name="Default",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+        connect_fn=_broken_connect,
+    ) is False
+
+
+def test_repair_mlflow_default_experiment_db_closes_connection_on_early_return(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    db_path.write_text("placeholder", encoding="utf-8")
+    closed = {"value": False}
+
+    class _Rows:
+        def __init__(self, *, fetchall_rows=None, fetchone_row=None):
+            self._fetchall_rows = fetchall_rows or []
+            self._fetchone_row = fetchone_row
+
+        def fetchall(self):
+            return self._fetchall_rows
+
+        def fetchone(self):
+            return self._fetchone_row
+
+    class _Connection:
+        def execute(self, sql, *_args):
+            if "sqlite_master" in sql:
+                return _Rows(fetchall_rows=[])
+            raise AssertionError(f"Unexpected SQL: {sql}")
+
+        def close(self):
+            closed["value"] = True
+
+    assert mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        default_experiment_name="Default",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+        connect_fn=lambda _path: _Connection(),
+    ) is False
+    assert closed["value"] is True
+
+
+def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE alembic_version (version_num TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    checked_uris: set[str] = set()
+    run_calls: list[list[str]] = []
+
+    def _run_cmd(cmd, **_kwargs):
+        run_calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        db_path,
+        checked_uris=checked_uris,
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda _path: None,
+        run_cmd=_run_cmd,
+        sys_executable="python-test",
+    )
+
+    assert run_calls == [["python-test", "-m", "mlflow", "db", "upgrade", "sqlite:///mlflow.db"]]
+    assert checked_uris == {"sqlite:///mlflow.db"}
+
+
+def test_ensure_mlflow_sqlite_schema_current_resets_or_raises_on_upgrade_failure(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE alembic_version (version_num TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    reset_calls: list[Path] = []
+
+    def _schema_reset_run(_cmd, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="schema-reset needed")
+
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        db_path,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///db",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda path: reset_calls.append(Path(path)),
+        run_cmd=_schema_reset_run,
+    )
+    assert reset_calls == [db_path]
+
+    def _failing_run(_cmd, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="upgrade failed badly")
+
+    with pytest.raises(RuntimeError, match="Failed to upgrade the local MLflow SQLite schema"):
+        mlflow_store.ensure_mlflow_sqlite_schema_current(
+            db_path,
+            checked_uris=set(),
+            sqlite_uri_for_path_fn=lambda _path: "sqlite:///db",
+            schema_reset_markers=("schema-reset",),
+            reset_backend_fn=lambda _path: None,
+            run_cmd=_failing_run,
+        )
+
+
+def test_ensure_mlflow_sqlite_schema_current_skips_missing_checked_or_non_alembic_db(tmp_path: Path):
+    missing_db = tmp_path / "missing.db"
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        missing_db,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///missing.db",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda _path: None,
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("run_cmd should not be called")),
+    )
+
+    checked_db = tmp_path / "checked.db"
+    checked_db.write_text("placeholder", encoding="utf-8")
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        checked_db,
+        checked_uris={"sqlite:///checked.db"},
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///checked.db",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda _path: None,
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("run_cmd should not be called")),
+    )
+
+    no_alembic_db = tmp_path / "no_alembic.db"
+    conn = sqlite3.connect(no_alembic_db)
+    try:
+        conn.execute("CREATE TABLE metrics (value REAL)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        no_alembic_db,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///no_alembic.db",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda _path: None,
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("run_cmd should not be called")),
+    )
+
+    sqlite_error_db = tmp_path / "sqlite_error.db"
+    sqlite_error_db.write_text("placeholder", encoding="utf-8")
+
+    def _broken_connect(_path):
+        raise sqlite3.Error("broken sqlite")
+
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        sqlite_error_db,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///sqlite_error.db",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda _path: None,
+        connect_fn=_broken_connect,
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("run_cmd should not be called")),
+    )
+
+
+def test_ensure_mlflow_sqlite_schema_current_closes_connection_after_probe(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    db_path.write_text("placeholder", encoding="utf-8")
+    closed = {"value": False}
+
+    class _Rows:
+        def fetchone(self):
+            return None
+
+    class _Connection:
+        def execute(self, sql):
+            assert "sqlite_master" in sql
+            return _Rows()
+
+        def close(self):
+            closed["value"] = True
+
+    mlflow_store.ensure_mlflow_sqlite_schema_current(
+        db_path,
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///mlflow.db",
+        schema_reset_markers=("schema-reset",),
+        reset_backend_fn=lambda _path: None,
+        connect_fn=lambda _path: _Connection(),
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("run_cmd should not be called")),
+    )
+
+    assert closed["value"] is True
+
+
+def test_reset_mlflow_sqlite_backend_moves_database_and_sidecars(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    for suffix in ("", "-shm", "-wal", "-journal"):
+        Path(f"{db_path}{suffix}").write_text("x", encoding="utf-8")
+
+    checked_uris = {"sqlite:///mlflow.db"}
+    backup_path = mlflow_store.reset_mlflow_sqlite_backend(
+        db_path,
+        checked_uris=checked_uris,
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///mlflow.db",
+        timestamp_fn=lambda: "20260415T120000",
+    )
+
+    assert backup_path == tmp_path / "mlflow.schema-reset-20260415T120000.db"
+    assert "sqlite:///mlflow.db" not in checked_uris
+    for suffix in ("", "-shm", "-wal", "-journal"):
+        assert not Path(f"{db_path}{suffix}").exists()
+        assert Path(f"{backup_path}{suffix}").exists()
+
+
+def test_reset_mlflow_sqlite_backend_returns_none_when_db_is_missing(tmp_path: Path):
+    assert mlflow_store.reset_mlflow_sqlite_backend(
+        tmp_path / "missing.db",
+        checked_uris=set(),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///missing.db",
+        timestamp_fn=lambda: "20260415T120000",
+    ) is None
+
+
+def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_experiment(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    db_path = tracking_dir / "mlflow.db"
+    schema_calls: list[Path] = []
+    repair_calls: list[tuple[Path, str | None]] = []
+    run_calls: list[list[str]] = []
+
+    def _run_cmd(cmd, **_kwargs):
+        run_calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    backend_uri = mlflow_store.ensure_mlflow_backend_ready(
+        tracking_dir,
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: db_path,
+        legacy_mlflow_filestore_present_fn=lambda _tracking_dir: True,
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        ensure_mlflow_sqlite_schema_current_fn=lambda path: schema_calls.append(Path(path)),
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        repair_mlflow_default_experiment_db_fn=lambda path, artifact_uri=None: repair_calls.append((Path(path), artifact_uri)),
+        run_cmd=_run_cmd,
+        sys_executable="python-test",
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert run_calls == [[
+        "python-test",
+        "-m",
+        "mlflow",
+        "migrate-filestore",
+        "--source",
+        str(tracking_dir),
+        "--target",
+        "sqlite:///mlflow.db",
+    ]]
+    assert schema_calls == [db_path]
+    assert repair_calls == [(db_path, (tracking_dir / "artifacts").as_uri())]
+
+
+def test_ensure_mlflow_backend_ready_raises_when_filestore_migration_fails(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+
+    def _run_cmd(_cmd, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="migration failed")
+
+    with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store"):
+        mlflow_store.ensure_mlflow_backend_ready(
+            tracking_dir,
+            resolve_mlflow_backend_db_fn=lambda _tracking_dir: tracking_dir / "mlflow.db",
+            legacy_mlflow_filestore_present_fn=lambda _tracking_dir: True,
+            sqlite_uri_for_path_fn=lambda _path: "sqlite:///mlflow.db",
+            ensure_mlflow_sqlite_schema_current_fn=lambda _path: None,
+            resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+            repair_mlflow_default_experiment_db_fn=lambda _path, artifact_uri=None: None,
+            run_cmd=_run_cmd,
+        )
+
+
+def test_ensure_mlflow_backend_ready_skips_migration_when_backend_already_exists(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    db_path = tracking_dir / "mlflow.db"
+    db_path.write_text("db", encoding="utf-8")
+    schema_calls: list[Path] = []
+    repair_calls: list[tuple[Path, str | None]] = []
+
+    backend_uri = mlflow_store.ensure_mlflow_backend_ready(
+        tracking_dir,
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: db_path,
+        legacy_mlflow_filestore_present_fn=lambda _tracking_dir: (_ for _ in ()).throw(
+            AssertionError("legacy filestore detection should not run when the DB already exists")
+        ),
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        ensure_mlflow_sqlite_schema_current_fn=lambda path: schema_calls.append(Path(path)),
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        repair_mlflow_default_experiment_db_fn=lambda path, artifact_uri=None: repair_calls.append((Path(path), artifact_uri)),
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("migration should not run")),
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert schema_calls == [db_path]
+    assert repair_calls == [(db_path, (tracking_dir / "artifacts").as_uri())]
+
+
+def test_ensure_default_mlflow_experiment_handles_missing_mlflow_module(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    assert mlflow_store.ensure_default_mlflow_experiment(
+        tracking_dir,
+        get_mlflow_module_fn=lambda: None,
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: tracking_dir / "mlflow.db",
+        ensure_mlflow_backend_ready_fn=lambda _tracking_dir: "sqlite:///mlflow.db",
+        reset_mlflow_sqlite_backend_fn=lambda _db_path: None,
+        default_experiment_name="Default",
+        schema_reset_markers=("schema-reset",),
+    ) is None
+
+
+def test_ensure_default_mlflow_experiment_creates_or_reuses_default_experiment(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    calls: list[tuple[str, object]] = []
+
+    class _FakeMlflow:
+        def __init__(self):
+            self.experiment = None
+
+        def set_tracking_uri(self, uri):
+            calls.append(("set_tracking_uri", uri))
+
+        def get_experiment_by_name(self, name):
+            calls.append(("get_experiment_by_name", name))
+            return self.experiment
+
+        def create_experiment(self, name, artifact_location=None):
+            calls.append(("create_experiment", (name, artifact_location)))
+            raise RuntimeError("Experiment already exists")
+
+        def set_experiment(self, name):
+            calls.append(("set_experiment", name))
+
+    backend_uri = mlflow_store.ensure_default_mlflow_experiment(
+        tracking_dir,
+        get_mlflow_module_fn=_FakeMlflow,
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: tracking_dir / "mlflow.db",
+        ensure_mlflow_backend_ready_fn=lambda _tracking_dir: "sqlite:///mlflow.db",
+        reset_mlflow_sqlite_backend_fn=lambda _db_path: None,
+        default_experiment_name="Default",
+        schema_reset_markers=("schema-reset",),
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert ("set_tracking_uri", "sqlite:///mlflow.db") in calls
+    assert ("get_experiment_by_name", "Default") in calls
+    assert ("set_experiment", "Default") in calls
+
+
+def test_ensure_default_mlflow_experiment_resets_backend_once_for_schema_drift(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    reset_calls: list[Path] = []
+    backend_calls: list[Path] = []
+
+    class _FakeMlflow:
+        def __init__(self):
+            self.set_experiment_calls = 0
+
+        def set_tracking_uri(self, _uri):
+            return None
+
+        def get_experiment_by_name(self, _name):
+            return SimpleNamespace(name="Default")
+
+        def set_experiment(self, _name):
+            self.set_experiment_calls += 1
+            if self.set_experiment_calls == 1:
+                raise RuntimeError("Detected out-of-date database schema")
+
+    fake_mlflow = _FakeMlflow()
+
+    backend_uri = mlflow_store.ensure_default_mlflow_experiment(
+        tracking_dir,
+        get_mlflow_module_fn=lambda: fake_mlflow,
+        resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+        resolve_mlflow_backend_db_fn=lambda _tracking_dir: tracking_dir / "mlflow.db",
+        ensure_mlflow_backend_ready_fn=lambda _tracking_dir: backend_calls.append(Path(_tracking_dir)) or "sqlite:///mlflow.db",
+        reset_mlflow_sqlite_backend_fn=lambda db_path: reset_calls.append(Path(db_path)),
+        default_experiment_name="Default",
+        schema_reset_markers=("schema",),
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert backend_calls == [tracking_dir, tracking_dir]
+    assert reset_calls == [tracking_dir / "mlflow.db"]
+
+
+def test_ensure_default_mlflow_experiment_propagates_non_schema_errors(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+
+    class _FakeMlflow:
+        def set_tracking_uri(self, _uri):
+            return None
+
+        def get_experiment_by_name(self, _name):
+            return None
+
+        def create_experiment(self, _name, artifact_location=None):
+            raise RuntimeError("unexpected create bug")
+
+        def set_experiment(self, _name):
+            return None
+
+    with pytest.raises(RuntimeError, match="unexpected create bug"):
+        mlflow_store.ensure_default_mlflow_experiment(
+            tracking_dir,
+            get_mlflow_module_fn=lambda: _FakeMlflow(),
+            resolve_mlflow_artifact_dir_fn=lambda _tracking_dir: tracking_dir / "artifacts",
+            resolve_mlflow_backend_db_fn=lambda _tracking_dir: tracking_dir / "mlflow.db",
+            ensure_mlflow_backend_ready_fn=lambda _tracking_dir: "sqlite:///mlflow.db",
+            reset_mlflow_sqlite_backend_fn=lambda _db_path: None,
+            default_experiment_name="Default",
+            schema_reset_markers=("schema-reset",),
+        )
