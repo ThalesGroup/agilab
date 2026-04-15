@@ -152,7 +152,7 @@ def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
 
 
 def _compute_zoom_from_span(span_deg: float) -> float:
-    """Approximate a mapbox zoom level based on the largest lat/lon span."""
+    """Approximate a map zoom level based on the largest lat/lon span."""
     thresholds = [
         (160, 1),
         (80, 2),
@@ -803,7 +803,7 @@ def page(env):
             if discreteseq:
                 # Get the color sequence
                 color_sequence = getattr(px.colors.qualitative, discreteseq)
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     plot_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
@@ -813,7 +813,7 @@ def page(env):
                     color=st.session_state[st.session_state.coltype],
                 )
             elif colorscale:
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     plot_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
@@ -823,7 +823,7 @@ def page(env):
                     color=st.session_state[st.session_state.coltype],
                 )
             else:
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     plot_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
@@ -842,7 +842,7 @@ def page(env):
                 )
                 if not sat_points.empty:
                     fig.add_trace(
-                        go.Scattermapbox(
+                        go.Scattermap(
                             lat=sat_points["sat_track_lat"],
                             lon=sat_points["sat_track_long"],
                             mode="markers",
@@ -852,7 +852,7 @@ def page(env):
                         )
                     )
 
-            fig.update_layout(mapbox_style="open-street-map")
+            fig.update_layout(map_style="open-street-map")
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
 
             st.plotly_chart(fig, width="stretch", theme="streamlit")
