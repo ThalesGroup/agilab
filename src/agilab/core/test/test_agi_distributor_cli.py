@@ -42,7 +42,7 @@ def test_get_processes_containing_returns_empty_on_failure(monkeypatch):
     monkeypatch.setattr(
         cli_mod.subprocess,
         "check_output",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("ps failed")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("ps failed")),
     )
     assert cli_mod.get_processes_containing("dask") == set()
 
@@ -67,7 +67,7 @@ def test_get_processes_containing_handles_windows_tasklist_failure(monkeypatch):
     monkeypatch.setattr(
         cli_mod.subprocess,
         "check_output",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("tasklist failed")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("tasklist failed")),
     )
     monkeypatch.setattr(cli_mod.logger, "warning", lambda message: warnings.append(str(message)))
 
@@ -88,7 +88,7 @@ def test_get_child_pids_returns_empty_on_failure(monkeypatch):
     monkeypatch.setattr(
         cli_mod.subprocess,
         "check_output",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("ps failed")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("ps failed")),
     )
     assert cli_mod.get_child_pids({100}) == set()
 
@@ -157,13 +157,23 @@ def test_is_alive_handles_expected_exceptions(monkeypatch):
     assert cli_mod._is_alive(1) is True
 
 
-def test_is_alive_returns_true_on_unknown_exception(monkeypatch):
+def test_is_alive_returns_true_on_unknown_oserror(monkeypatch):
+    monkeypatch.setattr(
+        cli_mod.os,
+        "kill",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unexpected")),
+    )
+    assert cli_mod._is_alive(1) is True
+
+
+def test_is_alive_propagates_unexpected_runtime_bug(monkeypatch):
     monkeypatch.setattr(
         cli_mod.os,
         "kill",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected")),
     )
-    assert cli_mod._is_alive(1) is True
+    with pytest.raises(RuntimeError, match="unexpected"):
+        cli_mod._is_alive(1)
 
 
 def test_kill_pids_collects_survivors_on_errors(monkeypatch):
@@ -174,12 +184,22 @@ def test_kill_pids_collects_survivors_on_errors(monkeypatch):
         if pid == 2:
             raise PermissionError()
         if pid == 3:
-            raise RuntimeError("boom")
+            raise OSError("boom")
 
     monkeypatch.setattr(cli_mod.os, "kill", _fake_kill)
     survivors = cli_mod.kill_pids({1, 2, 3}, signal.SIGTERM)
     assert survivors == {2, 3}
     assert set(calls) == {1, 2, 3}
+
+
+def test_kill_pids_propagates_unexpected_runtime_bug(monkeypatch):
+    monkeypatch.setattr(
+        cli_mod.os,
+        "kill",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected kill bug")),
+    )
+    with pytest.raises(RuntimeError, match="unexpected kill bug"):
+        cli_mod.kill_pids({1}, signal.SIGTERM)
 
 
 def test_kill_pids_handles_process_lookup(monkeypatch):
@@ -326,7 +346,7 @@ def test_signal_helpers_cover_alive_and_permission_paths(monkeypatch):
         if pid == 3:
             raise PermissionError()
         if pid == 4:
-            raise RuntimeError("boom")
+            raise OSError("boom")
 
     monkeypatch.setattr(cli_mod.os, "kill", _fake_kill)
 
@@ -361,13 +381,23 @@ def test_threaded_runs_requested_number_of_workers(monkeypatch):
     assert calls["count"] == 3
 
 
-def test_clean_handles_exception(monkeypatch):
+def test_clean_handles_oserror(monkeypatch):
+    monkeypatch.setattr(
+        cli_mod.shutil,
+        "rmtree",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("fail-clean")),
+    )
+    cli_mod.clean("/tmp/whatever")
+
+
+def test_clean_propagates_unexpected_runtime_bug(monkeypatch):
     monkeypatch.setattr(
         cli_mod.shutil,
         "rmtree",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fail-clean")),
     )
-    cli_mod.clean("/tmp/whatever")
+    with pytest.raises(RuntimeError, match="fail-clean"):
+        cli_mod.clean("/tmp/whatever")
 
 
 def test_clean_removes_temp_and_wenv(tmp_path, monkeypatch):
@@ -385,13 +415,44 @@ def test_clean_removes_temp_and_wenv(tmp_path, monkeypatch):
     assert not wenv_dir.exists()
 
 
-def test_unzip_handles_exception(monkeypatch):
+def test_unzip_handles_bad_zip(monkeypatch):
+    monkeypatch.setattr(
+        cli_mod.zipfile,
+        "ZipFile",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(zipfile.BadZipFile("boom-unzip")),
+    )
+    cli_mod.unzip("/tmp/worker")
+
+
+def test_unzip_propagates_unexpected_runtime_bug(monkeypatch):
+    root = Path("/tmp/worker")
+    monkeypatch.setattr(
+        cli_mod.Path,
+        "glob",
+        lambda self, pattern: [root / "demo.egg"] if self == root and pattern == "*.egg" else [],
+    )
     monkeypatch.setattr(
         cli_mod.zipfile,
         "ZipFile",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom-unzip")),
     )
-    cli_mod.unzip("/tmp/worker")
+    with pytest.raises(RuntimeError, match="boom-unzip"):
+        cli_mod.unzip("/tmp/worker")
+
+
+def test_process_listing_helpers_propagate_unexpected_runtime_bug(monkeypatch):
+    monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "check_output",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("unexpected ps bug")),
+    )
+
+    with pytest.raises(ValueError, match="unexpected ps bug"):
+        cli_mod.get_processes_containing("dask")
+
+    with pytest.raises(ValueError, match="unexpected ps bug"):
+        cli_mod.get_child_pids({100})
 
 
 def test_unzip_extracts_egg_contents(tmp_path):
