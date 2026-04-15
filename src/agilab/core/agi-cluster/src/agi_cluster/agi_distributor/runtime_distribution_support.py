@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+_CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+_WORKER_START_EXCEPTIONS = (ConnectionError, FileNotFoundError, OSError, RuntimeError, TimeoutError)
+_SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+
 
 def dask_env_prefix(agi_cls: Any) -> str:
     level = agi_cls._dask_log_level
@@ -97,7 +101,7 @@ async def start(
         if not cmd_prefix:
             try:
                 cmd_prefix = await agi_cls._detect_export_cmd(ip) or ""
-            except Exception:
+            except _CMD_PREFIX_LOOKUP_EXCEPTIONS:
                 cmd_prefix = ""
             if cmd_prefix:
                 set_env_var_fn(f"{ip}_CMD_PREFIX", cmd_prefix)
@@ -125,7 +129,7 @@ async def start(
                     create_task_fn(agi_cls.exec_ssh_async(ip, cmd))
                     log.info(f"Launched remote worker in background on {ip}: {cmd}")
 
-            except Exception as exc:
+            except _WORKER_START_EXCEPTIONS as exc:
                 log.error(f"Failed to start worker on {ip}: {exc}")
                 raise
 
@@ -184,7 +188,7 @@ async def sync(
                 raise TimeoutError("Timed out waiting for all workers to attach")
             await sleep_fn(3)
 
-        except Exception as exc:
+        except _SYNC_RETRY_EXCEPTIONS as exc:
             log.info(f"Exception in _sync: {exc}")
             await sleep_fn(1)
             if time_fn() - start_time > timeout:

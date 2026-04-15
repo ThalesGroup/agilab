@@ -139,6 +139,47 @@ async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_start_propagates_unexpected_detect_export_bug(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+
+    AGI.env = SimpleNamespace(
+        is_local=lambda _ip: False,
+        envars={},
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+    )
+    AGI._mode = AGI.DASK_MODE
+    AGI._mode_auto = False
+    AGI._workers = {"10.0.0.2": 1}
+    AGI._scheduler = "127.0.0.1:8786"
+    AGI._worker_init_error = False
+
+    class _Client:
+        def upload_file(self, _path):
+            return None
+
+    async def _fake_start_scheduler(_scheduler):
+        return True
+
+    async def _fake_detect(_ip):
+        raise ValueError("unexpected export detection bug")
+
+    monkeypatch.setattr(AGI, "_dask_client", _Client())
+    monkeypatch.setattr(AGI, "_start_scheduler", staticmethod(_fake_start_scheduler))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+
+    with pytest.raises(ValueError, match="unexpected export detection bug"):
+        await runtime_distribution_support.start(
+            AGI,
+            "127.0.0.1",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+            create_task_fn=lambda _coro: None,
+        )
+
+
+@pytest.mark.asyncio
 async def test_stop_retires_workers_and_shutdown(monkeypatch):
     class _Client:
         def __init__(self):
@@ -437,6 +478,27 @@ async def test_sync_raises_timeout_on_repeated_failures():
             client_type=_FakeClient,
             sleep_fn=_fake_sleep,
             time_fn=_fake_time,
+        )
+
+
+@pytest.mark.asyncio
+async def test_sync_propagates_unexpected_value_error():
+    class _FakeClient:
+        def scheduler_info(self):
+            raise ValueError("unexpected scheduler bug")
+
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._dask_client = _FakeClient()
+
+    async def _fake_sleep(_delay):
+        return None
+
+    with pytest.raises(ValueError, match="unexpected scheduler bug"):
+        await runtime_distribution_support.sync(
+            AGI,
+            timeout=1,
+            client_type=_FakeClient,
+            sleep_fn=_fake_sleep,
         )
 
 
