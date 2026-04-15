@@ -57,3 +57,42 @@ def test_dead_custom_picker_choice_recovers_to_detected_candidate():
     assert state.custom_value == ""
     assert state.edges_clean == "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml"
     assert state.recovered_from_missing is True
+
+
+def test_edge_selection_picker_helpers_cover_existing_and_fallback_paths(tmp_path: Path):
+    existing_custom = tmp_path / "topology.json"
+    existing_custom.write_text("{}", encoding="utf-8")
+
+    custom_state = edge_selection.resolve_edges_picker_state(
+        str(existing_custom),
+        [],
+        current_choice=edge_selection.CUSTOM_OPTION,
+        current_custom=str(existing_custom),
+    )
+    assert custom_state.choice == edge_selection.CUSTOM_OPTION
+    assert custom_state.edges_clean == str(existing_custom)
+    assert custom_state.recovered_from_missing is False
+
+    none_state = edge_selection.resolve_edges_picker_state(
+        "",
+        ["/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml"],
+        current_choice=edge_selection.NONE_OPTION,
+    )
+    assert none_state.choice == edge_selection.NONE_OPTION
+    assert none_state.edges_clean == ""
+
+    assert edge_selection._path_exists("\0") is False
+    assert edge_selection._preferred_recovery_candidate(
+        "routing_edges.old",
+        [
+            "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml",
+            "/Users/agi/clustershare/network_sim/pipeline/routing_edges.jsonl",
+        ],
+    ) == "/Users/agi/clustershare/network_sim/pipeline/routing_edges.jsonl"
+    assert edge_selection._preferred_recovery_candidate(
+        "custom-name.json",
+        [
+            "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml",
+            "/Users/agi/clustershare/network_sim/pipeline/routing_edges.jsonl",
+        ],
+    ) == "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml"
