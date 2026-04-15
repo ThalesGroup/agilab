@@ -1810,3 +1810,375 @@ def test_view_maps_network_misc_state_and_picker_helpers(monkeypatch, tmp_path: 
         positions,
     )
     assert skipped_layers == []
+
+
+def test_view_maps_network_settings_and_directory_fallback_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    fake_module_path = (
+        tmp_path
+        / "repo"
+        / "src"
+        / "agilab"
+        / "apps-pages"
+        / "view_maps_network"
+        / "view_maps_network.py"
+    )
+    fake_module_path.parent.mkdir(parents=True)
+    fake_module_path.write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setattr(module, "__file__", str(fake_module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+    module._ensure_repo_on_path()
+    assert str(fake_module_path.parents[3]) in module.sys.path
+    assert str(fake_module_path.parents[4]) in module.sys.path
+
+    broken_settings = tmp_path / "broken.toml"
+    broken_settings.write_text("{ not = toml", encoding="utf-8")
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=broken_settings))
+    assert module.st.session_state["app_settings"] == {}
+
+    module.st = SimpleNamespace(
+        session_state={"app_settings": {"view_maps_network": "bad", "pages": "bad"}},
+    )
+    assert module._get_view_maps_settings() == {}
+    assert module._get_view_maps_page_settings() == {}
+    assert module._coerce_str_list(123) == ["123"]
+    assert module._get_setting_list([{"paths": "a"}, "ignored"], "paths") == ["a"]
+
+    warnings: list[str] = []
+    module.st = SimpleNamespace(
+        session_state={},
+        sidebar=SimpleNamespace(warning=warnings.append),
+    )
+    scan_root = tmp_path / "scan_root"
+    scan_root.mkdir()
+    monkeypatch.setattr(
+        type(scan_root),
+        "iterdir",
+        lambda self: (_ for _ in ()).throw(OSError("scan failed")),
+        raising=False,
+    )
+    assert module._list_subdirectories(scan_root) == []
+    assert warnings == [f"Unable to list directories under {scan_root}: scan failed"]
+
+
+def test_view_maps_network_visual_helper_fallback_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    warnings: list[str] = []
+    module.st = SimpleNamespace(
+        session_state={
+            "show_cloud_heatmap": False,
+            "show_trajectory_traces": False,
+        },
+        sidebar=SimpleNamespace(warning=warnings.append),
+    )
+    assert module._cloud_heatmap_layers() == []
+
+    module.st.session_state.update(
+        {
+            "show_cloud_heatmap": True,
+            "cloud_heatmap_stride": 2,
+            "cloud_heatmap_min_weight": 0.1,
+            "cloud_heatmap_sat_path": "",
+            "cloud_heatmap_ivdl_path": "ivdl_map.npz",
+        }
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_points",
+        lambda *_args, **_kwargs: pd.DataFrame(),
+    )
+    assert module._cloud_heatmap_layers() == []
+    assert warnings == []
+
+    invalid_stats = module._sample_cloud_heatmap_stats("missing.npz", float("nan"), 0.0)
+    assert all(math.isnan(value) for value in invalid_stats.values())
+
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_grid",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("broken grid")),
+    )
+    broken_grid_stats = module._sample_cloud_heatmap_stats("broken.npz", 0.0, 0.0)
+    assert all(math.isnan(value) for value in broken_grid_stats.values())
+
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_grid",
+        lambda *_args, **_kwargs: {
+            "heatmap": np.ones((1, 1), dtype=np.float32),
+            "x_min": 0.0,
+            "z_min": 0.0,
+            "step": 1.0,
+            "center_x": 0.0,
+            "center_z": 0.0,
+        },
+    )
+    out_of_bounds_stats = module._sample_cloud_heatmap_stats("grid.npz", 90.0, 180.0)
+    assert all(math.isnan(value) for value in out_of_bounds_stats.values())
+
+    assert module._selected_nodes_heatmap_timeline(None, "heatmap.npz", {"A"}).empty
+    assert module._selected_nodes_heatmap_timeline(
+        pd.DataFrame({"id_col": ["A"], "time_col": [0], "lat": [np.nan], "long": [1.0]}),
+        "heatmap.npz",
+        {"A"},
+    ).empty
+
+    no_time_df = pd.DataFrame({"node_id": ["A"], "value": [1]})
+    assert module._downsample_heatmap_timeline(no_time_df, step_s=3).equals(no_time_df)
+
+    text_timeline = pd.DataFrame(
+        {
+            "node_id": ["A", "A"],
+            "map_time": ["t0", "t1"],
+            "heatmap_value": [1.0, 2.0],
+            "raw_heatmap_value": [1.0, 2.0],
+            "local_mean": [1.0, 1.5],
+            "local_max": [1.0, 2.0],
+            "lat": [1.0, 1.1],
+            "long": [2.0, 2.1],
+        }
+    )
+    downsampled_text = module._downsample_heatmap_timeline(text_timeline, step_s=2)
+    assert downsampled_text["map_time"].tolist() == ["t0"]
+
+    single_plane_fig = module._plot_selected_nodes_heatmap_timeline(text_timeline, "SAT")
+    assert single_plane_fig.layout.title.text == "SAT cloud intensity proxy at plane A over trajectory time"
+
+    multi_plane_timeline = pd.concat(
+        [
+            text_timeline.iloc[[0]].assign(node_id="A"),
+            text_timeline.iloc[[0]].assign(node_id="B"),
+            text_timeline.iloc[[0]].assign(node_id="C"),
+        ],
+        ignore_index=True,
+    )
+    multi_plane_fig = module._plot_selected_nodes_heatmap_timeline(multi_plane_timeline, "IVDL")
+    assert multi_plane_fig.layout.title.text == "IVDL cloud intensity proxy at selected planes over trajectory time"
+
+    assert module._trajectory_trace_layers(pd.DataFrame({"id_col": ["A"], "long": [1.0], "lat": [2.0]})) == []
+    module.st.session_state["show_trajectory_traces"] = True
+    assert module._trajectory_trace_layers(pd.DataFrame({"id_col": ["A"]})) == []
+    assert module._trajectory_trace_layers(
+        pd.DataFrame({"id_col": ["A"], "time_col": [0], "long": ["bad"], "lat": [2.0]})
+    ) == []
+    assert module._trajectory_trace_layers(
+        pd.DataFrame({"id_col": ["A"], "time_col": [0], "long": [1.0], "lat": [2.0]})
+    ) == []
+    traces = module._trajectory_trace_layers(
+        pd.DataFrame(
+            {
+                "id_col": ["A", "A"],
+                "long": [1.0, 2.0],
+                "lat": [3.0, 4.0],
+            }
+        )
+    )
+    assert len(traces) == 1
+    assert traces[0].type == "PathLayer"
+
+
+def test_view_maps_network_path_resolution_fallback_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    assert module._candidate_edges_paths([tmp_path / "missing"]) == []
+
+    share_root = tmp_path / "share"
+    (share_root / "pipeline").mkdir(parents=True)
+    topology_path = share_root / "pipeline" / "topology.gml"
+    topology_path.write_text("graph", encoding="utf-8")
+    edge_candidates = module._candidate_edges_paths([share_root])
+    assert topology_path in edge_candidates
+
+    quick_root = tmp_path / "quick"
+    (quick_root / "pipeline").mkdir(parents=True)
+    quick_topology = quick_root / "pipeline" / "topology.gml"
+    quick_topology.write_text("graph", encoding="utf-8")
+    monkeypatch.setattr(
+        type(quick_root),
+        "iterdir",
+        lambda self: (_ for _ in ()).throw(OSError("cannot scan")),
+        raising=False,
+    )
+    assert module._quick_share_edges_paths(quick_root) == [quick_topology]
+
+    data_dir = tmp_path / "data_dir"
+    data_dir.mkdir()
+    csv_path = tmp_path / "points.csv"
+    csv_path.write_text("x\n1\n", encoding="utf-8")
+    matched = module._candidate_files_from_globs([str(tmp_path / "*"), str(csv_path)])
+    assert csv_path in matched
+    assert data_dir not in matched
+
+    expanded = module._expand_glob_patterns([" ", "data/*.csv", "data/*.csv"], [tmp_path])
+    assert expanded == [str(tmp_path / "data/*.csv")]
+
+    datetime_calls: list[Any] = []
+
+    def _raise_datetime(*args, **kwargs):
+        datetime_calls.append((args, kwargs))
+        raise ValueError("bad datetime")
+
+    monkeypatch.setattr(module.pd, "to_datetime", _raise_datetime)
+    assert module._coerce_slider_value([pd.Timestamp("2024-01-01")], "2024-01-02") == pd.Timestamp("2024-01-01")
+    assert len(datetime_calls) >= 1
+
+    calls = iter([object(), ""])
+    monkeypatch.setattr(module, "_resolve_declared_path", lambda *_args, **_kwargs: next(calls))
+    assert module._choose_existing_declared_path("broken", "", [share_root]) == ""
+
+    monkeypatch.setattr(module, "_resolve_declared_path", lambda *_args, **_kwargs: object())
+    assert module._resolve_edges_file_path("broken", [share_root]) is None
+
+
+def test_view_maps_network_misc_helper_fallback_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    warnings: list[str] = []
+    module.st = SimpleNamespace(
+        warning=warnings.append,
+        sidebar=SimpleNamespace(warning=warnings.append),
+        session_state={},
+    )
+
+    assert module._candidate_node_ids("") == []
+    assert module._coerce_list_cell("(1, 2)") == [1, 2]
+    assert module._allocation_visible_node_ids(pd.DataFrame()) == set()
+    assert module._allocation_endpoint_roles(
+        pd.DataFrame({"source": ["1", "2"], "destination": ["3", "4"]}),
+        pd.DataFrame({"other": [1]}),
+    ) == {}
+    assert module._format_node_label("7") == "7"
+    assert module._build_map_label_layers(
+        pd.DataFrame({"flight_id": [" "], "long": [1.0], "lat": [2.0], "alt": [0.0]})
+    ) == []
+    assert module._coerce_numeric_float(float("inf")) is None
+    assert module._coerce_numeric_int("bad") is None
+    assert module._filter_allocation_rows_for_selected_nodes(pd.DataFrame(), {"1"}).empty
+    assert module._filter_allocation_rows_for_selected_nodes(
+        pd.DataFrame({"source": ["1"], "destination": ["2"], "time_index": [0]}),
+        {"9"},
+    ).empty
+
+    alloc_path = tmp_path / "allocations.parquet"
+    alloc_path.write_text("stub", encoding="utf-8")
+    monkeypatch.setattr(module, "load_allocations", lambda _path: pd.DataFrame())
+    assert module._expanded_node_ids_from_allocations({"1"}, allocation_paths=[alloc_path]) == {"1"}
+    assert module._endpoint_roles_from_allocations({"1"}, allocation_paths=[alloc_path]) == {}
+
+    monkeypatch.setattr(
+        module,
+        "load_allocations",
+        lambda _path: pd.DataFrame({"source": ["1"], "destination": ["2"], "time_index": [0]}),
+    )
+    assert module._allocation_routed_edge_pairs({"9"}, allocation_paths=[alloc_path]) == set()
+
+    assert module._candidate_allocation_paths([tmp_path / "missing"]) == []
+    assert module._parse_rgb_like(123) is None
+    assert module._parse_rgb_like("rgba(10,20,30,200)") == (10, 20, 30, 200)
+    monkeypatch.setattr(
+        module.mcolors,
+        "to_rgba",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad color")),
+    )
+    assert module._to_plotly_color(object()) == "#888"
+    assert module.hex_to_rgba("") == [136, 136, 136, 255]
+    assert module.hex_to_rgba("#zzzzzz") == [136, 136, 136, 255]
+
+    assert module.convert_to_tuples("{'bad': 'shape'}") == []
+    assert module.convert_to_tuples(5) == []
+
+    class _BoomStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert module.parse_edges([[(1, 2, 3)], [(_BoomStr(), 2)]]) == []
+    assert module.filter_edges(pd.DataFrame({"other": [[(1, 2)]]}), ["missing"]) == {}
+
+    assert module._parse_allocations_cell(({"source": 1},)) == [{"source": 1}]
+    assert module._parse_allocations_cell(5) == []
+    assert module._drop_index_levels_shadowing_columns(pd.DataFrame()).empty
+
+    blank_jsonl = tmp_path / "allocations.jsonl"
+    blank_jsonl.write_text('\n{"source": 1, "destination": 2}\n', encoding="utf-8")
+    assert not module.load_allocations(blank_jsonl).empty
+    assert module._nearest_row(pd.DataFrame(), 0.0).empty
+    assert module._nearest_row(pd.DataFrame({"time_s": ["bad"]}), 0.0).empty
+    assert module._find_latest_allocations(tmp_path / "missing_root") is None
+
+    filtered_root = tmp_path / "filtered_root"
+    filtered_root.mkdir()
+    (filtered_root / "allocations_steps.csv").write_text("source,destination\n1,2\n", encoding="utf-8")
+    assert module._find_latest_allocations(filtered_root, include=("baseline",)) is None
+
+    bad_edges = tmp_path / "bad_edges.json"
+    bad_edges.write_text('[{"source": "1"}]', encoding="utf-8")
+    assert module.load_edges_file(bad_edges) == {}
+
+    custom_edges = tmp_path / "custom_edges.jsonl"
+    custom_edges.write_text('{"source": "1", "target": "2", "bearer": "mesh link"}\n', encoding="utf-8")
+    assert module.load_edges_file(custom_edges) == {"mesh_link": [("1", "2")]}
+
+    bad_positions = tmp_path / "bad_positions.csv"
+    bad_positions.write_text("time_s,flight_id\n0,1\n", encoding="utf-8")
+    assert module.load_positions_at_time(str(bad_positions), 0.0).empty
+
+    no_time_positions = tmp_path / "no_time_positions.csv"
+    no_time_positions.write_text("time_s,latitude,longitude\nbad,1.0,2.0\n", encoding="utf-8")
+    assert module.load_positions_at_time(str(no_time_positions), 0.0).empty
+
+    broken_csv = tmp_path / "encoding.csv"
+    broken_csv.write_text("col\n1\n", encoding="utf-8")
+    read_csv_calls = {"count": 0}
+
+    def _broken_read_csv(*_args, **_kwargs):
+        read_csv_calls["count"] += 1
+        if read_csv_calls["count"] == 1:
+            raise UnicodeDecodeError("utf-8", b"x", 0, 1, "bad")
+        raise RuntimeError("still broken")
+
+    monkeypatch.setattr(module.pd, "read_csv", _broken_read_csv)
+    assert module._load_traj_file(str(broken_csv)).empty
+
+    positions = pd.DataFrame({"flight_id": ["1"], "long": [0.0], "lat": [1.0], "alt": [2.0]})
+    alloc_df = pd.DataFrame(
+        [
+            {
+                "source": "1",
+                "destination": "9",
+                "path": '["(\'1\', \'9\')"]',
+                "bearers": "['SAT']",
+            }
+        ]
+    )
+    assert module.build_allocation_layers(alloc_df, positions) == []
+
+    assert module._bearer_path_label(("SAT", "OPT")) == "SAT → OPT"
+    assert module._bearer_tokens(None) == []
+    assert module._bearer_tokens("('SAT', 'IVDL')") == ["SAT", "IVDL"]
+    assert module._canonical_bearer_state("   ", True) == "Routed"
+    assert module._canonical_bearer_state("ivdl", True) == "IVDL"
+    assert module._canonical_bearer_state("mesh", True) == "MESH"
+
+    assert module._selected_node_bearer_timeline(pd.DataFrame(), {"1"}, "alloc").empty
+    assert module._selected_node_bearer_timeline(
+        pd.DataFrame({"time_index": [1]}),
+        {"1"},
+        "alloc",
+    ).empty
+    assert module._selected_node_bearer_timeline(
+        pd.DataFrame({"time_index": [None], "source": ["1"], "destination": ["2"]}),
+        {"1"},
+        "alloc",
+    ).empty
+
+    assert len(warnings) >= 2
