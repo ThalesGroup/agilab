@@ -167,3 +167,81 @@ def test_resolve_preferred_sat_dataset_logs_share_root_failure(tmp_path):
     assert lines == [
         "[post_install] optional dataset seeding shared-root lookup skipped: agi_share_path is not configured"
     ]
+
+
+def test_apply_preferred_sat_dataset_relinks_existing_sat_trajectory_symlink(tmp_path):
+    lines = []
+    sat_trajectory_root = tmp_path / "shared-root" / "sat_trajectory"
+    preferred = sat_trajectory_root / "dataset" / "Trajectory"
+    current = sat_trajectory_root / "dataframe" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    current.mkdir(parents=True, exist_ok=True)
+    for folder in (preferred, current):
+        (folder / "a.csv").write_text("1", encoding="utf-8")
+        (folder / "b.csv").write_text("2", encoding="utf-8")
+
+    sat_folder = tmp_path / "dataset" / "sat"
+    sat_folder.parent.mkdir(parents=True, exist_ok=True)
+    sat_folder.symlink_to(current, target_is_directory=True)
+
+    result = post_mod._apply_preferred_sat_dataset(
+        sat_folder=sat_folder,
+        preferred_candidate=preferred,
+        sat_trajectory_root=sat_trajectory_root,
+        preserve_existing=False,
+        print_fn=lines.append,
+    )
+
+    assert result == 0
+    assert sat_folder.resolve(strict=False) == preferred.resolve(strict=False)
+    assert lines == [f"[post_install] relinked {sat_folder} -> {preferred}"]
+
+
+def test_apply_preferred_sat_dataset_deduplicates_duplicate_folder(tmp_path):
+    lines = []
+    sat_trajectory_root = tmp_path / "shared-root" / "sat_trajectory"
+    preferred = sat_trajectory_root / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    sat_folder = tmp_path / "dataset" / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    (sat_folder / "a.csv").write_text("1", encoding="utf-8")
+    (sat_folder / "b.csv").write_text("2", encoding="utf-8")
+
+    result = post_mod._apply_preferred_sat_dataset(
+        sat_folder=sat_folder,
+        preferred_candidate=preferred,
+        sat_trajectory_root=sat_trajectory_root,
+        preserve_existing=False,
+        print_fn=lines.append,
+    )
+
+    assert result == 0
+    assert sat_folder.resolve(strict=False) == preferred.resolve(strict=False)
+    assert lines == [f"[post_install] deduplicated {sat_folder} -> {preferred}"]
+
+
+def test_apply_preferred_sat_dataset_preserves_existing_samples_when_requested(tmp_path):
+    preferred = tmp_path / "shared-root" / "sat_trajectory" / "dataset" / "Trajectory"
+    preferred.mkdir(parents=True, exist_ok=True)
+    (preferred / "a.csv").write_text("1", encoding="utf-8")
+    (preferred / "b.csv").write_text("2", encoding="utf-8")
+
+    sat_folder = tmp_path / "dataset" / "sat"
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    (sat_folder / "existing-a.csv").write_text("1", encoding="utf-8")
+    (sat_folder / "existing-b.csv").write_text("2", encoding="utf-8")
+
+    result = post_mod._apply_preferred_sat_dataset(
+        sat_folder=sat_folder,
+        preferred_candidate=preferred,
+        sat_trajectory_root=preferred.parents[2],
+        preserve_existing=True,
+    )
+
+    assert result == 0
+    assert sat_folder.is_dir()
+    assert sat_folder.is_symlink() is False
+    assert (sat_folder / "existing-a.csv").exists()

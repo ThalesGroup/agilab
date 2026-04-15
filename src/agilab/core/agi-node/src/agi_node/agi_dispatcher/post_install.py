@@ -317,6 +317,61 @@ def _resolve_preferred_sat_dataset(
     return sat_trajectory_root, preferred_candidate
 
 
+def _apply_preferred_sat_dataset(
+    *,
+    sat_folder: Path,
+    preferred_candidate: Path,
+    sat_trajectory_root: Path | None,
+    preserve_existing: bool,
+    print_fn=None,
+) -> int | None:
+    if print_fn is None:
+        print_fn = print
+
+    if sat_folder.is_symlink():
+        try:
+            current_target = sat_folder.resolve(strict=False)
+            preferred_target = preferred_candidate.resolve(strict=False)
+            if current_target == preferred_target:
+                return 0
+            if (
+                sat_trajectory_root is not None
+                and sat_trajectory_root in current_target.parents
+                and sat_trajectory_root in preferred_target.parents
+            ):
+                if _try_link_dir(sat_folder, preferred_candidate):
+                    print_fn(f"[post_install] relinked {sat_folder} -> {preferred_candidate}")
+                return 0
+        except OSError:
+            pass
+
+    if _has_samples(sat_folder):
+        if preserve_existing:
+            return 0
+        if _dir_is_duplicate_of(sat_folder, preferred_candidate):
+            try:
+                shutil.rmtree(sat_folder, ignore_errors=False)
+            except OSError:
+                return 0
+            if _try_link_dir(sat_folder, preferred_candidate):
+                print_fn(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
+            return 0
+        if _folder_looks_large(sat_folder):
+            try:
+                shutil.rmtree(sat_folder, ignore_errors=False)
+            except OSError:
+                return 0
+            if _try_link_dir(sat_folder, preferred_candidate):
+                print_fn(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
+            return 0
+        return 0
+
+    if _try_link_dir(sat_folder, preferred_candidate):
+        print_fn(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
+        return 0
+    return None
+
+
 def _seed_optional_dataset(
     *,
     env: AgiEnv,
@@ -336,45 +391,14 @@ def _seed_optional_dataset(
     }
 
     if preferred_candidate is not None:
-        if sat_folder.is_symlink():
-            try:
-                current_target = sat_folder.resolve(strict=False)
-                preferred_target = preferred_candidate.resolve(strict=False)
-                if current_target == preferred_target:
-                    return 0
-                # If the existing link points to sat_trajectory output, relink it to the
-                # preferred deterministic dataset (avoids accidentally binding to large
-                # generated trajectories).
-                if sat_trajectory_root in current_target.parents and sat_trajectory_root in preferred_target.parents:
-                    if _try_link_dir(sat_folder, preferred_candidate):
-                        print(f"[post_install] relinked {sat_folder} -> {preferred_candidate}")
-                    return 0
-            except OSError:
-                pass
-
-        if _has_samples(sat_folder):
-            if preserve_existing:
-                return 0
-            if _dir_is_duplicate_of(sat_folder, preferred_candidate):
-                try:
-                    shutil.rmtree(sat_folder, ignore_errors=False)
-                except OSError:
-                    return 0
-                if _try_link_dir(sat_folder, preferred_candidate):
-                    print(f"[post_install] deduplicated {sat_folder} -> {preferred_candidate}")
-            if _folder_looks_large(sat_folder):
-                try:
-                    shutil.rmtree(sat_folder, ignore_errors=False)
-                except OSError:
-                    return 0
-                if _try_link_dir(sat_folder, preferred_candidate):
-                    print(f"[post_install] replaced large {sat_folder} -> {preferred_candidate}")
-                return 0
-            return 0
-
-        if _try_link_dir(sat_folder, preferred_candidate):
-            print(f"[post_install] linked {sat_folder} -> {preferred_candidate}")
-            return 0
+        preferred_result = _apply_preferred_sat_dataset(
+            sat_folder=sat_folder,
+            preferred_candidate=preferred_candidate,
+            sat_trajectory_root=sat_trajectory_root,
+            preserve_existing=preserve_existing,
+        )
+        if preferred_result is not None:
+            return preferred_result
     elif _has_samples(sat_folder):
         return 0
 
