@@ -152,6 +152,54 @@ def test_raise_process_error_preserves_runtime_and_kills_proc():
     assert any(str(call.args[0]) == "worker boom" for call in logger.error.call_args_list)
 
 
+def test_raise_nonzero_process_result_formats_with_diagnostic_hint(monkeypatch):
+    logger = mock.Mock()
+    captured = {}
+
+    def _fake_hint(cmd, result):
+        captured["hint_args"] = (cmd, list(result))
+        return "install hint"
+
+    def _fake_formatter(returncode, cmd, result, diagnostic_hint=None):
+        captured["format_args"] = (returncode, cmd, list(result), diagnostic_hint)
+        return f"formatted {returncode}: {diagnostic_hint}"
+
+    monkeypatch.setattr(execution_support, "command_failure_hint", _fake_hint)
+    monkeypatch.setattr(execution_support, "format_command_failure_message", _fake_formatter)
+
+    with pytest.raises(RuntimeError, match="formatted 7: install hint"):
+        execution_support._raise_nonzero_process_result(
+            returncode=7,
+            cmd="uv pip install demo",
+            logger=logger,
+            result=["dependency failure"],
+            include_diagnostic_hint=True,
+        )
+
+    logger.error.assert_called_once_with("Command failed with exit code %s: %s", 7, "uv pip install demo")
+    assert captured["hint_args"] == ("uv pip install demo", ["dependency failure"])
+    assert captured["format_args"] == (7, "uv pip install demo", ["dependency failure"], "install hint")
+
+
+def test_raise_nonzero_process_result_simple_message_skips_formatter(monkeypatch):
+    logger = mock.Mock()
+
+    def _unexpected_formatter(*_args, **_kwargs):
+        raise AssertionError("formatter should not run")
+
+    monkeypatch.setattr(execution_support, "format_command_failure_message", _unexpected_formatter)
+
+    with pytest.raises(RuntimeError, match=r"Command failed \(exit 4\)"):
+        execution_support._raise_nonzero_process_result(
+            returncode=4,
+            cmd="echo hi",
+            logger=logger,
+            simple_message=True,
+        )
+
+    logger.error.assert_called_once_with("Command failed with exit code %s: %s", 4, "echo hi")
+
+
 def test_run_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
     async def _raise_exec(*_args, **_kwargs):
         raise ValueError("bad command split")

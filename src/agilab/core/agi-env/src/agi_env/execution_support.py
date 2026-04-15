@@ -147,6 +147,25 @@ def _raise_process_error(
     raise RuntimeError(wrap_message) from err
 
 
+def _raise_nonzero_process_result(
+    *,
+    returncode: int,
+    cmd: str,
+    logger: Any,
+    result: list[str] | None = None,
+    simple_message: bool = False,
+    include_diagnostic_hint: bool = False,
+) -> None:
+    if logger:
+        logger.error("Command failed with exit code %s: %s", returncode, cmd)
+    if simple_message:
+        raise RuntimeError(f"Command failed (exit {returncode})")
+
+    lines = result or []
+    diagnostic_hint = command_failure_hint(cmd, lines) if include_diagnostic_hint else None
+    raise RuntimeError(format_command_failure_message(returncode, cmd, lines, diagnostic_hint))
+
+
 async def run(
     cmd: str | None,
     venv,
@@ -216,16 +235,12 @@ async def run(
         )
         returncode = await proc.wait()
         if returncode != 0:
-            if logger:
-                logger.error("Command failed with exit code %s: %s", returncode, cmd)
-            diagnostic_hint = command_failure_hint(cmd, result)
-            raise RuntimeError(
-                format_command_failure_message(
-                    returncode,
-                    cmd,
-                    result,
-                    diagnostic_hint,
-                )
+            _raise_nonzero_process_result(
+                returncode=returncode,
+                cmd=cmd,
+                logger=logger,
+                result=result,
+                include_diagnostic_hint=True,
             )
         return "\n".join(result)
     except asyncio.TimeoutError as err:
@@ -291,9 +306,12 @@ async def run_bg(
     returncode = proc.returncode
 
     if returncode != 0:
-        if logger:
-            logger.error("Command failed with exit code %s: %s", returncode, cmd)
-        raise RuntimeError(f"Command failed (exit {returncode})")
+        _raise_nonzero_process_result(
+            returncode=returncode,
+            cmd=cmd,
+            logger=logger,
+            simple_message=True,
+        )
 
     return stdout.decode(), stderr.decode()
 
@@ -355,9 +373,12 @@ async def run_async(
 
     rc = proc.returncode
     if rc != 0:
-        if logger:
-            logger.error("Command failed with exit code %s: %s", rc, cmd)
-        raise RuntimeError(format_command_failure_message(rc, cmd, result))
+        _raise_nonzero_process_result(
+            returncode=rc,
+            cmd=cmd,
+            logger=logger,
+            result=result,
+        )
 
     for line in reversed(result):
         if line.strip():
