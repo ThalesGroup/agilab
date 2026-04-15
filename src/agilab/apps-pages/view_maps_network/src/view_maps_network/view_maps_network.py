@@ -1964,6 +1964,17 @@ def _coerce_alloc_time_index(df: pd.DataFrame) -> pd.DataFrame:
     return normalized
 
 
+def _drop_index_levels_shadowing_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop named index levels that duplicate real column labels."""
+    if df.empty:
+        return df
+    index_names = [name for name in df.index.names if name is not None]
+    duplicated = [name for name in index_names if name in df.columns]
+    if not duplicated:
+        return df
+    return df.reset_index(level=duplicated, drop=True)
+
+
 def _normalize_allocations_frame(df_in: pd.DataFrame) -> pd.DataFrame:
     if df_in.empty:
         return df_in
@@ -3432,7 +3443,8 @@ def page():
         st.warning("The selected data file could not be loaded. Please select a valid file.")
         return
 
-    df = st.session_state.loaded_df
+    df = _drop_index_levels_shadowing_columns(st.session_state.loaded_df)
+    st.session_state.loaded_df = df
 
     # Normalize common geo/altitude columns early
     rename_geo = {
