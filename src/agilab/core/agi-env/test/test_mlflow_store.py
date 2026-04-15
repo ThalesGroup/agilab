@@ -493,6 +493,57 @@ def test_ensure_default_mlflow_experiment_handles_missing_mlflow_module(tmp_path
     ) is None
 
 
+def test_mlflow_existing_experiment_conflict_helper_prefers_refreshed_lookup():
+    calls = []
+
+    def _get_experiment(name):
+        calls.append(name)
+        return object()
+
+    assert mlflow_store._is_existing_experiment_conflict(
+        RuntimeError("irrelevant"),
+        get_experiment_fn=_get_experiment,
+        default_experiment_name="Default",
+    ) is True
+    assert calls == ["Default"]
+
+
+def test_mlflow_existing_experiment_conflict_helper_matches_message_or_propagates_lookup_bug():
+    assert mlflow_store._is_existing_experiment_conflict(
+        RuntimeError("Experiment already exists"),
+        get_experiment_fn=None,
+        default_experiment_name="Default",
+    ) is True
+
+    assert mlflow_store._is_existing_experiment_conflict(
+        RuntimeError("unexpected create bug"),
+        get_experiment_fn=None,
+        default_experiment_name="Default",
+    ) is False
+
+    with pytest.raises(RuntimeError, match="lookup bug"):
+        mlflow_store._is_existing_experiment_conflict(
+            RuntimeError("Experiment already exists"),
+            get_experiment_fn=lambda _name: (_ for _ in ()).throw(RuntimeError("lookup bug")),
+            default_experiment_name="Default",
+        )
+
+
+def test_mlflow_schema_reset_error_helper_matches_default_phrase_and_markers():
+    assert mlflow_store._is_schema_reset_error(
+        RuntimeError("Detected out-of-date database schema"),
+        schema_reset_markers=("schema-reset",),
+    ) is True
+    assert mlflow_store._is_schema_reset_error(
+        RuntimeError("schema-reset needed"),
+        schema_reset_markers=("schema-reset",),
+    ) is True
+    assert mlflow_store._is_schema_reset_error(
+        RuntimeError("other failure"),
+        schema_reset_markers=("schema-reset",),
+    ) is False
+
+
 def test_ensure_default_mlflow_experiment_creates_or_reuses_default_experiment(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
