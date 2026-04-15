@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -80,6 +81,50 @@ def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatc
                 shell_executable="/bin/bash",
             )
         )
+
+
+def test_raise_process_error_wraps_non_runtime_and_logs_traceback():
+    logger = mock.Mock()
+
+    with pytest.raises(RuntimeError, match="wrapped error"):
+        try:
+            raise ValueError("broken exec")
+        except ValueError as err:
+            execution_support._raise_process_error(
+                err,
+                proc=None,
+                logger=logger,
+                wrap_message="wrapped error",
+                trace_non_runtime=True,
+            )
+
+    assert logger.error.called
+
+
+def test_raise_process_error_preserves_runtime_and_kills_proc():
+    logger = mock.Mock()
+
+    class _Proc:
+        def __init__(self):
+            self.killed = False
+
+        def kill(self):
+            self.killed = True
+
+    proc = _Proc()
+
+    with pytest.raises(RuntimeError, match="worker boom"):
+        execution_support._raise_process_error(
+            RuntimeError("worker boom"),
+            proc=proc,
+            logger=logger,
+            wrap_message="unused wrapper",
+            command_context="Error during: echo boom",
+        )
+
+    assert proc.killed is True
+    logger.error.assert_any_call("Error during: echo boom")
+    assert any(str(call.args[0]) == "worker boom" for call in logger.error.call_args_list)
 
 
 def test_run_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):

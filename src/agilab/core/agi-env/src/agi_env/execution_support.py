@@ -106,6 +106,29 @@ async def _spawn_process(
         )
 
 
+def _raise_process_error(
+    err: Exception,
+    *,
+    proc: asyncio.subprocess.Process | None,
+    logger: Any,
+    wrap_message: str,
+    trace_non_runtime: bool = False,
+    command_context: str | None = None,
+) -> None:
+    if proc is not None:
+        proc.kill()
+    if logger:
+        if command_context:
+            logger.error(command_context)
+        if trace_non_runtime and not isinstance(err, RuntimeError):
+            logger.error(traceback.format_exc())
+        elif not trace_non_runtime:
+            logger.error(err)
+    if isinstance(err, RuntimeError):
+        raise err
+    raise RuntimeError(wrap_message) from err
+
+
 async def run(
     cmd: str | None,
     venv,
@@ -192,11 +215,13 @@ async def run(
             proc.kill()
         raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}") from err
     except Exception as err:
-        if logger and not isinstance(err, RuntimeError):
-            logger.error(traceback.format_exc())
-        if isinstance(err, RuntimeError):
-            raise
-        raise RuntimeError(f"Command execution error: {err}") from err
+        _raise_process_error(
+            err,
+            proc=None,
+            logger=logger,
+            wrap_message=f"Command execution error: {err}",
+            trace_non_runtime=True,
+        )
 
 
 async def run_bg(
@@ -302,14 +327,13 @@ async def run_async(
             timeout=timeout,
         )
     except Exception as err:
-        if proc is not None:
-            proc.kill()
-        if logger:
-            logger.error(f"Error during: {cmd}")
-            logger.error(err)
-        if isinstance(err, RuntimeError):
-            raise
-        raise RuntimeError(f"Subprocess execution error for: {cmd}") from err
+        _raise_process_error(
+            err,
+            proc=proc,
+            logger=logger,
+            wrap_message=f"Subprocess execution error for: {cmd}",
+            command_context=f"Error during: {cmd}",
+        )
 
     rc = proc.returncode
     if rc != 0:
