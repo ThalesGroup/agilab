@@ -279,12 +279,25 @@ def _migrate_legacy_mlflow_filestore_if_needed(
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout or "").strip()
-        raise RuntimeError(
-            "Failed to migrate the legacy MLflow file store to SQLite. "
-            f"Source: {tracking_dir}. {details}"
-        )
+    _handle_mlflow_filestore_migration_result(
+        result,
+        tracking_dir=tracking_dir,
+    )
+
+
+def _handle_mlflow_filestore_migration_result(
+    result,
+    *,
+    tracking_dir: Path,
+) -> None:
+    if result.returncode == 0:
+        return
+
+    details = (result.stderr or result.stdout or "").strip()
+    raise RuntimeError(
+        "Failed to migrate the legacy MLflow file store to SQLite. "
+        f"Source: {tracking_dir}. {details}"
+    )
 
 
 def _finalize_mlflow_backend(

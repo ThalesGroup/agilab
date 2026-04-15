@@ -525,6 +525,21 @@ def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_
         )
 
 
+def test_handle_mlflow_filestore_migration_result_covers_success_and_failure(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+
+    mlflow_store._handle_mlflow_filestore_migration_result(
+        SimpleNamespace(returncode=0, stdout="", stderr=""),
+        tracking_dir=tracking_dir,
+    )
+
+    with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store"):
+        mlflow_store._handle_mlflow_filestore_migration_result(
+            SimpleNamespace(returncode=1, stdout="", stderr="migration failed"),
+            tracking_dir=tracking_dir,
+        )
+
+
 def test_finalize_mlflow_backend_runs_schema_then_repairs_default_experiment(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
