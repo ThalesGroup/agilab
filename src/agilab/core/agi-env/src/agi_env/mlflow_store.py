@@ -90,7 +90,8 @@ def repair_mlflow_default_experiment_db(
         return False
 
     try:
-        with connect_fn(str(db_path)) as conn:
+        conn = connect_fn(str(db_path))
+        try:
             table_names = {
                 row[0]
                 for row in conn.execute(
@@ -154,6 +155,8 @@ def repair_mlflow_default_experiment_db(
             if repaired:
                 conn.commit()
             return repaired
+        finally:
+            conn.close()
     except sqlite3.Error:
         return False
 
@@ -177,10 +180,13 @@ def ensure_mlflow_sqlite_schema_current(
         return
 
     try:
-        with connect_fn(db_path) as conn:
+        conn = connect_fn(db_path)
+        try:
             has_alembic_version = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'alembic_version'"
             ).fetchone()
+        finally:
+            conn.close()
     except sqlite3.Error:
         has_alembic_version = None
     if not has_alembic_version:
