@@ -355,3 +355,155 @@ def test_view_maps_network_page_state_drives_pair_overlay_and_timelines(
     assert any("Routing allocations at this timestep" in caption for caption in captions)
     assert any("Baseline (ILP) allocations at this timestep" in caption for caption in captions)
     assert any("RL vs ILP (delta delivered_bandwidth)" in caption for caption in captions)
+
+
+def test_view_maps_network_page_handles_static_time_invalid_regex_and_missing_allocations(
+    tmp_path: Path,
+    create_temp_app_project,
+    run_page_app_test,
+) -> None:
+    target_name = "demo_static_network"
+    share_root = tmp_path / "clustershare"
+    datadir = share_root / "flight_trajectory"
+    datadir.mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame(
+        [
+            {
+                "plane_label": "1001",
+                "time_s": None,
+                "latitude": 48.0,
+                "longitude": 2.0,
+                "throughput": '{"satcom_link": 2.0}',
+            },
+            {
+                "plane_label": "2002",
+                "time_s": None,
+                "latitude": 48.0,
+                "longitude": 2.0,
+                "throughput": '{"satcom_link": 3.0}',
+            },
+            {
+                "plane_label": "",
+                "time_s": None,
+                "latitude": 48.0,
+                "longitude": 2.0,
+                "throughput": '{"satcom_link": 1.0}',
+            },
+        ]
+    ).to_csv(datadir / "network.csv", index=False)
+    (datadir / "broken.json").write_text("{broken", encoding="utf-8")
+
+    app_settings_text = (
+        "[view_maps_network]\n"
+        'base_dir_choice = "Custom"\n'
+        f'input_datadir = "{datadir.as_posix()}"\n'
+        'datadir_rel = ""\n'
+        'file_ext_choice = "bogus"\n'
+        'df_select_mode = "Regex (multi)"\n'
+        'df_file_regex = "["\n'
+        'df_files = ["network.csv", "broken.json"]\n'
+        'id_col = "plane_label"\n'
+        'time_col = "time_s"\n'
+        'selected_flights_filter = ["1001", "2002"]\n'
+        'jitter_overlap = true\n'
+        'metric_type_select = "missing"\n'
+        'allocations_file = "/tmp/missing-routing.parquet"\n'
+        'baseline_allocations_file = "/tmp/missing-baseline.json"\n'
+        'traj_glob = "/tmp/missing-traj/*.csv"\n'
+    )
+    project_dir = create_temp_app_project(
+        f"{target_name}_project",
+        package_name=target_name,
+        app_settings_text=app_settings_text,
+        pyproject_name=f"{target_name.replace('_', '-')}-project",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+
+    assert not at.exception
+    warnings = [warning.value for warning in at.warning]
+    infos = [info.value for info in at.info]
+    captions = [caption.value for caption in at.caption]
+    errors = [error.value for error in at.error]
+    selectboxes = {widget.label: widget.value for widget in at.selectbox}
+    multiselects = {widget.label: widget.value for widget in at.multiselect}
+    text_inputs = {widget.label: widget.value for widget in at.text_input}
+
+    assert any("Invalid regex" in message for message in errors)
+    assert any("Some selected files failed to load" in message for message in warnings)
+    assert any("No valid timestamps found in 'time_s'" in message for message in warnings)
+    assert any("Dropped 1 rows with missing node IDs." in message for message in warnings)
+    assert any("Allocations file not found" in message for message in infos)
+    assert any("Baseline allocations file not found" in message for message in infos)
+    assert any("No allocation rows found for the selected flights/nodes." in message for message in infos)
+    assert any("Loaded allocation files:" in caption for caption in captions)
+    assert multiselects["Flights / nodes"] == ["1001", "2002"]
+    assert selectboxes["Edge width metric (optional)"] == "(none)"
+    assert text_inputs["Custom allocations file path"] == "/tmp/missing-routing.parquet"
+    assert text_inputs["Custom baseline allocations file path"] == "/tmp/missing-baseline.json"
+    assert text_inputs["Custom trajectory glob(s)"] == "/tmp/missing-traj/*.csv"
+
+
+def test_view_maps_network_page_graph_only_keeps_sparse_nodes_visible(
+    tmp_path: Path,
+    create_temp_app_project,
+    run_page_app_test,
+) -> None:
+    target_name = "demo_graph_layout"
+    share_root = tmp_path / "clustershare"
+    datadir = share_root / "flight_trajectory"
+    topology_dir = share_root / "network_sim" / "pipeline"
+    datadir.mkdir(parents=True, exist_ok=True)
+    topology_dir.mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame(
+        [
+            {"plane_id": 1, "time_s": 0.0, "latitude": 48.0, "longitude": 2.0},
+            {"plane_id": 2, "time_s": 0.0, "latitude": 48.1, "longitude": 2.1},
+            {"plane_id": 3, "time_s": 1.0, "latitude": 48.2, "longitude": 2.2},
+            {"plane_id": 4, "time_s": 0.0, "latitude": 49.0, "longitude": 3.0},
+            {"plane_id": 5, "time_s": 0.0, "latitude": 49.1, "longitude": 3.1},
+            {"plane_id": 6, "time_s": 0.0, "latitude": 49.2, "longitude": 3.2},
+        ]
+    ).to_csv(datadir / "network.csv", index=False)
+
+    graph = nx.Graph()
+    for left in ("1", "2", "3"):
+        for right in ("4", "5", "6"):
+            graph.add_edge(left, right, bearer="satcom")
+    topology_path = topology_dir / "ilp_topology.gml"
+    nx.write_gml(graph, topology_path)
+
+    app_settings_text = (
+        "[view_maps_network]\n"
+        'base_dir_choice = "Custom"\n'
+        f'input_datadir = "{datadir.as_posix()}"\n'
+        'datadir_rel = ""\n'
+        'file_ext_choice = "csv"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "network.csv"\n'
+        'id_col = "plane_id"\n'
+        'time_col = "time_s"\n'
+        'edges_file = "network_sim/pipeline/ilp_topology.gml"\n'
+        'layout_type_select = "planar"\n'
+    )
+    project_dir = create_temp_app_project(
+        f"{target_name}_project",
+        package_name=target_name,
+        app_settings_text=app_settings_text,
+        pyproject_name=f"{target_name.replace('_', '-')}-project",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at.checkbox(key="show_map").set_value(False).run()
+    at.select_slider(key="view_maps_network:selected_time").set_value(0.0).run()
+
+    assert not at.exception
+    warnings = [warning.value for warning in at.warning]
+    captions = [caption.value for caption in at.caption]
+
+    filtered_warnings = [message for message in warnings if "Logo could not be loaded" not in message]
+    assert not filtered_warnings
+    assert any("Edge counts (preview): satcom_link=9" in caption for caption in captions)
+    assert any("6 / 6 flights shown" in caption for caption in captions)
