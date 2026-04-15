@@ -1,7 +1,9 @@
 import sys
+import os
 import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
+import subprocess
 from unittest import mock
 
 repo_root = Path(__file__).resolve().parents[2]
@@ -30,7 +32,13 @@ def _add_core_paths(core_root: Path) -> None:
         _add_path(core_root / rel)
 
 
-# Prefer the local `core` symlink when present (developer checkout).
+# Prefer the pinned public framework submodule when present.
+if (repo_root / ".external/agilab/src").exists():
+    _add_path(repo_root / ".external/agilab/src")
+if (repo_root / ".external/agilab/src/agilab/core").exists():
+    _add_core_paths(repo_root / ".external/agilab/src/agilab/core")
+
+# Legacy fallback: local `core` symlink in older developer checkouts.
 if (repo_root / "core").exists():
     _add_core_paths(repo_root / "core")
 
@@ -101,11 +109,42 @@ def _read_pyproject_version(pyproject_path: Path) -> str | None:
     return None
 
 
+def _read_git_version(repo_path: Path) -> str | None:
+    try:
+        version_value = subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(repo_path),
+                "describe",
+                "--tags",
+                "--dirty",
+                "--always",
+                "--match",
+                "v*",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        if version_value.startswith("v"):
+            version_value = version_value[1:]
+        return version_value or None
+    except Exception:
+        return None
+
+
 def _resolve_docs_version() -> str:
-    candidate_roots = [repo_root, _resolve_agilab_repo_root()]
+    candidate_roots = []
+    for root in (_resolve_agilab_repo_root(), repo_root):
+        if root is not None and root not in candidate_roots:
+            candidate_roots.append(root)
+
     for root in candidate_roots:
-        if root is None:
-            continue
+        version_value = _read_git_version(root)
+        if version_value is not None:
+            return version_value
+
+    for root in candidate_roots:
         pyproject_path = root / "pyproject.toml"
         if pyproject_path.exists():
             version_value = _read_pyproject_version(pyproject_path)
@@ -164,6 +203,10 @@ for ext in [
 
 # Exclude patterns
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+suppress_warnings = [
+    # `sphinxcontrib.plantuml` and `sphinx_pyreverse` both register `uml`.
+    "app.add_directive",
+]
 
 autodoc_mock_imports = [
     # Prevent heavy optional deps from breaking the build when absent
@@ -207,7 +250,12 @@ if _has_myst:
         "substitution",
         "tasklist",
     ]
-html_baseurl = 'https://thalesgroup.github.io/agilab'
+_github_repository = os.environ.get("GITHUB_REPOSITORY", "").strip()
+if "/" in _github_repository:
+    _github_owner, _github_repo = _github_repository.split("/", 1)
+    html_baseurl = f"https://{_github_owner}.github.io/{_github_repo}"
+else:
+    html_baseurl = "https://jpmorard.github.io/thales_agilab"
 
 # -- Templates Path ----------------------------------------------------------
 
@@ -226,15 +274,31 @@ autodoc_default_options = {
     "undoc-members": True,  # Include members without docstrings
     "private-members": False,  # Exclude private members
     "special-members": "__init__",  # Include special members like __init__
-    "inherited-members": True,  # Include inherited members
+    "inherited-members": False,  # Avoid expanding third-party base classes
     "show-inheritance": True,  # Show class inheritance
 }
+autodoc_typehints = "none"
 
 # -- Napoleon Configuration --------------------------------------------------
 
 # Napoleon settings for Google and NumPy docstrings
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
+
+nitpick_ignore_regex = [
+    ("py:class", r"Path|pathlib\.Path|optional|any|pl\.DataFrame|collections\.abc\.Mapping"),
+    ("py:class", r"ConfigDict|IncEx|DeprecatedParseProtocol|MappingNamespace"),
+    ("py:class", r"types\.SimpleNamespace|abc\.ABC|polars\.dataframe\.frame\.DataFrame"),
+    ("py:class", r"AnnAssign|ast\.(?:Node|ClassDef|For|FunctionDef|AST|Import|ImportFrom)"),
+    ("py:class", r"AST node|node|ast\.NodeTransformer|BaseWorker|pd\.DataFrame"),
+    ("py:class", r"pydantic\.main\.BaseModel"),
+    ("py:class", r"pathlib\._local\.Path|pathspec\.pathspec\.PathSpec"),
+    ("py:class", r"agi_env\.content_renamer_support\.ContentRenamer"),
+    ("py:exc", r"None|None\.|ValidationError"),
+    ("py:data", r"typing\.(?:Any|Tuple)"),
+    ("py:func", r"AgiEnv\._build_env"),
+    ("py:mod", r"logging"),
+]
 
 # -- HTML Output Configuration -----------------------------------------------
 
