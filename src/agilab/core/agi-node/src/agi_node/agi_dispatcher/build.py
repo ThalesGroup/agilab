@@ -377,6 +377,63 @@ def _postprocess_bdist_egg_output(
         log.info("Cleanup of created symlinks/files done.")
 
 
+def _resolve_worker_python_path(env) -> Path:
+    worker_py = Path(env.worker_path)
+    if worker_py.is_absolute():
+        return worker_py
+    try:
+        return (Path(env.home_abs) / worker_py).resolve()
+    except OSError:
+        return (Path.cwd() / worker_py).resolve()
+
+
+def _build_pre_install_command(
+    *,
+    pre_install_script: Path,
+    worker_py: Path,
+    verbose: int | bool,
+) -> list[str]:
+    cmd = [
+        sys.executable,
+        str(pre_install_script),
+        "remove_decorators",
+        "--worker_path",
+        str(worker_py),
+    ]
+    if verbose:
+        cmd.append("--verbose")
+    return cmd
+
+
+def _ensure_worker_cython_source(
+    env,
+    *,
+    resolve_pre_install_script_fn=None,
+    subprocess_run=None,
+    log=None,
+) -> None:
+    if resolve_pre_install_script_fn is None:
+        resolve_pre_install_script_fn = _resolve_pre_install_script
+    if subprocess_run is None:
+        subprocess_run = subprocess.run
+    if log is None:
+        log = AgiEnv.logger or logger
+
+    worker_py = _resolve_worker_python_path(env)
+    worker_pyx = worker_py.with_suffix(".pyx")
+    pre_install_script = resolve_pre_install_script_fn(env)
+    if worker_pyx.exists() or not pre_install_script:
+        return
+
+    pre_cmd = _build_pre_install_command(
+        pre_install_script=pre_install_script,
+        worker_py=worker_py,
+        verbose=env.verbose,
+    )
+    log.info("Ensuring Cython source via pre_install: %s", " ".join(pre_cmd))
+    subprocess_run(pre_cmd, check=True)
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -496,27 +553,7 @@ def main(argv: list[str] | None = None) -> None:
         except ValueError as e:
             AgiEnv.logger.error(e)
             raise
-
-        worker_py = Path(env.worker_path)
-        if not worker_py.is_absolute():
-            try:
-                worker_py = (Path(env.home_abs) / worker_py).resolve()
-            except OSError:
-                worker_py = (Path.cwd() / worker_py).resolve()
-        worker_pyx = worker_py.with_suffix('.pyx')
-        pre_install_script = _resolve_pre_install_script(env)
-        if not worker_pyx.exists() and pre_install_script:
-            pre_cmd = [
-                sys.executable,
-                str(pre_install_script),
-                "remove_decorators",
-                "--worker_path",
-                str(worker_py),
-            ]
-            if env.verbose:
-                pre_cmd.append("--verbose")
-            AgiEnv.logger.info("Ensuring Cython source via pre_install: %s", " ".join(pre_cmd))
-            subprocess.run(pre_cmd, check=True)
+        _ensure_worker_cython_source(env)
 
     sys.argv = [prog_name, cmd, flag, Path(env.home_abs) / out_arg / "dist"]
     worker_module = target_module + "_worker"
