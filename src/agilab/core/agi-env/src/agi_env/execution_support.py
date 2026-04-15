@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import shlex
+import subprocess
 import sys
 import traceback
 from pathlib import Path
@@ -23,6 +24,7 @@ from agi_env.process_support import (
 )
 
 SUBPROCESS_FALLBACK_EXCEPTIONS = (ValueError, OSError)
+PROCESS_WRAP_EXCEPTIONS = (RuntimeError, ValueError, OSError, subprocess.SubprocessError)
 
 
 def _invoke_callback(callback: Callable[..., Any], message: str) -> None:
@@ -247,7 +249,7 @@ async def run(
         if proc is not None:
             proc.kill()
         raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}") from err
-    except Exception as err:
+    except PROCESS_WRAP_EXCEPTIONS as err:
         _raise_process_error(
             err,
             proc=None,
@@ -362,7 +364,7 @@ async def run_async(
             result=result,
             wait_for_exit=True,
         )
-    except Exception as err:
+    except PROCESS_WRAP_EXCEPTIONS as err:
         _raise_process_error(
             err,
             proc=proc,
