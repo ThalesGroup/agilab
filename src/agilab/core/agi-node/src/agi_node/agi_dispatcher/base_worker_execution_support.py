@@ -25,6 +25,33 @@ DISTRIBUTION_PLAN_WRAP_EXCEPTIONS = (
 )
 
 
+def _resolve_primary_cython_dist_path(
+    wenv_abs: Path,
+    *,
+    path_cls: type[Path] = Path,
+) -> str | None:
+    cython_libs = list((wenv_abs / "dist").glob("*cy*"))
+    if not cython_libs:
+        return None
+    return str(path_cls(cython_libs[0].parent).resolve())
+
+
+def _append_sibling_worker_dist_paths(
+    sibling_root: Path,
+    *,
+    sys_path: list[str],
+) -> None:
+    if not sibling_root.is_dir():
+        return
+    for extra_dist in sibling_root.glob("*_worker/dist"):
+        try:
+            extra_path = str(extra_dist.resolve())
+        except FileNotFoundError:
+            continue
+        if extra_path and extra_path not in sys_path:
+            sys_path.append(extra_path)
+
+
 def add_cython_dist_paths(
     env: Any,
     *,
@@ -33,8 +60,10 @@ def add_cython_dist_paths(
     path_cls: type[Path] = Path,
 ) -> None:
     wenv_abs = env.wenv_abs
-    cython_libs = list((wenv_abs / "dist").glob("*cy*"))
-    lib_path = str(path_cls(cython_libs[0].parent).resolve()) if cython_libs else None
+    lib_path = _resolve_primary_cython_dist_path(
+        wenv_abs,
+        path_cls=path_cls,
+    )
 
     if lib_path:
         if lib_path not in sys_path:
@@ -43,15 +72,10 @@ def add_cython_dist_paths(
         logger_obj.info("warning: no cython library found at %s", lib_path)
         raise RuntimeError("Cython mode requested but no compiled library found")
 
-    sibling_root = wenv_abs.parent
-    if sibling_root.is_dir():
-        for extra_dist in sibling_root.glob("*_worker/dist"):
-            try:
-                extra_path = str(extra_dist.resolve())
-            except FileNotFoundError:
-                continue
-            if extra_path and extra_path not in sys_path:
-                sys_path.append(extra_path)
+    _append_sibling_worker_dist_paths(
+        wenv_abs.parent,
+        sys_path=sys_path,
+    )
 
 
 async def run_worker(
