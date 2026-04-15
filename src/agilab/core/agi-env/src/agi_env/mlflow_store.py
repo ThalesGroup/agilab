@@ -357,10 +357,10 @@ def _resolve_mlflow_artifact_uri(
     return resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
 
 
-def ensure_mlflow_backend_ready(
+def _prepare_mlflow_backend(
     tracking_dir: Path,
     *,
-    resolve_mlflow_backend_db_fn,
+    db_path: Path,
     legacy_mlflow_filestore_present_fn,
     sqlite_uri_for_path_fn,
     ensure_mlflow_sqlite_schema_current_fn,
@@ -368,8 +368,7 @@ def ensure_mlflow_backend_ready(
     repair_mlflow_default_experiment_db_fn,
     run_cmd=subprocess.run,
     sys_executable: str = sys.executable,
-) -> str:
-    db_path = resolve_mlflow_backend_db_fn(tracking_dir)
+) -> None:
     _migrate_legacy_mlflow_filestore_if_needed(
         tracking_dir,
         db_path=db_path,
@@ -384,6 +383,32 @@ def ensure_mlflow_backend_ready(
         ensure_mlflow_sqlite_schema_current_fn=ensure_mlflow_sqlite_schema_current_fn,
         resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir_fn,
         repair_mlflow_default_experiment_db_fn=repair_mlflow_default_experiment_db_fn,
+    )
+
+
+def ensure_mlflow_backend_ready(
+    tracking_dir: Path,
+    *,
+    resolve_mlflow_backend_db_fn,
+    legacy_mlflow_filestore_present_fn,
+    sqlite_uri_for_path_fn,
+    ensure_mlflow_sqlite_schema_current_fn,
+    resolve_mlflow_artifact_dir_fn,
+    repair_mlflow_default_experiment_db_fn,
+    run_cmd=subprocess.run,
+    sys_executable: str = sys.executable,
+) -> str:
+    db_path = resolve_mlflow_backend_db_fn(tracking_dir)
+    _prepare_mlflow_backend(
+        tracking_dir,
+        db_path=db_path,
+        legacy_mlflow_filestore_present_fn=legacy_mlflow_filestore_present_fn,
+        sqlite_uri_for_path_fn=sqlite_uri_for_path_fn,
+        ensure_mlflow_sqlite_schema_current_fn=ensure_mlflow_sqlite_schema_current_fn,
+        resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir_fn,
+        repair_mlflow_default_experiment_db_fn=repair_mlflow_default_experiment_db_fn,
+        run_cmd=run_cmd,
+        sys_executable=sys_executable,
     )
     return sqlite_uri_for_path_fn(db_path)
 
