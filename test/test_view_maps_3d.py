@@ -87,11 +87,19 @@ class _FakeSidebar(_NullContext):
         return self._streamlit._widget_value("sidebar.text_input", label, key=key, default=default)
 
     def selectbox(self, label, options, *args, key=None, index=0, **kwargs):
-        default = options[index] if options else None
+        default = (
+            self._streamlit.session_state.get(key)
+            if key is not None and key in self._streamlit.session_state
+            else (options[index] if options and index is not None else None)
+        )
         return self._streamlit._widget_value("sidebar.selectbox", label, key=key, default=default, options=options)
 
     def radio(self, label, options, *args, key=None, index=0, **kwargs):
-        default = options[index] if options else None
+        default = (
+            self._streamlit.session_state.get(key)
+            if key is not None and key in self._streamlit.session_state
+            else (options[index] if options and index is not None else None)
+        )
         return self._streamlit._widget_value("sidebar.radio", label, key=key, default=default, options=options)
 
     def multiselect(self, label, options, *args, key=None, default=None, **kwargs):
@@ -106,6 +114,10 @@ class _FakeSidebar(_NullContext):
 
     def download_button(self, label, *args, **kwargs):
         self._streamlit.calls["sidebar.download_button"].append(label)
+
+    def expander(self, label, *args, **kwargs):
+        self._streamlit.calls["sidebar.expander"].append(label)
+        return _NullContext()
 
     def caption(self, message):
         self._streamlit.calls["sidebar.caption"].append(message)
@@ -141,6 +153,8 @@ class _FakeStreamlit:
             "sidebar.success": [],
             "sidebar.markdown": [],
             "sidebar.download_button": [],
+            "sidebar.expander": [],
+            "code": [],
         }
 
     def _widget_value(self, kind, label, key=None, default=None, options=None):
@@ -165,7 +179,11 @@ class _FakeStreamlit:
         return value
 
     def selectbox(self, label, options, *args, key=None, index=0, **kwargs):
-        default = options[index] if options else None
+        default = (
+            self.session_state.get(key)
+            if key is not None and key in self.session_state
+            else (options[index] if options and index is not None else None)
+        )
         return self._widget_value("selectbox", label, key=key, default=default, options=options)
 
     def slider(self, label, *args, key=None, value=None, **kwargs):
@@ -200,6 +218,9 @@ class _FakeStreamlit:
 
     def error(self, message, *args, **kwargs):
         self.calls["error"].append(message)
+
+    def code(self, message, *args, **kwargs):
+        self.calls["code"].append(message)
 
     def stop(self):
         raise _StopExecution()
@@ -507,6 +528,232 @@ def test_view_maps_3d_page_requires_env(monkeypatch, tmp_path) -> None:
 
     assert any("not initialized" in message for message in messages)
     assert stop_calls == ["stop"]
+
+
+def test_view_maps_3d_page_rejects_invalid_datadir(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    settings_file = tmp_path / "app_settings.toml"
+    settings_file.write_text("", encoding="utf-8")
+    fake_st = _FakeStreamlit()
+    invalid_path = tmp_path / "not_a_directory"
+    invalid_path.write_text("x", encoding="utf-8")
+    fake_st.session_state["env"] = SimpleNamespace(
+        app_settings_file=settings_file,
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="demo_map_3d_project",
+        projects=["demo_map_3d_project"],
+        share_root_path=lambda: tmp_path / "share",
+    )
+    fake_st.session_state["datadir"] = invalid_path
+    fake_st.session_state["beamdir"] = tmp_path / "beams"
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+
+    module.page()
+
+    assert fake_st.calls["sidebar.error"] == ["Directory not found."]
+    assert any("valid data directory" in message for message in fake_st.calls["warning"])
+
+
+def test_view_maps_3d_page_handles_invalid_regex_and_empty_selection(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    datadir = tmp_path / "datasets"
+    datadir.mkdir()
+    settings_file = tmp_path / "app_settings.toml"
+    settings_file.write_text(
+        "[view_maps_3d]\n"
+        'file_ext_choice = "txt"\n'
+        'df_select_mode = "invalid-mode"\n',
+        encoding="utf-8",
+    )
+    selection_key = module._vm3d_key("df_files_selected")
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): "[",
+            ("sidebar.multiselect", selection_key): [],
+        }
+    )
+    fake_st.session_state["env"] = SimpleNamespace(
+        app_settings_file=settings_file,
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="demo_map_3d_project",
+        projects=["demo_map_3d_project"],
+        share_root_path=lambda: tmp_path / "share",
+    )
+
+    visible_file = datadir / "ok.csv"
+    hidden_file = datadir / ".hidden" / "skip.csv"
+    outside_file = tmp_path / "outside.csv"
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "_list_dataset_files",
+        lambda *_args, **_kwargs: [visible_file, hidden_file, outside_file],
+    )
+
+    module.page()
+
+    assert fake_st.session_state["file_ext_choice"] == "all"
+    assert any("Invalid regex" in message for message in fake_st.calls["sidebar.error"])
+    assert any("0 / 0 files match" in message for message in fake_st.calls["sidebar.caption"])
+    assert any("Please select at least one dataset" in message for message in fake_st.calls["warning"])
+
+
+def test_view_maps_3d_page_renders_loaded_datasets_and_geojson_controls(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    datadir = tmp_path / "datasets"
+    beamdir = tmp_path / "beams"
+    datadir.mkdir()
+    beamdir.mkdir()
+    settings_file = tmp_path / "app_settings.toml"
+    settings_file.write_text(
+        "[view_maps_3d]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        f'beamdir = "{beamdir.as_posix()}"\n',
+        encoding="utf-8",
+    )
+    selection_key = module._vm3d_key("df_files_selected")
+    beam_selection_key = module._vm3d_key("beam_files")
+    widget_values = {
+        ("sidebar.multiselect", selection_key): ["good.csv", "empty.csv", "weird.csv", "broken.csv"],
+        ("sidebar.multiselect", beam_selection_key): ["beam.csv"],
+        ("sidebar.file_uploader", "Upload your GeoJSON file"): object(),
+        ("sidebar.text_input", "Enter the name for your converted CSV file"): "converted.csv",
+        ("sidebar.button", "Move to data"): True,
+        ("multiselect", "Select Layers"): ["Terrain", "Flight Path", "Beams"],
+    }
+    fake_st = _FakeStreamlit(widget_values=widget_values)
+    line_limit_key = module._vm3d_key("table_max_rows")
+    fake_st.session_state["env"] = SimpleNamespace(
+        app_settings_file=settings_file,
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="demo_map_3d_project",
+        projects=["demo_map_3d_project"],
+        share_root_path=lambda: tmp_path / "share",
+    )
+    fake_st.session_state[selection_key] = "not-a-list"
+    fake_st.session_state[beam_selection_key] = "not-a-list"
+    fake_st.session_state["TABLE_MAX_ROWS"] = "not-an-int"
+    fake_st.session_state[line_limit_key] = "still-not-an-int"
+
+    good_df = pd.DataFrame(
+        {
+            "cluster_id": [idx % 2 for idx in range(20)],
+            "metric": list(range(20)),
+            "lat": [43.0 + idx * 0.01 for idx in range(20)],
+            "long": [1.0 + idx * 0.01 for idx in range(20)],
+            "alt": [1000 + idx * 10 for idx in range(20)],
+        }
+    )
+    beam_df = pd.DataFrame(
+        {
+            "polygon_index": [0, 0, 0, 1, 1, 1],
+            "longitude": [1.0, 1.1, 1.0, 2.0, 2.1, 2.0],
+            "latitude": [43.0, 43.0, 43.1, 44.0, 44.0, 44.1],
+        }
+    )
+    saved_payloads: list[dict] = []
+    preview_calls: list[pd.DataFrame] = []
+    moved_files: list[tuple[str, str]] = []
+
+    class _FakePdk:
+        class Layer:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+        class ViewState:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class Deck:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+    def fake_load_df(path, **_kwargs):
+        name = Path(path).name
+        if name == "good.csv":
+            return good_df.copy()
+        if name == "empty.csv":
+            return pd.DataFrame()
+        if name == "weird.csv":
+            return ["unexpected"]
+        if name == "broken.csv":
+            raise ValueError("boom")
+        if name == "beam.csv":
+            return beam_df.copy()
+        raise AssertionError(f"Unexpected load request: {path}")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "pdk", _FakePdk)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "_list_dataset_files",
+        lambda *_args, **_kwargs: [
+            datadir / "good.csv",
+            datadir / "empty.csv",
+            datadir / "weird.csv",
+            datadir / "broken.csv",
+        ],
+    )
+    monkeypatch.setattr(
+        module,
+        "find_files",
+        lambda base, recursive=False, ext=None: [beamdir / "beam.csv"] if Path(base) == beamdir else [],
+    )
+    monkeypatch.setattr(module, "load_df", fake_load_df)
+    monkeypatch.setattr(
+        module,
+        "render_dataframe_preview",
+        lambda df, **_kwargs: preview_calls.append(df.copy()),
+    )
+    monkeypatch.setattr(
+        module,
+        "_dump_toml_payload",
+        lambda payload, fh: (saved_payloads.append(payload), fh.write(b"[view_maps_3d]\n")),
+    )
+    monkeypatch.setattr(module.geojson, "load", lambda *_args, **_kwargs: {"features": []})
+    monkeypatch.setattr(module, "poly_geojson_to_csv", lambda *_args, **_kwargs: pd.DataFrame({"x": [1], "y": [2]}))
+    monkeypatch.setattr(module, "move_to_data", lambda name, csv: moved_files.append((name, csv)))
+
+    module.page()
+
+    assert any("Some selected files failed to load" in message for message in fake_st.calls["sidebar.warning"])
+    assert fake_st.calls["sidebar.expander"] == ["Load errors"]
+    assert any("empty.csv: empty dataframe" in message for message in fake_st.calls["write"])
+    assert any("weird.csv: unexpected type" in message for message in fake_st.calls["write"])
+    assert any("broken.csv: boom" in message for message in fake_st.calls["write"])
+    assert fake_st.calls["sidebar.download_button"] == ["Download CSV"]
+    assert moved_files and moved_files[0][0] == "converted.csv"
+    assert moved_files[0][1].strip() == "x,y\n1,2"
+    assert fake_st.calls["pydeck_chart"]
+    assert preview_calls and "__dataset__" in preview_calls[0].columns
+    assert fake_st.session_state["beam_files"] == ["beam.csv"]
+    assert saved_payloads and saved_payloads[0]["view_maps_3d"]["df_files_selected"] == [
+        "good.csv",
+        "empty.csv",
+        "weird.csv",
+        "broken.csv",
+    ]
+    assert saved_payloads[0]["view_maps_3d"]["beam_files"] == ["beam.csv"]
+
+
+def test_view_maps_3d_main_reports_missing_active_app(monkeypatch) -> None:
+    module = _load_view_maps_3d_module()
+    fake_st = _FakeStreamlit()
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app", "/tmp/does-not-exist"])
+
+    with pytest.raises(SystemExit):
+        module.main()
+
+    assert any("provided --active-app path not found" in message for message in fake_st.calls["error"])
 
 
 def test_view_maps_3d_renders_valid_dataset_without_beams(
