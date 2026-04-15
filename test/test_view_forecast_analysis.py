@@ -4,7 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -40,29 +40,13 @@ def _run_forecast_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTes
     return at
 
 
-def _load_forecast_module(tmp_path: Path, monkeypatch):
-    project_dir = _create_forecast_project(tmp_path)
-    artifact_dir = tmp_path / "export" / "meteo_forecast" / "forecast_analysis"
-    artifact_dir.mkdir(parents=True)
-    (artifact_dir / "forecast_metrics.json").write_text(
-        json.dumps({"scenario": "pilot", "mae": 0.5}),
-        encoding="utf-8",
-    )
-    (artifact_dir / "forecast_predictions.csv").write_text(
-        "date,y_true,y_pred\n2025-01-01,1.0,1.1\n",
-        encoding="utf-8",
-    )
-    spec = importlib.util.spec_from_file_location("view_forecast_analysis_test_module", PAGE_PATH)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
-    with patch.object(sys, "argv", argv):
-        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
-        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
-        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
-        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-        monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        spec.loader.exec_module(module)
+def _load_forecast_helpers() -> ModuleType:
+    source = Path(PAGE_PATH).read_text(encoding="utf-8")
+    prefix = source.split('\nst.set_page_config(layout="wide")\n', 1)[0]
+    module = ModuleType("view_forecast_analysis_test_module")
+    module.__file__ = str(Path(PAGE_PATH).resolve())
+    module.__package__ = None
+    exec(compile(prefix, str(Path(PAGE_PATH)), "exec"), module.__dict__)
     return module
 
 
@@ -128,7 +112,7 @@ def test_view_forecast_analysis_warns_when_predictions_are_missing(tmp_path, mon
 
 
 def test_view_forecast_analysis_helper_branches(monkeypatch, tmp_path) -> None:
-    module = _load_forecast_module(tmp_path, monkeypatch)
+    module = _load_forecast_helpers()
 
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"

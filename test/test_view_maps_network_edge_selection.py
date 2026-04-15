@@ -96,3 +96,30 @@ def test_edge_selection_picker_helpers_cover_existing_and_fallback_paths(tmp_pat
             "/Users/agi/clustershare/network_sim/pipeline/routing_edges.jsonl",
         ],
     ) == "/Users/agi/clustershare/network_sim/pipeline/ilp_topology.gml"
+
+
+def test_edge_selection_covers_empty_and_existing_path_branches(tmp_path: Path):
+    existing_edge_path = tmp_path / "routing_edges.jsonl"
+    existing_edge_path.write_text("{}", encoding="utf-8")
+
+    assert edge_selection._path_exists("") is False
+    assert edge_selection._preferred_recovery_candidate("missing.json", []) is None
+    assert edge_selection._preferred_recovery_candidate(
+        "legacy_edges.json",
+        [str(existing_edge_path)],
+    ) == str(existing_edge_path)
+
+    direct_state = edge_selection.resolve_edges_picker_state(
+        str(existing_edge_path),
+        [str(existing_edge_path)],
+    )
+    assert direct_state.choice == str(existing_edge_path)
+    assert direct_state.edges_clean == str(existing_edge_path)
+
+    existing_custom_state = edge_selection.resolve_edges_picker_state(
+        str(existing_edge_path),
+        [],
+    )
+    assert existing_custom_state.choice == edge_selection.CUSTOM_OPTION
+    assert existing_custom_state.custom_value == str(existing_edge_path)
+    assert existing_custom_state.edges_clean == str(existing_edge_path)
