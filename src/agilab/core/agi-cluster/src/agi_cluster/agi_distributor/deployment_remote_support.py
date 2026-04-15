@@ -9,6 +9,8 @@ from agi_env import AgiEnv
 
 logger = logging.getLogger(__name__)
 
+_REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
+
 
 async def deploy_remote_worker(
     agi_cls: Any,
@@ -80,7 +82,7 @@ async def deploy_remote_worker(
     if agi_cls._rapids_enabled:
         try:
             result = await agi_cls.exec_ssh(ip, "nvidia-smi")
-        except Exception:
+        except _REMOTE_RAPIDS_CHECK_EXCEPTIONS:
             log.error(f"rapids is requested but not supported by node [{ip}]")
             raise
 

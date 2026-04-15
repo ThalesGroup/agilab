@@ -163,3 +163,62 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     assert any(any(item["name"] == "agi_env-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any(any(item["name"] == "agi_node-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_rapids_probe_propagates_unexpected_value_error(tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("egg", encoding="utf-8")
+    agi_env = tmp_path / "agi_env"
+    agi_node = tmp_path / "agi_node"
+    for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
+        (p / "dist").mkdir(parents=True, exist_ok=True)
+        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "wenv",
+        wenv_rel=Path("wenv"),
+        dist_rel=Path("wenv/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={},
+        uv_worker="uv",
+        is_source_env=True,
+        app="demo_app",
+        target_worker="demo_worker",
+        agi_env=agi_env,
+        agi_node=agi_node,
+        post_install_rel="demo.post_install",
+        verbose=0,
+    )
+
+    async def _fake_exec(ip, cmd):
+        if cmd.strip() == "nvidia-smi":
+            raise ValueError("unexpected rapids probe bug")
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        del _env, ip, files, remote_path, user, password
+
+    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+        del _env, ip, local_path, remote_path, user, password
+
+    agi_cls = SimpleNamespace(
+        _rapids_enabled=True,
+        _workers_data_path=None,
+        exec_ssh=_fake_exec,
+        send_files=_fake_send,
+        send_file=_fake_send_file,
+    )
+
+    with pytest.raises(ValueError, match="unexpected rapids probe bug"):
+        await _call_deploy_remote_worker(
+            agi_cls,
+            "10.0.0.2",
+            env,
+            Path("wenv"),
+            " --extra pandas-worker",
+            set_env_var_fn=lambda *_a, **_k: None,
+            log=deployment_remote_support.logger,
+        )
