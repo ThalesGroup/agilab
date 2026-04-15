@@ -2438,7 +2438,7 @@ def test_build_main_build_ext_free_threaded_nonquiet_uses_worker_resolve_fallbac
 
     def _patched_resolve(self, *args, **kwargs):
         if self == fallback_target:
-            raise RuntimeError("resolve failed")
+            raise OSError("resolve failed")
         return original_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
@@ -2478,6 +2478,62 @@ def test_build_main_build_ext_free_threaded_nonquiet_uses_worker_resolve_fallbac
     assert ("Py_GIL_DISABLED", "1") in ext.define_macros
     assert cythonize_calls[0][2] == {"freethreading_compatible": True}
     assert setup_calls and setup_calls[0]["name"] == "demo_worker"
+
+
+def test_build_main_build_ext_propagates_unexpected_worker_resolve_bug(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    (app_dir / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    worker_file = worker_home / "workers" / "demo_worker.py"
+    worker_file.parent.mkdir(parents=True, exist_ok=True)
+    worker_file.write_text("value = 1\n", encoding="utf-8")
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    out_dir = worker_home / "demo_worker"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = "workers/demo_worker.py"
+            self.pre_install = str(pre_script)
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    original_resolve = build_mod.Path.resolve
+    fallback_target = worker_home / "workers" / "demo_worker.py"
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == fallback_target:
+            raise RuntimeError("resolve bug")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod.Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(build_mod, "find_sys_prefix", lambda _base: str(tmp_path / "prefix"))
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": ["demo_worker"])
+    monkeypatch.setattr(build_mod, "cythonize", lambda modules, **_kwargs: ["ext_mod"])
+    monkeypatch.setattr(build_mod, "setup", lambda **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="resolve bug"):
+        build_mod.main(
+            [
+                "--app-path",
+                str(app_dir),
+                "build_ext",
+                "-b",
+                str(out_dir),
+            ]
+        )
 
 
 def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):

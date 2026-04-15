@@ -368,7 +368,7 @@ def main(argv: list[str] | None = None) -> None:
         if not worker_py.is_absolute():
             try:
                 worker_py = (Path(env.home_abs) / worker_py).resolve()
-            except Exception:
+            except OSError:
                 worker_py = (Path.cwd() / worker_py).resolve()
         worker_pyx = worker_py.with_suffix('.pyx')
         pre_install_script = _resolve_pre_install_script(env)
