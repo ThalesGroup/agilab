@@ -579,6 +579,34 @@ def _prepare_bdist_egg_sources(
     return links_created
 
 
+def _prepare_build_ext_command(
+    *,
+    env,
+    build_dir: str | None,
+    truncate_path_at_segment_fn=None,
+    ensure_worker_cython_source_fn=None,
+    log=None,
+) -> None:
+    if truncate_path_at_segment_fn is None:
+        truncate_path_at_segment_fn = truncate_path_at_segment
+    if ensure_worker_cython_source_fn is None:
+        ensure_worker_cython_source_fn = _ensure_worker_cython_source
+    if log is None:
+        log = AgiEnv.logger or logger
+
+    if not build_dir:
+        log.error("build_ext requires --build-dir/-b argument")
+        raise ValueError("build_ext requires --build-dir/-b argument")
+
+    try:
+        truncate_path_at_segment_fn(build_dir)
+    except ValueError as err:
+        log.error(err)
+        raise
+
+    ensure_worker_cython_source_fn(env)
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -671,18 +699,8 @@ def main(argv: list[str] | None = None) -> None:
         home_abs=env.home_abs,
     )
 
-    # ext_path only relevant for build_ext
-    ext_path = None
     if cmd == 'build_ext':
-        if not opts.build_dir:
-            AgiEnv.logger.error("build_ext requires --build-dir/-b argument")
-            raise ValueError("build_ext requires --build-dir/-b argument")
-        try:
-            ext_path = truncate_path_at_segment(opts.build_dir)
-        except ValueError as e:
-            AgiEnv.logger.error(e)
-            raise
-        _ensure_worker_cython_source(env)
+        _prepare_build_ext_command(env=env, build_dir=opts.build_dir)
 
     sys.argv = _build_setuptools_argv(
         prog_name=prog_name,
