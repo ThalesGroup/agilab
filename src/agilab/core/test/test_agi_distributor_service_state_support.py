@@ -211,6 +211,28 @@ def test_service_write_state_creates_missing_parent_directory(tmp_path):
     assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "running"
 
 
+def test_service_write_state_uses_unique_temp_paths(tmp_path, monkeypatch):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    state_path = tmp_path / "service_state.json"
+    agi._service_state_path = lambda _env: state_path
+    real_replace = os.replace
+    temp_names = []
+
+    def _record_replace(src, dst):
+        temp_names.append(Path(src).name)
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(service_state_support.os, "replace", _record_replace)
+
+    service_state_support.service_write_state(agi, env, {"schema": "x", "status": "first"})
+    service_state_support.service_write_state(agi, env, {"schema": "x", "status": "second"})
+
+    assert len(temp_names) == 2
+    assert temp_names[0] != temp_names[1]
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "second"
+
+
 def test_service_finalize_response_health_only_adds_export_path():
     agi = _build_agi()
     env = _build_env(Path("/tmp"))
@@ -229,6 +251,28 @@ def test_service_write_health_payload_returns_none_on_failure():
     agi._service_health_path = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom"))
 
     assert service_state_support.service_write_health_payload(agi, env, {"schema": "x"}) is None
+
+
+def test_service_write_health_payload_uses_unique_temp_paths(tmp_path, monkeypatch):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    output_path = tmp_path / "health.json"
+    agi._service_health_path = lambda *_args, **_kwargs: output_path
+    real_replace = os.replace
+    temp_names = []
+
+    def _record_replace(src, dst):
+        temp_names.append(Path(src).name)
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(service_state_support.os, "replace", _record_replace)
+
+    assert service_state_support.service_write_health_payload(agi, env, {"schema": "x", "status": "first"}) == str(output_path)
+    assert service_state_support.service_write_health_payload(agi, env, {"schema": "x", "status": "second"}) == str(output_path)
+
+    assert len(temp_names) == 2
+    assert temp_names[0] != temp_names[1]
+    assert json.loads(output_path.read_text(encoding="utf-8"))["status"] == "second"
 
 
 @pytest.mark.asyncio

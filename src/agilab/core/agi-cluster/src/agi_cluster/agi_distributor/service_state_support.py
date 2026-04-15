@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -91,13 +92,43 @@ def service_read_state(agi_cls: Any, env: AgiEnv, *, log: Any = logger) -> Optio
         return None
 
 
+def _atomic_write(
+    output_path: Path,
+    write_fn: Any,
+    *,
+    mode: str,
+    encoding: Optional[str] = None,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{output_path.name}.",
+        suffix=".tmp",
+        dir=str(output_path.parent),
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        open_kwargs: Dict[str, Any] = {}
+        if encoding is not None:
+            open_kwargs["encoding"] = encoding
+        with os.fdopen(fd, mode, **open_kwargs) as stream:
+            write_fn(stream)
+        os.replace(tmp_path, output_path)
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+
 def service_write_state(agi_cls: Any, env: AgiEnv, payload: Dict[str, Any]) -> None:
     state_path = agi_cls._service_state_path(env)
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = state_path.with_suffix(state_path.suffix + ".tmp")
-    with open(tmp_path, "w", encoding="utf-8") as stream:
-        json.dump(payload, stream, indent=2)
-    os.replace(tmp_path, state_path)
+    _atomic_write(
+        state_path,
+        lambda stream: json.dump(payload, stream, indent=2),
+        mode="w",
+        encoding="utf-8",
+    )
 
 
 def service_clear_state(agi_cls: Any, env: AgiEnv, *, log: Any = logger) -> None:
@@ -209,10 +240,12 @@ def service_write_health_payload(
 ) -> Optional[str]:
     try:
         output_path = agi_cls._service_health_path(env, health_output_path=health_output_path)
-        tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
-        with open(tmp_path, "w", encoding="utf-8") as stream:
-            json.dump(health_payload, stream, indent=2)
-        os.replace(tmp_path, output_path)
+        _atomic_write(
+            output_path,
+            lambda stream: json.dump(health_payload, stream, indent=2),
+            mode="w",
+            encoding="utf-8",
+        )
         return str(output_path)
     except _SERVICE_EXPORT_EXCEPTIONS as exc:
         log.warning("Failed to write service health payload: %s", exc)
