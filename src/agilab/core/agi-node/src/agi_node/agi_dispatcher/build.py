@@ -728,9 +728,19 @@ def _fix_windows_drive(path_str: str) -> str:
     return path_str
 
 
-def main(argv: list[str] | None = None) -> None:
+def _resolve_main_inputs(
+    argv: list[str] | None = None,
+    *,
+    file_path: str | Path | None = None,
+    argv0: str | None = None,
+    chdir_fn=None,
+) -> tuple[str, Path, argparse.Namespace, bool, str, list[str], str | None]:
+    if chdir_fn is None:
+        chdir_fn = os.chdir
+
     raw_args = sys.argv[1:] if argv is None else list(argv)
-    prog_name = sys.argv[0]
+    prog_name = sys.argv[0] if argv0 is None else argv0
+    file_path = __file__ if file_path is None else file_path
 
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument("--app-path", dest="app_path")
@@ -740,21 +750,27 @@ def main(argv: list[str] | None = None) -> None:
         app_path_str = _fix_windows_drive(global_args.app_path)
         active_app = Path(app_path_str).expanduser().resolve()
     else:
-        active_app = Path(__file__).parent.resolve()
+        active_app = Path(file_path).parent.resolve()
 
-    os.chdir(active_app)
+    chdir_fn(active_app)
     opts = parse_custom_args(remaining, active_app)
-    # Normalise user-provided output dirs that may be missing the separator after the drive
     if getattr(opts, "build_dir", None):
         opts.build_dir = _fix_windows_drive(str(opts.build_dir))
     if getattr(opts, "dist_dir", None):
         opts.dist_dir = _fix_windows_drive(str(opts.dist_dir))
-    cmd = opts.command
-    quiet = True if opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining) else False
-    packages = opts.packages
-    # install_type removed
 
+    quiet = bool(opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining))
+    cmd = opts.command
+    packages = opts.packages
     raw_outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
+
+    return prog_name, active_app, opts, quiet, cmd, packages, raw_outdir
+
+
+def main(argv: list[str] | None = None) -> None:
+    prog_name, active_app, opts, quiet, cmd, packages, raw_outdir = _resolve_main_inputs(
+        argv,
+    )
 
     verbose = 0 if quiet else 2
     env = AgiEnv(
