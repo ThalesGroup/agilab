@@ -119,6 +119,34 @@ def _build_stream_handler(
         handler.addFilter(MaxLevelFilter(logging.WARNING))
     return handler
 
+
+def _configure_root_handlers(
+    root: logging.Logger,
+    *,
+    verbose: int,
+    stdout_stream,
+    stderr_stream,
+) -> tuple[logging.StreamHandler, logging.StreamHandler]:
+    root.setLevel(logging.INFO)
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+
+    stdout_handler = _build_stream_handler(
+        stdout_stream,
+        level=logging.INFO,
+        verbose=verbose,
+        add_max_level_filter=True,
+    )
+    stderr_handler = _build_stream_handler(
+        stderr_stream,
+        level=logging.ERROR,
+        verbose=verbose,
+    )
+
+    root.addHandler(stdout_handler)
+    root.addHandler(stderr_handler)
+    return stdout_handler, stderr_handler
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -193,27 +221,13 @@ class AgiLogger:
                 verbose = 0
             cls.verbose = verbose
 
-            # Configure ROOT so direct logging.info(...) calls are captured.
             root = logging.getLogger()
-            root.setLevel(logging.INFO)
-
-            for handler in root.handlers[:]:
-                root.removeHandler(handler)
-
-            stdout_handler = _build_stream_handler(
-                sys.stdout,
-                level=logging.INFO,
+            _configure_root_handlers(
+                root,
                 verbose=verbose,
-                add_max_level_filter=True,
+                stdout_stream=sys.stdout,
+                stderr_stream=sys.stderr,
             )
-            stderr_handler = _build_stream_handler(
-                sys.stderr,
-                level=logging.ERROR,
-                verbose=verbose,
-            )
-
-            root.addHandler(stdout_handler)
-            root.addHandler(stderr_handler)
 
             # Expose a base package logger; child loggers will propagate to ROOT.
             pkg_logger = logging.getLogger(cls._base_name)
