@@ -899,7 +899,7 @@ def page():
             )
             st.session_state.TABLE_MAX_ROWS = int(lines)
             if lines >= 0:
-                st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
+                st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :].copy()
 
             # st.session_state.loaded_df.set_index(
             #     st.session_state.loaded_df.columns[0], inplace=True
