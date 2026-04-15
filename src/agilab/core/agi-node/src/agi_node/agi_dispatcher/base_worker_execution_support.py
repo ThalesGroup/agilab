@@ -364,6 +364,30 @@ def build_worker_artifacts(
         raise
 
 
+def _expand_worker_payload(
+    payload: Any,
+    worker_id: int,
+    *,
+    expand_chunk_fn: Callable[[Any, int | None], tuple[Any, Any, Any]],
+) -> tuple[Any, Any, Any]:
+    expanded_payload, chunk_len, total_workers = expand_chunk_fn(
+        payload,
+        worker_id,
+    )
+    if expanded_payload is None:
+        expanded_payload = payload
+    return expanded_payload, chunk_len, total_workers
+
+
+def _select_worker_batch_entry(
+    expanded_payload: Any,
+    worker_id: int,
+) -> Any:
+    if isinstance(expanded_payload, list) and len(expanded_payload) > worker_id:
+        return expanded_payload[worker_id]
+    return []
+
+
 def execute_worker_plan(
     *,
     workers_plan: Any,
@@ -387,30 +411,19 @@ def execute_worker_plan(
 
     try:
         if worker_id is not None:
-            expanded_plan, plan_chunk_len, plan_total_workers = expand_chunk_fn(
+            expanded_plan, plan_chunk_len, plan_total_workers = _expand_worker_payload(
                 workers_plan,
                 worker_id,
+                expand_chunk_fn=expand_chunk_fn,
             )
-            expanded_meta, meta_chunk_len, _ = expand_chunk_fn(
+            expanded_meta, meta_chunk_len, _ = _expand_worker_payload(
                 workers_plan_metadata,
                 worker_id,
+                expand_chunk_fn=expand_chunk_fn,
             )
 
-            if expanded_plan is None:
-                expanded_plan = workers_plan
-            if expanded_meta is None:
-                expanded_meta = workers_plan_metadata
-
-            plan_entry = (
-                expanded_plan[worker_id]
-                if isinstance(expanded_plan, list) and len(expanded_plan) > worker_id
-                else []
-            )
-            metadata_entry = (
-                expanded_meta[worker_id]
-                if isinstance(expanded_meta, list) and len(expanded_meta) > worker_id
-                else []
-            )
+            plan_entry = _select_worker_batch_entry(expanded_plan, worker_id)
+            metadata_entry = _select_worker_batch_entry(expanded_meta, worker_id)
 
             logger_obj.info(
                 "worker #%s: %s from %s",
