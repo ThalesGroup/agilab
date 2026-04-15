@@ -147,6 +147,60 @@ async def _run_main_with_handled_errors(
         raise
 
 
+async def _run_prepared_execution(
+    agi_cls: Any,
+    env: Any,
+    mode: Union[int, str],
+    scheduler: Optional[str],
+    *,
+    process_error_type: type[BaseException],
+    format_exception_chain_fn: Callable[[BaseException], str],
+    traceback_format_exc_fn: Callable[[], str],
+    log: Any = logger,
+) -> Any:
+    _prepare_run_execution(agi_cls, env, mode)
+    return await _run_main_with_handled_errors(
+        agi_cls,
+        scheduler,
+        process_error_type=process_error_type,
+        format_exception_chain_fn=format_exception_chain_fn,
+        traceback_format_exc_fn=traceback_format_exc_fn,
+        log=log,
+    )
+
+
+async def _dispatch_run_execution(
+    agi_cls: Any,
+    env: Any,
+    scheduler: Optional[str],
+    workers: Dict[str, int],
+    verbose: int,
+    mode: Union[int, List[int], str],
+    mode_range: range | list[int] | None,
+    rapids_enabled: bool,
+    *,
+    process_error_type: type[BaseException],
+    format_exception_chain_fn: Callable[[BaseException], str],
+    traceback_format_exc_fn: Callable[[], str],
+    log: Any = logger,
+    **args: Any,
+) -> Any:
+    if mode_range is not None:
+        return await agi_cls._benchmark(
+            env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
+        )
+    return await _run_prepared_execution(
+        agi_cls,
+        env,
+        mode,
+        scheduler,
+        process_error_type=process_error_type,
+        format_exception_chain_fn=format_exception_chain_fn,
+        traceback_format_exc_fn=traceback_format_exc_fn,
+        log=log,
+    )
+
+
 async def run(
     agi_cls: Any,
     env: Any,
@@ -177,19 +231,20 @@ async def run(
     )
 
     mode_range = _benchmark_mode_range(mode)
-    if mode_range is not None:
-        return await agi_cls._benchmark(
-            env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
-        )
-
-    _prepare_run_execution(agi_cls, env, mode)
-    return await _run_main_with_handled_errors(
+    return await _dispatch_run_execution(
         agi_cls,
+        env,
         scheduler,
+        workers,
+        verbose,
+        mode,
+        mode_range,
+        rapids_enabled,
         process_error_type=process_error_type,
         format_exception_chain_fn=format_exception_chain_fn,
         traceback_format_exc_fn=traceback_format_exc_fn,
         log=log,
+        **args,
     )
 
 
