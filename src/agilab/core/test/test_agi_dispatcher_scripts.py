@@ -2664,3 +2664,92 @@ def test_build_main_bdist_egg_filelike_outdir_uses_parent_directory(tmp_path, mo
     assert any("looks like a file" in line for line in warnings_seen)
     assert Path(build_mod.sys.argv[3]) == worker_home / "exports" / "dist"
     assert setup_calls
+
+
+def test_build_main_bdist_egg_outdir_outside_home_uses_absolute_fallback(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    external_out = tmp_path / "external" / "demo_worker"
+    external_out.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = str(worker_home / "workers" / "demo_worker.py")
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": [])
+    monkeypatch.setattr(build_mod, "setup", lambda **_kwargs: None)
+
+    build_mod.main(
+        [
+            "--app-path",
+            str(app_dir),
+            "bdist_egg",
+            "-d",
+            str(external_out),
+        ]
+    )
+
+    assert Path(build_mod.sys.argv[3]) == external_out / "dist"
+
+
+def test_build_main_bdist_egg_propagates_unexpected_relative_to_bug(tmp_path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    worker_home = tmp_path / "home"
+    external_out = tmp_path / "external" / "demo_worker"
+    external_out.mkdir(parents=True, exist_ok=True)
+
+    class DummyAgiEnv:
+        logger = _DummyLogger()
+        _is_managed_pc = False
+
+        def __init__(self, *, apps_path=None, active_app, verbose):
+            self.home_abs = str(worker_home)
+            self.worker_path = str(worker_home / "workers" / "demo_worker.py")
+            self.pre_install = None
+            self.verbose = verbose
+            self.pyvers_worker = "3.13"
+            self.is_worker_env = True
+            self.active_app = app_dir
+            self.target_worker = "demo_worker"
+            self.agi_node = tmp_path / "agi_node"
+            self.agi_env = tmp_path / "agi_env"
+            self.app_src = app_dir
+
+    original_relative_to = build_mod.Path.relative_to
+
+    def _patched_relative_to(self, *args, **kwargs):
+        if self == external_out:
+            raise RuntimeError("relative_to bug")
+        return original_relative_to(self, *args, **kwargs)
+
+    monkeypatch.setattr(build_mod, "AgiEnv", DummyAgiEnv)
+    monkeypatch.setattr(build_mod.Path, "relative_to", _patched_relative_to, raising=False)
+    monkeypatch.setattr(build_mod, "find_packages", lambda where="src": [])
+    monkeypatch.setattr(build_mod, "setup", lambda **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="relative_to bug"):
+        build_mod.main(
+            [
+                "--app-path",
+                str(app_dir),
+                "bdist_egg",
+                "-d",
+                str(external_out),
+            ]
+        )
