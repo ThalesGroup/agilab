@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-13T11:30:02Z",
+  "generated_at_utc": "2026-04-15T12:21:56Z",
   "tool": "tools/codex_skills.py",
-  "count": 10,
+  "count": 11,
   "skills": [
     {
       "name": "agilab-docs",
@@ -76,12 +76,20 @@
       "body_preview": "# Pipeline Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic pipeline page stays app-agnostic; the app contributes its own conceptual"
     },
     {
-      "name": "svg-diagrams",
-      "description": "Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when Codex must produce standalone SVG assets and text must stay inside boxes without overflow.",
+      "name": "scientific-svg-figures",
+      "description": "Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-09",
+      "updated": "2026-04-15",
+      "path": ".codex/skills/scientific-svg-figures/SKILL.md",
+      "body_preview": "# Scientific SVG Figures\nUse this skill for technical figures that must explain a system, method, experiment, or result clearly at publication size.\nIf the request is only a tiny readability fix on one existing SVG, use `svg-diagram-tuning` instead. If the work is about a whole reusable visual language across many diagrams, use `advanced-svg-system-design`.\n## Quick Start"
+    },
+    {
+      "name": "svg-diagrams",
+      "description": "Create or substantially rework repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when Codex must produce a standalone SVG asset, define or restructure the layout, and keep text inside boxes without overflow.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-14",
       "path": ".codex/skills/svg-diagrams/SKILL.md",
-      "body_preview": "# SVG diagrams\nUse this skill when creating or editing standalone SVG assets in the repo.\n## Default workflow\n1. Start from a fixed `viewBox` and explicit box geometry."
+      "body_preview": "# SVG diagrams\nUse this skill when creating a new SVG, doing a major redesign of an existing one,\nor turning a rough sketch into a repo-native source-of-truth asset.\nIf the user only wants a local readability fix on an existing SVG, prefer the"
     }
   ]
 }

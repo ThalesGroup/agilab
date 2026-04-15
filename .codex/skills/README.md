@@ -20,13 +20,19 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_steps.toml` naming/IO-flow clarification.
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
+- `scientific-svg-figures`: Publication-grade scientific and technical SVG figure workflow for reports, slides, docs, and DOCX/PDF export.
 
 ## Adding A New Skill
 
-1. Create a new folder: `.codex/skills/<skill-name>/`.
-2. Add `.codex/skills/<skill-name>/SKILL.md` with YAML front-matter:
-   - `name`, `description`, `license`, optional `metadata`.
-3. Keep the skill self-contained; include scripts/examples only when they materially help.
+Shared AGILAB skills should be created under `.claude/skills/<skill-name>/` first, then synced into `.codex/skills/`:
+
+1. Create `.claude/skills/<skill-name>/`.
+2. Add the skill content there.
+3. Run `python3 tools/sync_agent_skills.py --skills <skill-name>`.
+4. Regenerate the Codex index with `tools/codex_skills.py`.
+
+Use `.codex/skills/` for the mirrored repo-visible Codex copy, not as the canonical edit location for shared skills.
+Use `python3 tools/sync_agent_skills.py --all` only after deliberately reconciling any older drift between the Claude and Codex repo copies. Keep `~/.codex/skills/` for personal or machine-local skills.
 
 ## Managing the Skill Index
 
