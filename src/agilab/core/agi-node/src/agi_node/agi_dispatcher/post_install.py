@@ -222,19 +222,25 @@ def _seed_optional_dataset(
     sat_folder = dataset_root / "sat"
 
     # Prefer reusing trajectories produced by sat_trajectory to avoid duplicating data.
-    share_root = env.share_root_path()
-    sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
-    # Prefer the packaged sat_trajectory dataset for deterministic installs/tests.
-    # The generated `dataframe/Trajectory` output can be very large (e.g. long
-    # propagation horizons) and may significantly slow down downstream consumers.
-    sat_trajectory_candidates = [
-        sat_trajectory_root / "dataset" / "Trajectory",
-        sat_trajectory_root / "dataframe" / "Trajectory",
-    ]
-    preferred_candidate = next(
-        (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
-        None,
-    )
+    preferred_candidate = None
+    try:
+        share_root = env.share_root_path()
+    except (OSError, RuntimeError) as exc:
+        print(f"[post_install] optional dataset seeding shared-root lookup skipped: {exc}")
+        share_root = None
+    if share_root is not None:
+        sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
+        # Prefer the packaged sat_trajectory dataset for deterministic installs/tests.
+        # The generated `dataframe/Trajectory` output can be very large (e.g. long
+        # propagation horizons) and may significantly slow down downstream consumers.
+        sat_trajectory_candidates = [
+            sat_trajectory_root / "dataset" / "Trajectory",
+            sat_trajectory_root / "dataframe" / "Trajectory",
+        ]
+        preferred_candidate = next(
+            (candidate for candidate in sat_trajectory_candidates if _has_samples(candidate)),
+            None,
+        )
     preserve_existing = os.environ.get("AGILAB_PRESERVE_LINK_SIM_SAT", "0") not in {
         "",
         "0",

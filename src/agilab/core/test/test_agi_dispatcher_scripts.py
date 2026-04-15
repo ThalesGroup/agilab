@@ -851,7 +851,7 @@ def test_post_main_reports_optional_dataset_seeding_exception(tmp_path, monkeypa
     result = post_mod.main([str(tmp_path / "demo_project")])
 
     assert result == 0
-    assert "optional dataset seeding skipped: agi_share_path is not configured" in capsys.readouterr().out
+    assert "optional dataset seeding shared-root lookup skipped: agi_share_path is not configured" in capsys.readouterr().out
 
 
 def test_post_optional_dataset_seeding_error_classifier():
