@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import agi_env.share_runtime_support as share_runtime_module
+import pytest
 
 
 def test_share_runtime_helpers_cover_target_path_modes_and_ip_validation(tmp_path: Path):
@@ -38,3 +39,43 @@ def test_python_supports_free_threading_falls_back_to_sysconfig(monkeypatch):
     )
 
     assert share_runtime_module.python_supports_free_threading() is True
+
+
+def test_python_supports_free_threading_handles_runtime_probe_failure(monkeypatch):
+    monkeypatch.setattr(
+        share_runtime_module.sys,
+        "_is_gil_enabled",
+        lambda: (_ for _ in ()).throw(RuntimeError("probe unavailable")),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        share_runtime_module.sysconfig,
+        "get_config_var",
+        lambda name: 0 if name == "Py_GIL_DISABLED" else None,
+    )
+
+    assert share_runtime_module.python_supports_free_threading() is False
+
+
+def test_python_supports_free_threading_propagates_unexpected_runtime_probe_bug(monkeypatch):
+    monkeypatch.setattr(
+        share_runtime_module.sys,
+        "_is_gil_enabled",
+        lambda: (_ for _ in ()).throw(ValueError("probe bug")),
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="probe bug"):
+        share_runtime_module.python_supports_free_threading()
+
+
+def test_python_supports_free_threading_propagates_unexpected_sysconfig_bug(monkeypatch):
+    monkeypatch.delattr(share_runtime_module.sys, "_is_gil_enabled", raising=False)
+    monkeypatch.setattr(
+        share_runtime_module.sysconfig,
+        "get_config_var",
+        lambda _name: (_ for _ in ()).throw(RuntimeError("sysconfig bug")),
+    )
+
+    with pytest.raises(RuntimeError, match="sysconfig bug"):
+        share_runtime_module.python_supports_free_threading()
