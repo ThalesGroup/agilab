@@ -1361,6 +1361,7 @@ def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path
 
     created = []
     monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", _DummyLogger(), raising=False)
     monkeypatch.setattr(build_mod.AgiEnv, "create_symlink", lambda src, dest: created.append((Path(src), Path(dest))))
     monkeypatch.setattr(build_mod.os, "link", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("hard link should not be used")))
 
@@ -1417,6 +1418,7 @@ def test_build_create_symlink_for_module_uses_agi_node_namespace_for_other_packa
 
     created = []
     monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", _DummyLogger(), raising=False)
     monkeypatch.setattr(build_mod.AgiEnv, "create_symlink", lambda src, dest: created.append((Path(src), Path(dest))))
     monkeypatch.setattr(build_mod.os, "link", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("hard link should not be used")))
 
@@ -1892,6 +1894,37 @@ def test_build_create_symlink_for_module_raises_when_hard_link_fails(tmp_path, m
     )
 
     with pytest.raises(OSError, match="hard link disabled"):
+        build_mod.create_symlink_for_module(env, "demo_worker.module_a")
+
+
+def test_build_create_symlink_for_module_propagates_unexpected_symlink_bug(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_file = tmp_path / "app" / "demo_worker" / "module_a"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("payload", encoding="utf-8")
+
+    env = SimpleNamespace(
+        agi_node=tmp_path / "agi_node",
+        agi_env=tmp_path / "agi_env",
+        target_worker="demo_worker",
+        app_src=tmp_path / "app",
+    )
+
+    monkeypatch.setattr(build_mod.AgiEnv, "_is_managed_pc", False, raising=False)
+    monkeypatch.setattr(build_mod.AgiEnv, "logger", _DummyLogger(), raising=False)
+    monkeypatch.setattr(
+        build_mod.AgiEnv,
+        "create_symlink",
+        staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("symlink bug"))),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        build_mod.os,
+        "link",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("hard link fallback should not run")),
+    )
+
+    with pytest.raises(RuntimeError, match="symlink bug"):
         build_mod.create_symlink_for_module(env, "demo_worker.module_a")
 
 
