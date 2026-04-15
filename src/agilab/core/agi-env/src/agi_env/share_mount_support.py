@@ -6,6 +6,10 @@ import os
 from pathlib import Path
 from typing import Callable, Mapping
 
+SETTINGS_READ_EXCEPTIONS = (OSError, ValueError)
+SETTINGS_LOOKUP_EXCEPTIONS = (OSError, TypeError, ValueError)
+DIR_USABILITY_EXCEPTIONS = (OSError,)
+
 
 def _parse_bool(value: object) -> bool | None:
     if isinstance(value, bool):
@@ -34,7 +38,7 @@ def _read_cluster_setting(path: Path) -> bool | None:
         if isinstance(cluster_section, dict) and "cluster_enabled" in cluster_section:
             return _parse_bool(cluster_section.get("cluster_enabled"))
         return None
-    except Exception:
+    except SETTINGS_READ_EXCEPTIONS:
         return None
 
 
@@ -63,7 +67,7 @@ def cluster_enabled_from_settings(
             parsed = _read_cluster_setting(settings_path)
             if parsed is not None:
                 break
-    except Exception:
+    except SETTINGS_LOOKUP_EXCEPTIONS:
         parsed = None
 
     if parsed is not None:
@@ -92,7 +96,7 @@ def _is_usable_dir(path: str) -> bool:
             handle.write("ok")
         os.remove(testfile)
         return True
-    except Exception:
+    except DIR_USABILITY_EXCEPTIONS:
         return False
 
 
@@ -118,7 +122,7 @@ def _fstab_bind_source_for_target(target: str) -> str | None:
                 src, tgt, _fstype, opts = parts[:4]
                 if os.path.normpath(tgt) == target and "bind" in opts.split(","):
                     return os.path.normpath(src)
-    except FileNotFoundError:
+    except OSError:
         pass
     return None
 
