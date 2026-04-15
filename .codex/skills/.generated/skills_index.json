@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-15T12:37:26Z",
+  "generated_at_utc": "2026-04-15T12:50:13Z",
   "tool": "tools/codex_skills.py",
-  "count": 20,
+  "count": 21,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -114,6 +114,14 @@
       "updated": "2026-04-07",
       "path": ".codex/skills/plan-before-code/SKILL.md",
       "body_preview": "# Plan Before Code\nUse this skill to force a planning pass before coding.\nThe goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits,\nand catch bad assumptions before touching files."
+    },
+    {
+      "name": "repo-skill-maintenance",
+      "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-15",
+      "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
+      "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },
     {
       "name": "report-qa-docx",

@@ -30,6 +30,7 @@ canonical source can serve both agents.
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
 - `plan-before-code`: Enforce a short planning and validation pass before multi-step code changes.
 - `report-qa-docx`: Review DOCX reports for missing figures, duplicate sections, stale wording, and caption drift.
+- `repo-skill-maintenance`: Maintain the shared `.claude/skills` and `.codex/skills` trees safely, with targeted sync and validation.
 - `svg-diagrams`: Author robust repo-native SVG diagrams with in-box text.
 - `scientific-svg-figures`: Create publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows.
 - `svg-diagram-tuning`: Refine an existing SVG for readability and export safety without redesigning it from scratch.
