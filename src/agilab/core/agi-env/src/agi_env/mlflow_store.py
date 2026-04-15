@@ -210,6 +210,42 @@ def ensure_mlflow_sqlite_schema_current(
     checked_uris.add(db_uri)
 
 
+def _migrate_legacy_mlflow_filestore_if_needed(
+    tracking_dir: Path,
+    *,
+    db_path: Path,
+    legacy_mlflow_filestore_present_fn,
+    sqlite_uri_for_path_fn,
+    run_cmd=subprocess.run,
+    sys_executable: str = sys.executable,
+) -> None:
+    if db_path.exists() or not legacy_mlflow_filestore_present_fn(tracking_dir):
+        return
+
+    target_uri = sqlite_uri_for_path_fn(db_path)
+    result = run_cmd(
+        [
+            sys_executable,
+            "-m",
+            "mlflow",
+            "migrate-filestore",
+            "--source",
+            str(tracking_dir),
+            "--target",
+            target_uri,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(
+            "Failed to migrate the legacy MLflow file store to SQLite. "
+            f"Source: {tracking_dir}. {details}"
+        )
+
+
 def reset_mlflow_sqlite_backend(
     db_path: Path,
     *,
@@ -245,29 +281,14 @@ def ensure_mlflow_backend_ready(
     sys_executable: str = sys.executable,
 ) -> str:
     db_path = resolve_mlflow_backend_db_fn(tracking_dir)
-    if not db_path.exists() and legacy_mlflow_filestore_present_fn(tracking_dir):
-        target_uri = sqlite_uri_for_path_fn(db_path)
-        result = run_cmd(
-            [
-                sys_executable,
-                "-m",
-                "mlflow",
-                "migrate-filestore",
-                "--source",
-                str(tracking_dir),
-                "--target",
-                target_uri,
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            details = (result.stderr or result.stdout or "").strip()
-            raise RuntimeError(
-                "Failed to migrate the legacy MLflow file store to SQLite. "
-                f"Source: {tracking_dir}. {details}"
-            )
+    _migrate_legacy_mlflow_filestore_if_needed(
+        tracking_dir,
+        db_path=db_path,
+        legacy_mlflow_filestore_present_fn=legacy_mlflow_filestore_present_fn,
+        sqlite_uri_for_path_fn=sqlite_uri_for_path_fn,
+        run_cmd=run_cmd,
+        sys_executable=sys_executable,
+    )
     ensure_mlflow_sqlite_schema_current_fn(db_path)
     artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
     repair_mlflow_default_experiment_db_fn(db_path, artifact_uri=artifact_uri)
