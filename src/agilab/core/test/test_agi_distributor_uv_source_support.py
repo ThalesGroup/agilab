@@ -24,6 +24,15 @@ def test_envar_truthy_handles_common_inputs_and_failures():
     assert uv_source_support.envar_truthy(_BrokenEnv(), "A") is False
 
 
+def test_envar_truthy_propagates_unexpected_lookup_bug():
+    class _BrokenEnv:
+        def get(self, _key):
+            raise ValueError("unexpected lookup bug")
+
+    with pytest.raises(ValueError, match="unexpected lookup bug"):
+        uv_source_support.envar_truthy(_BrokenEnv(), "A")
+
+
 def test_ensure_optional_extras_noop_when_extras_empty(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     uv_source_support.ensure_optional_extras(pyproject, set())
@@ -312,7 +321,7 @@ def test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and
     src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\nnot_a_table = "skip"\n', encoding="utf-8")
     dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\nnot_a_table = { path = "../unchanged" }\n', encoding="utf-8")
 
-    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")))
 
     uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
         src_pyproject=src_pyproject,
@@ -324,6 +333,28 @@ def test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and
         src_pyproject=tmp_path / "missing-src.toml",
         dest_pyproject=dest_pyproject,
     )
+
+
+def test_rewrite_uv_sources_paths_for_copied_pyproject_propagates_unexpected_relpath_bug(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected relpath bug")))
+
+    with pytest.raises(RuntimeError, match="unexpected relpath bug"):
+        uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+            src_pyproject=src_pyproject,
+            dest_pyproject=dest_pyproject,
+        )
 
 
 def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp_path, monkeypatch):
@@ -340,7 +371,7 @@ def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp
     src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
     dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
 
-    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")))
 
     staged_entries = uv_source_support.stage_uv_sources_for_copied_pyproject(
         src_pyproject=src_pyproject,
@@ -351,6 +382,30 @@ def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp
     staged_target = dst_dir / "_uv_sources" / "foo"
     assert staged_entries == [dst_dir / "_uv_sources"]
     assert f'foo = {{ path = "{staged_target}" }}' in dest_pyproject.read_text(encoding="utf-8")
+
+
+def test_stage_uv_sources_for_copied_pyproject_propagates_unexpected_relpath_bug(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+    (dep / "pyproject.toml").write_text("[project]\nname='dep'\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected relpath bug")))
+
+    with pytest.raises(RuntimeError, match="unexpected relpath bug"):
+        uv_source_support.stage_uv_sources_for_copied_pyproject(
+            src_pyproject=src_pyproject,
+            dest_pyproject=dest_pyproject,
+            stage_root=dst_dir,
+        )
 
 
 def test_copy_uv_source_tree_replaces_existing_file_destination(tmp_path):
