@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import pytest
 
 PAGE_PATH = (
     "src/agilab/apps-pages/view_uav_queue_analysis/src/view_uav_queue_analysis/view_uav_queue_analysis.py"
@@ -19,6 +23,60 @@ def _page_title() -> str:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.PAGE_TITLE
+
+
+def _load_uav_queue_module(tmp_path: Path, monkeypatch):
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir(exist_ok=True)
+    project_dir = apps_dir / "uav_queue_project"
+    (project_dir / "src" / "uav_queue").mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text("[project]\nname='uav-queue-project'\n", encoding="utf-8")
+    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
+    (project_dir / "src" / "uav_queue" / "__init__.py").write_text("", encoding="utf-8")
+
+    artifact_dir = tmp_path / "export" / "uav_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+    stem = "demo_seed1"
+    (artifact_dir / f"{stem}_summary_metrics.json").write_text(
+        json.dumps({"scenario": "demo", "pdr": 0.9, "routing_policy": "queue_aware"}),
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_queue_timeseries.csv").write_text(
+        "time_s,relay,queue_depth_pkts\n0.0,relay-a,1\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_packet_events.csv").write_text(
+        "packet_id,origin_kind,status,e2e_delay_ms\n1,source,delivered,10.0\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_node_positions.csv").write_text(
+        "time_s,node,role,y_m\n0.0,relay-a,relay,100\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_routing_summary.csv").write_text(
+        "relay,packets_delivered,packets_dropped\nrelay-a,1,0\n",
+        encoding="utf-8",
+    )
+
+    spec = importlib.util.spec_from_file_location("view_uav_queue_analysis_test_module", PAGE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        with patch("streamlit.set_page_config", lambda *args, **kwargs: None), patch(
+            "streamlit.sidebar.text_input",
+            lambda _label, value="", **_kwargs: value,
+        ), patch(
+            "streamlit.sidebar.selectbox",
+            lambda _label, options, index=0, **_kwargs: options[index] if options else None,
+        ):
+            spec.loader.exec_module(module)
+    return module
 
 
 def test_view_uav_queue_analysis_renders_exported_artifacts(
@@ -202,3 +260,56 @@ def test_view_uav_queue_analysis_reports_missing_delivered_source_packets(
     assert not at.exception
     assert any("No delivered source packet is available in this run." in info.value for info in at.info)
     assert any(subheader.value == "Notes" for subheader in at.subheader)
+
+
+def test_view_uav_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
+    module = _load_uav_queue_module(tmp_path, monkeypatch)
+
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    module_path = src_root / "agilab" / "apps-pages" / "view_uav_queue_analysis" / "src" / "view_uav_queue_analysis" / "view_uav_queue_analysis.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text("# stub\n", encoding="utf-8")
+    (module_path.parent / "page_meta.py").write_text(
+        "PAGE_LOGO = 'queued.svg'\nPAGE_TITLE = 'Queue Analysis'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+    module._ensure_repo_on_path()
+    assert str(src_root) in module.sys.path
+    assert str(repo_root) in module.sys.path
+
+    logo, title = module._load_page_meta()
+    assert logo == "queued.svg"
+    assert title == "Queue Analysis"
+
+    errors: list[str] = []
+    def stop_now():
+        raise RuntimeError("stop")
+    module.st = SimpleNamespace(error=errors.append, stop=stop_now)
+    monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
+    with pytest.raises(RuntimeError, match="stop"):
+        module._resolve_active_app()
+    assert any("Provided --active-app path not found" in message for message in errors)
+
+    assert module._discover_files(tmp_path / "missing", "[") == []
+    assert module._safe_metric(object()) == "n/a"
+
+
+def test_view_uav_queue_analysis_warns_when_summary_glob_is_empty(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_queue_project",
+        package_name="uav_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-queue-project",
+    )
+    artifact_dir = tmp_path / "export" / "uav_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
+
+    assert not at.exception
+    assert any("No summary metrics file found" in warning.value for warning in at.warning)
