@@ -346,7 +346,7 @@ def main(argv: list[str] | None = None) -> None:
         p = p.parent
     try:
         out_arg = p.relative_to(Path(env.home_abs)).as_posix()
-    except Exception:
+    except ValueError:
         out_arg = str(p)
 
     # Rebuild sys.argv for setuptools with correct flags
