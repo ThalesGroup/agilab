@@ -101,3 +101,39 @@ def test_worker_hook_none_when_resource_missing(monkeypatch, tmp_path: Path):
             module_file=str(tmp_path / "sandbox" / "nested" / "agi_env.py"),
         ) is None
 
+
+def test_resolve_worker_hook_handles_repo_fallback_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
+    hook_support.resolve_worker_hook.cache_clear()
+    monkeypatch.setattr(hook_support.importlib.util, "find_spec", lambda _name: None)
+    monkeypatch.setattr(
+        hook_support.importlib_resources,
+        "files",
+        lambda _name: (_ for _ in ()).throw(ModuleNotFoundError("missing resources")),
+    )
+
+    original_exists = Path.exists
+
+    def _oserror_exists(self):
+        if self.name == "pre_install.py":
+            raise OSError("exists failed")
+        return original_exists(self)
+
+    monkeypatch.setattr(Path, "exists", _oserror_exists, raising=False)
+    assert hook_support.resolve_worker_hook(
+        "pre_install.py",
+        module_file=str(tmp_path / "repo" / "pkg" / "one" / "two" / "agi_env.py"),
+    ) is None
+
+    hook_support.resolve_worker_hook.cache_clear()
+
+    def _runtime_exists(self):
+        if self.name == "pre_install.py":
+            raise RuntimeError("exists bug")
+        return original_exists(self)
+
+    monkeypatch.setattr(Path, "exists", _runtime_exists, raising=False)
+    with pytest.raises(RuntimeError, match="exists bug"):
+        hook_support.resolve_worker_hook(
+            "pre_install.py",
+            module_file=str(tmp_path / "repo" / "pkg" / "one" / "two" / "agi_env.py"),
+        )

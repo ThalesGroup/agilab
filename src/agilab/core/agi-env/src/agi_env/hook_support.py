@@ -9,6 +9,8 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 
+HOOK_REPO_FALLBACK_EXCEPTIONS = (IndexError, OSError)
+
 
 @lru_cache(maxsize=None)
 def resolve_worker_hook(filename: str, *, module_file: str) -> Path | None:
@@ -46,7 +48,7 @@ def resolve_worker_hook(filename: str, *, module_file: str) -> Path | None:
         for candidate in (src_hook, pkg_hook):
             if candidate.exists():
                 return candidate
-    except Exception:
+    except HOOK_REPO_FALLBACK_EXCEPTIONS:
         pass
 
     try:
@@ -90,4 +92,3 @@ def select_hook(
     raise FileNotFoundError(
         f"Unable to resolve {hook_label} script: expected {local_candidate} or shared agi-node copy."
     )
-
