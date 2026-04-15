@@ -3,6 +3,7 @@ from unittest import mock
 
 import pytest
 
+import agi_env.data_archive_support as data_archive_support
 from agi_env.data_archive_support import unzip_data
 
 
@@ -59,3 +60,53 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
             sevenzip_file_cls=_BrokenSevenZip,
             rmtree_fn=lambda *_a, **_k: None,
         )
+
+
+def test_write_dataset_stamp_handles_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    stamp_path = tmp_path / "dataset" / ".agilab_dataset_stamp"
+    stamp_path.parent.mkdir(parents=True)
+
+    original_write_text = Path.write_text
+
+    def _oserror_write_text(self, *args, **kwargs):
+        if self == stamp_path:
+            raise OSError("write failed")
+        return original_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _oserror_write_text, raising=False)
+    data_archive_support._write_dataset_stamp(archive, stamp_path)
+
+    def _runtime_write_text(self, *args, **kwargs):
+        if self == stamp_path:
+            raise RuntimeError("write bug")
+        return original_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _runtime_write_text, raising=False)
+    with pytest.raises(RuntimeError, match="write bug"):
+        data_archive_support._write_dataset_stamp(archive, stamp_path)
+
+
+def test_archive_size_mb_handles_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"1234567890")
+
+    original_stat = Path.stat
+
+    def _oserror_stat(self, *args, **kwargs):
+        if self == archive:
+            raise OSError("stat failed")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _oserror_stat, raising=False)
+    assert data_archive_support._archive_size_mb(archive) is None
+
+    def _runtime_stat(self, *args, **kwargs):
+        if self == archive:
+            raise RuntimeError("stat bug")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _runtime_stat, raising=False)
+    with pytest.raises(RuntimeError, match="stat bug"):
+        data_archive_support._archive_size_mb(archive)

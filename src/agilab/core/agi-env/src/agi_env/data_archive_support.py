@@ -8,6 +8,25 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
+STAMP_WRITE_EXCEPTIONS = (OSError,)
+SIZE_PROBE_EXCEPTIONS = (OSError,)
+
+
+def _archive_size_mb(archive_path: Path) -> float | None:
+    try:
+        return archive_path.stat().st_size / 1_000_000
+    except SIZE_PROBE_EXCEPTIONS:
+        return None
+
+
+def _write_dataset_stamp(archive_path: Path, stamp_path: Path) -> None:
+    try:
+        stamp_path.write_text(str(archive_path), encoding="utf-8")
+        archive_mtime = archive_path.stat().st_mtime
+        os.utime(stamp_path, (archive_mtime, archive_mtime))
+    except STAMP_WRITE_EXCEPTIONS:
+        pass
+
 
 def unzip_data(
     archive_path: Path,
@@ -88,12 +107,7 @@ def unzip_data(
             )
         stamp_path = dataset / ".agilab_dataset_stamp"
         if not stamp_path.exists():
-            try:
-                stamp_path.write_text(str(archive_path), encoding="utf-8")
-                archive_mtime = archive_path.stat().st_mtime
-                os.utime(stamp_path, (archive_mtime, archive_mtime))
-            except Exception:
-                pass
+            _write_dataset_stamp(archive_path, stamp_path)
         return
 
     if dataset.exists() and force_refresh:
@@ -120,10 +134,7 @@ def unzip_data(
 
     try:
         with sevenzip_file_cls(archive_path, mode="r") as archive:
-            try:
-                size_mb = archive_path.stat().st_size / 1_000_000
-            except Exception:
-                size_mb = None
+            size_mb = _archive_size_mb(archive_path)
             size_hint = f" (~{size_mb:.1f} MB)" if size_mb else ""
             if verbose > 1:
                 logger.info(
@@ -135,13 +146,10 @@ def unzip_data(
             logger.info(f"Extracted '{archive_path}' to '{dest}'.")
 
         stamp_path = dataset / ".agilab_dataset_stamp"
-        try:
-            stamp_path.write_text(str(archive_path), encoding="utf-8")
-            archive_mtime = archive_path.stat().st_mtime
-            os.utime(stamp_path, (archive_mtime, archive_mtime))
-        except Exception:
-            pass
+        _write_dataset_stamp(archive_path, stamp_path)
     except Exception as exc:
+        # Extraction is an operational boundary: surface archive/read/write failures
+        # to callers through one stable RuntimeError contract.
         logger.error(f"Failed to extract '{archive_path}': {exc}")
         traceback.print_exc()
         if isinstance(exc, RuntimeError):
