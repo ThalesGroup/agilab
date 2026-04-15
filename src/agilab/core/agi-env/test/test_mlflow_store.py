@@ -612,6 +612,62 @@ def test_activate_default_mlflow_experiment_orders_tracking_create_and_select():
     ]
 
 
+def test_activate_default_mlflow_experiment_with_schema_retry_resets_once(monkeypatch, tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    db_path = tracking_dir / "mlflow.db"
+    backend_calls: list[Path] = []
+    reset_calls: list[Path] = []
+    activate_calls: list[str] = []
+
+    def _fake_activate(_mlflow, *, backend_uri, default_experiment_name, artifact_uri):
+        activate_calls.append(backend_uri)
+        if len(activate_calls) == 1:
+            raise RuntimeError("schema-reset needed")
+
+    monkeypatch.setattr(mlflow_store, "_activate_default_mlflow_experiment", _fake_activate)
+
+    backend_uri = mlflow_store._activate_default_mlflow_experiment_with_schema_retry(
+        object(),
+        tracking_dir=tracking_dir,
+        artifact_uri="file:///artifacts",
+        db_path=db_path,
+        ensure_mlflow_backend_ready_fn=lambda path: backend_calls.append(Path(path)) or "sqlite:///mlflow.db",
+        reset_mlflow_sqlite_backend_fn=lambda path: reset_calls.append(Path(path)),
+        default_experiment_name="Default",
+        schema_reset_markers=("schema-reset",),
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert activate_calls == ["sqlite:///mlflow.db", "sqlite:///mlflow.db"]
+    assert backend_calls == [tracking_dir, tracking_dir]
+    assert reset_calls == [db_path]
+
+
+def test_activate_default_mlflow_experiment_with_schema_retry_propagates_non_schema_error(monkeypatch, tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    db_path = tracking_dir / "mlflow.db"
+    reset_calls: list[Path] = []
+
+    def _fake_activate(_mlflow, *, backend_uri, default_experiment_name, artifact_uri):
+        raise RuntimeError("unexpected activation bug")
+
+    monkeypatch.setattr(mlflow_store, "_activate_default_mlflow_experiment", _fake_activate)
+
+    with pytest.raises(RuntimeError, match="unexpected activation bug"):
+        mlflow_store._activate_default_mlflow_experiment_with_schema_retry(
+            object(),
+            tracking_dir=tracking_dir,
+            artifact_uri="file:///artifacts",
+            db_path=db_path,
+            ensure_mlflow_backend_ready_fn=lambda _path: "sqlite:///mlflow.db",
+            reset_mlflow_sqlite_backend_fn=lambda path: reset_calls.append(Path(path)),
+            default_experiment_name="Default",
+            schema_reset_markers=("schema-reset",),
+        )
+
+    assert reset_calls == []
+
+
 def test_ensure_default_mlflow_experiment_creates_or_reuses_default_experiment(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()

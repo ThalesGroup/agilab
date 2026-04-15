@@ -344,23 +344,17 @@ def _activate_default_mlflow_experiment(
     mlflow.set_experiment(default_experiment_name)
 
 
-def ensure_default_mlflow_experiment(
-    tracking_dir: Path,
+def _activate_default_mlflow_experiment_with_schema_retry(
+    mlflow,
     *,
-    get_mlflow_module_fn,
-    resolve_mlflow_artifact_dir_fn,
-    resolve_mlflow_backend_db_fn,
+    tracking_dir: Path,
+    artifact_uri: str,
+    db_path: Path,
     ensure_mlflow_backend_ready_fn,
     reset_mlflow_sqlite_backend_fn,
     default_experiment_name: str,
     schema_reset_markers: tuple[str, ...],
-) -> str | None:
-    mlflow = get_mlflow_module_fn()
-    if mlflow is None:
-        return None
-    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-    db_path = resolve_mlflow_backend_db_fn(tracking_dir)
-
+) -> str:
     for attempt in range(2):
         backend_uri = ensure_mlflow_backend_ready_fn(tracking_dir)
         try:
@@ -379,5 +373,32 @@ def ensure_default_mlflow_experiment(
                 reset_mlflow_sqlite_backend_fn(db_path)
                 continue
             raise
-
     return backend_uri
+
+
+def ensure_default_mlflow_experiment(
+    tracking_dir: Path,
+    *,
+    get_mlflow_module_fn,
+    resolve_mlflow_artifact_dir_fn,
+    resolve_mlflow_backend_db_fn,
+    ensure_mlflow_backend_ready_fn,
+    reset_mlflow_sqlite_backend_fn,
+    default_experiment_name: str,
+    schema_reset_markers: tuple[str, ...],
+) -> str | None:
+    mlflow = get_mlflow_module_fn()
+    if mlflow is None:
+        return None
+    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+    db_path = resolve_mlflow_backend_db_fn(tracking_dir)
+    return _activate_default_mlflow_experiment_with_schema_retry(
+        mlflow,
+        tracking_dir=tracking_dir,
+        artifact_uri=artifact_uri,
+        db_path=db_path,
+        ensure_mlflow_backend_ready_fn=ensure_mlflow_backend_ready_fn,
+        reset_mlflow_sqlite_backend_fn=reset_mlflow_sqlite_backend_fn,
+        default_experiment_name=default_experiment_name,
+        schema_reset_markers=schema_reset_markers,
+    )
