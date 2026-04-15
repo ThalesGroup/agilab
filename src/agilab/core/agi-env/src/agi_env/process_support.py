@@ -26,6 +26,9 @@ INLINE_PATH_EXPORT = re.compile(
     r'^\s*export\s+PATH=(?P<quote>["\']?)(?P<value>.+?)(?P=quote);?(?P<rest>.*)$',
     re.DOTALL,
 )
+PATH_RESOLVE_EXCEPTIONS = (OSError,)
+REGEX_OPERATION_EXCEPTIONS = (re.error, TypeError, ValueError)
+INLINE_EXPORT_EXCEPTIONS = (OSError, TypeError, ValueError)
 
 
 def normalize_path(path):
@@ -38,7 +41,7 @@ def normalize_path(path):
     if os.name == "nt":
         try:
             candidate = candidate.expanduser().resolve(strict=False)
-        except Exception:
+        except PATH_RESOLVE_EXCEPTIONS:
             candidate = candidate.expanduser()
         return str(PureWindowsPath(candidate))
     return str(PurePosixPath(candidate))
@@ -52,7 +55,7 @@ def fix_windows_drive(path_str: str) -> str:
     try:
         if re.match(r"^[A-Za-z]:(?![\\/])", path_str):
             return path_str[:2] + "\\" + path_str[2:]
-    except Exception:
+    except REGEX_OPERATION_EXCEPTIONS:
         pass
     return path_str
 
@@ -133,7 +136,7 @@ def inject_uv_preview_flag(cmd: str | None) -> str | None:
             cmd,
             count=1,
         )
-    except Exception:
+    except REGEX_OPERATION_EXCEPTIONS:
         return cmd
 
 
@@ -154,7 +157,7 @@ def apply_inline_path_export(cmd: str | None, process_env: MutableMapping[str, s
         process_env["PATH"] = new_path
         rest = (match.group("rest") or "").lstrip(" ;")
         return rest or None
-    except Exception:
+    except INLINE_EXPORT_EXCEPTIONS:
         return cmd
 
 
@@ -206,4 +209,3 @@ def format_command_failure_message(
     if diagnostic_hint:
         message = f"{message}\n{diagnostic_hint}"
     return message
-
