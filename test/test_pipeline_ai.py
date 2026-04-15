@@ -39,6 +39,18 @@ def _load_module_with_missing(module_name: str, relative_path: str, *missing_mod
 
 
 pipeline_ai = _load_module("agilab.pipeline_ai", "src/agilab/pipeline_ai.py")
+pipeline_ai_support_direct = _load_module(
+    "agilab.pipeline_ai_support_direct",
+    "src/agilab/pipeline_ai_support.py",
+)
+pipeline_ai_uoaic_direct = _load_module(
+    "agilab.pipeline_ai_uoaic_direct",
+    "src/agilab/pipeline_ai_uoaic.py",
+)
+pipeline_ai_controls_direct = _load_module(
+    "agilab.pipeline_ai_controls_direct",
+    "src/agilab/pipeline_ai_controls.py",
+)
 
 
 def test_extract_code_splits_detail_and_python_block():
@@ -609,6 +621,40 @@ def test_pipeline_ai_import_falls_back_when_pipeline_modules_are_unavailable():
     assert callable(fallback.prompt_for_openai_api_key)
 
 
+def test_pipeline_ai_import_falls_back_when_env_and_ai_submodules_are_unavailable():
+    fallback = _load_module_with_missing(
+        "agilab.pipeline_ai_full_fallback",
+        "src/agilab/pipeline_ai.py",
+        "agilab.env_file_utils",
+        "agilab.pipeline_ai_support",
+        "agilab.pipeline_ai_uoaic",
+        "agilab.pipeline_ai_controls",
+    )
+
+    assert fallback._load_env_file_map(Path("missing.env")) == {}
+    assert fallback.UOAIC_PROVIDER == "universal-offline-ai-chatbot"
+    assert callable(fallback._configure_assistant_engine_impl)
+    assert callable(fallback._gpt_oss_controls_impl)
+
+
+def test_pipeline_ai_import_fallback_raises_when_env_file_utils_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_env_file_utils_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="env_file_utils"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_fallback_missing_env_file_utils",
+            "src/agilab/pipeline_ai.py",
+            "agilab.env_file_utils",
+        )
+
+
 def test_pipeline_ai_import_fallback_raises_when_pipeline_openai_local_spec_is_missing(monkeypatch):
     original_spec = importlib.util.spec_from_file_location
 
@@ -650,6 +696,60 @@ def test_pipeline_ai_import_fallback_raises_when_pipeline_steps_local_spec_is_mi
             "agilab.pipeline_ai_fallback_missing_pipeline_steps",
             "src/agilab/pipeline_ai.py",
             "agilab.pipeline_steps",
+        )
+
+
+def test_pipeline_ai_import_fallback_raises_when_pipeline_ai_support_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_ai_support_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_ai_support"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_fallback_missing_pipeline_ai_support",
+            "src/agilab/pipeline_ai.py",
+            "agilab.pipeline_ai_support",
+        )
+
+
+def test_pipeline_ai_import_fallback_raises_when_pipeline_ai_uoaic_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_ai_uoaic_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_ai_uoaic"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_fallback_missing_pipeline_ai_uoaic",
+            "src/agilab/pipeline_ai.py",
+            "agilab.pipeline_ai_uoaic",
+        )
+
+
+def test_pipeline_ai_import_fallback_raises_when_pipeline_ai_controls_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_ai_controls_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_ai_controls"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_fallback_missing_pipeline_ai_controls",
+            "src/agilab/pipeline_ai.py",
+            "agilab.pipeline_ai_controls",
         )
 
 
@@ -813,6 +913,344 @@ def test_load_uoaic_modules_record_read_failure_uses_generic_error(monkeypatch, 
         pipeline_ai._load_uoaic_modules()
 
     assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
+
+
+def test_pipeline_ai_support_direct_module_covers_ollama_defaults_and_safety_edges(monkeypatch):
+    monkeypatch.setattr(
+        pipeline_ai_support_direct,
+        "_ollama_available_models",
+        lambda _endpoint: ["llama3:70b", "codestral:latest"],
+    )
+    assert (
+        pipeline_ai_support_direct._default_ollama_model(
+            "http://ollama",
+            preferred="missing",
+            prefer_code=True,
+        )
+        == "codestral:latest"
+    )
+    assert (
+        pipeline_ai_support_direct._default_ollama_model(
+            "http://ollama",
+            preferred="llama3:70b",
+        )
+        == "llama3:70b"
+    )
+
+    monkeypatch.setattr(
+        pipeline_ai_support_direct,
+        "_ollama_available_models",
+        lambda _endpoint: ["llama3:70b"],
+    )
+    assert (
+        pipeline_ai_support_direct._default_ollama_model(
+            "http://ollama",
+            preferred="missing",
+        )
+        == "llama3:70b"
+    )
+
+    monkeypatch.setattr(
+        pipeline_ai_support_direct,
+        "_ollama_available_models",
+        lambda _endpoint: [],
+    )
+    assert (
+        pipeline_ai_support_direct._default_ollama_model(
+            "http://ollama",
+            preferred="fallback-model",
+        )
+        == "fallback-model"
+    )
+
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Syntax error"):
+        pipeline_ai_support_direct._validate_code_safety("def broken(:\n    pass")
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Import statements are not allowed"):
+        pipeline_ai_support_direct._validate_code_safety("import os")
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Import statements are not allowed"):
+        pipeline_ai_support_direct._validate_code_safety("from os import path")
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Call to blocked builtin"):
+        pipeline_ai_support_direct._validate_code_safety("open('x')")
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Access to '__class__'"):
+        pipeline_ai_support_direct._validate_code_safety("x = 1\nx.__class__")
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Access to module 'os'"):
+        pipeline_ai_support_direct._validate_code_safety("os.system('echo hi')")
+
+    updated, error = pipeline_ai_support_direct._exec_code_on_df(
+        "import os",
+        pd.DataFrame({"x": [1]}),
+    )
+    assert updated is None
+    assert "Safety check failed" in error
+
+    monkeypatch.setattr(
+        pipeline_ai_support_direct,
+        "_validate_code_safety",
+        lambda _code: None,
+    )
+    monkeypatch.setattr(
+        pipeline_ai_support_direct,
+        "_SAFE_BUILTINS",
+        {
+            "danger": lambda: (_ for _ in ()).throw(
+                pipeline_ai_support_direct._UnsafeCodeError("boom")
+            )
+        },
+    )
+    with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="boom"):
+        pipeline_ai_support_direct._exec_code_on_df("danger()", pd.DataFrame({"x": [1]}))
+
+
+def test_pipeline_ai_support_direct_module_loads_uoaic_modules_with_default_dependencies(monkeypatch, tmp_path):
+    class FakeDist:
+        @staticmethod
+        def locate_file(_path):
+            return tmp_path
+
+    monkeypatch.setattr(
+        pipeline_ai_support_direct.importlib_metadata,
+        "distribution",
+        lambda _name: FakeDist(),
+    )
+    monkeypatch.setattr(
+        pipeline_ai_support_direct.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(module_name=name),
+    )
+
+    modules = pipeline_ai_support_direct._load_uoaic_modules()
+
+    assert [module.module_name for module in modules] == [
+        "src.chunker",
+        "src.embedding",
+        "src.loader",
+        "src.model_loader",
+        "src.prompts",
+        "src.qa_chain",
+        "src.vectorstore",
+    ]
+
+
+def test_pipeline_ai_uoaic_import_falls_back_when_support_module_is_unavailable():
+    fallback = _load_module_with_missing(
+        "agilab.pipeline_ai_uoaic_fallback",
+        "src/agilab/pipeline_ai_uoaic.py",
+        "agilab.pipeline_ai_support",
+    )
+
+    assert fallback.UOAIC_PROVIDER == "universal-offline-ai-chatbot"
+    assert callable(fallback.resolve_uoaic_path)
+    assert callable(fallback.ensure_uoaic_runtime)
+
+
+def test_pipeline_ai_uoaic_import_fallback_raises_when_support_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_ai_support_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_ai_support"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_uoaic_missing_support_spec",
+            "src/agilab/pipeline_ai_uoaic.py",
+            "agilab.pipeline_ai_support",
+        )
+
+
+def test_pipeline_ai_uoaic_direct_module_covers_default_wrappers(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct.Path,
+        "cwd",
+        classmethod(lambda cls: tmp_path),
+    )
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct,
+        "_resolve_uoaic_path_impl",
+        lambda raw_path, base_dir=None: Path(base_dir or tmp_path) / raw_path,
+    )
+    assert pipeline_ai_uoaic_direct.resolve_uoaic_path("docs", env=object()) == tmp_path / "docs"
+
+    captured_load: dict[str, object] = {}
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct,
+        "_load_uoaic_modules_impl",
+        lambda **kwargs: captured_load.update(kwargs) or ("loaded",),
+    )
+    sentinel_distribution = lambda _name: "dist"
+    sentinel_import_module = lambda name: f"import:{name}"
+    sentinel_spec = lambda *args, **kwargs: "spec"
+    sentinel_from_spec = lambda spec: f"module:{spec}"
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct.importlib.metadata,
+        "distribution",
+        sentinel_distribution,
+    )
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct.importlib,
+        "import_module",
+        sentinel_import_module,
+    )
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct.importlib.util,
+        "spec_from_file_location",
+        sentinel_spec,
+    )
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct.importlib.util,
+        "module_from_spec",
+        sentinel_from_spec,
+    )
+
+    assert pipeline_ai_uoaic_direct.load_uoaic_modules() == ("loaded",)
+    assert captured_load == {
+        "distribution_fn": sentinel_distribution,
+        "import_module_fn": sentinel_import_module,
+        "spec_from_file_location_fn": sentinel_spec,
+        "module_from_spec_fn": sentinel_from_spec,
+    }
+
+    captured_runtime: dict[str, object] = {}
+
+    def _fake_ensure(envars, **kwargs):
+        captured_runtime["envars"] = envars
+        captured_runtime["resolved"] = kwargs["resolve_uoaic_path"]("docs", None)
+        captured_runtime["modules"] = kwargs["load_uoaic_modules"]()
+        return {"runtime": True}
+
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct,
+        "_ensure_uoaic_runtime_impl",
+        _fake_ensure,
+    )
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct,
+        "resolve_uoaic_path",
+        lambda raw_path, env, pipeline_export_root_fn=None: tmp_path / "resolved" / raw_path,
+    )
+    deps = pipeline_ai_uoaic_direct.UoaicRuntimeDeps(
+        session_state={},
+        normalize_path_fn=str,
+        pipeline_export_root_fn=lambda _env: tmp_path,
+        load_modules_fn=lambda: ("modules",),
+        error_sink=lambda _message: None,
+        spinner_factory=nullcontext,
+    )
+
+    assert pipeline_ai_uoaic_direct.ensure_uoaic_runtime({}, env=object(), deps=deps) == {"runtime": True}
+    assert captured_runtime["resolved"] == tmp_path / "resolved" / "docs"
+    assert captured_runtime["modules"] == ("modules",)
+
+
+def test_pipeline_ai_uoaic_render_controls_swallows_default_directory_creation_errors(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+
+    class _Sidebar:
+        def selectbox(self, _label, options, index=0, **_kwargs):
+            return options[1]
+
+        def text_input(self, _label, value="", **_kwargs):
+            return value
+
+        def slider(self, _label, *, value, **_kwargs):
+            return value
+
+        def number_input(self, _label, *, value, **_kwargs):
+            return value
+
+        def checkbox(self, _label, *, value=False, **_kwargs):
+            return value
+
+        def button(self, *_args, **_kwargs):
+            return False
+
+        def expander(self, *_args, **_kwargs):
+            return nullcontext()
+
+        def caption(self, message):
+            messages.append(("caption", str(message)))
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+        def info(self, message):
+            messages.append(("info", str(message)))
+
+        def error(self, message):
+            messages.append(("error", str(message)))
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+    original_mkdir = pipeline_ai_uoaic_direct.Path.mkdir
+    default_data_path = tmp_path / "uoaic" / "data"
+    default_db_parent = tmp_path / "uoaic" / "vectorstore"
+
+    def _fake_mkdir(self, *args, **kwargs):
+        if self in {default_data_path, default_db_parent}:
+            raise OSError("mkdir boom")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct.Path,
+        "mkdir",
+        _fake_mkdir,
+    )
+    monkeypatch.setattr(
+        pipeline_ai_uoaic_direct,
+        "DEFAULT_UOAIC_BASE",
+        tmp_path / "uoaic",
+    )
+
+    env = SimpleNamespace(envars={})
+    deps = pipeline_ai_uoaic_direct.UoaicControlDeps(
+        session_state={"lab_llm_provider": pipeline_ai_uoaic_direct.UOAIC_PROVIDER},
+        sidebar=_Sidebar(),
+        normalize_path_fn=str,
+        default_ollama_model_fn=lambda *_args, **_kwargs: "",
+        ensure_runtime_fn=lambda _envars: {"runtime": True},
+        spinner_factory=nullcontext,
+        normalize_user_path_fn=lambda raw: str(raw),
+    )
+
+    pipeline_ai_uoaic_direct.render_universal_offline_controls(env, deps=deps)
+
+    assert env.envars[pipeline_ai_uoaic_direct.UOAIC_DATA_ENV] == str(default_data_path)
+    assert env.envars[pipeline_ai_uoaic_direct.UOAIC_DB_ENV] == str(
+        tmp_path / "uoaic" / "vectorstore" / "db_faiss"
+    )
+
+
+def test_pipeline_ai_controls_import_falls_back_when_uoaic_module_is_unavailable():
+    fallback = _load_module_with_missing(
+        "agilab.pipeline_ai_controls_fallback",
+        "src/agilab/pipeline_ai_controls.py",
+        "agilab.pipeline_ai_uoaic",
+    )
+
+    assert fallback.UOAIC_PROVIDER == "universal-offline-ai-chatbot"
+    assert callable(fallback.configure_assistant_engine)
+
+
+def test_pipeline_ai_controls_import_fallback_raises_when_uoaic_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_ai_uoaic_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_ai_uoaic"):
+        _load_module_with_missing(
+            "agilab.pipeline_ai_controls_missing_uoaic_spec",
+            "src/agilab/pipeline_ai_controls.py",
+            "agilab.pipeline_ai_uoaic",
+        )
 
 
 @pytest.mark.parametrize(

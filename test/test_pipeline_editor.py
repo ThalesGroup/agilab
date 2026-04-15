@@ -8,6 +8,7 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 import tomllib
 
 
@@ -387,6 +388,47 @@ def test_pipeline_editor_import_falls_back_when_pipeline_modules_are_unavailable
 
     assert callable(fallback.get_steps_list)
     assert callable(fallback.save_step)
+
+
+def test_pipeline_editor_import_falls_back_when_code_editor_support_is_unavailable():
+    fallback = _load_pipeline_editor_with_missing("agilab.code_editor_support")
+
+    assert callable(fallback.normalize_custom_buttons)
+
+
+def test_pipeline_editor_import_fallback_raises_when_local_specs_are_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_code_editor_spec(name, location, *args, **kwargs):
+        if name == "agilab_code_editor_support_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_code_editor_spec)
+    with pytest.raises(ModuleNotFoundError, match="code_editor_support"):
+        _load_pipeline_editor_with_missing("agilab.code_editor_support")
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", original_spec)
+
+    def _fake_runtime_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_runtime_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_runtime_spec)
+    with pytest.raises(ModuleNotFoundError, match="pipeline_runtime"):
+        _load_pipeline_editor_with_missing("agilab.pipeline_runtime")
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", original_spec)
+
+    def _fake_steps_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_steps_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_steps_spec)
+    with pytest.raises(ModuleNotFoundError, match="pipeline_steps"):
+        _load_pipeline_editor_with_missing("agilab.pipeline_steps")
 
 
 def test_save_query_invalid_still_exports_dataframe(monkeypatch, tmp_path):
@@ -911,6 +953,76 @@ def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp
 
     assert editor_payloads == ["{}"]
     assert errors == ["Failed to save steps file from editor: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"]
+
+
+def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
+    empty_steps = tmp_path / "empty.toml"
+    empty_steps.write_text("demo = { value = 1 }\n", encoding="utf-8")
+    assert pipeline_editor.get_steps_list(tmp_path / "demo_project", empty_steps) == []
+
+    monkeypatch.setattr(pipeline_editor, "_prune_invalid_entries", lambda steps, keep_index=None: steps)
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+    count = pipeline_editor._write_steps_for_module(
+        tmp_path / "demo_project",
+        tmp_path / "lab_steps.toml",
+        [{"Q": "keep"}, "skip-me"],
+    )
+    assert count == 1
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "idx": ["bad", "", "", "", "", "", 0],
+            "idx__details": {0: "detail"},
+            "idx__venv_map": {},
+            "idx__engine_map": {},
+            "idx__run_sequence": [],
+        }
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
+    snapshot = pipeline_editor._capture_pipeline_snapshot("idx", [{"Q": "keep"}, "skip"])
+    assert snapshot["steps"] == [{"D": "", "Q": "keep", "M": "", "C": "", "E": "", "R": ""}]
+    assert snapshot["active_step"] == 0
+
+    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    monkeypatch.setattr(pipeline_editor, "_reset_pipeline_editor_state", lambda _index_page: None)
+    monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
+    error = pipeline_editor._restore_pipeline_snapshot(
+        tmp_path / "demo_project",
+        tmp_path / "lab_steps.toml",
+        "idx",
+        "idx_sequence_widget",
+        {"steps": "not-a-list", "sequence": []},
+    )
+    assert error is None
+    assert fake_st.session_state["idx__run_sequence"] == [0]
+
+    fake_st = SimpleNamespace(
+        session_state={"env": SimpleNamespace(envars={}), "_experiment_last_save_skipped": False},
+        error=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["demo_project"])
+    monkeypatch.setattr(pipeline_editor, "_looks_like_step", lambda value: str(value) == "1")
+    monkeypatch.setattr(pipeline_editor, "_prune_invalid_entries", lambda steps, keep_index=None: steps)
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+    nsteps, entry = pipeline_editor.save_step(
+        tmp_path / "demo_project",
+        ["1", "desc", "question", "model", "print(1)"],
+        current_step=0,
+        nsteps=0,
+        steps_file=tmp_path / "save_steps.toml",
+        venv_map={},
+        engine_map={},
+    )
+    assert nsteps == 1
+    assert entry["D"] == "desc"
+    assert entry["Q"] == "question"
+    assert entry["M"] == "model"
+    assert entry["C"] == "print(1)"
+
 
 
 def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):

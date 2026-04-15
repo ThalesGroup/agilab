@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import builtins
 from contextlib import contextmanager
 import importlib
+import importlib.util
 import math
 import os
 from pathlib import Path
@@ -34,6 +36,39 @@ def _import_agilab_module(module_name: str):
     return importlib.import_module(module_name)
 
 
+def _load_module_with_import_failures(module_name: str, relative_path: str, monkeypatch, names_to_fail: set[str]):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root_str]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root_str not in package_path:
+            pkg.__path__ = [package_root_str, *package_path]
+
+    real_import = builtins.__import__
+
+    def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in names_to_fail:
+            raise ModuleNotFoundError(f"forced missing {name}")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+    module_path = Path(relative_path)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 pipeline_runtime = _import_agilab_module("agilab.pipeline_runtime")
 
 
@@ -43,6 +78,32 @@ def test_to_bool_flag_parses_common_truthy_values():
     assert pipeline_runtime.to_bool_flag("On") is True
     assert pipeline_runtime.to_bool_flag(0) is False
     assert pipeline_runtime.to_bool_flag("no") is False
+
+
+def test_pipeline_runtime_fallback_loader_handles_missing_support_import(monkeypatch, tmp_path):
+    module = _load_module_with_import_failures(
+        "agilab_pipeline_runtime_fallback_tests",
+        "src/agilab/pipeline_runtime.py",
+        monkeypatch,
+        {"agilab.pipeline_runtime_support"},
+    )
+
+    assert module.to_bool_flag("yes") is True
+    assert module.sqlite_uri_for_path(tmp_path / "mlflow.db").startswith("sqlite:")
+
+
+def test_pipeline_runtime_support_fallback_loader_handles_missing_submodules(monkeypatch, tmp_path):
+    module = _load_module_with_import_failures(
+        "agilab_pipeline_runtime_support_fallback_tests",
+        "src/agilab/pipeline_runtime_support.py",
+        monkeypatch,
+        {"agilab.pipeline_runtime_execution_support", "agilab.pipeline_runtime_mlflow_support"},
+    )
+
+    assert module.to_bool_flag("yes") is True
+    assert "safe_service_start_template" in module.__all__
+    assert "ensure_mlflow_backend_ready" in module.__all__
+    assert module.sqlite_identifier('demo"name') == '"demo""name"'
 
 
 def test_safe_service_start_template_tolerates_invalid_settings_and_verbose(monkeypatch, tmp_path):
