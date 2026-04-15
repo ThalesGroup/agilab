@@ -53,6 +53,11 @@ class _BrokenMessage:
         raise ValueError("bad message")
 
 
+class _UnexpectedBrokenMessage:
+    def __str__(self) -> str:
+        raise RuntimeError("unexpected bad message")
+
+
 class _DemoEmitter:
     def emit(self):
         record = logging.makeLogRecord(
@@ -431,6 +436,24 @@ def test_render_log_message_handles_general_format_error():
     )
 
     assert _render_log_message(record) == "<log-message-format-error type=_BrokenMessage error=bad message>"
+
+
+def test_render_log_message_propagates_unexpected_message_bug():
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": __file__,
+            "lineno": 1,
+            "msg": _UnexpectedBrokenMessage(),
+            "args": (),
+            "funcName": "test_render_log_message_propagates_unexpected_message_bug",
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected bad message"):
+        _render_log_message(record)
 
 
 def test_log_formatter_returns_message_only_for_subprocess_records():
