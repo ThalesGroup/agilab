@@ -104,6 +104,24 @@ def test_get_child_pids_skips_malformed_lines(monkeypatch):
     assert cli_mod.get_child_pids({100}) == {200}
 
 
+def test_process_helpers_cover_windows_and_child_scan(monkeypatch):
+    monkeypatch.setattr(cli_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "check_output",
+        lambda *_a, **_k: '"dask-worker.exe","1234"\n"python.exe","oops"\n',
+    )
+    assert cli_mod.get_processes_containing("dask") == {1234}
+
+    monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "check_output",
+        lambda *_a, **_k: "10 1\n11 10\nbad line\n",
+    )
+    assert cli_mod.get_child_pids({10}) == {11}
+
+
 def test_poll_until_dead_returns_empty_when_all_dead(monkeypatch):
     monkeypatch.setattr(cli_mod, "_is_alive", lambda _pid: False)
     remaining = cli_mod._poll_until_dead({1, 2}, total=0.05, interval=0.01)
@@ -211,6 +229,29 @@ def test_kill_handles_pid_files_and_children(monkeypatch, tmp_path):
     assert ({321, 654}, signal.SIGTERM) in calls
 
 
+def test_kill_handles_pid_files_children_and_exclusions(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    (tmp_path / "keep.pid").write_text("999\n", encoding="utf-8")
+    (tmp_path / "worker.pid").write_text("111\n", encoding="utf-8")
+    (tmp_path / "broken.pid").write_text("bad\n", encoding="utf-8")
+
+    kill_calls = []
+    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
+    monkeypatch.setattr(cli_mod, "get_child_pids", lambda pids: {222} if 111 in pids else set())
+    monkeypatch.setattr(cli_mod, "kill_pids", lambda pids, sig: kill_calls.append((set(pids), sig)) or set())
+    monkeypatch.setattr(cli_mod, "_poll_until_dead", lambda pids, **_k: set())
+
+    cli_mod.kill()
+
+    assert kill_calls
+    assert any(pids == {111, 222} for pids, _sig in kill_calls)
+    assert not (tmp_path / "worker.pid").exists()
+    assert not (tmp_path / "keep.pid").exists()
+    assert not (tmp_path / "broken.pid").exists()
+
+
 def test_kill_logs_no_dask_when_no_processes_or_pid_files(monkeypatch, caplog):
     monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
     monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
@@ -254,6 +295,48 @@ def test_kill_warns_on_pid_file_cleanup_failure_and_sigkills_survivors(monkeypat
     assert ({321}, signal.SIGTERM) in calls
     assert ({321}, signal.SIGKILL) in calls
     assert "Could not remove pid file" in caplog.text
+
+
+def test_clean_and_unzip_cover_success_and_failure(monkeypatch, tmp_path):
+    scratch_root = tmp_path / "tmpdir"
+    scratch_root.mkdir()
+    scratch = scratch_root / "dask-scratch-space"
+    scratch.mkdir()
+    wenv = tmp_path / "wenv"
+    wenv.mkdir()
+    egg = wenv / "demo.egg"
+    with zipfile.ZipFile(egg, "w") as zf:
+        zf.writestr("pkg/module.py", "print('ok')\n")
+
+    monkeypatch.setattr(cli_mod, "gettempdir", lambda: str(scratch_root))
+    cli_mod.unzip(str(wenv))
+    assert (wenv / "src" / "pkg" / "module.py").exists()
+
+    monkeypatch.setattr(cli_mod.shutil, "rmtree", lambda *_a, **_k: (_ for _ in ()).throw(OSError("locked")))
+    cli_mod.clean(str(wenv))
+
+
+def test_signal_helpers_cover_alive_and_permission_paths(monkeypatch):
+    calls = []
+
+    def _fake_kill(pid, sig):
+        calls.append((pid, sig))
+        if pid == 2:
+            raise ProcessLookupError()
+        if pid == 3:
+            raise PermissionError()
+        if pid == 4:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli_mod.os, "kill", _fake_kill)
+
+    assert cli_mod._is_alive(1) is True
+    assert cli_mod._is_alive(2) is False
+    assert cli_mod._is_alive(3) is True
+
+    survivors = cli_mod.kill_pids({1, 2, 3, 4}, cli_mod.signal.SIGTERM)
+    assert survivors == {3, 4}
+    assert calls
 
 
 def test_choose_iters_calibration(monkeypatch):

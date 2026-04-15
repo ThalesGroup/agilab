@@ -151,6 +151,38 @@ async def test_send_file_remote_raises_after_retry_failure(monkeypatch, tmp_path
         )
 
 
+def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "config").write_text("Host remote\n  User agi\n", encoding="utf-8")
+    (ssh_dir / "known_hosts").write_text("remote ssh-ed25519 AAAA\n", encoding="utf-8")
+    (ssh_dir / "authorized_keys").write_text("ssh-ed25519 AAAA comment\n", encoding="utf-8")
+    (ssh_dir / "id_ed25519.pub").write_text("ssh-ed25519 AAAA comment\n", encoding="utf-8")
+    (ssh_dir / "id_rsa").write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\nmock\n-----END RSA PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    (ssh_dir / "id_ed25519").write_text(
+        "-----BEGIN OPENSSH PRIVATE KEY-----\nmock\n-----END OPENSSH PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    (ssh_dir / "id_rsa.old").write_text("stale backup", encoding="utf-8")
+
+    keys = transport_support.discover_private_ssh_keys(ssh_dir)
+
+    assert keys == [str(ssh_dir / "id_ed25519"), str(ssh_dir / "id_rsa")]
+
+
+def test_private_key_discovery_handles_missing_dir_and_unreadable_files(tmp_path, monkeypatch):
+    assert transport_support.discover_private_ssh_keys(tmp_path / ".ssh") == []
+
+    unreadable = tmp_path / "id_demo"
+    unreadable.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(Path, "read_text", lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("boom")), raising=False)
+
+    assert transport_support.is_private_ssh_key_file(unreadable) is False
+
+
 @pytest.mark.asyncio
 async def test_send_files_delegates_to_send_file(tmp_path):
     sent = []
