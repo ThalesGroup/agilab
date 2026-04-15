@@ -5,15 +5,22 @@ from __future__ import annotations
 import ast
 import os
 import shutil
-from pathlib import Path
+from pathlib import Path, UnsupportedOperation
 from typing import Any, Callable
 
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
-PATH_RESOLVE_EXCEPTIONS = (OSError,)
+PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 PROJECT_COPY_EXCEPTIONS = (OSError, shutil.Error)
+
+
+def _safe_resolve(path: Path, *, strict: bool = False) -> Path:
+    try:
+        return path.resolve(strict=strict)
+    except PATH_RESOLVE_EXCEPTIONS:
+        return path
 
 
 def create_rename_map(target_project: Path, dest_project: Path) -> dict[str, str]:
@@ -68,15 +75,12 @@ def copy_existing_projects(
 ) -> None:
     """Copy ``*_project`` trees from ``src_apps`` into ``dst_apps`` if missing."""
 
-    try:
-        if src_apps.resolve(strict=False) == dst_apps.resolve(strict=False):
-            return
-    except PATH_RESOLVE_EXCEPTIONS:
-        pass
+    if _safe_resolve(src_apps, strict=False) == _safe_resolve(dst_apps, strict=False):
+        return
 
     ensure_dir_fn(dst_apps)
 
-    logger.info(f"copy_existing_projects src={src_apps.resolve()} dst={dst_apps.resolve()}")
+    logger.info(f"copy_existing_projects src={_safe_resolve(src_apps)} dst={_safe_resolve(dst_apps)}")
     candidates = [path for path in src_apps.rglob("*_project") if path.is_dir()]
     logger.info("Matched projects: " + ", ".join(str(path.relative_to(src_apps)) for path in candidates) or "<none>")
 
@@ -242,7 +246,7 @@ def clone_directory(
             try:
                 target = os.readlink(item)
             except OSError:
-                target = str(item.resolve())
+                target = str(_safe_resolve(item))
             try:
                 os.symlink(target, dst, target_is_directory=item.is_dir())
             except FileExistsError:

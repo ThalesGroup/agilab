@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath, UnsupportedOperation
 from typing import Iterable, Mapping, MutableMapping, Sequence
 
 
@@ -26,7 +26,7 @@ INLINE_PATH_EXPORT = re.compile(
     r'^\s*export\s+PATH=(?P<quote>["\']?)(?P<value>.+?)(?P=quote);?(?P<rest>.*)$',
     re.DOTALL,
 )
-PATH_RESOLVE_EXCEPTIONS = (OSError,)
+PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 REGEX_OPERATION_EXCEPTIONS = (re.error, TypeError, ValueError)
 INLINE_EXPORT_EXCEPTIONS = (OSError, TypeError, ValueError)
 
