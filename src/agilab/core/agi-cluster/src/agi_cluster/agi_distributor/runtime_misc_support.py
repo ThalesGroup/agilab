@@ -37,6 +37,7 @@ _WORKER_RESOLUTION_EXCEPTIONS = (
     ImportError,
     ModuleNotFoundError,
 )
+_RUN_TYPES = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
 
 
 def ensure_asyncio_run_signature(
@@ -225,6 +226,65 @@ def bootstrap_capacity_predictor(
     ):
         log.info(missing_log_message, model_path)
     return predictor
+
+
+def initialize_runtime_state(
+    agi_cls: Any,
+    env: Any,
+    *,
+    workers: dict[str, int],
+    verbose: int,
+    rapids_enabled: bool,
+    args: dict[str, Any],
+    workers_data_path: str | None = None,
+    args_transform_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    log: Any = None,
+    log_message: str = "AGI instance created for target %s with verbosity %s",
+) -> None:
+    agi_cls.env = env
+    agi_cls.target_path = env.manager_path
+    agi_cls._target = env.target
+    agi_cls._rapids_enabled = rapids_enabled
+    if env.verbose > 0 and log is not None:
+        log.info(log_message, env.target, env.verbose)
+
+    agi_cls._args = args_transform_fn(args) if args_transform_fn is not None else args
+    agi_cls.verbose = verbose
+    agi_cls._workers = workers
+    agi_cls._workers_data_path = workers_data_path
+    agi_cls._run_time = {}
+
+
+def configure_runtime_mode(
+    agi_cls: Any,
+    env: Any,
+    mode: int | str | None,
+    *,
+    default_mode: int | None = None,
+    invalid_type_message: str = "parameter <mode> must be an int or a string",
+    require_dask: bool = False,
+    dask_error_message: str = "AGI.serve requires Dask mode (include 'd' in mode)",
+) -> int:
+    if mode is None:
+        if default_mode is None:
+            raise ValueError(invalid_type_message)
+        agi_cls._mode = default_mode
+    elif isinstance(mode, str):
+        pattern = r"^[dcrp]+$"
+        if not re.fullmatch(pattern, mode.lower()):
+            raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
+        agi_cls._mode = env.mode2int(mode)
+    elif isinstance(mode, int):
+        agi_cls._mode = int(mode)
+    else:
+        raise ValueError(invalid_type_message)
+
+    agi_cls._run_types = list(_RUN_TYPES)
+    if agi_cls._mode & agi_cls._RUN_MASK not in range(0, agi_cls.RAPIDS_MODE):
+        raise ValueError(f"mode {agi_cls._mode} not implemented")
+    if require_dask and not (agi_cls._mode & agi_cls.DASK_MODE):
+        raise ValueError(dask_error_message)
+    return agi_cls._mode
 
 
 def install_worker_groups() -> dict[str, str]:

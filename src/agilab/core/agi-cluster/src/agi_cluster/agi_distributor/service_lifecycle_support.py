@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import pickle
-import re
 import time
 import uuid
 from pathlib import Path
@@ -570,43 +569,26 @@ async def serve(
         raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
 
     agi_cls._jobs = background_job_manager_factory()
-    agi_cls.env = env
-    agi_cls.target_path = env.manager_path
-    agi_cls._target = env.target
-    agi_cls._rapids_enabled = rapids_enabled
-
-    if env.verbose > 0:
-        log.info(
-            "AGI service instance created for target %s with verbosity %s",
-            env.target,
-            env.verbose,
-        )
-
-    if mode is None:
-        agi_cls._mode = agi_cls.DASK_MODE
-    elif isinstance(mode, str):
-        pattern = r"^[dcrp]+$"
-        if not re.fullmatch(pattern, mode.lower()):
-            raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-        agi_cls._mode = env.mode2int(mode)
-    elif isinstance(mode, int):
-        agi_cls._mode = int(mode)
-    else:
-        raise ValueError("parameter <mode> must be an int or a string")
-
-    if not (agi_cls._mode & agi_cls.DASK_MODE):
-        raise ValueError("AGI.serve requires Dask mode (include 'd' in mode)")
-
-    if agi_cls._mode & agi_cls._RUN_MASK not in range(0, agi_cls.RAPIDS_MODE):
-        raise ValueError(f"mode {agi_cls._mode} not implemented")
-
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers=workers,
+        verbose=verbose,
+        rapids_enabled=rapids_enabled,
+        args=dict(args),
+        args_transform_fn=agi_cls._service_public_args,
+        log=log,
+        log_message="AGI service instance created for target %s with verbosity %s",
+    )
+    runtime_misc_support.configure_runtime_mode(
+        agi_cls,
+        env,
+        mode,
+        default_mode=agi_cls.DASK_MODE,
+        require_dask=True,
+    )
     agi_cls._mode_auto = False
-    agi_cls._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
     agi_cls._run_type = agi_cls._run_types[0]
-    agi_cls._args = agi_cls._service_public_args(dict(args))
-    agi_cls.verbose = verbose
-    agi_cls._workers = workers
-    agi_cls._run_time = {}
 
     runtime_misc_support.bootstrap_capacity_predictor(
         agi_cls,

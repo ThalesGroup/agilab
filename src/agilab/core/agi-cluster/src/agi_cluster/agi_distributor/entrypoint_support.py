@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -25,21 +24,13 @@ def _normalize_workers(
 
 
 def _configure_mode(agi_cls: Any, env: Any, mode: Union[int, str]) -> None:
-    if isinstance(mode, str):
-        pattern = r"^[dcrp]+$"
-        if not re.fullmatch(pattern, mode.lower()):
-            raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-        agi_cls._mode = env.mode2int(mode)
-    elif isinstance(mode, int):
-        agi_cls._mode = int(mode)
-    else:
-        raise ValueError("parameter <mode> must be an int, a list of int or a string")
-
-    agi_cls._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
-    if agi_cls._mode:
-        if agi_cls._mode & agi_cls._RUN_MASK not in range(0, agi_cls.RAPIDS_MODE):
-            raise ValueError(f"mode {agi_cls._mode} not implemented")
-    else:
+    runtime_misc_support.configure_runtime_mode(
+        agi_cls,
+        env,
+        mode,
+        invalid_type_message="parameter <mode> must be an int, a list of int or a string",
+    )
+    if not agi_cls._mode:
         agi_cls._run_type = agi_cls._run_types[
             (agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) >> agi_cls.DASK_MODE
         ]
@@ -56,18 +47,16 @@ def _initialize_run_state(
     args: Dict[str, Any],
     log: Any = logger,
 ) -> None:
-    agi_cls.env = env
-    agi_cls.target_path = env.manager_path
-    agi_cls._target = env.target
-    agi_cls._rapids_enabled = rapids_enabled
-    if env.verbose > 0:
-        log.info("AGI instance created for target %s with verbosity %s", env.target, env.verbose)
-
-    agi_cls._args = args
-    agi_cls.verbose = verbose
-    agi_cls._workers = workers
-    agi_cls._workers_data_path = workers_data_path
-    agi_cls._run_time = {}
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers=workers,
+        verbose=verbose,
+        rapids_enabled=rapids_enabled,
+        args=args,
+        workers_data_path=workers_data_path,
+        log=log,
+    )
 
 
 def _load_capacity_predictor(agi_cls: Any, env: Any) -> None:
