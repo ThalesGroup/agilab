@@ -1801,6 +1801,86 @@ def test_prepare_build_ext_command_logs_and_reraises_truncate_failure(tmp_path):
     assert errors == ["bad path"]
 
 
+def test_prepare_setup_artifacts_orchestrates_build_ext_and_purge(tmp_path):
+    env = SimpleNamespace(
+        active_app=tmp_path / "demo_project",
+        is_worker_env=False,
+        pyvers_worker="3.13t",
+    )
+    purge_calls = []
+    configure_calls = []
+    log_lines = []
+
+    ext_modules, links_created = build_mod._prepare_setup_artifacts(
+        env=env,
+        cmd="build_ext",
+        active_app=tmp_path / "demo_project",
+        build_dir=str(tmp_path / "out"),
+        remaining_args=["--quiet"],
+        packages=["pkg_a"],
+        worker_module="demo_worker",
+        purge_worker_venv_artifacts_fn=lambda app_root, worker_module: (
+            purge_calls.append((app_root, worker_module)) or [tmp_path / "purged" / ".venv"]
+        ),
+        configure_build_ext_modules_fn=lambda **kwargs: (
+            configure_calls.append(kwargs) or ["ext_mod"]
+        ),
+        prepare_bdist_egg_sources_fn=lambda **_kwargs: (_ for _ in ()).throw(AssertionError("bdist helper should not run")),
+        log=SimpleNamespace(info=lambda *args: log_lines.append(args)),
+    )
+
+    assert ext_modules == ["ext_mod"]
+    assert links_created == []
+    assert purge_calls == [(env.active_app, "demo_worker")]
+    assert configure_calls == [
+        {
+            "active_app": tmp_path / "demo_project",
+            "build_dir": str(tmp_path / "out"),
+            "remaining_args": ["--quiet"],
+            "worker_module": "demo_worker",
+            "pyvers_worker": "3.13t",
+        }
+    ]
+    assert any("Purged nested worker virtualenv artifacts before %s: %s" in args[0] for args in log_lines)
+
+
+def test_prepare_setup_artifacts_orchestrates_bdist_egg_sources(tmp_path):
+    env = SimpleNamespace(
+        active_app=tmp_path / "demo_project",
+        is_worker_env=False,
+        pyvers_worker="3.13",
+    )
+    purge_calls = []
+    bdist_calls = []
+
+    ext_modules, links_created = build_mod._prepare_setup_artifacts(
+        env=env,
+        cmd="bdist_egg",
+        active_app=tmp_path / "demo_project",
+        build_dir=str(tmp_path / "out"),
+        remaining_args=[],
+        packages=["pkg_a", "pkg_b"],
+        worker_module="demo_worker",
+        purge_worker_venv_artifacts_fn=lambda app_root, worker_module: (
+            purge_calls.append((app_root, worker_module)) or []
+        ),
+        configure_build_ext_modules_fn=lambda **_kwargs: (_ for _ in ()).throw(AssertionError("build_ext helper should not run")),
+        prepare_bdist_egg_sources_fn=lambda **kwargs: (
+            bdist_calls.append(kwargs) or [tmp_path / "pkg_a", tmp_path / "pkg_b"]
+        ),
+    )
+
+    assert ext_modules == []
+    assert links_created == [tmp_path / "pkg_a", tmp_path / "pkg_b"]
+    assert purge_calls == [(env.active_app, "demo_worker")]
+    assert bdist_calls == [
+        {
+            "env": env,
+            "packages": ["pkg_a", "pkg_b"],
+        }
+    ]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
