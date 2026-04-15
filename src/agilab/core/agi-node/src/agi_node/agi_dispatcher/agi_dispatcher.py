@@ -380,9 +380,9 @@ class WorkDispatcher:
                         entry_str = str(entry)
                         if entry_str not in sys.path:
                             sys.path.insert(0, entry_str)
-                    except Exception:
+                    except OSError:
                         pass
-            except Exception:
+            except OSError:
                 pass
 
         try:
