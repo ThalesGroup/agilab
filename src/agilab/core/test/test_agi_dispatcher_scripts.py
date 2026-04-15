@@ -1574,6 +1574,24 @@ def test_build_cleanup_links_logs_warning_when_link_probe_raises(tmp_path, monke
     assert any("Failed to remove" in line for line in warnings_seen)
 
 
+def test_build_cleanup_links_propagates_unexpected_probe_bug(tmp_path, monkeypatch):
+    target = tmp_path / "src" / "agi_node" / "demo_worker.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x", encoding="utf-8")
+
+    original_exists = Path.exists
+
+    def _patched_exists(self):
+        if self == target:
+            raise RuntimeError("probe bug")
+        return original_exists(self)
+
+    monkeypatch.setattr(build_mod.Path, "exists", _patched_exists, raising=False)
+
+    with pytest.raises(RuntimeError, match="probe bug"):
+        build_mod.cleanup_links([target])
+
+
 def test_post_main_invalid_args_returns_usage_code():
     assert post_mod.main([]) == 1
     assert post_mod.main(["a", "b"]) == 1
@@ -2044,6 +2062,21 @@ def test_build_force_remove_tree_windows_skips_recursive_chmod(tmp_path, monkeyp
     assert len(removed) == 1
     assert str(removed[0]).replace("\\", "/").endswith("/target")
     assert run_calls == []
+
+
+def test_build_force_remove_tree_propagates_unexpected_chmod_bug(tmp_path, monkeypatch):
+    target = tmp_path / "target"
+    target.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(build_mod.os, "chmod", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("chmod bug")))
+    monkeypatch.setattr(
+        build_mod.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("recursive chmod should not run")),
+    )
+
+    with pytest.raises(RuntimeError, match="chmod bug"):
+        build_mod._force_remove_tree(target)
 
 
 def test_build_purge_worker_venv_artifacts_removes_unique_candidates(tmp_path, monkeypatch):
