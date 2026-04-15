@@ -84,6 +84,69 @@ def _resolve_install_worker_group(agi_cls: Any, env: Any) -> None:
     runtime_misc_support.configure_install_worker_group(agi_cls, env)
 
 
+def _benchmark_mode_range(mode: Optional[Union[int, List[int], str]]) -> range | list[int] | None:
+    if mode is None:
+        return range(8)
+    if isinstance(mode, list):
+        return sorted(mode)
+    return None
+
+
+def _prepare_run_execution(agi_cls: Any, env: Any, mode: Union[int, str]) -> None:
+    _configure_mode(agi_cls, env, mode)
+    _load_capacity_predictor(agi_cls, env)
+    _resolve_install_worker_group(agi_cls, env)
+
+
+def _connection_error_payload(exc: ConnectionError, *, log: Any = logger) -> Dict[str, str]:
+    message = str(exc).strip() or "Failed to connect to remote host."
+    log.info(message)
+    print(message, file=sys.stderr, flush=True)
+    return {"status": "error", "message": message, "kind": "connection"}
+
+
+def _log_unhandled_run_exception(
+    exc: Exception,
+    *,
+    format_exception_chain_fn: Callable[[BaseException], str],
+    traceback_format_exc_fn: Callable[[], str],
+    log: Any = logger,
+) -> None:
+    message = format_exception_chain_fn(exc)
+    log.error("Unhandled exception in AGI.run: %s", message)
+    if log.isEnabledFor(logging.DEBUG):
+        log.debug("Traceback:\n%s", traceback_format_exc_fn())
+
+
+async def _run_main_with_handled_errors(
+    agi_cls: Any,
+    scheduler: Optional[str],
+    *,
+    process_error_type: type[BaseException],
+    format_exception_chain_fn: Callable[[BaseException], str],
+    traceback_format_exc_fn: Callable[[], str],
+    log: Any = logger,
+) -> Any:
+    try:
+        return await agi_cls._main(scheduler)
+    except process_error_type as exc:
+        log.error("failed to run \n%s", exc)
+        return None
+    except ConnectionError as exc:
+        return _connection_error_payload(exc, log=log)
+    except ModuleNotFoundError as exc:
+        log.error("failed to load module \n%s", exc)
+        return None
+    except Exception as exc:
+        _log_unhandled_run_exception(
+            exc,
+            format_exception_chain_fn=format_exception_chain_fn,
+            traceback_format_exc_fn=traceback_format_exc_fn,
+            log=log,
+        )
+        raise
+
+
 async def run(
     agi_cls: Any,
     env: Any,
@@ -113,35 +176,21 @@ async def run(
         log=log,
     )
 
-    if mode is None or isinstance(mode, list):
-        mode_range = range(8) if mode is None else sorted(mode)
+    mode_range = _benchmark_mode_range(mode)
+    if mode_range is not None:
         return await agi_cls._benchmark(
             env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
         )
 
-    _configure_mode(agi_cls, env, mode)
-    _load_capacity_predictor(agi_cls, env)
-    _resolve_install_worker_group(agi_cls, env)
-
-    try:
-        return await agi_cls._main(scheduler)
-    except process_error_type as exc:
-        log.error("failed to run \n%s", exc)
-        return None
-    except ConnectionError as exc:
-        message = str(exc).strip() or "Failed to connect to remote host."
-        log.info(message)
-        print(message, file=sys.stderr, flush=True)
-        return {"status": "error", "message": message, "kind": "connection"}
-    except ModuleNotFoundError as exc:
-        log.error("failed to load module \n%s", exc)
-        return None
-    except Exception as exc:
-        message = format_exception_chain_fn(exc)
-        log.error("Unhandled exception in AGI.run: %s", message)
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("Traceback:\n%s", traceback_format_exc_fn())
-        raise
+    _prepare_run_execution(agi_cls, env, mode)
+    return await _run_main_with_handled_errors(
+        agi_cls,
+        scheduler,
+        process_error_type=process_error_type,
+        format_exception_chain_fn=format_exception_chain_fn,
+        traceback_format_exc_fn=traceback_format_exc_fn,
+        log=log,
+    )
 
 
 async def install(

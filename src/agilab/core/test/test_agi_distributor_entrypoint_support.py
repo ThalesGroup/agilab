@@ -145,6 +145,163 @@ def test_load_capacity_predictor_uses_shared_runtime_helper(monkeypatch, tmp_pat
     assert sentinels["retrain"] == 0
 
 
+def test_prepare_run_execution_calls_runtime_steps_in_order(monkeypatch):
+    calls = []
+    env = object()
+
+    monkeypatch.setattr(
+        entrypoint_support,
+        "_configure_mode",
+        lambda agi_cls, current_env, mode: calls.append(("configure", agi_cls, current_env, mode)),
+    )
+    monkeypatch.setattr(
+        entrypoint_support,
+        "_load_capacity_predictor",
+        lambda agi_cls, current_env: calls.append(("capacity", agi_cls, current_env)),
+    )
+    monkeypatch.setattr(
+        entrypoint_support,
+        "_resolve_install_worker_group",
+        lambda agi_cls, current_env: calls.append(("install-group", agi_cls, current_env)),
+    )
+
+    entrypoint_support._prepare_run_execution(AGI, env, AGI.DASK_MODE)
+
+    assert calls == [
+        ("configure", AGI, env, AGI.DASK_MODE),
+        ("capacity", AGI, env),
+        ("install-group", AGI, env),
+    ]
+
+
+def test_connection_error_payload_defaults_empty_message(capsys):
+    class _FakeLogger:
+        def __init__(self):
+            self.info_messages = []
+
+        def info(self, message):
+            self.info_messages.append(message)
+
+    payload = entrypoint_support._connection_error_payload(ConnectionError(""), log=_FakeLogger())
+
+    assert payload == {
+        "status": "error",
+        "message": "Failed to connect to remote host.",
+        "kind": "connection",
+    }
+    assert "Failed to connect to remote host." in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_run_main_with_handled_errors_covers_expected_branches(capsys):
+    class _FakeProcessError(Exception):
+        pass
+
+    class _FakeLogger:
+        def __init__(self):
+            self.error_messages = []
+            self.info_messages = []
+
+        def error(self, message, *args):
+            self.error_messages.append(message % args if args else message)
+
+        def info(self, message, *args):
+            self.info_messages.append(message % args if args else message)
+
+        def isEnabledFor(self, _level):
+            return False
+
+    async def _raise_process(_scheduler):
+        raise _FakeProcessError("process failed")
+
+    async def _raise_connection(_scheduler):
+        raise ConnectionError("scheduler unavailable")
+
+    async def _raise_missing(_scheduler):
+        raise ModuleNotFoundError("missing module")
+
+    process_log = _FakeLogger()
+    process_result = await entrypoint_support._run_main_with_handled_errors(
+        SimpleNamespace(_main=_raise_process),
+        "127.0.0.1",
+        process_error_type=_FakeProcessError,
+        format_exception_chain_fn=str,
+        traceback_format_exc_fn=lambda: "tb",
+        log=process_log,
+    )
+    assert process_result is None
+    assert process_log.error_messages == ["failed to run \nprocess failed"]
+
+    connection_log = _FakeLogger()
+    connection_result = await entrypoint_support._run_main_with_handled_errors(
+        SimpleNamespace(_main=_raise_connection),
+        "127.0.0.1",
+        process_error_type=_FakeProcessError,
+        format_exception_chain_fn=str,
+        traceback_format_exc_fn=lambda: "tb",
+        log=connection_log,
+    )
+    assert connection_result == {
+        "status": "error",
+        "message": "scheduler unavailable",
+        "kind": "connection",
+    }
+    assert connection_log.info_messages == ["scheduler unavailable"]
+    assert "scheduler unavailable" in capsys.readouterr().err
+
+    missing_log = _FakeLogger()
+    missing_result = await entrypoint_support._run_main_with_handled_errors(
+        SimpleNamespace(_main=_raise_missing),
+        "127.0.0.1",
+        process_error_type=_FakeProcessError,
+        format_exception_chain_fn=str,
+        traceback_format_exc_fn=lambda: "tb",
+        log=missing_log,
+    )
+    assert missing_result is None
+    assert missing_log.error_messages == ["failed to load module \nmissing module"]
+
+
+@pytest.mark.asyncio
+async def test_run_main_with_handled_errors_logs_and_reraises_unexpected_exception():
+    class _FakeProcessError(Exception):
+        pass
+
+    class _FakeLogger:
+        def __init__(self):
+            self.error_messages = []
+            self.debug_messages = []
+
+        def error(self, message, *args):
+            self.error_messages.append(message % args if args else message)
+
+        def info(self, *_args, **_kwargs):
+            return None
+
+        def isEnabledFor(self, _level):
+            return True
+
+        def debug(self, message, *args):
+            self.debug_messages.append(message % args if args else message)
+
+    async def _raise_runtime(_scheduler):
+        raise RuntimeError("unexpected failure")
+
+    fake_logger = _FakeLogger()
+    with pytest.raises(RuntimeError, match="unexpected failure"):
+        await entrypoint_support._run_main_with_handled_errors(
+            SimpleNamespace(_main=_raise_runtime),
+            "127.0.0.1",
+            process_error_type=_FakeProcessError,
+            format_exception_chain_fn=lambda exc: f"chain:{exc}",
+            traceback_format_exc_fn=lambda: "traceback-body",
+            log=fake_logger,
+        )
+
+    assert fake_logger.error_messages == ["Unhandled exception in AGI.run: chain:unexpected failure"]
+    assert fake_logger.debug_messages == ["Traceback:\ntraceback-body"]
+
+
 @pytest.mark.asyncio
 async def test_connect_scheduler_with_retry_succeeds_after_retry():
     attempts = {"n": 0}
