@@ -200,6 +200,44 @@ def initialize_worker(
         raise
 
 
+def _resolve_worker_info_path(
+    *,
+    share_path: str | Path | None,
+    normalize_path_fn: Callable[[str | Path], str],
+    logger_obj: Any,
+    tempfile_module: Any,
+    os_module: Any,
+) -> str:
+    if not share_path:
+        path = tempfile_module.gettempdir()
+    else:
+        path = normalize_path_fn(share_path)
+    if not os_module.path.exists(path):
+        logger_obj.info("mkdir %s", path)
+        os_module.makedirs(path, exist_ok=True)
+    return path
+
+
+def _measure_worker_write_speed(
+    *,
+    path: str,
+    worker: str,
+    time_module: Any,
+    os_module: Any,
+    open_fn: Callable[..., Any] = open,
+    size: int = 10 * 1024 * 1024,
+) -> list[float]:
+    file_path = os_module.path.join(path, str(worker).replace(":", "_"))
+    start = time_module.time()
+    with open_fn(file_path, "w") as stream:
+        stream.write("\x00" * size)
+
+    elapsed = time_module.time() - start
+    time_module.sleep(1)
+    os_module.remove(file_path)
+    return [size / elapsed]
+
+
 def collect_worker_info(
     *,
     share_path: str | Path | None,
@@ -218,24 +256,20 @@ def collect_worker_info(
     cpu_count = [psutil_module.cpu_count()]
     cpu_frequency = [psutil_module.cpu_freq().current / 10 ** 3]
 
-    if not share_path:
-        path = tempfile_module.gettempdir()
-    else:
-        path = normalize_path_fn(share_path)
-    if not os_module.path.exists(path):
-        logger_obj.info("mkdir %s", path)
-        os_module.makedirs(path, exist_ok=True)
-
-    size = 10 * 1024 * 1024
-    file_path = os_module.path.join(path, str(worker).replace(":", "_"))
-    start = time_module.time()
-    with open_fn(file_path, "w") as stream:
-        stream.write("\x00" * size)
-
-    elapsed = time_module.time() - start
-    time_module.sleep(1)
-    write_speed = [size / elapsed]
-    os_module.remove(file_path)
+    path = _resolve_worker_info_path(
+        share_path=share_path,
+        normalize_path_fn=normalize_path_fn,
+        logger_obj=logger_obj,
+        tempfile_module=tempfile_module,
+        os_module=os_module,
+    )
+    write_speed = _measure_worker_write_speed(
+        path=path,
+        worker=worker,
+        time_module=time_module,
+        os_module=os_module,
+        open_fn=open_fn,
+    )
 
     return {
         "ram_total": ram_total,
