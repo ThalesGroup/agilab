@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -396,6 +397,41 @@ def test_initialize_worker_runtime_orchestrates_startup_helpers(monkeypatch):
         "time_module": calls[2][1]["time_module"],
         "path_cls": Path,
     }
+
+
+def test_initialize_worker_logs_traceback_and_reraises_startup_bug(monkeypatch):
+    logged: list[str] = []
+
+    monkeypatch.setattr(
+        execution_support,
+        "_initialize_worker_runtime",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("worker startup bug")),
+    )
+
+    with pytest.raises(AssertionError, match="worker startup bug"):
+        execution_support.initialize_worker(
+            env=None,
+            app="demo_project",
+            mode=4,
+            verbose=2,
+            worker_id=3,
+            worker="tcp://192.168.20.130:1234",
+            args={"alpha": 1},
+            base_worker_cls=BaseWorker,
+            agi_env_factory=lambda **_kwargs: pytest.fail("unexpected env factory"),
+            ensure_managed_pc_share_dir_fn=lambda _env: pytest.fail("unexpected share-dir call"),
+            load_worker_fn=lambda _mode: pytest.fail("unexpected direct load worker"),
+            start_fn=lambda _inst: pytest.fail("unexpected direct start call"),
+            args_namespace_cls=base_worker_mod.ArgsNamespace,
+            logger_obj=SimpleNamespace(error=lambda message, *args: logged.append(str(message % args if args else message))),
+            time_module=SimpleNamespace(time=lambda: 12.5),
+            traceback_module=SimpleNamespace(format_exc=lambda: "startup traceback"),
+            sys_module=SimpleNamespace(prefix="/tmp/venv"),
+            file_path="/tmp/worker.py",
+            path_cls=Path,
+        )
+
+    assert logged == ["startup traceback"]
 
 
 def test_baseworker_run_cython_mode_adds_paths_and_executes_plan(monkeypatch, tmp_path):
@@ -1034,3 +1070,42 @@ def test_baseworker_do_works_requires_initialized_worker_context():
 
     with pytest.raises(RuntimeError, match="failed to do_works"):
         BaseWorker._do_works(["p"], ["m"])
+
+
+def test_execute_worker_plan_logs_traceback_and_reraises_worker_bug(monkeypatch):
+    logged: list[str] = []
+    detached: list[tuple[object, object]] = []
+    handler = object()
+    root_logger = object()
+
+    monkeypatch.setattr(
+        execution_support,
+        "_attach_worker_log_capture",
+        lambda **_kwargs: (io.StringIO(), handler, root_logger),
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_detach_worker_log_capture",
+        lambda *, active_root_logger, handler: detached.append((active_root_logger, handler)),
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_execute_initialized_worker_plan",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("worker bug")),
+    )
+
+    with pytest.raises(AssertionError, match="worker bug"):
+        execution_support.execute_worker_plan(
+            workers_plan=[["plan-a"]],
+            workers_plan_metadata=[["meta-a"]],
+            worker_id=1,
+            worker_name="local-worker",
+            insts={1: object()},
+            expand_chunk_fn=lambda payload, worker_id: (payload, None, None),
+            logger_obj=SimpleNamespace(error=lambda message, *args: logged.append(str(message % args if args else message))),
+            traceback_module=SimpleNamespace(format_exc=lambda: "worker traceback"),
+            file_path="/tmp/worker.py",
+        )
+
+    assert logged == ["worker traceback"]
+    assert detached == [(root_logger, handler)]
