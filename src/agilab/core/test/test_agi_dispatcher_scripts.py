@@ -1881,6 +1881,49 @@ def test_prepare_setup_artifacts_orchestrates_bdist_egg_sources(tmp_path):
     ]
 
 
+def test_finalize_setup_artifacts_runs_bdist_postprocess(tmp_path):
+    env = SimpleNamespace(home_abs=str(tmp_path / "home"), is_worker_env=False)
+    postprocess_calls = []
+    links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
+
+    build_mod._finalize_setup_artifacts(
+        env=env,
+        cmd="bdist_egg",
+        out_arg="exports/demo_worker",
+        links_created=links_created,
+        postprocess_bdist_egg_output_fn=lambda **kwargs: postprocess_calls.append(kwargs),
+    )
+
+    assert postprocess_calls == [
+        {
+            "env": env,
+            "out_dir": Path(env.home_abs) / "exports/demo_worker",
+            "links_created": links_created,
+        }
+    ]
+
+
+def test_finalize_setup_artifacts_skips_non_bdist_or_worker_env(tmp_path):
+    calls = []
+
+    build_mod._finalize_setup_artifacts(
+        env=SimpleNamespace(home_abs=str(tmp_path / "home"), is_worker_env=False),
+        cmd="build_ext",
+        out_arg="exports/demo_worker",
+        links_created=[],
+        postprocess_bdist_egg_output_fn=lambda **kwargs: calls.append(kwargs),
+    )
+    build_mod._finalize_setup_artifacts(
+        env=SimpleNamespace(home_abs=str(tmp_path / "home"), is_worker_env=True),
+        cmd="bdist_egg",
+        out_arg="exports/demo_worker",
+        links_created=[],
+        postprocess_bdist_egg_output_fn=lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert calls == []
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))

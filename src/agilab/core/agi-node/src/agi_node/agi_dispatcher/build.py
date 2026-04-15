@@ -656,6 +656,25 @@ def _prepare_setup_artifacts(
     return ext_modules, links_created
 
 
+def _finalize_setup_artifacts(
+    *,
+    env,
+    cmd: str,
+    out_arg: str,
+    links_created: list[Path],
+    postprocess_bdist_egg_output_fn=None,
+) -> None:
+    if postprocess_bdist_egg_output_fn is None:
+        postprocess_bdist_egg_output_fn = _postprocess_bdist_egg_output
+
+    if cmd == "bdist_egg" and not env.is_worker_env:
+        postprocess_bdist_egg_output_fn(
+            env=env,
+            out_dir=Path(env.home_abs) / out_arg,
+            links_created=links_created,
+        )
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -771,13 +790,12 @@ def main(argv: list[str] | None = None) -> None:
     _ensure_build_readme()
     setup(**_build_setup_kwargs(worker_module=worker_module, ext_modules=ext_modules))
 
-    # Post bdist_egg steps: unpack, decorator stripping, cleanup
-    if cmd == 'bdist_egg' and (not env.is_worker_env):
-        _postprocess_bdist_egg_output(
-            env=env,
-            out_dir=Path(env.home_abs) / out_arg,
-            links_created=links_created,
-        )
+    _finalize_setup_artifacts(
+        env=env,
+        cmd=cmd,
+        out_arg=out_arg,
+        links_created=links_created,
+    )
 
 if __name__ == "__main__":
     main()
