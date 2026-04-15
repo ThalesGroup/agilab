@@ -493,6 +493,68 @@ def test_baseworker_build_verbose_non_managed_path_updates_sys_path(monkeypatch,
     assert copied[0][1] == Path("~/").expanduser().absolute() / "wenv" / "demo_worker" / "some_egg_file.egg"
 
 
+def test_log_build_worker_context_only_logs_for_verbose_builds(tmp_path):
+    logged: list[str] = []
+    dask_home = tmp_path / "dask-home"
+    dask_home.mkdir()
+    (dask_home / "entry.txt").write_text("x", encoding="utf-8")
+    logger = SimpleNamespace(
+        info=lambda message, *args: logged.append(str(message % args if args else message))
+    )
+
+    execution_support._log_build_worker_context(
+        home_dir=tmp_path / "home",
+        target_worker="demo_worker",
+        dask_home=str(dask_home),
+        mode=4,
+        verbose=2,
+        worker="local-worker",
+        logger_obj=logger,
+    )
+    assert logged == []
+
+    execution_support._log_build_worker_context(
+        home_dir=tmp_path / "home",
+        target_worker="demo_worker",
+        dask_home=str(dask_home),
+        mode=4,
+        verbose=3,
+        worker="local-worker",
+        logger_obj=logger,
+    )
+
+    assert any("home_dir:" in message for message in logged)
+    assert any("target_worker=demo_worker" in message for message in logged)
+    assert any("entry.txt" in message for message in logged)
+
+
+def test_install_worker_egg_deduplicates_sys_path_and_returns_destination(tmp_path):
+    copied: list[tuple[str, Path]] = []
+    logged: list[str] = []
+    extract_path = tmp_path / "wenv" / "demo_worker"
+    sys_path = [str(extract_path / "some_egg_file.egg"), "/tmp/existing"]
+    logger = SimpleNamespace(
+        info=lambda message, *args: logged.append(str(message % args if args else message))
+    )
+
+    egg_dest = execution_support._install_worker_egg(
+        egg_src="/tmp/build/some_egg_file",
+        extract_path=extract_path,
+        sys_path=sys_path,
+        logger_obj=logger,
+        shutil_module=SimpleNamespace(
+            copyfile=lambda src, dst: copied.append((src, dst))
+        ),
+    )
+
+    assert egg_dest == extract_path / "some_egg_file.egg"
+    assert copied == [("/tmp/build/some_egg_file", extract_path / "some_egg_file.egg")]
+    assert sys_path == [str(extract_path / "some_egg_file.egg"), "/tmp/existing"]
+    assert any("copy: /tmp/build/some_egg_file" in message for message in logged)
+    assert "sys.path:" in logged
+    assert "done!" in logged
+
+
 def test_baseworker_expand_chunk_scalar_and_do_works_fallback_paths(monkeypatch):
     reconstructed, chunk_len, total = BaseWorker._expand_chunk(
         {

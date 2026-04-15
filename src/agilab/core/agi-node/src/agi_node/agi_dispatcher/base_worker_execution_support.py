@@ -246,6 +246,59 @@ def collect_worker_info(
     }
 
 
+def _log_build_worker_context(
+    *,
+    home_dir: Path,
+    target_worker: str,
+    dask_home: str,
+    mode: int,
+    verbose: int,
+    worker: str,
+    logger_obj: Any,
+    path_cls: type[Path] = Path,
+) -> None:
+    if verbose <= 2:
+        return
+    logger_obj.info("home_dir: %s", home_dir)
+    logger_obj.info(
+        "target_worker=%s, dask_home=%s, mode=%s, verbose=%s, worker=%s)",
+        target_worker,
+        dask_home,
+        mode,
+        verbose,
+        worker,
+    )
+    for entry in path_cls(dask_home).glob("*"):
+        logger_obj.info("%s", entry)
+
+
+def _install_worker_egg(
+    *,
+    egg_src: str,
+    extract_path: Path,
+    sys_path: list[str],
+    logger_obj: Any,
+    os_module: Any = os,
+    shutil_module: Any = shutil,
+) -> Path:
+    egg_dest = extract_path / (os_module.path.basename(egg_src) + ".egg")
+
+    logger_obj.info("copy: %s to %s", egg_src, egg_dest)
+    shutil_module.copyfile(egg_src, egg_dest)
+
+    egg_dest_str = str(egg_dest)
+    if egg_dest_str in sys_path:
+        sys_path.remove(egg_dest_str)
+    sys_path.insert(0, egg_dest_str)
+
+    logger_obj.info("sys.path:")
+    for entry in sys_path:
+        logger_obj.info("%s", entry)
+
+    logger_obj.info("done!")
+    return egg_dest
+
+
 def build_worker_artifacts(
     *,
     target_worker: str,
@@ -277,38 +330,29 @@ def build_worker_artifacts(
 
     try:
         logger_obj.info("set verbose=3 to see something in this trace file ...")
-
-        if verbose > 2:
-            logger_obj.info("home_dir: %s", base_worker_cls._home_dir)
-            logger_obj.info(
-                "target_worker=%s, dask_home=%s, mode=%s, verbose=%s, worker=%s)",
-                target_worker,
-                dask_home,
-                mode,
-                verbose,
-                worker,
-            )
-            for entry in path_cls(dask_home).glob("*"):
-                logger_obj.info("%s", entry)
+        _log_build_worker_context(
+            home_dir=base_worker_cls._home_dir,
+            target_worker=target_worker,
+            dask_home=dask_home,
+            mode=mode,
+            verbose=verbose,
+            worker=worker,
+            logger_obj=logger_obj,
+            path_cls=path_cls,
+        )
 
         egg_src = dask_home + "/some_egg_file"
         extract_path = base_worker_cls._home_dir / "wenv" / target_worker
 
         if not mode & 2:
-            egg_dest = extract_path / (os_module.path.basename(egg_src) + ".egg")
-
-            logger_obj.info("copy: %s to %s", egg_src, egg_dest)
-            shutil_module.copyfile(egg_src, egg_dest)
-
-            if str(egg_dest) in sys_path:
-                sys_path.remove(str(egg_dest))
-            sys_path.insert(0, str(egg_dest))
-
-            logger_obj.info("sys.path:")
-            for entry in sys_path:
-                logger_obj.info("%s", entry)
-
-            logger_obj.info("done!")
+            _install_worker_egg(
+                egg_src=egg_src,
+                extract_path=extract_path,
+                sys_path=sys_path,
+                logger_obj=logger_obj,
+                os_module=os_module,
+                shutil_module=shutil_module,
+            )
     except BUILD_ARTIFACT_EXCEPTIONS:
         logger_obj.error(
             "worker<%s> - fail to build %s from %s, see %s for details",
