@@ -114,7 +114,17 @@ def _load_relay_module(tmp_path: Path, monkeypatch):
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        spec.loader.exec_module(module)
+        with patch("streamlit.set_page_config", lambda *args, **kwargs: None), patch(
+            "streamlit.sidebar.text_input",
+            lambda _label, value="", **_kwargs: value,
+        ), patch(
+            "streamlit.sidebar.multiselect",
+            lambda _label, options, default=None, **_kwargs: list(default or options[:1]),
+        ), patch(
+            "streamlit.sidebar.selectbox",
+            lambda _label, options, index=0, **_kwargs: options[index] if options else None,
+        ):
+            spec.loader.exec_module(module)
     return module
 
 
