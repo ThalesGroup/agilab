@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 _CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _WORKER_START_EXCEPTIONS = (ConnectionError, FileNotFoundError, OSError, RuntimeError, TimeoutError)
 _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+_STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 
 
 def dask_env_prefix(agi_cls: Any) -> str:
@@ -350,7 +351,7 @@ async def stop(
     while retire_attempts < agi_cls._TIMEOUT:
         try:
             scheduler_info = await agi_cls._dask_client.scheduler_info()
-        except Exception as exc:
+        except _STOP_RETRY_EXCEPTIONS as exc:
             log.debug("Unable to fetch scheduler info during shutdown: %s", exc)
             break
 
@@ -365,7 +366,7 @@ async def stop(
                 close_workers=True,
                 remove=True,
             )
-        except Exception as exc:
+        except _STOP_RETRY_EXCEPTIONS as exc:
             log.debug("retire_workers failed: %s", exc)
             break
 
@@ -375,7 +376,7 @@ async def stop(
         if ((agi_cls._mode_auto and (agi_cls._mode == 7 or agi_cls._mode == 15))
                 or not agi_cls._mode_auto):
             await agi_cls._dask_client.shutdown()
-    except Exception as exc:
+    except _STOP_RETRY_EXCEPTIONS as exc:
         log.debug("Dask client shutdown raised: %s", exc)
 
     await agi_cls._close_all_connections()
