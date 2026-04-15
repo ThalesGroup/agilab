@@ -79,6 +79,33 @@ def _create_process_env(
     return build_subprocess_env(base_env=os.environ.copy(), venv=venv)
 
 
+async def _spawn_process(
+    *,
+    cmd: str,
+    cwd: str | Path | None,
+    process_env: dict[str, str],
+    shell_executable: str | None = None,
+) -> asyncio.subprocess.Process:
+    try:
+        cmd_list = shlex.split(cmd)
+        return await asyncio.create_subprocess_exec(
+            *cmd_list,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd) if cwd else None,
+            env=process_env,
+        )
+    except SUBPROCESS_FALLBACK_EXCEPTIONS:
+        return await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd) if cwd else None,
+            env=process_env,
+            executable=shell_executable,
+        )
+
+
 async def run(
     cmd: str | None,
     venv,
@@ -131,24 +158,12 @@ async def run(
     result: list[str] = []
     proc = None
     try:
-        try:
-            cmd_list = shlex.split(cmd)
-            proc = await asyncio.create_subprocess_exec(
-                *cmd_list,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-            )
-        except SUBPROCESS_FALLBACK_EXCEPTIONS:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-                executable=shell_executable,
-            )
+        proc = await _spawn_process(
+            cmd=cmd,
+            cwd=cwd,
+            process_env=process_env,
+            shell_executable=shell_executable,
+        )
 
         out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
         await asyncio.wait_for(
@@ -209,23 +224,12 @@ async def run_bg(
     cmd = inject_uv_preview_flag(cmd)
     result: list[str] = []
 
-    try:
-        cmd_list = shlex.split(cmd)
-        proc = await asyncio.create_subprocess_exec(
-            *cmd_list,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=process_env,
-        )
-    except SUBPROCESS_FALLBACK_EXCEPTIONS:
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=process_env,
-        )
+    proc = await _spawn_process(
+        cmd=cmd,
+        cwd=cwd,
+        process_env=process_env,
+        shell_executable=None,
+    )
 
     out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
     tasks = [
@@ -281,24 +285,12 @@ async def run_async(
     result: list[str] = []
     proc = None
     try:
-        try:
-            cmd_list = shlex.split(cmd)
-            proc = await asyncio.create_subprocess_exec(
-                *cmd_list,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-            )
-        except SUBPROCESS_FALLBACK_EXCEPTIONS:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-                executable=shell_executable,
-            )
+        proc = await _spawn_process(
+            cmd=cmd,
+            cwd=cwd,
+            process_env=process_env,
+            shell_executable=shell_executable,
+        )
 
         out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
         await asyncio.wait_for(
