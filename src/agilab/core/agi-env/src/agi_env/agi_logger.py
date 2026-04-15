@@ -162,6 +162,19 @@ def _configure_package_logger(base_name: str, *, get_logger_fn=logging.getLogger
     pkg_logger.propagate = True
     return pkg_logger
 
+
+def _apply_logger_options(
+    logger_cls,
+    *,
+    base_name: str | None,
+    verbose: int | None,
+) -> tuple[str, int]:
+    if base_name:
+        logger_cls._base_name = base_name
+    resolved_verbose = 0 if verbose is None else verbose
+    logger_cls.verbose = resolved_verbose
+    return logger_cls._base_name, resolved_verbose
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -225,13 +238,11 @@ class AgiLogger:
                 return logging.getLogger(base_name or cls._base_name)
 
             _configure_asyncssh_logger(logging.getLogger("asyncssh"))
-
-            if base_name:
-                cls._base_name = base_name
-
-            if verbose is None:
-                verbose = 0
-            cls.verbose = verbose
+            _, verbose = _apply_logger_options(
+                cls,
+                base_name=base_name,
+                verbose=verbose,
+            )
 
             root = logging.getLogger()
             _configure_root_handlers(

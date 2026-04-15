@@ -10,6 +10,7 @@ from agi_env.agi_logger import (
     ClassNameFilter,
     LogFormatter,
     MaxLevelFilter,
+    _apply_logger_options,
     _configure_asyncssh_logger,
     _configure_package_logger,
     _configure_root_handlers,
@@ -535,6 +536,38 @@ def test_configure_package_logger_sets_info_and_propagates():
     assert configured is logger
     assert logger.level == logging.INFO
     assert logger.propagate is True
+
+
+def test_apply_logger_options_updates_base_name_and_defaults_verbose():
+    class _LoggerState:
+        _base_name = "old-base"
+        verbose = 99
+
+    base_name, verbose = _apply_logger_options(
+        _LoggerState,
+        base_name="new-base",
+        verbose=None,
+    )
+
+    assert (base_name, verbose) == ("new-base", 0)
+    assert _LoggerState._base_name == "new-base"
+    assert _LoggerState.verbose == 0
+
+
+def test_apply_logger_options_keeps_existing_base_name_when_none_provided():
+    class _LoggerState:
+        _base_name = "kept-base"
+        verbose = 1
+
+    base_name, verbose = _apply_logger_options(
+        _LoggerState,
+        base_name=None,
+        verbose=3,
+    )
+
+    assert (base_name, verbose) == ("kept-base", 3)
+    assert _LoggerState._base_name == "kept-base"
+    assert _LoggerState.verbose == 3
 
 
 def test_agi_logger_configure_and_set_level():
