@@ -9,6 +9,9 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
+_DECODE_BYTES_EXCEPTIONS = (UnicodeDecodeError,)
+_READ_STDERR_RETRY_EXCEPTIONS = (OSError, RuntimeError)
+
 
 def get_default_local_ip(
     *,
@@ -83,7 +86,7 @@ def read_stderr(
         for encoding in ("utf-8", "cp850", "cp1252"):
             try:
                 return payload.decode(encoding)
-            except Exception:
+            except _DECODE_BYTES_EXCEPTIONS:
                 continue
         return payload.decode("cp850", errors="replace")
 
@@ -103,7 +106,7 @@ def read_stderr(
         if channel.recv_stderr_ready():
             try:
                 raw = channel.recv_stderr(1024)
-            except Exception:
+            except _READ_STDERR_RETRY_EXCEPTIONS:
                 continue
             if not raw:
                 break

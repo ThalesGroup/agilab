@@ -72,6 +72,17 @@ def test_background_process_manager_normalize_cwd_handles_invalid_values():
     assert manager._normalize_cwd(BrokenPath()) is None
 
 
+def test_background_process_manager_normalize_cwd_propagates_unexpected_value_error():
+    manager = background_jobs_support.BackgroundProcessManager()
+
+    class BrokenPath:
+        def __fspath__(self):
+            raise ValueError("unexpected path bug")
+
+    with pytest.raises(ValueError, match="unexpected path bug"):
+        manager._normalize_cwd(BrokenPath())
+
+
 def test_background_job_manager_uses_subprocess_and_real_directories_only(monkeypatch, tmp_path):
     calls = []
 

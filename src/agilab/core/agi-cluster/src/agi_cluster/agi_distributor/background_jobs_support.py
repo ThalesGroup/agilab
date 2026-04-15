@@ -2,6 +2,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+_NORMALIZE_CWD_EXCEPTIONS = (OSError, RuntimeError, TypeError)
+
 
 class BackgroundProcessJob:
     """Minimal job record for detached subprocess launches."""
@@ -28,7 +30,7 @@ class BackgroundProcessManager:
             return None
         try:
             candidate = Path(cwd).expanduser()
-        except Exception:
+        except _NORMALIZE_CWD_EXCEPTIONS:
             return None
         return str(candidate) if candidate.is_dir() else None
 
