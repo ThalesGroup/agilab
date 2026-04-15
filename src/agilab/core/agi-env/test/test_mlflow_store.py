@@ -708,6 +708,74 @@ def test_resolve_default_mlflow_activation_context_handles_missing_module_and_re
     )
 
 
+def test_activate_default_mlflow_experiment_from_context_delegates_retry_helper(monkeypatch, tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    activation_context = (object(), "file:///artifacts", tracking_dir / "mlflow.db")
+    calls: list[tuple[str, object]] = []
+
+    def _fake_retry(
+        mlflow,
+        *,
+        tracking_dir,
+        artifact_uri,
+        db_path,
+        ensure_mlflow_backend_ready_fn,
+        reset_mlflow_sqlite_backend_fn,
+        default_experiment_name,
+        schema_reset_markers,
+    ):
+        calls.append(
+            (
+                "retry",
+                (
+                    mlflow,
+                    Path(tracking_dir),
+                    artifact_uri,
+                    Path(db_path),
+                    ensure_mlflow_backend_ready_fn,
+                    reset_mlflow_sqlite_backend_fn,
+                    default_experiment_name,
+                    schema_reset_markers,
+                ),
+            )
+        )
+        return "sqlite:///mlflow.db"
+
+    monkeypatch.setattr(
+        mlflow_store,
+        "_activate_default_mlflow_experiment_with_schema_retry",
+        _fake_retry,
+    )
+
+    ensure_fn = object()
+    reset_fn = object()
+    backend_uri = mlflow_store._activate_default_mlflow_experiment_from_context(
+        activation_context,
+        tracking_dir=tracking_dir,
+        ensure_mlflow_backend_ready_fn=ensure_fn,
+        reset_mlflow_sqlite_backend_fn=reset_fn,
+        default_experiment_name="Default",
+        schema_reset_markers=("schema-reset",),
+    )
+
+    assert backend_uri == "sqlite:///mlflow.db"
+    assert calls == [
+        (
+            "retry",
+            (
+                activation_context[0],
+                tracking_dir,
+                "file:///artifacts",
+                tracking_dir / "mlflow.db",
+                ensure_fn,
+                reset_fn,
+                "Default",
+                ("schema-reset",),
+            ),
+        )
+    ]
+
+
 def test_ensure_default_mlflow_experiment_handles_missing_mlflow_module(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     assert mlflow_store.ensure_default_mlflow_experiment(

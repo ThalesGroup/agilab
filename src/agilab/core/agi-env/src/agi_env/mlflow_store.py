@@ -570,6 +570,28 @@ def _resolve_default_mlflow_activation_context(
     return mlflow, artifact_uri, db_path
 
 
+def _activate_default_mlflow_experiment_from_context(
+    activation_context,
+    *,
+    tracking_dir: Path,
+    ensure_mlflow_backend_ready_fn,
+    reset_mlflow_sqlite_backend_fn,
+    default_experiment_name: str,
+    schema_reset_markers: tuple[str, ...],
+) -> str:
+    mlflow, artifact_uri, db_path = activation_context
+    return _activate_default_mlflow_experiment_with_schema_retry(
+        mlflow,
+        tracking_dir=tracking_dir,
+        artifact_uri=artifact_uri,
+        db_path=db_path,
+        ensure_mlflow_backend_ready_fn=ensure_mlflow_backend_ready_fn,
+        reset_mlflow_sqlite_backend_fn=reset_mlflow_sqlite_backend_fn,
+        default_experiment_name=default_experiment_name,
+        schema_reset_markers=schema_reset_markers,
+    )
+
+
 def ensure_default_mlflow_experiment(
     tracking_dir: Path,
     *,
@@ -589,12 +611,9 @@ def ensure_default_mlflow_experiment(
     )
     if activation_context is None:
         return None
-    mlflow, artifact_uri, db_path = activation_context
-    return _activate_default_mlflow_experiment_with_schema_retry(
-        mlflow,
+    return _activate_default_mlflow_experiment_from_context(
+        activation_context,
         tracking_dir=tracking_dir,
-        artifact_uri=artifact_uri,
-        db_path=db_path,
         ensure_mlflow_backend_ready_fn=ensure_mlflow_backend_ready_fn,
         reset_mlflow_sqlite_backend_fn=reset_mlflow_sqlite_backend_fn,
         default_experiment_name=default_experiment_name,
