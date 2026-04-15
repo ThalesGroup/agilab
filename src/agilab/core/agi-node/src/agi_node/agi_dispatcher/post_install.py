@@ -247,6 +247,50 @@ def _prepare_post_install_context(
     return env, target_name, dest_arg, dataset_archive
 
 
+def _execute_post_install(
+    *,
+    env: AgiEnv,
+    target_name: str,
+    dest_arg: str | Path,
+    dataset_archive: Path | None,
+    seed_optional_dataset_fn=None,
+    is_optional_dataset_seeding_error_fn=None,
+    print_fn=None,
+) -> int:
+    if seed_optional_dataset_fn is None:
+        seed_optional_dataset_fn = _seed_optional_dataset
+    if is_optional_dataset_seeding_error_fn is None:
+        is_optional_dataset_seeding_error_fn = _is_optional_dataset_seeding_error
+    if print_fn is None:
+        print_fn = print
+
+    if dataset_archive is None:
+        print_fn(
+            f"[post_install] dataset archive not found for '{target_name}'. "
+            f"Looked under {env.dataset_archive if hasattr(env, 'dataset_archive') else '<unknown>'} and packaged apps."
+        )
+        return 0
+
+    print_fn(f"[post_install] dataset archive: {dataset_archive}")
+    print_fn(f"[post_install] destination: {dest_arg}")
+    env.unzip_data(dataset_archive, dest_arg)
+
+    try:
+        return seed_optional_dataset_fn(
+            env=env,
+            dataset_archive=dataset_archive,
+            dest_arg=dest_arg,
+        )
+    except (OSError, shutil.Error, py7zr.Bad7zFile) as exc:
+        print_fn(f"[post_install] optional dataset seeding skipped: {exc}")
+        return 0
+    except RuntimeError as exc:
+        if not is_optional_dataset_seeding_error_fn(exc):
+            raise
+        print_fn(f"[post_install] optional dataset seeding skipped: {exc}")
+        return 0
+
+
 def _seed_optional_dataset(
     *,
     env: AgiEnv,
@@ -362,35 +406,12 @@ def main(argv: list[str] | None = None) -> int:
 
     app_arg = _resolve_post_install_app_arg(args[0])
     env, target_name, dest_arg, dataset_archive = _prepare_post_install_context(app_arg)
-    if dataset_archive is None:
-        print(
-            f"[post_install] dataset archive not found for '{target_name}'. "
-            f"Looked under {env.dataset_archive if hasattr(env, 'dataset_archive') else '<unknown>'} and packaged apps."
-        )
-        return 0
-
-    print(f"[post_install] dataset archive: {dataset_archive}")
-    print(f"[post_install] destination: {dest_arg}")
-    env.unzip_data(dataset_archive, dest_arg)
-
-    # Optional: seed satellite trajectories for LinkSim-style datasets.
-    # Some app datasets ship satellite trajectories separately as Trajectory.7z to keep
-    # the base dataset smaller. If present, extract it into the dataset folder and
-    # mirror files into `dataset/sat` when that folder is empty.
-    try:
-        return _seed_optional_dataset(
-            env=env,
-            dataset_archive=dataset_archive,
-            dest_arg=dest_arg,
-        )
-    except (OSError, shutil.Error, py7zr.Bad7zFile) as exc:
-        print(f"[post_install] optional dataset seeding skipped: {exc}")
-        return 0
-    except RuntimeError as exc:
-        if not _is_optional_dataset_seeding_error(exc):
-            raise
-        print(f"[post_install] optional dataset seeding skipped: {exc}")
-        return 0
+    return _execute_post_install(
+        env=env,
+        target_name=target_name,
+        dest_arg=dest_arg,
+        dataset_archive=dataset_archive,
+    )
 
 
 if __name__ == "__main__":
