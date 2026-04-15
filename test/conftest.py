@@ -4,8 +4,21 @@ from pathlib import Path
 import shutil
 import sys
 from unittest.mock import patch
+import warnings
 
 import pytest
+
+warnings.filterwarnings(
+    "ignore",
+    message=r".*ast\.Num is deprecated and will be removed in Python 3\.14.*",
+    category=DeprecationWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r"Theme names and color schemes are lowercase in IPython 9\.0 use nocolor instead",
+    category=DeprecationWarning,
+)
+
 from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
