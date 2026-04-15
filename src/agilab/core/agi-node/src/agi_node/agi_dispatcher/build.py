@@ -560,6 +560,25 @@ def _configure_build_ext_modules(
     return ext_modules
 
 
+def _prepare_bdist_egg_sources(
+    *,
+    env,
+    packages: list[str],
+    create_symlink_for_module_fn=None,
+    chdir_fn=None,
+) -> list[Path]:
+    if create_symlink_for_module_fn is None:
+        create_symlink_for_module_fn = create_symlink_for_module
+    if chdir_fn is None:
+        chdir_fn = os.chdir
+
+    chdir_fn(env.active_app)
+    links_created: list[Path] = []
+    for module in packages:
+        links_created.extend(create_symlink_for_module_fn(env, module))
+    return links_created
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -696,10 +715,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     elif not env.is_worker_env:
-        # For bdist_egg copy modules under src
-        os.chdir(env.active_app)
-        for module in packages:
-            links_created.extend(create_symlink_for_module(env, module))
+        links_created = _prepare_bdist_egg_sources(env=env, packages=packages)
 
     _ensure_build_readme()
     setup(**_build_setup_kwargs(worker_module=worker_module, ext_modules=ext_modules))

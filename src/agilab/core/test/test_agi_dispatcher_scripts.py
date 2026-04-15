@@ -1751,6 +1751,25 @@ def test_configure_build_ext_modules_orchestrates_helper_calls(tmp_path):
     assert any(args[0] == "build_dir: " + str(tmp_path / "out") for args in log_lines if args)
 
 
+def test_prepare_bdist_egg_sources_changes_cwd_and_aggregates_links(tmp_path):
+    app_dir = tmp_path / "demo_project"
+    chdir_calls = []
+    symlink_calls = []
+
+    links = build_mod._prepare_bdist_egg_sources(
+        env=SimpleNamespace(active_app=app_dir),
+        packages=["pkg_a", "pkg_b"],
+        create_symlink_for_module_fn=lambda env, module: (
+            symlink_calls.append((env.active_app, module)) or [tmp_path / module]
+        ),
+        chdir_fn=lambda path: chdir_calls.append(path),
+    )
+
+    assert chdir_calls == [app_dir]
+    assert symlink_calls == [(app_dir, "pkg_a"), (app_dir, "pkg_b")]
+    assert links == [tmp_path / "pkg_a", tmp_path / "pkg_b"]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
