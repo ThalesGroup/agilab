@@ -499,6 +499,21 @@ def _lookup_default_mlflow_experiment(
     )
 
 
+def _create_default_mlflow_experiment_from_object(
+    mlflow,
+    *,
+    get_experiment_fn,
+    default_experiment_name: str,
+    artifact_uri: str,
+) -> None:
+    _create_default_experiment(
+        getattr(mlflow, "create_experiment", None),
+        get_experiment_fn=get_experiment_fn,
+        default_experiment_name=default_experiment_name,
+        artifact_uri=artifact_uri,
+    )
+
+
 def _create_default_experiment_if_missing(
     mlflow,
     *,
@@ -512,8 +527,8 @@ def _create_default_experiment_if_missing(
     ) is not None:
         return
 
-    _create_default_experiment(
-        getattr(mlflow, "create_experiment", None),
+    _create_default_mlflow_experiment_from_object(
+        mlflow,
         get_experiment_fn=get_experiment,
         default_experiment_name=default_experiment_name,
         artifact_uri=artifact_uri,
