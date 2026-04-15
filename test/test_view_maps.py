@@ -344,6 +344,30 @@ def test_view_maps_filters_hidden_dataset_files() -> None:
     assert visible == [datadir / "visible.csv", Path("/elsewhere/outside.json")]
 
 
+def test_view_maps_repo_path_helpers(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_module()
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    apps_root = src_root / "agilab" / "apps"
+    apps_root.mkdir(parents=True)
+    (apps_root / ".hidden_project").mkdir()
+    (apps_root / "notes").mkdir()
+    expected_app = apps_root / "alpha_project"
+    expected_app.mkdir()
+    module_path = src_root / "agilab" / "apps-pages" / "view_maps" / "src" / "view_maps" / "view_maps.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text("# stub\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+
+    module._ensure_repo_on_path()
+
+    assert str(src_root) in module.sys.path
+    assert str(repo_root) in module.sys.path
+    assert module._default_app() == expected_app
+
+
 def test_view_maps_computes_viewport_for_numeric_coordinates() -> None:
     module = _load_view_maps_module()
     df = pd.DataFrame(
@@ -430,6 +454,12 @@ def test_view_maps_compute_viewport_returns_none_for_invalid_coordinates() -> No
     assert module._compute_viewport(pd.DataFrame({"lat": ["a"], "lon": ["b"]}), "lat", "lon") is None
     assert module._compute_viewport(pd.DataFrame({"lat": [None], "lon": [None]}), "lat", "lon") is None
 
+    class _BrokenFrame:
+        def __getitem__(self, key):
+            raise RuntimeError("broken")
+
+    assert module._compute_viewport(_BrokenFrame(), "lat", "lon") is None
+
 
 def test_view_maps_load_map_defaults_reads_file_and_missing_file(tmp_path) -> None:
     module = _load_view_maps_module()
@@ -475,6 +505,18 @@ def test_view_maps_load_view_maps_settings_handles_missing_and_non_dict_section(
     assert view == {}
 
 
+def test_view_maps_load_view_maps_settings_handles_invalid_toml(tmp_path) -> None:
+    module = _load_view_maps_module()
+    settings_path = tmp_path / "broken.toml"
+    settings_path.write_text("not = [valid", encoding="utf-8")
+    env = SimpleNamespace(app_settings_file=settings_path)
+
+    data, view = module._load_view_maps_settings(env)
+
+    assert data == {}
+    assert view == {}
+
+
 def test_view_maps_persist_view_maps_settings_accepts_non_dict_base(tmp_path) -> None:
     module = _load_view_maps_module()
     settings_path = tmp_path / "app_settings.toml"
@@ -484,6 +526,17 @@ def test_view_maps_persist_view_maps_settings_accepts_non_dict_base(tmp_path) ->
 
     assert payload == {"view_maps": {"datadir": "/tmp/export"}}
     assert "view_maps" in settings_path.read_text(encoding="utf-8")
+
+
+def test_view_maps_persist_view_maps_settings_tolerates_write_failure(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    env = SimpleNamespace(app_settings_file=tmp_path / "missing" / "app_settings.toml")
+    monkeypatch.setattr(module, "_dump_toml_payload", lambda data, handle: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    payload = module._persist_view_maps_settings(env, {"ui": {}}, {"datadir": "/tmp/export"})
+
+    assert payload["view_maps"]["datadir"] == "/tmp/export"
+    assert not env.app_settings_file.exists()
 
 
 def test_view_maps_main_rejects_missing_active_app(tmp_path, monkeypatch) -> None:
@@ -786,3 +839,145 @@ def test_view_maps_page_reports_invalid_regex_and_falls_back_to_default_selectio
 
     assert any("Invalid regex" in message for message in fake_st.calls["sidebar.error"])
     assert fake_st.calls["plotly_chart"]
+
+
+def test_view_maps_page_warns_for_missing_directory(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "missing-dir"
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st = _FakeStreamlit()
+
+    monkeypatch.setattr(module, "st", fake_st)
+
+    module.page(env)
+
+    assert any("Directory not found." in message for message in fake_st.calls["sidebar.error"])
+    assert any("A valid data directory is required to proceed." in message for message in fake_st.calls["warning"])
+
+
+def test_view_maps_page_warns_when_no_dataset_is_selected(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    (datadir / "export.csv").write_text("lat,long\n48.0,2.0\n", encoding="utf-8")
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'df_select_mode = "Multi-select"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Multi-select",
+            ("sidebar.multiselect", "DataFrames"): [],
+        }
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [datadir / "export.csv"] if ext == ".csv" else [])
+
+    module.page(env)
+
+    assert any("Please select at least one dataset to proceed." in message for message in fake_st.calls["warning"])
+
+
+def test_view_maps_page_reports_invalid_loaded_data_and_concat_failure(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_csv = datadir / "export.csv"
+    export_csv.write_text("lat,long\n48.0,2.0\n", encoding="utf-8")
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.csv"\n'
+        'df_files_selected = ["export.csv"]\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: "not-a-dataframe")
+
+    module.page(env)
+
+    assert any("No selected dataframes could be loaded." in message for message in fake_st.calls["error"])
+
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.DataFrame({"lat": [1.0], "long": [2.0]}))
+    monkeypatch.setattr(module.pd, "concat", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("cannot concat")))
+
+    module.page(env)
+
+    assert any("Error concatenating datasets: cannot concat" in message for message in fake_st.calls["error"])
+
+
+def test_view_maps_page_warns_without_lat_lon_columns(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_csv = datadir / "export.csv"
+    export_csv.write_text("beam,category\nA,x\nB,y\n", encoding="utf-8")
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.csv"\n'
+        'df_files_selected = ["export.csv"]\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
+        }
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+
+    module.page(env)
+
+    assert any("Latitude and Longitude columns are required for the map." in message for message in fake_st.calls["warning"])
