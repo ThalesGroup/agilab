@@ -372,6 +372,43 @@ def _apply_preferred_sat_dataset(
     return None
 
 
+def _apply_trajectory_sat_dataset(
+    *,
+    dataset_archive: Path,
+    dataset_root: Path,
+    sat_folder: Path,
+    print_fn=None,
+) -> int:
+    if print_fn is None:
+        print_fn = print
+
+    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
+    trajectory_folder = dataset_root / "Trajectory"
+
+    if not _has_samples(trajectory_folder) and trajectory_archive.exists():
+        print_fn(f"[post_install] extracting optional trajectories: {trajectory_archive}")
+        _extract_archive(trajectory_archive, dataset_root)
+
+    if not _has_samples(trajectory_folder):
+        return 0
+
+    if _try_link_dir(sat_folder, trajectory_folder):
+        print_fn(f"[post_install] linked {sat_folder} -> {trajectory_folder}")
+        return 0
+
+    sat_folder.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for src in _iter_data_files(trajectory_folder):
+        dest = sat_folder / src.name
+        if dest.exists():
+            continue
+        shutil.copy2(src, dest)
+        copied += 1
+    if copied:
+        print_fn(f"[post_install] copied {copied} trajectory file(s) into {sat_folder}")
+    return 0
+
+
 def _seed_optional_dataset(
     *,
     env: AgiEnv,
@@ -402,32 +439,11 @@ def _seed_optional_dataset(
     elif _has_samples(sat_folder):
         return 0
 
-    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
-    trajectory_folder = dataset_root / "Trajectory"
-
-    if not _has_samples(trajectory_folder) and trajectory_archive.exists():
-        print(f"[post_install] extracting optional trajectories: {trajectory_archive}")
-        _extract_archive(trajectory_archive, dataset_root)
-
-    if not _has_samples(trajectory_folder):
-        return 0
-
-    if _try_link_dir(sat_folder, trajectory_folder):
-        print(f"[post_install] linked {sat_folder} -> {trajectory_folder}")
-        return 0
-
-    # Last resort: copy (may duplicate data, but keeps the app runnable).
-    sat_folder.mkdir(parents=True, exist_ok=True)
-    copied = 0
-    for src in _iter_data_files(trajectory_folder):
-        dest = sat_folder / src.name
-        if dest.exists():
-            continue
-        shutil.copy2(src, dest)
-        copied += 1
-    if copied:
-        print(f"[post_install] copied {copied} trajectory file(s) into {sat_folder}")
-    return 0
+    return _apply_trajectory_sat_dataset(
+        dataset_archive=dataset_archive,
+        dataset_root=dataset_root,
+        sat_folder=sat_folder,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
