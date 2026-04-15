@@ -627,6 +627,31 @@ def test_mlflow_existing_experiment_conflict_helper_matches_message_or_propagate
         )
 
 
+def test_lookup_experiment_by_name_handles_missing_callable_and_propagates_lookup_bug():
+    assert mlflow_store._lookup_experiment_by_name(
+        "Default",
+        get_experiment_fn=None,
+    ) is None
+
+    calls = []
+
+    def _get_experiment(name):
+        calls.append(name)
+        return object()
+
+    assert mlflow_store._lookup_experiment_by_name(
+        "Default",
+        get_experiment_fn=_get_experiment,
+    ) is not None
+    assert calls == ["Default"]
+
+    with pytest.raises(RuntimeError, match="lookup bug"):
+        mlflow_store._lookup_experiment_by_name(
+            "Default",
+            get_experiment_fn=lambda _name: (_ for _ in ()).throw(RuntimeError("lookup bug")),
+        )
+
+
 def test_mlflow_schema_reset_error_helper_matches_default_phrase_and_markers():
     assert mlflow_store._is_schema_reset_error(
         RuntimeError("Detected out-of-date database schema"),
