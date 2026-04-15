@@ -174,6 +174,183 @@ def test_prepare_run_execution_calls_runtime_steps_in_order(monkeypatch):
     ]
 
 
+@pytest.mark.asyncio
+async def test_run_prepared_execution_calls_prepare_then_run_main(monkeypatch):
+    calls = []
+    env = object()
+
+    monkeypatch.setattr(
+        entrypoint_support,
+        "_prepare_run_execution",
+        lambda agi_cls, current_env, mode: calls.append(("prepare", agi_cls, current_env, mode)),
+    )
+
+    async def _fake_run_main(
+        agi_cls,
+        scheduler,
+        *,
+        process_error_type,
+        format_exception_chain_fn,
+        traceback_format_exc_fn,
+        log,
+    ):
+        calls.append(
+            (
+                "run-main",
+                agi_cls,
+                scheduler,
+                process_error_type,
+                format_exception_chain_fn,
+                traceback_format_exc_fn,
+                log,
+            )
+        )
+        return "ok"
+
+    monkeypatch.setattr(entrypoint_support, "_run_main_with_handled_errors", _fake_run_main)
+
+    process_error_type = RuntimeError
+    format_exception_chain_fn = str
+    traceback_format_exc_fn = lambda: "tb"
+    log = object()
+
+    result = await entrypoint_support._run_prepared_execution(
+        AGI,
+        env,
+        AGI.DASK_MODE,
+        "127.0.0.1",
+        process_error_type=process_error_type,
+        format_exception_chain_fn=format_exception_chain_fn,
+        traceback_format_exc_fn=traceback_format_exc_fn,
+        log=log,
+    )
+
+    assert result == "ok"
+    assert calls == [
+        ("prepare", AGI, env, AGI.DASK_MODE),
+        (
+            "run-main",
+            AGI,
+            "127.0.0.1",
+            process_error_type,
+            format_exception_chain_fn,
+            traceback_format_exc_fn,
+            log,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(monkeypatch):
+    calls = []
+    env = object()
+    workers = {"127.0.0.1": 1}
+
+    async def _fake_prepared(
+        agi_cls,
+        current_env,
+        mode,
+        scheduler,
+        *,
+        process_error_type,
+        format_exception_chain_fn,
+        traceback_format_exc_fn,
+        log,
+    ):
+        calls.append(
+            (
+                "prepared",
+                agi_cls,
+                current_env,
+                mode,
+                scheduler,
+                process_error_type,
+                format_exception_chain_fn,
+                traceback_format_exc_fn,
+                log,
+            )
+        )
+        return "prepared-ok"
+
+    async def _fake_benchmark(
+        current_env,
+        scheduler,
+        current_workers,
+        verbose,
+        mode_range,
+        rapids_enabled,
+        **args,
+    ):
+        calls.append(
+            (
+                "benchmark",
+                current_env,
+                scheduler,
+                current_workers,
+                verbose,
+                mode_range,
+                rapids_enabled,
+                args,
+            )
+        )
+        return "benchmark-ok"
+
+    monkeypatch.setattr(entrypoint_support, "_run_prepared_execution", _fake_prepared)
+    monkeypatch.setattr(AGI, "_benchmark", _fake_benchmark)
+
+    process_error_type = RuntimeError
+    format_exception_chain_fn = str
+    traceback_format_exc_fn = lambda: "tb"
+    log = object()
+
+    benchmark_result = await entrypoint_support._dispatch_run_execution(
+        AGI,
+        env,
+        "127.0.0.1",
+        workers,
+        2,
+        AGI.DASK_MODE,
+        range(3),
+        True,
+        process_error_type=process_error_type,
+        format_exception_chain_fn=format_exception_chain_fn,
+        traceback_format_exc_fn=traceback_format_exc_fn,
+        log=log,
+        sample="value",
+    )
+    prepared_result = await entrypoint_support._dispatch_run_execution(
+        AGI,
+        env,
+        "127.0.0.1",
+        workers,
+        2,
+        AGI.DASK_MODE,
+        None,
+        True,
+        process_error_type=process_error_type,
+        format_exception_chain_fn=format_exception_chain_fn,
+        traceback_format_exc_fn=traceback_format_exc_fn,
+        log=log,
+    )
+
+    assert benchmark_result == "benchmark-ok"
+    assert prepared_result == "prepared-ok"
+    assert calls == [
+        ("benchmark", env, "127.0.0.1", workers, 2, range(3), True, {"sample": "value"}),
+        (
+            "prepared",
+            AGI,
+            env,
+            AGI.DASK_MODE,
+            "127.0.0.1",
+            process_error_type,
+            format_exception_chain_fn,
+            traceback_format_exc_fn,
+            log,
+        ),
+    ]
+
+
 def test_connection_error_payload_defaults_empty_message(capsys):
     class _FakeLogger:
         def __init__(self):
