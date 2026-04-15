@@ -47,7 +47,7 @@ def read_agilab_installation_marker(
     except PermissionError:
         if logger:
             logger.error(f"Permission denied when accessing {marker_path}.")
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         if logger:
             logger.error(f"An error occurred: {exc}")
     return None
@@ -82,4 +82,3 @@ def locate_agilab_installation_path(
     if (fallback / "apps").exists():
         return fallback
     return base_dir.parent
-
