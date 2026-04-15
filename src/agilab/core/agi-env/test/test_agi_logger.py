@@ -10,6 +10,7 @@ from agi_env.agi_logger import (
     ClassNameFilter,
     LogFormatter,
     MaxLevelFilter,
+    _build_stream_handler,
     _is_same_log_record_file,
     _record_filename,
     _render_record_origin,
@@ -446,6 +447,34 @@ def test_log_formatter_returns_message_only_for_subprocess_records():
 
     plain = AgiLogger.decolorize(formatter.format(record))
     assert plain == "subprocess output"
+
+
+def test_build_stream_handler_wires_formatter_filters_and_level():
+    stream = io.StringIO()
+    handler = _build_stream_handler(
+        stream,
+        level=logging.INFO,
+        verbose=1,
+        add_max_level_filter=True,
+    )
+
+    assert handler.stream is stream
+    assert handler.level == logging.INFO
+    assert isinstance(handler.formatter, LogFormatter)
+    assert any(isinstance(filt, ClassNameFilter) for filt in handler.filters)
+    assert any(isinstance(filt, BuildNoiseFilter) for filt in handler.filters)
+    assert any(isinstance(filt, MaxLevelFilter) for filt in handler.filters)
+
+
+def test_build_stream_handler_omits_max_level_filter_when_not_requested():
+    handler = _build_stream_handler(
+        io.StringIO(),
+        level=logging.ERROR,
+        verbose=0,
+    )
+
+    assert handler.level == logging.ERROR
+    assert not any(isinstance(filt, MaxLevelFilter) for filt in handler.filters)
 
 
 def test_agi_logger_configure_and_set_level():

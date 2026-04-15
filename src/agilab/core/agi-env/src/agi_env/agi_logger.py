@@ -102,6 +102,23 @@ def _render_record_origin(record: logging.LogRecord) -> str:
         return "build.py" + RESET
     return class_name + "." + function_name + RESET
 
+
+def _build_stream_handler(
+    stream,
+    *,
+    level: int,
+    verbose: int,
+    add_max_level_filter: bool = False,
+) -> logging.StreamHandler:
+    handler = logging.StreamHandler(stream)
+    handler.setLevel(level)
+    handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
+    handler.addFilter(ClassNameFilter())
+    handler.addFilter(BuildNoiseFilter(verbose=verbose))
+    if add_max_level_filter:
+        handler.addFilter(MaxLevelFilter(logging.WARNING))
+    return handler
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -183,18 +200,17 @@ class AgiLogger:
             for handler in root.handlers[:]:
                 root.removeHandler(handler)
 
-            stdout_handler = logging.StreamHandler(sys.stdout)
-            stdout_handler.setLevel(logging.INFO)
-            stdout_handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
-            stdout_handler.addFilter(ClassNameFilter())
-            stdout_handler.addFilter(BuildNoiseFilter(verbose=verbose))
-            stdout_handler.addFilter(MaxLevelFilter(logging.WARNING))
-
-            stderr_handler = logging.StreamHandler(sys.stderr)
-            stderr_handler.setLevel(logging.ERROR)
-            stderr_handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
-            stderr_handler.addFilter(ClassNameFilter())
-            stderr_handler.addFilter(BuildNoiseFilter(verbose=verbose))
+            stdout_handler = _build_stream_handler(
+                sys.stdout,
+                level=logging.INFO,
+                verbose=verbose,
+                add_max_level_filter=True,
+            )
+            stderr_handler = _build_stream_handler(
+                sys.stderr,
+                level=logging.ERROR,
+                verbose=verbose,
+            )
 
             root.addHandler(stdout_handler)
             root.addHandler(stderr_handler)
