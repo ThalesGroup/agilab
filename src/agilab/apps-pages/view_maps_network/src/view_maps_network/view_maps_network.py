@@ -1072,6 +1072,17 @@ def _resolve_declared_path(value: str, base_dirs: list[Path]) -> str:
     return str((bases[0] / raw).expanduser()) if bases else raw
 
 
+def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    resolved = _resolve_declared_path(raw, base_dirs)
+    try:
+        return Path(resolved).expanduser()
+    except Exception:
+        return None
+
+
 def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list[Path]:
     seen: set[Path] = set()
     candidates: list[Path] = []
@@ -3710,7 +3721,13 @@ def page():
         st.query_params["edges_file"] = edges_clean
     except Exception:
         pass
-    edges_path = Path(edges_clean).expanduser() if edges_clean else None
+    edges_candidate_bases = [
+        share_root,
+        env.AGILAB_EXPORT_ABS,
+        datadir_path,
+        datadir_path.parent if datadir_path.parent != datadir_path else datadir_path,
+    ]
+    edges_path = _resolve_edges_file_path(edges_clean, edges_candidate_bases)
     loaded_edges = {}
     if edges_path and edges_path.exists():
         loaded_edges = load_edges_file(edges_path)
