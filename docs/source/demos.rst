@@ -1,6 +1,11 @@
 Demos
 =====
 
+.. toctree::
+   :hidden:
+
+   demo_capture_script
+
 Use this page as the public entry point for AGILAB videos and short product demos.
 
 Start Here
