@@ -1616,11 +1616,41 @@ def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, m
             return False
 
         def extractall(self, path):
-            raise ValueError("bad archive")
+            raise agi_env_module.py7zr.exceptions.Bad7zFile("bad archive")
 
     monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _BrokenSevenZip)
 
     with pytest.raises(RuntimeError, match="Extraction failed"):
+        env.unzip_data(archive, "dataset/demo", force_extract=True)
+
+
+def test_unzip_data_propagates_unexpected_extraction_bug(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.app_data_rel = "demo"
+    env.agi_share_path_abs = tmp_path / "share"
+    env.agi_share_path_abs.mkdir(parents=True)
+    env.user = Path.home().name
+    env.home_abs = Path.home()
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+
+    class _BrokenSevenZip:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            raise ValueError("extract bug")
+
+    monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _BrokenSevenZip)
+
+    with pytest.raises(ValueError, match="extract bug"):
         env.unzip_data(archive, "dataset/demo", force_extract=True)
 
 

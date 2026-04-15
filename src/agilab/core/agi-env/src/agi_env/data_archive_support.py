@@ -8,8 +8,11 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
+import py7zr
+
 STAMP_WRITE_EXCEPTIONS = (OSError,)
 SIZE_PROBE_EXCEPTIONS = (OSError,)
+EXTRACTION_FAILURE_EXCEPTIONS = (OSError, py7zr.exceptions.ArchiveError)
 
 
 def _archive_size_mb(archive_path: Path) -> float | None:
@@ -147,11 +150,9 @@ def unzip_data(
 
         stamp_path = dataset / ".agilab_dataset_stamp"
         _write_dataset_stamp(archive_path, stamp_path)
-    except Exception as exc:
+    except EXTRACTION_FAILURE_EXCEPTIONS as exc:
         # Extraction is an operational boundary: surface archive/read/write failures
         # to callers through one stable RuntimeError contract.
         logger.error(f"Failed to extract '{archive_path}': {exc}")
         traceback.print_exc()
-        if isinstance(exc, RuntimeError):
-            raise
         raise RuntimeError(f"Extraction failed for '{archive_path}'") from exc
