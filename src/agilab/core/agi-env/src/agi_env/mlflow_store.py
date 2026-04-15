@@ -318,14 +318,23 @@ def _is_existing_experiment_conflict(
     get_experiment_fn,
     default_experiment_name: str,
 ) -> bool:
-    refreshed = (
-        get_experiment_fn(default_experiment_name)
-        if callable(get_experiment_fn)
-        else None
+    refreshed = _lookup_experiment_by_name(
+        default_experiment_name,
+        get_experiment_fn=get_experiment_fn,
     )
     if refreshed is not None:
         return True
     return "already exists" in str(exc).lower()
+
+
+def _lookup_experiment_by_name(
+    default_experiment_name: str,
+    *,
+    get_experiment_fn,
+):
+    if not callable(get_experiment_fn):
+        return None
+    return get_experiment_fn(default_experiment_name)
 
 
 def _is_schema_reset_error(
@@ -384,11 +393,11 @@ def _create_default_experiment_if_missing(
     default_experiment_name: str,
     artifact_uri: str,
 ) -> None:
-    experiment = None
     get_experiment = getattr(mlflow, "get_experiment_by_name", None)
-    if callable(get_experiment):
-        experiment = get_experiment(default_experiment_name)
-    if experiment is not None:
+    if _lookup_experiment_by_name(
+        default_experiment_name,
+        get_experiment_fn=get_experiment,
+    ) is not None:
         return
 
     _create_default_experiment(
