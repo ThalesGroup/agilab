@@ -15,6 +15,7 @@ canonical source can serve both agents.
 
 ## Skill Catalog
 
+- `advanced-svg-system-design`: Build reusable SVG visual systems and consistent figure families across docs, slides, and reports.
 - `agilab-runbook`: Core repo runbook (uv, Streamlit, run configs, troubleshooting).
 - `agilab-installer`: Installer + apps/pages installation conventions and triage.
 - `agilab-streamlit-pages`: Streamlit session-state patterns and page authoring rules.
@@ -22,10 +23,18 @@ canonical source can serve both agents.
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
+- `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
+- `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.
+- `docx-figure-sync`: Replace embedded DOCX figures without disturbing nearby layout and captions.
 - `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_steps.toml` naming/IO-flow clarification.
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
+- `plan-before-code`: Enforce a short planning and validation pass before multi-step code changes.
+- `report-qa-docx`: Review DOCX reports for missing figures, duplicate sections, stale wording, and caption drift.
 - `svg-diagrams`: Author robust repo-native SVG diagrams with in-box text.
 - `scientific-svg-figures`: Create publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows.
+- `svg-diagram-tuning`: Refine an existing SVG for readability and export safety without redesigning it from scratch.
+- `slides`: Create and edit `.pptx` decks with PptxGenJS and bundled validation/render helpers.
+- `slides-docx-align`: Keep slide decks aligned with DOCX report content while preserving each artifact’s role.
 
 ## Adding A New Skill
 
