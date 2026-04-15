@@ -1464,6 +1464,28 @@ def test_build_sanitize_build_ext_link_settings(tmp_path):
     assert extra_link_args == [f"-L{existing}", "-Wl,--as-needed"]
 
 
+def test_build_ext_compile_config_covers_platform_and_free_threading():
+    compile_args, define_macros, compiler_directives = build_mod._build_ext_compile_config(
+        sys_platform="darwin",
+        pyvers_worker="3.13",
+    )
+    assert compile_args == [
+        "-Wno-unknown-warning-option",
+        "-Wno-unreachable-code-fallthrough",
+    ]
+    assert define_macros == [("CYTHON_FALLTHROUGH", "")]
+    assert compiler_directives == {}
+
+    compile_args, define_macros, compiler_directives = build_mod._build_ext_compile_config(
+        sys_platform="win32",
+        pyvers_worker="3.13t",
+    )
+    assert compile_args == []
+    assert ("CYTHON_FALLTHROUGH", "") in define_macros
+    assert ("Py_GIL_DISABLED", "1") in define_macros
+    assert compiler_directives == {"freethreading_compatible": True}
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
