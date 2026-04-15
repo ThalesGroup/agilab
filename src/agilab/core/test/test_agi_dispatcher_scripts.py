@@ -1486,6 +1486,53 @@ def test_build_ext_compile_config_covers_platform_and_free_threading():
     assert compiler_directives == {"freethreading_compatible": True}
 
 
+def test_build_worker_extension_uses_expected_fields(tmp_path):
+    extension = build_mod._build_worker_extension(
+        worker_module="demo_worker",
+        src_rel=Path("src") / "demo_worker" / "demo_worker.pyx",
+        prefix=tmp_path / "prefix",
+        extra_compile_args=["-Wfoo"],
+        define_macros=[("CYTHON_FALLTHROUGH", ""), ("Py_GIL_DISABLED", "1")],
+        library_dirs=[str(tmp_path / "libs")],
+        extra_link_args=["-L/tmp/libs", "-Wl,--as-needed"],
+    )
+
+    assert extension.name == "demo_worker_cy"
+    assert extension.sources == ["src/demo_worker/demo_worker.pyx"]
+    assert extension.include_dirs == [str(tmp_path / "prefix" / "include")]
+    assert extension.extra_compile_args == ["-Wfoo"]
+    assert ("Py_GIL_DISABLED", "1") in extension.define_macros
+    assert extension.library_dirs == [str(tmp_path / "libs")]
+    assert extension.extra_link_args == ["-L/tmp/libs", "-Wl,--as-needed"]
+
+
+def test_cythonize_worker_extension_passes_quiet_and_directives(tmp_path):
+    extension = build_mod._build_worker_extension(
+        worker_module="demo_worker",
+        src_rel=Path("src") / "demo_worker" / "demo_worker.pyx",
+        prefix=tmp_path / "prefix",
+        extra_compile_args=[],
+        define_macros=[("CYTHON_FALLTHROUGH", "")],
+        library_dirs=[],
+        extra_link_args=[],
+    )
+    cythonize_calls = []
+
+    result = build_mod._cythonize_worker_extension(
+        extension=extension,
+        compiler_directives={"freethreading_compatible": True},
+        quiet=True,
+        cythonize_fn=lambda modules, language_level=3, quiet=False, compiler_directives=None: (
+            cythonize_calls.append((modules, language_level, quiet, compiler_directives)) or ["ext_mod"]
+        ),
+    )
+
+    assert result == ["ext_mod"]
+    assert cythonize_calls == [
+        ([extension], 3, True, {"freethreading_compatible": True})
+    ]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))

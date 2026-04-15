@@ -283,6 +283,44 @@ def _build_ext_compile_config(
     return extra_compile_args, define_macros, compiler_directives
 
 
+def _build_worker_extension(
+    *,
+    worker_module: str,
+    src_rel: Path,
+    prefix: Path,
+    extra_compile_args: list[str],
+    define_macros: list[tuple[str, str]],
+    library_dirs: list[str],
+    extra_link_args: list[str],
+) -> Extension:
+    return Extension(
+        name=f"{worker_module}_cy",
+        sources=[str(src_rel)],
+        include_dirs=[str(prefix / "include")],
+        extra_compile_args=extra_compile_args,
+        define_macros=define_macros,
+        library_dirs=library_dirs,
+        extra_link_args=extra_link_args,
+    )
+
+
+def _cythonize_worker_extension(
+    *,
+    extension: Extension,
+    compiler_directives: dict[str, bool],
+    quiet: bool,
+    cythonize_fn=None,
+) -> list[Extension]:
+    if cythonize_fn is None:
+        cythonize_fn = cythonize
+    return cythonize_fn(
+        [extension],
+        language_level=3,
+        quiet=quiet,
+        compiler_directives=compiler_directives,
+    )
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -458,20 +496,21 @@ def main(argv: list[str] | None = None) -> None:
             pyvers_worker=env.pyvers_worker,
         )
         _ensure_hacl_dir()
-        mod = Extension(
-            name=f"{worker_module}_cy",
-            sources=[str(src_rel)],
-            include_dirs=[str(prefix / "include")],
+        mod = _build_worker_extension(
+            worker_module=worker_module,
+            src_rel=src_rel,
+            prefix=prefix,
             extra_compile_args=extra_compile_args,
             define_macros=define_macros,
             library_dirs=library_dirs,
             extra_link_args=extra_link_args,
         )
 
-        if (opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining)):
-            ext_modules = cythonize([mod], language_level=3, quiet=True, compiler_directives=compil_directives)
-        else:
-            ext_modules = cythonize([mod], language_level=3, compiler_directives=compil_directives)
+        ext_modules = _cythonize_worker_extension(
+            extension=mod,
+            compiler_directives=compil_directives,
+            quiet=bool(opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining)),
+        )
         AgiEnv.logger.info(f"Cython extension configured: {worker_module}_cy")
 
     elif not env.is_worker_env:
