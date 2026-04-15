@@ -328,11 +328,22 @@ def reset_mlflow_sqlite_backend(
     checked_uris.discard(db_uri)
     timestamp = timestamp_fn()
     backup_path = db_path.with_name(f"{db_path.stem}.schema-reset-{timestamp}{db_path.suffix}")
+    _move_mlflow_sqlite_backend_files(
+        db_path,
+        backup_path=backup_path,
+    )
+    return backup_path
+
+
+def _move_mlflow_sqlite_backend_files(
+    db_path: Path,
+    *,
+    backup_path: Path,
+) -> None:
     for sidecar in ("", "-shm", "-wal", "-journal"):
         candidate = Path(f"{db_path}{sidecar}")
         if candidate.exists():
             candidate.replace(Path(f"{backup_path}{sidecar}"))
-    return backup_path
 
 
 def ensure_mlflow_backend_ready(
