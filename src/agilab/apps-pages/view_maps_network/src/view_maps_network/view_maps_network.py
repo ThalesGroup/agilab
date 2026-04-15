@@ -1606,6 +1606,11 @@ def _candidate_allocation_paths(bases: list[Path]) -> list[Path]:
         "allocations*.jsonl",
         "allocations*.ndjson",
         "allocations*.csv",
+        "*allocations*.parquet",
+        "*allocations*.json",
+        "*allocations*.jsonl",
+        "*allocations*.ndjson",
+        "*allocations*.csv",
     )
     for base in bases:
         if not base or not base.exists():
@@ -2138,6 +2143,11 @@ def _find_latest_allocations(base: Path, include: tuple[str, ...] = ()) -> Path 
         "allocations*.jsonl",
         "allocations*.ndjson",
         "allocations*.csv",
+        "*allocations*.parquet",
+        "*allocations*.json",
+        "*allocations*.jsonl",
+        "*allocations*.ndjson",
+        "*allocations*.csv",
         "allocations_steps.parquet",
         "allocations_steps.csv",
     ):
