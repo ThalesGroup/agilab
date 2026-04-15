@@ -57,6 +57,154 @@ class _State(dict):
         self[item] = value
 
 
+class _StopExecution(RuntimeError):
+    pass
+
+
+class _NullContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeColumn(_NullContext):
+    def __init__(self, streamlit):
+        self._streamlit = streamlit
+
+    def number_input(self, label, *args, key=None, value=None, **kwargs):
+        default = value if value is not None else kwargs.get("min_value")
+        return self._streamlit._widget_value("column.number_input", label, key=key, default=default)
+
+
+class _FakeSidebar(_NullContext):
+    def __init__(self, streamlit):
+        self._streamlit = streamlit
+
+    def text_input(self, label, *args, key=None, value="", **kwargs):
+        default = value if key is None else self._streamlit.session_state.get(key, value)
+        return self._streamlit._widget_value("sidebar.text_input", label, key=key, default=default)
+
+    def selectbox(self, label, options, *args, key=None, index=0, **kwargs):
+        default = options[index] if options else None
+        return self._streamlit._widget_value("sidebar.selectbox", label, key=key, default=default, options=options)
+
+    def radio(self, label, options, *args, key=None, index=0, **kwargs):
+        default = options[index] if options else None
+        return self._streamlit._widget_value("sidebar.radio", label, key=key, default=default, options=options)
+
+    def multiselect(self, label, options, *args, key=None, default=None, **kwargs):
+        default = list(default or self._streamlit.session_state.get(key, []))
+        return self._streamlit._widget_value("sidebar.multiselect", label, key=key, default=default, options=options)
+
+    def button(self, label, *args, key=None, disabled=False, **kwargs):
+        return self._streamlit._widget_value("sidebar.button", label, key=key, default=False)
+
+    def file_uploader(self, label, *args, **kwargs):
+        return self._streamlit._widget_value("sidebar.file_uploader", label, default=None)
+
+    def download_button(self, label, *args, **kwargs):
+        self._streamlit.calls["sidebar.download_button"].append(label)
+
+    def caption(self, message):
+        self._streamlit.calls["sidebar.caption"].append(message)
+
+    def error(self, message):
+        self._streamlit.calls["sidebar.error"].append(message)
+
+    def warning(self, message):
+        self._streamlit.calls["sidebar.warning"].append(message)
+
+    def success(self, message):
+        self._streamlit.calls["sidebar.success"].append(message)
+
+    def markdown(self, message, *args, **kwargs):
+        self._streamlit.calls["sidebar.markdown"].append(message)
+
+
+class _FakeStreamlit:
+    def __init__(self, widget_values: dict | None = None):
+        self.session_state = _State({"GUI_SAMPLING": 1, "TABLE_MAX_ROWS": 10})
+        self.sidebar = _FakeSidebar(self)
+        self.widget_values = widget_values or {}
+        self.calls = {
+            "warning": [],
+            "error": [],
+            "info": [],
+            "markdown": [],
+            "write": [],
+            "pydeck_chart": [],
+            "sidebar.caption": [],
+            "sidebar.error": [],
+            "sidebar.warning": [],
+            "sidebar.success": [],
+            "sidebar.markdown": [],
+            "sidebar.download_button": [],
+        }
+
+    def _widget_value(self, kind, label, key=None, default=None, options=None):
+        candidates = [
+            (kind, key),
+            (kind, label),
+            (key,),
+            (label,),
+            kind,
+        ]
+        value = None
+        for candidate in candidates:
+            if candidate in self.widget_values:
+                value = self.widget_values[candidate]
+                break
+        if value is None:
+            value = default
+        if callable(value):
+            value = value(label=label, key=key, options=options, default=default)
+        if key is not None:
+            self.session_state[key] = value
+        return value
+
+    def selectbox(self, label, options, *args, key=None, index=0, **kwargs):
+        default = options[index] if options else None
+        return self._widget_value("selectbox", label, key=key, default=default, options=options)
+
+    def slider(self, label, *args, key=None, value=None, **kwargs):
+        default = value if value is not None else kwargs.get("min_value")
+        return self._widget_value("slider", label, key=key, default=default)
+
+    def multiselect(self, label, options, *args, key=None, default=None, **kwargs):
+        default = list(default or self.session_state.get(key, []))
+        return self._widget_value("multiselect", label, key=key, default=default, options=options)
+
+    def text_input(self, label, *args, key=None, value="", **kwargs):
+        default = value if key is None else self.session_state.get(key, value)
+        return self._widget_value("text_input", label, key=key, default=default)
+
+    def columns(self, count):
+        return [_FakeColumn(self) for _ in range(count)]
+
+    def markdown(self, message, *args, **kwargs):
+        self.calls["markdown"].append(message)
+
+    def write(self, *args, **kwargs):
+        self.calls["write"].append(" ".join(str(arg) for arg in args))
+
+    def pydeck_chart(self, *args, **kwargs):
+        self.calls["pydeck_chart"].append((args, kwargs))
+
+    def info(self, message, *args, **kwargs):
+        self.calls["info"].append(message)
+
+    def warning(self, message, *args, **kwargs):
+        self.calls["warning"].append(message)
+
+    def error(self, message, *args, **kwargs):
+        self.calls["error"].append(message)
+
+    def stop(self):
+        raise _StopExecution()
+
+
 def _load_view_maps_3d_module():
     spec = importlib.util.spec_from_file_location("view_maps_3d_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
