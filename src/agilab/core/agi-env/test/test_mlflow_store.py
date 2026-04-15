@@ -394,6 +394,32 @@ def test_ensure_mlflow_sqlite_schema_current_closes_connection_after_probe(tmp_p
     assert closed["value"] is True
 
 
+def test_mlflow_sqlite_has_alembic_version_table_handles_true_false_and_sqlite_error(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE alembic_version (version_num TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert mlflow_store._mlflow_sqlite_has_alembic_version_table(db_path) is True
+
+    no_alembic_db = tmp_path / "no_alembic.db"
+    conn = sqlite3.connect(no_alembic_db)
+    try:
+        conn.execute("CREATE TABLE metrics (value REAL)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert mlflow_store._mlflow_sqlite_has_alembic_version_table(no_alembic_db) is False
+    assert mlflow_store._mlflow_sqlite_has_alembic_version_table(
+        tmp_path / "broken.db",
+        connect_fn=lambda _path: (_ for _ in ()).throw(sqlite3.Error("broken sqlite")),
+    ) is False
+
+
 def test_reset_mlflow_sqlite_backend_moves_database_and_sidecars(tmp_path: Path):
     db_path = tmp_path / "mlflow.db"
     for suffix in ("", "-shm", "-wal", "-journal"):
