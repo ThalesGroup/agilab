@@ -678,6 +678,27 @@ def test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count():
     ]
 
 
+def test_attach_and_detach_worker_log_capture_manage_handler_lifecycle():
+    root_logger = base_worker_mod.logging.getLogger("test.worker.capture")
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+
+    log_stream, handler, active_root_logger = execution_support._attach_worker_log_capture(
+        root_logger=root_logger,
+    )
+
+    assert active_root_logger is root_logger
+    assert handler in root_logger.handlers
+
+    execution_support._detach_worker_log_capture(
+        active_root_logger=active_root_logger,
+        handler=handler,
+    )
+
+    assert handler not in root_logger.handlers
+    assert log_stream.getvalue() == ""
+
+
 def test_baseworker_expand_chunk_scalar_and_do_works_fallback_paths(monkeypatch):
     reconstructed, chunk_len, total = BaseWorker._expand_chunk(
         {
