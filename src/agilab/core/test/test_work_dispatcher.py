@@ -406,6 +406,22 @@ async def test_load_module_ignores_sys_path_insertion_failures(monkeypatch, tmp_
 
 
 @pytest.mark.asyncio
+async def test_load_module_propagates_unexpected_sys_path_insert_bug(monkeypatch, tmp_path):
+    src_root = tmp_path / "workspace" / "src"
+    src_root.mkdir(parents=True, exist_ok=True)
+
+    class _BrokenPath(list):
+        def insert(self, index, value):
+            raise RuntimeError("insert bug")
+
+    broken_path = _BrokenPath(dispatcher_module.sys.path)
+    monkeypatch.setattr(dispatcher_module.sys, "path", broken_path, raising=False)
+
+    with pytest.raises(RuntimeError, match="insert bug"):
+        await WorkDispatcher._load_module("demo_module", package="demo_pkg", path=src_root)
+
+
+@pytest.mark.asyncio
 async def test_load_module_ignores_path_resolution_failures(monkeypatch, tmp_path):
     src_root = tmp_path / "workspace" / "src"
     src_root.mkdir(parents=True, exist_ok=True)
@@ -423,3 +439,20 @@ async def test_load_module_ignores_path_resolution_failures(monkeypatch, tmp_pat
     result = await WorkDispatcher._load_module("demo_module", package="demo_pkg", path=src_root)
 
     assert result is sentinel
+
+
+@pytest.mark.asyncio
+async def test_load_module_propagates_unexpected_path_resolution_bug(monkeypatch, tmp_path):
+    src_root = tmp_path / "workspace" / "src"
+    src_root.mkdir(parents=True, exist_ok=True)
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == src_root:
+            raise RuntimeError("resolve bug")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(dispatcher_module.Path, "resolve", _patched_resolve, raising=False)
+
+    with pytest.raises(RuntimeError, match="resolve bug"):
+        await WorkDispatcher._load_module("demo_module", package="demo_pkg", path=src_root)
