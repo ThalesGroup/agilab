@@ -458,6 +458,21 @@ def _activate_default_mlflow_experiment_with_schema_retry(
     return backend_uri
 
 
+def _resolve_default_mlflow_activation_context(
+    tracking_dir: Path,
+    *,
+    get_mlflow_module_fn,
+    resolve_mlflow_artifact_dir_fn,
+    resolve_mlflow_backend_db_fn,
+):
+    mlflow = get_mlflow_module_fn()
+    if mlflow is None:
+        return None
+    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+    db_path = resolve_mlflow_backend_db_fn(tracking_dir)
+    return mlflow, artifact_uri, db_path
+
+
 def ensure_default_mlflow_experiment(
     tracking_dir: Path,
     *,
@@ -469,11 +484,15 @@ def ensure_default_mlflow_experiment(
     default_experiment_name: str,
     schema_reset_markers: tuple[str, ...],
 ) -> str | None:
-    mlflow = get_mlflow_module_fn()
-    if mlflow is None:
+    activation_context = _resolve_default_mlflow_activation_context(
+        tracking_dir,
+        get_mlflow_module_fn=get_mlflow_module_fn,
+        resolve_mlflow_artifact_dir_fn=resolve_mlflow_artifact_dir_fn,
+        resolve_mlflow_backend_db_fn=resolve_mlflow_backend_db_fn,
+    )
+    if activation_context is None:
         return None
-    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-    db_path = resolve_mlflow_backend_db_fn(tracking_dir)
+    mlflow, artifact_uri, db_path = activation_context
     return _activate_default_mlflow_experiment_with_schema_retry(
         mlflow,
         tracking_dir=tracking_dir,
