@@ -449,6 +449,25 @@ def test_reset_mlflow_sqlite_backend_returns_none_when_db_is_missing(tmp_path: P
     ) is None
 
 
+def test_move_mlflow_sqlite_backend_files_moves_present_files_only(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    backup_path = tmp_path / "mlflow.schema-reset-20260415T120000.db"
+    for suffix in ("", "-wal"):
+        Path(f"{db_path}{suffix}").write_text("x", encoding="utf-8")
+
+    mlflow_store._move_mlflow_sqlite_backend_files(
+        db_path,
+        backup_path=backup_path,
+    )
+
+    assert not db_path.exists()
+    assert not Path(f"{db_path}-wal").exists()
+    assert Path(backup_path).exists()
+    assert Path(f"{backup_path}-wal").exists()
+    assert not Path(f"{backup_path}-shm").exists()
+    assert not Path(f"{backup_path}-journal").exists()
+
+
 def test_migrate_legacy_mlflow_filestore_if_needed_skips_when_backend_exists_or_no_legacy(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
