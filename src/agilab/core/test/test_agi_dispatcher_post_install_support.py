@@ -62,3 +62,73 @@ def test_prepare_post_install_context_returns_none_when_no_archive_exists(tmp_pa
     assert target_name == "demo"
     assert dest_arg == tmp_path / "share" / "demo"
     assert dataset_archive is None
+
+
+def test_execute_post_install_reports_missing_archive_and_returns_zero(tmp_path):
+    lines = []
+    env = SimpleNamespace(dataset_archive=tmp_path / "missing.7z")
+
+    result = post_mod._execute_post_install(
+        env=env,
+        target_name="demo",
+        dest_arg=tmp_path / "share" / "demo",
+        dataset_archive=None,
+        print_fn=lines.append,
+    )
+
+    assert result == 0
+    assert lines == [
+        f"[post_install] dataset archive not found for 'demo'. Looked under {tmp_path / 'missing.7z'} and packaged apps."
+    ]
+
+
+def test_execute_post_install_unzips_and_delegates_optional_seed(tmp_path):
+    lines = []
+    unzip_calls = []
+    seed_calls = []
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(unzip_data=lambda archive, dest: unzip_calls.append((archive, dest)))
+
+    result = post_mod._execute_post_install(
+        env=env,
+        target_name="demo",
+        dest_arg=tmp_path / "share" / "demo",
+        dataset_archive=dataset_archive,
+        seed_optional_dataset_fn=lambda **kwargs: seed_calls.append(kwargs) or 7,
+        print_fn=lines.append,
+    )
+
+    assert result == 7
+    assert unzip_calls == [(dataset_archive, tmp_path / "share" / "demo")]
+    assert seed_calls == [
+        {
+            "env": env,
+            "dataset_archive": dataset_archive,
+            "dest_arg": tmp_path / "share" / "demo",
+        }
+    ]
+    assert lines == [
+        f"[post_install] dataset archive: {dataset_archive}",
+        f"[post_install] destination: {tmp_path / 'share' / 'demo'}",
+    ]
+
+
+def test_execute_post_install_handles_optional_runtime_seed_failure(tmp_path):
+    lines = []
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(unzip_data=lambda *_args: None)
+
+    result = post_mod._execute_post_install(
+        env=env,
+        target_name="demo",
+        dest_arg=tmp_path / "share" / "demo",
+        dataset_archive=dataset_archive,
+        seed_optional_dataset_fn=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("agi_share_path is not configured")),
+        is_optional_dataset_seeding_error_fn=lambda exc: "agi_share_path is not configured" in str(exc),
+        print_fn=lines.append,
+    )
+
+    assert result == 0
+    assert lines[-1] == "[post_install] optional dataset seeding skipped: agi_share_path is not configured"
