@@ -265,6 +265,7 @@ addopts = [
 [tool.coverage.run]
 branch = true
 source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
+disable_warnings = ["module-not-imported"]
 
 [tool.coverage.report]
 omit = [
