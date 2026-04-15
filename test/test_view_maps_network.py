@@ -6,6 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import networkx as nx
+
 from agi_env import AgiEnv
 import pandas as pd
 
@@ -139,3 +141,42 @@ def test_view_maps_network_warns_when_no_dataset_exists(
     assert not at.exception
     assert any("Maps Network Graph" in title.value for title in at.title)
     assert any("No files found" in warning.value for warning in at.warning)
+
+
+def test_view_maps_network_resolves_relative_edges_file_from_share_root(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    share_root = tmp_path / "share"
+    edges_path = share_root / "network_sim" / "pipeline" / "ilp_topology.gml"
+    edges_path.parent.mkdir(parents=True)
+    graph = nx.Graph()
+    graph.add_edge("1", "2", bearer="satcom")
+    nx.write_gml(graph, edges_path)
+
+    resolved = module._resolve_edges_file_path(
+        "network_sim/pipeline/ilp_topology.gml",
+        [share_root, tmp_path / "export", tmp_path / "flight_trajectory"],
+    )
+
+    assert resolved == edges_path
+    assert module.load_edges_file(resolved) == {"satcom_link": [("1", "2")]}
+
+
+def test_view_maps_network_prefers_existing_absolute_edges_file(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    edges_path = tmp_path / "absolute" / "topology.gml"
+    edges_path.parent.mkdir(parents=True)
+    graph = nx.Graph()
+    graph.add_edge("A", "B", bearer="optical")
+    nx.write_gml(graph, edges_path)
+
+    resolved = module._resolve_edges_file_path(
+        str(edges_path),
+        [tmp_path / "share", tmp_path / "export"],
+    )
+
+    assert resolved == edges_path
+    assert module.load_edges_file(resolved) == {"optical_link": [("A", "B")]}
