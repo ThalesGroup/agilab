@@ -758,6 +758,38 @@ def test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count():
     ]
 
 
+def test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_completion():
+    logged: list[str] = []
+    works_calls: list[tuple[object, object]] = []
+    logger = SimpleNamespace(
+        info=lambda message, *args: logged.append(str(message % args if args else message))
+    )
+    worker_inst = SimpleNamespace(
+        works=lambda plan, meta: works_calls.append((plan, meta))
+    )
+
+    plan_batch_count = execution_support._execute_initialized_worker_plan(
+        workers_plan=[["plan-a"], ["plan-b"]],
+        workers_plan_metadata=[["meta-a"], ["meta-b"]],
+        worker_id=1,
+        worker_name="local-worker",
+        insts={1: worker_inst},
+        expand_chunk_fn=lambda payload, worker_id: (payload, None, len(payload)),
+        logger_obj=logger,
+        file_path="/tmp/worker.py",
+    )
+
+    assert plan_batch_count == 1
+    assert works_calls == [
+        ([["plan-a"], ["plan-b"]], [["meta-a"], ["meta-b"]])
+    ]
+    assert logged == [
+        "worker #1: local-worker from /tmp/worker.py",
+        "work #2 / 2 - plan batches=1 metadata batches=1",
+        "worker #1 completed 1 plan batches",
+    ]
+
+
 def test_attach_and_detach_worker_log_capture_manage_handler_lifecycle():
     root_logger = base_worker_mod.logging.getLogger("test.worker.capture")
     for handler in list(root_logger.handlers):
