@@ -22,6 +22,8 @@ from agi_env.process_support import (
     strip_time_level_prefix,
 )
 
+SUBPROCESS_FALLBACK_EXCEPTIONS = (ValueError, OSError)
+
 
 def _invoke_callback(callback: Callable[..., Any], message: str) -> None:
     try:
@@ -94,7 +96,7 @@ async def run(
     if verbose > 0:
         try:
             vname = Path(venv).name if venv is not None else "<venv>"
-        except Exception:
+        except (TypeError, ValueError):
             vname = str(venv)
         if logger:
             logger.info(f"@{vname}: {cmd}")
@@ -128,7 +130,6 @@ async def run(
 
     result: list[str] = []
     proc = None
-    proc = None
     try:
         try:
             cmd_list = shlex.split(cmd)
@@ -139,7 +140,7 @@ async def run(
                 cwd=str(cwd) if cwd else None,
                 env=process_env,
             )
-        except Exception:
+        except SUBPROCESS_FALLBACK_EXCEPTIONS:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -217,7 +218,7 @@ async def run_bg(
             cwd=str(cwd) if cwd else None,
             env=process_env,
         )
-    except Exception:
+    except SUBPROCESS_FALLBACK_EXCEPTIONS:
         proc = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -278,6 +279,7 @@ async def run_async(
     cmd = inject_uv_preview_flag(cmd)
 
     result: list[str] = []
+    proc = None
     try:
         try:
             cmd_list = shlex.split(cmd)
@@ -288,7 +290,7 @@ async def run_async(
                 cwd=str(cwd) if cwd else None,
                 env=process_env,
             )
-        except Exception:
+        except SUBPROCESS_FALLBACK_EXCEPTIONS:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
