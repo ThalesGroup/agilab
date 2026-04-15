@@ -186,6 +186,30 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
 
     return created_links
 
+
+def _load_pre_install_module():
+    from agi_node.agi_dispatcher import pre_install as pre_install_module
+
+    return pre_install_module
+
+
+def _resolve_pre_install_script(env) -> Path | None:
+    raw_path = getattr(env, "pre_install", None)
+    if raw_path:
+        candidate = Path(raw_path)
+        if candidate.exists():
+            return candidate
+
+    try:
+        module_file = getattr(_load_pre_install_module(), "__file__", None)
+        if module_file:
+            return Path(module_file).resolve()
+    except (ImportError, ModuleNotFoundError, OSError):
+        pass
+
+    return Path(raw_path) if raw_path else None
+
+
 def cleanup_links(links: list[Path]) -> None:
     for link in links:
         try:
@@ -347,10 +371,11 @@ def main(argv: list[str] | None = None) -> None:
             except Exception:
                 worker_py = (Path.cwd() / worker_py).resolve()
         worker_pyx = worker_py.with_suffix('.pyx')
-        if not worker_pyx.exists() and env.pre_install:
+        pre_install_script = _resolve_pre_install_script(env)
+        if not worker_pyx.exists() and pre_install_script:
             pre_cmd = [
                 sys.executable,
-                str(env.pre_install),
+                str(pre_install_script),
                 "remove_decorators",
                 "--worker_path",
                 str(worker_py),

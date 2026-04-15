@@ -12,7 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """Cluster workplan utilities for distributing AGILab workloads."""
 import traceback
-from typing import List, Optional, Tuple, Set  # Ajoute Tuple et Set
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import asyncio
 import inspect
 import getpass
@@ -56,119 +56,13 @@ from agi_env import normalize_path
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# uv path-source rewriting helpers
-# ---------------------------------------------------------------------------
-
-def _envar_truthy(envars: dict, key: str) -> bool:
-    return uv_source_support.envar_truthy(envars, key)
-
-
-def _ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
-    uv_source_support.ensure_optional_extras(pyproject_file, extras)
-
-
-def _is_private_ssh_key_file(path: Path) -> bool:
-    return transport_support.is_private_ssh_key_file(path)
-
-
-def _discover_private_ssh_keys(ssh_dir: Path) -> List[str]:
-    return transport_support.discover_private_ssh_keys(ssh_dir)
-
-
-def _rewrite_uv_sources_paths_for_copied_pyproject(
-    *,
-    src_pyproject: Path,
-    dest_pyproject: Path,
-    log_rewrites: bool = False,
-) -> None:
-    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
-        src_pyproject=src_pyproject,
-        dest_pyproject=dest_pyproject,
-        log_rewrites=log_rewrites,
-        log=logger,
-    )
-
-
-def _copy_uv_source_tree(src_path: Path, dest_path: Path) -> None:
-    uv_source_support.copy_uv_source_tree(src_path, dest_path)
-
-
-def _stage_uv_sources_for_copied_pyproject(
-    *,
-    src_pyproject: Path,
-    dest_pyproject: Path,
-    stage_root: Path,
-    log_rewrites: bool = False,
-) -> list[Path]:
-    return uv_source_support.stage_uv_sources_for_copied_pyproject(
-        src_pyproject=src_pyproject,
-        dest_pyproject=dest_pyproject,
-        stage_root=stage_root,
-        log_rewrites=log_rewrites,
-        log=logger,
-    )
-
-
-def _missing_uv_source_paths(pyproject_path: Path) -> list[tuple[str, str]]:
-    return uv_source_support.missing_uv_source_paths(pyproject_path)
-
-
-def _validate_worker_uv_sources(pyproject_path: Path) -> None:
-    uv_source_support.validate_worker_uv_sources(pyproject_path)
-
-
-def _worker_site_packages_dir(
-    wenv_root: Path | PurePosixPath,
-    pyvers: str,
-    *,
-    windows: bool = False,
-) -> Path | PurePosixPath:
-    return uv_source_support.worker_site_packages_dir(
-        wenv_root=wenv_root,
-        pyvers=pyvers,
-        windows=windows,
-    )
-
-
-def _staged_uv_sources_pth_content(
-    site_packages_dir: Path | PurePosixPath,
-    uv_sources_root: Path | PurePosixPath,
-) -> str:
-    return uv_source_support.staged_uv_sources_pth_content(
-        site_packages_dir=site_packages_dir,
-        uv_sources_root=uv_sources_root,
-    )
-
-
-def _write_staged_uv_sources_pth(
-    site_packages_dir: Path,
-    uv_sources_root: Path,
-) -> Optional[Path]:
-    return uv_source_support.write_staged_uv_sources_pth(
-        site_packages_dir=site_packages_dir,
-        uv_sources_root=uv_sources_root,
-    )
-
-# ---------------------------------------------------------------------------
 # Asyncio compatibility helpers (PyCharm debugger patches asyncio.run)
 # ---------------------------------------------------------------------------
-def _ensure_asyncio_run_signature() -> None:
-    runtime_misc_support.ensure_asyncio_run_signature(
-        asyncio_module=asyncio,
-        inspect_signature_fn=inspect.signature,
-    )
+runtime_misc_support.ensure_asyncio_run_signature(
+    asyncio_module=asyncio,
+    inspect_signature_fn=inspect.signature,
+)
 
-
-_ensure_asyncio_run_signature()
-
-
-# --- Added minimal TestPyPI fallback for uv sync ---
-def _agi__version_missing_on_pypi(project_path):
-    return runtime_misc_support.agi_version_missing_on_pypi(project_path)
-
-
-# --- end added helper ---
-from typing import Any, Dict, List, Optional, Union
 import sysconfig
 import errno
 
@@ -817,7 +711,7 @@ class AGI:
     async def _prepare_local_env() -> None:
         await deployment_prepare_support.prepare_local_env(
             AGI,
-            envar_truthy_fn=_envar_truthy,
+            envar_truthy_fn=uv_source_support.envar_truthy,
             detect_export_cmd_fn=AGI._detect_export_cmd,
             set_env_var_fn=AgiEnv.set_env_var,
             run_fn=AgiEnv.run,
@@ -830,10 +724,10 @@ class AGI:
         await deployment_prepare_support.prepare_cluster_env(
             AGI,
             scheduler_addr,
-            envar_truthy_fn=_envar_truthy,
+            envar_truthy_fn=uv_source_support.envar_truthy,
             detect_export_cmd_fn=AGI._detect_export_cmd,
-            ensure_optional_extras_fn=_ensure_optional_extras,
-            stage_uv_sources_fn=_stage_uv_sources_for_copied_pyproject,
+            ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+            stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
             run_exec_ssh_fn=AGI.exec_ssh,
             send_files_fn=AGI.send_files,
             kill_fn=AGI._kill,
@@ -869,9 +763,9 @@ class AGI:
             src,
             wenv_rel,
             options_worker,
-            agi_version_missing_on_pypi_fn=_agi__version_missing_on_pypi,
-            worker_site_packages_dir_fn=_worker_site_packages_dir,
-            write_staged_uv_sources_pth_fn=_write_staged_uv_sources_pth,
+            agi_version_missing_on_pypi_fn=runtime_misc_support.agi_version_missing_on_pypi,
+            worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,
+            write_staged_uv_sources_pth_fn=uv_source_support.write_staged_uv_sources_pth,
             runtime_file=__file__,
             run_fn=AgiEnv.run,
             set_env_var_fn=AgiEnv.set_env_var,
@@ -886,8 +780,8 @@ class AGI:
             env,
             wenv_rel,
             option,
-            worker_site_packages_dir_fn=_worker_site_packages_dir,
-            staged_uv_sources_pth_content_fn=_staged_uv_sources_pth_content,
+            worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,
+            staged_uv_sources_pth_content_fn=uv_source_support.staged_uv_sources_pth_content,
             set_env_var_fn=AgiEnv.set_env_var,
             log=logger,
         )
@@ -1051,9 +945,9 @@ class AGI:
     async def _build_lib_local():
         await deployment_build_support.build_lib_local(
             AGI,
-            ensure_optional_extras_fn=_ensure_optional_extras,
-            stage_uv_sources_fn=_stage_uv_sources_for_copied_pyproject,
-            validate_worker_uv_sources_fn=_validate_worker_uv_sources,
+            ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+            stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+            validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
             run_fn=AgiEnv.run,
             log=logger,
         )
@@ -1067,7 +961,7 @@ class AGI:
         return await runtime_distribution_support.run_local(
             AGI,
             base_worker_cls=BaseWorker,
-            validate_worker_uv_sources_fn=_validate_worker_uv_sources,
+            validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
             run_async_fn=AgiEnv.run_async,
             log=logger,
         )
@@ -1129,7 +1023,7 @@ class AGI:
             AGI,
             ip,
             timeout_sec=timeout_sec,
-            discover_private_keys_fn=_discover_private_ssh_keys,
+            discover_private_keys_fn=transport_support.discover_private_ssh_keys,
             log=logger,
         ) as conn:
             yield conn

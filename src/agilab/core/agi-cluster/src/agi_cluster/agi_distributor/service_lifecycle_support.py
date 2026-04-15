@@ -608,42 +608,15 @@ async def serve(
     agi_cls._workers = workers
     agi_cls._run_time = {}
 
-    agi_cls._capacity_data_file = env.resources_path / "balancer_df.csv"
-    agi_cls._capacity_model_file = env.resources_path / "balancer_model.pkl"
-    path = Path(agi_cls._capacity_model_file)
-
-    if path.is_file():
-        agi_cls._capacity_predictor = runtime_misc_support.load_capacity_predictor(path, log=log)
-    else:
-        agi_cls._capacity_predictor = None
-        log.info(
-            "Capacity model not found at %s; skipping capacity bootstrap for service mode.",
-            path,
-        )
-
-    agi_cls.agi_workers = {
-        "AgiDataWorker": "pandas-worker",
-        "PolarsWorker": "polars-worker",
-        "PandasWorker": "pandas-worker",
-        "FireducksWorker": "fireducks-worker",
-        "DagWorker": "dag-worker",
-    }
-    base_worker_cls = getattr(env, "base_worker_cls", None)
-    if not base_worker_cls:
-        target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
-        worker_path = getattr(env, "worker_path", None) or "<worker path>"
-        supported = ", ".join(sorted(agi_cls.agi_workers.keys()))
-        raise ValueError(
-            f"Missing {target_worker_class} definition; expected {worker_path}. "
-            f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
-        )
-    try:
-        agi_cls.install_worker_group = [agi_cls.agi_workers[base_worker_cls]]
-    except KeyError as exc:
-        supported = ", ".join(sorted(agi_cls.agi_workers.keys()))
-        raise ValueError(
-            f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
-        ) from exc
+    runtime_misc_support.bootstrap_capacity_predictor(
+        agi_cls,
+        env,
+        missing_log_message=(
+            "Capacity model not found at %s; skipping capacity bootstrap for service mode."
+        ),
+        log=log,
+    )
+    runtime_misc_support.configure_install_worker_group(agi_cls, env)
 
     client = agi_cls._dask_client
     if client is None or getattr(client, "status", "") in {"closed", "closing"}:
