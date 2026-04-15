@@ -245,3 +245,81 @@ def test_apply_preferred_sat_dataset_preserves_existing_samples_when_requested(t
     assert sat_folder.is_dir()
     assert sat_folder.is_symlink() is False
     assert (sat_folder / "existing-a.csv").exists()
+
+
+def test_apply_trajectory_sat_dataset_extracts_archive_and_links_sat_folder(tmp_path, monkeypatch):
+    lines = []
+    dataset_archive = tmp_path / "dataset.7z"
+    trajectory_archive = tmp_path / "Trajectory.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    trajectory_archive.write_text("x", encoding="utf-8")
+    dataset_root = tmp_path / "dataset"
+    sat_folder = dataset_root / "sat"
+    extracted = {}
+
+    def _fake_extract(archive, dest):
+        extracted["archive"] = archive
+        extracted["dest"] = dest
+        trajectory_folder = dest / "Trajectory"
+        trajectory_folder.mkdir(parents=True, exist_ok=True)
+        (trajectory_folder / "a.csv").write_text("1", encoding="utf-8")
+        (trajectory_folder / "b.csv").write_text("2", encoding="utf-8")
+
+    monkeypatch.setattr(post_mod, "_extract_archive", _fake_extract)
+
+    result = post_mod._apply_trajectory_sat_dataset(
+        dataset_archive=dataset_archive,
+        dataset_root=dataset_root,
+        sat_folder=sat_folder,
+        print_fn=lines.append,
+    )
+
+    assert result == 0
+    assert extracted == {"archive": trajectory_archive, "dest": dataset_root}
+    assert sat_folder.resolve(strict=False) == (dataset_root / "Trajectory").resolve(strict=False)
+    assert lines == [
+        f"[post_install] extracting optional trajectories: {trajectory_archive}",
+        f"[post_install] linked {sat_folder} -> {dataset_root / 'Trajectory'}",
+    ]
+
+
+def test_apply_trajectory_sat_dataset_copies_when_linking_fails(tmp_path, monkeypatch):
+    lines = []
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dataset_root = tmp_path / "dataset"
+    trajectory_folder = dataset_root / "Trajectory"
+    trajectory_folder.mkdir(parents=True, exist_ok=True)
+    (trajectory_folder / "a.csv").write_text("1", encoding="utf-8")
+    (trajectory_folder / "b.csv").write_text("2", encoding="utf-8")
+    sat_folder = dataset_root / "sat"
+
+    monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
+
+    result = post_mod._apply_trajectory_sat_dataset(
+        dataset_archive=dataset_archive,
+        dataset_root=dataset_root,
+        sat_folder=sat_folder,
+        print_fn=lines.append,
+    )
+
+    assert result == 0
+    assert (sat_folder / "a.csv").exists()
+    assert (sat_folder / "b.csv").exists()
+    assert lines == [f"[post_install] copied 2 trajectory file(s) into {sat_folder}"]
+
+
+def test_apply_trajectory_sat_dataset_returns_zero_when_no_samples_available(tmp_path):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dataset_root = tmp_path / "dataset"
+    sat_folder = dataset_root / "sat"
+
+    result = post_mod._apply_trajectory_sat_dataset(
+        dataset_archive=dataset_archive,
+        dataset_root=dataset_root,
+        sat_folder=sat_folder,
+    )
+
+    assert result == 0
+    assert not sat_folder.exists()
