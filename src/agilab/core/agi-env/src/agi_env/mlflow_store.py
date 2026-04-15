@@ -302,6 +302,48 @@ def _is_schema_reset_error(
     )
 
 
+def _create_default_experiment_if_missing(
+    mlflow,
+    *,
+    default_experiment_name: str,
+    artifact_uri: str,
+) -> None:
+    experiment = None
+    get_experiment = getattr(mlflow, "get_experiment_by_name", None)
+    if callable(get_experiment):
+        experiment = get_experiment(default_experiment_name)
+    if experiment is not None:
+        return
+
+    create_experiment = getattr(mlflow, "create_experiment", None)
+    if callable(create_experiment):
+        try:
+            create_experiment(default_experiment_name, artifact_location=artifact_uri)
+        except Exception as exc:
+            if not _is_existing_experiment_conflict(
+                exc,
+                get_experiment_fn=get_experiment,
+                default_experiment_name=default_experiment_name,
+            ):
+                raise
+
+
+def _activate_default_mlflow_experiment(
+    mlflow,
+    *,
+    backend_uri: str,
+    default_experiment_name: str,
+    artifact_uri: str,
+) -> None:
+    mlflow.set_tracking_uri(backend_uri)
+    _create_default_experiment_if_missing(
+        mlflow,
+        default_experiment_name=default_experiment_name,
+        artifact_uri=artifact_uri,
+    )
+    mlflow.set_experiment(default_experiment_name)
+
+
 def ensure_default_mlflow_experiment(
     tracking_dir: Path,
     *,
@@ -322,24 +364,12 @@ def ensure_default_mlflow_experiment(
     for attempt in range(2):
         backend_uri = ensure_mlflow_backend_ready_fn(tracking_dir)
         try:
-            mlflow.set_tracking_uri(backend_uri)
-            experiment = None
-            get_experiment = getattr(mlflow, "get_experiment_by_name", None)
-            if callable(get_experiment):
-                experiment = get_experiment(default_experiment_name)
-            if experiment is None:
-                create_experiment = getattr(mlflow, "create_experiment", None)
-                if callable(create_experiment):
-                    try:
-                        create_experiment(default_experiment_name, artifact_location=artifact_uri)
-                    except Exception as exc:
-                        if not _is_existing_experiment_conflict(
-                            exc,
-                            get_experiment_fn=get_experiment,
-                            default_experiment_name=default_experiment_name,
-                        ):
-                            raise
-            mlflow.set_experiment(default_experiment_name)
+            _activate_default_mlflow_experiment(
+                mlflow,
+                backend_uri=backend_uri,
+                default_experiment_name=default_experiment_name,
+                artifact_uri=artifact_uri,
+            )
             return backend_uri
         except Exception as exc:
             if attempt == 0 and _is_schema_reset_error(
