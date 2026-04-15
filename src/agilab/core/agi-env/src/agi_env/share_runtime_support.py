@@ -7,6 +7,9 @@ import sysconfig
 import re
 from pathlib import Path
 
+FREE_THREADING_PROBE_EXCEPTIONS = (AttributeError, OSError, RuntimeError)
+FREE_THREADING_CONFIG_EXCEPTIONS = (AttributeError, OSError, TypeError, ValueError)
+
 
 def share_target_name(target: str | None, app: str | None, *, default: str = "app") -> str:
     """Return the logical app name for share paths."""
@@ -69,10 +72,10 @@ def python_supports_free_threading() -> bool:
     if callable(checker):
         try:
             return not bool(checker())
-        except Exception:
+        except FREE_THREADING_PROBE_EXCEPTIONS:
             pass
 
     try:
         return bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
-    except Exception:
+    except FREE_THREADING_CONFIG_EXCEPTIONS:
         return False
