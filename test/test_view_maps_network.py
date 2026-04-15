@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from agi_env import AgiEnv
+import pandas as pd
 
 MODULE_PATH = Path(
     "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
@@ -102,6 +103,23 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps_network" in written
     assert 'dataset_base_choice = "AGI_SHARE_DIR"' in written
+
+
+def test_view_maps_network_drops_ambiguous_index_levels(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    df = pd.DataFrame(
+        {
+            "classique_plane": ["A", "B"],
+            "time_index": [0, 1],
+        },
+        index=pd.Index(["A", "B"], name="classique_plane"),
+    )
+
+    normalized = module._drop_index_levels_shadowing_columns(df)
+
+    assert list(normalized.columns) == ["classique_plane", "time_index"]
+    assert normalized.index.name is None
+    assert normalized["classique_plane"].tolist() == ["A", "B"]
 
 
 def test_view_maps_network_warns_when_no_dataset_exists(
