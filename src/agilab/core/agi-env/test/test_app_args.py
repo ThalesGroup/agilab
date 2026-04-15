@@ -132,7 +132,9 @@ def test_dump_model_to_toml_falls_back_to_tomlkit_when_tomli_w_missing(
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name == "tomli_w":
-            raise ModuleNotFoundError("missing tomli_w")
+            err = ModuleNotFoundError("missing tomli_w")
+            err.name = "tomli_w"
+            raise err
         if name == "tomlkit":
             return SimpleNamespace(dumps=lambda data: '[args]\nfoo = 9\nbar = "tomlkit"\n')
         return real_import(name, globals, locals, fromlist, level)
@@ -143,3 +145,74 @@ def test_dump_model_to_toml_falls_back_to_tomlkit_when_tomli_w_missing(
 
     data = tomllib.loads(settings.read_text())
     assert data["args"] == {"foo": 9, "bar": "tomlkit"}
+
+
+def test_dump_model_to_toml_raises_when_no_supported_writer_is_installed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    settings = tmp_path / "config.toml"
+    model = ExampleModel()
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "tomli_w":
+            err = ModuleNotFoundError("missing tomli_w")
+            err.name = "tomli_w"
+            raise err
+        if name == "tomlkit":
+            err = ModuleNotFoundError("missing tomlkit")
+            err.name = "tomlkit"
+            raise err
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(RuntimeError, match="either 'tomli-w' or 'tomlkit'"):
+        dump_model_to_toml(model, settings)
+
+
+def test_dump_model_to_toml_propagates_broken_writer_dependency_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    settings = tmp_path / "config.toml"
+    model = ExampleModel()
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "tomli_w":
+            err = ModuleNotFoundError("missing nested dependency")
+            err.name = "broken_dep"
+            raise err
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(ModuleNotFoundError, match="missing nested dependency"):
+        dump_model_to_toml(model, settings)
+
+
+def test_dump_model_to_toml_propagates_broken_tomlkit_dependency_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    settings = tmp_path / "config.toml"
+    model = ExampleModel()
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "tomli_w":
+            err = ModuleNotFoundError("missing tomli_w")
+            err.name = "tomli_w"
+            raise err
+        if name == "tomlkit":
+            err = ModuleNotFoundError("missing nested dependency")
+            err.name = "broken_dep"
+            raise err
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(ModuleNotFoundError, match="missing nested dependency"):
+        dump_model_to_toml(model, settings)

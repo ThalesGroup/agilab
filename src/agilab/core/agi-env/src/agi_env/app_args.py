@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from io import BufferedWriter
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping, Type, TypeVar
+from typing import Any, Callable, Mapping, Type, TypeVar
 
 import tomllib
 
@@ -14,6 +15,10 @@ TModel = TypeVar("TModel", bound=BaseModel)
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
+
+
+def _is_missing_module(exc: ModuleNotFoundError, module_name: str) -> bool:
+    return getattr(exc, "name", None) == module_name
 
 def model_to_payload(model: BaseModel) -> dict[str, Any]:
     """Return a JSON/TOML friendly representation of the model."""
@@ -83,28 +88,30 @@ def dump_model_to_toml(
 
     doc[section] = model_to_payload(model)
 
-    dumper: Callable[[dict[str, Any], BinaryIO], None] | None = None
+    dumper: Callable[[dict[str, Any], BufferedWriter], None] | None = None
     try:
         import tomli_w  # type: ignore[import-not-found]
 
-        def _dump_with_tomli_w(data: dict[str, Any], stream: BinaryIO) -> None:
+        def _dump_with_tomli_w(data: dict[str, Any], stream: BufferedWriter) -> None:
             tomli_w.dump(data, stream)
 
         dumper = _dump_with_tomli_w
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as exc:
+        if not _is_missing_module(exc, "tomli_w"):
+            raise
         try:
             from tomlkit import dumps as tomlkit_dumps
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except ModuleNotFoundError as exc:
+            if not _is_missing_module(exc, "tomlkit"):
+                raise
             raise RuntimeError(
                 "Writing settings requires either 'tomli-w' or 'tomlkit'."
             ) from exc
 
-        def _dump_with_tomlkit(data: dict[str, Any], stream: BinaryIO) -> None:
+        def _dump_with_tomlkit(data: dict[str, Any], stream: BufferedWriter) -> None:
             stream.write(tomlkit_dumps(data).encode("utf-8"))
 
         dumper = _dump_with_tomlkit
-    except Exception as exc:  # pragma: no cover - defensive guard
-        raise RuntimeError("Writing settings requires the 'tomli-w' package") from exc
 
     logger.info(f"mkdir {settings_path.parent}")
     settings_path.parent.mkdir(parents=True, exist_ok=True)
