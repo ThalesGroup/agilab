@@ -422,6 +422,56 @@ def _select_worker_batch_entry(
     return []
 
 
+def _count_worker_batches(
+    chunk_len: int | None,
+    batch_entry: Any,
+) -> int:
+    return chunk_len if chunk_len is not None else len(batch_entry)
+
+
+def _resolve_total_workers(
+    total_workers: int | None,
+    expanded_plan: Any,
+) -> int | str:
+    if total_workers is not None:
+        return total_workers
+    if isinstance(expanded_plan, list):
+        return len(expanded_plan)
+    return "?"
+
+
+def _log_worker_plan_progress(
+    *,
+    worker_id: int,
+    worker_name: str | None,
+    file_path: str,
+    expanded_plan: Any,
+    plan_total_workers: int | None,
+    plan_chunk_len: int | None,
+    plan_entry: Any,
+    meta_chunk_len: int | None,
+    metadata_entry: Any,
+    logger_obj: Any,
+    path_cls: type[Path] = Path,
+) -> int:
+    plan_batch_count = _count_worker_batches(plan_chunk_len, plan_entry)
+    metadata_batch_count = _count_worker_batches(meta_chunk_len, metadata_entry)
+    logger_obj.info(
+        "worker #%s: %s from %s",
+        worker_id,
+        worker_name,
+        path_cls(file_path),
+    )
+    logger_obj.info(
+        "work #%s / %s - plan batches=%s metadata batches=%s",
+        worker_id + 1,
+        _resolve_total_workers(plan_total_workers, expanded_plan),
+        plan_batch_count,
+        metadata_batch_count,
+    )
+    return plan_batch_count
+
+
 def execute_worker_plan(
     *,
     workers_plan: Any,
@@ -458,21 +508,18 @@ def execute_worker_plan(
 
             plan_entry = _select_worker_batch_entry(expanded_plan, worker_id)
             metadata_entry = _select_worker_batch_entry(expanded_meta, worker_id)
-
-            logger_obj.info(
-                "worker #%s: %s from %s",
-                worker_id,
-                worker_name,
-                path_cls(file_path),
-            )
-            logger_obj.info(
-                "work #%s / %s - plan batches=%s metadata batches=%s",
-                worker_id + 1,
-                plan_total_workers
-                if plan_total_workers is not None
-                else (len(expanded_plan) if isinstance(expanded_plan, list) else "?"),
-                plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
-                meta_chunk_len if meta_chunk_len is not None else len(metadata_entry),
+            plan_batch_count = _log_worker_plan_progress(
+                worker_id=worker_id,
+                worker_name=worker_name,
+                file_path=file_path,
+                expanded_plan=expanded_plan,
+                plan_total_workers=plan_total_workers,
+                plan_chunk_len=plan_chunk_len,
+                plan_entry=plan_entry,
+                meta_chunk_len=meta_chunk_len,
+                metadata_entry=metadata_entry,
+                logger_obj=logger_obj,
+                path_cls=path_cls,
             )
 
             insts[worker_id].works(expanded_plan, expanded_meta)
@@ -480,7 +527,7 @@ def execute_worker_plan(
             logger_obj.info(
                 "worker #%s completed %s plan batches",
                 worker_id,
-                plan_chunk_len if plan_chunk_len is not None else len(plan_entry),
+                plan_batch_count,
             )
         else:
             logger_obj.error("this worker is not initialized")

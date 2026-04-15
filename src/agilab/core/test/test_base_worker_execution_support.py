@@ -644,6 +644,40 @@ def test_select_worker_batch_entry_uses_worker_slot_or_empty_list():
     assert execution_support._select_worker_batch_entry({"not": "a list"}, 0) == []
 
 
+def test_count_worker_batches_and_resolve_total_workers_cover_fallbacks():
+    assert execution_support._count_worker_batches(5, ["ignored"]) == 5
+    assert execution_support._count_worker_batches(None, ["a", "b"]) == 2
+    assert execution_support._resolve_total_workers(4, ["ignored"]) == 4
+    assert execution_support._resolve_total_workers(None, ["a", "b"]) == 2
+    assert execution_support._resolve_total_workers(None, {"not": "a list"}) == "?"
+
+
+def test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count():
+    logged: list[str] = []
+    logger = SimpleNamespace(
+        info=lambda message, *args: logged.append(str(message % args if args else message))
+    )
+
+    plan_batch_count = execution_support._log_worker_plan_progress(
+        worker_id=1,
+        worker_name="local-worker",
+        file_path="/tmp/worker.py",
+        expanded_plan=[["a"], ["b", "c"]],
+        plan_total_workers=None,
+        plan_chunk_len=None,
+        plan_entry=["b", "c"],
+        meta_chunk_len=3,
+        metadata_entry=["ignored"],
+        logger_obj=logger,
+    )
+
+    assert plan_batch_count == 2
+    assert logged == [
+        "worker #1: local-worker from /tmp/worker.py",
+        "work #2 / 2 - plan batches=2 metadata batches=3",
+    ]
+
+
 def test_baseworker_expand_chunk_scalar_and_do_works_fallback_paths(monkeypatch):
     reconstructed, chunk_len, total = BaseWorker._expand_chunk(
         {
