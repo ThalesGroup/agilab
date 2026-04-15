@@ -11,6 +11,7 @@ from agi_env.agi_logger import (
     LogFormatter,
     MaxLevelFilter,
     _configure_asyncssh_logger,
+    _configure_package_logger,
     _configure_root_handlers,
     _build_stream_handler,
     _is_same_log_record_file,
@@ -519,6 +520,21 @@ def test_configure_asyncssh_logger_sets_warning_and_deduplicates_null_handler():
     logger_without_handlers = logging.Logger("asyncssh-test-empty")
     _configure_asyncssh_logger(logger_without_handlers)
     assert len([handler for handler in logger_without_handlers.handlers if isinstance(handler, logging.NullHandler)]) == 1
+
+
+def test_configure_package_logger_sets_info_and_propagates():
+    logger = logging.Logger("demo-package")
+    logger.setLevel(logging.WARNING)
+    logger.propagate = False
+
+    configured = _configure_package_logger(
+        "demo-package",
+        get_logger_fn=lambda name: logger if name == "demo-package" else (_ for _ in ()).throw(AssertionError(name)),
+    )
+
+    assert configured is logger
+    assert logger.level == logging.INFO
+    assert logger.propagate is True
 
 
 def test_agi_logger_configure_and_set_level():

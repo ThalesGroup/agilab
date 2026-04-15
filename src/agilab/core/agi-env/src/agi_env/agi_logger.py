@@ -155,6 +155,13 @@ def _configure_asyncssh_logger(asyncssh_logger: logging.Logger) -> logging.Logge
         asyncssh_logger.addHandler(logging.NullHandler())
     return asyncssh_logger
 
+
+def _configure_package_logger(base_name: str, *, get_logger_fn=logging.getLogger) -> logging.Logger:
+    pkg_logger = get_logger_fn(base_name)
+    pkg_logger.setLevel(logging.INFO)
+    pkg_logger.propagate = True
+    return pkg_logger
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -234,10 +241,7 @@ class AgiLogger:
                 stderr_stream=sys.stderr,
             )
 
-            # Expose a base package logger; child loggers will propagate to ROOT.
-            pkg_logger = logging.getLogger(cls._base_name)
-            pkg_logger.setLevel(logging.INFO)
-            pkg_logger.propagate = True
+            pkg_logger = _configure_package_logger(cls._base_name)
 
             cls._configured = True
             return pkg_logger
