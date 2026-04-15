@@ -8,6 +8,10 @@ from typing import Callable
 
 from agi_env.env_config_support import clean_envar_value
 
+PATH_VALUE_EXCEPTIONS = (TypeError, ValueError)
+PATH_PROBE_EXCEPTIONS = (OSError,)
+EXPORT_ROOT_EXCEPTIONS = (OSError, TypeError, ValueError)
+
 
 def app_settings_aliases(app_name: str | None) -> set[str]:
     """Return common project/worker aliases for ``app_name``."""
@@ -33,31 +37,26 @@ def candidate_app_settings_path(base: object) -> Path | None:
 
     try:
         base_path = Path(base)
-    except Exception:
+    except PATH_VALUE_EXCEPTIONS:
         return None
 
-    candidates: list[Path] = []
-    try:
-        if base_path.name == "src":
-            candidates.append(base_path / "app_settings.toml")
-        else:
-            candidates.append(base_path / "app_settings.toml")
-            candidates.append(base_path / "src" / "app_settings.toml")
-    except Exception:
-        return None
+    if base_path.name == "src":
+        candidates = [base_path / "app_settings.toml"]
+    else:
+        candidates = [base_path / "app_settings.toml", base_path / "src" / "app_settings.toml"]
 
     for candidate in candidates:
         try:
             if candidate.is_file():
                 return candidate
-        except Exception:
+        except PATH_PROBE_EXCEPTIONS:
             continue
 
     try:
         src_dir = base_path / "src"
         if base_path.is_dir() and src_dir.is_dir():
             return src_dir / "app_settings.toml"
-    except Exception:
+    except PATH_PROBE_EXCEPTIONS:
         pass
     return None
 
@@ -119,16 +118,13 @@ def app_settings_source_roots(
             for alias in aliases:
                 roots.append(expanded_export / alias)
                 roots.append(expanded_export / alias / "src")
-        except Exception:
+        except EXPORT_ROOT_EXCEPTIONS:
             pass
 
     normalized: list[Path] = []
     seen: set[str] = set()
     for root in roots:
-        try:
-            norm = str(root)
-        except Exception:
-            continue
+        norm = str(root)
         if norm in seen:
             continue
         seen.add(norm)

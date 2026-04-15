@@ -24,6 +24,31 @@ def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
     assert app_settings_module.candidate_app_settings_path(object()) is None
 
 
+def test_candidate_app_settings_path_handles_probe_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
+    src_dir = tmp_path / "demo_project" / "src"
+    src_dir.mkdir(parents=True)
+    src_settings = src_dir / "app_settings.toml"
+
+    original_is_file = Path.is_file
+
+    def _oserror_is_file(self):
+        if self == src_settings:
+            raise OSError("probe failed")
+        return original_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", _oserror_is_file, raising=False)
+    assert app_settings_module.candidate_app_settings_path(src_dir.parent) == src_settings
+
+    def _runtime_is_file(self):
+        if self == src_settings:
+            raise RuntimeError("probe bug")
+        return original_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", _runtime_is_file, raising=False)
+    with pytest.raises(RuntimeError, match="probe bug"):
+        app_settings_module.candidate_app_settings_path(src_dir.parent)
+
+
 def test_find_source_and_user_app_settings_cover_workspace_seed_paths(tmp_path: Path):
     home_abs = tmp_path / "home"
     home_abs.mkdir()
@@ -115,6 +140,51 @@ def test_app_settings_source_roots_collect_aliases_repo_builtin_worker_and_expor
     assert home_abs / "wenv" / "demo_project" in roots_set
     assert home_abs / "export-root" in roots_set
     assert home_abs / "export-root" / "demo_project" in roots_set
+
+
+def test_app_settings_source_roots_handles_export_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
+    home_abs = tmp_path / "home"
+    home_abs.mkdir()
+    original_expanduser = Path.expanduser
+
+    def _export_oserror(self):
+        if self == Path("export-root"):
+            raise OSError("export probe failed")
+        return original_expanduser(self)
+
+    monkeypatch.setattr(Path, "expanduser", _export_oserror, raising=False)
+    roots = app_settings_module.app_settings_source_roots(
+        target_app="demo_project",
+        current_app=None,
+        app_src=None,
+        active_app=None,
+        apps_path=None,
+        builtin_apps_path=None,
+        apps_repository_root=None,
+        home_abs=home_abs,
+        envars={"AGI_EXPORT_DIR": "export-root"},
+    )
+    assert home_abs / "wenv" / "demo_project" in set(roots)
+    assert home_abs / "export-root" not in set(roots)
+
+    def _export_runtime(self):
+        if self == Path("export-root"):
+            raise RuntimeError("export bug")
+        return original_expanduser(self)
+
+    monkeypatch.setattr(Path, "expanduser", _export_runtime, raising=False)
+    with pytest.raises(RuntimeError, match="export bug"):
+        app_settings_module.app_settings_source_roots(
+            target_app="demo_project",
+            current_app=None,
+            app_src=None,
+            active_app=None,
+            apps_path=None,
+            builtin_apps_path=None,
+            apps_repository_root=None,
+            home_abs=home_abs,
+            envars={"AGI_EXPORT_DIR": "export-root"},
+        )
 
 
 def test_resolve_user_app_settings_requires_target_name(tmp_path: Path):
