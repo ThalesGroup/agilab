@@ -59,3 +59,94 @@ def test_resolve_main_inputs_defaults_to_script_dir_for_bdist_egg(tmp_path):
     assert packages == ["agi_env.tools"]
     assert Path(opts.dist_dir) == tmp_path / "dist-out"
     assert raw_outdir == opts.dist_dir
+
+
+def test_prepare_main_execution_orchestrates_build_ext_runtime(tmp_path):
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir(parents=True, exist_ok=True)
+    build_env_inits = []
+    preflight_calls = []
+    argv_calls = []
+    artifact_calls = []
+
+    class DummyEnv:
+        def __init__(self, *, active_app, verbose):
+            build_env_inits.append((active_app, verbose))
+            self.home_abs = str(tmp_path / "home")
+            self.pyvers_worker = "3.13t"
+            self.active_app = active_app
+            self.is_worker_env = False
+
+    env, out_arg, worker_module, ext_modules, links_created = build_mod._prepare_main_execution(
+        prog_name="build.py",
+        active_app=active_app,
+        quiet=False,
+        cmd="build_ext",
+        raw_outdir=str(tmp_path / "exports" / "demo_worker"),
+        build_dir=str(tmp_path / "exports" / "demo_worker"),
+        remaining_args=["--quiet"],
+        packages=["pkg_a"],
+        build_env_cls=DummyEnv,
+        resolve_build_output_fn=lambda outdir, home_abs: (Path(outdir), "exports/demo_worker", "demo_worker"),
+        prepare_build_ext_command_fn=lambda **kwargs: preflight_calls.append(kwargs),
+        build_setuptools_argv_fn=lambda **kwargs: ["build.py", "build_ext", "-b", Path(kwargs["home_abs"]) / "exports/demo_worker" / "dist"],
+        prepare_setup_artifacts_fn=lambda **kwargs: (artifact_calls.append(kwargs) or (["ext_mod"], [tmp_path / "pkg_a"])),
+        set_argv_fn=lambda argv: argv_calls.append(argv),
+    )
+
+    assert build_env_inits == [(active_app, 2)]
+    assert preflight_calls == [{"env": env, "build_dir": str(tmp_path / "exports" / "demo_worker")}]
+    assert argv_calls == [["build.py", "build_ext", "-b", tmp_path / "home" / "exports/demo_worker" / "dist"]]
+    assert out_arg == "exports/demo_worker"
+    assert worker_module == "demo_worker_worker"
+    assert ext_modules == ["ext_mod"]
+    assert links_created == [tmp_path / "pkg_a"]
+    assert artifact_calls == [
+        {
+            "env": env,
+            "cmd": "build_ext",
+            "active_app": active_app,
+            "build_dir": str(tmp_path / "exports" / "demo_worker"),
+            "remaining_args": ["--quiet"],
+            "packages": ["pkg_a"],
+            "worker_module": "demo_worker_worker",
+        }
+    ]
+
+
+def test_prepare_main_execution_skips_build_ext_preflight_for_bdist_egg(tmp_path):
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir(parents=True, exist_ok=True)
+    preflight_calls = []
+    argv_calls = []
+
+    class DummyEnv:
+        def __init__(self, *, active_app, verbose):
+            self.home_abs = str(tmp_path / "home")
+            self.pyvers_worker = "3.13"
+            self.active_app = active_app
+            self.is_worker_env = False
+
+    env, out_arg, worker_module, ext_modules, links_created = build_mod._prepare_main_execution(
+        prog_name="build.py",
+        active_app=active_app,
+        quiet=True,
+        cmd="bdist_egg",
+        raw_outdir=str(tmp_path / "dist-out"),
+        build_dir=str(tmp_path / "unused-build-dir"),
+        remaining_args=[],
+        packages=["agi_env.tools"],
+        build_env_cls=DummyEnv,
+        resolve_build_output_fn=lambda outdir, home_abs: (Path(outdir), "dist-out", "demo"),
+        prepare_build_ext_command_fn=lambda **kwargs: preflight_calls.append(kwargs),
+        build_setuptools_argv_fn=lambda **kwargs: ["build.py", "bdist_egg", "-d", Path(kwargs["home_abs"]) / "dist-out" / "dist"],
+        prepare_setup_artifacts_fn=lambda **kwargs: ([], [tmp_path / "pkg_link"]),
+        set_argv_fn=lambda argv: argv_calls.append(argv),
+    )
+
+    assert preflight_calls == []
+    assert argv_calls == [["build.py", "bdist_egg", "-d", tmp_path / "home" / "dist-out" / "dist"]]
+    assert out_arg == "dist-out"
+    assert worker_module == "demo_worker"
+    assert ext_modules == []
+    assert links_created == [tmp_path / "pkg_link"]

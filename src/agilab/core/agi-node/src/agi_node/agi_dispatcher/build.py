@@ -767,40 +767,87 @@ def _resolve_main_inputs(
     return prog_name, active_app, opts, quiet, cmd, packages, raw_outdir
 
 
+def _prepare_main_execution(
+    *,
+    prog_name: str,
+    active_app: Path,
+    quiet: bool,
+    cmd: str,
+    raw_outdir: str | None,
+    build_dir: str | None,
+    remaining_args: list[str],
+    packages: list[str],
+    build_env_cls=None,
+    resolve_build_output_fn=None,
+    prepare_build_ext_command_fn=None,
+    build_setuptools_argv_fn=None,
+    prepare_setup_artifacts_fn=None,
+    set_argv_fn=None,
+) -> tuple[object, str, str, list, list[Path]]:
+    if build_env_cls is None:
+        build_env_cls = AgiEnv
+    if resolve_build_output_fn is None:
+        resolve_build_output_fn = _resolve_build_output
+    if prepare_build_ext_command_fn is None:
+        prepare_build_ext_command_fn = _prepare_build_ext_command
+    if build_setuptools_argv_fn is None:
+        build_setuptools_argv_fn = _build_setuptools_argv
+    if prepare_setup_artifacts_fn is None:
+        prepare_setup_artifacts_fn = _prepare_setup_artifacts
+    if set_argv_fn is None:
+        set_argv_fn = lambda argv: setattr(sys, "argv", argv)
+
+    verbose = 0 if quiet else 2
+    env = build_env_cls(
+        active_app=active_app,
+        verbose=verbose,
+    )
+
+    _, out_arg, target_module = resolve_build_output_fn(
+        raw_outdir,
+        home_abs=env.home_abs,
+    )
+
+    if cmd == "build_ext":
+        prepare_build_ext_command_fn(env=env, build_dir=build_dir)
+
+    set_argv_fn(
+        build_setuptools_argv_fn(
+            prog_name=prog_name,
+            command=cmd,
+            home_abs=env.home_abs,
+            out_arg=out_arg,
+        )
+    )
+
+    worker_module = target_module + "_worker"
+    ext_modules, links_created = prepare_setup_artifacts_fn(
+        env=env,
+        cmd=cmd,
+        active_app=active_app,
+        build_dir=build_dir,
+        remaining_args=remaining_args,
+        packages=packages,
+        worker_module=worker_module,
+    )
+
+    return env, out_arg, worker_module, ext_modules, links_created
+
+
 def main(argv: list[str] | None = None) -> None:
     prog_name, active_app, opts, quiet, cmd, packages, raw_outdir = _resolve_main_inputs(
         argv,
     )
 
-    verbose = 0 if quiet else 2
-    env = AgiEnv(
-        active_app=active_app,
-        verbose=verbose,
-    )
-
-    outdir, out_arg, target_module = _resolve_build_output(
-        raw_outdir,
-        home_abs=env.home_abs,
-    )
-
-    if cmd == 'build_ext':
-        _prepare_build_ext_command(env=env, build_dir=opts.build_dir)
-
-    sys.argv = _build_setuptools_argv(
+    env, out_arg, worker_module, ext_modules, links_created = _prepare_main_execution(
         prog_name=prog_name,
-        command=cmd,
-        home_abs=env.home_abs,
-        out_arg=out_arg,
-    )
-    worker_module = target_module + "_worker"
-    ext_modules, links_created = _prepare_setup_artifacts(
-        env=env,
-        cmd=cmd,
         active_app=active_app,
+        quiet=quiet,
+        cmd=cmd,
+        raw_outdir=raw_outdir,
         build_dir=opts.build_dir,
         remaining_args=opts.remaining,
         packages=packages,
-        worker_module=worker_module,
     )
 
     _ensure_build_readme()
