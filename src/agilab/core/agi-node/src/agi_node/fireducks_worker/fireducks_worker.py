@@ -33,6 +33,7 @@ from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
 
 logger = logging.getLogger(__name__)
+FIREDUCKS_CONVERSION_EXCEPTIONS = (TypeError, ValueError)
 
 
 class FireducksWorker(BaseWorker):
@@ -61,7 +62,7 @@ class FireducksWorker(BaseWorker):
                     else:
                         converted = candidate
                     return FireducksWorker._ensure_pandas(converted)
-                except Exception as exc:  # pragma: no cover - defensive guard
+                except FIREDUCKS_CONVERSION_EXCEPTIONS as exc:
                     logger.debug("Failed to convert using %s: %s", attr, exc)
 
         if isinstance(df, pd.DataFrame):
@@ -70,7 +71,7 @@ class FireducksWorker(BaseWorker):
         # Fallback: try constructing a DataFrame directly.
         try:
             return pd.DataFrame(df)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except FIREDUCKS_CONVERSION_EXCEPTIONS as exc:
             raise TypeError(
                 "FireducksWorker expected a FireDucks or pandas DataFrame compatible object"
             ) from exc

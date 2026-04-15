@@ -154,6 +154,38 @@ def test_ensure_pandas_fallback_and_type_error():
         FireducksWorker._ensure_pandas(object())
 
 
+def test_ensure_pandas_skips_expected_converter_error_and_uses_next_converter():
+    class BrokenThenWorking:
+        def to_pandas(self):
+            raise ValueError("convert bad")
+
+        def to_df(self):
+            return pd.DataFrame({"col": [5]})
+
+    converted = FireducksWorker._ensure_pandas(BrokenThenWorking())
+
+    assert isinstance(converted, pd.DataFrame)
+    assert converted["col"].tolist() == [5]
+
+
+def test_ensure_pandas_propagates_unexpected_converter_bug():
+    class BrokenConverter:
+        def to_pandas(self):
+            raise RuntimeError("convert bug")
+
+    with pytest.raises(RuntimeError, match="convert bug"):
+        FireducksWorker._ensure_pandas(BrokenConverter())
+
+
+def test_ensure_pandas_propagates_unexpected_dataframe_constructor_bug():
+    class IterRuntime:
+        def __iter__(self):
+            raise RuntimeError("iter bug")
+
+    with pytest.raises(RuntimeError, match="iter bug"):
+        FireducksWorker._ensure_pandas(IterRuntime())
+
+
 def test_fireducks_work_done_none_and_delegate_works():
     worker = DummyFireducksWorker(worker_id=0, output_format="csv", verbose=0)
     worker._mode = 0
