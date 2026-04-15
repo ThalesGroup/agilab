@@ -934,6 +934,10 @@ def page():
                 except (ValueError, TypeError):
                     pass
 
+            # Keep defaults defined even when one of the selector groups becomes empty
+            # after column reclassification.
+            palette_name = discreteseqs[0]
+
             # set a default opacity in case the slider never gets created
             opacity_key = _vm3d_key("opacity_slider")
             opacity_value = st.session_state.get(opacity_key, 0.8)

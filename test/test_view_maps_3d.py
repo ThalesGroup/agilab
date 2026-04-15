@@ -935,3 +935,116 @@ def test_view_maps_3d_page_handles_persist_and_default_color_fallbacks(monkeypat
     assert settings_path.read_text(encoding="utf-8") == ""
     assert fake_st.session_state[module._vm3d_key("table_max_rows")] >= 10
     assert any(fake_st.calls["pydeck_chart"])
+
+
+def test_view_maps_3d_page_handles_regex_and_beam_seed_fallbacks(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    export_root = tmp_path / "export"
+    datadir = export_root / "demo_map_3d"
+    datadir.mkdir(parents=True)
+    dataset_path = datadir / "flight.csv"
+    dataset_path.write_text("metric,lat,long,alt\n1,43.0,1.0,1000\n", encoding="utf-8")
+
+    share_root = tmp_path / "share"
+    beamdir = share_root / "demo_map_3d"
+    beamdir.mkdir(parents=True)
+    beam_file = beamdir / "beam.csv"
+    beam_file.write_text("beam,lat,long\n1,43.0,1.0\n", encoding="utf-8")
+    hidden_outside = tmp_path / ".hidden" / "outside_beam.csv"
+    hidden_outside.parent.mkdir(parents=True)
+    hidden_outside.write_text("beam,lat,long\n2,44.0,2.0\n", encoding="utf-8")
+
+    settings_path = tmp_path / "settings.toml"
+    settings_path.write_text("[view_maps_3d]\n", encoding="utf-8")
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="demo_map_3d",
+        projects=["demo_map_3d"],
+        AGILAB_EXPORT_ABS=export_root,
+        share_root_path=lambda: share_root,
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): "flight",
+            ("sidebar.multiselect", module._vm3d_key("beam_files")): ["beam.csv"],
+        }
+    )
+    fake_st.session_state["env"] = env
+    fake_st.session_state[module._vm3d_key("df_files_selected")] = "flight.csv"
+    fake_st.session_state["beam_files"] = ["beam.csv"]
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [dataset_path])
+    monkeypatch.setattr(
+        module,
+        "find_files",
+        lambda base, *args, **kwargs: [beam_file, hidden_outside] if Path(base) == beamdir else [],
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, *args, **kwargs: pd.DataFrame({"beam": [1], "lat": [43.0], "long": [1.0]})
+        if Path(path) == beam_file
+        else pd.DataFrame({"metric": [1], "lat": [43.0], "long": [1.0], "alt": [1000.0]}),
+    )
+
+    module.page()
+
+    assert fake_st.session_state[module._vm3d_key("df_files_selected")] == ["flight.csv"]
+    assert fake_st.session_state[module._vm3d_key("beam_files")] == ["beam.csv"]
+    assert fake_st.session_state["beam_files"] == ["beam.csv"]
+
+
+def test_view_maps_3d_page_reclassifies_continuous_and_date_like_columns(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    export_root = tmp_path / "export"
+    datadir = export_root / "demo_map_3d"
+    datadir.mkdir(parents=True)
+    dataset_path = datadir / "flight.csv"
+    dataset_path.write_text("cluster_id,metric,lat,long,alt\n0,0,43.0,1.0,1000\n", encoding="utf-8")
+    dataset_df = pd.DataFrame(
+        {
+            "cluster_id": [idx % 2 for idx in range(25)],
+            "metric": list(range(25)),
+            "lat": [43.0 + idx * 0.01 for idx in range(25)],
+            "long": [1.0 + idx * 0.01 for idx in range(25)],
+            "alt": [1000 + idx * 10 for idx in range(25)],
+        }
+    )
+
+    settings_path = tmp_path / "settings.toml"
+    settings_path.write_text("[view_maps_3d]\n", encoding="utf-8")
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="demo_map_3d",
+        projects=["demo_map_3d"],
+        AGILAB_EXPORT_ABS=export_root,
+        share_root_path=lambda: tmp_path / "missing_share",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("multiselect", "Select Layers"): ["Terrain"],
+            ("slider", "Select the desired number of points:"): 25,
+            ("selectbox", "discrete"): "cluster_id",
+        }
+    )
+    fake_st.session_state["env"] = env
+    fake_st.session_state["coltype"] = "discrete"
+
+    original_to_datetime = module.pd.to_datetime
+
+    def _patched_to_datetime(value, *args, **kwargs):
+        if isinstance(value, pd.Series) and getattr(value, "name", "") == "cluster_id":
+            return pd.Series(pd.date_range("2024-01-01", periods=len(value), freq="D"), index=value.index)
+        return original_to_datetime(value, *args, **kwargs)
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [dataset_path])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: dataset_df.copy())
+    monkeypatch.setattr(module.pd, "to_datetime", _patched_to_datetime)
+
+    module.page()
+
+    assert fake_st.session_state[module._vm3d_key("opacity_slider")] == 0.8
+    assert any(fake_st.calls["pydeck_chart"])
