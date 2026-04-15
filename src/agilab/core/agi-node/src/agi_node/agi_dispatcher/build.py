@@ -233,7 +233,7 @@ def cleanup_links(links: list[Path]) -> None:
                     parent = parent.parent
                     continue
                 break
-        except Exception as e:
+        except OSError as e:
             AgiEnv.logger.warning(f"Failed to remove {link}: {e}")
 
 # Also scrub any hardcoded -L flags that point to nowhere
@@ -249,7 +249,7 @@ def _force_remove_tree(path: Path) -> None:
         return
     try:
         os.chmod(path, stat.S_IRWXU)
-    except Exception:
+    except OSError:
         pass
     if os.name != "nt":
         subprocess.run(["chmod", "-R", "u+rwx", str(path)], check=False, capture_output=True)
