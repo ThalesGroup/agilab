@@ -1770,6 +1770,37 @@ def test_prepare_bdist_egg_sources_changes_cwd_and_aggregates_links(tmp_path):
     assert links == [tmp_path / "pkg_a", tmp_path / "pkg_b"]
 
 
+def test_prepare_build_ext_command_validates_path_and_ensures_cython_source(tmp_path):
+    env = SimpleNamespace(worker_path="workers/demo_worker.py")
+    truncate_calls = []
+    ensure_calls = []
+
+    build_mod._prepare_build_ext_command(
+        env=env,
+        build_dir=str(tmp_path / "exports" / "demo_worker"),
+        truncate_path_at_segment_fn=lambda path: truncate_calls.append(path) or Path(path),
+        ensure_worker_cython_source_fn=lambda arg: ensure_calls.append(arg),
+    )
+
+    assert truncate_calls == [str(tmp_path / "exports" / "demo_worker")]
+    assert ensure_calls == [env]
+
+
+def test_prepare_build_ext_command_logs_and_reraises_truncate_failure(tmp_path):
+    errors = []
+
+    with pytest.raises(ValueError, match="bad path"):
+        build_mod._prepare_build_ext_command(
+            env=SimpleNamespace(worker_path="workers/demo_worker.py"),
+            build_dir=str(tmp_path / "invalid"),
+            truncate_path_at_segment_fn=lambda _path: (_ for _ in ()).throw(ValueError("bad path")),
+            ensure_worker_cython_source_fn=lambda _env: None,
+            log=SimpleNamespace(error=lambda *args: errors.append(" ".join(str(arg) for arg in args))),
+        )
+
+    assert errors == ["bad path"]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
