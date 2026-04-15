@@ -474,6 +474,34 @@ def _build_setuptools_argv(
     return [prog_name, command, flag, Path(home_abs) / out_arg / "dist"]
 
 
+def _ensure_build_readme(readme_path: Path | str = "README.md") -> Path:
+    readme = Path(readme_path)
+    if not readme.exists():
+        with open(readme, "w", encoding="utf-8") as f:
+            f.write("a README.md file is required")
+    return readme
+
+
+def _build_setup_kwargs(
+    *,
+    worker_module: str,
+    ext_modules: list,
+    find_packages_fn=None,
+) -> dict:
+    if find_packages_fn is None:
+        find_packages_fn = find_packages
+    return {
+        "name": worker_module,
+        "version": "0.1.0",
+        "package_dir": {"": "src"},
+        "packages": find_packages_fn(where="src"),
+        "include_package_data": True,
+        "package_data": {"": ["*.7z"]},
+        "ext_modules": ext_modules,
+        "zip_safe": False,
+    }
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -641,27 +669,8 @@ def main(argv: list[str] | None = None) -> None:
         for module in packages:
             links_created.extend(create_symlink_for_module(env, module))
 
-    # Discover packages and combine with custom modules
-    package_dir = {'': 'src'}
-    found_pkgs = find_packages(where='src')
-
-    # TO SUPPRESS WARNING
-    readme = "README.md"
-    if not Path(readme).exists():
-        with open(readme, "w", encoding="utf-8") as f:
-            f.write("a README.md file is required")
-
-    # Now call setup()
-    setup(
-        name=worker_module,
-        version="0.1.0",
-        package_dir=package_dir,
-        packages=found_pkgs,
-        include_package_data=True,
-        package_data={'': ['*.7z']},
-        ext_modules=ext_modules,
-        zip_safe=False,
-    )
+    _ensure_build_readme()
+    setup(**_build_setup_kwargs(worker_module=worker_module, ext_modules=ext_modules))
 
     # Post bdist_egg steps: unpack, decorator stripping, cleanup
     if cmd == 'bdist_egg' and (not env.is_worker_env):
