@@ -11,6 +11,40 @@ import tomlkit
 logger = logging.getLogger(__name__)
 
 
+def _iter_local_uv_source_paths(pyproject_path: Path) -> list[tuple[str, Path]]:
+    """Return existing local ``tool.uv.sources.*.path`` entries from a pyproject."""
+    try:
+        data = tomlkit.parse(pyproject_path.read_text())
+    except FileNotFoundError:
+        return []
+
+    sources = (
+        data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(data, dict)
+        else None
+    )
+    if not isinstance(sources, dict):
+        return []
+
+    resolved_entries: list[tuple[str, Path]] = []
+    for name, meta in sources.items():
+        if not isinstance(meta, dict):
+            continue
+        path_value = meta.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            continue
+
+        candidate = Path(path_value).expanduser()
+        if not candidate.is_absolute():
+            candidate = (pyproject_path.parent / candidate).resolve(strict=False)
+        else:
+            candidate = candidate.resolve(strict=False)
+        if candidate.exists():
+            resolved_entries.append((str(name), candidate))
+
+    return resolved_entries
+
+
 def envar_truthy(envars: dict, key: str) -> bool:
     """Return True when an env var value is truthy."""
     try:
@@ -160,6 +194,75 @@ def copy_uv_source_tree(src_path: Path, dest_path: Path) -> None:
         shutil.copy2(src_path, dest_path)
 
 
+def _stage_uv_source_dependency(
+    *,
+    name: str,
+    src_path: Path,
+    stage_root: Path,
+    log_rewrites: bool = False,
+    log: Any = logger,
+    seen: set[tuple[str, str]] | None = None,
+) -> Path:
+    """Stage one local uv source and recursively stage its nested local sources."""
+    staged_target = stage_root / name
+    stage_key = (name, str(src_path.resolve(strict=False)))
+    if seen is None:
+        seen = set()
+    if stage_key in seen:
+        return staged_target
+    seen.add(stage_key)
+
+    copy_uv_source_tree(src_path, staged_target)
+
+    source_pyproject = src_path / "pyproject.toml"
+    staged_pyproject = staged_target / "pyproject.toml"
+    if not source_pyproject.exists() or not staged_pyproject.exists():
+        return staged_target
+
+    try:
+        staged_data = tomlkit.parse(staged_pyproject.read_text())
+    except FileNotFoundError:
+        return staged_target
+
+    staged_sources = (
+        staged_data.get("tool", {}).get("uv", {}).get("sources")
+        if isinstance(staged_data, dict)
+        else None
+    )
+    if not isinstance(staged_sources, dict):
+        return staged_target
+
+    rewrites: list[tuple[str, str, str]] = []
+    for nested_name, nested_src_path in _iter_local_uv_source_paths(source_pyproject):
+        staged_nested_target = _stage_uv_source_dependency(
+            name=nested_name,
+            src_path=nested_src_path,
+            stage_root=stage_root,
+            log_rewrites=log_rewrites,
+            log=log,
+            seen=seen,
+        )
+        staged_meta = staged_sources.get(nested_name)
+        if not isinstance(staged_meta, dict):
+            continue
+        try:
+            new_path_value = os.path.relpath(staged_nested_target, start=staged_target)
+        except Exception:
+            new_path_value = str(staged_nested_target)
+        old_path_value = staged_meta.get("path")
+        if old_path_value != new_path_value:
+            staged_meta["path"] = new_path_value
+            rewrites.append((nested_name, str(old_path_value or ""), new_path_value))
+
+    if rewrites:
+        staged_pyproject.write_text(tomlkit.dumps(staged_data))
+        if log_rewrites:
+            for nested_name, old, new in rewrites:
+                log.info("Staged uv source '%s' path: %s -> %s", nested_name, old or "<unset>", new)
+
+    return staged_target
+
+
 def stage_uv_sources_for_copied_pyproject(
     *,
     src_pyproject: Path,
@@ -193,27 +296,20 @@ def stage_uv_sources_for_copied_pyproject(
     rewrites: list[tuple[str, str, str]] = []
     staged_any = False
 
-    for name, src_meta in src_sources.items():
-        if not isinstance(src_meta, dict):
-            continue
-        src_path_value = src_meta.get("path")
-        if not isinstance(src_path_value, str) or not src_path_value.strip():
-            continue
-
-        src_path = Path(src_path_value).expanduser()
-        if not src_path.is_absolute():
-            src_path = (src_pyproject.parent / src_path).resolve(strict=False)
-        else:
-            src_path = src_path.resolve(strict=False)
-        if not src_path.exists():
-            continue
-
+    seen: set[tuple[str, str]] = set()
+    for name, src_path in _iter_local_uv_source_paths(src_pyproject):
         dest_meta = dest_sources.get(name)
         if not isinstance(dest_meta, dict):
             continue
 
-        staged_target = staged_root / name
-        copy_uv_source_tree(src_path, staged_target)
+        staged_target = _stage_uv_source_dependency(
+            name=name,
+            src_path=src_path,
+            stage_root=staged_root,
+            log_rewrites=log_rewrites,
+            log=log,
+            seen=seen,
+        )
         staged_any = True
 
         try:

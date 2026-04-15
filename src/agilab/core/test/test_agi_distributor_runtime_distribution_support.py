@@ -5,8 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI, runtime_distribution_support
-import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
+from agi_cluster.agi_distributor import AGI, runtime_distribution_support, uv_source_support
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 
@@ -232,7 +231,7 @@ ilp_worker = { path = "../../PycharmProjects/thales_agilab/apps/ilp_project/src/
         await runtime_distribution_support.run_local(
             AGI,
             base_worker_cls=BaseWorker,
-            validate_worker_uv_sources_fn=agi_distributor_module._validate_worker_uv_sources,
+            validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
             run_async_fn=lambda *_args, **_kwargs: None,
         )
 

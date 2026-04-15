@@ -656,6 +656,47 @@ async def test_agi_serve_rejects_unsupported_base_worker():
 
 
 @pytest.mark.asyncio
+async def test_agi_serve_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "Sb3TrainerWorker"
+    env._base_worker_module = "sb3_trainer_worker"
+    fake_client = _FakeClient(["127.0.0.1:8787"])
+
+    async def _recover(_env, allow_stale_cleanup=False):
+        return False
+
+    async def _fake_start(_scheduler):
+        AGI._dask_client = fake_client
+
+    async def _fake_sync():
+        return None
+
+    async def _fake_stop():
+        return None
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+    monkeypatch.setattr(
+        agi_distributor_module,
+        "wait",
+        lambda futures, **_kwargs: (set(futures), set()),
+    )
+
+    started = await AGI.serve(
+        env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+        action="start",
+    )
+
+    assert started["status"] == "running"
+    assert AGI.install_worker_group == ["dag-worker"]
+
+
+@pytest.mark.asyncio
 async def test_agi_submit_requires_running_service():
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
     with pytest.raises(RuntimeError, match=r"Service is not running"):

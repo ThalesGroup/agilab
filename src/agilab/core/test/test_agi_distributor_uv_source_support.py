@@ -181,6 +181,66 @@ foo = { path = "../bad/foo" }
     assert any("Staged uv source" in str(entry[0]) for entry in logs if entry)
 
 
+def test_stage_uv_sources_for_copied_pyproject_stages_nested_sources(tmp_path):
+    src_dir = tmp_path / "src" / "worker"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    deps_dir = src_dir.parent / "deps"
+    trainer_dir = deps_dir / "sb3_trainer_project"
+    sat_dir = deps_dir / "sat_trajectory_project"
+    trainer_dir.mkdir(parents=True, exist_ok=True)
+    sat_dir.mkdir(parents=True, exist_ok=True)
+
+    (trainer_dir / "pyproject.toml").write_text(
+        """
+[project]
+name = "sb3_trainer_project"
+
+[tool.uv.sources."sat-trajectory-project"]
+path = "../sat_trajectory_project"
+""".strip(),
+        encoding="utf-8",
+    )
+    (trainer_dir / "trainer.py").write_text("TRAINER = 1\n", encoding="utf-8")
+    (sat_dir / "pyproject.toml").write_text("[project]\nname='sat_trajectory_project'\n", encoding="utf-8")
+    (sat_dir / "sat.py").write_text("SAT = 1\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dst_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text(
+        """
+[tool.uv.sources]
+sb3_trainer_project = { path = "../deps/sb3_trainer_project" }
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        """
+[tool.uv.sources]
+sb3_trainer_project = { path = "../bad/sb3_trainer_project" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    staged_entries = uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+        stage_root=dst_dir,
+    )
+
+    staged_root = dst_dir / "_uv_sources"
+    staged_trainer = staged_root / "sb3_trainer_project"
+    staged_sat = staged_root / "sat-trajectory-project"
+
+    assert staged_entries == [staged_root]
+    assert staged_trainer.exists()
+    assert staged_sat.exists()
+    assert 'sb3_trainer_project = { path = "_uv_sources/sb3_trainer_project" }' in dst_pyproject.read_text(encoding="utf-8")
+    assert 'path = "../sat-trajectory-project"' in (staged_trainer / "pyproject.toml").read_text(encoding="utf-8")
+
+
 def test_rewrite_uv_sources_paths_for_copied_pyproject_rewrites_invalid_paths_and_keeps_valid_ones(tmp_path, monkeypatch):
     src_dir = tmp_path / "src"
     dest_dir = tmp_path / "dest"

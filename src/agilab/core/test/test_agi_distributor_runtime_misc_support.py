@@ -233,6 +233,72 @@ def test_load_capacity_predictor_handles_legacy_module_error(tmp_path):
     assert "numpy.core.numeric" in calls["warnings"][0][2]
 
 
+def test_bootstrap_capacity_predictor_sets_paths_and_logs_missing_model(tmp_path):
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(resources_path=tmp_path / "resources")
+    env.resources_path.mkdir(parents=True, exist_ok=True)
+    calls = {"info": []}
+    log = SimpleNamespace(info=lambda message, path: calls["info"].append((message, path)))
+
+    predictor = runtime_misc_support.bootstrap_capacity_predictor(
+        agi_cls,
+        env,
+        missing_log_message="Capacity model not found at %s; skipping bootstrap.",
+        log=log,
+    )
+
+    assert predictor is None
+    assert agi_cls._capacity_predictor is None
+    assert agi_cls._capacity_data_file == env.resources_path / "balancer_df.csv"
+    assert agi_cls._capacity_model_file == env.resources_path / "balancer_model.pkl"
+    assert calls["info"] == [
+        ("Capacity model not found at %s; skipping bootstrap.", agi_cls._capacity_model_file)
+    ]
+
+
+def test_resolve_install_worker_group_supports_sb3_alias_without_import():
+    assert (
+        runtime_misc_support.resolve_install_worker_group(
+            "Sb3TrainerWorker",
+            base_worker_module="sb3_trainer_worker",
+        )
+        == "dag-worker"
+    )
+
+
+def test_resolve_install_worker_group_walks_inherited_worker_mro():
+    class DagWorker:
+        pass
+
+    class CustomWorker(DagWorker):
+        pass
+
+    fake_module = SimpleNamespace(CustomWorker=CustomWorker)
+
+    assert (
+        runtime_misc_support.resolve_install_worker_group(
+            "CustomWorker",
+            base_worker_module="custom_worker",
+            import_module_fn=lambda _name: fake_module,
+        )
+        == "dag-worker"
+    )
+
+
+def test_configure_install_worker_group_sets_resolved_alias_on_agi_cls():
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(
+        base_worker_cls="Sb3TrainerWorker",
+        _base_worker_module="sb3_trainer_worker",
+    )
+
+    worker_group = runtime_misc_support.configure_install_worker_group(agi_cls, env)
+
+    assert worker_group == "dag-worker"
+    assert agi_cls.install_worker_group == ["dag-worker"]
+    assert agi_cls.agi_workers["DagWorker"] == "dag-worker"
+
+
 def test_hardware_supports_rapids_true_and_false(monkeypatch):
     monkeypatch.setattr(runtime_misc_support.subprocess, "run", lambda *_a, **_k: None)
     assert runtime_misc_support.hardware_supports_rapids() is True

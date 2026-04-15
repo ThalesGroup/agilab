@@ -14,6 +14,8 @@ def _reset_agi_run_state():
     fields = [
         "_run_type",
         "_best_mode",
+        "agi_workers",
+        "install_worker_group",
         "verbose",
     ]
     snapshot = {field: getattr(AGI, field, None) for field in fields}
@@ -132,6 +134,28 @@ async def test_agi_run_rejects_unsupported_base_worker_class(monkeypatch):
             workers={"127.0.0.1": 1},
             mode=AGI.DASK_MODE,
         )
+
+
+@pytest.mark.asyncio
+async def test_agi_run_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "Sb3TrainerWorker"
+    env._base_worker_module = "sb3_trainer_worker"
+
+    async def _fake_main(_scheduler):
+        return {"status": "ok"}
+
+    monkeypatch.setattr(AGI, "_main", staticmethod(_fake_main))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+
+    result = await AGI.run(
+        env,
+        workers={"127.0.0.1": 1},
+        mode=AGI.DASK_MODE,
+    )
+
+    assert result == {"status": "ok"}
+    assert AGI.install_worker_group == ["dag-worker"]
 
 
 @pytest.mark.asyncio

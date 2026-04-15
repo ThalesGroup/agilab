@@ -28,12 +28,24 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-core_root = Path(__file__).parents[1]
-node_src = str(core_root / 'core/node/src')
-env_src = core_root / 'core/agi-env/src'
-sys.path.insert(0, node_src)
-if env_src.exists():
-    sys.path.insert(0, str(env_src))
+def _inject_source_core_paths(script_path: str | os.PathLike[str], sys_path: list[str]) -> None:
+    repo_root = Path(script_path).resolve().parents[3]
+    core_root = repo_root / "src" / "agilab" / "core"
+    candidates = [
+        core_root / "agi-env" / "src",
+        core_root / "agi-node" / "src",
+        core_root / "agi-cluster" / "src",
+        core_root / "agi-core" / "src",
+    ]
+    for candidate in reversed(candidates):
+        if not candidate.exists():
+            continue
+        path_str = str(candidate)
+        if path_str not in sys_path:
+            sys_path.insert(0, path_str)
+
+
+_inject_source_core_paths(__file__, sys.path)
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 

@@ -10,17 +10,25 @@ from agi_env.share_runtime_support import python_supports_free_threading
 logger = logging.getLogger(__name__)
 
 
-def _worker_packages(baseworker: str) -> str:
+def _worker_packages(baseworker: str | None, *, worker_group: str | None = None) -> str:
     packages = "agi_dispatcher, "
-    if baseworker.startswith("Agent"):
+    if worker_group == "dag-worker":
+        return packages + "dag_worker"
+    if worker_group == "pandas-worker":
+        return packages + "pandas_worker"
+    if worker_group == "polars-worker":
+        return packages + "polars_worker"
+    if worker_group == "fireducks-worker":
+        return packages + "fireducks_worker"
+    if isinstance(baseworker, str) and baseworker.startswith("Agent"):
         packages += "agent_worker"
-    elif baseworker.startswith("Dag"):
+    elif isinstance(baseworker, str) and baseworker.startswith("Dag"):
         packages += "dag_worker"
-    elif baseworker.startswith("Pandas"):
+    elif isinstance(baseworker, str) and baseworker.startswith("Pandas"):
         packages += "pandas_worker"
-    elif baseworker.startswith("Polars"):
+    elif isinstance(baseworker, str) and baseworker.startswith("Polars"):
         packages += "polars_worker"
-    elif baseworker.startswith("Fireducks"):
+    elif isinstance(baseworker, str) and baseworker.startswith("Fireducks"):
         packages += "fireducks_worker"
     return packages
 
@@ -44,6 +52,34 @@ def _worker_pyproject_source(env: Any) -> Path:
     if not worker_pyproject_src.exists():
         raise FileNotFoundError(f"Missing pyproject.toml for worker environment: {worker_pyproject_src}")
     return worker_pyproject_src
+
+
+def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]:
+    commands: list[str] = []
+    core_packages = (
+        ("agi-env", getattr(env, "agi_env", None)),
+        ("agi-node", getattr(env, "agi_node", None)),
+    )
+    for package_name, source_path in core_packages:
+        if getattr(env, "is_source_env", False) and source_path:
+            commands.append(f"{uv} --project {app_path_arg} pip install -e '{source_path}'")
+        else:
+            commands.append(f"{uv} --project {app_path_arg} pip install {package_name} ")
+    return commands
+
+
+def _build_module_command(env: Any) -> str:
+    if getattr(env, "is_source_env", False):
+        agi_node_root = getattr(env, "agi_node", None)
+        if agi_node_root:
+            candidates = [
+                Path(agi_node_root) / "agi_dispatcher" / "build.py",
+                Path(agi_node_root) / "src" / "agi_node" / "agi_dispatcher" / "build.py",
+            ]
+            for build_script in candidates:
+                if build_script.exists():
+                    return f"python \"{build_script}\""
+    return f"python -m {env.setup_app_module}"
 
 
 def _stage_worker_build_project(
@@ -124,14 +160,14 @@ async def build_lib_local(
 ) -> None:
     env = agi_cls.env
     is_cy = agi_cls._mode & agi_cls.CYTHON_MODE
-    packages = _worker_packages(env.base_worker_cls)
+    install_worker_group = getattr(agi_cls, "install_worker_group", None)
+    worker_group = install_worker_group[0] if install_worker_group else None
+    packages = _worker_packages(env.base_worker_cls, worker_group=worker_group)
 
     app_path = env.active_app
     wenv_abs = env.wenv_abs
-    module = env.setup_app_module
-
     uv = _project_uv(env)
-    module_cmd = f"python -m {module}"
+    module_cmd = _build_module_command(env)
     app_path_arg = f"\"{app_path}\""
     wenv_arg = f"\"{wenv_abs}\""
 
@@ -143,11 +179,8 @@ async def build_lib_local(
         validate_worker_uv_sources_fn=validate_worker_uv_sources_fn,
     )
 
-    cmd = f"{uv} --project {app_path_arg} pip install agi-env "
-    await run_fn(cmd, app_path)
-
-    cmd = f"{uv} --project {app_path_arg} pip install agi-node "
-    await run_fn(cmd, app_path)
+    for cmd in _core_install_commands(env=env, uv=uv, app_path_arg=app_path_arg):
+        await run_fn(cmd, app_path)
 
     cmd = _bdist_egg_command(
         uv=uv,

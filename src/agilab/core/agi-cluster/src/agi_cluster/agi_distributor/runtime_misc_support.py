@@ -1,6 +1,7 @@
 import asyncio
 import getpass
 import humanize
+import importlib
 import inspect
 import json
 import pickle
@@ -20,6 +21,21 @@ _CAPACITY_LOAD_EXCEPTIONS = (
     ImportError,
     OSError,
     pickle.PickleError,
+)
+_SUPPORTED_INSTALL_WORKERS = {
+    "AgiDataWorker": "pandas-worker",
+    "PolarsWorker": "polars-worker",
+    "PandasWorker": "pandas-worker",
+    "FireducksWorker": "fireducks-worker",
+    "DagWorker": "dag-worker",
+}
+_DERIVED_WORKER_BASES = {
+    "Sb3TrainerWorker": "DagWorker",
+}
+_WORKER_RESOLUTION_EXCEPTIONS = (
+    AttributeError,
+    ImportError,
+    ModuleNotFoundError,
 )
 
 
@@ -179,6 +195,112 @@ def load_capacity_predictor(
         if retrain_fn is not None:
             retrain_fn()
         return None
+
+
+def bootstrap_capacity_predictor(
+    agi_cls: Any,
+    env: Any,
+    *,
+    retrain_fn: Optional[Callable[[], Any]] = None,
+    load_fn: Callable[[Any], Any] = pickle.load,
+    missing_log_message: str | None = None,
+    log: Any = None,
+) -> Any:
+    agi_cls._capacity_data_file = env.resources_path / "balancer_df.csv"
+    agi_cls._capacity_model_file = env.resources_path / "balancer_model.pkl"
+    model_path = Path(agi_cls._capacity_model_file)
+    predictor = load_capacity_predictor(
+        model_path,
+        load_fn=load_fn,
+        retrain_fn=retrain_fn,
+        log=log,
+    )
+    agi_cls._capacity_predictor = predictor
+    if (
+        predictor is None
+        and retrain_fn is None
+        and missing_log_message
+        and not model_path.is_file()
+        and log is not None
+    ):
+        log.info(missing_log_message, model_path)
+    return predictor
+
+
+def install_worker_groups() -> dict[str, str]:
+    return dict(_SUPPORTED_INSTALL_WORKERS)
+
+
+def resolve_install_worker_group(
+    base_worker_cls: str | None,
+    *,
+    base_worker_module: str | None = None,
+    agi_workers: dict[str, str] | None = None,
+    import_module_fn: Callable[[str], Any] = importlib.import_module,
+) -> str | None:
+    if not base_worker_cls:
+        return None
+
+    worker_groups = dict(_SUPPORTED_INSTALL_WORKERS if agi_workers is None else agi_workers)
+    resolved = worker_groups.get(base_worker_cls)
+    if resolved is not None:
+        return resolved
+
+    alias = _DERIVED_WORKER_BASES.get(base_worker_cls)
+    if alias is not None:
+        return worker_groups.get(alias)
+
+    if not base_worker_module:
+        return None
+
+    try:
+        worker_module = import_module_fn(base_worker_module)
+        worker_cls = getattr(worker_module, base_worker_cls)
+    except _WORKER_RESOLUTION_EXCEPTIONS:
+        return None
+
+    for ancestor in getattr(worker_cls, "__mro__", ())[1:]:
+        ancestor_name = getattr(ancestor, "__name__", "")
+        if not ancestor_name:
+            continue
+        resolved = worker_groups.get(_DERIVED_WORKER_BASES.get(ancestor_name, ancestor_name))
+        if resolved is not None:
+            return resolved
+
+    return None
+
+
+def configure_install_worker_group(
+    agi_cls: Any,
+    env: Any,
+    *,
+    agi_workers: dict[str, str] | None = None,
+    import_module_fn: Callable[[str], Any] = importlib.import_module,
+) -> str:
+    worker_groups = dict(_SUPPORTED_INSTALL_WORKERS if agi_workers is None else agi_workers)
+    agi_cls.agi_workers = worker_groups
+    base_worker_cls = getattr(env, "base_worker_cls", None)
+    if not base_worker_cls:
+        target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
+        worker_path = getattr(env, "worker_path", None) or "<worker path>"
+        supported = ", ".join(sorted(worker_groups.keys()))
+        raise ValueError(
+            f"Missing {target_worker_class} definition; expected {worker_path}. "
+            f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
+        )
+    worker_group = resolve_install_worker_group(
+        base_worker_cls,
+        base_worker_module=getattr(env, "_base_worker_module", None),
+        agi_workers=worker_groups,
+        import_module_fn=import_module_fn,
+    )
+    if worker_group is None:
+        supported = ", ".join(sorted(worker_groups.keys()))
+        raise ValueError(
+            f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
+        )
+    agi_cls.install_worker_group = [worker_group]
+    return worker_group
 
 
 def hardware_supports_rapids(

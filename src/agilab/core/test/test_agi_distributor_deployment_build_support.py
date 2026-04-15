@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import pytest
 
 from agi_cluster.agi_distributor import AGI
-import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
 import agi_cluster.agi_distributor.deployment_build_support as deployment_build_support
+from agi_cluster.agi_distributor import uv_source_support
 
 
 @pytest.fixture(autouse=True)
@@ -15,6 +15,7 @@ def _reset_agi_build_state():
         "_mode": getattr(AGI, "_mode", None),
         "_dask_client": getattr(AGI, "_dask_client", None),
         "agi_workers": getattr(AGI, "agi_workers", None),
+        "install_worker_group": getattr(AGI, "install_worker_group", None),
         "verbose": AGI.verbose,
     }
     try:
@@ -29,6 +30,7 @@ def _reset_agi_build_state():
         AGI._mode = snapshot["_mode"]
         AGI._dask_client = snapshot["_dask_client"]
         AGI.agi_workers = snapshot["agi_workers"]
+        AGI.install_worker_group = snapshot["install_worker_group"]
         AGI.verbose = snapshot["verbose"]
 
 
@@ -45,6 +47,31 @@ def _reset_agi_build_state():
 )
 def test_worker_packages_maps_supported_workers(baseworker, expected):
     assert deployment_build_support._worker_packages(baseworker) == expected
+
+
+def test_worker_packages_prefers_resolved_worker_group_for_derived_worker():
+    assert (
+        deployment_build_support._worker_packages(
+            "Sb3TrainerWorker",
+            worker_group="dag-worker",
+        )
+        == "agi_dispatcher, dag_worker"
+    )
+
+
+def test_build_module_command_prefers_source_build_script(tmp_path):
+    agi_node_path = tmp_path / "agi-node"
+    build_script = agi_node_path / "src" / "agi_node" / "agi_dispatcher" / "build.py"
+    build_script.parent.mkdir(parents=True, exist_ok=True)
+    build_script.write_text("print('build')\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=True,
+        agi_node=agi_node_path,
+        setup_app_module="agi_node.agi_dispatcher.build",
+    )
+
+    assert deployment_build_support._build_module_command(env) == f'python "{build_script}"'
 
 
 @pytest.mark.parametrize(
@@ -81,6 +108,10 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
     manager_pyproject.write_text("[project]\nname='manager'\n", encoding="utf-8")
     uvproject = tmp_path / "uv.toml"
     uvproject.write_text("[tool.uv]\n", encoding="utf-8")
+    agi_env_path = tmp_path / "agi-env"
+    agi_env_path.mkdir(parents=True, exist_ok=True)
+    agi_node_path = tmp_path / "agi-node"
+    agi_node_path.mkdir(parents=True, exist_ok=True)
     return SimpleNamespace(
         wenv_abs=wenv_abs,
         base_worker_cls=base_worker_cls,
@@ -92,6 +123,9 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
         worker_pyproject=worker_pyproject,
         manager_pyproject=manager_pyproject,
         uvproject=uvproject,
+        agi_env=agi_env_path,
+        agi_node=agi_node_path,
+        is_source_env=False,
         verbose=0,
         pyvers_worker="3.13",
     )
@@ -120,9 +154,9 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
 
     await deployment_build_support.build_lib_local(
         AGI,
-        ensure_optional_extras_fn=agi_distributor_module._ensure_optional_extras,
-        stage_uv_sources_fn=agi_distributor_module._stage_uv_sources_for_copied_pyproject,
-        validate_worker_uv_sources_fn=agi_distributor_module._validate_worker_uv_sources,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
         run_fn=_fake_run,
     )
 
@@ -151,14 +185,42 @@ async def test_build_lib_local_uses_free_threading_uv_prefix(monkeypatch, tmp_pa
 
     await deployment_build_support.build_lib_local(
         AGI,
-        ensure_optional_extras_fn=agi_distributor_module._ensure_optional_extras,
-        stage_uv_sources_fn=agi_distributor_module._stage_uv_sources_for_copied_pyproject,
-        validate_worker_uv_sources_fn=agi_distributor_module._validate_worker_uv_sources,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
         run_fn=_fake_run,
     )
 
     assert commands
     assert all(cmd.startswith("env TEST=1 PYTHON_GIL=0 uv ") for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_uses_editable_core_installs_in_source_env(tmp_path):
+    env = _build_env(tmp_path)
+    env.is_source_env = True
+    (env.wenv_abs / "dist" / "demo.egg").write_text("egg", encoding="utf-8")
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    AGI.env = env
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._dask_client = None
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+
+    assert any(f"pip install -e '{env.agi_env}'" in cmd for cmd, _ in commands)
+    assert any(f"pip install -e '{env.agi_node}'" in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio
@@ -182,9 +244,9 @@ async def test_build_lib_local_cython_copies_worker_lib(tmp_path):
 
     await deployment_build_support.build_lib_local(
         AGI,
-        ensure_optional_extras_fn=agi_distributor_module._ensure_optional_extras,
-        stage_uv_sources_fn=agi_distributor_module._stage_uv_sources_for_copied_pyproject,
-        validate_worker_uv_sources_fn=agi_distributor_module._validate_worker_uv_sources,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
         run_fn=_fake_run,
     )
 
@@ -210,13 +272,40 @@ async def test_build_lib_local_selects_fireducks_package(tmp_path):
 
     await deployment_build_support.build_lib_local(
         AGI,
-        ensure_optional_extras_fn=agi_distributor_module._ensure_optional_extras,
-        stage_uv_sources_fn=agi_distributor_module._stage_uv_sources_for_copied_pyproject,
-        validate_worker_uv_sources_fn=agi_distributor_module._validate_worker_uv_sources,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
         run_fn=_fake_run,
     )
 
     assert any("fireducks_worker" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_uses_resolved_group_for_derived_worker(tmp_path):
+    env = _build_env(tmp_path, base_worker_cls="Sb3TrainerWorker")
+    (env.wenv_abs / "dist" / "demo.egg").write_text("egg", encoding="utf-8")
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    AGI.env = env
+    AGI._mode = 0
+    AGI._dask_client = SimpleNamespace(upload_file=lambda *_args, **_kwargs: None)
+    AGI.agi_workers = {"dag": "dag-worker"}
+    AGI.install_worker_group = ["dag-worker"]
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+
+    assert any("dag_worker" in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio

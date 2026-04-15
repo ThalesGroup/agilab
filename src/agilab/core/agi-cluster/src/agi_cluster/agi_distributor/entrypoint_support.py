@@ -71,43 +71,16 @@ def _initialize_run_state(
 
 
 def _load_capacity_predictor(agi_cls: Any, env: Any) -> None:
-    agi_cls._capacity_data_file = env.resources_path / "balancer_df.csv"
-    agi_cls._capacity_model_file = env.resources_path / "balancer_model.pkl"
-    capacity_model_file = Path(agi_cls._capacity_model_file)
-    predictor = runtime_misc_support.load_capacity_predictor(
-        capacity_model_file,
+    runtime_misc_support.bootstrap_capacity_predictor(
+        agi_cls,
+        env,
         retrain_fn=lambda: agi_cls._train_capacity(Path(env.home_abs)),
         log=logger,
     )
-    if predictor is not None:
-        agi_cls._capacity_predictor = predictor
 
 
 def _resolve_install_worker_group(agi_cls: Any, env: Any) -> None:
-    agi_workers = {
-        "AgiDataWorker": "pandas-worker",
-        "PolarsWorker": "polars-worker",
-        "PandasWorker": "pandas-worker",
-        "FireducksWorker": "fireducks-worker",
-        "DagWorker": "dag-worker",
-    }
-    agi_cls.agi_workers = agi_workers
-    base_worker_cls = getattr(env, "base_worker_cls", None)
-    if not base_worker_cls:
-        target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
-        worker_path = getattr(env, "worker_path", None) or "<worker path>"
-        supported = ", ".join(sorted(agi_workers.keys()))
-        raise ValueError(
-            f"Missing {target_worker_class} definition; expected {worker_path}. "
-            f"Ensure the app worker exists and inherits from a supported base worker ({supported})."
-        )
-    try:
-        agi_cls.install_worker_group = [agi_workers[base_worker_cls]]
-    except KeyError as exc:
-        supported = ", ".join(sorted(agi_workers.keys()))
-        raise ValueError(
-            f"Unsupported base worker class '{base_worker_cls}'. Supported values: {supported}."
-        ) from exc
+    runtime_misc_support.configure_install_worker_group(agi_cls, env)
 
 
 async def run(
