@@ -1533,6 +1533,42 @@ def test_cythonize_worker_extension_passes_quiet_and_directives(tmp_path):
     ]
 
 
+def test_build_remove_decorators_command_quotes_worker_path():
+    command = build_mod._build_remove_decorators_command("workers/demo worker.py")
+
+    assert "remove_decorators" in command
+    assert '--worker_path "workers/demo worker.py"' in command
+
+
+def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
+    out_dir = tmp_path / "worker_home" / "demo_project"
+    dist_dir = out_dir / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    egg_path = dist_dir / "demo_worker-0.1.0.egg"
+    with ZipFile(egg_path, "w") as zf:
+        zf.writestr("demo_worker/__init__.py", "")
+
+    env = SimpleNamespace(worker_path="workers/demo_worker.py")
+    links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
+    cleanup_calls = []
+    os_calls = []
+    log_lines = []
+
+    build_mod._postprocess_bdist_egg_output(
+        env=env,
+        out_dir=out_dir,
+        links_created=links_created,
+        cleanup_links_fn=lambda links: cleanup_calls.append(list(links)),
+        os_system_fn=lambda cmd: os_calls.append(cmd) or 0,
+        log=SimpleNamespace(info=lambda message: log_lines.append(message)),
+    )
+
+    assert (out_dir / "src" / "demo_worker" / "__init__.py").exists()
+    assert any("mkdir" in line for line in log_lines)
+    assert os_calls and "remove_decorators" in os_calls[0]
+    assert cleanup_calls == [links_created]
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))

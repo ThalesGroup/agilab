@@ -321,6 +321,62 @@ def _cythonize_worker_extension(
     )
 
 
+def _unpack_worker_eggs(
+    *,
+    dist_dir: Path,
+    dest_src: Path,
+    zip_cls=None,
+    log=None,
+) -> None:
+    if zip_cls is None:
+        zip_cls = ZipFile
+    if log is None:
+        log = AgiEnv.logger or logger
+    log.info(f"mkdir {dest_src}")
+    dest_src.mkdir(exist_ok=True, parents=True)
+    for egg in dist_dir.glob("*.egg"):
+        log.info(f"Unpacking {egg} -> {dest_src}")
+        with zip_cls(egg, "r") as zf:
+            zf.extractall(dest_src)
+
+
+def _build_remove_decorators_command(worker_path: str) -> str:
+    return (
+        "uv -q run python -m agi_node.agi_dispatcher.pre_install remove_decorators "
+        f'--worker_path "{worker_path}" --verbose'
+    )
+
+
+def _postprocess_bdist_egg_output(
+    *,
+    env,
+    out_dir: Path,
+    links_created: list[Path],
+    cleanup_links_fn=None,
+    os_system_fn=None,
+    zip_cls=None,
+    log=None,
+) -> None:
+    if cleanup_links_fn is None:
+        cleanup_links_fn = cleanup_links
+    if os_system_fn is None:
+        os_system_fn = os.system
+    if zip_cls is None:
+        zip_cls = ZipFile
+    if log is None:
+        log = AgiEnv.logger or logger
+    dest_src = out_dir / "src"
+    _unpack_worker_eggs(dist_dir=out_dir / "dist", dest_src=dest_src, zip_cls=zip_cls, log=log)
+
+    cmd = _build_remove_decorators_command(env.worker_path)
+    log.info(f"Stripping decorators via:\n  {cmd}")
+    os_system_fn(cmd)
+
+    if links_created:
+        cleanup_links_fn(links_created)
+        log.info("Cleanup of created symlinks/files done.")
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -543,27 +599,11 @@ def main(argv: list[str] | None = None) -> None:
 
     # Post bdist_egg steps: unpack, decorator stripping, cleanup
     if cmd == 'bdist_egg' and (not env.is_worker_env):
-        out_dir = Path(env.home_abs) / out_arg
-        dest_src =  out_dir / "src"
-        logger.info(f"mkdir {dest_src}")
-        dest_src.mkdir(exist_ok=True, parents=True)
-        for egg in (out_dir / 'dist').glob("*.egg"):
-            AgiEnv.logger.info(f"Unpacking {egg} -> {dest_src}")
-            with ZipFile(egg, 'r') as zf:
-                zf.extractall(dest_src)
-
-        worker_py = dest_src / worker_module / f"{worker_module}.py"
-        cmd = (
-            f"uv -q run python -m agi_node.agi_dispatcher.pre_install remove_decorators "
-            f"--worker_path \"{env.worker_path}\" --verbose"
+        _postprocess_bdist_egg_output(
+            env=env,
+            out_dir=Path(env.home_abs) / out_arg,
+            links_created=links_created,
         )
-        AgiEnv.logger.info(f"Stripping decorators via:\n  {cmd}")
-        os.system(cmd)
-
-        # Cleanup copied modules
-        if links_created:
-            cleanup_links(links_created)
-            AgiEnv.logger.info("Cleanup of created symlinks/files done.")
 
 if __name__ == "__main__":
     main()
