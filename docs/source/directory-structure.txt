@@ -4,6 +4,16 @@ apps/
     builtin/
         flight_project/
             .venv/ [excluded]
+            agilab/
+                core/
+                    agi-env/
+                        src/
+                            agi_env/
+                                resources/
+                                    .agilab/
+                                        [max depth reached]
+                                    mistral_offline/
+                                        [max depth reached]
             Modules/ [excluded]
             src/
                 __pycache__/ [excluded]
@@ -25,10 +35,22 @@ apps/
             test/
             .coverage
             .gitignore
+            classes_flight.dot
+            packages_flight.dot
             pyproject.toml
             README.md
         mycode_project/
             .venv/ [excluded]
+            agilab/
+                core/
+                    agi-env/
+                        src/
+                            agi_env/
+                                resources/
+                                    .agilab/
+                                        [max depth reached]
+                                    mistral_offline/
+                                        [max depth reached]
             Modules/ [excluded]
             src/
                 mycode/
@@ -181,6 +203,8 @@ apps-pages/
 core/
     __pycache__/ [excluded]
     agi-cluster/
+        .venv/ [excluded]
+        __pycache__/ [excluded]
         src/
             agi_cluster/
                 agi_distributor/
@@ -198,6 +222,7 @@ core/
         README.md
         uv_config.toml
     agi-core/
+        .venv/ [excluded]
         src/
             agi_core/
                 __pycache__/ [excluded]
@@ -207,6 +232,7 @@ core/
         README.md
     agi-env/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         __pycache__/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -310,6 +336,7 @@ core/
         README.md
         uv_config.toml
     agi-node/
+        .venv/ [excluded]
         src/
             agi_node/
                 __pycache__/ [excluded]
@@ -351,12 +378,15 @@ core/
         __pycache__/ [excluded]
         __init__.py
         test_agi_core_smoke.py
+        test_agi_dispatcher_scripts.py
         test_agi_distributor.py
+        test_agi_distributor_cli.py
         test_base_worker.py
         test_dag_worker.py
         test_fireducks_worker.py
         test_pandas_worker.py
         test_polars_worker.py
+        test_utils.py
         test_work_dispatcher.py
     tools/
         __init__.py
