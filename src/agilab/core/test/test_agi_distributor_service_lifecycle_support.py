@@ -184,6 +184,64 @@ def test_wrap_worker_chunk_handles_non_list_and_out_of_range_index():
     assert wrapped["worker_idx"] == 8
 
 
+def test_prepare_service_worker_args_sets_queue_bound_service_args(tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    AGI._args = {"alpha": 1}
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    worker_args = service_lifecycle_support._prepare_service_worker_args(AGI, env)
+
+    assert worker_args["alpha"] == 1
+    assert worker_args["_agi_service_mode"] is True
+    assert worker_args["_agi_service_queue_dir"] == str(AGI._service_queue_root)
+    assert AGI._service_worker_args == worker_args
+
+
+def test_submit_service_worker_inits_submits_new_for_each_worker(tmp_path):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    client = _FakeClient(["127.0.0.1:8787", "127.0.0.1:8788"])
+    AGI._args = {"alpha": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 3
+    AGI._service_workers = ["127.0.0.1:8787"]
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    initialized = service_lifecycle_support._submit_service_worker_inits(
+        AGI,
+        env,
+        client,
+        ["127.0.0.1:8787", "127.0.0.1:8788"],
+        key_prefix="agi-test",
+    )
+
+    assert initialized == ["127.0.0.1:8787", "127.0.0.1:8788"]
+    assert AGI._service_workers == ["127.0.0.1:8787", "127.0.0.1:8788"]
+    submit_calls = [entry for entry in client.submissions if entry["fn"] == "_new"]
+    assert len(submit_calls) == 2
+    assert submit_calls[0]["kwargs"]["worker_id"] == 0
+    assert submit_calls[1]["kwargs"]["worker_id"] == 1
+    assert submit_calls[1]["kwargs"]["key"] == "agi-test-init-mycode-127.0.0.1-8788"
+
+
+def test_submit_service_loops_returns_worker_future_map():
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    client = _FakeClient(["127.0.0.1:8787"])
+    AGI._service_poll_interval = 2.5
+
+    futures = service_lifecycle_support._submit_service_loops(
+        AGI,
+        env,
+        client,
+        ["127.0.0.1:8787"],
+        key_prefix="agi-loop",
+    )
+
+    assert list(futures.keys()) == ["127.0.0.1:8787"]
+    loop_call = [entry for entry in client.submissions if entry["fn"] == "loop"][0]
+    assert loop_call["kwargs"]["poll_interval"] == 2.5
+    assert loop_call["kwargs"]["key"] == "agi-loop-loop-mycode-127.0.0.1-8787"
+
+
 @pytest.mark.asyncio
 async def test_service_restart_workers_returns_empty_for_empty_input():
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
