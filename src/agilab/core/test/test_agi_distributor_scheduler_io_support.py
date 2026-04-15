@@ -82,6 +82,18 @@ def test_get_scheduler_uses_workers_first_ip_and_random_port():
     assert agi_cls._scheduler == "10.0.0.2:6123"
 
 
+def test_get_scheduler_uses_localhost_when_no_workers_are_defined():
+    agi_cls = SimpleNamespace(_workers=None, _scheduler=None)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        None,
+        find_free_port_fn=lambda: 6123,
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("127.0.0.1", 6123)
+    assert agi_cls._scheduler == "127.0.0.1:6123"
+
+
 def test_get_scheduler_accepts_dict_with_explicit_port():
     agi_cls = SimpleNamespace(_workers=None, _scheduler=None)
     ip, port = scheduler_io_support.get_scheduler(
@@ -92,6 +104,18 @@ def test_get_scheduler_accepts_dict_with_explicit_port():
     )
     assert (ip, port) == ("10.1.1.1", 7788)
     assert agi_cls._scheduler == "10.1.1.1:7788"
+
+
+def test_get_scheduler_accepts_explicit_string_ip():
+    agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        "192.168.0.10",
+        find_free_port_fn=lambda: 7001,
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("192.168.0.10", 7001)
+    assert agi_cls._scheduler == "192.168.0.10:7001"
 
 
 def test_get_scheduler_rejects_invalid_type():
@@ -171,6 +195,80 @@ def test_read_stderr_channel_handles_recv_exception():
     )
 
     assert agi_cls._worker_init_error is False
+
+
+def test_read_stderr_channel_breaks_cleanly_on_empty_chunk():
+    class _Chan:
+        def recv_stderr_ready(self):
+            return True
+
+        def recv_stderr(self, _size):
+            return b""
+
+        def exit_status_ready(self):
+            return False
+
+    agi_cls = SimpleNamespace(_worker_init_error=False)
+
+    scheduler_io_support.read_stderr(
+        agi_cls,
+        SimpleNamespace(channel=_Chan()),
+        sleep_fn=lambda *_a, **_k: None,
+    )
+
+    assert agi_cls._worker_init_error is False
+
+
+def test_read_stderr_channel_uses_decode_fallback_and_sleep_branch():
+    sleeps: list[float] = []
+
+    class _Payload:
+        def __init__(self):
+            self.calls: list[tuple[str, str]] = []
+
+        def decode(self, encoding, errors="strict"):
+            self.calls.append((encoding, errors))
+            if encoding == "cp850" and errors == "replace":
+                return "fallback line [ProjectError]\n"
+            raise UnicodeDecodeError(encoding, b"\xff", 0, 1, "boom")
+
+    payload = _Payload()
+
+    class _Chan:
+        def __init__(self):
+            self._step = 0
+
+        def recv_stderr_ready(self):
+            return self._step == 1
+
+        def recv_stderr(self, _size):
+            self._step += 1
+            return payload
+
+        def exit_status_ready(self):
+            return self._step >= 2
+
+    agi_cls = SimpleNamespace(_worker_init_error=False)
+    channel = _Chan()
+
+    def _sleep(delay):
+        sleeps.append(delay)
+        channel._step = 1
+
+    scheduler_io_support.read_stderr(
+        agi_cls,
+        SimpleNamespace(channel=channel),
+        sleep_fn=_sleep,
+    )
+
+    assert sleeps == [0.1]
+    assert agi_cls._worker_init_error is True
+    assert payload.calls == [
+        ("utf-8", "strict"),
+        ("cp850", "strict"),
+        ("cp1252", "strict"),
+        ("cp850", "replace"),
+    ]
 
 
 def test_read_stderr_channel_propagates_unexpected_value_error():

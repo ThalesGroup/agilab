@@ -83,6 +83,12 @@ def test_background_process_manager_normalize_cwd_propagates_unexpected_value_er
         manager._normalize_cwd(BrokenPath())
 
 
+def test_background_process_manager_result_returns_none_for_unknown_job():
+    manager = background_jobs_support.BackgroundProcessManager()
+
+    assert manager.result(42) is None
+
+
 def test_background_job_manager_uses_subprocess_and_real_directories_only(monkeypatch, tmp_path):
     calls = []
 
