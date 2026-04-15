@@ -209,16 +209,34 @@ def ensure_mlflow_sqlite_schema_current(
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout or "").strip()
-        if any(marker in details for marker in schema_reset_markers):
-            reset_backend_fn(db_path)
-            return
-        raise RuntimeError(
-            "Failed to upgrade the local MLflow SQLite schema. "
-            f"Database: {db_path}. {details}"
-        )
-    checked_uris.add(db_uri)
+    if _handle_mlflow_schema_upgrade_result(
+        result,
+        db_path=db_path,
+        schema_reset_markers=schema_reset_markers,
+        reset_backend_fn=reset_backend_fn,
+    ):
+        checked_uris.add(db_uri)
+
+
+def _handle_mlflow_schema_upgrade_result(
+    result,
+    *,
+    db_path: Path,
+    schema_reset_markers: tuple[str, ...],
+    reset_backend_fn,
+) -> bool:
+    if result.returncode == 0:
+        return True
+
+    details = (result.stderr or result.stdout or "").strip()
+    if any(marker in details for marker in schema_reset_markers):
+        reset_backend_fn(db_path)
+        return False
+
+    raise RuntimeError(
+        "Failed to upgrade the local MLflow SQLite schema. "
+        f"Database: {db_path}. {details}"
+    )
 
 
 def _migrate_legacy_mlflow_filestore_if_needed(
