@@ -221,6 +221,89 @@ async def test_stop_retires_workers_and_shutdown(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["scheduler_info", "retire_workers", "shutdown"])
+async def test_stop_swallows_expected_operational_errors(monkeypatch, phase):
+    class _Client:
+        def __init__(self):
+            self.shutdown_calls = 0
+
+        async def scheduler_info(self):
+            if phase == "scheduler_info":
+                raise RuntimeError("expected shutdown failure")
+            if phase == "retire_workers":
+                return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {"workers": {}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            if phase == "retire_workers":
+                raise RuntimeError("expected shutdown failure")
+            return None
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+            if phase == "shutdown":
+                raise RuntimeError("expected shutdown failure")
+
+    AGI._dask_client = _Client()
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._TIMEOUT = 2
+    closed = {"count": 0}
+
+    async def _fake_close_all():
+        closed["count"] += 1
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+    await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+
+    assert closed["count"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["scheduler_info", "retire_workers", "shutdown"])
+async def test_stop_propagates_unexpected_programmer_bug(monkeypatch, phase):
+    class _Client:
+        async def scheduler_info(self):
+            if phase == "scheduler_info":
+                raise ValueError("unexpected shutdown bug")
+            if phase == "retire_workers":
+                return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {"workers": {}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            if phase == "retire_workers":
+                raise ValueError("unexpected shutdown bug")
+            return None
+
+        async def shutdown(self):
+            if phase == "shutdown":
+                raise ValueError("unexpected shutdown bug")
+
+    AGI._dask_client = _Client()
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._TIMEOUT = 2
+    closed = {"count": 0}
+
+    async def _fake_close_all():
+        closed["count"] += 1
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+    with pytest.raises(ValueError, match="unexpected shutdown bug"):
+        await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+
+    assert closed["count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_run_raises_when_worker_venv_is_missing(tmp_path, monkeypatch):
     AGI.env = SimpleNamespace(
         envars={},
