@@ -7,6 +7,8 @@ from pathlib import Path
 
 from dotenv import dotenv_values, set_key
 
+ENV_MAPPING_EXCEPTIONS = (AttributeError, TypeError)
+
 
 def _normalize_env_value(value: object) -> str | None:
     if value is None:
@@ -26,7 +28,7 @@ def clean_envar_value(
     raw = None
     try:
         raw = envars.get(key) if envars is not None else None
-    except Exception:
+    except ENV_MAPPING_EXCEPTIONS:
         raw = None
     value = _normalize_env_value(raw)
     if value is not None:
@@ -56,4 +58,3 @@ def write_env_updates(env_file: Path, updates: dict[str, object]) -> None:
     env_file.parent.mkdir(parents=True, exist_ok=True)
     for key, value in updates.items():
         set_key(str(env_file), key, str(value), quote_mode="never")
-
