@@ -443,7 +443,7 @@ def subproc(command, cwd):
     return _subproc_impl(command, cwd, subprocess_module=subprocess, os_module=os)
 
 
-def _wait_for_listen_port(port: int, *, timeout_sec: float = 5.0, poll_interval_sec: float = 0.1) -> bool:
+def _wait_for_listen_port(port: int, *, timeout_sec: float = 15.0, poll_interval_sec: float = 0.1) -> bool:
     return _wait_for_listen_port_impl(
         port,
         timeout_sec=timeout_sec,

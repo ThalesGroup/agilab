@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+import sysconfig
 import re
 from pathlib import Path
 
@@ -58,3 +60,19 @@ def is_valid_ip(ip: str) -> bool:
         parts = ip.split(".")
         return all(0 <= int(part) <= 255 for part in parts)
     return False
+
+
+def python_supports_free_threading() -> bool:
+    """Return ``True`` when the current interpreter can run with ``PYTHON_GIL=0``."""
+
+    checker = getattr(sys, "_is_gil_enabled", None)
+    if callable(checker):
+        try:
+            return not bool(checker())
+        except Exception:
+            pass
+
+    try:
+        return bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+    except Exception:
+        return False

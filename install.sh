@@ -5,7 +5,29 @@ set -o pipefail
 LOG_DIR="$HOME/log/install_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+exec 3>&1
+exec > >(
+    tee >(
+        awk '
+            BEGIN { blank = 1 }
+            {
+                line = $0
+                sub(/\r$/, "", line)
+                if (line ~ /^[[:space:]]*$/) {
+                    if (!blank) {
+                        print ""
+                        fflush()
+                    }
+                    blank = 1
+                    next
+                }
+                print $0
+                fflush()
+                blank = 0
+            }
+        ' >> "$LOG_FILE"
+    ) >&3
+) 2>&1
 
 START_TIME=$(date +%s)
 
@@ -687,11 +709,9 @@ run_core_tests() {
     local -a failures=()
     local -a uv_run=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
 
-    echo ""
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE}RUNNING CORE TEST SUITES${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
 
     pushd "$repo_root" > /dev/null
 
@@ -707,7 +727,6 @@ run_core_tests() {
         failures+=("core tests")
     fi
 
-    echo ""
     echo -e "${BLUE}Generating coverage reports...${NC}"
     COVERAGE_FILE=".coverage-agi-core" "${uv_run[@]}" -m coverage xml -i --include="src/agilab/core/agi-node/src/agi_node/*" -o coverage-agi-node.xml || true
     COVERAGE_FILE=".coverage-agi-core" "${uv_run[@]}" -m coverage xml -i --include="src/agilab/core/agi-cluster/src/agi_cluster/*" -o coverage-agi-cluster.xml || true

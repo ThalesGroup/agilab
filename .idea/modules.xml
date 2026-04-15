@@ -22,6 +22,15 @@
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/sat_trajectory_project.iml" filepath="$PROJECT_DIR$/.idea/modules/sat_trajectory_project.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/satcom_sim_project.iml" filepath="$PROJECT_DIR$/.idea/modules/satcom_sim_project.iml" />
             <module fileurl="file://$PROJECT_DIR$/.idea/modules/sb3_trainer_project.iml" filepath="$PROJECT_DIR$/.idea/modules/sb3_trainer_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/execution_pandas_project.iml" filepath="$PROJECT_DIR$/.idea/modules/execution_pandas_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/execution_polars_project.iml" filepath="$PROJECT_DIR$/.idea/modules/execution_polars_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/meteo_forecast_project.iml" filepath="$PROJECT_DIR$/.idea/modules/meteo_forecast_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/uav_queue_project.iml" filepath="$PROJECT_DIR$/.idea/modules/uav_queue_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/uav_relay_queue_project.iml" filepath="$PROJECT_DIR$/.idea/modules/uav_relay_queue_project.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_forecast_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_forecast_analysis.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_training_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_training_analysis.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_uav_queue_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_uav_queue_analysis.iml" />
+            <module fileurl="file://$PROJECT_DIR$/.idea/modules/view_uav_relay_queue_analysis.iml" filepath="$PROJECT_DIR$/.idea/modules/view_uav_relay_queue_analysis.iml" />
         </modules>
     </component>
 </project>
