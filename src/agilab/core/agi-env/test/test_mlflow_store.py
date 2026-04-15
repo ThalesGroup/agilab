@@ -394,6 +394,82 @@ def test_reset_mlflow_sqlite_backend_returns_none_when_db_is_missing(tmp_path: P
     ) is None
 
 
+def test_migrate_legacy_mlflow_filestore_if_needed_skips_when_backend_exists_or_no_legacy(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    db_path = tracking_dir / "mlflow.db"
+    db_path.write_text("db", encoding="utf-8")
+
+    mlflow_store._migrate_legacy_mlflow_filestore_if_needed(
+        tracking_dir,
+        db_path=db_path,
+        legacy_mlflow_filestore_present_fn=lambda _tracking_dir: (_ for _ in ()).throw(
+            AssertionError("legacy detection should not run when the backend already exists")
+        ),
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///mlflow.db",
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("migration should not run when the backend already exists")
+        ),
+    )
+
+    db_path.unlink()
+    legacy_checks: list[Path] = []
+    mlflow_store._migrate_legacy_mlflow_filestore_if_needed(
+        tracking_dir,
+        db_path=db_path,
+        legacy_mlflow_filestore_present_fn=lambda candidate: legacy_checks.append(Path(candidate)) or False,
+        sqlite_uri_for_path_fn=lambda _path: "sqlite:///mlflow.db",
+        run_cmd=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("migration should not run when no legacy store is present")
+        ),
+    )
+
+    assert legacy_checks == [tracking_dir]
+
+
+def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_failure(tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    tracking_dir.mkdir()
+    db_path = tracking_dir / "mlflow.db"
+    run_calls: list[list[str]] = []
+
+    def _run_cmd(cmd, **_kwargs):
+        run_calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    mlflow_store._migrate_legacy_mlflow_filestore_if_needed(
+        tracking_dir,
+        db_path=db_path,
+        legacy_mlflow_filestore_present_fn=lambda _tracking_dir: True,
+        sqlite_uri_for_path_fn=lambda path: f"sqlite:///{Path(path).name}",
+        run_cmd=_run_cmd,
+        sys_executable="python-test",
+    )
+
+    assert run_calls == [[
+        "python-test",
+        "-m",
+        "mlflow",
+        "migrate-filestore",
+        "--source",
+        str(tracking_dir),
+        "--target",
+        "sqlite:///mlflow.db",
+    ]]
+
+    def _failing_run(_cmd, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="migration failed")
+
+    with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store"):
+        mlflow_store._migrate_legacy_mlflow_filestore_if_needed(
+            tracking_dir,
+            db_path=db_path,
+            legacy_mlflow_filestore_present_fn=lambda _tracking_dir: True,
+            sqlite_uri_for_path_fn=lambda _path: "sqlite:///mlflow.db",
+            run_cmd=_failing_run,
+        )
+
+
 def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_experiment(tmp_path: Path):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
