@@ -743,6 +743,16 @@ def test_create_default_experiment_helper_propagates_unexpected_create_bug():
         )
 
 
+def test_create_default_experiment_helper_propagates_non_runtime_programmer_bug():
+    with pytest.raises(AssertionError, match="programmer bug"):
+        mlflow_store._create_default_experiment(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("programmer bug")),
+            get_experiment_fn=lambda _name: pytest.fail("unexpected lookup"),
+            default_experiment_name="Default",
+            artifact_uri="file:///artifacts",
+        )
+
+
 def test_retry_default_mlflow_activation_after_schema_reset_resets_once():
     reset_calls: list[Path] = []
     db_path = Path("/tmp/mlflow.db")
@@ -888,6 +898,31 @@ def test_activate_default_mlflow_experiment_with_schema_retry_propagates_non_sch
     monkeypatch.setattr(mlflow_store, "_activate_default_mlflow_experiment", _fake_activate)
 
     with pytest.raises(RuntimeError, match="unexpected activation bug"):
+        mlflow_store._activate_default_mlflow_experiment_with_schema_retry(
+            object(),
+            tracking_dir=tracking_dir,
+            artifact_uri="file:///artifacts",
+            db_path=db_path,
+            ensure_mlflow_backend_ready_fn=lambda _path: "sqlite:///mlflow.db",
+            reset_mlflow_sqlite_backend_fn=lambda path: reset_calls.append(Path(path)),
+            default_experiment_name="Default",
+            schema_reset_markers=("schema-reset",),
+        )
+
+    assert reset_calls == []
+
+
+def test_activate_default_mlflow_experiment_with_schema_retry_propagates_non_runtime_bug(monkeypatch, tmp_path: Path):
+    tracking_dir = tmp_path / "tracking"
+    db_path = tracking_dir / "mlflow.db"
+    reset_calls: list[Path] = []
+
+    def _fake_activate(_mlflow, *, backend_uri, default_experiment_name, artifact_uri):
+        raise AssertionError("unexpected activation bug")
+
+    monkeypatch.setattr(mlflow_store, "_activate_default_mlflow_experiment", _fake_activate)
+
+    with pytest.raises(AssertionError, match="unexpected activation bug"):
         mlflow_store._activate_default_mlflow_experiment_with_schema_retry(
             object(),
             tracking_dir=tracking_dir,
