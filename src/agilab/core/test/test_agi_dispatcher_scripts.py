@@ -1667,6 +1667,39 @@ def test_build_setuptools_argv_handles_relative_and_absolute_out_arg(tmp_path):
     ]
 
 
+def test_ensure_build_readme_creates_placeholder_once(tmp_path):
+    readme = tmp_path / "README.md"
+
+    created = build_mod._ensure_build_readme(readme)
+    initial_text = readme.read_text(encoding="utf-8")
+    readme.write_text("existing", encoding="utf-8")
+    reused = build_mod._ensure_build_readme(readme)
+
+    assert created == readme
+    assert reused == readme
+    assert initial_text == "a README.md file is required"
+    assert readme.read_text(encoding="utf-8") == "existing"
+
+
+def test_build_setup_kwargs_uses_find_packages_and_ext_modules():
+    kwargs = build_mod._build_setup_kwargs(
+        worker_module="demo_worker",
+        ext_modules=["ext_mod"],
+        find_packages_fn=lambda where="src": ["demo_worker", "demo_worker.subpkg"],
+    )
+
+    assert kwargs == {
+        "name": "demo_worker",
+        "version": "0.1.0",
+        "package_dir": {"": "src"},
+        "packages": ["demo_worker", "demo_worker.subpkg"],
+        "include_package_data": True,
+        "package_data": {"": ["*.7z"]},
+        "ext_modules": ["ext_mod"],
+        "zip_safe": False,
+    }
+
+
 def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, monkeypatch):
     fake_home = tmp_path / "home"
     monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
