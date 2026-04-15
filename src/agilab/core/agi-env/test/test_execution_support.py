@@ -229,6 +229,29 @@ def test_run_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
         asyncio.run(execution_support.run("echo hi", tmp_path, cwd=tmp_path, logger=None))
 
 
+def test_run_propagates_unexpected_stream_bug(tmp_path: Path, monkeypatch):
+    class _BrokenStream:
+        async def readline(self):
+            raise AssertionError("stream bug")
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _BrokenStream()
+            self.stderr = _FakeStream([b""])
+            self.returncode = 0
+
+        async def wait(self):
+            return self.returncode
+
+    async def _fake_exec(*_args, **_kwargs):
+        return _Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+
+    with pytest.raises(AssertionError, match="stream bug"):
+        asyncio.run(execution_support.run("echo hi", tmp_path, cwd=tmp_path, logger=None))
+
+
 def test_run_bg_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
     async def _raise_exec(*_args, **_kwargs):
         raise ValueError("bad command split")
@@ -286,3 +309,34 @@ def test_run_async_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="exec bug"):
         asyncio.run(execution_support.run_async("echo hi", venv=tmp_path, cwd=tmp_path))
+
+
+def test_run_async_propagates_unexpected_stream_bug(tmp_path: Path, monkeypatch):
+    class _BrokenStream:
+        async def readline(self):
+            raise AssertionError("stream bug")
+
+    class _Proc:
+        def __init__(self):
+            self.stdout = _BrokenStream()
+            self.stderr = _FakeStream([b""])
+            self.returncode = 0
+            self.killed = False
+
+        async def wait(self):
+            return self.returncode
+
+        def kill(self):
+            self.killed = True
+
+    proc = _Proc()
+
+    async def _fake_exec(*_args, **_kwargs):
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+
+    with pytest.raises(AssertionError, match="stream bug"):
+        asyncio.run(execution_support.run_async("echo hi", venv=tmp_path, cwd=tmp_path))
+
+    assert proc.killed is False
