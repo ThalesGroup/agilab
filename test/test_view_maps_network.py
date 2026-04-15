@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+import warnings
 
 import networkx as nx
 import numpy as np
@@ -21,6 +22,39 @@ MODULE_PATH = Path(
 APP_SETTINGS_PATH = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
 
 
+def _suppress_page_import_warnings() -> None:
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*ast\.Num is deprecated and will be removed in Python 3\.14.*",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Theme names and color schemes are lowercase in IPython 9\.0 use nocolor instead",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'oneOf' deprecated - use 'one_of'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'parseString' deprecated - use 'parse_string'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'resetCache' deprecated - use 'reset_cache'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'enablePackrat' deprecated - use 'enable_packrat'",
+        category=DeprecationWarning,
+    )
+
+
 def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
     spec = importlib.util.spec_from_file_location("view_maps_network_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
@@ -28,8 +62,10 @@ def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
     active_app = Path("src/agilab/apps/builtin/flight_project").resolve()
     argv = [MODULE_PATH.name, "--active-app", str(active_app)]
     AgiEnv.reset()
-    with patch("sys.argv", argv):
-        spec.loader.exec_module(module)
+    with warnings.catch_warnings():
+        _suppress_page_import_warnings()
+        with patch("sys.argv", argv):
+            spec.loader.exec_module(module)
     return module
 
 

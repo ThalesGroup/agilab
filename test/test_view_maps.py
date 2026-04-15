@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+import warnings
 
 import pandas as pd
 import pytest
@@ -12,6 +13,39 @@ from streamlit.testing.v1 import AppTest
 
 PAGE_PATH = "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
 MODULE_PATH = Path(PAGE_PATH)
+
+
+def _suppress_page_import_warnings() -> None:
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*ast\.Num is deprecated and will be removed in Python 3\.14.*",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Theme names and color schemes are lowercase in IPython 9\.0 use nocolor instead",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'oneOf' deprecated - use 'one_of'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'parseString' deprecated - use 'parse_string'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'resetCache' deprecated - use 'reset_cache'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'enablePackrat' deprecated - use 'enable_packrat'",
+        category=DeprecationWarning,
+    )
 
 
 class _State(dict):
@@ -225,8 +259,10 @@ def _load_view_maps_module():
     spec = importlib.util.spec_from_file_location("view_maps_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    with patch("streamlit.title", lambda *args, **kwargs: None):
-        spec.loader.exec_module(module)
+    with warnings.catch_warnings():
+        _suppress_page_import_warnings()
+        with patch("streamlit.title", lambda *args, **kwargs: None):
+            spec.loader.exec_module(module)
     return module
 
 
