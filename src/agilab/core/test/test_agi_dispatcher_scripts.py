@@ -1234,6 +1234,49 @@ def test_post_main_ignores_symlink_resolution_errors_before_returning(tmp_path, 
     assert post_mod.main([str(tmp_path / "demo_project")]) == 0
 
 
+def test_post_main_reports_unexpected_symlink_resolution_bug(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("x", encoding="utf-8")
+    dest_arg = tmp_path / "share-dest"
+    sat_folder = dest_arg / "dataset" / "sat"
+    share_root = tmp_path / "share-root"
+    current = tmp_path / "current"
+    preferred = share_root / "sat_trajectory" / "dataset" / "Trajectory"
+    current.mkdir(parents=True, exist_ok=True)
+    preferred.mkdir(parents=True, exist_ok=True)
+    for folder, names in ((current, ("x.csv", "y.csv")), (preferred, ("a.csv", "b.csv"))):
+        for name in names:
+            (folder / name).write_text("1", encoding="utf-8")
+
+    def _fake_unzip(_archive, dest):
+        current_sat = Path(dest) / "dataset" / "sat"
+        current_sat.parent.mkdir(parents=True, exist_ok=True)
+        current_sat.symlink_to(current, target_is_directory=True)
+
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path / "pkg",
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=_fake_unzip,
+        share_root_path=lambda: share_root,
+    )
+
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == sat_folder:
+            raise RuntimeError("resolve bug")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(post_mod, "_dataset_archive_candidates", lambda _env: [dataset_archive])
+    monkeypatch.setattr(post_mod.Path, "resolve", _patched_resolve, raising=False)
+
+    assert post_mod.main([str(tmp_path / "demo_project")]) == 0
+    assert "optional dataset seeding skipped: resolve bug" in capsys.readouterr().out
+
+
 def test_post_main_returns_zero_when_preferred_link_fails_without_trajectory_fallback(tmp_path, monkeypatch):
     dataset_archive = tmp_path / "dataset.7z"
     dataset_archive.write_text("x", encoding="utf-8")
