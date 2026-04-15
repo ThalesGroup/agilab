@@ -131,3 +131,74 @@ def test_view_uav_queue_analysis_reports_missing_peer_artifacts(
     assert any(title.value == _page_title() for title in at.title)
     assert any("Related queue artifacts are missing" in error.value for error in at.error)
     assert len(at.code) >= 1
+
+
+def test_view_uav_queue_analysis_warns_when_artifact_directory_is_missing(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_queue_project",
+        package_name="uav_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-queue-project",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
+
+    assert not at.exception
+    assert any("Artifact directory does not exist yet" in warning.value for warning in at.warning)
+
+
+def test_view_uav_queue_analysis_reports_missing_delivered_source_packets(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    project_dir = create_temp_app_project(
+        "uav_queue_project",
+        package_name="uav_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-queue-project",
+    )
+    artifact_dir = tmp_path / "export" / "uav_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+    stem = "hotspot_queue_aware_seed2026"
+    (artifact_dir / f"{stem}_summary_metrics.json").write_text(
+        json.dumps(
+            {
+                "scenario": "hotspot-demo",
+                "routing_policy": "queue_aware",
+                "source_rate_pps": 14.0,
+                "random_seed": 2026,
+                "bottleneck_relay": "relay-b",
+                "pdr": 0.91,
+                "notes": "Queue-aware relay selection avoids the busiest relay.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_queue_timeseries.csv").write_text(
+        "time_s,relay,queue_depth_pkts\n"
+        "0.0,relay-a,1\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_packet_events.csv").write_text(
+        "packet_id,origin_kind,status,e2e_delay_ms\n"
+        "1,source,dropped,\n"
+        "2,background,delivered,12.0\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_node_positions.csv").write_text(
+        "time_s,node,role,y_m\n"
+        "0.0,relay-a,relay,100\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / f"{stem}_routing_summary.csv").write_text(
+        "relay,packets_delivered,packets_dropped\n"
+        "relay-a,0,1\n",
+        encoding="utf-8",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
+
+    assert not at.exception
+    assert any("No delivered source packet is available in this run." in info.value for info in at.info)
+    assert any(subheader.value == "Notes" for subheader in at.subheader)
