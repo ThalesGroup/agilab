@@ -260,6 +260,29 @@ def _sanitize_build_ext_link_settings(
     return sanitized_library_dirs, sanitized_extra_link_args
 
 
+def _build_ext_compile_config(
+    *,
+    sys_platform: str,
+    pyvers_worker: str,
+) -> tuple[list[str], list[tuple[str, str]], dict[str, bool]]:
+    extra_compile_args: list[str] = []
+    if sys_platform == "darwin":
+        extra_compile_args.extend(
+            ["-Wno-unknown-warning-option", "-Wno-unreachable-code-fallthrough"]
+        )
+
+    define_macros: list[tuple[str, str]] = [("CYTHON_FALLTHROUGH", "")]
+    if sys_platform.startswith("win") and pyvers_worker.endswith("t"):
+        define_macros.append(("Py_GIL_DISABLED", "1"))
+
+    compiler_directives: dict[str, bool] = {}
+    if pyvers_worker.endswith("t"):
+        # free-threaded CPython compatibility
+        compiler_directives = {"freethreading_compatible": True}
+
+    return extra_compile_args, define_macros, compiler_directives
+
+
 def _force_remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -430,17 +453,11 @@ def main(argv: list[str] | None = None) -> None:
             extra_link_args if 'extra_link_args' in locals() else None,
         )
 
-        # Compile flags: only add the Clang-specific one on macOS
-        extra_compile_args = []
-        if sys.platform == "darwin":
-            extra_compile_args += ["-Wno-unknown-warning-option", "-Wno-unreachable-code-fallthrough"]
-
-        define_macros = [("CYTHON_FALLTHROUGH", "")]
-        if sys.platform.startswith("win") and env.pyvers_worker[-1] == "t":
-            define_macros.append(("Py_GIL_DISABLED", "1"))
-        hacl_dir = Path("Modules/_hacl")
-        logger.info(f"mkdir {hacl_dir}")
-        os.makedirs(hacl_dir, exist_ok=True)
+        extra_compile_args, define_macros, compil_directives = _build_ext_compile_config(
+            sys_platform=sys.platform,
+            pyvers_worker=env.pyvers_worker,
+        )
+        _ensure_hacl_dir()
         mod = Extension(
             name=f"{worker_module}_cy",
             sources=[str(src_rel)],
@@ -450,11 +467,6 @@ def main(argv: list[str] | None = None) -> None:
             library_dirs=library_dirs,
             extra_link_args=extra_link_args,
         )
-
-        compil_directives =  {}
-        if env.pyvers_worker[-1] == "t":
-            # free-threaded CPython compatibility
-            compil_directives = {"freethreading_compatible": True}
 
         if (opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining)):
             ext_modules = cythonize([mod], language_level=3, quiet=True, compiler_directives=compil_directives)
