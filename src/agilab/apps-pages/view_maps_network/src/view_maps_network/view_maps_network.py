@@ -1073,6 +1073,29 @@ def _resolve_declared_path(value: str, base_dirs: list[Path]) -> str:
     return str((bases[0] / raw).expanduser()) if bases else raw
 
 
+def _choose_existing_declared_path(current_value: str, default_value: str, base_dirs: list[Path]) -> str:
+    for candidate in (current_value, default_value):
+        raw = (candidate or "").strip()
+        if not raw:
+            continue
+        resolved = _resolve_declared_path(raw, base_dirs)
+        try:
+            path = Path(resolved).expanduser()
+        except Exception:
+            continue
+        if path.exists():
+            return str(path)
+
+    raw_current = (current_value or "").strip()
+    if raw_current:
+        return _resolve_declared_path(raw_current, base_dirs)
+
+    raw_default = (default_value or "").strip()
+    if raw_default:
+        return _resolve_declared_path(raw_default, base_dirs)
+    return ""
+
+
 def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
     raw = (value or "").strip()
     if not raw:
@@ -1120,6 +1143,43 @@ def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list
                 candidates.append(candidate)
     candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
     return candidates
+
+
+def _allocation_search_roots(
+    *,
+    base_path: Path,
+    datadir_path: Path,
+    export_base: Path,
+    local_share_root: Path,
+    target_name: str,
+) -> tuple[Path, list[Path]]:
+    local_target_root = (local_share_root / str(target_name)).expanduser()
+    selected_target_root = (base_path / str(target_name)).expanduser()
+    preferred_target_root = (
+        selected_target_root
+        if selected_target_root.exists() or selected_target_root != local_target_root
+        else local_target_root
+    )
+
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for root in (
+        preferred_target_root,
+        local_target_root,
+        datadir_path,
+        export_base,
+    ):
+        for candidate in (root, root / "pipeline", root / "dataframe"):
+            try:
+                resolved = candidate.expanduser().resolve(strict=False)
+            except Exception:
+                resolved = candidate.expanduser()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            roots.append(candidate.expanduser())
+
+    return preferred_target_root, roots
 
 
 def _normalize_node_id_series(series: pd.Series) -> pd.Series:
@@ -3872,6 +3932,7 @@ def page():
     )
     cloudmap_candidate_bases = [
         Path(st.session_state.datadir),
+        base_path,
         env.AGILAB_EXPORT_ABS,
         env.share_root_path(),
     ]
@@ -3899,8 +3960,16 @@ def page():
     st.session_state.setdefault("show_terrain", True)
     st.session_state.setdefault("show_trajectory_traces", True)
     st.session_state.setdefault("show_cloud_heatmap", False)
-    st.session_state.setdefault("cloud_heatmap_sat_path", sat_cloud_default)
-    st.session_state.setdefault("cloud_heatmap_ivdl_path", ivdl_cloud_default)
+    st.session_state["cloud_heatmap_sat_path"] = _choose_existing_declared_path(
+        str(st.session_state.get("cloud_heatmap_sat_path", "")),
+        sat_cloud_default,
+        cloudmap_candidate_bases,
+    )
+    st.session_state["cloud_heatmap_ivdl_path"] = _choose_existing_declared_path(
+        str(st.session_state.get("cloud_heatmap_ivdl_path", "")),
+        ivdl_cloud_default,
+        cloudmap_candidate_bases,
+    )
     st.session_state.setdefault("cloud_heatmap_stride", 25)
     st.session_state.setdefault("cloud_heatmap_min_weight", 0.0)
     st.session_state.setdefault(SAT_HEATMAP_STEP_KEY, 1)
@@ -4377,30 +4446,27 @@ def page():
     st.markdown("### 📡 Live allocations")
     share_root = env.share_root_path()
     target_name = getattr(env, "share_target_name", env.target)
-    target_root = (share_root / str(target_name)).expanduser()
+    target_root, alloc_candidate_bases = _allocation_search_roots(
+        base_path=base_path,
+        datadir_path=datadir_path,
+        export_base=env.AGILAB_EXPORT_ABS,
+        local_share_root=share_root,
+        target_name=str(target_name),
+    )
     declared_alloc_globs = _expand_glob_patterns(
         _get_setting_list(
             [vm_settings, page_vm_settings],
             "default_allocation_globs",
         ),
-        [target_root, datadir_path, env.AGILAB_EXPORT_ABS, share_root],
+        [target_root, datadir_path, base_path, env.AGILAB_EXPORT_ABS, share_root],
     )
     declared_baseline_globs = _expand_glob_patterns(
         _get_setting_list(
             [vm_settings, page_vm_settings],
             "default_baseline_globs",
         ),
-        [target_root, datadir_path, env.AGILAB_EXPORT_ABS, share_root],
+        [target_root, datadir_path, base_path, env.AGILAB_EXPORT_ABS, share_root],
     )
-    alloc_candidate_bases = [
-        target_root,
-        target_root / "pipeline",
-        target_root / "dataframe",
-        datadir_path,
-        datadir_path / "pipeline",
-        datadir_path / "dataframe",
-        env.AGILAB_EXPORT_ABS,
-    ]
     alloc_candidates = _candidate_allocation_paths([p for p in alloc_candidate_bases if p.exists()])
     alloc_candidates.extend(_candidate_files_from_globs(declared_alloc_globs + declared_baseline_globs))
     alloc_candidates = sorted(
@@ -4430,7 +4496,7 @@ def page():
     alloc_placeholder = (
         routing_candidates[0]
         if routing_candidates
-        else datadir_path / "pipeline" / "allocations_steps.parquet"
+        else target_root / "pipeline" / "allocations_steps.parquet"
     )
     alloc_options = ["(none)"] + [str(p) for p in routing_candidates] + ["(custom path…)"]
     if st.session_state.get("allocations_file_choice") not in alloc_options:
@@ -4483,7 +4549,7 @@ def page():
     baseline_placeholder = (
         baseline_candidates[0]
         if baseline_candidates
-        else datadir_path / "pipeline" / "baseline_allocations_steps.json"
+        else target_root / "pipeline" / "baseline_allocations_steps.json"
     )
     baseline_options = ["(none)"] + [str(p) for p in baseline_candidates] + ["(custom path…)"]
     if st.session_state.get("baseline_alloc_file_choice") not in baseline_options:
