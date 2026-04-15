@@ -11,6 +11,8 @@ from agi_env.agi_logger import (
     LogFormatter,
     MaxLevelFilter,
     _record_filename,
+    _render_log_message,
+    _resolve_record_classname,
 )
 
 
@@ -126,6 +128,26 @@ def test_class_name_filter_handles_frame_lookup_exception(monkeypatch):
 
     assert ClassNameFilter().filter(record) is True
     assert record.classname == "<no-class>"
+
+
+def test_resolve_record_classname_handles_frame_lookup_exception(monkeypatch):
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": __file__,
+            "lineno": 1,
+            "msg": "hello",
+            "args": (),
+            "funcName": "boom",
+            "module": "other_module",
+        }
+    )
+
+    monkeypatch.setattr(agi_logger_module.sys, "_getframe", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    assert _resolve_record_classname(record) == "<no-class>"
 
 
 def test_max_level_filter_blocks_higher_levels():
@@ -330,6 +352,23 @@ def test_log_formatter_handles_general_message_format_error():
 
     plain = AgiLogger.decolorize(formatter.format(record))
     assert "<log-message-format-error type=_BrokenMessage error=bad message>" in plain
+
+
+def test_render_log_message_handles_general_format_error():
+    record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "levelno": logging.INFO,
+            "levelname": "INFO",
+            "pathname": __file__,
+            "lineno": 1,
+            "msg": _BrokenMessage(),
+            "args": (),
+            "funcName": "test_render_log_message_handles_general_format_error",
+        }
+    )
+
+    assert _render_log_message(record) == "<log-message-format-error type=_BrokenMessage error=bad message>"
 
 
 def test_log_formatter_returns_message_only_for_subprocess_records():
