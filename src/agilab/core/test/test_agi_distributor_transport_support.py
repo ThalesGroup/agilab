@@ -303,7 +303,7 @@ async def test_get_ssh_connection_handles_asyncssh_error(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_ssh_connection_wraps_unexpected_exception(monkeypatch):
+async def test_get_ssh_connection_propagates_unexpected_exception(monkeypatch):
     agi_cls = SimpleNamespace(
         env=SimpleNamespace(user="alice", password=None, ssh_key_path=None),
         _ssh_connections={},
@@ -320,7 +320,7 @@ async def test_get_ssh_connection_wraps_unexpected_exception(monkeypatch):
         raise ValueError("boom")
 
     monkeypatch.setattr(transport_support.asyncio, "wait_for", _raise_unexpected)
-    with pytest.raises(ConnectionError, match="Unexpected error while connecting to 10.0.0.6: boom"):
+    with pytest.raises(ValueError, match="boom"):
         async with transport_support.get_ssh_connection(agi_cls, "10.0.0.6", timeout_sec=1):
             pass
 

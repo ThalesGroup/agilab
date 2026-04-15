@@ -407,6 +407,7 @@ async def test_service_recover_without_stale_cleanup_keeps_state_on_failure(monk
             "app": env.app,
             "mode": AGI.DASK_MODE,
             "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
             "workers": {"127.0.0.1": 1},
             "args": {},
         },
