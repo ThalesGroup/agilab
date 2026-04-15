@@ -17,6 +17,12 @@ BUILD_ARTIFACT_EXCEPTIONS = (
     ValueError,
     OSError,
 )
+DISTRIBUTION_PLAN_WRAP_EXCEPTIONS = (
+    ValueError,
+    OSError,
+    ImportError,
+    ModuleNotFoundError,
+)
 
 
 def add_cython_dist_paths(
@@ -72,19 +78,14 @@ async def run_worker(
             path_cls=path_cls,
         )
 
-    try:
-        dispatcher = dispatcher_loader()
-        workers, workers_plan, workers_plan_metadata = await dispatcher._do_distrib(
-            env,
-            workers,
-            args,
-        )
-    except Exception as err:
-        # Distribution planning crosses dispatcher/app code and can fail arbitrarily.
-        logger_obj.error(traceback_module.format_exc())
-        if isinstance(err, RuntimeError):
-            raise
-        raise RuntimeError("Failed to build distribution plan") from err
+    workers, workers_plan, workers_plan_metadata = await _build_distribution_plan(
+        env=env,
+        workers=workers,
+        args=args,
+        dispatcher_loader=dispatcher_loader,
+        logger_obj=logger_obj,
+        traceback_module=traceback_module,
+    )
 
     if mode == 48:
         return workers_plan
@@ -98,6 +99,27 @@ async def run_worker(
         f"{env.mode2str(mode)} "
         f"{humanize_module.precisedelta(datetime_module.timedelta(seconds=runtime))}"
     )
+
+
+async def _build_distribution_plan(
+    *,
+    env: Any,
+    workers: dict[str, Any],
+    args: Any,
+    dispatcher_loader: Callable[[], Any],
+    logger_obj: Any,
+    traceback_module: Any,
+) -> tuple[Any, Any, Any]:
+    dispatcher = dispatcher_loader()
+    try:
+        return await dispatcher._do_distrib(
+            env,
+            workers,
+            args,
+        )
+    except DISTRIBUTION_PLAN_WRAP_EXCEPTIONS as err:
+        logger_obj.error(traceback_module.format_exc())
+        raise RuntimeError("Failed to build distribution plan") from err
 
 
 def initialize_worker(

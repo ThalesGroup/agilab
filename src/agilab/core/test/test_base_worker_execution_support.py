@@ -10,6 +10,7 @@ import pytest
 
 from agi_node.agi_dispatcher import BaseWorker
 from agi_node.agi_dispatcher import base_worker as base_worker_mod
+from agi_node.agi_dispatcher import base_worker_execution_support as execution_support
 
 
 class DummyWorker(BaseWorker):
@@ -264,6 +265,50 @@ def test_baseworker_run_plan_mode_and_distribution_failures(monkeypatch, tmp_pat
     )
     with pytest.raises(RuntimeError, match="boom"):
         asyncio.run(BaseWorker._run(env=env, workers={"local": 1}, mode=0, args=None))
+
+
+def test_build_distribution_plan_wraps_expected_planning_failures():
+    logger = SimpleNamespace(error=lambda *_args, **_kwargs: None)
+    traceback_module = SimpleNamespace(format_exc=lambda: "traceback")
+
+    class BrokenDispatcher:
+        @staticmethod
+        async def _do_distrib(_env, _workers, _args):
+            raise ValueError("bad distrib")
+
+    with pytest.raises(RuntimeError, match="Failed to build distribution plan"):
+        asyncio.run(
+            execution_support._build_distribution_plan(
+                env=SimpleNamespace(),
+                workers={"local": 1},
+                args=None,
+                dispatcher_loader=lambda: BrokenDispatcher,
+                logger_obj=logger,
+                traceback_module=traceback_module,
+            )
+        )
+
+
+def test_build_distribution_plan_propagates_unexpected_planning_bug():
+    logger = SimpleNamespace(error=lambda *_args, **_kwargs: None)
+    traceback_module = SimpleNamespace(format_exc=lambda: "traceback")
+
+    class BrokenDispatcher:
+        @staticmethod
+        async def _do_distrib(_env, _workers, _args):
+            raise AssertionError("planner bug")
+
+    with pytest.raises(AssertionError, match="planner bug"):
+        asyncio.run(
+            execution_support._build_distribution_plan(
+                env=SimpleNamespace(),
+                workers={"local": 1},
+                args=None,
+                dispatcher_loader=lambda: BrokenDispatcher,
+                logger_obj=logger,
+                traceback_module=traceback_module,
+            )
+        )
 
 
 def test_baseworker_run_cython_without_compiled_library_raises(tmp_path):
