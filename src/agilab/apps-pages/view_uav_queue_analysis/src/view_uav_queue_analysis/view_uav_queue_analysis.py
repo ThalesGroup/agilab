@@ -33,17 +33,23 @@ _ensure_repo_on_path()
 from agi_env import AgiEnv
 from agi_env.pagelib import render_logo
 
-try:
-    from .page_meta import PAGE_LOGO, PAGE_TITLE
-except ImportError:  # pragma: no cover - direct file execution fallback
+
+def _load_page_meta() -> tuple[str, str]:
+    if __package__:
+        from .page_meta import PAGE_LOGO, PAGE_TITLE
+
+        return PAGE_LOGO, PAGE_TITLE
+
     _meta_path = Path(__file__).with_name("page_meta.py")
     _meta_spec = importlib.util.spec_from_file_location("view_uav_queue_analysis_page_meta", _meta_path)
     if _meta_spec is None or _meta_spec.loader is None:  # pragma: no cover - defensive fallback
         raise RuntimeError(f"Unable to load page metadata from {_meta_path}")
     _meta_module = importlib.util.module_from_spec(_meta_spec)
     _meta_spec.loader.exec_module(_meta_module)
-    PAGE_LOGO = _meta_module.PAGE_LOGO
-    PAGE_TITLE = _meta_module.PAGE_TITLE
+    return _meta_module.PAGE_LOGO, _meta_module.PAGE_TITLE
+
+
+PAGE_LOGO, PAGE_TITLE = _load_page_meta()
 
 
 def _resolve_active_app() -> Path:
