@@ -4,12 +4,46 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+import warnings
 
 import pandas as pd
 import pytest
 
 PAGE_PATH = "src/agilab/apps-pages/view_maps_3d/src/view_maps_3d/view_maps_3d.py"
 MODULE_PATH = Path(PAGE_PATH)
+
+
+def _suppress_page_import_warnings() -> None:
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*ast\.Num is deprecated and will be removed in Python 3\.14.*",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Theme names and color schemes are lowercase in IPython 9\.0 use nocolor instead",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'oneOf' deprecated - use 'one_of'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'parseString' deprecated - use 'parse_string'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'resetCache' deprecated - use 'reset_cache'",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"'enablePackrat' deprecated - use 'enable_packrat'",
+        category=DeprecationWarning,
+    )
 
 
 class _State(dict):
@@ -27,8 +61,10 @@ def _load_view_maps_3d_module():
     spec = importlib.util.spec_from_file_location("view_maps_3d_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    with patch("streamlit.title", lambda *args, **kwargs: None):
-        spec.loader.exec_module(module)
+    with warnings.catch_warnings():
+        _suppress_page_import_warnings()
+        with patch("streamlit.title", lambda *args, **kwargs: None):
+            spec.loader.exec_module(module)
     return module
 
 
@@ -64,6 +100,30 @@ def test_view_maps_3d_lists_dataset_files_sorted_without_duplicates(monkeypatch,
     listed = module._list_dataset_files(datadir, "csv")
 
     assert listed == [b, a]
+
+
+def test_view_maps_3d_repo_path_helpers(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    apps_root = src_root / "agilab" / "apps"
+    apps_root.mkdir(parents=True)
+    (apps_root / ".hidden_project").mkdir()
+    (apps_root / "notes").mkdir()
+    expected_app = apps_root / "alpha_project"
+    expected_app.mkdir()
+    module_path = src_root / "agilab" / "apps-pages" / "view_maps_3d" / "src" / "view_maps_3d" / "view_maps_3d.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text("# stub\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+
+    module._ensure_repo_on_path()
+
+    assert str(src_root) in module.sys.path
+    assert str(repo_root) in module.sys.path
+    assert module._default_app() == expected_app
 
 
 def test_view_maps_3d_initializes_visible_dataset_files(monkeypatch, tmp_path) -> None:
@@ -206,6 +266,23 @@ def test_view_maps_3d_generates_palette_maps_and_basic_state_updates(monkeypatch
     assert module._vm3d_key("dataset") == "view_maps_3d:dataset"
 
 
+def test_view_maps_3d_category_color_map_repeats_short_palettes(monkeypatch) -> None:
+    module = _load_view_maps_3d_module()
+    monkeypatch.setattr(module, "get_palette", lambda _name: ["#010203"])
+
+    color_map = module.get_category_color_map(
+        pd.DataFrame({"kind": ["A", "B", "C"]}),
+        "kind",
+        "single",
+    )
+
+    assert color_map == {
+        "A": (1, 2, 3),
+        "B": (1, 2, 3),
+        "C": (1, 2, 3),
+    }
+
+
 def test_view_maps_3d_moves_data_and_downsamples_deterministically(monkeypatch, tmp_path) -> None:
     module = _load_view_maps_3d_module()
 
@@ -257,3 +334,61 @@ def test_view_maps_3d_lists_multiple_extensions_and_preserves_existing_dataset_c
     monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
     module.initialize_csv_files()
     assert state["df_file"] == "already.csv"
+
+
+def test_view_maps_3d_page_requires_env(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    messages: list[str] = []
+    stop_calls: list[str] = []
+
+    class _StopCalled(RuntimeError):
+        pass
+
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state={},
+            error=messages.append,
+            stop=lambda: (stop_calls.append("stop"), (_ for _ in ()).throw(_StopCalled()))[1],
+        ),
+    )
+
+    with pytest.raises(_StopCalled):
+        module.page()
+
+    assert any("not initialized" in message for message in messages)
+    assert stop_calls == ["stop"]
+
+
+def test_view_maps_3d_renders_valid_dataset_without_beams(
+    tmp_path, create_temp_app_project, run_page_app_test
+) -> None:
+    export_root = tmp_path / "export"
+    data_dir = export_root / "demo_map_3d"
+    data_dir.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "cluster_id": [idx % 2 for idx in range(20)],
+            "metric": list(range(20)),
+            "lat": [43.0 + idx * 0.01 for idx in range(20)],
+            "long": [1.0 + idx * 0.01 for idx in range(20)],
+            "alt": [1000 + idx * 10 for idx in range(20)],
+        }
+    ).to_csv(data_dir / "flight.csv", index=False)
+    missing_beam_dir = tmp_path / "missing_beams"
+    project_dir = create_temp_app_project(
+        "demo_map_3d_project",
+        "demo_map_3d",
+        "[view_maps_3d]\n"
+        f'datadir = "{data_dir.as_posix()}"\n'
+        f'beamdir = "{missing_beam_dir.as_posix()}"\n'
+        'file_ext_choice = "csv"\n'
+        'df_select_mode = "Single file"\n',
+        pyproject_name="demo-map-3d-project",
+    )
+
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=export_root)
+
+    assert not at.exception
+    assert any("Cartography-3D Visualisation" in title.value for title in at.title)
