@@ -12,7 +12,9 @@ from agi_env.agi_logger import (
     MaxLevelFilter,
     _is_same_log_record_file,
     _record_filename,
+    _render_record_origin,
     _render_log_message,
+    _render_venv_label,
     _resolve_record_classname,
 )
 
@@ -266,6 +268,13 @@ def test_log_formatter_uses_unknown_venv_when_prefix_missing(monkeypatch):
     assert "<unknown>" in plain
 
 
+def test_render_venv_label_handles_posix_windows_and_short_prefixes():
+    assert _render_venv_label("", os_name="posix") == agi_logger_module.COLORS["classname"] + "<unknown>" + agi_logger_module.RESET
+    assert _render_venv_label("/tmp/demo/.venv/bin/python", os_name="posix") == "bin"
+    assert _render_venv_label(r"C:\tmp\demo\.venv\Scripts\python.exe", os_name="nt") == "Scripts"
+    assert _render_venv_label("venv", os_name="posix") == "venv"
+
+
 def test_log_formatter_keeps_build_noise_when_verbose():
     formatter = LogFormatter(verbose=2)
     record = logging.makeLogRecord(
@@ -284,6 +293,27 @@ def test_log_formatter_keeps_build_noise_when_verbose():
     plain = AgiLogger.decolorize(formatter.format(record))
     assert "build.py" in plain
     assert "build output" in plain
+
+
+def test_render_record_origin_uses_class_and_func_or_build_label():
+    normal_record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "pathname": __file__,
+            "funcName": "emit",
+            "classname": "DemoEmitter",
+        }
+    )
+    build_record = logging.makeLogRecord(
+        {
+            "name": "agilab.test",
+            "pathname": "/tmp/build.py",
+            "funcName": "run",
+        }
+    )
+
+    assert _render_record_origin(normal_record) == "DemoEmitter.emit" + agi_logger_module.RESET
+    assert _render_record_origin(build_record) == "build.py" + agi_logger_module.RESET
 
 
 def test_record_filename_falls_back_to_module_name_on_expected_path_error(monkeypatch):

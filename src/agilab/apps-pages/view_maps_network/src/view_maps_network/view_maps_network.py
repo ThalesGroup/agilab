@@ -67,6 +67,7 @@ except ModuleNotFoundError:
     from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
 
 logger = AgiLogger.get_logger(__name__)
+_TRAILING_EXPORT_TIMESTAMP_RE = re.compile(r"[_-]\d{4}-\d{2}-\d{2}(?:[_-]\d{2}-\d{2}-\d{2})?$")
 
 
 def _ensure_repo_on_path() -> None:
@@ -1149,11 +1150,69 @@ def _normalize_node_id_value(value: Any) -> str:
     return s
 
 
+def _strip_export_suffix(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = _TRAILING_EXPORT_TIMESTAMP_RE.sub("", text)
+    return re.sub(r"[-_](trajectory|traj)$", "", text, flags=re.IGNORECASE)
+
+
+def _semantic_node_id_from_text(value: Any) -> str | None:
+    text = _strip_export_suffix(value)
+    if not text:
+        return None
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return str(int(digits))
+    except Exception:
+        return None
+
+
+def _preferred_node_id_from_row(row: pd.Series, *, source_path: str | None = None) -> str:
+    semantic_columns = (
+        "plane_label",
+        "sat_name",
+        "plane_type",
+        "name",
+        "callsign",
+        "call_sign",
+        "stable_flight_id",
+        "node_label",
+        "trajectory_label",
+    )
+    for col in semantic_columns:
+        if col not in row:
+            continue
+        semantic_id = _semantic_node_id_from_text(row.get(col))
+        if semantic_id:
+            return semantic_id
+
+    source_value = row.get("source_file") if "source_file" in row else source_path
+    if source_value not in (None, ""):
+        semantic_id = _semantic_node_id_from_text(Path(str(source_value)).stem)
+        if semantic_id:
+            return semantic_id
+
+    for col in ("plane_id", "trajectory_id", "node_id", "flight_id", "id_col", "id"):
+        if col not in row:
+            continue
+        normalized = _normalize_node_id_value(row.get(col))
+        if normalized:
+            return normalized
+    return ""
+
+
 def _candidate_node_ids(value: Any) -> list[str]:
     base = _normalize_node_id_value(value)
     if not base:
         return []
     candidates = [base]
+    semantic_id = _semantic_node_id_from_text(value)
+    if semantic_id:
+        candidates.append(semantic_id)
     prefixes = ("plane_", "sat_", "uav_", "node_")
     lowered = base.lower()
     for prefix in prefixes:
@@ -2217,30 +2276,26 @@ def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
                 continue
             row = closest.iloc[0]
 
-            flight_id = None
-            for id_key in (
-                "plane_id",
-                "satellite_id",
-                "sat_id",
-                "uav_id",
-                "trajectory_id",
-                "node_id",
-                "flight_id",
-                "id",
-                "callsign",
-                "call_sign",
-            ):
-                id_col = col_map.get(id_key)
-                if not id_col:
-                    continue
-                raw_id = row.get(id_col)
-                if pd.isna(raw_id):
-                    continue
-                try:
-                    flight_id = str(int(raw_id))
-                except Exception:
-                    flight_id = str(raw_id)
-                break
+            preferred_row = pd.Series(
+                {
+                    "plane_label": row.get(col_map.get("plane_label")) if col_map.get("plane_label") else None,
+                    "sat_name": row.get(col_map.get("sat_name")) if col_map.get("sat_name") else None,
+                    "plane_type": row.get(col_map.get("plane_type")) if col_map.get("plane_type") else None,
+                    "name": row.get(col_map.get("name")) if col_map.get("name") else None,
+                    "callsign": row.get(col_map.get("callsign")) if col_map.get("callsign") else None,
+                    "call_sign": row.get(col_map.get("call_sign")) if col_map.get("call_sign") else None,
+                    "stable_flight_id": row.get(col_map.get("stable_flight_id")) if col_map.get("stable_flight_id") else None,
+                    "node_label": row.get(col_map.get("node_label")) if col_map.get("node_label") else None,
+                    "trajectory_label": row.get(col_map.get("trajectory_label")) if col_map.get("trajectory_label") else None,
+                    "plane_id": row.get(col_map.get("plane_id")) if col_map.get("plane_id") else None,
+                    "trajectory_id": row.get(col_map.get("trajectory_id")) if col_map.get("trajectory_id") else None,
+                    "node_id": row.get(col_map.get("node_id")) if col_map.get("node_id") else None,
+                    "flight_id": row.get(col_map.get("flight_id")) if col_map.get("flight_id") else None,
+                    "id": row.get(col_map.get("id")) if col_map.get("id") else None,
+                    "source_file": fname,
+                }
+            )
+            flight_id = _preferred_node_id_from_row(preferred_row, source_path=fname)
             if not flight_id:
                 flight_id = Path(fname).stem
 
@@ -2281,11 +2336,12 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
         return []
     positions_idx = positions.copy()
     positions_idx["flight_id"] = positions_idx["flight_id"].astype(str)
+    node_set = set(positions_idx["flight_id"].astype(str).tolist())
 
     def _lookup_position(node_id: Any) -> pd.Series | None:
-        node_str = str(node_id)
-        for cand in (f"plane_{node_str}", node_str, f"sat_{node_str}"):
-            match = positions_idx.loc[positions_idx["flight_id"] == cand]
+        resolved = _resolve_node_id(node_id, node_set)
+        if resolved:
+            match = positions_idx.loc[positions_idx["flight_id"] == resolved]
             if not match.empty:
                 return match.iloc[0]
         return None
@@ -3588,7 +3644,11 @@ def page():
         df_std["id_col"] = df[flight_col]
     if "time_col" not in df_std.columns:
         df_std["time_col"] = df[time_col]
-    id_norm = _normalize_node_id_series(df_std["id_col"])
+    preferred_ids = df_std.apply(
+        lambda row: _preferred_node_id_from_row(row),
+        axis=1,
+    )
+    id_norm = _normalize_node_id_series(preferred_ids)
     invalid_ids = id_norm.eq("")
     if invalid_ids.any():
         dropped = int(invalid_ids.sum())

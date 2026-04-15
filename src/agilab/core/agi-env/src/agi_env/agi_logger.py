@@ -87,6 +87,21 @@ def _render_log_message(record: logging.LogRecord) -> str:
         msg_obj = getattr(record, "msg", None)
         return f"<log-message-format-error type={type(msg_obj).__name__} error={exc}>"
 
+
+def _render_venv_label(prefix: str, *, os_name: str) -> str:
+    if not prefix:
+        return COLORS["classname"] + "<unknown>" + RESET
+    parts = prefix.split("\\") if os_name == "nt" else prefix.split("/")
+    return parts[-2] if len(parts) >= 2 else prefix
+
+
+def _render_record_origin(record: logging.LogRecord) -> str:
+    class_name = getattr(record, "classname", record.name)
+    function_name = getattr(record, "funcName", record.funcName)
+    if _is_build_noise_record(record):
+        return "build.py" + RESET
+    return class_name + "." + function_name + RESET
+
 class ClassNameFilter(logging.Filter):
     """Inject the originating class name into log records when available."""
 
@@ -124,20 +139,8 @@ class LogFormatter(logging.Formatter):
         level_color = COLORS["level"].get(record.levelname, "")
         levelname = level_color
 
-        #Virtual Environment (if any)
-        venv = sys.prefix
-        venv_str = COLORS["classname"] + "<unknown>" + RESET
-        if venv:
-            venv_str = (venv.split("\\")[-2] if os.name == "nt" else venv.split("/")[-2])
-
-        # Classname / function (collapse to just 'build.py' if the source file is build.py)
-        className = getattr(record, "classname", record.name)
-        functionName = getattr(record, "funcName", record.funcName)
-        if _is_build_noise_record(record):
-            functionName_str =  "build.py" + RESET
-        else:
-            functionName_str = className + "." + functionName + RESET
-
+        venv_str = _render_venv_label(sys.prefix, os_name=os.name)
+        functionName_str = _render_record_origin(record)
         message = COLORS["msg"] + _render_log_message(record) + RESET
         if not hasattr(record, "subprocess"):
             return levelname + venv_str + '.' + functionName_str + ' ' + message
