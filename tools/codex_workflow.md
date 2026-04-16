@@ -8,6 +8,9 @@ Use a fixed Codex workflow so every agent session is traceable and reversible:
 - one path for implementation (`exec`)
 - one path for applying generated patches (`apply`)
 
+If you are working CLI-first without an IDE, pair this helper with the repo
+guide in `docs/CLI_FIRST_WORKFLOW.md`.
+
 ## Standard commands
 
 ```bash
