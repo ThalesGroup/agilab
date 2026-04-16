@@ -5,7 +5,7 @@ import pickle
 from copy import deepcopy
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import humanize
 import numpy as np
@@ -18,6 +18,25 @@ from agi_node.agi_dispatcher.base_worker import BaseWorker
 
 
 logger = logging.getLogger(__name__)
+
+
+def _is_cython_installed(env: AgiEnv) -> bool:
+    cython_check = cast(Callable[[AgiEnv], bool], BaseWorker._is_cython_installed)
+    return cython_check(env)
+
+
+def _benchmark_path(env: AgiEnv) -> Path:
+    benchmark_path = cast(Path | None, env.benchmark)
+    if benchmark_path is None:
+        raise RuntimeError("Benchmark path is not configured.")
+    return benchmark_path
+
+
+def _manager_path(env: AgiEnv) -> Path:
+    manager_path = getattr(env, "manager_path", None)
+    if not isinstance(manager_path, Path):
+        raise RuntimeError("Manager path is not configured.")
+    return manager_path
 
 
 async def benchmark(
@@ -34,7 +53,9 @@ async def benchmark(
     rapids_mode_mask = agi_cls._RAPIDS_SET if rapids_enabled else agi_cls._RAPIDS_RESET
     runs: Dict[int, Dict[str, Any]] = {}
 
-    if not BaseWorker._is_cython_installed(env):
+    benchmark_path = _benchmark_path(env)
+
+    if not _is_cython_installed(env):
         await agi_cls.install(
             env,
             scheduler=scheduler,
@@ -45,8 +66,8 @@ async def benchmark(
         )
     agi_cls._mode_auto = True
 
-    if os.path.exists(env.benchmark):
-        os.remove(env.benchmark)
+    if os.path.exists(benchmark_path):
+        os.remove(benchmark_path)
     local_modes = [mode for mode in mode_range if not (mode & agi_cls.DASK_MODE)]
     dask_modes = [mode for mode in mode_range if mode & agi_cls.DASK_MODE]
 
@@ -100,7 +121,7 @@ async def benchmark(
     agi_cls._mode_auto = False
 
     runs_str_keys = {str(key): value for key, value in runs.items()}
-    with open(env.benchmark, "w") as handle:
+    with open(benchmark_path, "w") as handle:
         json.dump(runs_str_keys, handle)
 
     return json.dumps(runs_str_keys)
@@ -119,7 +140,7 @@ async def benchmark_dask_modes(
     workers_dict = workers or agi_cls._worker_default
 
     agi_cls.env = env
-    agi_cls.target_path = env.manager_path
+    agi_cls.target_path = _manager_path(env)
     agi_cls._target = env.target
     agi_cls._workers = workers_dict
     agi_cls._args = args
