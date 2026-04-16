@@ -25,7 +25,7 @@ This is not a brainstorming document. It is the run list for the current public 
 - [x] GitHub repo description still matches the locked About text
 - [ ] canonical demo asset still opens and is usable
 - [ ] docs landing page still points first-time users to the same workflow
-- [ ] quick-start path still works without IDE-specific context
+- [x] quick-start path still works without IDE-specific context
 - [ ] no new repo wording drift has appeared between README, docs, and launch copy
 
 ## Launch sequence
@@ -35,7 +35,7 @@ This is not a brainstorming document. It is the run list for the current public 
 - [x] verify [README.md](/Users/agi/PycharmProjects/agilab/README.md)
 - [x] verify [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
 - [x] verify [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
-- [ ] verify docs landing page links are still valid
+- [x] verify docs landing page links are still valid
 
 ### Step 2: GitHub launch
 
@@ -62,11 +62,20 @@ Published artifact:
 
 ## 48-hour follow-up
 
-- [ ] record first star delta after the launch
+- [x] record first star delta after the launch
 - [ ] record README / docs traffic if available
-- [ ] record whether external questions appeared
-- [ ] record whether the first-time visitor path caused confusion
-- [ ] update [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+- [x] record whether external questions appeared
+- [x] record whether the first-time visitor path caused confusion
+- [x] update [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+
+Observed on 2026-04-16:
+
+- Star delta after discussion launch: `4 -> 5`
+- External questions/comments on discussion `#8`: `0`
+- First-time visitor friction still visible:
+  - docs landing copy does not yet fully match the locked reproducibility/workflow positioning
+  - the primary flight demo video `artifacts/demo_media/flight/agilab_flight.mp4` is missing from the working tree
+  - README/docs quick-start path is CLI-safe, but traffic instrumentation is still missing
 
 ## Abort conditions
 
