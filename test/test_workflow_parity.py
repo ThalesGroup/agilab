@@ -26,12 +26,14 @@ def test_profile_commands_cover_expected_gui_and_docs_contracts() -> None:
     profiles = module._profile_commands(args)
     agi_gui = profiles["agi-gui"][0]
     docs = profiles["docs"][0]
+    strict_typing = profiles["shared-core-typing"][0]
 
     assert agi_gui.timeout_seconds == 12 * 60
     assert agi_gui.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
     assert "coverage-agi-gui.xml" in " ".join(agi_gui.argv)
     assert "test/test_ui_pages.py" in agi_gui.argv
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
+    assert strict_typing.argv[-1] == "tools/shared_core_strict_typing.py"
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:

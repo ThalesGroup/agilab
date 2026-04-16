@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 BUILD_ARTIFACT_EXCEPTIONS = (
     FileNotFoundError,
@@ -136,10 +136,13 @@ async def _build_distribution_plan(
 ) -> tuple[Any, Any, Any]:
     dispatcher = dispatcher_loader()
     try:
-        return await dispatcher._do_distrib(
-            env,
-            workers,
-            args,
+        return cast(
+            tuple[Any, Any, Any],
+            await dispatcher._do_distrib(
+                env,
+                workers,
+                args,
+            ),
         )
     except DISTRIBUTION_PLAN_WRAP_EXCEPTIONS as err:
         logger_obj.error(traceback_module.format_exc())
@@ -365,7 +368,7 @@ def _resolve_worker_info_path(
     if not os_module.path.exists(path):
         logger_obj.info("mkdir %s", path)
         os_module.makedirs(path, exist_ok=True)
-    return path
+    return str(path)
 
 
 def _measure_worker_write_speed(
@@ -506,7 +509,8 @@ def _install_worker_egg(
     os_module: Any = os,
     shutil_module: Any = shutil,
 ) -> Path:
-    egg_dest = extract_path / (os_module.path.basename(egg_src) + ".egg")
+    egg_name = f"{str(os_module.path.basename(egg_src))}.egg"
+    egg_dest = extract_path / egg_name
 
     logger_obj.info("copy: %s to %s", egg_src, egg_dest)
     shutil_module.copyfile(egg_src, egg_dest)
@@ -676,9 +680,9 @@ def _attach_worker_log_capture(
     io_module: Any = io,
     root_logger: logging.Logger | None = None,
 ) -> tuple[Any, Any, Any]:
-    log_stream = io_module.StringIO()
-    handler = logging_module.StreamHandler(log_stream)
-    active_root_logger = root_logger or logging_module.getLogger()
+    log_stream = cast(io.StringIO, io_module.StringIO())
+    handler = cast(logging.Handler, logging_module.StreamHandler(log_stream))
+    active_root_logger = cast(logging.Logger, root_logger or logging_module.getLogger())
     active_root_logger.addHandler(handler)
     return log_stream, handler, active_root_logger
 
@@ -789,7 +793,7 @@ def execute_worker_plan(
             handler=handler,
         )
 
-    return log_stream.getvalue()
+    return cast(str, log_stream.getvalue())
 
 
 __all__ = [

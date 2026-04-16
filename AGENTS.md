@@ -38,6 +38,9 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
+- **Shared-core strict typing**: Use `uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py`
+  for the curated extracted support-module strict slice. The same check is also available through
+  `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile shared-core-typing`.
 - **Impact triage first**: For non-trivial diffs, run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before edits or push. Use its output to decide whether the change is app-local vs shared-core,
   which targeted tests are required, whether install repros are mandatory, and whether generated

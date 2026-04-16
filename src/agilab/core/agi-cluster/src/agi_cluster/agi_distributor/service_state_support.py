@@ -8,7 +8,7 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from dask.distributed import Client
 
@@ -23,7 +23,16 @@ _SERVICE_EXPORT_EXCEPTIONS = _SERVICE_IO_EXCEPTIONS + (RuntimeError,)
 
 def _fallback_service_path(env: AgiEnv, relative_path: Path) -> Path:
     fallback_home = Path(getattr(env, "home_abs", Path.home()) or Path.home())
-    return (fallback_home / ".agilab_service" / env.target / relative_path).resolve(strict=False)
+    return (
+        fallback_home
+        / ".agilab_service"
+        / _service_target_name(env)
+        / relative_path
+    ).resolve(strict=False)
+
+
+def _service_target_name(env: AgiEnv) -> str:
+    return str(getattr(env, "target", "") or "")
 
 
 def _resolve_service_path(
@@ -74,7 +83,7 @@ def service_apply_queue_root(
 def service_state_path(env: AgiEnv) -> Path:
     return _resolve_service_path(
         env,
-        share_relative_path=Path("service") / env.target / "service_state.json",
+        share_relative_path=Path("service") / _service_target_name(env) / "service_state.json",
         fallback_relative_path=Path("service_state.json"),
     )
 
@@ -158,7 +167,7 @@ def service_health_path(
 
     return _resolve_service_path(
         env,
-        share_relative_path=Path("service") / env.target / "health.json",
+        share_relative_path=Path("service") / _service_target_name(env) / "health.json",
         fallback_relative_path=Path("health.json"),
     )
 
@@ -282,7 +291,8 @@ async def service_connected_workers(client: Client) -> List[str]:
     info = client.scheduler_info()
     if inspect.isawaitable(info):
         info = await info
-    workers = (info or {}).get("workers") or {}
+    info_payload = cast(Dict[str, Any], info or {})
+    workers = cast(Dict[str, Any], info_payload.get("workers") or {})
     return [worker.split("/")[-1] for worker in workers.keys()]
 
 
@@ -307,15 +317,23 @@ def init_service_queue(
     if service_queue_dir is not None:
         queue_root = Path(service_queue_dir).expanduser()
     elif agi_cls._workers_data_path:
-        queue_root = Path(str(agi_cls._workers_data_path)).expanduser() / "service" / env.target / "queue"
+        queue_root = (
+            Path(str(agi_cls._workers_data_path)).expanduser()
+            / "service"
+            / _service_target_name(env)
+            / "queue"
+        )
     else:
         queue_root = _resolve_service_path(
             env,
-            share_relative_path=Path("service") / env.target / "queue",
+            share_relative_path=Path("service") / _service_target_name(env) / "queue",
             fallback_relative_path=Path("queue"),
         )
 
-    queue_paths = agi_cls._service_apply_queue_root(queue_root, create=True)
+    queue_paths = cast(
+        Dict[str, Path],
+        agi_cls._service_apply_queue_root(queue_root, create=True),
+    )
 
     for stale_dir in (queue_paths["pending"], queue_paths["running"]):
         for stale_task in stale_dir.glob("*.task.pkl"):

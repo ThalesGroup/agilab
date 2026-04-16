@@ -20,7 +20,7 @@ def get_default_local_ip(
     try:
         with socket_factory(socket.AF_INET, socket.SOCK_DGRAM) as stream:
             stream.connect(("8.8.8.8", 80))
-            return stream.getsockname()[0]
+            return str(stream.getsockname()[0])
     except OSError:
         return "Unable to determine local IP"
 
