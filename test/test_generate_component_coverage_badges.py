@@ -44,6 +44,7 @@ def test_selected_component_items_defaults_to_all_components() -> None:
 def test_component_badges_use_component_name_in_label() -> None:
     module = _load_module()
 
+    assert module.COMPONENTS["agilab"]["label"] == "agilab coverage"
     assert module.COMPONENTS["agi-env"]["label"] == "agi-env coverage"
     assert module.COMPONENTS["agi-node"]["label"] == "agi-node coverage"
     assert module.COMPONENTS["agi-cluster"]["label"] == "agi-cluster coverage"
