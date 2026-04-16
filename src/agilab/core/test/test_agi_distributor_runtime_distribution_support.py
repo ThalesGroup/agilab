@@ -221,6 +221,47 @@ async def test_stop_retires_workers_and_shutdown(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_stop_supports_sync_scheduler_info(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.info_calls = 0
+            self.retire_calls = 0
+            self.shutdown_calls = 0
+
+        def scheduler_info(self):
+            self.info_calls += 1
+            if self.info_calls == 1:
+                return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {"workers": {}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            self.retire_calls += 1
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+
+    AGI._dask_client = _Client()
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._TIMEOUT = 3
+    closed = {"count": 0}
+
+    async def _fake_close_all():
+        closed["count"] += 1
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+    await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+
+    assert AGI._dask_client.retire_calls >= 1
+    assert AGI._dask_client.shutdown_calls == 1
+    assert closed["count"] == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["scheduler_info", "retire_workers", "shutdown"])
 async def test_stop_swallows_expected_operational_errors(monkeypatch, phase):
     class _Client:
@@ -508,6 +549,41 @@ async def test_sync_waits_until_expected_workers():
             self.calls = 0
 
         def scheduler_info(self):
+            self.calls += 1
+            if self.calls == 1:
+                return {"workers": None}
+            if self.calls == 2:
+                return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {
+                "workers": {
+                    "tcp://127.0.0.1:8787": {},
+                    "tcp://10.0.0.2:8788": {},
+                }
+            }
+
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    fake_client = _FakeClient()
+    AGI._dask_client = fake_client
+
+    async def _fake_sleep(_delay):
+        return None
+
+    await runtime_distribution_support.sync(
+        AGI,
+        timeout=2,
+        client_type=_FakeClient,
+        sleep_fn=_fake_sleep,
+    )
+    assert fake_client.calls >= 3
+
+
+@pytest.mark.asyncio
+async def test_sync_supports_awaitable_scheduler_info():
+    class _FakeClient:
+        def __init__(self):
+            self.calls = 0
+
+        async def scheduler_info(self):
             self.calls += 1
             if self.calls == 1:
                 return {"workers": None}

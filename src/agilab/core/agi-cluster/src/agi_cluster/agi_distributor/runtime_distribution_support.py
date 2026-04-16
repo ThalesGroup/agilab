@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import os
 import time
@@ -13,6 +14,13 @@ _CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, Timeout
 _WORKER_START_EXCEPTIONS = (ConnectionError, FileNotFoundError, OSError, RuntimeError, TimeoutError)
 _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+
+
+async def _scheduler_info_payload(client: Any) -> Any:
+    info = client.scheduler_info()
+    if inspect.isawaitable(info):
+        info = await info
+    return info
 
 
 def dask_env_prefix(agi_cls: Any) -> str:
@@ -163,7 +171,7 @@ async def sync(
 
     while True:
         try:
-            info = agi_cls._dask_client.scheduler_info()
+            info = await _scheduler_info_payload(agi_cls._dask_client)
             workers_info = info.get("workers")
             if workers_info is None:
                 log.info("Scheduler info 'workers' not ready yet.")
@@ -350,7 +358,7 @@ async def stop(
     retire_attempts = 0
     while retire_attempts < agi_cls._TIMEOUT:
         try:
-            scheduler_info = await agi_cls._dask_client.scheduler_info()
+            scheduler_info = await _scheduler_info_payload(agi_cls._dask_client)
         except _STOP_RETRY_EXCEPTIONS as exc:
             log.debug("Unable to fetch scheduler info during shutdown: %s", exc)
             break
