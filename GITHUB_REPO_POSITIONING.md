@@ -35,6 +35,22 @@ Before the reader scrolls, the repo should answer three things only:
 Do not spend the first screen on secondary badges, creator biography, or
 supporting hooks such as agents/free-threading before those three points are clear.
 
+### One dominant first-proof path
+
+The public entry path should stay locked to:
+
+`source checkout -> web UI -> flight_project -> local run -> analysis`
+
+Do not present packaged install, notebook-first, cluster setup, or private-app
+flows as equal first-step alternatives on the landing screen.
+
+### Ease-of-use rule
+
+- One recommended path first.
+- Alternatives only after the reader sees the first proof outcome.
+- Do not duplicate the same onboarding story in multiple equal sections of the README.
+- If a section does not help the first local `flight_project` proof, move it lower.
+
 ## Locked topics
 
 - `mlops`
