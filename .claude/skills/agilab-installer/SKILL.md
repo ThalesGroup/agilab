@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-09
+  updated: 2026-04-16
 ---
 
 # AGILAB Installer Skill
@@ -19,6 +19,10 @@ Use this skill when working on:
 - Use `uv --preview-features extra-build-dependencies …` for Python entrypoints.
 - Do not add silent fallbacks (detect missing capabilities and raise actionable errors).
 - Keep installs **idempotent**: rerunning should not wipe user data or re-download unnecessarily.
+- Before editing or validating installer-related diffs, run
+  `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files install.sh src/agilab/install_apps.sh src/agilab/apps/install.py`
+  or point it at the actual changed install/deploy files. Use the output to confirm whether install
+  repros, shared-core approval, or extra artifact refreshes are required.
 - Treat installer/build/deploy changes as shared-core work. Before editing shared install plumbing,
   `agi_dispatcher` install hooks, or generic cluster deployment code, get explicit user approval
   and explain the expected cross-app impact first.
@@ -43,6 +47,8 @@ Use this skill when working on:
 
 - **Plain `uv sync` works, AGILAB install still fails in worker phase**
   - Treat this as a shared installer candidate before patching the app.
+  - `tools/impact_validate.py` should report this path as an install-contract gate; do not push until
+    both repro commands below are green.
   - Compare:
     - plain shell: `uv sync --project <app>`
     - AGILAB path: `uv run python src/agilab/apps/install.py <app> --verbose 1`
