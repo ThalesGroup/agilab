@@ -429,6 +429,65 @@ def test_service_loop_custom_worker_writes_heartbeat_and_calls_stop(tmp_path):
     assert heartbeat_payload["state"] == "stopped"
 
 
+def test_service_loop_reraises_stop_hook_failure_without_primary_error(monkeypatch):
+    class LoopWorker(BaseWorker):
+        def loop(self):
+            return False
+
+        def stop(self):
+            raise RuntimeError("stop boom")
+
+    worker = LoopWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._insts = {0: worker}
+
+    errors: list[str] = []
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "exception",
+        lambda message, *args, **_kwargs: errors.append(
+            str(message % args if args else message)
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="stop boom"):
+        BaseWorker.loop(poll_interval=0.0)
+
+    assert errors == ["Worker stop hook raised inside service loop"]
+
+
+def test_service_loop_preserves_primary_error_when_stop_hook_also_fails(monkeypatch):
+    class LoopWorker(BaseWorker):
+        def loop(self):
+            raise ValueError("loop boom")
+
+        def stop(self):
+            raise RuntimeError("stop boom")
+
+    worker = LoopWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._insts = {0: worker}
+
+    errors: list[str] = []
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "exception",
+        lambda message, *args, **_kwargs: errors.append(
+            str(message % args if args else message)
+        ),
+    )
+
+    with pytest.raises(ValueError, match="loop boom"):
+        BaseWorker.loop(poll_interval=0.0)
+
+    assert errors == [
+        "Service loop failed: loop boom",
+        "Worker stop hook raised inside service loop",
+    ]
+
+
 def test_service_loop_supports_async_worker_override():
     class AsyncLoopWorker(BaseWorker):
         async def loop(self):

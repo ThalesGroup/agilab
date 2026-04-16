@@ -137,7 +137,7 @@ async def _run_main_with_handled_errors(
     except ModuleNotFoundError as exc:
         log.error("failed to load module \n%s", exc)
         return None
-    except Exception as exc:
+    except Exception as exc:  # Intentional AGI.run boundary: log and re-raise.
         _log_unhandled_run_exception(
             exc,
             format_exception_chain_fn=format_exception_chain_fn,
