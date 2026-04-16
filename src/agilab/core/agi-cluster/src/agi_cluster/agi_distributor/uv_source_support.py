@@ -47,7 +47,7 @@ def _iter_local_uv_source_paths(pyproject_path: Path) -> list[tuple[str, Path]]:
     return resolved_entries
 
 
-def envar_truthy(envars: dict, key: str) -> bool:
+def envar_truthy(envars: dict[str, Any], key: str) -> bool:
     """Return True when an env var value is truthy."""
     try:
         raw = envars.get(key)

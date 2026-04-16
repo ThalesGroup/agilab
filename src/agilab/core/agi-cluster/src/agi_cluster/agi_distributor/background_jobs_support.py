@@ -1,14 +1,20 @@
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Protocol, cast
 
 _NORMALIZE_CWD_EXCEPTIONS = (OSError, RuntimeError, TypeError)
+
+
+class _ProcessLike(Protocol):
+    def poll(self) -> int | None:
+        ...
 
 
 class BackgroundProcessJob:
     """Minimal job record for detached subprocess launches."""
 
-    def __init__(self, process: subprocess.Popen[str]):
+    def __init__(self, process: _ProcessLike):
         self.process = process
         self.result = process
         self.num: int | None = None
@@ -17,7 +23,7 @@ class BackgroundProcessJob:
 class BackgroundProcessManager:
     """Host-neutral replacement for IPython BackgroundJobManager."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._current_job_id = 0
         self.all: dict[int, BackgroundProcessJob] = {}
         self.running: list[BackgroundProcessJob] = []
@@ -29,7 +35,7 @@ class BackgroundProcessManager:
         if cwd in (None, ""):
             return None
         try:
-            candidate = Path(cwd).expanduser()
+            candidate = Path(cast(str | Path, cwd)).expanduser()
         except _NORMALIZE_CWD_EXCEPTIONS:
             return None
         return str(candidate) if candidate.is_dir() else None
@@ -47,11 +53,14 @@ class BackgroundProcessManager:
         self.running = active
 
     def new(self, cmd: str, cwd: str | Path | None = None) -> BackgroundProcessJob:
-        proc = subprocess.Popen(
-            cmd,
-            shell=True,
-            cwd=self._normalize_cwd(cwd),
-            start_new_session=True,
+        proc = cast(
+            _ProcessLike,
+            subprocess.Popen(
+                cmd,
+                shell=True,
+                cwd=self._normalize_cwd(cwd),
+                start_new_session=True,
+            ),
         )
         job = BackgroundProcessJob(proc)
         job.num = self._current_job_id
@@ -60,7 +69,7 @@ class BackgroundProcessManager:
         self.all[job.num] = job
         return job
 
-    def result(self, num: int):
+    def result(self, num: int) -> _ProcessLike | None:
         self._refresh()
         job = self.all.get(num)
         if job is None:
@@ -72,7 +81,8 @@ class BackgroundProcessManager:
     def flush(self) -> None:
         self._refresh()
         for job in self.completed + self.dead:
-            self.all.pop(job.num, None)
+            if job.num is not None:
+                self.all.pop(job.num, None)
         self.completed.clear()
         self.dead.clear()
 

@@ -31,6 +31,7 @@ def test_resolve_modules_appends_unique_extra_modules():
     )
 
     assert modules == [
+        "agi_cluster.agi_distributor.background_jobs_support",
         "agi_node.agi_dispatcher.base_worker_path_support",
         "agi_node.agi_dispatcher.base_worker_execution_support",
         "agi_node.agi_dispatcher.base_worker_runtime_support",
@@ -38,10 +39,17 @@ def test_resolve_modules_appends_unique_extra_modules():
         "agi_cluster.agi_distributor.cleanup_support",
         "agi_cluster.agi_distributor.deployment_build_support",
         "agi_cluster.agi_distributor.deployment_local_support",
+        "agi_cluster.agi_distributor.deployment_orchestration_support",
+        "agi_cluster.agi_distributor.deployment_prepare_support",
+        "agi_cluster.agi_distributor.deployment_remote_support",
         "agi_cluster.agi_distributor.entrypoint_support",
         "agi_cluster.agi_distributor.runtime_misc_support",
+        "agi_cluster.agi_distributor.runtime_distribution_support",
         "agi_cluster.agi_distributor.scheduler_io_support",
+        "agi_cluster.agi_distributor.service_runtime_support",
         "agi_cluster.agi_distributor.service_state_support",
+        "agi_cluster.agi_distributor.transport_support",
+        "agi_cluster.agi_distributor.uv_source_support",
         "agi_env.defaults",
     ]
 
