@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, cast
 
 _CAPACITY_LOAD_EXCEPTIONS = (
     AttributeError,
@@ -58,7 +58,12 @@ def ensure_asyncio_run_signature(
 
     original = current
 
-    def _patched_run(main, *, debug=None, loop_factory=None):
+    def _patched_run(
+        main: Any,
+        *,
+        debug: Any = None,
+        loop_factory: Callable[[], Any] | None = None,
+    ) -> Any:
         if loop_factory is None:
             return original(main, debug=debug)
 
@@ -277,7 +282,7 @@ def configure_runtime_mode(
         raise ValueError(f"mode {agi_cls._mode} not implemented")
     if require_dask and not (agi_cls._mode & agi_cls.DASK_MODE):
         raise ValueError(dask_error_message)
-    return agi_cls._mode
+    return cast(int, agi_cls._mode)
 
 
 def install_worker_groups() -> dict[str, str]:

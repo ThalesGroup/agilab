@@ -57,7 +57,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--profile",
         action="append",
-        choices=["agi-gui", "docs", "badges", "skills", "installer"],
+        choices=["agi-gui", "docs", "badges", "skills", "installer", "shared-core-typing"],
         help="Parity profile to run. May be passed multiple times.",
     )
     parser.add_argument(
@@ -108,6 +108,7 @@ def _profile_descriptions() -> dict[str, str]:
         "badges": "Refresh component coverage badges from local coverage XML files.",
         "skills": "Validate and regenerate the repo Codex skill mirror outputs.",
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
+        "shared-core-typing": "Run the curated shared-core strict mypy slice.",
     }
 
 
@@ -118,6 +119,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "badges": _badges_profile(args.components),
         "skills": _skills_profile(args.skills),
         "installer": _installer_profile(args.app_path, args.worker_copy),
+        "shared-core-typing": _shared_core_typing_profile(),
     }
 
 
@@ -291,6 +293,24 @@ def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[Co
             argv.extend(["--worker-copy", worker_copy])
         commands.append(CommandSpec(label="installer contract check", argv=argv))
     return commands
+
+
+def _shared_core_typing_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="shared-core strict typing",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "mypy",
+                "python",
+                "tools/shared_core_strict_typing.py",
+            ],
+        )
+    ]
 
 
 def _selected_profiles(args: argparse.Namespace) -> list[str]:

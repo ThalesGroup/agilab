@@ -4,12 +4,15 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, TypeAlias, Union
 
 from agi_cluster.agi_distributor import runtime_misc_support
 
 
 logger = logging.getLogger(__name__)
+
+PreparedMode: TypeAlias = Union[int, str]
+RunMode: TypeAlias = Optional[Union[int, List[int], str]]
 
 _SCHEDULER_CONNECT_EXCEPTIONS = (
     ConnectionError,
@@ -35,7 +38,7 @@ def _normalize_workers(
     return workers
 
 
-def _configure_mode(agi_cls: Any, env: Any, mode: Union[int, str]) -> None:
+def _configure_mode(agi_cls: Any, env: Any, mode: PreparedMode) -> None:
     runtime_misc_support.configure_runtime_mode(
         agi_cls,
         env,
@@ -84,7 +87,7 @@ def _resolve_install_worker_group(agi_cls: Any, env: Any) -> None:
     runtime_misc_support.configure_install_worker_group(agi_cls, env)
 
 
-def _benchmark_mode_range(mode: Optional[Union[int, List[int], str]]) -> range | list[int] | None:
+def _benchmark_mode_range(mode: RunMode) -> range | list[int] | None:
     if mode is None:
         return range(8)
     if isinstance(mode, list):
@@ -92,7 +95,7 @@ def _benchmark_mode_range(mode: Optional[Union[int, List[int], str]]) -> range |
     return None
 
 
-def _prepare_run_execution(agi_cls: Any, env: Any, mode: Union[int, str]) -> None:
+def _prepare_run_execution(agi_cls: Any, env: Any, mode: PreparedMode) -> None:
     _configure_mode(agi_cls, env, mode)
     _load_capacity_predictor(agi_cls, env)
     _resolve_install_worker_group(agi_cls, env)
@@ -150,7 +153,7 @@ async def _run_main_with_handled_errors(
 async def _run_prepared_execution(
     agi_cls: Any,
     env: Any,
-    mode: Union[int, str],
+    mode: PreparedMode,
     scheduler: Optional[str],
     *,
     process_error_type: type[BaseException],
@@ -175,7 +178,7 @@ async def _dispatch_run_execution(
     scheduler: Optional[str],
     workers: Dict[str, int],
     verbose: int,
-    mode: Union[int, List[int], str],
+    mode: RunMode,
     mode_range: range | list[int] | None,
     rapids_enabled: bool,
     *,
@@ -189,6 +192,7 @@ async def _dispatch_run_execution(
         return await agi_cls._benchmark(
             env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
         )
+    assert mode is not None and not isinstance(mode, list)
     return await _run_prepared_execution(
         agi_cls,
         env,
@@ -208,7 +212,7 @@ async def run(
     workers: Optional[Dict[str, int]] = None,
     workers_data_path: Optional[str] = None,
     verbose: int = 0,
-    mode: Optional[Union[int, List[int], str]] = None,
+    mode: RunMode = None,
     rapids_enabled: bool = False,
     *,
     workers_default: Dict[str, int],
@@ -439,10 +443,10 @@ async def _resolve_scheduler_cmd_prefix(
     set_env_var_fn: Callable[..., Any],
 ) -> str:
     env = agi_cls.env
-    cmd_prefix = env.envars.get(f"{agi_cls._scheduler_ip}_CMD_PREFIX", "")
+    cmd_prefix = str(env.envars.get(f"{agi_cls._scheduler_ip}_CMD_PREFIX", "") or "")
     if not cmd_prefix:
         try:
-            cmd_prefix = await agi_cls._detect_export_cmd(agi_cls._scheduler_ip) or ""
+            cmd_prefix = str(await agi_cls._detect_export_cmd(agi_cls._scheduler_ip) or "")
         except _EXPORT_CMD_LOOKUP_EXCEPTIONS:
             cmd_prefix = ""
         if cmd_prefix:
