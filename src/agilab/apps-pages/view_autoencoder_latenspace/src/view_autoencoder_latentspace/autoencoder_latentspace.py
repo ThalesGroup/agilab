@@ -454,7 +454,8 @@ def page(env):
             persisted = _toml.load(fh)
     except Exception:
         persisted = {}
-    view_settings = persisted.get("view_autoencoder_latentspace", {}) if isinstance(persisted, dict) else {}
+    raw_view_settings = persisted.get("view_autoencoder_latentspace", {}) if isinstance(persisted, dict) else {}
+    view_settings = raw_view_settings if isinstance(raw_view_settings, dict) else {}
 
     sidebar_views()
 
@@ -477,7 +478,11 @@ def page(env):
         return  # Stop further processing
     #
     # # Check if data is loaded and valid
-    if "data" not in st.session_state or st.session_state["data"].empty:
+    if (
+        "data" not in st.session_state
+        or not isinstance(st.session_state["data"], pd.DataFrame)
+        or st.session_state["data"].empty
+    ):
         st.warning("The dataset is empty or could not be loaded. Please select a valid data file.")
         return  # Stop further processing
 
@@ -537,10 +542,6 @@ def page(env):
             selected_format,
             color_data=y_train,
         )
-    else:
-        st.warning("The dataset is invalid or empty. Please select a valid data file.")
-        return  # Stop further processing
-
     # Persist current selections for reloads
     persist_keys = {
         "datadir": str(st.session_state.get("datadir", "")),
@@ -548,8 +549,6 @@ def page(env):
         "coltype": st.session_state.get("coltype", ""),
     }
     mutated = False
-    if not isinstance(view_settings, dict):
-        view_settings = {}
     for k, v in persist_keys.items():
         if view_settings.get(k) != v and v not in (None, ""):
             view_settings[k] = v

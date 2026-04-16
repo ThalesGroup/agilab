@@ -149,6 +149,46 @@ value = "kept"
     assert "MODE = 0" in broken_snippet
 
 
+def test_safe_service_start_template_covers_bool_int_and_json_scheduler_literals(tmp_path):
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text(
+        """
+[cluster]
+cluster_enabled = true
+scheduler = true
+
+[args]
+value = "kept"
+""".strip(),
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(app_settings_file=settings, apps_path=tmp_path / "apps", app="demo")
+    snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")
+    assert "SCHEDULER = True" in snippet
+
+    settings.write_text(
+        """
+[cluster]
+cluster_enabled = true
+scheduler = 1234
+""".strip(),
+        encoding="utf-8",
+    )
+    snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")
+    assert "SCHEDULER = 1234" in snippet
+
+    settings.write_text(
+        """
+[cluster]
+cluster_enabled = true
+scheduler = [1, 2]
+""".strip(),
+        encoding="utf-8",
+    )
+    snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")
+    assert "SCHEDULER = [1, 2]" in snippet
+
+
 def test_mlflow_text_and_path_helpers_cover_edge_cases(tmp_path, monkeypatch):
     env = SimpleNamespace(MLFLOW_TRACKING_DIR="relative-store", home_abs=tmp_path)
 
@@ -1539,6 +1579,58 @@ def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_pat
     assert checks.count(str(active_app)) >= 2
     assert fake_streamlit.session_state["lab_selected_venv"] == str(active_app)
     assert fake_streamlit.session_state["lab_selected_engine"] == "agi.run"
+
+
+def test_run_locked_step_uses_active_app_as_primary_runtime_fallback(tmp_path, monkeypatch):
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('x')", encoding="utf-8")
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    active_app = tmp_path / "active-app"
+    active_app.mkdir()
+    logs: list[str] = []
+
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {"snippet_file": str(snippet_file)}
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **_kwargs):
+        yield None
+
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+    monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+
+    pipeline_runtime.run_locked_step(
+        SimpleNamespace(
+            app="demo",
+            active_app=str(active_app),
+            apps_path=tmp_path / "apps",
+            copilot_file=tmp_path / "copilot.py",
+        ),
+        "page",
+        steps_file,
+        0,
+        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": ""},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "run.log", None),
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=lambda value: str(value) == str(active_app),
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
+        stream_run_command=lambda *_args, **_kwargs: "",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert fake_streamlit.session_state["lab_selected_venv"] == str(active_app)
+    assert any("engine=agi.run, env=runtime env" in line for line in logs)
 
 
 def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_path, monkeypatch):

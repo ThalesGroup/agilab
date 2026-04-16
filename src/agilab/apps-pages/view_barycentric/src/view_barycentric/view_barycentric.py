@@ -239,12 +239,6 @@ def _maybe_smooth_long_column(df: pd.DataFrame) -> None:
 
     # Choose an odd window length no larger than 21 and not exceeding valid_count
     window_length = min(21, valid_count if valid_count % 2 else valid_count - 1)
-    if window_length < 5:
-        window_length = 5
-    if window_length > valid_count:
-        window_length = valid_count if valid_count % 2 else valid_count - 1
-    if window_length < 3:
-        return
 
     polyorder = 2 if window_length > 3 else 1
 
@@ -395,7 +389,8 @@ def page(env):
             persisted = _toml.load(fh)
     except Exception:
         persisted = {}
-    view_settings = persisted.get("view_barycentric", {}) if isinstance(persisted, dict) else {}
+    raw_view_settings = persisted.get("view_barycentric", {}) if isinstance(persisted, dict) else {}
+    view_settings = raw_view_settings if isinstance(raw_view_settings, dict) else {}
 
     # Seed session from persisted values
     if "datadir" not in st.session_state and "datadir" in view_settings:
@@ -492,8 +487,6 @@ def page(env):
         "df_file": st.session_state.get("df_file", ""),
     }
     mutated = False
-    if not isinstance(view_settings, dict):
-        view_settings = {}
     for k, v in save_fields.items():
         if view_settings.get(k) != v and v not in (None, ""):
             view_settings[k] = v
@@ -642,56 +635,46 @@ def main():
     Main function to run the application.
     """
     try:
-        """
-        Main function to run the application.
-        """
-        try:
-            parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-            parser.add_argument(
-                "--active-app",
-                dest="active_app",
-                type=str,
-                help="Active app path (e.g. src/agilab/apps/builtin/flight_project)",
-                required=True,
-            )
-            args, _ = parser.parse_known_args()
+        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
+        parser.add_argument(
+            "--active-app",
+            dest="active_app",
+            type=str,
+            help="Active app path (e.g. src/agilab/apps/builtin/flight_project)",
+            required=True,
+        )
+        args, _ = parser.parse_known_args()
 
-            active_app = Path(args.active_app).expanduser()
-            if not active_app.exists():
-                st.error(f"Error: provided --active-app path not found: {active_app}")
-                sys.exit(1)
+        active_app = Path(args.active_app).expanduser()
+        if not active_app.exists():
+            st.error(f"Error: provided --active-app path not found: {active_app}")
+            sys.exit(1)
 
-            if "coltype" not in st.session_state:
-                st.session_state["coltype"] = var[0]
+        if "coltype" not in st.session_state:
+            st.session_state["coltype"] = var[0]
 
-            # Short app name (e.g., 'flight_project')
-            app = active_app.name
-            st.session_state["apps_path"] = str(active_app.parent)
-            st.session_state["app"] = app
+        # Short app name (e.g., 'flight_project')
+        app = active_app.name
+        st.session_state["apps_path"] = str(active_app.parent)
+        st.session_state["app"] = app
 
-            env = AgiEnv(
-                apps_path=active_app.parent,
-                app=app,
-                verbose=1,
-            )
-            env.init_done = True
-            st.session_state['env'] = env
-            st.session_state["IS_SOURCE_ENV"] = env.is_source_env
-            st.session_state["IS_WORKER_ENV"] = env.is_worker_env
+        env = AgiEnv(
+            apps_path=active_app.parent,
+            app=app,
+            verbose=1,
+        )
+        env.init_done = True
+        st.session_state['env'] = env
+        st.session_state["IS_SOURCE_ENV"] = env.is_source_env
+        st.session_state["IS_WORKER_ENV"] = env.is_worker_env
 
-            if "TABLE_MAX_ROWS" not in st.session_state:
-                st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
-            if "GUI_SAMPLING" not in st.session_state:
-                st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+        if "TABLE_MAX_ROWS" not in st.session_state:
+            st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
+        if "GUI_SAMPLING" not in st.session_state:
+            st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
-            # Initialize session state
-            page(env)
-
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            import traceback
-
-            st.error(traceback.format_exc())
+        # Initialize session state
+        page(env)
 
     except Exception as e:
         st.error(f"An error occurred: {e}")

@@ -371,17 +371,17 @@ async def render_execute_section(
 
                         candidate_batch = sorted(
                             {
-                                file_path
-                                for file_path in search_files
-                                if file_path.suffix.lower() == suffix
-                                and file_path.parent == target_file.parent
-                                and abs(latest_mtime - file_path.stat().st_mtime) <= batch_window
+                                target_file,
+                                *[
+                                    file_path
+                                    for file_path in search_files
+                                    if file_path.suffix.lower() == suffix
+                                    and file_path.parent == target_file.parent
+                                    and abs(latest_mtime - file_path.stat().st_mtime) <= batch_window
+                                ],
                             },
                             key=lambda p: p.stat().st_mtime,
                         )
-
-                        if not candidate_batch:
-                            candidate_batch = [target_file]
 
                         frames = []
                         for file_path in candidate_batch:
@@ -602,11 +602,11 @@ async def render_execute_section(
 
             def on_individual_checkbox_change(col_name, state_key):
                 if st.session_state.get(state_key):
-                    if col_name not in st.session_state.selected_cols:
-                        st.session_state.selected_cols.append(col_name)
+                    st.session_state.selected_cols = list(dict.fromkeys([*st.session_state.selected_cols, col_name]))
                 else:
-                    if col_name in st.session_state.selected_cols:
-                        st.session_state.selected_cols.remove(col_name)
+                    st.session_state.selected_cols = [
+                        selected for selected in st.session_state.selected_cols if selected != col_name
+                    ]
                 st.session_state.check_all = len(st.session_state.selected_cols) == len(st.session_state.df_cols)
                 st.session_state["_force_export_open"] = True
 

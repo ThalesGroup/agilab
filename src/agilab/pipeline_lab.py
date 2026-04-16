@@ -1309,9 +1309,8 @@ def display_lab_tab(
     if total_steps > 0:
         sequence_options = list(range(total_steps))
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
-        if not stored_sequence:
-            stored_sequence = sequence_options
-            st.session_state[sequence_state_key] = stored_sequence
+        stored_sequence = stored_sequence or sequence_options
+        st.session_state[sequence_state_key] = stored_sequence
         if sequence_widget_key not in st.session_state:
             st.session_state[sequence_widget_key] = stored_sequence
         else:
