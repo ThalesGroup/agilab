@@ -11,13 +11,6 @@ metadata:
 
 Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.
 
-## Background: Agent Skills (status update 2026-01-08)
-
-- Codex now supports **Agent Skills** using the open **Agent Skills** standard (`SKILL.md` + folder layout).
-- Skills support **progressive disclosure**: only name/description load initially; full instructions load when invoked.
-- Skill scopes: repo (`.codex/skills/…`), user (`~/.codex/skills/…`), and admin/system (`/etc/codex/skills/…`).
-- Security note: skills are executable/context-bearing packages; treat third-party skills as supply-chain inputs (audit, pin versions, prefer sandboxes/approvals).
-
 ## AGILab working rules (repo policy)
 
 - **Use `uv` for all runs** so dependencies resolve in managed envs:
