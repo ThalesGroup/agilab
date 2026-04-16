@@ -11,9 +11,9 @@ first. This page now treats the source checkout + ``flight_project`` workflow as
 the recommended first proof path. Alternative install routes stay available
 below.
 
-If you want the thinnest code-first path without the web UI, see
-:doc:`notebook-quickstart`. That is a supported newcomer path if you prefer to
-stay in a notebook.
+Before the first run, ignore PyCharm, Codex helpers, SSH hosts, cluster mode,
+and private app repositories. They are useful later, but they add noise to the
+first proof.
 
 Prerequisites
 -------------
@@ -21,32 +21,8 @@ Prerequisites
 - Python 3.11+ with `uv <https://docs.astral.sh/uv/>`_ installed
   (``curl -LsSf https://astral.sh/uv/install.sh | sh``).
 - macOS or Linux shell (use WSL2 on Windows until native support lands).
-- SSH key access to any remote cluster you intend to use.
-- If you need to reuse Linux-dependent code paths, prefer macOS or Linux as your
-  development environment.
-
-Before working on private apps that depend on the public AGILab framework,
-initialise the pinned submodule::
-
-    git submodule update --init --recursive
-
-Codex workflow
---------------
-
-From this repository, use the shared workflow helper:
-
-- ``./tools/codex_workflow.sh review`` before larger edits
-- ``./tools/codex_workflow.sh exec "short change request"``
-- ``./tools/codex_workflow.sh apply <task-id>``
-
-The helper resolves ``.external/agilab/tools/codex_workflow.sh`` first, then
-falls back to a sibling ``../agilab`` checkout only if you explicitly use the
-legacy layout.
-
-License
-^^^^^^^
-
-New BSD. See :doc:`License File <license>`.
+- If you plan to explore remote workers later, keep SSH access for that later
+  step; it is not needed for the first proof path.
 
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -79,6 +55,11 @@ Use this path if you want to understand what AGILAB actually does:
    - fresh output exists under ``~/log/execute/flight/``
    - the workflow stayed understandable as ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``
 
+5. **Only after that, branch into alternative paths**
+
+   Do not switch to packaged install, notebook-first, or cluster setup before
+   this local proof works once from end to end.
+
 Alternative install routes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -98,6 +79,16 @@ Use these only if you already know why you want them.
     cd agilab
     ./install.sh --install-apps --test-apps
     uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
+
+Private apps or framework contributor setup
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Only do this after the public built-in proof path is working.
+
+Before working on private apps that depend on the public AGILab framework,
+initialise the pinned submodule::
+
+    git submodule update --init --recursive
 
 Run without PyCharm (CLI wrappers)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -127,6 +118,19 @@ iteration, but they are not required to install or run AGILab.
   ``.codex/skills``.
 - A minimal shell-only workflow remains available through
   ``tools/run_configs``.
+
+Codex workflow
+^^^^^^^^^^^^^^
+
+From this repository, use the shared workflow helper:
+
+- ``./tools/codex_workflow.sh review`` before larger edits
+- ``./tools/codex_workflow.sh exec "short change request"``
+- ``./tools/codex_workflow.sh apply <task-id>``
+
+The helper resolves ``.external/agilab/tools/codex_workflow.sh`` first, then
+falls back to a sibling ``../agilab`` checkout only if you explicitly use the
+legacy layout.
 
 Cluster installs
 ^^^^^^^^^^^^^^^^
@@ -168,3 +172,8 @@ Support
 ^^^^^^^
 
 Support: open an issue on GitHub
+
+License
+^^^^^^^
+
+New BSD. See :doc:`License File <license>`.

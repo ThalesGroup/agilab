@@ -1,9 +1,12 @@
 Newcomer Guide
 ==============
 
-If you are new to AGILab, optimize for one outcome: one successful local run of
-a built-in app. Do not start with cluster installs, private app repositories,
-or packaging work.
+If you are new to AGILab, optimize for one outcome only: one successful local
+run of the built-in ``flight_project`` from the web UI.
+
+Do not start with cluster installs, private app repositories, notebook-first
+flows, or packaging work. The first goal is not to explore every mode. The
+first goal is to see one full AGILab workflow work end to end.
 
 This page gives the shortest mental model for the framework. For the exact
 installation commands, see :doc:`quick-start`.
@@ -18,47 +21,28 @@ You are "past the newcomer hurdle" when all of the following are true:
 - You can do that either from the web UI or from a notebook using
   ``AgiEnv`` and ``AGI.run(...)``.
 
-Choose your path
-----------------
+What to ignore on day 1
+-----------------------
 
-Pick one path before you start, but do not treat them as equal:
+Skip these until the local ``flight_project`` proof works once:
 
-- **Recommended first proof path**: clone the repository, use the web UI, and
-  run the built-in ``flight_project`` locally.
-- **Evaluate AGILab quickly**: use the published package in a fresh
-  ``uv``-managed virtual environment.
-- **Contribute or inspect the framework deeply**: use the source checkout and
-  then branch into notebook, wrappers, or cluster flows after the first local
-  proof works.
-
-If you are unsure, choose the recommended ``flight_project`` path from
-:doc:`quick-start`. Mixing the packaged install and a source checkout too early
-is one of the easiest ways to confuse paths, environments, and generated
-scripts.
-
-Prefer code first?
-------------------
-
-If you already live in Jupyter, use :doc:`notebook-quickstart` for the fastest
-local notebook-first route. This is a supported newcomer path, not just an
-advanced API reference.
+- cluster and SSH setup
+- published-package mode
+- notebook-first route
+- private or optional app repositories
+- PyCharm or VS Code convenience flows
 
 The first 10 minutes
 --------------------
 
 1. Install or launch AGILab with the commands from :doc:`quick-start`.
 2. Keep the first run local. Skip SSH hosts and cluster settings.
-3. Start with ``src/agilab/apps/builtin/flight_project`` as the default first
-   proof path. Use ``mycode_project`` only if you explicitly want the smallest
+3. Start with ``src/agilab/apps/builtin/flight_project``. Use
+   ``mycode_project`` only later, when you intentionally want the smallest
    reference app instead of the clearest product demonstration.
-4. Choose one first-run workflow:
-
-   - **Notebook-first**: open :doc:`notebook-quickstart` and run the local
-     ``AgiEnv`` + ``AGI.run(...)`` example from Jupyter.
-   - **UI-first**: use the AGILAB UI in this order:
-     **PROJECT** -> **ORCHESTRATE** -> **PIPELINE** -> **ANALYSIS**.
-
-5. Confirm that ``~/log/execute/<app>/`` contains fresh output.
+4. Use the UI in this order:
+   **PROJECT** -> **ORCHESTRATE** -> **PIPELINE** -> **ANALYSIS**.
+5. Confirm that ``~/log/execute/flight/`` contains fresh output.
 
 The core ideas, in plain language
 ---------------------------------
@@ -87,6 +71,16 @@ Common newcomer traps
   :doc:`quick-start` so you do not accidentally run the published wheel.
 - **Contributors editing generated docs output**:
   edit ``docs/source`` in the docs repository, not ``docs/html``.
+
+Only after the first proof
+--------------------------
+
+Branch into these routes only after the local ``flight_project`` path works:
+
+- :doc:`notebook-quickstart` if you prefer to stay in Jupyter
+- published package mode if you want the thinnest install path
+- :doc:`distributed-workers` when you are ready for SSH or multi-node execution
+- developer convenience flows such as PyCharm run configurations or VS Code tasks
 
 Where to go next
 ----------------

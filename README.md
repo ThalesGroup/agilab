@@ -32,78 +32,25 @@
 
 # AGILAB Open Source Project
 
-AGILAB is an open-source platform for **reproducible AI/ML workflows** that takes the same application from local
-experimentation to distributed execution and long-lived services. It is aimed first at applied ML engineers who need
-one control path for setup, execution, replay, and analysis instead of hand-wiring those steps separately at each
-stage.
+AGILAB is an open-source platform for **reproducible AI/ML workflows** that keeps the same application understandable
+from local experimentation to distributed workers and long-lived services.
 
-**First proof:** run the built-in `flight_project` locally from the web UI, follow
-`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`, and confirm fresh output under
-`~/log/execute/flight/`.
+It is built first for **applied ML engineers and technical teams** who want one control path for setup, run, replay,
+and analysis instead of separate ad hoc scripts at each stage.
 
 AGILAB is maintained by the Thales Group and released under the
 [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
 
-## Who AGILAB Is For
+## Start Here
 
-AGILAB is strongest when your problem is not just "run one script once" but:
+If this is your first visit, ignore cluster mode, private app repositories, notebook-first flows, and packaged
+install. Use one path only:
 
-- you need the same workflow to stay understandable from local trial to distributed run
-- you want execution, replay, and analysis to stay tied to the same app context
-- you want service mode to be part of the workflow instead of a separate rewrite
-
-If you only want the smallest possible single-notebook path, AGILAB may be more structure than you need. If you need
-reproducibility once the workflow starts growing, that is the target use case.
-
-## Why teams use AGILAB
-
-- **One control path** from Streamlit or CLI entrypoints to isolated local and distributed workers.
-- **Reproducible execution** through managed environments, explicit execution pipelines, and per-app settings.
-- **Persistent service mode** through `AGI.serve` (`start` / `status` / `health` / `stop`) with machine-readable health gates.
-- **Production-style orchestration** using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
-- **Ready-to-adapt examples** for applied AI/ML scenarios such as flight simulation, network traffic, industrial IoT,
-  and optimization workloads.
-- **Agent-friendly developer workflow** through `AGENTS.md`, repo skill trees (`.claude/skills` and `.codex/skills`), PyCharm run configs, generated VS Code tasks and launch configs, and agent helpers.
-- **Free-threaded Python aware** when both the selected environment and worker declare support.
-
-## Where AGILAB fits in production ML
-
-AGILAB is best understood as a **workflow and orchestration layer** for applied machine learning:
-
-- **Model Training & Orchestration**: build and run multi-step workflows locally or over SSH-managed clusters.
-- **Deployment & Serving**: operate persistent workers with health snapshots and restart policies.
-- **Experiment Reproducibility**: keep environments, app settings, logs, and execution history aligned.
-
-If you are evaluating AGILAB for an MLOps stack, the core idea is simple: the same application can be driven from a
-developer-friendly UI, from CLI automation, or from distributed worker execution without inventing a different control
-plane for each stage.
-
-## Quick links
-
-- **Documentation:** https://thalesgroup.github.io/agilab
-- **Execution Playground guide:** https://thalesgroup.github.io/agilab/execution-playground.html
-- **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
-- **Flight project guide:** https://thalesgroup.github.io/agilab/flight-project.html
-- **PyPI package:** https://pypi.org/project/agilab
-- **Discussions:** https://github.com/ThalesGroup/agilab/discussions
-- **Developer runbook:** [AGENTS.md](AGENTS.md)
-- **Demo capture workflow:** [docs/source/demo_capture_script.md](docs/source/demo_capture_script.md)
-
-## See the stack in one picture
-
-![AGILAB runtime stack](docs/source/Agilab-Overview.svg)
-
-## Recommended First Run
-
-If you are new to AGILAB, start with one path only:
-
-- use a source checkout
-- launch the web UI
-- run the built-in `flight_project`
-- keep the first run local
-
-This is the strongest first proof of the product because it shows the full AGILAB workflow instead of only the
-thinnest install path.
+- source checkout
+- web UI
+- built-in `flight_project`
+- local run
+- visible analysis
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
@@ -119,14 +66,35 @@ Then in the UI:
 3. inspect the generated step in **PIPELINE**
 4. open the resulting view in **ANALYSIS**
 
-Your first proof point is explicit:
+Your first proof is explicit:
 
 - fresh generated output appears under `~/log/execute/flight/`
 - the workflow stays visible as `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
 
-## Alternative Onboarding Paths
+Fast orientation:
 
-Use these only if you already know why you want them.
+- [45-second workflow intro video](https://youtu.be/kOMDyvbnC9w)
+- [Documentation](https://thalesgroup.github.io/agilab)
+- [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
+
+## Why teams use AGILAB
+
+- **One control path** from UI or CLI entrypoints to local workers, distributed execution, and analysis.
+- **Reproducible execution** through managed environments, explicit pipeline steps, and per-app settings.
+- **Service mode** with `AGI.serve` (`start` / `status` / `health` / `stop`) instead of stopping at one-off runs.
+- **Operationally visible workflows** where logs, generated snippets, and outputs stay tied to the same app context.
+
+## Use AGILAB when
+
+- your workflow already spans setup, run, replay, and analysis
+- you want the same app to survive the move from local run to distributed execution
+- you need environments, execution history, and generated artifacts to stay aligned
+
+If you only want the smallest possible single-notebook path, AGILAB is probably more structure than you need.
+
+## Alternative paths
+
+Use these only after the first `flight_project` proof works.
 
 ### Evaluate the published package quickly
 
@@ -147,35 +115,15 @@ cd agilab
 uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
 ```
 
-The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, link
-bundled applications into the workspace, and validate the setup with tests and coverage-aware tooling.
+### Developer ergonomics
 
-For a first pass through the product:
+- PyCharm can reuse the bundled run configurations.
+- VS Code can consume generated local `tasks.json` and `launch.json`.
+- Codex and Claude can follow the shared runbook in [AGENTS.md](AGENTS.md).
 
-- Start with `src/agilab/apps/builtin/flight_project`.
-- Do one successful local run before touching SSH hosts, cluster settings, or private app repositories.
-- Treat `~/log/execute/flight/` as the "it worked" checkpoint: AGILAB writes generated snippets, logs, and run history there.
-- Use `examples/notebook_quickstart/agi_core_first_run.ipynb` only if you intentionally want the code-first path.
+## Watch the workflow
 
-See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes and end-user
-deployment instructions.
-
-The public repository is self-contained for the built-in apps and documentation. An external apps repository is
-optional and only needed when you want to add extra internal or private app templates on top of the public AGILAB
-stack.
-
-## Creator
-
-AGILAB was created by **Jean-Pierre Morard**.
-
-Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
-distributed execution, and operational experimentation. AGILAB reflects that
-vision: turning AI apps from isolated scripts into structured, testable,
-benchmarkable, and shareable workflows.
-
-## Start here: 3-minute tour
-
-If you want to understand AGILAB quickly, use the built-in `flight_project` as the reference path:
+Use the built-in `flight_project` as the reference path:
 
 ![AGILAB 3-minute tour](docs/source/diagrams/agilab_readme_tour.svg)
 
@@ -188,25 +136,22 @@ Video tutorial and slideshow:
 - [Video tutorial and slideshow guide](docs/source/demo_capture_script.md)
 - `uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg python tools/build_demo_explainer.py`
 
-1. Launch the AGILAB UI from source:
+## Quick links
 
-   ```bash
-   uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
-   ```
+- **Documentation:** https://thalesgroup.github.io/agilab
+- **Execution Playground guide:** https://thalesgroup.github.io/agilab/execution-playground.html
+- **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
+- **Flight project guide:** https://thalesgroup.github.io/agilab/flight-project.html
+- **PyPI package:** https://pypi.org/project/agilab
+- **Discussions:** https://github.com/ThalesGroup/agilab/discussions
+- **Developer runbook:** [AGENTS.md](AGENTS.md)
+- **Demo capture workflow:** [docs/source/demo_capture_script.md](docs/source/demo_capture_script.md)
 
-2. In **PROJECT**, select `src/agilab/apps/builtin/flight_project`.
-3. In **ORCHESTRATE**, run the install/distribute/run flow to package and execute the worker pipeline.
-4. In **PIPELINE**, inspect or replay the generated steps.
-5. In **ANALYSIS**, open one of the built-in Streamlit views over the exported data.
+## See the stack in one picture
 
-What this shows in one pass:
+![AGILAB runtime stack](docs/source/Agilab-Overview.svg)
 
-- one app definition
-- one environment bootstrap
-- one orchestration path from UI to workers
-- one analysis path over the produced artifacts
-
-Useful references:
+Useful references after the first proof:
 
 - [Execution Playground guide](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Notebook migration example: skforecast + Meteo-France](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
