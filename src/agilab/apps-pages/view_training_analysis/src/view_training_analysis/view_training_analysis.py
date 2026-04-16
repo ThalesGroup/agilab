@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import math
 import sys
 from pathlib import Path
@@ -41,7 +42,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 PAGE_KEY = "view_training_analysis"
 RUN_ROOTS_KEY = f"{PAGE_KEY}_run_roots"
-TRAINER_KEY = f"{PAGE_KEY}_trainer"
+TRAINERS_KEY = f"{PAGE_KEY}_trainers"
 TAGS_KEY = f"{PAGE_KEY}_tags"
 X_AXIS_KEY = f"{PAGE_KEY}_x_axis"
 
@@ -196,6 +197,91 @@ def _discover_run_directories(tensorboard_dir: Path) -> list[Path]:
     return sorted(run_dirs, key=lambda path: path.as_posix())
 
 
+def _relative_parts(path: Path, base: Path) -> tuple[str, ...]:
+    relative = _relative_label(path, base)
+    parts = tuple(part for part in relative.split("/") if part and part != ".")
+    return parts or (path.name,)
+
+
+def _shared_trainer_prefix_length(parts_by_path: dict[Path, tuple[str, ...]]) -> int:
+    if not parts_by_path:
+        return 0
+
+    paths = sorted(parts_by_path, key=lambda path: path.as_posix())
+    parts_list = [parts_by_path[path] for path in paths]
+    shortest = min(len(parts) for parts in parts_list)
+    shared_length = 0
+    while shared_length < shortest:
+        segment = parts_list[0][shared_length]
+        if any(parts[shared_length] != segment for parts in parts_list[1:]):
+            break
+        shared_length += 1
+
+    # Keep at least two path levels when possible so the retained prefix stays at the
+    # experiment-group level instead of collapsing to the trainer folder itself.
+    max_shared_length = max(shortest - 2, 0)
+    return min(shared_length, max_shared_length)
+
+
+def _initial_trainer_group_labels(
+    trainer_roots: list[Path],
+    data_root: Path,
+) -> dict[Path, str]:
+    if not trainer_roots:
+        return {}
+
+    parts_by_path = {
+        trainer_root: _relative_parts(trainer_root, data_root)
+        for trainer_root in sorted(trainer_roots, key=lambda path: path.as_posix())
+    }
+    shared_prefix_length = _shared_trainer_prefix_length(parts_by_path)
+    return {
+        trainer_root: parts_by_path[trainer_root][shared_prefix_length]
+        for trainer_root in parts_by_path
+    }
+
+
+def _discover_run_labels(
+    trainer_roots: list[Path],
+    data_root: Path,
+) -> dict[str, Path]:
+    include_trainer_prefix = len(trainer_roots) > 1
+    trainer_labels = _initial_trainer_group_labels(trainer_roots, data_root)
+    run_entries: list[tuple[Path, Path, str]] = []
+    for trainer_root in sorted(trainer_roots, key=lambda path: path.as_posix()):
+        tensorboard_dir = trainer_root / "tensorboard"
+        for run_dir in _discover_run_directories(tensorboard_dir):
+            run_label = _relative_label(run_dir, tensorboard_dir)
+            run_entries.append((trainer_root, run_dir, run_label))
+
+    if not include_trainer_prefix:
+        return {run_label: run_dir for _, run_dir, run_label in run_entries}
+
+    primary_counts = Counter(
+        f"{trainer_labels.get(trainer_root, trainer_root.name)}/{run_label}"
+        for trainer_root, _, run_label in run_entries
+    )
+    secondary_counts = Counter(
+        f"{trainer_labels.get(trainer_root, trainer_root.name)}/{trainer_root.name}/{run_label}"
+        for trainer_root, _, run_label in run_entries
+    )
+
+    labeled_runs: dict[str, Path] = {}
+    for trainer_root, run_dir, run_label in run_entries:
+        trainer_label = trainer_labels.get(trainer_root, trainer_root.name)
+        primary_label = f"{trainer_label}/{run_label}"
+        if primary_counts[primary_label] == 1:
+            display_label = primary_label
+        else:
+            secondary_label = f"{trainer_label}/{trainer_root.name}/{run_label}"
+            if secondary_counts[secondary_label] == 1:
+                display_label = secondary_label
+            else:
+                display_label = f"{_relative_label(trainer_root, data_root)}/{run_label}"
+        labeled_runs[display_label] = run_dir
+    return labeled_runs
+
+
 def _relative_label(path: Path, base: Path) -> str:
     try:
         relative = path.resolve().relative_to(base.resolve())
@@ -337,7 +423,7 @@ def main() -> None:
     render_logo("Training Analysis")
     st.title("Training analysis")
     st.caption(
-        "Browse TensorBoard scalar logs from any trainer output and plot the metrics you need."
+        "Browse TensorBoard scalar logs from one or more trainer outputs and plot the metrics you need."
     )
 
     page_state = _get_page_state()
@@ -399,23 +485,33 @@ def main() -> None:
 
     trainer_labels = {_relative_label(path, data_root): path for path in trainer_roots}
     trainer_options = list(trainer_labels.keys())
-    selected_trainer_label = st.sidebar.selectbox(
-        "Trainer output",
+    saved_trainer_labels = _coerce_str_list(page_state.get("trainer_rels"))
+    if not saved_trainer_labels:
+        saved_trainer_labels = _coerce_str_list(page_state.get("trainer_rel"))
+    default_trainer_labels = [label for label in saved_trainer_labels if label in trainer_options]
+    if not default_trainer_labels and trainer_options:
+        default_trainer_labels = [trainer_options[0]]
+    selected_trainer_labels = st.sidebar.multiselect(
+        "Trainer outputs",
         options=trainer_options,
-        index=trainer_options.index(page_state.get("trainer_rel"))
-        if page_state.get("trainer_rel") in trainer_options
-        else 0,
-        key=TRAINER_KEY,
+        default=default_trainer_labels,
+        key=TRAINERS_KEY,
     )
-    selected_trainer = trainer_labels[selected_trainer_label]
-    tensorboard_dir = selected_trainer / "tensorboard"
+    selected_trainers = [trainer_labels[label] for label in selected_trainer_labels]
 
-    run_dirs = _discover_run_directories(tensorboard_dir)
-    if not run_dirs:
-        st.warning(f"No TensorBoard run folders found under {tensorboard_dir}.")
+    if not selected_trainers:
+        st.info("Select at least one Trainer output in the sidebar.")
         st.stop()
 
-    run_labels = {_relative_label(path, tensorboard_dir): path for path in run_dirs}
+    run_labels = _discover_run_labels(selected_trainers, data_root)
+    if not run_labels:
+        selected_trainers_display = ", ".join(selected_trainer_labels)
+        st.warning(
+            "No TensorBoard run folders found under the selected trainer outputs"
+            + (f": {selected_trainers_display}." if selected_trainers_display else ".")
+        )
+        st.stop()
+
     run_options = list(run_labels.keys())
     saved_run_labels = _coerce_str_list(page_state.get("run_rels"))
     if not saved_run_labels:
@@ -486,7 +582,8 @@ def main() -> None:
             "base_dir_choice": base_choice,
             "input_datadir": st.session_state.get("input_datadir", ""),
             "datadir_rel": st.session_state.get("datadir_rel", ""),
-            "trainer_rel": selected_trainer_label,
+            "trainer_rel": selected_trainer_labels[0] if selected_trainer_labels else "",
+            "trainer_rels": selected_trainer_labels,
             "run_rel": selected_run_labels[0] if selected_run_labels else "",
             "run_rels": selected_run_labels,
             "selected_tags": selected_tags,
