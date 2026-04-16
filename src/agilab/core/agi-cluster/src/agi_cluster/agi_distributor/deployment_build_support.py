@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from agi_env import AgiEnv
 from agi_env.share_runtime_support import python_supports_free_threading
@@ -42,13 +42,16 @@ def _python_site_version(pyvers_worker: str) -> str:
 
 def _project_uv(env: Any) -> str:
     if not env.is_free_threading_available or not python_supports_free_threading():
-        return env.uv
+        return str(env.uv)
     cmd_prefix = str(env.envars.get("127.0.0.1_CMD_PREFIX", "")).strip()
     return " ".join(part for part in (cmd_prefix, "PYTHON_GIL=0", env.uv) if part)
 
 
 def _worker_pyproject_source(env: Any) -> Path:
-    worker_pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
+    worker_pyproject_src = cast(
+        Path,
+        env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject,
+    )
     if not worker_pyproject_src.exists():
         raise FileNotFoundError(f"Missing pyproject.toml for worker environment: {worker_pyproject_src}")
     return worker_pyproject_src
