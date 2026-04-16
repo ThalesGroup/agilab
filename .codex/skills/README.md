@@ -1,12 +1,15 @@
-# Repo Skills
+# Repo Skills (Claude)
 
-This repository includes a small set of **Codex Agent Skills** under `.codex/skills/`.
-They are inspired by the structure used in `github.com/anthropics/skills` (each skill
-is a folder containing a `SKILL.md` entrypoint and any supporting assets).
+This repository includes a set of **Claude Code Agent Skills** under `.claude/skills/`.
+Each skill is a folder containing a `SKILL.md` entrypoint and any supporting assets.
+
+These shared repo skills are authored under `.claude/skills/` and mirrored into
+`.codex/skills/` for Codex consumption. The `SKILL.md` format is shared, so one
+canonical source can serve both agents.
 
 ## How Skills Are Used
 
-- Skills are **opt-in**: the agent can choose to load and follow a skill when it is relevant.
+- Skills are **opt-in**: the agent chooses to load and follow a skill when it is relevant to the current task.
 - Skills are meant to be **actionable runbooks** (commands, conventions, pitfalls), not prose.
 - Prefer **fail-fast guidance** and **reproducible commands** (use `uv` in this repo).
 
@@ -19,6 +22,7 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
+- `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.
 - `docx-figure-sync`: Replace embedded DOCX figures without disturbing nearby layout and captions.
@@ -27,32 +31,33 @@ is a folder containing a `SKILL.md` entrypoint and any supporting assets).
 - `plan-before-code`: Enforce a short planning and validation pass before multi-step code changes.
 - `report-qa-docx`: Review DOCX reports for missing figures, duplicate sections, stale wording, and caption drift.
 - `repo-skill-maintenance`: Maintain the shared `.claude/skills` and `.codex/skills` trees safely, with targeted sync and validation.
-- `scientific-svg-figures`: Publication-grade scientific and technical SVG figure workflow for reports, slides, docs, and DOCX/PDF export.
+- `svg-diagrams`: Author robust repo-native SVG diagrams with in-box text.
+- `scientific-svg-figures`: Create publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows.
+- `svg-diagram-tuning`: Refine an existing SVG for readability and export safety without redesigning it from scratch.
 - `slides`: Create and edit `.pptx` decks with PptxGenJS and bundled validation/render helpers.
 - `slides-docx-align`: Keep slide decks aligned with DOCX report content while preserving each artifact’s role.
-- `svg-diagram-tuning`: Refine an existing SVG for readability and export safety without redesigning it from scratch.
-- `svg-diagrams`: Build or substantially rework repo-native SVG diagrams with controlled in-box text.
 
 ## Adding A New Skill
 
-Shared AGILAB skills should be created under `.claude/skills/<skill-name>/` first, then synced into `.codex/skills/`:
+1. Create a new folder: `.claude/skills/<skill-name>/`.
+2. Add `.claude/skills/<skill-name>/SKILL.md` with YAML front-matter:
+   - `name`, `description`, `license`, optional `metadata`.
+3. Keep the skill self-contained; include scripts/examples only when they materially help.
+4. Run `python3 tools/sync_agent_skills.py --skills <skill-name>` to mirror it into `.codex/skills/`.
 
-1. Create `.claude/skills/<skill-name>/`.
-2. Add the skill content there.
-3. Run `python3 tools/sync_agent_skills.py --skills <skill-name>`.
-4. Regenerate the Codex index with `tools/codex_skills.py`.
+## Keeping Codex and Claude trees in sync
 
-Use `.codex/skills/` for the mirrored repo-visible Codex copy, not as the canonical edit location for shared skills.
-Use `python3 tools/sync_agent_skills.py --all` only after deliberately reconciling any older drift between the Claude and Codex repo copies. Keep `~/.codex/skills/` for personal or machine-local skills.
+Shared repo skills are now maintained with this contract:
 
-## Managing the Skill Index
+- Canonical shared source: `.claude/skills/`
+- Codex mirror: `.codex/skills/`
+- Personal Codex-only skills: `~/.codex/skills/`
 
-Use `tools/codex_skills.py` to validate and regenerate generated indexes:
+Use:
 
+- `python3 tools/sync_agent_skills.py --skills scientific-svg-figures` to sync one skill
+- `python3 tools/sync_agent_skills.py --all` only after intentionally reconciling older Claude/Codex skill drift
 - `python3 tools/codex_skills.py --root .codex/skills validate --strict`
 - `python3 tools/codex_skills.py --root .codex/skills generate`
 
-Generated files are written to:
-
-- `.codex/skills/.generated/skills_index.json`
-- `.codex/skills/.generated/skills_index.md`
+Do not hand-edit both trees for the same shared skill. Edit `.claude/skills/`, sync the specific skill into `.codex/skills/`, then regenerate the Codex index. Keep `~/.codex/skills/` for personal or machine-local skills only.

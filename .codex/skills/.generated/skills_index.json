@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-15T12:50:13Z",
+  "generated_at_utc": "2026-04-16T06:12:50Z",
   "tool": "tools/codex_skills.py",
   "count": 21,
   "skills": [
@@ -49,7 +49,7 @@
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": "2026-04-08",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
-      "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## Background: Agent Skills (status update 2026-01-08)\n- Codex now supports **Agent Skills** using the open **Agent Skills** standard (`SKILL.md` + folder layout)."
+      "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
     },
     {
       "name": "agilab-streamlit-pages",
@@ -165,11 +165,11 @@
     },
     {
       "name": "svg-diagrams",
-      "description": "Create or substantially rework repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when Codex must produce a standalone SVG asset, define or restructure the layout, and keep text inside boxes without overflow.",
+      "description": "Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-14",
+      "updated": "2026-04-09",
       "path": ".codex/skills/svg-diagrams/SKILL.md",
-      "body_preview": "# SVG diagrams\nUse this skill when creating a new SVG, doing a major redesign of an existing one,\nor turning a rough sketch into a repo-native source-of-truth asset.\nIf the user only wants a local readability fix on an existing SVG, prefer the"
+      "body_preview": "# SVG diagrams\nUse this skill when creating or editing standalone SVG assets in the repo.\n## Default workflow\n1. Start from a fixed `viewBox` and explicit box geometry."
     }
   ]
 }
