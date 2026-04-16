@@ -261,6 +261,69 @@ async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monke
 
 
 @pytest.mark.asyncio
+async def test_prepare_local_env_windows_handles_empty_uv_and_self_update_failure(monkeypatch, tmp_path):
+    env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="")
+    agi_cls = _build_agi(env, supports_rapids=lambda: True)
+    fake_home = tmp_path / "home"
+    standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
+    standalone_uv.parent.mkdir(parents=True, exist_ok=True)
+    standalone_uv.write_text("", encoding="utf-8")
+    run_calls = []
+    log = mock.Mock()
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_run(cmd, _cwd):
+        run_calls.append(cmd)
+        if "self update" in cmd:
+            raise RuntimeError("standalone update failed")
+        return ""
+
+    monkeypatch.setattr(deployment_prepare_support.os, "name", "nt", raising=False)
+    monkeypatch.setattr(deployment_prepare_support.Path, "home", classmethod(lambda cls: fake_home))
+
+    await deployment_prepare_support.prepare_local_env(
+        agi_cls,
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        set_env_var_fn=lambda *_a, **_k: None,
+        run_fn=_fake_run,
+        python_version_fn=lambda: "3.13.12",
+        log=log,
+    )
+
+    assert any(cmd.startswith(f"{standalone_uv} self update") for cmd in run_calls)
+    assert any("python install 3.13" in cmd for cmd in run_calls)
+    log.warning.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_prepare_local_env_online_re_raises_unexpected_python_install_error(tmp_path):
+    env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False)
+    agi_cls = _build_agi(env, supports_rapids=lambda: True)
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_run(cmd, _cwd):
+        if "python install" in cmd:
+            raise RuntimeError("unexpected install failure")
+        return ""
+
+    with pytest.raises(RuntimeError, match="unexpected install failure"):
+        await deployment_prepare_support.prepare_local_env(
+            agi_cls,
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=_fake_detect,
+            set_env_var_fn=lambda *_a, **_k: None,
+            run_fn=_fake_run,
+            python_version_fn=lambda: "3.13.12",
+            log=mock.Mock(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_prepare_cluster_env_happy_path_sends_files(tmp_path):
     env = _build_cluster_env(tmp_path)
     agi_cls = _build_agi(env)
@@ -518,6 +581,228 @@ async def test_prepare_cluster_env_uses_unique_stage_dir_and_cleans_it(tmp_path)
     assert any(item["name"] == "pyproject.toml" for item in sent_to_wenv[0])
     assert any(item["name"] == "staged-source.txt" for item in sent_to_wenv[0])
     assert any(item["name"] == "uv.toml" for item in sent_to_wenv[0])
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_rejects_invalid_remote_ip(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    env.is_local = lambda _ip: False
+    agi_cls = _build_agi(env, workers={"not-an-ip": 1})
+
+    with pytest.raises(ValueError, match="Invalid IP address"):
+        await deployment_prepare_support.prepare_cluster_env(
+            agi_cls,
+            "127.0.0.1",
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=lambda *_a, **_k: None,
+            ensure_optional_extras_fn=lambda *_a, **_k: None,
+            stage_uv_sources_fn=lambda **_kwargs: [],
+            run_exec_ssh_fn=lambda *_a, **_k: None,
+            send_files_fn=lambda *_a, **_k: None,
+            kill_fn=lambda *_a, **_k: None,
+            clean_dirs_fn=lambda *_a, **_k: None,
+            log=mock.Mock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_version_connection_error_bubbles(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    agi_cls = _build_agi(env)
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(_ip, _cmd):
+        raise ConnectionError("network down")
+
+    with pytest.raises(ConnectionError, match="network down"):
+        await deployment_prepare_support.prepare_cluster_env(
+            agi_cls,
+            "127.0.0.1",
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=_fake_detect,
+            ensure_optional_extras_fn=lambda *_a, **_k: None,
+            stage_uv_sources_fn=lambda **_kwargs: [],
+            run_exec_ssh_fn=_fake_exec,
+            send_files_fn=lambda *_a, **_k: None,
+            kill_fn=lambda *_a, **_k: None,
+            clean_dirs_fn=lambda *_a, **_k: None,
+            log=mock.Mock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_offline_missing_uv_raises_environment_error(tmp_path):
+    env = _build_cluster_env(tmp_path, internet_on="0")
+    agi_cls = _build_agi(env)
+    log = mock.Mock()
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            raise RuntimeError("uv missing")
+        return "ok"
+
+    with pytest.raises(EnvironmentError, match="Uv binary is not installed"):
+        await deployment_prepare_support.prepare_cluster_env(
+            agi_cls,
+            "127.0.0.1",
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=_fake_detect,
+            ensure_optional_extras_fn=lambda *_a, **_k: None,
+            stage_uv_sources_fn=lambda **_kwargs: [],
+            run_exec_ssh_fn=_fake_exec,
+            send_files_fn=lambda *_a, **_k: None,
+            kill_fn=lambda *_a, **_k: None,
+            clean_dirs_fn=lambda *_a, **_k: None,
+            log=log,
+        )
+
+    log.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_uses_powershell_installer_before_continuing(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    agi_cls = _build_agi(env)
+    remote_cmds = []
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if "--version" in cmd:
+            raise RuntimeError("uv missing")
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=_noop,
+        kill_fn=_noop,
+        clean_dirs_fn=_noop,
+        set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+        log=mock.Mock(),
+    )
+
+    assert any("install.ps1" in cmd for _ip, cmd in remote_cmds)
+    assert not any("curl -LsSf https://astral.sh/uv/install.sh | sh" in cmd for _ip, cmd in remote_cmds)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_powershell_connection_error_bubbles(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    agi_cls = _build_agi(env)
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            raise RuntimeError("uv missing")
+        if "install.ps1" in cmd:
+            raise ConnectionError("ssh lost")
+        return "ok"
+
+    with pytest.raises(ConnectionError, match="ssh lost"):
+        await deployment_prepare_support.prepare_cluster_env(
+            agi_cls,
+            "127.0.0.1",
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=_fake_detect,
+            ensure_optional_extras_fn=lambda *_a, **_k: None,
+            stage_uv_sources_fn=lambda **_kwargs: [],
+            run_exec_ssh_fn=_fake_exec,
+            send_files_fn=lambda *_a, **_k: None,
+            kill_fn=lambda *_a, **_k: None,
+            clean_dirs_fn=lambda *_a, **_k: None,
+            log=mock.Mock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_offline_warns_without_self_update(tmp_path):
+    env = _build_cluster_env(tmp_path, internet_on="0")
+    agi_cls = _build_agi(env)
+    remote_cmds = []
+    log = mock.Mock()
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=_noop,
+        kill_fn=_noop,
+        clean_dirs_fn=_noop,
+        set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+        log=log,
+    )
+
+    assert not any("self update" in cmd for _ip, cmd in remote_cmds)
+    log.warning.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_python_install_unknown_error_bubbles(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    agi_cls = _build_agi(env)
+
+    class _ProcError(RuntimeError):
+        pass
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(_ip, cmd):
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        if "python install" in cmd:
+            raise _ProcError("unexpected install failure")
+        return "ok"
+
+    with pytest.raises(_ProcError, match="unexpected install failure"):
+        await deployment_prepare_support.prepare_cluster_env(
+            agi_cls,
+            "127.0.0.1",
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=_fake_detect,
+            ensure_optional_extras_fn=lambda *_a, **_k: None,
+            stage_uv_sources_fn=lambda **_kwargs: [],
+            run_exec_ssh_fn=_fake_exec,
+            send_files_fn=lambda *_a, **_k: None,
+            kill_fn=lambda *_a, **_k: None,
+            clean_dirs_fn=lambda *_a, **_k: None,
+            process_error_type=_ProcError,
+            log=mock.Mock(),
+        )
 
 
 @pytest.mark.asyncio

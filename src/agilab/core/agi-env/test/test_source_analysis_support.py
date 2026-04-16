@@ -67,6 +67,12 @@ def test_source_symbol_helpers_raise_for_missing_invalid_or_unreadable_sources(t
     with pytest.raises(ValueError, match="Class 'Missing' not found"):
         source_analysis_module.get_class_methods(source_path, "Missing")
 
+    with pytest.raises(FileNotFoundError):
+        source_analysis_module.get_class_methods(missing, "Demo")
+
+    with pytest.raises(SyntaxError):
+        source_analysis_module.get_class_methods(broken, "Demo")
+
 
 def test_get_functions_and_attributes_handles_expected_read_failures_and_propagates_runtime_bug(
     tmp_path: Path,

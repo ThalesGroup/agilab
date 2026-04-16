@@ -43,9 +43,6 @@ async def clean_nodes(
     gethostbyname_fn: Callable[[str], str] = socket.gethostbyname,
 ) -> Set[str]:
     list_ip = set(list(agi_cls._workers) + [agi_cls._get_scheduler(scheduler_addr)[0]])
-    localhost_ip = gethostbyname_fn("localhost")
-    if not list_ip:
-        list_ip.add(localhost_ip)
 
     for ip in list_ip:
         if is_local_fn(ip):

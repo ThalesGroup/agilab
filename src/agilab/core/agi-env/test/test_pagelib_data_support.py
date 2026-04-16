@@ -24,6 +24,7 @@ def test_get_first_match_and_keyword_skips_invalid_items_and_finds_first_match(c
 def test_get_first_match_and_keyword_handles_empty_inputs():
     assert support.get_first_match_and_keyword([], ["time"]) == (None, None)
     assert support.get_first_match_and_keyword(["alpha"], []) == (None, None)
+    assert support.get_first_match_and_keyword(["alpha"], ["time"]) == (None, None)
 
 
 def test_find_files_filters_hidden_entries_and_respects_recursive_flag(tmp_path):
@@ -91,6 +92,57 @@ def test_load_df_folder_loads_json_directory_when_present(tmp_path):
     assert list(df["value"]) == [1]
 
 
+def test_load_df_covers_empty_dir_parquet_first_column_index_and_non_file_path(tmp_path, monkeypatch):
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    assert support.load_df(empty_dir) is None
+
+    parquet_dir = tmp_path / "parquet-dataset"
+    parquet_dir.mkdir()
+    parquet_df = pd.DataFrame({"id": [1, 2], "value": [3, 4]})
+    parquet_df.to_parquet(parquet_dir / "part.parquet")
+    loaded_parquet = support.load_df(parquet_dir)
+    assert loaded_parquet is not None
+    assert list(loaded_parquet["value"]) == [3, 4]
+
+    latin1_dir = tmp_path / "latin1-dir"
+    latin1_dir.mkdir()
+    (latin1_dir / "part.csv").write_bytes("name,value\ncaf\xe9,3\n".encode("latin-1"))
+    loaded_latin = support.load_df(latin1_dir, with_index=False)
+    assert loaded_latin is not None
+    assert loaded_latin.iloc[0]["name"] == "café"
+
+    single_parquet = tmp_path / "single.parquet"
+    parquet_df.to_parquet(single_parquet)
+    loaded_single = support.load_df(single_parquet, with_index=False)
+    assert loaded_single is not None
+    assert list(loaded_single["id"]) == [1, 2]
+
+    csv_no_time = tmp_path / "values.csv"
+    csv_no_time.write_text("id,value\n1,10\n2,20\n", encoding="utf-8")
+    loaded_no_time = support.load_df(csv_no_time)
+    assert loaded_no_time is not None
+    assert loaded_no_time.index.tolist() == [1, 2]
+
+    fake_path = type(
+        "FakePath",
+        (),
+        {
+            "exists": lambda self: True,
+            "is_dir": lambda self: False,
+            "is_file": lambda self: False,
+        },
+    )()
+    assert support.load_df("ignored", path_type=lambda _path: fake_path) is None
+
+    original_read_csv = support.pd.read_csv
+    monkeypatch.setattr(support.pd, "read_csv", lambda *args, **kwargs: None)
+    try:
+        assert support.load_df(csv_no_time, with_index=False) is None
+    finally:
+        monkeypatch.setattr(support.pd, "read_csv", original_read_csv)
+
+
 def test_load_df_preserves_latin1_csv_and_unsupported_returns_none(tmp_path):
     latin1_csv = tmp_path / "latin1.csv"
     latin1_csv.write_bytes("name,value\ncaf\xe9,3\n".encode("latin-1"))
@@ -107,6 +159,8 @@ def test_get_df_index_read_files_and_default_behavior(tmp_path):
     assert support.get_df_index([str(target)], target) == 0
     assert support.get_df_index([], target) is None
     assert support.get_df_index([str(tmp_path / "x.csv")], tmp_path / "missing.csv") == 0
+    target.write_text("x\n1\n", encoding="utf-8")
+    assert support.get_df_index([str(tmp_path / "x.csv")], target) is None
 
 
 def test_list_views_and_read_file_lines_and_scan_dir(tmp_path):

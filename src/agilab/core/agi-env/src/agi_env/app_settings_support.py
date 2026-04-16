@@ -26,8 +26,6 @@ def app_settings_aliases(app_name: str | None) -> set[str]:
         return {app_name, base_name + "_worker"}
     if app_name.endswith("_worker"):
         base_name = app_name[: -len("_worker")]
-        if base_name.endswith("_project"):
-            return {app_name, base_name}
         return {app_name, base_name + "_project"}
     return {app_name}
 

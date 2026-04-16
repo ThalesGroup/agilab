@@ -478,7 +478,7 @@ async def deploy_local_worker(
 
         python_dirs = env.pyvers_worker.split(".")
         if python_dirs[-1].endswith("t"):
-            python_dir = f"{python_dirs[0]}.{python_dirs[1]}t"
+            python_dir = f"{python_dirs[0]}.{python_dirs[1].removesuffix('t')}t"
         else:
             python_dir = f"{python_dirs[0]}.{python_dirs[1]}"
         site_packages_worker = wenv_abs / ".venv" / "lib" / f"python{python_dir}" / "site-packages"

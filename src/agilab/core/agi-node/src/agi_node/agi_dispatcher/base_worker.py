@@ -1076,10 +1076,6 @@ class BaseWorker(abc.ABC):
             return None
 
         reconstructed = [_placeholder() for _ in range(reconstructed_len)]
-        if worker_idx >= len(reconstructed):
-            reconstructed.extend(
-                _placeholder() for _ in range(worker_idx - len(reconstructed) + 1)
-            )
         reconstructed[worker_idx] = chunk
 
         chunk_len = len(chunk) if hasattr(chunk, "__len__") else (1 if chunk else 0)

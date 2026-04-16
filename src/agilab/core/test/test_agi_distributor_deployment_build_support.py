@@ -59,6 +59,18 @@ def test_worker_packages_prefers_resolved_worker_group_for_derived_worker():
     )
 
 
+@pytest.mark.parametrize(
+    ("worker_group", "expected"),
+    [
+        ("pandas-worker", "agi_dispatcher, pandas_worker"),
+        ("polars-worker", "agi_dispatcher, polars_worker"),
+        ("fireducks-worker", "agi_dispatcher, fireducks_worker"),
+    ],
+)
+def test_worker_packages_maps_explicit_worker_groups(worker_group, expected):
+    assert deployment_build_support._worker_packages("Sb3TrainerWorker", worker_group=worker_group) == expected
+
+
 def test_build_module_command_prefers_source_build_script(tmp_path):
     agi_node_path = tmp_path / "agi-node"
     build_script = agi_node_path / "src" / "agi_node" / "agi_dispatcher" / "build.py"
@@ -95,6 +107,29 @@ def test_project_uv_adds_free_threading_prefix(monkeypatch):
 
     monkeypatch.setattr(deployment_build_support, "python_supports_free_threading", lambda: True)
     assert deployment_build_support._project_uv(env) == "env TEST=1 PYTHON_GIL=0 uv"
+
+
+def test_worker_pyproject_source_missing_raises(tmp_path):
+    env = SimpleNamespace(
+        worker_pyproject=tmp_path / "missing_worker.toml",
+        manager_pyproject=tmp_path / "missing_manager.toml",
+    )
+
+    with pytest.raises(FileNotFoundError, match="Missing pyproject.toml"):
+        deployment_build_support._worker_pyproject_source(env)
+
+
+def test_copy_cython_worker_lib_raises_when_output_missing(tmp_path):
+    wenv_abs = tmp_path / "wenv"
+    (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(RuntimeError, match="build_ext failed"):
+        deployment_build_support._copy_cython_worker_lib(
+            wenv_abs=wenv_abs,
+            pyvers_worker="3.13",
+            build_output="",
+            failure_message="build_ext failed",
+        )
 
 
 def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_threading: bool = False):

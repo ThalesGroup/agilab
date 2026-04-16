@@ -175,3 +175,41 @@ async def test_deploy_application_local_mode_skips_remote_workers():
     assert calls["local"] == [("/tmp/demo_app", "wenv", " --extra pandas-worker")]
     assert calls["remote"] == []
     assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
+
+
+@pytest.mark.asyncio
+async def test_deploy_application_logs_elapsed_when_verbose():
+    env = SimpleNamespace(
+        active_app=Path("/tmp/demo_app"),
+        wenv_rel=Path("wenv"),
+        base_worker_cls="PandasWorker",
+        verbose=1,
+        is_local=lambda ip: True,
+    )
+    log = SimpleNamespace(info=lambda *_args, **_kwargs: None)
+
+    async def _fake_local(_src, _wenv_rel, _options):
+        return None
+
+    agi_cls = SimpleNamespace(
+        _run_types=["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"],
+        _mode=0b0001,
+        _DEPLOYEMENT_MASK=0b110000,
+        DASK_MODE=0b0100,
+        _workers={"127.0.0.1": 1},
+        install_worker_group=["pandas-worker"],
+        env=env,
+        verbose=1,
+        _get_scheduler=lambda _scheduler: ("127.0.0.1", 8786),
+        _venv_todo=lambda _node_ips: None,
+        _deploy_local_worker=_fake_local,
+        _deploy_remote_worker=lambda *_args, **_kwargs: None,
+        _format_elapsed=lambda seconds: f"{seconds:.1f}s",
+    )
+
+    await deployment_orchestration_support.deploy_application(
+        agi_cls,
+        "127.0.0.1",
+        time_fn=lambda: 10.0,
+        log=log,
+    )

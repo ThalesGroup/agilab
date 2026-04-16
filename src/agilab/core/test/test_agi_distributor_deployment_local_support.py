@@ -103,6 +103,26 @@ def test_force_remove_onerror_handles_oserror_and_skips_logger_when_missing(monk
     assert subprocess_calls
 
 
+def test_force_remove_swallows_filesystem_error_and_uses_subprocess(monkeypatch, tmp_path):
+    target = tmp_path / "stubborn"
+    target.mkdir(parents=True, exist_ok=True)
+    subprocess_calls = []
+
+    def _fake_rmtree(*_args, **_kwargs):
+        raise OSError("cannot remove")
+
+    monkeypatch.setattr(deployment_local_support.shutil, "rmtree", _fake_rmtree)
+    monkeypatch.setattr(
+        deployment_local_support.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess_calls.append((args, kwargs)),
+    )
+
+    deployment_local_support._force_remove(target)
+
+    assert subprocess_calls
+
+
 def test_cleanup_editable_ignores_missing_entries():
     removed = []
 
@@ -163,6 +183,10 @@ def test_format_dependency_spec_and_repo_helpers_cover_edge_cases(tmp_path):
 
 def test_infer_repo_root_from_runtime_returns_none_for_short_path():
     assert deployment_local_support._infer_repo_root_from_runtime("too-short.py") is None
+
+
+def test_infer_repo_root_from_runtime_returns_none_for_root_path():
+    assert deployment_local_support._infer_repo_root_from_runtime("/") is None
 
 
 def test_update_pyproject_dependencies_filters_to_worker_sources(tmp_path):
@@ -281,6 +305,34 @@ def test_update_pyproject_dependencies_normalizes_non_array_dependencies(monkeyp
     assert 'dependencies = ["numpy>=1", "scipy>=1.15"]' in content
 
 
+def test_update_pyproject_dependencies_normalizes_plain_sequence_dependencies(monkeypatch, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        deployment_local_support.tomlkit,
+        "parse",
+        lambda _text: {"project": {"dependencies": ("numpy>=1", "pandas>=2")}},
+    )
+
+    deployment_local_support._update_pyproject_dependencies(
+        pyproject,
+        {
+            "scipy": {
+                "name": "scipy",
+                "extras": set(),
+                "specifiers": [">=1.15"],
+                "sources": {"worker"},
+            },
+        },
+        worker_pyprojects=set(),
+        pinned_versions=None,
+    )
+
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'dependencies = ["numpy>=1", "pandas>=2", "scipy>=1.15"]' in content
+
+
 def test_update_pyproject_dependencies_propagates_unexpected_requirement_bug(monkeypatch, tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text("[project]\nname='worker'\ndependencies=['numpy>=1']\n", encoding="utf-8")
@@ -330,6 +382,36 @@ dependencies = ["scipy==1.16.1", "pandas[performance]>=2"]
     assert dependency_info["scipy"]["has_exact"] is True
     assert dependency_info["scipy"]["specifiers"] == ["==1.16.1"]
     assert dependency_info["pandas"]["extras"] == {"performance"}
+
+
+def test_gather_dependency_specs_keeps_exact_pin_when_later_ranges_appear(tmp_path):
+    exact = tmp_path / "exact"
+    ranged = tmp_path / "ranged"
+    exact.mkdir(parents=True, exist_ok=True)
+    ranged.mkdir(parents=True, exist_ok=True)
+    (exact / "pyproject.toml").write_text(
+        """
+[project]
+name = "exact"
+dependencies = ["scipy==1.16.1"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (ranged / "pyproject.toml").write_text(
+        """
+[project]
+name = "ranged"
+dependencies = ["scipy>=1.15,<1.17"]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    dependency_info, _worker_pyprojects = deployment_local_support._gather_dependency_specs(
+        [exact, ranged]
+    )
+
+    assert dependency_info["scipy"]["has_exact"] is True
+    assert dependency_info["scipy"]["specifiers"] == ["==1.16.1"]
 
 
 def test_gather_dependency_specs_skips_invalid_pyproject_and_dependency_entries(tmp_path):
@@ -1052,3 +1134,567 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
     assert any("build --wheel" in cmd and str(agi_env) in cmd for cmd, _ in commands)
     assert any("build --wheel" in cmd and str(agi_node) in cmd for cmd, _ in commands)
     assert (wenv_abs / "agi_node-0.0.1-py3-none-any.whl").exists()
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and_free_threaded_python(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo" / "src" / "agilab"
+    env_project = repo_root / "core" / "agi-env"
+    node_project = repo_root / "core" / "agi-node"
+    core_project = repo_root / "core" / "agi-core"
+    cluster_project = repo_root / "core" / "agi-cluster"
+    for project in (env_project, node_project, core_project, cluster_project):
+        project.mkdir(parents=True, exist_ok=True)
+    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8")
+    (node_project / "pyproject.toml").write_text("[project]\nname='agi-node'\ndependencies=['scipy>=1']\n", encoding="utf-8")
+    (core_project / "pyproject.toml").write_text("[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8")
+    (cluster_project / "pyproject.toml").write_text("[project]\nname='agi-cluster'\ndependencies=[]\n", encoding="utf-8")
+
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / ".venv").mkdir(parents=True, exist_ok=True)
+    (app_path / "uv.lock").write_text("lock", encoding="utf-8")
+    manager_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
+    manager_resources.mkdir(parents=True, exist_ok=True)
+    (manager_resources / "old.txt").write_text("old", encoding="utf-8")
+
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "_uv_sources").mkdir(parents=True, exist_ok=True)
+    resources_dest = wenv_abs / "agilab/core/agi-env/src/agi_env/resources"
+    resources_dest.mkdir(parents=True, exist_ok=True)
+    (resources_dest / "old.txt").write_text("old", encoding="utf-8")
+
+    env_pck = tmp_path / "env_pck" / "agi_env"
+    (env_pck / "resources").mkdir(parents=True, exist_ok=True)
+    (env_pck / "resources" / "resource.txt").write_text("resource", encoding="utf-8")
+    (env_pck.parent / "__editable__.agi_env-demo.pth").write_text("x", encoding="utf-8")
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=env_project,
+        agi_node=node_project,
+        agi_cluster=cluster_project,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13t",
+        envars={},
+        verbose=1,
+        env_pck=env_pck,
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    commands = []
+    log = mock.Mock()
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: repo_root))
+    monkeypatch.setattr(
+        deployment_local_support,
+        "pkg_version",
+        lambda name: (_ for _ in ()).throw(deployment_local_support.PackageNotFoundError(name))
+        if name == "scipy"
+        else "1.0",
+    )
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("wenv"),
+        "",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=log,
+    )
+
+    assert (manager_resources / "resource.txt").exists()
+    assert (resources_dest / "resource.txt").exists()
+    assert (
+        wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages" / "agilab_uv_sources.pth"
+    ).exists()
+    log.debug.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_source_env_missing_agi_env_wheel_raises(tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    agi_env = tmp_path / "agi_env"
+    agi_node = tmp_path / "agi_node"
+    agi_cluster = tmp_path / "agi_cluster"
+    for project in (agi_env, agi_node, agi_cluster):
+        (project / "dist").mkdir(parents=True, exist_ok=True)
+    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=True,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env,
+        agi_node=agi_node,
+        agi_cluster=agi_cluster,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=0,
+        env_pck=tmp_path / "env_pck",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=tmp_path / "cluster_pck",
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=lambda: None,
+        _uninstall_modules=lambda: None,
+    )
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    agi_cls._build_lib_local = _fake_build
+    agi_cls._uninstall_modules = _fake_uninstall
+
+    async def _fake_run(*_args, **_kwargs):
+        return ""
+
+    with pytest.raises(RuntimeError, match="build --wheel"):
+        await _call_deploy_local_worker(
+            agi_cls,
+            app_path,
+            Path("wenv"),
+            "",
+            agi_version_missing_on_pypi_fn=lambda _p: False,
+            run_fn=_fake_run,
+            set_env_var_fn=lambda *_a, **_k: None,
+            log=mock.Mock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_source_env_missing_agi_node_wheel_raises(tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    agi_env = tmp_path / "agi_env"
+    agi_node = tmp_path / "agi_node"
+    agi_cluster = tmp_path / "agi_cluster"
+    for project in (agi_env, agi_node, agi_cluster):
+        (project / "dist").mkdir(parents=True, exist_ok=True)
+    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=True,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env,
+        agi_node=agi_node,
+        agi_cluster=agi_cluster,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=0,
+        env_pck=tmp_path / "env_pck",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=tmp_path / "cluster_pck",
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    async def _fake_run(cmd, _cwd):
+        return ""
+
+    with pytest.raises(RuntimeError, match="build --wheel"):
+        await _call_deploy_local_worker(
+            agi_cls,
+            app_path,
+            Path("wenv"),
+            "",
+            agi_version_missing_on_pypi_fn=lambda _p: False,
+            run_fn=_fake_run,
+            set_env_var_fn=lambda *_a, **_k: None,
+            log=mock.Mock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_handles_archive_copy_edge_cases_and_missing_cli(tmp_path, monkeypatch):
+    app_path = tmp_path / "app"
+    active_src = app_path / "src"
+    active_src.mkdir(parents=True, exist_ok=True)
+    archive = active_src / "Trajectory.7z"
+    archive.write_text("traj", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=archive,
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+        share_root_path=lambda: tmp_path / "share",
+    )
+    log = mock.Mock()
+
+    async def _fake_run(cmd, _cwd):
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    original_copy2 = deployment_local_support.shutil.copy2
+    original_rglob = Path.rglob
+    copy_calls = []
+
+    def _patched_rglob(self, pattern):
+        if self == active_src and pattern == "Trajectory.7z":
+            return iter([archive])
+        return original_rglob(self, pattern)
+
+    def _patched_copy2(src, dst, *args, **kwargs):
+        src_path = Path(src)
+        dst_path = Path(dst)
+        copy_calls.append((src_path, dst_path))
+        if src_path.name == "Trajectory.7z":
+            raise PermissionError("copy denied")
+        return original_copy2(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "rglob", _patched_rglob)
+    monkeypatch.setattr(deployment_local_support.shutil, "copy2", _patched_copy2)
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        await _call_deploy_local_worker(
+            agi_cls,
+            app_path,
+            Path("worker_env"),
+            "",
+            agi_version_missing_on_pypi_fn=lambda _p: False,
+            run_fn=_fake_run,
+            set_env_var_fn=lambda *_a, **_k: None,
+            log=log,
+        )
+
+    assert sum(1 for src, _dst in copy_calls if src.name == "Trajectory.7z") == 1
+    log.warning.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_handles_shallow_repo_root_and_rglob_oserror(tmp_path, monkeypatch):
+    app_path = tmp_path / "app"
+    active_src = app_path / "src"
+    active_src.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+        share_root_path=lambda: tmp_path / "share",
+    )
+
+    async def _fake_run(_cmd, _cwd):
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    original_rglob = Path.rglob
+
+    def _patched_rglob(self, pattern):
+        if self == active_src and pattern == "Trajectory.7z":
+            raise OSError("scan failed")
+        return original_rglob(self, pattern)
+
+    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: Path("/repo")))
+    monkeypatch.setattr(Path, "rglob", _patched_rglob)
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        "",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    assert agi_cls._install_done_local is True
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_skips_duplicate_trajectory_archive_after_sat_scan_error(
+    tmp_path,
+    monkeypatch,
+):
+    app_path = tmp_path / "app"
+    active_src = app_path / "src"
+    active_src.mkdir(parents=True, exist_ok=True)
+    archive = active_src / "Trajectory.7z"
+    archive.write_text("traj", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=archive,
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+        share_root_path=lambda: tmp_path / "share",
+    )
+
+    async def _fake_run(_cmd, _cwd):
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    original_rglob = Path.rglob
+    original_resolve = Path.resolve
+    copy_calls = []
+
+    def _patched_rglob(self, pattern):
+        if self == active_src and pattern == "Trajectory.7z":
+            return iter([archive])
+        return original_rglob(self, pattern)
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == (tmp_path / "share" / "sat_trajectory"):
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "rglob", _patched_rglob)
+    monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(
+        deployment_local_support.shutil,
+        "copy2",
+        lambda src, dst, *args, **kwargs: copy_calls.append((Path(src), Path(dst))),
+    )
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        "",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    assert copy_calls == [(archive, wenv_abs / "src" / "demo_worker" / "Trajectory.7z")]

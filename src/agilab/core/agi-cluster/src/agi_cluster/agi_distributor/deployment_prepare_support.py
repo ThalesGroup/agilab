@@ -141,15 +141,15 @@ async def prepare_cluster_env(
     wenv_rel = env.wenv_rel
     pyvers_worker = env.pyvers_worker
 
-    if not list_ip:
-        list_ip.add(localhost_ip)
-
     remote_command_failures = tuple(dict.fromkeys((process_error_type, RuntimeError, OSError)))
     staged_pyproject_fallback_errors = tuple(dict.fromkeys((process_error_type, OSError, RuntimeError, ValueError)))
 
     for ip in list_ip:
-        if not env.is_local(ip) and not is_ip(ip):
-            raise ValueError(f"Invalid IP address: {ip}")
+        if not env.is_local(ip):
+            try:
+                is_ip(ip)
+            except ValueError as exc:
+                raise ValueError(f"Invalid IP address: {ip}") from exc
 
     agi_cls.list_ip = list_ip
     for ip in list_ip:
@@ -184,15 +184,9 @@ async def prepare_cluster_env(
                 await run_exec_ssh_fn(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
                 uv_is_installed = True
 
-        if not uv_is_installed:
-            log.error("Failed to install uv")
-            raise EnvironmentError("Failed to install uv")
-
         if agi_internet_on == 1:
             try:
                 await run_exec_ssh_fn(ip, f"{cmd_prefix}{env.uv} self update")
-            except ConnectionError:
-                raise
             except remote_command_failures as exc:
                 log.warning("Failed to update uv on %s (skipping self update): %s", ip, exc)
         else:

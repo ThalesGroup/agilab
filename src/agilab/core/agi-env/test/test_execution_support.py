@@ -200,6 +200,69 @@ def test_raise_nonzero_process_result_simple_message_skips_formatter(monkeypatch
     logger.error.assert_called_once_with("Command failed with exit code %s: %s", 4, "echo hi")
 
 
+def test_create_process_env_verbose_wait_false_and_timeout_paths(tmp_path: Path, monkeypatch):
+    mapping_env = execution_support._create_process_env(
+        venv=tmp_path,
+        build_env_fn=lambda _venv: [("DEMO", "1")],
+    )
+    assert mapping_env == {"DEMO": "1"}
+
+    logged: list[str] = []
+    create_task_calls: list[object] = []
+    monkeypatch.setattr(asyncio, "create_task", lambda coro: create_task_calls.append(coro))
+
+    result = asyncio.run(
+        execution_support.run(
+            "",
+            object(),
+            wait=False,
+            verbose=1,
+            logger=mock.Mock(info=lambda message: logged.append(message)),
+            build_env_fn=lambda _venv: {},
+        )
+    )
+    assert result == 0
+    assert len(logged) == 1
+    assert logged[0].startswith("@<object object")
+    assert logged[0].endswith(": ")
+
+    class _Proc:
+        def __init__(self):
+            self.killed = False
+            self.returncode = 0
+
+        async def wait(self):
+            return 0
+
+        def kill(self):
+            self.killed = True
+
+    proc = _Proc()
+    monkeypatch.setattr(
+        execution_support,
+        "_spawn_process",
+        mock.AsyncMock(return_value=proc),
+    )
+    monkeypatch.setattr(
+        execution_support,
+        "_stream_process_output",
+        mock.AsyncMock(side_effect=asyncio.TimeoutError()),
+    )
+
+    with pytest.raises(RuntimeError, match="Command timed out after 3 seconds: echo hi"):
+        asyncio.run(
+            execution_support.run(
+                "echo hi",
+                tmp_path,
+                cwd=tmp_path,
+                timeout=3,
+                logger=None,
+            )
+        )
+
+    assert proc.killed is True
+
+
 def test_run_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
     async def _raise_exec(*_args, **_kwargs):
         raise ValueError("bad command split")
@@ -282,6 +345,46 @@ def test_run_bg_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
         asyncio.run(execution_support.run_bg("echo hi", cwd=tmp_path, venv=tmp_path))
 
 
+def test_run_and_run_async_cover_verbose_defaults_and_blank_output(tmp_path: Path, monkeypatch):
+    logger = mock.Mock()
+
+    async def _fake_exec(*_args, **_kwargs):
+        return _FakeProc(stdout_lines=[b""], stderr_lines=[b""], returncode=0)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+
+    assert (
+        asyncio.run(
+            execution_support.run(
+                None,
+                "broken-venv",
+                wait=False,
+                verbose=1,
+                logger=logger,
+                build_env_fn=lambda _venv: {},
+            )
+        )
+        == 0
+    )
+    assert logger.info.called
+    assert "broken-venv" in logger.info.call_args_list[0].args[0]
+
+    logger.reset_mock()
+    result = asyncio.run(
+        execution_support.run_async(
+            ["echo", "hi"],
+            venv=tmp_path,
+            cwd=None,
+            verbose=1,
+            logger=logger,
+            build_env_fn=lambda _venv: {},
+        )
+    )
+
+    assert result == ""
+    assert logger.info.call_args_list[0].args[0] == f"Executing in {tmp_path}: ['echo', 'hi']"
+
+
 def test_run_async_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
     async def _raise_exec(*_args, **_kwargs):
         raise ValueError("bad command split")
@@ -340,3 +443,56 @@ def test_run_async_propagates_unexpected_stream_bug(tmp_path: Path, monkeypatch)
         asyncio.run(execution_support.run_async("echo hi", venv=tmp_path, cwd=tmp_path))
 
     assert proc.killed is False
+
+
+def test_execution_support_run_agi_covers_missing_name_missing_venv_and_direct_venv(tmp_path: Path):
+    callbacks: list[str] = []
+    logger = mock.Mock()
+
+    assert asyncio.run(
+        execution_support.run_agi(
+            code="print('no agi call here')",
+            runenv=tmp_path / "runenv",
+            target="demo",
+            log_callback=callbacks.append,
+            venv=None,
+            run_bg_fn=mock.AsyncMock(),
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+            logger=logger,
+        )
+    ) == ("", "")
+    assert callbacks == ["Could not determine snippet name from code."]
+
+    callbacks.clear()
+    missing_root = tmp_path / "project"
+    missing_root.mkdir()
+    assert asyncio.run(
+        execution_support.run_agi(
+            code="await Agi.run()",
+            runenv=tmp_path / "runenv-missing",
+            target="demo",
+            log_callback=callbacks.append,
+            venv=missing_root,
+            run_bg_fn=mock.AsyncMock(),
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+            logger=logger,
+        )
+    ) == ("", f"No virtual environment found in {missing_root}. Run INSTALL first.")
+
+    run_bg = mock.AsyncMock(return_value=("stdout", "stderr"))
+    direct_venv = tmp_path / ".venv"
+    direct_venv.mkdir()
+    result = asyncio.run(
+        execution_support.run_agi(
+            code="await Agi.install()",
+            runenv=tmp_path / "runenv-install",
+            target="demo",
+            venv=direct_venv,
+            run_bg_fn=run_bg,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+            logger=logger,
+        )
+    )
+
+    assert result == ("stdout", "stderr")
+    assert run_bg.await_args.kwargs["venv"] == direct_venv

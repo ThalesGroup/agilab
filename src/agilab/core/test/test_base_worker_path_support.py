@@ -96,6 +96,68 @@ def test_base_worker_path_support_unexpected_runtime_bugs_propagate(tmp_path, mo
         path_support.can_create_path(tmp_path / "output" / "data.csv")
 
 
+def test_base_worker_path_support_managed_pc_fallbacks_and_direct_input_success(tmp_path):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    class _FlakyPathFactory:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, value):
+            self.calls += 1
+            if self.calls == 1:
+                raise OSError("boom")
+            return Path(value)
+
+    env = SimpleNamespace(
+        _is_managed_pc=True,
+        agi_share_path=fake_home / "clustershare",
+    )
+    original_share = env.agi_share_path
+    sample = fake_home / "dataset" / "file.csv"
+
+    assert path_support.remap_managed_pc_path(
+        sample,
+        env=env,
+        path_cls=_FlakyPathFactory(),
+        home_factory=lambda: fake_home,
+    ) == sample
+
+    path_support.ensure_managed_pc_share_dir(
+        env,
+        path_cls=_FlakyPathFactory(),
+        home_factory=lambda: fake_home,
+    )
+    assert env.agi_share_path == original_share
+
+    flights_dir = tmp_path / "dataset" / "flights"
+    flights_dir.mkdir(parents=True)
+    (flights_dir / "a.csv").write_text("x\n1\n", encoding="utf-8")
+    (flights_dir / "b.csv").write_text("x\n2\n", encoding="utf-8")
+
+    resolved = path_support.resolve_input_folder(
+        None,
+        tmp_path / "dataset",
+        "flights",
+        descriptor="demo generator",
+        fallback_subdirs=("csv",),
+        min_files=2,
+        patterns=("*.csv",),
+        required_label="csv files",
+        normalized_path_fn=lambda value: Path(value).expanduser(),
+        has_min_input_files_fn=lambda folder, min_files=1, patterns=None: path_support.has_min_input_files(
+            folder,
+            min_files=min_files,
+            patterns=patterns,
+        ),
+        candidate_named_dataset_roots_fn=lambda _env, _root, namespace=None: [],
+    )
+
+    assert resolved == flights_dir.resolve(strict=False)
+    assert path_support.remap_user_home(Path("demo"), username="other") is None
+
+
 def test_base_worker_path_support_candidate_roots_and_resolve_input_folder(tmp_path):
     share_root = tmp_path / "share"
     dataset_root = tmp_path / "runtime" / "dataset"

@@ -71,6 +71,34 @@ def test_remove_dir_forcefully_propagates_non_filesystem_errors(tmp_path):
     assert calls["count"] == 1
 
 
+def test_remove_dir_forcefully_onerror_covers_permission_and_log_paths(tmp_path):
+    target = tmp_path / "to-remove"
+    target.mkdir(parents=True, exist_ok=True)
+    chmod_calls = []
+    removed = []
+    log = mock.Mock()
+
+    def _fake_remove(path):
+        removed.append(path)
+
+    def _fake_rmtree(_path, onerror=None):
+        onerror(_fake_remove, "locked-file", (OSError, OSError("locked"), None))
+        onerror(_fake_remove, "writable-file", (OSError, OSError("busy"), None))
+
+    cleanup_support.remove_dir_forcefully(
+        str(target),
+        rmtree_fn=_fake_rmtree,
+        sleep_fn=lambda *_a, **_k: None,
+        access_fn=lambda failed_path, _mode: failed_path == "writable-file",
+        chmod_fn=lambda failed_path, mode: chmod_calls.append((failed_path, mode)),
+        log=log,
+    )
+
+    assert chmod_calls == [("locked-file", cleanup_support.stat.S_IWUSR)]
+    assert removed == ["locked-file"]
+    log.info.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_wait_for_port_release_success_after_retry():
     calls = {"count": 0}
@@ -111,6 +139,33 @@ async def test_wait_for_port_release_timeout():
 
         def close(self):
             return None
+
+    time_values = iter([0.0, 0.0, 0.05])
+
+    async def _sleep(*_args, **_kwargs):
+        return None
+
+    released = await cleanup_support.wait_for_port_release(
+        "127.0.0.1",
+        9000,
+        timeout=0.05,
+        interval=0.01,
+        socket_factory=lambda *_a, **_k: _Sock(),
+        sleep_fn=_sleep,
+        monotonic_fn=lambda: next(time_values),
+    )
+
+    assert released is False
+
+
+@pytest.mark.asyncio
+async def test_wait_for_port_release_ignores_close_oserror():
+    class _Sock:
+        def bind(self, *_args, **_kwargs):
+            raise OSError("always busy")
+
+        def close(self):
+            raise OSError("close failed")
 
     time_values = iter([0.0, 0.0, 0.05])
 
@@ -209,6 +264,45 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     assert log.error.called
 
 
+@pytest.mark.asyncio
+async def test_kill_processes_local_debug_uses_run_path_and_skips_current_pid(tmp_path):
+    wenv_parent = tmp_path / "wenv"
+    wenv_abs = wenv_parent / "demo_worker"
+    wenv_abs.mkdir(parents=True)
+    cluster_pck = tmp_path / "cluster"
+    cli_source = cluster_pck / "agi_distributor" / "cli.py"
+    cli_source.parent.mkdir(parents=True)
+    cli_source.write_text("print('cli')\n", encoding="utf-8")
+    current_pid_file = wenv_parent / "current.pid"
+    current_pid_file.write_text("999\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv/demo_worker"),
+        envars={},
+        cluster_pck=cluster_pck,
+        agi_cluster=str(tmp_path / "cluster-runtime"),
+        debug=True,
+        is_local=lambda ip: ip == "127.0.0.1",
+    )
+    agi_cls = SimpleNamespace(env=env)
+    run_path_calls = []
+
+    await cleanup_support.kill_processes(
+        agi_cls,
+        current_pid=999,
+        gethostbyname_fn=lambda _name: "127.0.0.1",
+        run_fn=lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("run_fn should not be used in debug mode")),
+        run_path_fn=lambda path, run_name=None: run_path_calls.append((path, run_name)),
+        sys_module=SimpleNamespace(argv=[]),
+        log=mock.Mock(),
+    )
+
+    assert current_pid_file.exists()
+    assert run_path_calls == [(f"'{wenv_parent / 'cli.py'}'", "__main__")]
+
+
 def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(tmp_path):
     agi_cls = SimpleNamespace(env=SimpleNamespace(wenv_abs=tmp_path / "wenv"))
     agi_cls.env.wenv_abs.mkdir(parents=True, exist_ok=True)
@@ -243,6 +337,30 @@ def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(tmp_path):
 
     assert 4242 in killed
     assert 4343 not in killed
+    assert removed == [
+        ("/tmp/demo/dask-scratch-space", True),
+        (str(agi_cls.env.wenv_abs), True),
+    ]
+
+
+def test_clean_dirs_local_ignores_rmtree_typeerror(tmp_path):
+    agi_cls = SimpleNamespace(env=SimpleNamespace(wenv_abs=tmp_path / "wenv"))
+    agi_cls.env.wenv_abs.mkdir(parents=True, exist_ok=True)
+    removed = []
+
+    def _fake_rmtree(path, ignore_errors=True):
+        removed.append((path, ignore_errors))
+        raise TypeError("bad signature")
+
+    cleanup_support.clean_dirs_local(
+        agi_cls,
+        process_iter_fn=lambda *_a, **_k: [],
+        getuser_fn=lambda: "me",
+        getpid_fn=lambda: 100,
+        rmtree_fn=_fake_rmtree,
+        gettempdir_fn=lambda: "/tmp/demo",
+    )
+
     assert removed == [
         ("/tmp/demo/dask-scratch-space", True),
         (str(agi_cls.env.wenv_abs), True),

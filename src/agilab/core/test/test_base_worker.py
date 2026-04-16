@@ -722,6 +722,13 @@ def test_baseworker_as_dict_without_args_uses_extend_payload():
     assert worker.as_dict() == {"extended": True}
 
 
+def test_baseworker_default_extend_payload_returns_original_mapping():
+    worker = DummyWorker()
+    payload = {"alpha": 1}
+
+    assert worker._extend_payload(payload) is payload
+
+
 def test_baseworker_stop_and_break_loop_idle_paths(monkeypatch):
     worker = DummyWorker()
     BaseWorker._worker_id = 7
@@ -765,6 +772,97 @@ def test_baseworker_start_error_and_inactive_stop(monkeypatch):
     assert calls == []
 
 
+def test_baseworker_loop_requires_initialization():
+    BaseWorker._worker_id = None
+    BaseWorker._insts = {}
+
+    with pytest.raises(RuntimeError, match="before worker initialisation"):
+        BaseWorker.loop()
+
+
+def test_baseworker_loop_handles_signature_fallback_polling_and_stop_event(monkeypatch):
+    waits: list[float] = []
+
+    class FakeEvent:
+        def __init__(self):
+            self._set = False
+
+        def is_set(self):
+            return self._set
+
+        def set(self):
+            self._set = True
+
+        def wait(self, timeout=None):
+            waits.append(timeout)
+            return self._set
+
+    class PollingWorker(BaseWorker):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def loop(self):
+            self.calls += 1
+            return False if self.calls > 1 else None
+
+    worker = PollingWorker()
+    BaseWorker._worker_id = 4
+    BaseWorker._worker = "local-worker"
+    BaseWorker._insts = {4: worker}
+    monkeypatch.setattr(base_worker_mod.threading, "Event", FakeEvent)
+    monkeypatch.setattr(
+        base_worker_mod.inspect,
+        "signature",
+        lambda _fn: (_ for _ in ()).throw(TypeError("no signature")),
+    )
+
+    result = BaseWorker.loop(poll_interval=0.25)
+
+    assert result["status"] == "stopped"
+    assert waits == [0.25]
+
+
+def test_baseworker_loop_accepts_stop_event_without_base_polling(monkeypatch):
+    waits: list[float | None] = []
+
+    class FakeEvent:
+        def __init__(self):
+            self._set = False
+
+        def is_set(self):
+            return self._set
+
+        def set(self):
+            self._set = True
+
+        def wait(self, timeout=None):
+            waits.append(timeout)
+            return self._set
+
+    class ManagedLoopWorker(BaseWorker):
+        def __init__(self):
+            super().__init__()
+            self.stop_events: list[object] = []
+
+        def loop(self, stop_event):
+            self.stop_events.append(stop_event)
+            stop_event.set()
+            return None
+
+    worker = ManagedLoopWorker()
+    BaseWorker._worker_id = 5
+    BaseWorker._worker = "local-worker"
+    BaseWorker._insts = {5: worker}
+    monkeypatch.setattr(base_worker_mod.threading, "Event", FakeEvent)
+
+    result = BaseWorker.loop(poll_interval=0.25)
+
+    assert result["status"] == "stopped"
+    assert len(worker.stop_events) == 1
+    assert waits == []
+
+
 def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
     expanded = BaseWorker.expand("folder/demo.csv", base_directory=tmp_path)
     assert expanded == str((tmp_path / "folder" / "demo.csv").resolve())
@@ -781,6 +879,20 @@ def test_baseworker_expand_chunk():
     assert reconstructed == [[], ["a"], []]
     assert chunk_len == 1
     assert total_workers == 3
+
+
+def test_baseworker_args_namespace_mapping_helpers():
+    args = base_worker_mod.ArgsNamespace(alpha=1)
+
+    assert args["alpha"] == 1
+    assert args.get("alpha") == 1
+    assert args.get("missing", "fallback") == "fallback"
+    assert "alpha" in args
+    assert "missing" not in args
+    assert args.to_dict() == {"alpha": 1}
+
+    with pytest.raises(KeyError, match="missing"):
+        _ = args["missing"]
 
 
 def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
@@ -893,6 +1005,48 @@ def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(mo
     assert "using fallback" in warnings[0]
 
 
+def test_baseworker_setup_data_directories_logs_rmtree_failures(monkeypatch, tmp_path):
+    worker = DummyWorker()
+    share_root = tmp_path / "share"
+    input_dir = share_root / "flight_trajectory" / "pipeline"
+    output_dir = input_dir.parent / "output"
+    output_dir.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        AGI_LOCAL_SHARE=tmp_path / "localshare",
+        home_abs=tmp_path / "home",
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("clustershare"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    infos: list[str] = []
+    monkeypatch.setattr(
+        base_worker_mod.shutil,
+        "rmtree",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("cleanup failed")),
+    )
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "info",
+        lambda message, *args: infos.append(str(message % args if args else message)),
+    )
+
+    result = worker.setup_data_directories(
+        source_path=Path("flight_trajectory/pipeline"),
+        target_subdir="output",
+        reset_target=True,
+    )
+
+    assert result.output_path == output_dir
+    assert any("Error removing directory" in message for message in infos)
+
+
 def test_baseworker_onerror_handles_permission_and_non_permission(tmp_path, monkeypatch):
     target = tmp_path / "locked.txt"
     target.write_text("x", encoding="utf-8")
@@ -921,6 +1075,28 @@ def test_baseworker_onerror_propagates_non_oserror_from_retry(tmp_path, monkeypa
             str(target),
             (PermissionError, PermissionError("denied"), None),
         )
+
+
+def test_baseworker_onerror_logs_oserror_from_retry(tmp_path, monkeypatch):
+    target = tmp_path / "locked.txt"
+    target.write_text("x", encoding="utf-8")
+    errors: list[str] = []
+
+    monkeypatch.setattr(base_worker_mod.os, "access", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(base_worker_mod.os, "chmod", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "error",
+        lambda message, *args: errors.append(str(message % args if args else message)),
+    )
+
+    BaseWorker._onerror(
+        lambda _path: (_ for _ in ()).throw(OSError("retry failed")),
+        str(target),
+        (PermissionError, PermissionError("denied"), None),
+    )
+
+    assert any("warning failed to grant write access" in message for message in errors)
 
 
 def test_baseworker_setup_data_directories_fallback_to_home_and_failure(monkeypatch, tmp_path):
@@ -963,3 +1139,37 @@ def test_baseworker_setup_data_directories_fallback_to_home_and_failure(monkeypa
         )
 
     assert any("Fallback output directory failed" in message for message in errors)
+
+
+def test_baseworker_setup_data_directories_without_env_falls_back_to_home(monkeypatch, tmp_path):
+    worker = DummyWorker()
+    fake_home = tmp_path / "home"
+    input_dir = fake_home / "flight_trajectory" / "pipeline"
+    input_dir.mkdir(parents=True)
+    requested_output = fake_home / "reports" / "out"
+    fallback_output = fake_home / "out" / "output"
+
+    original_home = Path.home
+    original_mkdir = Path.mkdir
+
+    def _patched_home():
+        return fake_home
+
+    def _patched_mkdir(self, *args, **kwargs):
+        if self == requested_output:
+            raise OSError("mkdir failed")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(base_worker_mod.Path, "home", staticmethod(_patched_home))
+    monkeypatch.setattr(Path, "home", staticmethod(_patched_home))
+    monkeypatch.setattr(Path, "mkdir", _patched_mkdir, raising=False)
+
+    result = worker.setup_data_directories(
+        source_path=Path("flight_trajectory/pipeline"),
+        target_path=Path("reports/out"),
+        target_subdir="output",
+    )
+
+    assert result.input_path == input_dir.resolve(strict=False)
+    assert result.normalized_output == fallback_output.as_posix()
+    assert worker.data_out == fallback_output.as_posix()

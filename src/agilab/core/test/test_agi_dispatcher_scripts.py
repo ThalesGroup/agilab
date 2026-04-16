@@ -854,6 +854,31 @@ def test_post_main_reports_optional_dataset_seeding_exception(tmp_path, monkeypa
     assert "optional dataset seeding shared-root lookup skipped: agi_share_path is not configured" in capsys.readouterr().out
 
 
+def test_post_main_skips_optional_dataset_seeding_oserror(tmp_path, monkeypatch, capsys):
+    dataset_archive = tmp_path / "dataset.7z"
+    dataset_archive.write_text("placeholder", encoding="utf-8")
+    dest_arg = tmp_path / "share" / "demo"
+    env = SimpleNamespace(
+        share_target_name="demo",
+        dataset_archive=dataset_archive,
+        agilab_pck=tmp_path,
+        resolve_share_path=lambda _target: dest_arg,
+        unzip_data=lambda *_args, **_kwargs: None,
+        share_root_path=lambda: tmp_path / "share-root",
+    )
+    monkeypatch.setattr(post_mod, "_build_env", lambda _app_arg: env)
+    monkeypatch.setattr(
+        post_mod,
+        "_seed_optional_dataset",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("seed denied")),
+    )
+
+    result = post_mod.main([str(tmp_path / "demo_project")])
+
+    assert result == 0
+    assert "optional dataset seeding skipped: seed denied" in capsys.readouterr().out
+
+
 def test_post_optional_dataset_seeding_error_classifier():
     assert post_mod._is_optional_dataset_seeding_error(OSError("disk denied")) is True
     assert post_mod._is_optional_dataset_seeding_error(shutil.Error("copy failed")) is True
@@ -1569,6 +1594,29 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     assert cleanup_calls == [links_created]
 
 
+def test_unpack_worker_eggs_uses_default_zipfile_and_logger(tmp_path):
+    dist_dir = tmp_path / "dist"
+    dest_src = tmp_path / "src"
+    dist_dir.mkdir()
+    egg_path = dist_dir / "demo_worker-0.1.0.egg"
+    with ZipFile(egg_path, "w") as zf:
+        zf.writestr("demo_worker/__init__.py", "")
+
+    log_lines: list[str] = []
+    build_mod.AgiEnv.logger = SimpleNamespace(
+        info=lambda message, *args: log_lines.append(str(message % args if args else message))
+    )
+
+    build_mod._unpack_worker_eggs(
+        dist_dir=dist_dir,
+        dest_src=dest_src,
+    )
+
+    assert (dest_src / "demo_worker" / "__init__.py").exists()
+    assert any("mkdir" in line for line in log_lines)
+    assert any("Unpacking" in line for line in log_lines)
+
+
 def test_resolve_worker_python_path_prefers_home_and_falls_back_to_cwd(tmp_path, monkeypatch):
     worker_home = tmp_path / "home"
     cwd_root = tmp_path / "cwd"
@@ -1801,6 +1849,20 @@ def test_prepare_build_ext_command_logs_and_reraises_truncate_failure(tmp_path):
     assert errors == ["bad path"]
 
 
+def test_prepare_build_ext_command_requires_build_dir():
+    errors = []
+
+    with pytest.raises(ValueError, match="requires --build-dir/-b argument"):
+        build_mod._prepare_build_ext_command(
+            env=SimpleNamespace(worker_path="workers/demo_worker.py"),
+            build_dir=None,
+            ensure_worker_cython_source_fn=lambda _env: pytest.fail("unexpected cython source generation"),
+            log=SimpleNamespace(error=lambda message, *args: errors.append(str(message % args if args else message))),
+        )
+
+    assert errors == ["build_ext requires --build-dir/-b argument"]
+
+
 def test_prepare_setup_artifacts_orchestrates_build_ext_and_purge(tmp_path):
     env = SimpleNamespace(
         active_app=tmp_path / "demo_project",
@@ -2026,6 +2088,12 @@ def test_build_cleanup_links_removes_empty_parent_tree(tmp_path):
     link.parent.mkdir(parents=True, exist_ok=True)
     link.write_text("x", encoding="utf-8")
 
+    build_mod.AgiEnv.logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+        debug=lambda *_args, **_kwargs: None,
+    )
     build_mod.cleanup_links([link])
 
     assert not link.exists()
@@ -2039,6 +2107,12 @@ def test_build_cleanup_links_stops_when_parent_not_empty(tmp_path):
     link.write_text("x", encoding="utf-8")
     sibling.write_text("keep", encoding="utf-8")
 
+    build_mod.AgiEnv.logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+        debug=lambda *_args, **_kwargs: None,
+    )
     build_mod.cleanup_links([link])
 
     assert not link.exists()
@@ -2051,6 +2125,12 @@ def test_build_cleanup_links_removes_directory_targets(tmp_path):
     target.mkdir(parents=True, exist_ok=True)
     (target / "payload.txt").write_text("x", encoding="utf-8")
 
+    build_mod.AgiEnv.logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+        debug=lambda *_args, **_kwargs: None,
+    )
     build_mod.cleanup_links([target])
 
     assert not target.exists()
@@ -2069,6 +2149,12 @@ def test_build_cleanup_links_stops_on_parent_rmdir_oserror(tmp_path, monkeypatch
         return original_rmdir(self)
 
     monkeypatch.setattr(build_mod.Path, "rmdir", _patched_rmdir, raising=False)
+    build_mod.AgiEnv.logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+        debug=lambda *_args, **_kwargs: None,
+    )
 
     build_mod.cleanup_links([target])
 
@@ -2782,6 +2868,21 @@ def test_resolve_pre_install_script_falls_back_to_installed_module(tmp_path, mon
     env = SimpleNamespace(pre_install=str(missing_pre_script))
 
     assert build_mod._resolve_pre_install_script(env) == fallback_script.resolve()
+
+
+def test_resolve_pre_install_script_handles_missing_module_and_missing_raw_path(tmp_path, monkeypatch):
+    missing_pre_script = tmp_path / "missing_pre_install.py"
+
+    monkeypatch.setattr(
+        build_mod,
+        "_load_pre_install_module",
+        lambda: (_ for _ in ()).throw(ModuleNotFoundError("no module")),
+    )
+
+    env = SimpleNamespace(pre_install=str(missing_pre_script))
+    assert build_mod._resolve_pre_install_script(env) == missing_pre_script
+
+    assert build_mod._resolve_pre_install_script(SimpleNamespace(pre_install=None)) is None
 
 
 def test_build_main_build_ext_uses_fallback_pre_install_module(tmp_path, monkeypatch):
