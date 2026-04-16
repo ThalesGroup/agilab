@@ -58,6 +58,107 @@ def test_view_training_analysis_discovers_trainers_and_runs(tmp_path: Path) -> N
     assert run_dirs == [trainer_b_root.resolve(), trainer_b_run.resolve()]
 
 
+def test_view_training_analysis_labels_runs_across_multiple_trainers(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a_run = tmp_path / "pipeline" / "trainer_a" / "tensorboard" / "run_shared"
+    trainer_b_run = tmp_path / "pipeline" / "trainer_b" / "tensorboard" / "run_shared"
+    trainer_a_run.mkdir(parents=True)
+    trainer_b_run.mkdir(parents=True)
+    (trainer_a_run / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    (trainer_b_run / "events.out.tfevents.2").write_text("", encoding="utf-8")
+
+    labeled_runs = module._discover_run_labels(
+        [tmp_path / "pipeline" / "trainer_a", tmp_path / "pipeline" / "trainer_b"],
+        tmp_path / "pipeline",
+    )
+
+    assert labeled_runs == {
+        "trainer_a/run_shared": trainer_a_run.resolve(),
+        "trainer_b/run_shared": trainer_b_run.resolve(),
+    }
+
+
+def test_view_training_analysis_prefers_initial_experiment_folder_in_run_labels(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "demand_mlp"
+        / "trainer_fcas_routing_ppo"
+        / "tensorboard"
+        / "fcas_routing_ppo_1"
+    )
+    trainer_b_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "edge_gnn"
+        / "trainer_fcas_routing_ppo_gnn"
+        / "tensorboard"
+        / "fcas_routing_ppo_gnn_2"
+    )
+    trainer_a_run.mkdir(parents=True)
+    trainer_b_run.mkdir(parents=True)
+    (trainer_a_run / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    (trainer_b_run / "events.out.tfevents.2").write_text("", encoding="utf-8")
+
+    labeled_runs = module._discover_run_labels(
+        [
+            tmp_path / "pipeline" / "sb3_compare" / "demand_mlp" / "trainer_fcas_routing_ppo",
+            tmp_path / "pipeline" / "sb3_compare" / "edge_gnn" / "trainer_fcas_routing_ppo_gnn",
+        ],
+        tmp_path / "pipeline",
+    )
+
+    assert labeled_runs == {
+        "demand_mlp/fcas_routing_ppo_1": trainer_a_run.resolve(),
+        "edge_gnn/fcas_routing_ppo_gnn_2": trainer_b_run.resolve(),
+    }
+
+
+def test_view_training_analysis_expands_only_colliding_short_labels(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "edge_mlp"
+        / "trainer_fcas_routing_ppo"
+        / "tensorboard"
+        / "run_shared"
+    )
+    trainer_b_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "edge_mlp"
+        / "trainer_fcas_routing_ppo_gnn"
+        / "tensorboard"
+        / "run_shared"
+    )
+    trainer_a_run.mkdir(parents=True)
+    trainer_b_run.mkdir(parents=True)
+    (trainer_a_run / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    (trainer_b_run / "events.out.tfevents.2").write_text("", encoding="utf-8")
+
+    labeled_runs = module._discover_run_labels(
+        [
+            tmp_path / "pipeline" / "sb3_compare" / "edge_mlp" / "trainer_fcas_routing_ppo",
+            tmp_path / "pipeline" / "sb3_compare" / "edge_mlp" / "trainer_fcas_routing_ppo_gnn",
+        ],
+        tmp_path / "pipeline",
+    )
+
+    assert labeled_runs == {
+        "edge_mlp/trainer_fcas_routing_ppo/run_shared": trainer_a_run.resolve(),
+        "edge_mlp/trainer_fcas_routing_ppo_gnn/run_shared": trainer_b_run.resolve(),
+    }
+
+
 def test_view_training_analysis_grid_shape_scales_with_selection_count() -> None:
     module = _load_module()
 
@@ -439,13 +540,13 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
     subheaders: list[str] = []
 
     def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
-        if label == "Trainer output":
-            return options[0]
         if label == "X axis":
             return "step"
         return options[index]
 
     def sidebar_multiselect(label, options, default=None, key=None):
+        if label == "Trainer outputs":
+            return [options[0]]
         if label == "TensorBoard run folders":
             return list(options)
         if label == "TensorBoard variables":
@@ -503,6 +604,7 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
     assert plotted == [({"tags": ["metric/a"], "axis": "step", "rows": 4}, "stretch")]
     written = settings_path.read_text(encoding="utf-8")
     assert "trainer_rel = \"trainer_a\"" in written
+    assert "trainer_rels = [" in written
     assert "selected_tags = [" in written
     assert "\"metric/a\"" in written
 
@@ -557,11 +659,14 @@ def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch,
 
     def _base_st() -> SimpleNamespace:
         def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
-            if label == "Trainer output":
-                return options[0]
             if label == "X axis":
                 return "step"
             return options[index]
+
+        def sidebar_multiselect(label, options, default=None, key=None):
+            if label == "Trainer outputs":
+                return [options[0]] if options else []
+            return []
 
         return SimpleNamespace(
             session_state={
@@ -575,7 +680,7 @@ def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch,
                 text_input=lambda *args, **kwargs: "trainer_data",
                 caption=lambda *args, **kwargs: None,
                 selectbox=sidebar_selectbox,
-                multiselect=lambda *args, **kwargs: [],
+                multiselect=sidebar_multiselect,
             ),
             set_page_config=lambda **kwargs: None,
             title=lambda *args, **kwargs: None,
@@ -628,13 +733,13 @@ def test_view_training_analysis_main_handles_selection_and_metric_edge_cases(mon
 
     def _base_st(run_selection, tag_selection) -> SimpleNamespace:
         def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
-            if label == "Trainer output":
-                return options[0]
             if label == "X axis":
                 return "step"
             return options[index]
 
         def sidebar_multiselect(label, options, default=None, key=None):
+            if label == "Trainer outputs":
+                return [options[0]] if options else []
             if label == "TensorBoard run folders":
                 return run_selection
             if label == "TensorBoard variables":
