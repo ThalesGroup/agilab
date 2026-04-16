@@ -96,6 +96,12 @@ from .pagelib_project_support import (
     init_custom_ui as _init_custom_ui_impl,
     on_project_change as _on_project_change_impl,
 )
+from .pagelib_selection_support import (
+    on_df_change as _on_df_change_impl,
+    resolve_active_app as _resolve_active_app_impl,
+    select_project as _select_project_impl,
+    sidebar_views as _sidebar_views_impl,
+)
 from .pagelib_preview_support import (
     build_dataframe_preview,
     resolve_export_target,
@@ -933,82 +939,27 @@ def update_datadir(var_key, widget_key):
 
 
 def select_project(projects, current_project):
-    """
-    Render the project selection sidebar. Provides a lightweight filter so we
-    never ship thousands of entries to the browser at once.
-
-    :param projects: List of available projects.
-    :type projects: list[str]
-    :param current_project: Currently selected project.
-    :type current_project: str
-    """
-    env = st.session_state.get("env")
-    if env is not None:
-        try:
-            projects = env.get_projects(env.apps_path, env.builtin_apps_path)
-            env.projects = projects
-        except (OSError, TypeError, RuntimeError):
-            pass
-
-    search_term = st.sidebar.text_input("Filter projects", key="project_filter")
-    selection_state = build_project_selection(projects, current_project, search_term, limit=50)
-    shortlist = selection_state.shortlist
-
-    if not shortlist:
-        st.sidebar.info("No projects match that filter.")
-        return
-
-    if selection_state.needs_caption:
-        st.sidebar.caption(
-            f"Showing first {len(shortlist)} of {selection_state.total_matches} matches"
-        )
-
-    selection = st.sidebar.selectbox(
-        "Project name",
-        shortlist,
-        index=selection_state.default_index,
-        key="project_selectbox",
+    return _select_project_impl(
+        projects,
+        current_project,
+        session_state=st.session_state,
+        sidebar=st.sidebar,
+        build_project_selection_fn=build_project_selection,
+        on_project_change_fn=on_project_change,
     )
-
-    if selection != current_project:
-        on_project_change(selection)
 
 
 def resolve_active_app(env, preferred_base: Path | None = None) -> tuple[str, bool]:
-    """
-    Resolve the active app from ?active_app=... or last-active-app, optionally switching env.
-
-    Returns (current_project_name, project_changed)
-    """
-    project_changed = False
-    requested_val = normalize_query_param_value(st.query_params.get("active_app"))
-
-    if requested_val and requested_val != env.app:
-        for cand in active_app_candidates(
-            requested_val,
-            Path(env.apps_path),
-            env.projects or [],
-            preferred_base=preferred_base,
-        ):
-            if not cand.exists():
-                continue
-            try:
-                env.change_app(cand)
-                project_changed = True
-                store_last_active_app(env.active_app)
-                break
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-                continue
-    elif not requested_val:
-        last_app = load_last_active_app()
-        if last_app and last_app != env.active_app and last_app.exists():
-            try:
-                env.change_app(last_app)
-                project_changed = True
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-                pass
-
-    return env.app, project_changed
+    return _resolve_active_app_impl(
+        env,
+        query_params=st.query_params,
+        normalize_query_param_value_fn=normalize_query_param_value,
+        active_app_candidates_fn=active_app_candidates,
+        store_last_active_app_fn=store_last_active_app,
+        load_last_active_app_fn=load_last_active_app,
+        preferred_base=preferred_base,
+        path_cls=Path,
+    )
 
 
 def open_new_tab(url):
@@ -1048,102 +999,31 @@ def scan_dir(path):
 
 
 def sidebar_views():
-    """
-    Create sidebar controls for selecting modules and DataFrames.
-    """
-    env = st.session_state["env"]
-    export_root = Path(env.AGILAB_EXPORT_ABS)
-    modules = st.session_state.get("modules", scan_dir(export_root))
-
-    _, lab_index = resolve_default_selection(
-        modules,
-        st.session_state.get("lab_dir"),
-        env.target,
+    return _sidebar_views_impl(
+        session_state=st.session_state,
+        sidebar=st.sidebar,
+        scan_dir_fn=scan_dir,
+        find_files_fn=find_files,
+        resolve_default_selection_fn=resolve_default_selection,
+        build_sidebar_dataframe_selection_fn=build_sidebar_dataframe_selection,
+        on_lab_change_fn=on_lab_change,
+        on_df_change_fn=on_df_change,
+        path_cls=Path,
     )
-    st.session_state["lab_dir"] = st.sidebar.selectbox(
-        "Lab directory",
-        modules,
-        index=lab_index,
-        on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
-        key="lab_dir_selectbox",
-    )
-
-    lab_dir = export_root / st.session_state["lab_dir_selectbox"]
-    st.session_state.df_dir = lab_dir
-
-    df_files = find_files(lab_dir)
-    st.session_state.df_files = df_files
-
-    sidebar_state = build_sidebar_dataframe_selection(
-        export_root,
-        st.session_state["lab_dir_selectbox"],
-        df_files,
-        st.session_state.get("index_page"),
-        env.target,
-    )
-    st.session_state["index_page"] = sidebar_state.index_page
-    index_page_str = str(sidebar_state.index_page)
-    st.session_state["module_path"] = sidebar_state.module_path
-    st.sidebar.selectbox(
-        "Dataframe",
-        sidebar_state.df_files_rel,
-        key=sidebar_state.key_df,
-        index=sidebar_state.default_index,
-        on_change=lambda: on_df_change(
-            sidebar_state.module_path,
-            index_page_str,
-            st.session_state.get("df_file"),
-        ),
-        )
-    if st.session_state[sidebar_state.key_df]:
-        st.session_state["df_file"] = export_root / st.session_state[sidebar_state.key_df]
-    else:
-        st.session_state["df_file"] = None
 
 
 def on_df_change(module_dir, index_page, df_file=None, steps_file=None):
-    """
-    Handle DataFrame selection.
-
-    Args:
-        module_dir (Path): The module path.
-        df_file (Path): The DataFrame file path.
-        index_page (str): The index page identifier.
-        steps_file (Path): The steps file path.
-    """
-    index_page_str = str(index_page)
-    select_df_key = index_page_str + "df"
-
-    # Backward-compatible guard: if callers pass args in the old order, swap them.
-    if (
-        select_df_key not in st.session_state
-        and df_file is not None
-        and (str(df_file) + "df") in st.session_state
-    ):
-        df_file, index_page_str = index_page, str(df_file)
-        select_df_key = index_page_str + "df"
-
-    selected_df = st.session_state.get(select_df_key)
-    env = st.session_state.get("env")
-    export_root = Path(env.AGILAB_EXPORT_ABS) if env else None
-    selected_path = resolve_selected_df_path(
-        selected_df,
-        fallback_df_file=df_file,
-        export_root=export_root,
+    return _on_df_change_impl(
+        module_dir,
+        index_page,
+        df_file,
+        steps_file,
+        session_state=st.session_state,
+        resolve_selected_df_path_fn=resolve_selected_df_path,
+        load_last_step_fn=load_last_step,
+        logger=logger,
+        path_cls=Path,
     )
-
-    if selected_path is not None:
-        st.session_state[index_page_str + "df_file"] = selected_path
-        st.session_state["df_file"] = selected_path
-    else:
-        st.session_state.pop(index_page_str + "df_file", None)
-
-    if steps_file:
-        logger.info(f"mkdir {steps_file.parent}")
-        steps_file.parent.mkdir(parents=True, exist_ok=True)
-        load_last_step(module_dir, steps_file, index_page_str)
-    st.session_state.pop(index_page_str, None)
-    st.session_state.page_broken = True
 
 
 def activate_mlflow(env=None):
