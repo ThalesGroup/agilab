@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-16T07:11:28Z",
+  "generated_at_utc": "2026-04-16T08:18:41Z",
   "tool": "tools/codex_skills.py",
   "count": 22,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-installer",
       "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-09",
+      "updated": "2026-04-16",
       "path": ".codex/skills/agilab-installer/SKILL.md",
       "body_preview": "# AGILAB Installer Skill\nUse this skill when working on:\n- `install.sh` / `install.ps1` (root installer)\n- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)"
     },
@@ -47,7 +47,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-08",
+      "updated": "2026-04-16",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
     },
@@ -63,9 +63,9 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-09",
+      "updated": "2026-04-16",
       "path": ".codex/skills/agilab-testing/SKILL.md",
-      "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- Start small and local: run only the tests that cover the files you changed."
+      "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
     {
       "name": "chat-export",
@@ -119,7 +119,7 @@
       "name": "plan-before-code",
       "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
       "license": "Private local skill",
-      "updated": "2026-04-07",
+      "updated": "2026-04-16",
       "path": ".codex/skills/plan-before-code/SKILL.md",
       "body_preview": "# Plan Before Code\nUse this skill to force a planning pass before coding.\nThe goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits,\nand catch bad assumptions before touching files."
     },

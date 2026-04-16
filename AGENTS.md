@@ -36,6 +36,10 @@ Use this runbook whenever you:
   and release dry-runs. Reserve CI/workflow runs for GitHub-only behavior (runner differences,
   OS/Python matrix coverage, permissions/secrets, Pages/PyPI publication, or final integration
   confirmation after local validation).
+- **Impact triage first**: For non-trivial diffs, run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+  before edits or push. Use its output to decide whether the change is app-local vs shared-core,
+  which targeted tests are required, whether install repros are mandatory, and whether generated
+  artifacts such as badges, skill indexes, or run-config wrappers must be refreshed.
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
   the results (`tools/run_configs/`).
@@ -216,6 +220,20 @@ Use this runbook whenever you:
   installs.
 4. Document fixes or new failure modes in this runbook so future agents can respond
   consistently.
+
+### 3b. Diff impact triage
+1. Run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+   for staged work, or pass explicit files with `--files ...` when you want to inspect a planned edit
+   before touching the tree.
+2. Treat `shared-core` and `installer` findings as hard gates:
+   - stop for explicit approval if shared core is implicated
+   - reproduce both plain `uv sync --project <app>` and `uv run python src/agilab/apps/install.py <app> --verbose 1`
+     when install plumbing is implicated
+3. Execute the suggested targeted tests before broader suites.
+4. Refresh any required generated artifacts in the same change:
+   - `tools/run_configs/` after run configuration edits
+   - `.codex/skills/.generated/skills_index.*` after shared skill edits
+   - `badges/coverage-*.svg` after coverage badge inputs change
 
 ### 4. Cluster SSH recovery after node reinstall or host-key rotation
 

@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-09
+  updated: 2026-04-16
 ---
 
 # Testing Skill (AGILAB)
@@ -12,6 +12,9 @@ Use this skill when validating changes.
 
 ## Philosophy
 
+- For non-trivial diffs, start with
+  `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+  or `--files ...` and treat its output as the first pass for required validation.
 - Start small and local: run only the tests that cover the files you changed.
 - Prefer local validation over CI reruns. If a coverage, test, docs, or badge failure has a local
   command equivalent, run that first. Use GitHub workflows only when the issue is runner-specific,
@@ -86,6 +89,8 @@ Use this skill when validating changes.
   - exit code `2`: often environment/tooling/collection failure
   - exit code `1`: often an actual test failure after collection
 - For AGILab monorepo coverage jobs, do not assume the root `uv run pytest ...` environment is the right reproduction target. Use the isolated no-project commands above first.
+- If `tools/impact_validate.py` reports required artifact refreshes, treat those as part of validation,
+  not as optional cleanup.
 
 ## Preview / Report Alignment Regressions
 

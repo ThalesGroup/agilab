@@ -70,6 +70,9 @@ Then feed those results into a future prompt as explicit guidance.
      - first files to inspect
      - likely false fixes to avoid
      - minimum validation to require
+   - When building a prompt for a live `agilab` diff, run
+     `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files ...`
+     or `--staged` and fold its risk zones, push gates, and required validations into the prompt pack.
 6. Close the loop after the next session.
    - Mark whether the routed prompt improved first-pass success.
    - Update the case if the new session revealed a better diagnosis path.
@@ -150,3 +153,4 @@ layout.
 - `agilab-testing` for repo-specific validation rules
 - `agilab-installer` when the learned cases are install or worker-manifest failures
 - `agilab-streamlit-pages` when the learned cases are Streamlit/session-state failures
+- `tools/impact_validate.py` to turn a current diff into live validation and push-gate inputs

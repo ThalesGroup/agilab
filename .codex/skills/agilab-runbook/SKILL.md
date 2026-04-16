@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-08
+  updated: 2026-04-16
 ---
 
 # AGILab runbook (Agent Skill)
@@ -24,6 +24,13 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `py_compile`, Sphinx builds, badge generation, or publish dry-runs. Use CI only for GitHub-only
   behavior such as runner differences, OS/Python matrix coverage, permissions/secrets, or the final
   publish/deploy step.
+- **Impact triage first**: for non-trivial diffs, run
+  `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+  before editing further or pushing. Use its output to decide:
+  - whether the change is app-local or shared-core
+  - which targeted tests are required
+  - whether installer repros are mandatory
+  - whether generated artifacts must be refreshed
 - **Clone policy**: in the PROJECT page, keep two clone classes explicit:
   - temporary clones may share the source `.venv` by symlink for lightweight local experiments
   - working clones should detach `.venv` and rerun `INSTALL` before `EXECUTE`
@@ -76,6 +83,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 ## Common commands (from the runbook matrix)
 
+- Impact triage:
+  - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+- Impact triage for planned paths:
+  - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files src/agilab/orchestrate_execute.py test/test_orchestrate_execute.py`
 - Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --openai-api-key "…" --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`

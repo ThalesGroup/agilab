@@ -3,7 +3,7 @@ name: plan-before-code
 description: Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.
 license: Private local skill
 metadata:
-  updated: 2026-04-07
+  updated: 2026-04-16
 ---
 
 # Plan Before Code
@@ -75,6 +75,9 @@ Use for risky or multi-step work.
    - Use a short visible plan for substantial work.
    - For complex work, use the planning tool if available.
    - The plan should be ordered, concrete, and testable.
+   - In `agilab`, run
+     `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+     or `--files ...` if a diff already exists, and use its output to shape the plan.
 
 4. Validate assumptions before execution.
    - Confirm the file path, call site, dependency, config source, or failing case.
@@ -90,6 +93,8 @@ Use for risky or multi-step work.
    - Prefer targeted tests first.
    - Use the narrowest validation that proves the fix.
    - If validation was not possible, say so explicitly.
+   - In `agilab`, prefer the validations and artifact refreshes reported by
+     `tools/impact_validate.py` over ad hoc guesses.
 
 7. Close with outcome and remaining risk.
    - What changed
@@ -118,6 +123,8 @@ A bad plan:
 
 - Do not code first and invent the plan afterwards.
 - Do not jump to a core/shared fix when an app-local fix may be enough.
+- In `agilab`, do not skip `tools/impact_validate.py` for multi-file diffs or risky bug fixes when it
+  can clarify shared-core, installer, badge, or skill-index impact.
 - Do not treat “I know this codebase” as evidence.
 - Do not let a plan become stale after new evidence appears.
 - Do not over-plan tiny work; choose the lightest mode that still protects quality.
