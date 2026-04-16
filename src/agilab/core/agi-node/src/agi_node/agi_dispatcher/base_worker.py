@@ -422,7 +422,7 @@ class BaseWorker(abc.ABC):
             base_method = BaseWorker.start
             if method and method is not base_method:
                 method()
-        except Exception:  # pragma: no cover - log and rethrow for visibility
+        except Exception:  # pragma: no cover - intentional hook boundary
             logger.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise
 
@@ -515,6 +515,7 @@ class BaseWorker(abc.ABC):
             BaseWorker._worker,
             poll,
         )
+        primary_exc: Optional[BaseException] = None
 
         try:
             if not callable(loop_fn):
@@ -573,7 +574,8 @@ class BaseWorker(abc.ABC):
             _write_heartbeat("stopped")
             return {"status": "stopped", "runtime": time.time() - start_time}
 
-        except Exception as exc:  # pragma: no cover - worker loop is app-defined
+        except Exception as exc:  # pragma: no cover - intentional hook boundary
+            primary_exc = exc
             logger.exception("Service loop failed: %s", exc)
             raise
 
@@ -587,8 +589,10 @@ class BaseWorker(abc.ABC):
             if callable(stop_hook):
                 try:
                     stop_hook()
-                except Exception:  # pragma: no cover - worker stop hook is app-defined
+                except Exception:  # pragma: no cover - intentional hook boundary
                     logger.exception("Worker stop hook raised inside service loop", exc_info=True)
+                    if primary_exc is None:
+                        raise
 
             logger.info(
                 "worker #%s: %s leaving service loop (elapsed %.3fs)",
