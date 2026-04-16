@@ -1,5 +1,6 @@
 ## AGILAB Roadmap
 
+- [UX improvement roadmap](./UX_ROADMAP.md): concrete backlog for environment health, action feedback, settings provenance, heavy-page responsiveness, and intent-first workflow pages.
 - Migrate to uv 1.0 once available.
 - Rework documentation published on GitHub.
 - Add run diff / counterfactual analysis to compare baseline and candidate runs
