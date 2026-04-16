@@ -19,14 +19,20 @@ This is not a brainstorming document. It is the run list for the current public 
 - workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 - reference app: `flight_project`
 
+If the local video asset is missing, regenerate it before launch:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/build_product_demo_reel.py --variant flight
+```
+
 ## Pre-flight checks
 
 - [x] README opening still matches the locked positioning
 - [x] GitHub repo description still matches the locked About text
 - [ ] canonical demo asset still opens and is usable
-- [ ] docs landing page still points first-time users to the same workflow
+- [x] docs landing page still points first-time users to the same workflow
 - [x] quick-start path still works without IDE-specific context
-- [ ] no new repo wording drift has appeared between README, docs, and launch copy
+- [x] no new repo wording drift has appeared between README, docs, and launch copy
 
 ## Launch sequence
 
@@ -73,8 +79,7 @@ Observed on 2026-04-16:
 - Star delta after discussion launch: `4 -> 5`
 - External questions/comments on discussion `#8`: `0`
 - First-time visitor friction still visible:
-  - docs landing copy does not yet fully match the locked reproducibility/workflow positioning
-  - the primary flight demo video `artifacts/demo_media/flight/agilab_flight.mp4` is missing from the working tree
+  - the primary flight demo video is local-only and must be regenerated on a fresh machine because `artifacts/demo_media/` is git-ignored
   - README/docs quick-start path is CLI-safe, but traffic instrumentation is still missing
 
 ## Abort conditions

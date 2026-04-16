@@ -1,10 +1,11 @@
 AGILab Documentation
 =====================
 
-AGILab is a framework for engineering-focused AI workflows, spanning local
-development, distributed execution, and application packaging.
-This documentation covers installation, architecture, API references, and
-example projects.
+AGILab is an open-source platform for reproducible AI/ML workflows, from local
+experimentation to distributed workers and long-lived services.
+This documentation covers installation, quick starts, architecture, service
+mode, API references, and example projects that keep the same workflow visible
+from first run to analysis.
 
 .. toctree::
    :maxdepth: 2

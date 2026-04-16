@@ -29,6 +29,12 @@ Use one primary demo asset for this wave:
 - primary still image fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 - supporting workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 
+If the local video asset is missing, regenerate it before packaging the post:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/build_product_demo_reel.py --variant flight
+```
+
 Reference app for all copy:
 
 - `flight_project`
