@@ -21,16 +21,20 @@ You are "past the newcomer hurdle" when all of the following are true:
 Choose your path
 ----------------
 
-Pick one of these paths before you start:
+Pick one path before you start, but do not treat them as equal:
 
+- **Recommended first proof path**: clone the repository, use the web UI, and
+  run the built-in ``flight_project`` locally.
 - **Evaluate AGILab quickly**: use the published package in a fresh
   ``uv``-managed virtual environment.
-- **Contribute or inspect the framework**: clone the repository and use the
-  source checkout.
+- **Contribute or inspect the framework deeply**: use the source checkout and
+  then branch into notebook, wrappers, or cluster flows after the first local
+  proof works.
 
-If you are unsure, choose the published package first. Mixing the packaged
-install and a source checkout too early is one of the easiest ways to confuse
-paths, environments, and generated scripts.
+If you are unsure, choose the recommended ``flight_project`` path from
+:doc:`quick-start`. Mixing the packaged install and a source checkout too early
+is one of the easiest ways to confuse paths, environments, and generated
+scripts.
 
 Prefer code first?
 ------------------
@@ -44,11 +48,9 @@ The first 10 minutes
 
 1. Install or launch AGILab with the commands from :doc:`quick-start`.
 2. Keep the first run local. Skip SSH hosts and cluster settings.
-3. Start with a built-in app:
-
-   - ``src/agilab/apps/builtin/mycode_project`` for the smallest reference app.
-   - ``src/agilab/apps/builtin/flight_project`` if you want a richer built-in
-     demo path.
+3. Start with ``src/agilab/apps/builtin/flight_project`` as the default first
+   proof path. Use ``mycode_project`` only if you explicitly want the smallest
+   reference app instead of the clearest product demonstration.
 4. Choose one first-run workflow:
 
    - **Notebook-first**: open :doc:`notebook-quickstart` and run the local

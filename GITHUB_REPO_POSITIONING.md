@@ -18,6 +18,12 @@ Use this file when updating the GitHub repository `About` section, topics, and s
 
 This should stay semantically aligned with the README opening.
 
+### Primary audience
+
+Applied ML engineers and technical teams who need one workflow to stay
+reproducible from local experimentation to distributed execution and service
+mode.
+
 ## Locked topics
 
 - `mlops`

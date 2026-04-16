@@ -1,14 +1,15 @@
 Quick-Start
 ===========
 
-AGILab is an open-source platform for reproducible AI/ML workflows. This
-quick-start walks you through the shortest path to install the framework, open
-the web interface, and run one built-in app without IDE-specific context. For
-architectural context see :doc:`architecture` and :doc:`agi-core-architecture`.
+AGILab is an open-source platform for reproducible AI/ML workflows. For a
+first-time visitor, the recommended proof path is simple: source checkout, web
+UI, built-in ``flight_project``, local run, visible analysis. For architectural
+context see :doc:`architecture` and :doc:`agi-core-architecture`.
 
 If you are evaluating AGILab for the first time, read :doc:`newcomer-guide`
-first. This page is the shortest install/run path once you know whether you
-want the published package or a source checkout.
+first. This page now treats the source checkout + ``flight_project`` workflow as
+the recommended first proof path. Alternative install routes stay available
+below.
 
 If you want the thinnest code-first path without the web UI, see
 :doc:`notebook-quickstart`. That is a supported newcomer path if you prefer to
@@ -47,45 +48,56 @@ License
 
 New BSD. See :doc:`License File <license>`.
 
-Install AGILab
-^^^^^^^^^^^^^^
+Recommended first proof path
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. **Bootstrap a workspace** (keeps project files and the web interface cache in a
-   single folder)::
+Use this path if you want to understand what AGILAB actually does:
 
-       mkdir ~/agi-workspace && cd ~/agi-workspace
+1. **Clone the repository and install the built-in apps**::
 
-2. **Create a managed environment** (uv-first and source-agnostic)::
+       git clone https://github.com/ThalesGroup/agilab.git
+       cd agilab
+       ./install.sh --install-apps --test-apps
 
-       uv venv
-       source .venv/bin/activate
+2. **Launch the web interface**::
 
-3. **Install AGILab (published wheel)**::
+       uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 
-       uv pip install agilab
+3. **Keep the first run local and use the built-in flight demo**
 
-4. **Launch the web interface** (runs inside the managed virtual environment)::
+   In the UI, use:
 
-       uv run agilab
+   - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
+   - ``ORCHESTRATE`` -> run the install/distribute/run flow
+   - ``PIPELINE`` -> inspect the generated step
+   - ``ANALYSIS`` -> open the resulting built-in view
 
-   The ORCHESTRATE page opens automatically. Point the sidebar to the folder that
-   contains your AGILab projects (for example a checked-out app repository, or a
-   path you set with ``APPS_PATH``).
+4. **Check the first proof outcome**
 
-5. **Run an example app**
+   You are past the newcomer hurdle when both are true:
 
-   If you have a source checkout and want to keep using the same virtual
-   environment created above, point Python at the sample script without
-   switching into the checkout's own uv project::
+   - fresh output exists under ``~/log/execute/flight/``
+   - the workflow stayed understandable as ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``
 
-       uv run --active python /path/to/agilab-checkout/src/agilab/examples/mycode/AGI_run_mycode.py
+Alternative install routes
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   The same project can be exercised from the web interface by selecting it in
-   PROJECT, then using ORCHESTRATE and PIPELINE.
+Use these only if you already know why you want them.
 
-   This script constructs an ``AgiEnv``, bundles the worker, and executes a
-   full AGI run so you can inspect the generated logs under
-   ``~/log/execute/mycode``.
+**Published package route** (fastest install, less representative of the full product path)::
+
+    mkdir ~/agi-workspace && cd ~/agi-workspace
+    uv venv
+    source .venv/bin/activate
+    uv pip install agilab
+    uv run agilab
+
+**Notebook-first route** (best if you intentionally want ``agi-core`` before the UI)::
+
+    git clone https://github.com/ThalesGroup/agilab.git
+    cd agilab
+    ./install.sh --install-apps --test-apps
+    uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
 
 Run without PyCharm (CLI wrappers)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
