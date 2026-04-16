@@ -316,6 +316,12 @@ def test_view_uav_relay_queue_analysis_helper_branches(monkeypatch, tmp_path) ->
     assert module._build_max_queue_comparison_frame({"broken": broken_queue}).empty
 
 
+def test_view_uav_relay_queue_analysis_discover_exception(monkeypatch, tmp_path) -> None:
+    module = _load_relay_helpers()
+    broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
+    assert module._discover_files(broken_base, "*.json") == []
+
+
 def test_view_uav_relay_queue_analysis_warns_when_summary_glob_is_empty(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:

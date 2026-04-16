@@ -476,3 +476,38 @@ def test_unzip_data_refresh_onerror_raises_non_missing_exception(tmp_path: Path)
     )
 
     logger.info.assert_called()
+
+
+def test_unzip_data_warns_when_target_directory_prepare_fails_in_normal_path(tmp_path: Path):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    home_abs = tmp_path / "home"
+    home_abs.mkdir()
+    logger = mock.Mock()
+
+    def _failing_ensure_dir(path):
+        path = Path(path)
+        if path == share_root / "dataset" / "demo":
+            raise OSError("mkdir failed")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    unzip_data(
+        archive,
+        extract_to="dataset/demo",
+        app_data_rel="demo",
+        agi_share_path_abs=share_root,
+        user=home_abs.name,
+        home_abs=home_abs,
+        verbose=0,
+        logger=logger,
+        ensure_dir_fn=_failing_ensure_dir,
+        sevenzip_file_cls=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("archive should not open")
+        ),
+        rmtree_fn=lambda *_args, **_kwargs: None,
+    )
+
+    logger.warning.assert_called()

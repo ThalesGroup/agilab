@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import runpy
+import sys
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
@@ -216,6 +218,56 @@ def test_view_training_analysis_handles_tensorboard_helper_edge_cases(monkeypatc
     monkeypatch.setattr(module, "_load_event_accumulator", lambda: _EmptyAccumulator)
     module._load_scalar_frame.clear()
     assert module._load_scalar_frame(str(tmp_path)).empty
+
+
+def test_view_training_analysis_additional_helper_and_entrypoint_branches(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._event_files(tmp_path / "missing") == []
+    assert module._discover_tensorboard_roots(tmp_path / "missing") == []
+
+    fake_accumulator = object()
+    fake_event_module = SimpleNamespace(EventAccumulator=fake_accumulator)
+    fake_processing_module = SimpleNamespace(event_accumulator=fake_event_module)
+    fake_backend_module = SimpleNamespace(event_processing=fake_processing_module)
+    fake_tensorboard_module = SimpleNamespace(backend=fake_backend_module)
+    monkeypatch.setitem(sys.modules, "tensorboard", fake_tensorboard_module)
+    monkeypatch.setitem(sys.modules, "tensorboard.backend", fake_backend_module)
+    monkeypatch.setitem(sys.modules, "tensorboard.backend.event_processing", fake_processing_module)
+    monkeypatch.setitem(sys.modules, "tensorboard.backend.event_processing.event_accumulator", fake_event_module)
+    assert module._load_event_accumulator() is fake_accumulator
+
+    scalar_df = pd.DataFrame(
+        [
+            {
+                "tag": "metric",
+                "step": 1,
+                "value": 1.0,
+                "run_label": "run-a",
+                "wall_time": 1.0,
+                "relative_time_s": 1.0,
+                "timestamp": pd.Timestamp("2024-01-01"),
+            },
+            {
+                "tag": "metric",
+                "step": 2,
+                "value": 2.0,
+                "run_label": "run-b",
+                "wall_time": 2.0,
+                "relative_time_s": 2.0,
+                "timestamp": pd.Timestamp("2024-01-02"),
+            },
+        ]
+    )
+    fig = module._build_scalar_figure(scalar_df, ["metric"], "step")
+    assert len(fig.data) == 2
+
+    monkeypatch.setattr(
+        "streamlit.set_page_config",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("skip main")),
+    )
+    with pytest.raises(RuntimeError, match="skip main"):
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
 
 
 def test_view_training_analysis_event_helpers_and_scalar_frame(monkeypatch, tmp_path: Path) -> None:

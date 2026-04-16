@@ -143,6 +143,35 @@ def test_view_forecast_analysis_helper_branches(monkeypatch, tmp_path) -> None:
     assert "date" in loaded.columns
 
 
+def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_forecast_helpers()
+    broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
+    assert module._discover_files(broken_base, "*.json") == []
+
+    project_dir = _create_forecast_project(tmp_path)
+    env = SimpleNamespace(
+        app="meteo_forecast_project",
+        target="meteo_forecast",
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        st_resources=tmp_path,
+    )
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        at.session_state["env"] = env
+        at.run()
+
+    assert not at.exception
+
+
 def test_view_forecast_analysis_warns_when_metrics_are_missing(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
     artifact_dir = tmp_path / "export" / "meteo_forecast" / "forecast_analysis"

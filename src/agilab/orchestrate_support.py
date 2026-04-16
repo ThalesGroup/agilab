@@ -128,7 +128,7 @@ def looks_like_shared_path(path: Path, *, project_root: Path) -> bool:
                 if node == stop:
                     break
                 parent = node.parent
-                if parent == node:
+                if parent == node:  # pragma: no cover - defensive cycle/root guard
                     break
                 node = parent
         return False

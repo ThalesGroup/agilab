@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 MODULE_PATH = (
@@ -123,3 +124,16 @@ def test_edge_selection_covers_empty_and_existing_path_branches(tmp_path: Path):
     assert existing_custom_state.choice == edge_selection.CUSTOM_OPTION
     assert existing_custom_state.custom_value == str(existing_edge_path)
     assert existing_custom_state.edges_clean == str(existing_edge_path)
+
+
+def test_edge_selection_path_exists_handles_filesystem_exceptions(monkeypatch):
+    monkeypatch.setattr(
+        edge_selection,
+        "Path",
+        lambda _value: SimpleNamespace(
+            expanduser=lambda: SimpleNamespace(
+                exists=lambda: (_ for _ in ()).throw(RuntimeError("broken exists"))
+            )
+        ),
+    )
+    assert edge_selection._path_exists("~/demo.json") is False

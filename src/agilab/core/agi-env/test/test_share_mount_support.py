@@ -155,6 +155,22 @@ def test_share_mount_support_path_and_mount_helpers(tmp_path: Path, monkeypatch)
     assert share_mount_support.is_mounted(str(share_dir), home_path=tmp_path) is True
 
 
+def test_is_mounted_returns_true_when_mountinfo_has_no_match_and_no_bind_source(tmp_path: Path, monkeypatch):
+    share_dir = tmp_path / "cluster"
+    share_dir.mkdir()
+
+    monkeypatch.setattr(share_mount_support, "_is_usable_dir", lambda _path: True)
+    monkeypatch.setattr(
+        share_mount_support,
+        "open",
+        mock.mock_open(read_data="24 23 0:21 / /different rw - bind none rw\n"),
+        raising=False,
+    )
+    monkeypatch.setattr(share_mount_support, "_fstab_bind_source_for_target", lambda _target: None)
+
+    assert share_mount_support.is_mounted(str(share_dir), home_path=tmp_path) is True
+
+
 def test_resolve_share_path_fail_fast_and_local_fallback(tmp_path: Path, monkeypatch):
     env_path = tmp_path / ".env"
 

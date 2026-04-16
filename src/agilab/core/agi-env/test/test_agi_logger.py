@@ -171,6 +171,14 @@ def test_is_same_log_record_file_matches_exact_path_without_samefile_probe():
     ) is True
 
 
+def test_is_same_log_record_file_returns_true_when_samefile_matches():
+    assert _is_same_log_record_file(
+        "/tmp/source/a.py",
+        "/var/cache/a.py",
+        samefile_fn=lambda *_: True,
+    ) is True
+
+
 def test_is_same_log_record_file_falls_back_to_basename_when_samefile_fails():
     assert _is_same_log_record_file(
         "/tmp/source/build.py",

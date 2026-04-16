@@ -12,8 +12,6 @@ def load_env_file_map(path: Path) -> dict[str, str]:
             if not stripped or "=" not in stripped:
                 continue
             target = stripped.lstrip("#").strip()
-            if "=" not in target:
-                continue
             key, val = target.split("=", 1)
             key = key.strip()
             if key:

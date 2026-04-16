@@ -324,6 +324,74 @@ def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
     assert fake_st._placeholders[1].last_df is not None
 
 
+def test_render_service_panel_health_gate_skips_non_mapping_worker_health_rows(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_health_gate_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    health_payload = {
+        "status": "running",
+        "worker_health": [
+            "bad-row",
+            {
+                "worker": "w1",
+                "healthy": True,
+                "reason": "",
+                "heartbeat_state": "fresh",
+                "heartbeat_age_sec": 0.5,
+            },
+        ],
+    }
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: health_payload,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    async def fake_run_agi(*_args, **_kwargs):
+        return ("{'status': 'running'}", "")
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert session_state["service_health_cache"] == health_payload["worker_health"]
+    assert fake_st._placeholders[1].last_df is not None
+
+
 def test_render_service_panel_handles_status_error_and_cached_health_failures(monkeypatch, tmp_path):
     session_state = _SessionState(
         {

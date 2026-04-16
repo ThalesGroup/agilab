@@ -22,6 +22,7 @@ def test_share_runtime_helpers_cover_target_path_modes_and_ip_validation(tmp_pat
 
     assert share_runtime_module.is_valid_ip("192.168.20.130") is True
     assert share_runtime_module.is_valid_ip("999.1.1.1") is False
+    assert share_runtime_module.is_valid_ip("not-an-ip") is False
 
 
 def test_python_supports_free_threading_prefers_runtime_probe(monkeypatch):

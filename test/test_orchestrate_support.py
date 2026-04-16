@@ -541,6 +541,27 @@ def test_macos_autofs_hint_ignores_non_mount_prefix_and_coerce_defaults():
     assert orchestrate_support.coerce_float_setting("0.4", 0.2, minimum=0.0, maximum=1.0) == 0.4
 
 
+def test_macos_autofs_hint_returns_none_when_auto_nfs_mentions_mount_root(monkeypatch, tmp_path):
+    monkeypatch.setattr(orchestrate_support.sys, "platform", "darwin")
+    real_path = Path
+    auto_master = tmp_path / "auto_master"
+    auto_nfs = tmp_path / "auto_nfs"
+    auto_master.write_text("/mnt auto_nfs\n", encoding="utf-8")
+    auto_nfs.write_text("/mnt\t-fstype=nfs demo:/mnt\n", encoding="utf-8")
+
+    def _fake_path(raw):
+        text = str(raw)
+        if text == "/etc/auto_master":
+            return auto_master
+        if text == "/etc/auto_nfs":
+            return auto_nfs
+        return real_path(raw)
+
+    monkeypatch.setattr(orchestrate_support, "Path", _fake_path)
+
+    assert orchestrate_support.macos_autofs_hint(Path("/mnt/agilab/share")) is None
+
+
 def test_evaluate_service_health_gate_returns_ok_when_thresholds_are_respected():
     code, message, details = orchestrate_support.evaluate_service_health_gate(
         {
@@ -577,3 +598,7 @@ def test_orchestrate_support_covers_unhealthy_and_parse_fallback_edges():
     assert details["workers_unhealthy_count"] == 3
     assert orchestrate_support.extract_result_dict_from_output("{bad literal}\n{'ok': 1}") == {"ok": 1}
     assert orchestrate_support.coerce_float_setting("not-a-number", 0.25) == 0.25
+
+
+def test_extract_result_dict_from_output_skips_invalid_trailing_candidate():
+    assert orchestrate_support.extract_result_dict_from_output("{'ok': 1}\n{bad literal}") == {"ok": 1}

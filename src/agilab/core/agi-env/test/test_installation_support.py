@@ -118,3 +118,17 @@ def test_locate_agilab_installation_path_falls_back_to_repo_and_parent(tmp_path:
         find_spec=lambda _name: None,
     )
     assert located == fallback_root
+
+
+def test_locate_agilab_installation_path_handles_missing_spec_and_final_parent_fallback(tmp_path: Path):
+    module_file = tmp_path / "pkg" / "one" / "two" / "agi_env.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("", encoding="utf-8")
+
+    located = installation_support.locate_agilab_installation_path(
+        module_file=module_file,
+        find_spec=lambda _name: (_ for _ in ()).throw(ModuleNotFoundError("missing agilab")),
+    )
+
+    expected = module_file.resolve().parents[2] / "agi_env"
+    assert located == expected.parent

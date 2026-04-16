@@ -636,7 +636,7 @@ def _activate_default_mlflow_experiment_with_schema_retry(
             ):
                 continue
             raise
-    return backend_uri
+    return backend_uri  # pragma: no cover - defensive fallback after the bounded retry loop
 
 
 def _resolve_default_mlflow_activation_context(

@@ -1370,3 +1370,74 @@ def test_ensure_default_mlflow_experiment_propagates_non_schema_errors(tmp_path:
             default_experiment_name="Default",
             schema_reset_markers=("schema-reset",),
         )
+
+
+def test_repair_mlflow_default_experiment_db_skips_internal_and_non_experiment_tables(tmp_path: Path):
+    db_path = tmp_path / "mlflow.db"
+    db_path.write_text("", encoding="utf-8")
+    updates: list[tuple[str, tuple | None]] = []
+    committed: list[bool] = []
+
+    class _Result:
+        def __init__(self, fetchall_rows=None, fetchone_row=None):
+            self._fetchall_rows = fetchall_rows or []
+            self._fetchone_row = fetchone_row
+
+        def fetchall(self):
+            return self._fetchall_rows
+
+        def fetchone(self):
+            return self._fetchone_row
+
+    class _Conn:
+        def execute(self, query, params=None):
+            query = str(query)
+            if query == "SELECT name FROM sqlite_master WHERE type='table'":
+                return _Result(
+                    fetchall_rows=[("experiments",), ("sqlite_shadow",), ("tags",)]
+                )
+            if query in {"PRAGMA table_info(experiments)", 'PRAGMA table_info("experiments")'}:
+                return _Result(
+                    fetchall_rows=[
+                        (0, "experiment_id"),
+                        (1, "name"),
+                        (2, "artifact_location"),
+                    ]
+                )
+            if query.startswith("SELECT experiment_id FROM experiments WHERE"):
+                return _Result(fetchone_row=(5,))
+            if query == "SELECT experiment_id, name FROM experiments WHERE experiment_id = 0":
+                return _Result(fetchone_row=None)
+            if query == 'PRAGMA table_info("tags")':
+                return _Result(fetchall_rows=[(0, "key")])
+            if query == "PRAGMA foreign_keys=OFF":
+                updates.append((query, params))
+                return _Result()
+            if query.startswith("UPDATE"):
+                updates.append((query, params))
+                return _Result()
+            raise AssertionError(f"Unexpected query: {query}")
+
+        def commit(self):
+            committed.append(True)
+
+        def close(self):
+            return None
+
+    repaired = mlflow_store.repair_mlflow_default_experiment_db(
+        db_path,
+        artifact_uri="file:///artifacts",
+        default_experiment_name="Default",
+        sqlite_identifier_fn=mlflow_store.sqlite_identifier,
+        connect_fn=lambda _path: _Conn(),
+    )
+
+    assert repaired is True
+    assert committed == [True]
+    assert all("sqlite_shadow" not in query for query, _params in updates)
+    assert all('UPDATE "tags"' not in query for query, _params in updates)
+    assert any(
+        query == "UPDATE experiments SET artifact_location = ? WHERE experiment_id = 0"
+        and params == ("file:///artifacts",)
+        for query, params in updates
+    )

@@ -106,6 +106,38 @@ def test_pipeline_runtime_support_fallback_loader_handles_missing_submodules(mon
     assert module.sqlite_identifier('demo"name') == '"demo""name"'
 
 
+def test_pipeline_runtime_and_support_raise_when_local_fallback_specs_are_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _missing_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_runtime_support_fallback":
+            return None
+        if name in {
+            "agilab_pipeline_runtime_execution_support_fallback",
+            "agilab_pipeline_runtime_mlflow_support_fallback",
+        }:
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _missing_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_runtime_support"):
+        _load_module_with_import_failures(
+            "agilab_pipeline_runtime_missing_local_support",
+            "src/agilab/pipeline_runtime.py",
+            monkeypatch,
+            {"agilab.pipeline_runtime_support"},
+        )
+
+    with pytest.raises(ModuleNotFoundError, match="pipeline_runtime_execution_support.py"):
+        _load_module_with_import_failures(
+            "agilab_pipeline_runtime_support_missing_local_support",
+            "src/agilab/pipeline_runtime_support.py",
+            monkeypatch,
+            {"agilab.pipeline_runtime_execution_support", "agilab.pipeline_runtime_mlflow_support"},
+        )
+
+
 def test_safe_service_start_template_tolerates_invalid_settings_and_verbose(monkeypatch, tmp_path):
     settings = tmp_path / "app_settings.toml"
     settings.write_text(
