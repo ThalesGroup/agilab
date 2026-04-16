@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Session Learning"
+  short_description: "Turn prior sessions into bug-fix prompt rules"
+  default_prompt: "Use $codex-session-learning to turn previous Codex debugging sessions into reusable prompt routing and validation guidance for the next bug fix."
