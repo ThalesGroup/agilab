@@ -221,7 +221,7 @@ async def test_stop_retires_workers_and_shutdown(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_stop_supports_sync_scheduler_info(monkeypatch):
+async def test_stop_supports_sync_scheduler_shutdown_calls(monkeypatch):
     class _Client:
         def __init__(self):
             self.info_calls = 0
@@ -234,11 +234,13 @@ async def test_stop_supports_sync_scheduler_info(monkeypatch):
                 return {"workers": {"tcp://127.0.0.1:8787": {}}}
             return {"workers": {}}
 
-        async def retire_workers(self, workers, close_workers=True, remove=True):
+        def retire_workers(self, workers, close_workers=True, remove=True):
             self.retire_calls += 1
+            return {"retired": workers}
 
-        async def shutdown(self):
+        def shutdown(self):
             self.shutdown_calls += 1
+            return {"status": "stopped"}
 
     AGI._dask_client = _Client()
     AGI._mode_auto = False

@@ -16,11 +16,14 @@ _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 
 
+async def _maybe_await(result: Any) -> Any:
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
 async def _scheduler_info_payload(client: Any) -> Any:
-    info = client.scheduler_info()
-    if inspect.isawaitable(info):
-        info = await info
-    return info
+    return await _maybe_await(client.scheduler_info())
 
 
 def dask_env_prefix(agi_cls: Any) -> str:
@@ -369,10 +372,12 @@ async def stop(
 
         retire_attempts += 1
         try:
-            await agi_cls._dask_client.retire_workers(
-                workers=list(workers.keys()),
-                close_workers=True,
-                remove=True,
+            await _maybe_await(
+                agi_cls._dask_client.retire_workers(
+                    workers=list(workers.keys()),
+                    close_workers=True,
+                    remove=True,
+                )
             )
         except _STOP_RETRY_EXCEPTIONS as exc:
             log.debug("retire_workers failed: %s", exc)
@@ -383,7 +388,7 @@ async def stop(
     try:
         if ((agi_cls._mode_auto and (agi_cls._mode == 7 or agi_cls._mode == 15))
                 or not agi_cls._mode_auto):
-            await agi_cls._dask_client.shutdown()
+            await _maybe_await(agi_cls._dask_client.shutdown())
     except _STOP_RETRY_EXCEPTIONS as exc:
         log.debug("Dask client shutdown raised: %s", exc)
 
