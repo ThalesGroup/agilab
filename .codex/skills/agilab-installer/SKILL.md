@@ -52,8 +52,11 @@ Use this skill when working on:
   - Compare:
     - plain shell: `uv sync --project <app>`
     - AGILAB path: `uv run python src/agilab/apps/install.py <app> --verbose 1`
+  - Run the contract checker against the copied worker project before changing app code:
+    - `uv --preview-features extra-build-dependencies run python tools/install_contract_check.py --app-path <app-project-path> --worker-copy ~/wenv/<app>_worker`
   - Inspect the copied worker manifest:
     - `~/wenv/<app>_worker/pyproject.toml`
+  - If the checker reports `shared-core-installer-issue`, treat that as a shared install-plumbing bug first.
   - If that worker file gained a conflicting exact pin that is not present in the source app manifest, the usual causes are:
     - nested `uv` subprocesses inheriting `UV_RUN_RECURSION_DEPTH`
     - `_deploy_local_worker()` appending exact dependency pins into the worker copy

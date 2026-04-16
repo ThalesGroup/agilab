@@ -92,6 +92,7 @@ Use this runbook whenever you:
   fails later in worker deployment with an unsatisfiable dependency conflict, inspect the copied worker manifest under
   `~/wenv/<app>_worker/pyproject.toml` before patching the app. This usually means shared install plumbing rewrote the
   worker project or resolved local core packages inconsistently. Check in order:
+  - run `uv --preview-features extra-build-dependencies run python tools/install_contract_check.py --app-path <app-project-path> --worker-copy ~/wenv/<app>_worker` and inspect its classification first
   - whether `AgiEnv._build_env()` is leaking `UV_RUN_RECURSION_DEPTH` into nested `uv` commands
   - whether `_deploy_local_worker()` appended an exact dependency pin into the copied worker `pyproject.toml`
   - whether local source installs are adding `agi-env` and `agi-node` together as local paths, not one by one from index metadata

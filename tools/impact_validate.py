@@ -364,6 +364,15 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
         )
         actions.append(
             Action(
+                key="install-contract-check",
+                summary="Compare the source app and copied worker manifests before treating the failure as app-local.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/install_contract_check.py --app-path <app-project-path> --worker-copy <copied-worker-path>"
+                ],
+            )
+        )
+        actions.append(
+            Action(
                 key="install-contract-repro",
                 summary="Run the installer contract repro commands for an affected app.",
                 commands=[
