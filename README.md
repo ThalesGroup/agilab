@@ -347,6 +347,8 @@ For a professional Codex workflow, use the repo helper:
 - `./tools/codex_workflow.sh exec "..."` for implementation tasks.
 - `./tools/codex_workflow.sh apply <task-id>` for generated task patch application.
 - Configuration and usage details: `tools/codex_workflow.md`.
+- If you prefer to work without an IDE, use the repo guide:
+  - `docs/CLI_FIRST_WORKFLOW.md`
 
 Use macOS or Linux when you need to validate or reuse Linux-dependent code paths.
 
