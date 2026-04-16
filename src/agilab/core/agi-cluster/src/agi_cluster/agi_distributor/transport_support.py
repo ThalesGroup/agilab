@@ -6,7 +6,7 @@ import os
 import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterable, List, Optional
+from typing import Any, AsyncIterator, Callable, Iterable, List, Optional, cast
 
 import asyncssh
 from asyncssh.process import ProcessError
@@ -15,6 +15,11 @@ from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
+
+
+def _is_local_ip(ip: str) -> bool:
+    is_local = cast(Callable[[str], bool], AgiEnv.is_local)
+    return is_local(ip)
 
 
 async def _run_scp_command(
@@ -102,7 +107,7 @@ async def send_file(
     password: Optional[str] = None,
     log: Any = logger,
 ) -> None:
-    if AgiEnv.is_local(ip):
+    if _is_local_ip(ip):
         destination = remote_path
         if not destination.is_absolute():
             destination = Path(env.home_abs) / destination
@@ -179,9 +184,9 @@ async def get_ssh_connection(
     timeout_sec: int = 5,
     discover_private_keys_fn: Callable[[Path], List[str]] = discover_private_ssh_keys,
     log: Any = logger,
-):
+) -> AsyncIterator[Any]:
     env = agi_cls.env
-    if AgiEnv.is_local(ip) and not env.user:
+    if _is_local_ip(ip) and not env.user:
         env.user = getpass.getuser()
 
     if not env.user:

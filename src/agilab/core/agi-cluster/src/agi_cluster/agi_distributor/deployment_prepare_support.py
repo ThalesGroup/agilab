@@ -6,7 +6,7 @@ import socket
 from ipaddress import ip_address as is_ip
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Any, Callable, Optional, Set
+from typing import Any, Callable, Optional, Set, cast
 
 from asyncssh.process import ProcessError
 
@@ -15,6 +15,15 @@ from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
+
+
+def _is_local_ip(ip: str) -> bool:
+    is_local = cast(Callable[[str], bool], AgiEnv.is_local)
+    return is_local(ip)
+
+
+def _exception_types(*exc_types: type[BaseException]) -> tuple[type[BaseException], ...]:
+    return tuple(dict.fromkeys(exc_types))
 
 
 async def uninstall_modules(agi_cls: Any, env: AgiEnv, *, run_fn: Callable[..., Any] = AgiEnv.run, log: Any = logger) -> None:
@@ -28,7 +37,7 @@ async def uninstall_modules(agi_cls: Any, env: AgiEnv, *, run_fn: Callable[..., 
 def venv_todo(agi_cls: Any, list_ip: Set[str], *, log: Any = logger) -> None:
     agi_cls._local_ip, agi_cls._remote_ip = [], []
     for ip in list_ip:
-        (agi_cls._local_ip.append(ip) if AgiEnv.is_local(ip) else agi_cls._remote_ip.append(ip))
+        (agi_cls._local_ip.append(ip) if _is_local_ip(ip) else agi_cls._remote_ip.append(ip))
     agi_cls._install_todo = 2 * len(agi_cls._remote_ip)
     if agi_cls.env.verbose > 0:
         log.info(f"remote worker to install: {agi_cls._install_todo} ")
@@ -37,7 +46,7 @@ def venv_todo(agi_cls: Any, list_ip: Set[str], *, log: Any = logger) -> None:
 async def prepare_local_env(
     agi_cls: Any,
     *,
-    envar_truthy_fn: Callable[[dict, str], bool],
+    envar_truthy_fn: Callable[[dict[str, Any], str], bool],
     detect_export_cmd_fn: Callable[[str], Any],
     set_env_var_fn: Callable[..., Any] = AgiEnv.set_env_var,
     run_fn: Callable[..., Any] = AgiEnv.run,
@@ -121,7 +130,7 @@ async def prepare_cluster_env(
     agi_cls: Any,
     scheduler_addr: Optional[str],
     *,
-    envar_truthy_fn: Callable[[dict, str], bool],
+    envar_truthy_fn: Callable[[dict[str, Any], str], bool],
     detect_export_cmd_fn: Callable[[str], Any],
     ensure_optional_extras_fn: Callable[..., Any],
     stage_uv_sources_fn: Callable[..., list[Path]],
@@ -141,8 +150,13 @@ async def prepare_cluster_env(
     wenv_rel = env.wenv_rel
     pyvers_worker = env.pyvers_worker
 
-    remote_command_failures = tuple(dict.fromkeys((process_error_type, RuntimeError, OSError)))
-    staged_pyproject_fallback_errors = tuple(dict.fromkeys((process_error_type, OSError, RuntimeError, ValueError)))
+    remote_command_failures = _exception_types(process_error_type, RuntimeError, OSError)
+    staged_pyproject_fallback_errors = _exception_types(
+        process_error_type,
+        OSError,
+        RuntimeError,
+        ValueError,
+    )
 
     for ip in list_ip:
         if not env.is_local(ip):
