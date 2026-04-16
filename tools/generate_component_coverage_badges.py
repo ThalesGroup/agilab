@@ -12,31 +12,31 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 COMPONENTS = {
     "agi-env": {
-        "label": "coverage",
+        "label": "agi-env coverage",
         "xml": REPO_ROOT / "coverage-agi-env.xml",
         "prefix": "src/agilab/core/agi-env/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-env.svg",
     },
     "agi-node": {
-        "label": "coverage",
+        "label": "agi-node coverage",
         "xml": REPO_ROOT / "coverage-agi-node.xml",
         "prefix": "src/agilab/core/agi-node/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-node.svg",
     },
     "agi-cluster": {
-        "label": "coverage",
+        "label": "agi-cluster coverage",
         "xml": REPO_ROOT / "coverage-agi-cluster.xml",
         "prefix": "src/agilab/core/agi-cluster/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-cluster.svg",
     },
     "agi-gui": {
-        "label": "coverage",
+        "label": "agi-gui coverage",
         "xml": REPO_ROOT / "coverage-agi-gui.xml",
         "prefix": "src/agilab/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-gui.svg",
     },
     "agi-core": {
-        "label": "coverage",
+        "label": "agi-core coverage",
         "aggregate": ("agi-env", "agi-node", "agi-cluster"),
         "badge": REPO_ROOT / "badges" / "coverage-agi-core.svg",
     },
