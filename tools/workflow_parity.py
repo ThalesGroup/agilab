@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+"""Run local equivalents of key AGILAB workflow checks."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Callable, Sequence
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+@dataclass
+class CommandSpec:
+    label: str
+    argv: list[str]
+    env: dict[str, str] = field(default_factory=dict)
+    timeout_seconds: int | None = None
+    cwd: str | None = None
+    ensure_dirs: list[str] = field(default_factory=list)
+    remove_paths: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CommandResult:
+    label: str
+    argv: list[str]
+    returncode: int
+    duration_seconds: float
+    cwd: str
+    env: dict[str, str]
+
+
+@dataclass
+class ProfileResult:
+    profile: str
+    description: str
+    success: bool
+    commands: list[CommandResult]
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run local equivalents of key AGILAB workflow checks so local validation "
+            "matches the real repo workflows more closely."
+        )
+    )
+    parser.add_argument(
+        "--profile",
+        action="append",
+        choices=["agi-gui", "docs", "badges", "skills", "installer"],
+        help="Parity profile to run. May be passed multiple times.",
+    )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="List available profiles and exit.",
+    )
+    parser.add_argument(
+        "--components",
+        nargs="+",
+        help="Optional component subset for the badges profile.",
+    )
+    parser.add_argument(
+        "--skills",
+        nargs="+",
+        help="Optional shared skill names to sync before running the skills profile.",
+    )
+    parser.add_argument(
+        "--app-path",
+        help="Optional app project path for the installer profile contract check.",
+    )
+    parser.add_argument(
+        "--worker-copy",
+        help="Optional copied worker path for the installer profile contract check.",
+    )
+    parser.add_argument(
+        "--print-only",
+        action="store_true",
+        help="Print the commands for the selected profiles without executing them.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON.",
+    )
+    parser.add_argument(
+        "--keep-going",
+        action="store_true",
+        help="Continue running later profiles even if one command fails.",
+    )
+    return parser
+
+
+def _profile_descriptions() -> dict[str, str]:
+    return {
+        "agi-gui": "Run the local equivalent of the agi-gui coverage workflow job.",
+        "docs": "Run the local equivalent of the docs-publish Sphinx build.",
+        "badges": "Refresh component coverage badges from local coverage XML files.",
+        "skills": "Validate and regenerate the repo Codex skill mirror outputs.",
+        "installer": "Run local installer parity checks including shell syntax and contract checks.",
+    }
+
+
+def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
+    return {
+        "agi-gui": _agi_gui_profile(),
+        "docs": _docs_profile(),
+        "badges": _badges_profile(args.components),
+        "skills": _skills_profile(args.skills),
+        "installer": _installer_profile(args.app_path, args.worker_copy),
+    }
+
+
+def _agi_gui_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-gui coverage",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--group",
+                "dev",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "--maxfail=1",
+                "--disable-warnings",
+                "-o",
+                "addopts=",
+                "-m",
+                "not integration",
+                "--cov=src/agilab",
+                "--cov-config=.coveragerc.agi-gui",
+                "--cov-report=xml:coverage-agi-gui.xml",
+                "--junitxml=test-results/junit.xml",
+                "--ignore=src/agilab/test/test_model_returns_code.py",
+                "src/agilab/test",
+                "test/test_orchestrate_cluster.py",
+                "test/test_orchestrate_distribution.py",
+                "test/test_orchestrate_execute.py",
+                "test/test_orchestrate_page_helpers.py",
+                "test/test_orchestrate_services.py",
+                "test/test_orchestrate_support.py",
+                "test/test_page_docs.py",
+                "test/test_pipeline_ai.py",
+                "test/test_pipeline_editor.py",
+                "test/test_pipeline_lab.py",
+                "test/test_pipeline_openai.py",
+                "test/test_pipeline_runtime.py",
+                "test/test_pipeline_service_guard.py",
+                "test/test_pipeline_sidebar.py",
+                "test/test_pipeline_steps.py",
+                "test/test_pipeline_views.py",
+                "test/test_ui_pages.py",
+                "test/test_apps_pages_launcher.py",
+                "test/test_view*.py",
+                "test/test_app_args.py",
+                "test/test_streamlit_args.py",
+                "test/test_pagelib.py",
+            ],
+            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1", "COVERAGE_FILE": ".coverage.agi-gui"},
+            timeout_seconds=12 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=[".coverage.agi-gui", "coverage-agi-gui.xml"],
+        )
+    ]
+
+
+def _docs_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="docs sphinx build",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "sphinx",
+                "--with",
+                "sphinx-rtd-theme",
+                "--with",
+                "myst-parser",
+                "--with",
+                "linkify-it-py",
+                "--with",
+                "sphinx-pyreverse",
+                "--with",
+                "sphinx-autodoc-typehints",
+                "--with",
+                "sphinx-design",
+                "--with",
+                "sphinx-tabs",
+                "python",
+                "-m",
+                "sphinx",
+                "-b",
+                "html",
+                "docs/source",
+                "docs/html",
+            ],
+        )
+    ]
+
+
+def _badges_profile(components: Sequence[str] | None) -> list[CommandSpec]:
+    argv = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/generate_component_coverage_badges.py",
+    ]
+    if components:
+        argv.extend(["--components", *components])
+    return [CommandSpec(label="coverage badge refresh", argv=argv)]
+
+
+def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
+    commands: list[CommandSpec] = []
+    if skills:
+        commands.append(
+            CommandSpec(
+                label="sync shared skills",
+                argv=["python3", "tools/sync_agent_skills.py", "--skills", *skills],
+            )
+        )
+    commands.extend(
+        [
+            CommandSpec(
+                label="validate codex skills",
+                argv=["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
+            ),
+            CommandSpec(
+                label="generate codex skills index",
+                argv=["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
+            ),
+        ]
+    )
+    return commands
+
+
+def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[CommandSpec]:
+    commands = [
+        CommandSpec(
+            label="installer shell syntax",
+            argv=["bash", "-n", "install.sh", "src/agilab/install_apps.sh"],
+        ),
+        CommandSpec(
+            label="installer discovery tests",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "test/test_install_apps_discovery.py",
+                "test/test_install_contract_check.py",
+            ],
+        ),
+    ]
+    if app_path:
+        argv = [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/install_contract_check.py",
+            "--app-path",
+            app_path,
+        ]
+        if worker_copy:
+            argv.extend(["--worker-copy", worker_copy])
+        commands.append(CommandSpec(label="installer contract check", argv=argv))
+    return commands
+
+
+def _selected_profiles(args: argparse.Namespace) -> list[str]:
+    if args.profile:
+        return args.profile
+    return list(_profile_descriptions())
+
+
+def _prepare_command(spec: CommandSpec) -> None:
+    for rel_dir in spec.ensure_dirs:
+        (REPO_ROOT / rel_dir).mkdir(parents=True, exist_ok=True)
+    for rel_path in spec.remove_paths:
+        target = REPO_ROOT / rel_path
+        if target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+        else:
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def _run_command(spec: CommandSpec) -> CommandResult:
+    _prepare_command(spec)
+    env = os.environ.copy()
+    env.update(spec.env)
+    cwd = REPO_ROOT / spec.cwd if spec.cwd else REPO_ROOT
+    started = time.perf_counter()
+    completed = subprocess.run(
+        spec.argv,
+        cwd=cwd,
+        env=env,
+        check=False,
+        timeout=spec.timeout_seconds,
+    )
+    return CommandResult(
+        label=spec.label,
+        argv=spec.argv,
+        returncode=completed.returncode,
+        duration_seconds=time.perf_counter() - started,
+        cwd=str(cwd),
+        env=spec.env,
+    )
+
+
+def run_profiles(
+    profile_names: Sequence[str],
+    *,
+    args: argparse.Namespace,
+    runner: Callable[[CommandSpec], CommandResult] = _run_command,
+) -> list[ProfileResult]:
+    commands_by_profile = _profile_commands(args)
+    descriptions = _profile_descriptions()
+    results: list[ProfileResult] = []
+
+    for profile in profile_names:
+        command_results: list[CommandResult] = []
+        success = True
+        for spec in commands_by_profile[profile]:
+            result = runner(spec)
+            command_results.append(result)
+            if result.returncode != 0:
+                success = False
+                break
+        results.append(
+            ProfileResult(
+                profile=profile,
+                description=descriptions[profile],
+                success=success,
+                commands=command_results,
+            )
+        )
+        if not success and not args.keep_going:
+            break
+    return results
+
+
+def _render_human(profile_names: Sequence[str], results: Sequence[ProfileResult], *, print_only: bool, args: argparse.Namespace) -> str:
+    descriptions = _profile_descriptions()
+    commands_by_profile = _profile_commands(args)
+    lines: list[str] = []
+    if print_only:
+        lines.append("Selected profiles:")
+        for profile in profile_names:
+            lines.append(f"- {profile}: {descriptions[profile]}")
+            for spec in commands_by_profile[profile]:
+                rendered = " ".join(spec.argv)
+                lines.append(f"  - {spec.label}: {rendered}")
+        return "\n".join(lines)
+
+    for result in results:
+        status = "PASS" if result.success else "FAIL"
+        lines.append(f"[{status}] {result.profile}: {result.description}")
+        for command in result.commands:
+            lines.append(
+                f"- {command.label}: rc={command.returncode} in {command.duration_seconds:.2f}s"
+            )
+            lines.append(f"  - {' '.join(command.argv)}")
+    return "\n".join(lines)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    descriptions = _profile_descriptions()
+
+    if args.list_profiles:
+        if args.json:
+            print(json.dumps(descriptions, indent=2, sort_keys=True))
+        else:
+            for name, description in descriptions.items():
+                print(f"{name}: {description}")
+        return 0
+
+    selected = _selected_profiles(args)
+    if args.print_only:
+        text = _render_human(selected, [], print_only=True, args=args)
+        if args.json:
+            payload = {
+                "profiles": selected,
+                "commands": {
+                    profile: [asdict(spec) for spec in _profile_commands(args)[profile]]
+                    for profile in selected
+                },
+            }
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print(text)
+        return 0
+
+    results = run_profiles(selected, args=args)
+    if args.json:
+        payload = {
+            "profiles": selected,
+            "results": [
+                {
+                    "profile": result.profile,
+                    "description": result.description,
+                    "success": result.success,
+                    "commands": [asdict(command) for command in result.commands],
+                }
+                for result in results
+            ],
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(_render_human(selected, results, print_only=False, args=args))
+
+    return 0 if all(result.success for result in results) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
