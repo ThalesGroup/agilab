@@ -17,13 +17,23 @@ The goal is not bookkeeping. The goal is to learn which launch actions are impro
 
 | Week | Stars start | Stars end | Net stars | README views | Docs visits | PyPI installs | External questions | Main traffic source | Main leak in funnel | Decision for next week |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-04-13 | 4 | 4 | 0 | n/a | n/a | n/a | 0 | GitHub discussion #8 | post-launch traffic not measured yet | publish LinkedIn post and record first-week response |
+| 2026-04-13 | 4 | 5 | 1 | n/a | n/a | n/a | 0 | GitHub discussion #8 | launch wave incomplete, traffic not instrumented, and docs/demo conversion still leaks | publish LinkedIn post, restore the canonical flight video asset, and tighten docs landing wording |
 | YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
 | YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
 
 ## Current launch artifacts
 
 - GitHub discussion: https://github.com/ThalesGroup/agilab/discussions/8
+
+## 2026-04-16 status note
+
+- Public repo stars: `5`
+- Launch artifact executed: GitHub discussion `#8`
+- External questions/comments observed on the discussion: `0`
+- README and GitHub repo description are aligned with the locked positioning
+- Docs landing copy still drifts from the locked positioning
+- The CLI-safe quick-start path is present in both README and docs
+- The primary canonical demo video `artifacts/demo_media/flight/agilab_flight.mp4` is missing from the working tree, so the launch package currently depends on still-image fallback assets
 
 ## Weekly review questions
 
