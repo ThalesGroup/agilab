@@ -1,10 +1,10 @@
 Quick-Start
 ===========
 
-AGILab is a software solution to explore AI for engineering. This quick-start
-walks you through the minimal steps required to install the framework, open the
-web interface, and run one of the sample apps. For architectural context see
-:doc:`architecture` and :doc:`agi-core-architecture`.
+AGILab is an open-source platform for reproducible AI/ML workflows. This
+quick-start walks you through the shortest path to install the framework, open
+the web interface, and run one built-in app without IDE-specific context. For
+architectural context see :doc:`architecture` and :doc:`agi-core-architecture`.
 
 If you are evaluating AGILab for the first time, read :doc:`newcomer-guide`
 first. This page is the shortest install/run path once you know whether you
