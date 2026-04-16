@@ -58,7 +58,7 @@ benchmarkable, and shareable workflows.
 - **Persistent service mode** through `AGI.serve` (`start` / `status` / `health` / `stop`) with machine-readable health gates.
 - **Production-style orchestration** using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
 - **Free-threaded Python aware** when both the selected environment and worker declare support.
-- **Agent-friendly developer workflow** through `AGENTS.md`, repo skill trees (`.claude/skills` and `.codex/skills`), run configs, and agent helpers.
+- **Agent-friendly developer workflow** through `AGENTS.md`, repo skill trees (`.claude/skills` and `.codex/skills`), PyCharm run configs, generated VS Code tasks and launch configs, and agent helpers.
 - **Ready-to-adapt examples** for applied AI/ML scenarios such as flight simulation, network traffic, industrial IoT,
   and optimization workloads.
 

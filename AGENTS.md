@@ -43,6 +43,12 @@ Use this runbook whenever you:
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
   the results (`tools/run_configs/`).
+- **VS Code parity**: If you work from VS Code, regenerate local tasks and debug launches from the same
+  `.idea/runConfigurations/*.xml` source with
+  `uv --preview-features extra-build-dependencies run python tools/generate_vscode_tasks.py`.
+  This writes `.vscode/tasks.json` and `.vscode/launch.json` locally. Do not commit `.vscode/`; it remains ignored.
+  The generated tasks keep the exact `uv` entrypoints. The generated launches map Python/pytest configs to VS Code
+  `debugpy`, so select the matching interpreter/environment in VS Code before debugging.
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
@@ -202,11 +208,16 @@ Use this runbook whenever you:
 ### 1. Update or add run configurations
 1. Edit the PyCharm run configuration (`.idea/runConfigurations/*.xml`).
 2. Regenerate CLI wrappers: `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`.
-3. Verify the generated scripts under `tools/run_configs/` and commit the changes.
-4. Update the launch matrix in this document when new configs appear.
+3. Regenerate local VS Code tasks and launches when needed:
+   `uv --preview-features extra-build-dependencies run python tools/generate_vscode_tasks.py`.
+4. Verify the generated scripts under `tools/run_configs/` and commit the changes.
+5. Update the launch matrix in this document when new configs appear.
 
 ### 2. Launch flows
 - **PyCharm (recommended)**: Use the run configurations defined in the launch matrix.
+- **VS Code**: Run `uv --preview-features extra-build-dependencies run python tools/generate_vscode_tasks.py`
+  to materialize `.vscode/tasks.json` and `.vscode/launch.json`. Use `Run Task` for the exact `uv` wrapper parity,
+  or use `Run and Debug` after selecting the matching Python interpreter for `debugpy`.
 - **CLI mirror**: Copy the `How to run` command from the matrix into a shell for quick
   reproduction outside the IDE.
 - **Streamlit UI**: Use Streamlit commands from the matrix to align with agent-driven
