@@ -13,7 +13,7 @@ Start Here
 
 If you are new to AGILAB, start with the short `flight_project` intro reel:
 
-- `AGILAB in 15 seconds: Project -> Orchestrate -> Pipeline -> Analysis <https://www.youtube.com/watch?v=U-1A-rKm0WU>`_
+- `AGILAB in 45 Seconds: From Project to Orchestrate to Pipeline to Analysis <https://youtu.be/kOMDyvbnC9w>`_
 
 If you want the more technical benchmark story, use the `UAV Relay Queue` reel:
 

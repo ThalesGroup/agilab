@@ -14,7 +14,8 @@ This is not a brainstorming document. It is the run list for the current public 
 
 ## Locked canonical demo
 
-- primary demo video: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- published public video: `https://youtu.be/kOMDyvbnC9w`
+- local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
 - still fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 - workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 - reference app: `flight_project`
@@ -29,7 +30,7 @@ uv --preview-features extra-build-dependencies run python tools/build_product_de
 
 - [x] README opening still matches the locked positioning
 - [x] GitHub repo description still matches the locked About text
-- [ ] canonical demo asset still opens and is usable
+- [x] canonical demo asset still opens and is usable
 - [x] docs landing page still points first-time users to the same workflow
 - [x] quick-start path still works without IDE-specific context
 - [x] no new repo wording drift has appeared between README, docs, and launch copy
@@ -79,7 +80,6 @@ Observed on 2026-04-16:
 - Star delta after discussion launch: `4 -> 5`
 - External questions/comments on discussion `#8`: `0`
 - First-time visitor friction still visible:
-  - the primary flight demo video is local-only and must be regenerated on a fresh machine because `artifacts/demo_media/` is git-ignored
   - README/docs quick-start path is CLI-safe, but traffic instrumentation is still missing
 
 ## Abort conditions
