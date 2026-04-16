@@ -373,6 +373,15 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
         )
         actions.append(
             Action(
+                key="workflow-parity-installer",
+                summary="Run the installer workflow parity profile before push.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile installer --app-path <app-project-path> --worker-copy <copied-worker-path>"
+                ],
+            )
+        )
+        actions.append(
+            Action(
                 key="install-contract-repro",
                 summary="Run the installer contract repro commands for an affected app.",
                 commands=[
@@ -425,6 +434,15 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
                 commands=commands,
             )
         )
+        artifacts.append(
+            Action(
+                key="workflow-parity-skills",
+                summary="Run the local skills workflow parity profile.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile skills"
+                ],
+            )
+        )
 
     components = _component_hints(paths)
     if any(
@@ -452,6 +470,15 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
                 commands=commands,
             )
         )
+        artifacts.append(
+            Action(
+                key="workflow-parity-badges",
+                summary="Run the local badge workflow parity profile.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile badges"
+                ],
+            )
+        )
 
     if any(path.startswith("docs/source/") for path in paths):
         artifacts.append(
@@ -459,6 +486,26 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
                 key="docs-build",
                 summary="Docs source changed; run the local Sphinx/docs build that matches this checkout before publishing.",
                 commands=["# run the repo-local docs build or preview command used for this docs change"],
+            )
+        )
+        artifacts.append(
+            Action(
+                key="workflow-parity-docs",
+                summary="Run the local docs workflow parity profile.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs"
+                ],
+            )
+        )
+
+    if any(_is_gui_file(path) for path in paths):
+        actions.append(
+            Action(
+                key="workflow-parity-agi-gui",
+                summary="Run the local agi-gui workflow parity profile when UI/runtime surfaces are touched.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-gui"
+                ],
             )
         )
 

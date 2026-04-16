@@ -35,7 +35,9 @@ Use this runbook whenever you:
   targeted `pytest`, isolated coverage commands, `py_compile`, Sphinx builds, badge generation,
   and release dry-runs. Reserve CI/workflow runs for GitHub-only behavior (runner differences,
   OS/Python matrix coverage, permissions/secrets, Pages/PyPI publication, or final integration
-  confirmation after local validation).
+  confirmation after local validation). When a change maps cleanly to one of the repo workflow
+  profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
+  over handwritten command variants.
 - **Impact triage first**: For non-trivial diffs, run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before edits or push. Use its output to decide whether the change is app-local vs shared-core,
   which targeted tests are required, whether install repros are mandatory, and whether generated

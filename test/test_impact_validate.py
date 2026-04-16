@@ -34,6 +34,10 @@ def test_analyze_paths_flags_shared_core_and_gui_actions() -> None:
     assert any(action.key == "agi-env-tests" for action in report.required_validations)
     targeted = next(action for action in report.required_validations if action.key == "targeted-pytest")
     assert "test/test_orchestrate_execute.py" in targeted.commands[0]
+    gui_parity = next(
+        action for action in report.required_validations if action.key == "workflow-parity-agi-gui"
+    )
+    assert "tools/workflow_parity.py --profile agi-gui" in gui_parity.commands[0]
 
 
 def test_analyze_paths_adds_skill_sync_and_index_refresh() -> None:
@@ -48,6 +52,8 @@ def test_analyze_paths_adds_skill_sync_and_index_refresh() -> None:
     assert artifact.commands[0] == "python3 tools/sync_agent_skills.py --skills codex-session-learning"
     assert "python3 tools/codex_skills.py --root .codex/skills validate --strict" in artifact.commands
     assert "python3 tools/codex_skills.py --root .codex/skills generate" in artifact.commands
+    parity = next(action for action in report.artifact_actions if action.key == "workflow-parity-skills")
+    assert "tools/workflow_parity.py --profile skills" in parity.commands[0]
 
 
 def test_analyze_paths_adds_badge_refresh_with_component_hint() -> None:
@@ -63,6 +69,8 @@ def test_analyze_paths_adds_badge_refresh_with_component_hint() -> None:
     artifact = next(action for action in report.artifact_actions if action.key == "badge-refresh")
     assert any("test/test_generate_component_coverage_badges.py" in command for command in artifact.commands)
     assert any("--components agi-gui" in command for command in artifact.commands)
+    parity = next(action for action in report.artifact_actions if action.key == "workflow-parity-badges")
+    assert "tools/workflow_parity.py --profile badges" in parity.commands[0]
 
 
 def test_main_json_output_for_explicit_files(capsys) -> None:
@@ -96,3 +104,16 @@ def test_analyze_paths_adds_install_contract_check_for_install_entrypoint() -> N
         action for action in report.required_validations if action.key == "install-contract-check"
     )
     assert "tools/install_contract_check.py" in contract_check.commands[0]
+    parity = next(
+        action for action in report.required_validations if action.key == "workflow-parity-installer"
+    )
+    assert "tools/workflow_parity.py --profile installer" in parity.commands[0]
+
+
+def test_analyze_paths_adds_docs_workflow_parity_for_docs_source() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(["docs/source/faq.rst"])
+
+    artifact = next(action for action in report.artifact_actions if action.key == "workflow-parity-docs")
+    assert "tools/workflow_parity.py --profile docs" in artifact.commands[0]
