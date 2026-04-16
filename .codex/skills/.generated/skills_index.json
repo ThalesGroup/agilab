@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-16T06:12:50Z",
+  "generated_at_utc": "2026-04-16T07:11:28Z",
   "tool": "tools/codex_skills.py",
-  "count": 21,
+  "count": 22,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -74,6 +74,14 @@
       "updated": null,
       "path": ".codex/skills/chat-export/SKILL.md",
       "body_preview": "# Chat Export\n## Overview\nUse this skill to turn a chat transcript into a reusable artifact with stable structure.\nPrefer the bundled script for file-based exports and repeated transformations."
+    },
+    {
+      "name": "codex-session-learning",
+      "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-16",
+      "path": ".codex/skills/codex-session-learning/SKILL.md",
+      "body_preview": "# Codex Session Learning\nUse this skill to convert prior Codex work into explicit reusable assets.\nThe goal is not to pretend the agent has hidden long-term memory. The goal is to\nextract structured cases, reusable prompt patterns, and validation rules from"
     },
     {
       "name": "docs-publish-github-pages",

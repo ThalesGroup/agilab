@@ -24,6 +24,7 @@ canonical source can serve both agents.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
+- `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.
 - `docx-figure-sync`: Replace embedded DOCX figures without disturbing nearby layout and captions.
 - `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_steps.toml` naming/IO-flow clarification.
