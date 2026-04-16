@@ -1,20 +1,19 @@
 [![PyPI version](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg)](https://pypi.org/project/agilab/)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab)
-[![PyPI downloads](https://img.shields.io/pypi/dm/agilab)](https://pypi.org/project/agilab/)
 
+<details>
+<summary>More project badges</summary>
+
+[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/agilab)](https://pypi.org/project/agilab/)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
 [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse)
 [![Agents Codex & Claude](https://img.shields.io/badge/agents-codex%20%26%20claude-00A67E)](tools/codex_workflow.md)
 [![Language Python Free-threaded and Cythonized](https://img.shields.io/badge/language-python%20free--threaded%20%26%20cythonized-5B6CFF)](docs/source/environment.rst)
-
-<details>
-<summary>More project badges</summary>
-
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls)
 [![Codex skills](https://img.shields.io/badge/Codex-15%20skills-00A67E)](tools/codex_workflow.md)
 [![Coverage workflow](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml)
@@ -39,17 +38,12 @@ experimentation to distributed execution and long-lived services. It is aimed fi
 one control path for setup, execution, replay, and analysis instead of hand-wiring those steps separately at each
 stage.
 
+**First proof:** run the built-in `flight_project` locally from the web UI, follow
+`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`, and confirm fresh output under
+`~/log/execute/flight/`.
+
 AGILAB is maintained by the Thales Group and released under the
 [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
-
-## Creator
-
-AGILAB was created by **Jean-Pierre Morard**.
-
-Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
-distributed execution, and operational experimentation. AGILAB reflects that
-vision: turning AI apps from isolated scripts into structured, testable,
-benchmarkable, and shareable workflows.
 
 ## Who AGILAB Is For
 
@@ -170,6 +164,15 @@ deployment instructions.
 The public repository is self-contained for the built-in apps and documentation. An external apps repository is
 optional and only needed when you want to add extra internal or private app templates on top of the public AGILAB
 stack.
+
+## Creator
+
+AGILAB was created by **Jean-Pierre Morard**.
+
+Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
+distributed execution, and operational experimentation. AGILAB reflects that
+vision: turning AI apps from isolated scripts into structured, testable,
+benchmarkable, and shareable workflows.
 
 ## Start here: 3-minute tour
 

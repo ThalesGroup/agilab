@@ -24,6 +24,17 @@ Applied ML engineers and technical teams who need one workflow to stay
 reproducible from local experimentation to distributed execution and service
 mode.
 
+### Above-the-fold rule
+
+Before the reader scrolls, the repo should answer three things only:
+
+1. what AGILAB is
+2. who it is for
+3. what the first proof outcome looks like
+
+Do not spend the first screen on secondary badges, creator biography, or
+supporting hooks such as agents/free-threading before those three points are clear.
+
 ## Locked topics
 
 - `mlops`
