@@ -19,6 +19,7 @@ SOURCE_ROOTS = {
 PROFILES = {
     "support-first": [
         "agi_cluster.agi_distributor.background_jobs_support",
+        "agi_cluster.agi_distributor.capacity_support",
         "agi_node.agi_dispatcher.base_worker_path_support",
         "agi_node.agi_dispatcher.base_worker_execution_support",
         "agi_node.agi_dispatcher.base_worker_runtime_support",
