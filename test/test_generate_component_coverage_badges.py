@@ -39,3 +39,13 @@ def test_selected_component_items_defaults_to_all_components() -> None:
     selected = module.selected_component_items(None)
 
     assert [name for name, _ in selected] == list(module.COMPONENTS)
+
+
+def test_component_badges_use_component_name_in_label() -> None:
+    module = _load_module()
+
+    assert module.COMPONENTS["agi-env"]["label"] == "agi-env coverage"
+    assert module.COMPONENTS["agi-node"]["label"] == "agi-node coverage"
+    assert module.COMPONENTS["agi-cluster"]["label"] == "agi-cluster coverage"
+    assert module.COMPONENTS["agi-gui"]["label"] == "agi-gui coverage"
+    assert module.COMPONENTS["agi-core"]["label"] == "agi-core coverage"
