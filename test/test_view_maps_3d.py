@@ -1048,3 +1048,90 @@ def test_view_maps_3d_page_reclassifies_continuous_and_date_like_columns(monkeyp
 
     assert fake_st.session_state[module._vm3d_key("opacity_slider")] == 0.8
     assert any(fake_st.calls["pydeck_chart"])
+
+
+def test_view_maps_3d_page_handles_non_list_regex_seed_and_long_load_error_lists(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    export_root = tmp_path / "export"
+    datadir = export_root / "demo_map_3d"
+    datadir.mkdir(parents=True)
+    dataset_paths = []
+    for index in range(51):
+        dataset_path = datadir / f"flight_{index}.csv"
+        dataset_path.write_text("metric,lat,long,alt\n1,43.0,1.0,1000\n", encoding="utf-8")
+        dataset_paths.append(dataset_path)
+
+    settings_path = tmp_path / "settings.toml"
+    settings_path.write_text("[view_maps_3d]\n", encoding="utf-8")
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="demo_map_3d",
+        projects=["demo_map_3d"],
+        AGILAB_EXPORT_ABS=export_root,
+        share_root_path=lambda: tmp_path / "missing_share",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): "flight_",
+            ("sidebar.button", module._vm3d_key("df_regex_select_all")): True,
+        }
+    )
+    fake_st.session_state["env"] = env
+    fake_st.session_state[module._vm3d_key("df_files_selected")] = "not-a-list"
+    fake_st.session_state["beam_files"] = []
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: dataset_paths)
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("load boom")),
+    )
+
+    module.page()
+
+    assert sorted(fake_st.session_state[module._vm3d_key("df_files_selected")]) == sorted(
+        path.relative_to(datadir).as_posix() for path in dataset_paths
+    )
+    assert any("Some selected files failed to load" in message for message in fake_st.calls["sidebar.warning"])
+    assert any("... (1 more)" in message for message in fake_st.calls["write"])
+
+
+def test_view_maps_3d_page_regex_mode_normalizes_non_list_seed_without_select_all(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    export_root = tmp_path / "export"
+    datadir = export_root / "demo_map_3d"
+    datadir.mkdir(parents=True)
+    dataset_path = datadir / "flight.csv"
+    dataset_path.write_text("metric,lat,long,alt\n1,43.0,1.0,1000\n", encoding="utf-8")
+
+    settings_path = tmp_path / "settings.toml"
+    settings_path.write_text("[view_maps_3d]\n", encoding="utf-8")
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="demo_map_3d",
+        projects=["demo_map_3d"],
+        AGILAB_EXPORT_ABS=export_root,
+        share_root_path=lambda: tmp_path / "missing_share",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): "flight",
+            ("sidebar.multiselect", "DataFrames"): ["flight.csv"],
+        }
+    )
+    fake_st.session_state["env"] = env
+    fake_st.session_state[module._vm3d_key("df_files_selected")] = "not-a-list"
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [dataset_path])
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda *_args, **_kwargs: pd.DataFrame({"metric": [1], "lat": [43.0], "long": [1.0], "alt": [1000.0]}),
+    )
+
+    module.page()
+
+    assert fake_st.session_state[module._vm3d_key("df_files_selected")] == ["flight.csv"]

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -249,6 +251,67 @@ def test_view_uav_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
 
     assert module._discover_files(tmp_path / "missing", "[") == []
     assert module._safe_metric(object()) == "n/a"
+
+
+def test_view_uav_queue_analysis_package_meta_and_discover_exception(monkeypatch, tmp_path) -> None:
+    module = _load_uav_queue_helpers()
+    monkeypatch.setitem(sys.modules, "view_uav_queue_analysis", ModuleType("view_uav_queue_analysis"))
+    page_meta_name = "view_uav_queue_analysis.page_meta"
+    monkeypatch.setitem(
+        sys.modules,
+        page_meta_name,
+        SimpleNamespace(PAGE_LOGO="pkg-logo.svg", PAGE_TITLE="Pkg Queue"),
+    )
+    monkeypatch.setattr(module, "__package__", "view_uav_queue_analysis")
+    assert module._load_page_meta() == ("pkg-logo.svg", "Pkg Queue")
+
+    broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
+    assert module._discover_files(broken_base, "*.json") == []
+
+
+def test_view_uav_queue_analysis_reuses_existing_session_env(tmp_path, create_temp_app_project, monkeypatch) -> None:
+    project_dir = create_temp_app_project(
+        "uav_queue_project",
+        package_name="uav_queue",
+        app_settings_text="[args]\n",
+        pyproject_name="uav-queue-project",
+    )
+    export_root = tmp_path / "export"
+    artifact_dir = export_root / "uav_queue" / "queue_analysis"
+    artifact_dir.mkdir(parents=True)
+    stem = "hotspot_queue_aware_seed2026"
+    (artifact_dir / f"{stem}_summary_metrics.json").write_text(
+        json.dumps(
+            {
+                "scenario": "hotspot-demo",
+                "routing_policy": "queue_aware",
+                "source_rate_pps": 14.0,
+                "random_seed": 2026,
+                "notes": "ok",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(export_root))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        at.session_state["env"] = SimpleNamespace(
+            AGILAB_EXPORT_ABS=export_root,
+            target="uav_queue",
+            st_resources=tmp_path / "resources",
+        )
+        at.run()
+
+    assert not at.exception
+    assert any(title.value == _page_title() for title in at.title)
 
 
 def test_view_uav_queue_analysis_warns_when_summary_glob_is_empty(

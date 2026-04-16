@@ -289,3 +289,41 @@ def test_activate_gpt_oss_support_handles_existing_import_missing_checkpoint_and
         cwd="/tmp",
     ) is False
     assert any("Failed to start GPT-OSS server" in message for message in errors)
+
+
+def test_run_with_output_reports_called_process_error(tmp_path):
+    class _Proc:
+        def __init__(self):
+            self.calls = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def communicate(self, timeout=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise pagelib_runtime_support.subprocess.CalledProcessError(
+                    returncode=7,
+                    cmd="echo broken",
+                    output="bad",
+                    stderr="worse",
+                )
+            return "bad", ""
+
+        def kill(self):
+            raise AssertionError("kill should not be called for CalledProcessError")
+
+    errors: list[str] = []
+    output = pagelib_runtime_support.run_with_output(
+        SimpleNamespace(apps_path=tmp_path),
+        "echo broken",
+        cwd=tmp_path,
+        popen_factory=lambda *_args, **_kwargs: _Proc(),
+        streamlit=SimpleNamespace(error=lambda message: errors.append(str(message))),
+    )
+
+    assert output == "bad"
+    assert errors and "returned non-zero exit status 7" in errors[0]

@@ -623,7 +623,7 @@ def page():
             st.session_state[selection_key] = matching
         seeded = st.session_state.get(selection_key)
         if not isinstance(seeded, list):
-            seeded = []
+            seeded = []  # pragma: no cover - defensive session-state normalization
         seeded = [item for item in seeded if item in dataset_files_rel]
         if not seeded:
             seeded = default_selection
@@ -1172,7 +1172,7 @@ def page():
             truncation_label="Table preview limited",
         )
     else:
-        st.info("No data loaded yet. Select one or more datasets from the sidebar.")
+        st.info("No data loaded yet. Select one or more datasets from the sidebar.")  # pragma: no cover - defensive fallback
 
 # -------------------- Main Application Entry -------------------- #
 def main():

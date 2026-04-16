@@ -471,6 +471,30 @@ def test_ensure_primary_module_key_and_sequence_helpers_cover_guard_paths(monkey
     assert pipeline_steps.load_sequence_preferences(module_path, seq_steps, env=env) == []
 
 
+def test_ensure_primary_module_key_ignores_candidate_resolve_failures(monkeypatch, tmp_path):
+    export_root = tmp_path / "export"
+    module_path = export_root / "flight_project"
+    module_path.mkdir(parents=True)
+    env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
+    fake_st = SimpleNamespace(session_state={"env": env})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+
+    steps_file = tmp_path / "bad-candidate.toml"
+    steps_file.write_text('[[bad_entry]]\nQ = "step"\n', encoding="utf-8")
+
+    original_resolve = pipeline_steps.Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == export_root / "bad_entry":
+            raise RuntimeError("candidate resolve boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_steps.Path, "resolve", _patched_resolve, raising=False)
+    pipeline_steps.ensure_primary_module_key(module_path, steps_file, env=env)
+
+    assert "bad_entry" in steps_file.read_text(encoding="utf-8")
+
+
 def test_persist_sequence_preferences_and_venv_helpers_cover_failures(monkeypatch, tmp_path):
     errors: list[str] = []
     monkeypatch.setattr(pipeline_steps.logger, "error", lambda message, *args: errors.append(str(message)))

@@ -513,6 +513,17 @@ def test_pipeline_lab_import_fallback_raises_when_pipeline_runtime_local_spec_is
         _load_pipeline_lab_with_missing("agilab.pipeline_steps", "agilab.pipeline_runtime")
 
 
+def test_pipeline_lab_helper_functions_cover_editor_text_and_engine_defaults():
+    assert pipeline_lab._normalize_editor_text(None) == ""
+    assert pipeline_lab._normalize_editor_text("   ") == ""
+    assert pipeline_lab._normalize_editor_text("print('ok')") == "print('ok')"
+
+    assert pipeline_lab._resolve_step_engine("", "", "") == "runpy"
+    assert pipeline_lab._resolve_step_engine("", "", "/tmp/runtime") == "agi.run"
+    assert pipeline_lab._resolve_step_engine("agi.run", "runpy", "") == "agi.run"
+    assert pipeline_lab._resolve_step_engine("", "runpy", "") == "runpy"
+
+
 def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit({"demo": [0, "", "", "", "", "", 0]})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -683,6 +694,39 @@ def test_display_lab_tab_empty_pipeline_generates_first_step_with_runtime(monkey
     assert saved["engine_map"] == {0: "agi.run"}
     assert saved["bumped"] is True
     assert ("rerun", "called") in fake_st.messages
+
+
+def test_display_lab_tab_existing_step_defaults_to_runpy_without_runtime(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": "", "R": ""}
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert fake_st.session_state["demo__engine_map"][0] == "runpy"
 
 
 def test_display_lab_tab_empty_pipeline_imports_first_snippet(monkeypatch, tmp_path):

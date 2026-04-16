@@ -246,6 +246,51 @@ def test_draw_distribution_renders_graph_and_legend(monkeypatch):
     assert calls == {"legend": 1, "pyplot": 1}
 
 
+def test_draw_distribution_renders_leaf_list_nodes_when_enabled(monkeypatch):
+    calls = {"legend": 0, "pyplot": 0}
+    node_calls: list[list[str]] = []
+
+    class FakeAxis:
+        def text(self, *_args, **_kwargs):
+            return None
+
+    fake_plt = SimpleNamespace(
+        figure=lambda **_kwargs: None,
+        margins=lambda **_kwargs: None,
+        gca=lambda: FakeAxis(),
+        legend=lambda **_kwargs: calls.__setitem__("legend", calls["legend"] + 1),
+        tight_layout=lambda: None,
+        title=lambda *_args, **_kwargs: None,
+        axis=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(orchestrate_distribution, "plt", fake_plt)
+    monkeypatch.setattr(orchestrate_distribution, "Patch", lambda **kwargs: kwargs)
+    monkeypatch.setattr(
+        orchestrate_distribution,
+        "st",
+        SimpleNamespace(pyplot=lambda *_args, **_kwargs: calls.__setitem__("pyplot", calls["pyplot"] + 1)),
+    )
+    monkeypatch.setattr(
+        orchestrate_distribution.nx,
+        "draw_networkx_nodes",
+        lambda _graph, _pos, nodelist, **_kwargs: node_calls.append(list(nodelist)),
+    )
+    monkeypatch.setattr(orchestrate_distribution.nx, "draw_networkx_edges", lambda *_a, **_k: None)
+    monkeypatch.setattr(orchestrate_distribution.nx, "draw_networkx_edge_labels", lambda *_a, **_k: None)
+
+    graph = orchestrate_distribution.nx.Graph()
+    graph.add_node("ip", level=0)
+    graph.add_node("worker", level=1)
+    graph.add_node("partition", level=2)
+    graph.add_node("leaf-a", level=3)
+    graph.add_edge("ip", "worker", weight=2)
+
+    orchestrate_distribution.draw_distribution(graph, "partition", True, "Demo")
+
+    assert ["leaf-a"] in node_calls
+    assert calls == {"legend": 1, "pyplot": 1}
+
+
 def test_show_graph_warns_for_empty_and_invalid_workers(monkeypatch):
     warnings: list[str] = []
     errors: list[str] = []

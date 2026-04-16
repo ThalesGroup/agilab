@@ -101,6 +101,23 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 
+def _normalize_editor_text(raw: Optional[str]) -> str:
+    if raw is None:
+        return ""
+    text = str(raw)
+    return text if text.strip() else ""
+
+
+def _resolve_step_engine(entry_engine: str, ui_engine: str, venv_root: str) -> str:
+    if ui_engine and ui_engine != entry_engine:
+        if entry_engine.startswith("agi.") and ui_engine == "runpy":
+            return entry_engine
+        return ui_engine
+    if entry_engine:
+        return entry_engine
+    return "agi.run" if venv_root else "runpy"
+
+
 @dataclass(frozen=True)
 class PipelineLabDeps:
     load_all_steps: Callable[..., Any]
@@ -248,11 +265,6 @@ def display_lab_tab(
     load_pipeline_conceptual_dot = deps.load_pipeline_conceptual_dot
     render_pipeline_view = deps.render_pipeline_view
     DEFAULT_DF = deps.default_df
-    def _normalize_editor_text(raw: Optional[str]) -> str:
-        if raw is None:
-            return ""
-        text = str(raw)
-        return text if text.strip() else ""
     # Reset active step and count to reflect persisted steps
     persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
     if not persisted_steps and steps_file.exists():
@@ -895,15 +907,7 @@ def display_lab_tab(
                         st.session_state[select_key] = fallback_venv
                 entry_engine = str(entry.get("R", "") or "")
                 ui_engine = str(engine_map.get(step) or "")
-                if ui_engine and ui_engine != entry_engine:
-                    if entry_engine.startswith("agi.") and ui_engine == "runpy":
-                        engine = entry_engine
-                    else:
-                        engine = ui_engine
-                elif entry_engine:
-                    engine = entry_engine
-                else:
-                    engine = "agi.run" if venv_root else "runpy"
+                engine = _resolve_step_engine(entry_engine, ui_engine, venv_root)
                 if venv_root and engine == "runpy":
                     engine = "agi.run"
                 if engine.startswith("agi.") and not venv_root:

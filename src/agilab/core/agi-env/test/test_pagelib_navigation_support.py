@@ -110,6 +110,18 @@ def test_resolve_default_selection_and_sidebar_dataframe_selection(tmp_path):
     assert sidebar.default_index == 0
 
 
+def test_resolve_default_selection_handles_empty_preferred_and_plain_default():
+    assert nav_support.resolve_default_selection([], "lab_a", "lab_b") == (None, 0)
+    assert nav_support.resolve_default_selection(["lab_a", "lab_b"], "lab_a", "lab_b") == (
+        "lab_a",
+        0,
+    )
+    assert nav_support.resolve_default_selection(["lab_a", "lab_b"], "missing", None) == (
+        "lab_a",
+        0,
+    )
+
+
 def test_resolve_selected_df_path_handles_relative_absolute_and_fallback(tmp_path):
     export_root = tmp_path / "export"
     export_root.mkdir()

@@ -10,6 +10,7 @@ from pathlib import Path, PosixPath
 from types import SimpleNamespace
 import types
 
+import pytest
 from streamlit.errors import StreamlitAPIException
 
 
@@ -289,6 +290,29 @@ def test_page_helpers_looks_like_shared_path_delegates_project_root(monkeypatch,
 
     assert module.looks_like_shared_path(candidate, project_root) is True
     assert captured["value"] == (candidate, project_root)
+
+
+def test_page_helpers_import_fallback_raises_when_local_specs_are_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _page_support_missing(name, location, *args, **kwargs):
+        if name == "agilab_orchestrate_page_support_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _page_support_missing)
+    with pytest.raises(ModuleNotFoundError, match="orchestrate_page_support"):
+        _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, {"agilab.orchestrate_page_support"})
+
+    with pytest.MonkeyPatch.context() as mp:
+        def _support_missing(name, location, *args, **kwargs):
+            if name == "agilab_orchestrate_support_fallback":
+                return None
+            return original_spec(name, location, *args, **kwargs)
+
+        mp.setattr(importlib.util, "spec_from_file_location", _support_missing)
+        with pytest.raises(ModuleNotFoundError, match="orchestrate_support"):
+            _load_orchestrate_page_helpers_module_with_import_failures(mp, {"agilab.orchestrate_support"})
 
 
 def test_orchestrate_page_support_snippet_and_mode_helpers():
@@ -796,3 +820,14 @@ def test_benchmark_display_date_returns_empty_string_when_stat_fails(tmp_path: P
     date_value = module._benchmark_display_date(benchmark, "")
 
     assert date_value == ""
+
+
+def test_benchmark_display_date_imports_os_when_not_provided(tmp_path: Path, monkeypatch):
+    module = _load_orchestrate_page_helpers_module()
+    benchmark = tmp_path / "benchmark.json"
+    benchmark.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("os.path.getmtime", lambda _path: 0)
+
+    assert module.benchmark_display_date(benchmark, "") == module.datetime.fromtimestamp(0).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )

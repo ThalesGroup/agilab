@@ -371,3 +371,42 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     assert (cleanup_root / "demo").exists()
     assert (cleanup_root / "demo_project").exists()
     assert (cleanup_root / "demo.txt").read_text(encoding="utf-8") == "demo text"
+
+
+def test_clone_directory_skips_entries_that_are_neither_files_nor_directories(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    odd_entry = source_root / "odd.bin"
+    odd_entry.write_text("payload", encoding="utf-8")
+    dest_root = tmp_path / "dest"
+    dest_root.mkdir()
+    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+
+    original_is_file = Path.is_file
+    original_is_dir = Path.is_dir
+
+    def _patched_is_file(self):
+        if self == odd_entry:
+            return False
+        return original_is_file(self)
+
+    def _patched_is_dir(self):
+        if self == odd_entry:
+            return False
+        return original_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_file", _patched_is_file, raising=False)
+    monkeypatch.setattr(Path, "is_dir", _patched_is_dir, raising=False)
+
+    clone_directory(
+        source_root,
+        dest_root,
+        {},
+        spec,
+        source_root,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        content_renamer_cls=lambda _rename_map: type("NoOpRenamer", (), {"visit": lambda self, tree: tree})(),
+        replace_content_fn=lambda text, _mapping: text,
+    )
+
+    assert not (dest_root / "odd.bin").exists()

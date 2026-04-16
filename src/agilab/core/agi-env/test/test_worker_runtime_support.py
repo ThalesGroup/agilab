@@ -8,6 +8,7 @@ from unittest import mock
 
 import pytest
 
+import agi_env.worker_runtime_support as worker_runtime_support
 from agi_env.worker_runtime_support import configure_worker_runtime
 
 
@@ -164,3 +165,60 @@ def test_configure_worker_runtime_sets_free_threading_and_clears_distribution_tr
     assert pythonpath_entries == ["PYTHONPATH-entry"]
     assert str(env.dist_abs) in sys_path
     assert str((tmp_path / "apps" / "demo_project" / "src")) in sys_path
+
+
+def test_configure_worker_runtime_uses_module_sys_path_when_not_provided(tmp_path: Path, monkeypatch):
+    env = _dummy_env(tmp_path)
+    home_abs = tmp_path / "home"
+    worker_dir = home_abs / "wenv" / "demo_worker" / "src" / "demo_worker"
+    worker_dir.mkdir(parents=True, exist_ok=True)
+    (worker_dir / "demo_worker.py").write_text("class DemoWorker:\n    pass\n", encoding="utf-8")
+    (worker_dir / "pyproject.toml").write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+
+    module_sys_path: list[str] = []
+    monkeypatch.setattr(worker_runtime_support.sys, "path", module_sys_path)
+
+    configure_worker_runtime(
+        env,
+        target="demo",
+        home_abs=home_abs,
+        apps_path=tmp_path / "apps",
+        apps_root=tmp_path / "apps",
+        envars={},
+        requested_active_app=env.active_app,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        normalize_path_fn=str,
+        parse_int_env_value_fn=lambda *_args, **_kwargs: 0,
+        python_supports_free_threading_fn=lambda: False,
+        logger=mock.Mock(),
+    )
+
+    assert str(env.dist_abs) in module_sys_path
+
+
+def test_configure_worker_runtime_warns_when_project_worker_copy_fails(tmp_path: Path):
+    env = _dummy_env(tmp_path, app_name="demo_worker")
+    env.target = "demo"
+    apps_root = tmp_path / "apps"
+    project_worker_dir = apps_root / "demo_project" / "src" / "demo_worker"
+    project_worker_dir.mkdir(parents=True, exist_ok=True)
+    logger = mock.Mock()
+
+    configure_worker_runtime(
+        env,
+        target="demo",
+        home_abs=tmp_path / "home",
+        apps_path=apps_root,
+        apps_root=apps_root,
+        envars={},
+        requested_active_app=env.active_app,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        normalize_path_fn=str,
+        parse_int_env_value_fn=lambda *_args, **_kwargs: 0,
+        python_supports_free_threading_fn=lambda: False,
+        logger=logger,
+        sys_path=[],
+        copytree_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("copy failed")),
+    )
+
+    assert logger.warning.called

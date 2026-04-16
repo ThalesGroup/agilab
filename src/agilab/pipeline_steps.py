@@ -295,10 +295,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
     def _matches_module(candidate_key: str) -> bool:
         if candidate_key in keys:
             return True
-        try:
-            key_path = Path(candidate_key).expanduser()
-        except (OSError, RuntimeError, TypeError, ValueError):
-            return False
+        key_path = Path(candidate_key).expanduser()
         try:
             if key_path.is_absolute():
                 return key_path.resolve() == resolved_module

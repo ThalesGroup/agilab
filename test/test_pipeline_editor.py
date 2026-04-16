@@ -161,6 +161,50 @@ def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeyp
     assert errors == ["Failed to save steps file: boom"]
 
 
+def test_remove_step_middle_keeps_lower_indexes_and_rebuilds_default_sequence(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        """
+[[flight_project]]
+Q = "First"
+C = "print(1)"
+[[flight_project]]
+Q = "Second"
+C = "print(2)"
+[[flight_project]]
+Q = "Third"
+C = "print(3)"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    fake_env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=tmp_path, envars={})
+    fake_st = SimpleNamespace(
+        session_state={
+            "env": fake_env,
+            "idx": [1, "", "", "", "", "", 3],
+            "idx__details": {0: "d0", 1: "d1", 2: "d2"},
+            "idx__venv_map": {0: "/tmp/a", 1: "/tmp/b", 2: "/tmp/c"},
+            "idx__engine_map": {0: "runpy", 1: "agi.run", 2: "agi.custom"},
+            "idx__run_sequence": [1],
+        },
+        error=lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "_ensure_primary_module_key", lambda *_args, **_kwargs: None)
+
+    remaining = pipeline_editor.remove_step(tmp_path / "flight_project", "1", steps_file, "idx")
+
+    assert remaining == 2
+    assert fake_st.session_state["idx__details"] == {0: "d0", 1: "d2"}
+    assert fake_st.session_state["idx__venv_map"] == {0: "/tmp/a", 1: "/tmp/c"}
+    assert fake_st.session_state["idx__engine_map"] == {0: "runpy", 1: "agi.custom"}
+    assert fake_st.session_state["idx__run_sequence"] == [0, 1]
+
+
 def test_notebook_to_toml_imports_code_cells(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(error=lambda *args, **kwargs: None)
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
@@ -394,6 +438,8 @@ def test_pipeline_editor_import_falls_back_when_code_editor_support_is_unavailab
     fallback = _load_pipeline_editor_with_missing("agilab.code_editor_support")
 
     assert callable(fallback.normalize_custom_buttons)
+    with pytest.raises(TypeError, match="custom_buttons payload"):
+        fallback.normalize_custom_buttons({"buttons": "invalid"})
 
 
 def test_pipeline_editor_import_fallback_raises_when_local_specs_are_missing(monkeypatch):
@@ -1067,6 +1113,26 @@ def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_p
     stored = tomllib.loads((tmp_path / "demo_project" / "lab_steps.toml").read_text(encoding="utf-8"))
     assert count == 1
     assert stored["demo_project"] == [{"D": "", "Q": "", "C": "print(3)\n", "M": ""}]
+
+
+def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(error=lambda *args, **kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.chdir(tmp_path)
+
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {"cells": [{"cell_type": "code", "source": ["print(9)\n"]}]}
+        ).encode("utf-8"),
+    )
+
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", Path(""))
+
+    stored = tomllib.loads((tmp_path / "lab_steps.toml").read_text(encoding="utf-8"))
+    assert count == 1
+    assert stored["lab_steps"] == [{"D": "", "Q": "", "C": "print(9)\n", "M": ""}]
 
 
 def test_restore_pipeline_snapshot_rebuilds_engine_from_map_when_selection_missing(monkeypatch, tmp_path):

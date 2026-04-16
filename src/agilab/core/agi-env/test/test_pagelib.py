@@ -435,6 +435,10 @@ def test_is_valid_ip_accepts_ipv4_and_rejects_out_of_range():
     assert pagelib.is_valid_ip("300.168.20.130") is False
 
 
+def test_is_valid_ip_rejects_non_ipv4_strings():
+    assert pagelib.is_valid_ip("not-an-ip") is False
+
+
 def test_get_first_match_and_keyword_handles_empty_inputs_and_first_match():
     assert pagelib.get_first_match_and_keyword([], ["time"]) == (None, None)
     assert pagelib.get_first_match_and_keyword(["alpha", "mission_time"], ["date", "time"]) == (
@@ -1396,6 +1400,17 @@ def test_render_logo_warns_when_logo_is_missing(tmp_path, monkeypatch):
     assert sidebar.warning_text == "Logo could not be loaded. Please check the logo path."
 
 
+def test_render_logo_returns_when_env_is_missing(monkeypatch):
+    sidebar = SimpleNamespace(
+        image=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("image should not be called")),
+        caption=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("caption should not be called")),
+        warning=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("warning should not be called")),
+    )
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state={}, sidebar=sidebar))
+
+    assert pagelib.render_logo() is None
+
+
 def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     calls = {}
 
@@ -2110,6 +2125,191 @@ def test_current_mount_points_returns_empty_dict_when_mount_query_fails(monkeypa
     )
 
     assert pagelib._current_mount_points() == {}
+
+
+def test_current_mount_points_handles_proc_mount_read_error_and_malformed_mount_output(monkeypatch, tmp_path):
+    real_path = Path
+
+    class FakeTextFile:
+        def exists(self):
+            return True
+
+        def read_text(self, *args, **kwargs):
+            raise OSError("unreadable")
+
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda raw: FakeTextFile() if str(raw) == "/proc/mounts" else real_path(raw),
+    )
+    assert pagelib._current_mount_points() == {}
+
+    class MissingProc:
+        def exists(self):
+            return False
+
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda raw: MissingProc() if str(raw) == "/proc/mounts" else real_path(raw),
+    )
+    monkeypatch.setattr(
+        pagelib.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout="server:/share on /mnt/share without-parenthesis\n"
+        ),
+    )
+
+    assert pagelib._current_mount_points() == {}
+
+
+def test_fstab_mount_points_handles_missing_file_and_short_lines(monkeypatch, tmp_path):
+    real_path = Path
+    pagelib._fstab_mount_points.cache_clear()
+
+    class MissingFstab:
+        def exists(self):
+            return False
+
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda raw: MissingFstab() if str(raw) == "/etc/fstab" else real_path(raw),
+    )
+    assert pagelib._fstab_mount_points() == ()
+
+    class FakeFstab:
+        def exists(self):
+            return True
+
+        def read_text(self, *args, **kwargs):
+            return "bogus\nserver:/share /mnt/share nfs defaults 0 0\n"
+
+    pagelib._fstab_mount_points.cache_clear()
+    monkeypatch.setattr(
+        pagelib,
+        "Path",
+        lambda raw: FakeFstab() if str(raw) == "/etc/fstab" else real_path(raw),
+    )
+    assert pagelib._fstab_mount_points() == (real_path("/mnt/share"),)
+
+
+def test_diagnose_data_directory_handles_resolve_runtimeerror_and_non_matching_mount(tmp_path, monkeypatch):
+    original_resolve = Path.resolve
+
+    def _patched_resolve(self, *args, **kwargs):
+        if self == tmp_path / "share" / "payload":
+            raise RuntimeError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(pagelib.Path, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setattr(pagelib, "_fstab_mount_points", lambda: ())
+    monkeypatch.setattr(pagelib, "_current_mount_points", lambda: {})
+    assert pagelib.diagnose_data_directory(tmp_path / "share" / "payload") is None
+
+    other_mount = tmp_path / "other"
+    other_mount.mkdir()
+    monkeypatch.setattr(pagelib, "_fstab_mount_points", lambda: (other_mount,))
+    assert pagelib.diagnose_data_directory(tmp_path / "share" / "payload") is None
+
+
+def test_diagnose_data_directory_reports_missing_fstype_autofs_and_iterdir_failure(tmp_path, monkeypatch):
+    mount_dir = tmp_path / "data_share"
+    mount_dir.mkdir()
+
+    monkeypatch.setattr(pagelib, "_fstab_mount_points", lambda: (mount_dir,))
+    monkeypatch.setattr(pagelib, "_current_mount_points", lambda: {})
+    assert "not mounted" in pagelib.diagnose_data_directory(mount_dir / "payload")
+
+    monkeypatch.setattr(pagelib, "_current_mount_points", lambda: {mount_dir: "autofs"})
+    assert "not mounted" in pagelib.diagnose_data_directory(mount_dir / "payload")
+
+    monkeypatch.setattr(pagelib, "_current_mount_points", lambda: {mount_dir: "nfs"})
+    original_iterdir = Path.iterdir
+
+    def _broken_iterdir(self):
+        if self == mount_dir:
+            raise OSError("share unavailable")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(pagelib.Path, "iterdir", _broken_iterdir, raising=False)
+    assert "unreachable" in pagelib.diagnose_data_directory(mount_dir / "payload")
+
+
+def test_wait_for_listen_port_wrapper_delegates_to_runtime_impl(monkeypatch):
+    captured = {}
+
+    def _fake_wait(port, **kwargs):
+        captured["port"] = port
+        captured["kwargs"] = kwargs
+        return "ready"
+
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port_impl", _fake_wait)
+
+    assert pagelib._wait_for_listen_port(50123, timeout_sec=1.5, poll_interval_sec=0.2) == "ready"
+    assert captured["port"] == 50123
+    assert captured["kwargs"]["is_port_in_use_fn"] is pagelib.is_port_in_use
+
+
+def test_pagelib_wrapper_functions_delegate_selection_helpers(monkeypatch):
+    captured = {}
+    session_state = {"demo": "state"}
+    fake_st = SimpleNamespace(session_state=session_state, sidebar="sidebar", query_params={"app": "demo"})
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "logger", SimpleNamespace())
+
+    def _capture_select(*args, **kwargs):
+        captured["select"] = (args, kwargs)
+        return "selected"
+
+    def _capture_active(*args, **kwargs):
+        captured["active"] = (args, kwargs)
+        return ("demo_project", True)
+
+    def _capture_sidebar(*args, **kwargs):
+        captured["sidebar"] = (args, kwargs)
+        return "sidebar-views"
+
+    def _capture_df(*args, **kwargs):
+        captured["df"] = (args, kwargs)
+        return "df-changed"
+
+    monkeypatch.setattr(pagelib, "_select_project_impl", _capture_select)
+    monkeypatch.setattr(pagelib, "_resolve_active_app_impl", _capture_active)
+    monkeypatch.setattr(pagelib, "_sidebar_views_impl", _capture_sidebar)
+    monkeypatch.setattr(pagelib, "_on_df_change_impl", _capture_df)
+    monkeypatch.setattr(pagelib, "on_lab_change", lambda *_args, **_kwargs: None, raising=False)
+    monkeypatch.setattr(pagelib, "load_last_step", lambda *_args, **_kwargs: None, raising=False)
+
+    assert pagelib.select_project(["demo_project"], "demo_project") == "selected"
+    assert pagelib.resolve_active_app(SimpleNamespace(app="demo_project")) == ("demo_project", True)
+    assert pagelib.sidebar_views() == "sidebar-views"
+    assert pagelib.on_df_change(Path("demo"), "page", None, None) == "df-changed"
+    assert captured["select"][1]["session_state"] is session_state
+    assert captured["active"][1]["query_params"] == {"app": "demo"}
+    assert captured["sidebar"][1]["session_state"] is session_state
+    assert captured["df"][1]["session_state"] is session_state
+
+
+def test_update_views_ignores_missing_page_between_listdir_and_stat(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    pages_root = repo_root / "src" / "gui" / "pages"
+    pages_root.mkdir(parents=True)
+    session_state = SimpleNamespace(
+        _env=SimpleNamespace(change_app=lambda _project: None),
+        preview_tree=True,
+    )
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
+    monkeypatch.setattr(pagelib.os, "getcwd", lambda: str(repo_root))
+    monkeypatch.setattr(pagelib.os, "listdir", lambda _path: ["ghost.py"])
+    monkeypatch.setattr(
+        pagelib.os,
+        "stat",
+        lambda _path: (_ for _ in ()).throw(FileNotFoundError("already removed")),
+    )
+
+    assert pagelib.update_views("demo_project", []) is False
 
 
 def test_detect_agilab_version_returns_dev_suffix_when_git_metadata_fails(monkeypatch):

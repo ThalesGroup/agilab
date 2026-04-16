@@ -294,7 +294,7 @@ def _build_scalar_figure(
         tag_df = scalar_df[scalar_df["tag"] == tag]
         for run_index, run_label in enumerate(sorted(tag_df["run_label"].dropna().unique().tolist())):
             run_df = tag_df[tag_df["run_label"] == run_label]
-            if run_df.empty:
+            if run_df.empty:  # pragma: no cover - defensive guard; run labels come from tag_df itself
                 continue
             fig.add_trace(
                 go.Scatter(
@@ -496,5 +496,5 @@ def main() -> None:
     _persist_app_settings(env)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - script entrypoint
     main()
