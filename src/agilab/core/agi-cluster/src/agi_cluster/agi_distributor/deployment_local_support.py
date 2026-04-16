@@ -6,7 +6,7 @@ import stat
 import subprocess
 from importlib.metadata import PackageNotFoundError, version as pkg_version
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
@@ -91,6 +91,11 @@ def _infer_repo_root_from_runtime(runtime_file: str) -> Path | None:
     if (inferred / "core" / "agi-env").exists() and (inferred / "apps").exists():
         return inferred
     return None
+
+
+def _read_agilab_repo_root() -> Path | None:
+    read_agilab_path = cast(Callable[[], Path | None], AgiEnv.read_agilab_path)
+    return read_agilab_path()
 
 
 def _update_pyproject_dependencies(
@@ -253,7 +258,7 @@ async def deploy_local_worker(
     worker_pyprojects: set[str] = set()
 
     if env.install_type == 0:
-        repo_root = AgiEnv.read_agilab_path()
+        repo_root = _read_agilab_repo_root()
         if repo_root is None:
             repo_root = _infer_repo_root_from_runtime(runtime_file)
         if repo_root:
@@ -548,7 +553,7 @@ async def deploy_local_worker(
                         has_samples = False
                         for candidate in candidates:
                             if candidate.is_dir():
-                                samples = []
+                                samples: list[Path] = []
                                 for pattern in ("*.csv", "*.parquet", "*.pq", "*.parq"):
                                     samples.extend(candidate.glob(pattern))
                                     if len(samples) >= 2:

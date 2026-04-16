@@ -23,6 +23,8 @@ PROFILES = {
         "agi_node.agi_dispatcher.base_worker_runtime_support",
         "agi_node.agi_dispatcher.base_worker_service_support",
         "agi_cluster.agi_distributor.cleanup_support",
+        "agi_cluster.agi_distributor.deployment_build_support",
+        "agi_cluster.agi_distributor.deployment_local_support",
         "agi_cluster.agi_distributor.entrypoint_support",
         "agi_cluster.agi_distributor.runtime_misc_support",
         "agi_cluster.agi_distributor.scheduler_io_support",
