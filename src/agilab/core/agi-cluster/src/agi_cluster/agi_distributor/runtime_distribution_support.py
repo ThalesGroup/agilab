@@ -327,8 +327,6 @@ async def main(
             await agi_cls._prepare_cluster_env(scheduler)
         await agi_cls._deploy_application(scheduler)
         res = time_fn() - started_at
-    elif (agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) == agi_cls._SIMULATE_MODE:
-        res = await agi_cls._run()
     elif agi_cls._mode & agi_cls.DASK_MODE:
         await agi_cls._start(scheduler)
         res = await agi_cls._distribute()

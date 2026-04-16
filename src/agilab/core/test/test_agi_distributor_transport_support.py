@@ -151,6 +151,37 @@ async def test_send_file_remote_raises_after_retry_failure(monkeypatch, tmp_path
         )
 
 
+@pytest.mark.asyncio
+async def test_send_file_remote_directory_adds_recursive_flag(monkeypatch, tmp_path):
+    local_dir = tmp_path / "srcdir"
+    local_dir.mkdir()
+    (local_dir / "payload.txt").write_text("x", encoding="utf-8")
+    env = SimpleNamespace(user="alice", password=None, ssh_key_path=None)
+    calls = []
+
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def _fake_subproc(*cmd, **_kwargs):
+        calls.append(cmd)
+        return _Proc()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncio, "create_subprocess_exec", _fake_subproc)
+
+    await transport_support.send_file(
+        env=env,
+        ip="10.0.0.9",
+        local_path=local_dir,
+        remote_path=Path("/tmp/remote-dir"),
+    )
+
+    assert "-r" in calls[0]
+
+
 def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
     ssh_dir = tmp_path / ".ssh"
     ssh_dir.mkdir()
@@ -323,6 +354,144 @@ async def test_get_ssh_connection_propagates_unexpected_exception(monkeypatch):
     with pytest.raises(ValueError, match="boom"):
         async with transport_support.get_ssh_connection(agi_cls, "10.0.0.6", timeout_sec=1):
             pass
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_sets_local_user_and_uses_key_override(monkeypatch, tmp_path):
+    calls = []
+
+    class _Conn:
+        def is_closed(self):
+            return False
+
+    async def _fake_connect(*args, **kwargs):
+        calls.append((args, kwargs))
+        return _Conn()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: True))
+    monkeypatch.setattr(transport_support.getpass, "getuser", lambda: "local-user")
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(user=None, password=None, ssh_key_path=str(tmp_path / "id_ed25519")),
+        _ssh_connections={},
+    )
+
+    async with transport_support.get_ssh_connection(agi_cls, "127.0.0.1") as conn:
+        assert conn is agi_cls._ssh_connections["127.0.0.1"]
+
+    assert agi_cls.env.user == "local-user"
+    assert calls[0][1]["client_keys"] == [str((tmp_path / "id_ed25519").expanduser())]
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_uses_password_auth_and_handles_generic_oserror(monkeypatch):
+    async def _fake_connect(*args, **kwargs):
+        return SimpleNamespace(is_closed=lambda: False)
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(user="alice", password="secret", ssh_key_path=None),
+        _ssh_connections={},
+    )
+
+    async with transport_support.get_ssh_connection(agi_cls, "10.0.0.7") as conn:
+        assert conn is agi_cls._ssh_connections["10.0.0.7"]
+
+    async def _raise_generic_oserror(_awaitable, timeout):
+        _awaitable.close()
+        raise OSError(transport_support.errno.EIO, "disk glitch")
+
+    monkeypatch.setattr(transport_support.asyncio, "wait_for", _raise_generic_oserror)
+
+    with pytest.raises(ConnectionError, match="disk glitch"):
+        async with transport_support.get_ssh_connection(agi_cls, "10.0.0.8", timeout_sec=1):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_logs_asyncssh_command_errors(monkeypatch):
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(user="alice", password=None, ssh_key_path=None),
+        _ssh_connections={},
+    )
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+
+    async def _fake_connect(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+
+    async def _raise_asyncssh(_awaitable, timeout):
+        _awaitable.close()
+        exc = transport_support.asyncssh.Error(1, "generic ssh error")
+        exc.command = "ssh demo"
+        raise exc
+
+    monkeypatch.setattr(transport_support.asyncio, "wait_for", _raise_asyncssh)
+    logs = {"error": []}
+
+    with pytest.raises(ConnectionError, match="generic ssh error"):
+        async with transport_support.get_ssh_connection(
+            agi_cls,
+            "10.0.0.5",
+            timeout_sec=1,
+            log=SimpleNamespace(
+                warning=lambda *_args, **_kwargs: None,
+                error=lambda message, *args: logs["error"].append(message % args if args else message),
+                info=lambda *_args, **_kwargs: None,
+            ),
+        ):
+            pass
+
+    assert "ssh demo" in logs["error"]
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_logs_stdout_when_verbose_and_reraises_connection_errors(monkeypatch):
+    class _Result:
+        stdout = b"line-1\n"
+        stderr = b"warn\n"
+
+    class _Conn:
+        async def run(self, _cmd, check=True):
+            return _Result()
+
+    @asynccontextmanager
+    async def _ok_connection(_ip):
+        yield _Conn()
+
+    logs = {"info": []}
+    monkeypatch.setattr(transport_support.AgiEnv, "verbose", 1, raising=False)
+    monkeypatch.setattr(transport_support.AgiEnv, "debug", False, raising=False)
+
+    text = await transport_support.exec_ssh(
+        SimpleNamespace(get_ssh_connection=_ok_connection),
+        "10.0.0.2",
+        "echo hi",
+        log=SimpleNamespace(
+            info=lambda message, *args: logs["info"].append(message % args if args else message),
+            error=lambda *_args, **_kwargs: None,
+        ),
+    )
+
+    assert "line-1" in text
+    assert any("[10.0.0.2] echo hi" in entry for entry in logs["info"])
+    assert any("[10.0.0.2] line-1" in entry for entry in logs["info"])
+
+    @asynccontextmanager
+    async def _broken_connection(_ip):
+        raise ConnectionError("down")
+        yield  # pragma: no cover
+
+    with pytest.raises(ConnectionError, match="down"):
+        await transport_support.exec_ssh(
+            SimpleNamespace(get_ssh_connection=_broken_connection),
+            "10.0.0.2",
+            "echo hi",
+        )
 
 
 @pytest.mark.asyncio

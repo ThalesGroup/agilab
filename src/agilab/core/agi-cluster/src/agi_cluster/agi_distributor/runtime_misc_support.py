@@ -124,8 +124,6 @@ def format_exception_chain(exc: BaseException) -> str:
 
     def _normalize(text: str) -> str:
         text = text.strip()
-        if not text:
-            return ""
         lowered = text.lower()
         for token in ("error:", "exception:", "warning:", "runtimeerror:", "valueerror:", "typeerror:"):
             if lowered.startswith(token):
@@ -146,16 +144,13 @@ def format_exception_chain(exc: BaseException) -> str:
             norm = _normalize(text)
             if messages:
                 last_norm = norms[-1]
-                if not norm:
-                    norm = text
+                norm = norm or text
                 if norm == last_norm:
                     pass
                 elif last_norm.endswith(norm):
                     messages[-1] = text
                     norms[-1] = norm
-                elif norm.endswith(last_norm):
-                    pass
-                else:
+                elif not norm.endswith(last_norm):
                     messages.append(text)
                     norms.append(norm)
             else:
@@ -169,8 +164,6 @@ def format_exception_chain(exc: BaseException) -> str:
         else:
             break
 
-    if not messages:
-        return str(exc).strip() or repr(exc)
     return " -> ".join(messages)
 
 

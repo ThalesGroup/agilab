@@ -2,8 +2,12 @@ from pathlib import Path, UnsupportedOperation
 from unittest import mock
 
 import pytest
+from pathspec import PathSpec
+from pathspec.patterns import GitWildMatchPattern
 
 from agi_env.project_clone_support import (
+    cleanup_rename,
+    clone_directory,
     clone_project,
     copy_existing_projects,
     create_rename_map,
@@ -71,6 +75,30 @@ def test_copy_existing_projects_merges_nested_projects(tmp_path: Path):
     )
 
     assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
+
+
+def test_copy_existing_projects_noops_for_same_tree_and_skips_non_directory_candidates(tmp_path: Path):
+    src_apps = tmp_path / "src"
+    src_apps.mkdir()
+    (src_apps / "ghost_project").write_text("not a directory", encoding="utf-8")
+    logger = mock.Mock()
+
+    copy_existing_projects(
+        src_apps,
+        src_apps,
+        ensure_dir_fn=lambda path: Path(path),
+        logger=logger,
+    )
+    assert not logger.info.called
+
+    dst_apps = tmp_path / "dst"
+    copy_existing_projects(
+        src_apps,
+        dst_apps,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        logger=logger,
+    )
+    assert not (dst_apps / "ghost_project").exists()
 
 
 def test_copy_existing_projects_handles_operational_failures_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
@@ -250,3 +278,96 @@ def test_clone_project_data_copy_handles_operational_failure_and_propagates_runt
             cleanup_rename_fn=lambda *_args, **_kwargs: None,
             copytree_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("copy bug")),
         )
+
+
+def test_clone_project_ignores_unreadable_gitignore_and_continues(tmp_path: Path, monkeypatch):
+    apps_path = tmp_path / "apps"
+    source_root = apps_path / "alpha_project"
+    source_root.mkdir(parents=True)
+    gitignore = source_root / ".gitignore"
+    gitignore.write_text("ignored/\n", encoding="utf-8")
+    home_abs = tmp_path / "home"
+    home_abs.mkdir()
+    logger = mock.Mock()
+    calls: list[tuple[Path, Path]] = []
+    original_read_text = Path.read_text
+
+    def _oserror_read_text(self, *args, **kwargs):
+        if self == gitignore:
+            raise OSError("gitignore failed")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _oserror_read_text, raising=False)
+
+    clone_project(
+        Path("alpha_project"),
+        Path("beta_project"),
+        apps_path=apps_path,
+        home_abs=home_abs,
+        projects=[],
+        logger=logger,
+        create_rename_map_fn=create_rename_map,
+        clone_directory_fn=lambda source_dir, dest_dir, *_args: calls.append((source_dir, dest_dir)),
+        cleanup_rename_fn=lambda *_args, **_kwargs: None,
+    )
+
+    assert calls == [(source_root, apps_path / "beta_project")]
+    assert logger.debug.called
+
+
+def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_text_paths(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    dest_root = tmp_path / "dest"
+    rename_map = {"flight": "demo", "flight_project": "demo_project"}
+    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+
+    link_target = source_root / "target.txt"
+    link_target.write_text("flight", encoding="utf-8")
+    link_path = source_root / "link.txt"
+    link_path.symlink_to(link_target)
+    (source_root / ".venv").mkdir()
+    archive = source_root / "flight.zip"
+    archive.write_bytes(b"zip")
+    invalid_py = source_root / "flight.py"
+    invalid_py.write_text("def broken(:\n", encoding="utf-8")
+    text_file = source_root / "flight.txt"
+    text_file.write_text("flight project", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "agi_env.project_clone_support.os.readlink",
+        lambda path: (_ for _ in ()).throw(OSError("readlink failed")) if Path(path) == link_path else str(link_target),
+    )
+
+    clone_directory(
+        source_root,
+        dest_root,
+        rename_map,
+        spec,
+        source_root,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        content_renamer_cls=lambda _rename_map: type("NoOpRenamer", (), {"visit": lambda self, tree: tree})(),
+        replace_content_fn=lambda text, mapping: text.replace("flight", "demo"),
+    )
+
+    assert (dest_root / "link.txt").is_symlink()
+    assert (dest_root / ".venv").is_symlink()
+    assert (dest_root / "demo.zip").read_bytes() == b"zip"
+    assert "def broken" in (dest_root / "demo.py").read_text(encoding="utf-8")
+    assert (dest_root / "demo.txt").read_text(encoding="utf-8") == "demo project"
+
+    cleanup_root = tmp_path / "cleanup"
+    cleanup_root.mkdir()
+    (cleanup_root / "flight").write_text("flight", encoding="utf-8")
+    (cleanup_root / "flight_project").write_text("flight project", encoding="utf-8")
+    (cleanup_root / "flight.txt").write_text("flight text", encoding="utf-8")
+
+    cleanup_rename(
+        cleanup_root,
+        rename_map,
+        replace_content_fn=lambda text, mapping: text.replace("flight", "demo"),
+    )
+
+    assert (cleanup_root / "demo").exists()
+    assert (cleanup_root / "demo_project").exists()
+    assert (cleanup_root / "demo.txt").read_text(encoding="utf-8") == "demo text"

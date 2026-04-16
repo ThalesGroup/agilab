@@ -12,6 +12,7 @@ def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
         "demo_project",
         "demo_project_worker",
     }
+    assert app_settings_module.app_settings_aliases("demo") == {"demo"}
     assert app_settings_module.app_settings_aliases(None) == set()
 
     src_dir = tmp_path / "demo_project" / "src"
@@ -22,6 +23,7 @@ def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
     assert app_settings_module.candidate_app_settings_path(src_dir) == src_settings
     assert app_settings_module.candidate_app_settings_path(src_dir.parent) == src_settings
     assert app_settings_module.candidate_app_settings_path(object()) is None
+    assert app_settings_module.candidate_app_settings_path(tmp_path / "missing") is None
 
 
 def test_candidate_app_settings_path_handles_probe_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
@@ -194,3 +196,55 @@ def test_resolve_user_app_settings_requires_target_name(tmp_path: Path):
             resources_path=tmp_path / ".agilab",
             find_source_file=lambda _app_name=None: None,
         )
+
+
+def test_candidate_and_user_app_settings_cover_existing_workspace_and_probe_oserror(tmp_path: Path, monkeypatch):
+    src_dir = tmp_path / "demo_project" / "src"
+    src_dir.mkdir(parents=True)
+    src_settings = src_dir / "app_settings.toml"
+    src_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+
+    original_is_dir = Path.is_dir
+
+    def _oserror_is_dir(self):
+        if self == src_dir:
+            raise OSError("probe failed")
+        return original_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", _oserror_is_dir, raising=False)
+    assert app_settings_module.candidate_app_settings_path(src_dir.parent) == src_settings
+
+    resources_path = tmp_path / ".agilab"
+    workspace_file = resources_path / "apps" / "demo_project" / "app_settings.toml"
+    workspace_file.parent.mkdir(parents=True)
+    workspace_file.write_text("existing", encoding="utf-8")
+
+    resolved = app_settings_module.resolve_user_app_settings_file(
+        target_app="demo_project",
+        resources_path=resources_path,
+        find_source_file=lambda _app_name=None: src_settings,
+    )
+    assert resolved == workspace_file
+    assert resolved.read_text(encoding="utf-8") == "existing"
+
+
+def test_candidate_app_settings_path_returns_none_when_src_dir_probe_oserror(tmp_path: Path, monkeypatch):
+    app_dir = tmp_path / "demo_project"
+    app_dir.mkdir(parents=True)
+    src_dir = app_dir / "src"
+
+    original_is_file = Path.is_file
+    original_is_dir = Path.is_dir
+
+    def _patched_is_file(self):
+        return original_is_file(self)
+
+    def _patched_is_dir(self):
+        if self == src_dir:
+            raise OSError("probe failed")
+        return original_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_file", _patched_is_file, raising=False)
+    monkeypatch.setattr(Path, "is_dir", _patched_is_dir, raising=False)
+
+    assert app_settings_module.candidate_app_settings_path(app_dir) is None

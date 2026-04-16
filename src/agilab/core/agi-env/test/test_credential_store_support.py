@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import builtins
+
 from agi_env.credential_store_support import (
     KEYRING_SENTINEL,
     read_cluster_credentials,
     store_cluster_credentials,
 )
+import agi_env.credential_store_support as credential_support
 
 
 class _FakeKeyring:
@@ -97,3 +100,47 @@ def test_store_cluster_credentials_persists_with_keyring_and_custom_config():
 def test_store_cluster_credentials_ignores_empty_values():
     keyring = _FakeKeyring()
     assert store_cluster_credentials("", keyring_module=keyring, environ={}) is False
+
+
+def test_credential_store_support_helper_branches(monkeypatch):
+    original_import = builtins.__import__
+
+    def _missing_keyring_import(name, *args, **kwargs):
+        if name == "keyring":
+            raise ImportError("missing keyring")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _missing_keyring_import)
+    try:
+        assert credential_support._load_keyring_module() is None
+    finally:
+        builtins.__import__ = original_import
+
+    keyring_module = object()
+    assert credential_support._load_keyring_module(keyring_module) is keyring_module
+    assert credential_support._fallback_env_credentials({"CLUSTER_CREDENTIALS": KEYRING_SENTINEL}) == ""
+
+    class _Errors:
+        KeyringError = RuntimeError
+        InitError = RuntimeError
+
+    keyring = type("Keyring", (), {"errors": _Errors})()
+    errors = credential_support._keyring_error_types(keyring)
+    assert RuntimeError in errors
+    assert errors.count(RuntimeError) == 1
+
+
+def test_read_and_store_cluster_credentials_cover_keyring_none_paths(monkeypatch):
+    monkeypatch.setattr(credential_support, "_load_keyring_module", lambda _module=None: None)
+
+    assert read_cluster_credentials(
+        KEYRING_SENTINEL,
+        keyring_module=None,
+        environ={"CLUSTER_CREDENTIALS": "fallback:user"},
+    ) == "fallback:user"
+
+    assert store_cluster_credentials(
+        "user:pass",
+        keyring_module=None,
+        environ={},
+    ) is False

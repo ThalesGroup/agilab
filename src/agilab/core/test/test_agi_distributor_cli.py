@@ -415,13 +415,22 @@ def test_clean_removes_temp_and_wenv(tmp_path, monkeypatch):
     assert not wenv_dir.exists()
 
 
-def test_unzip_handles_bad_zip(monkeypatch):
+def test_unzip_handles_bad_zip(monkeypatch, tmp_path):
+    errors = []
+    wenv = tmp_path / "worker"
+    wenv.mkdir()
+    (wenv / "demo.egg").write_bytes(b"not-a-zip")
+
     monkeypatch.setattr(
         cli_mod.zipfile,
         "ZipFile",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(zipfile.BadZipFile("boom-unzip")),
     )
-    cli_mod.unzip("/tmp/worker")
+    monkeypatch.setattr(cli_mod.logger, "error", lambda message: errors.append(message))
+
+    cli_mod.unzip(str(wenv))
+
+    assert errors == ["Error during unzip: boom-unzip"]
 
 
 def test_unzip_propagates_unexpected_runtime_bug(monkeypatch):

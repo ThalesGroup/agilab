@@ -291,6 +291,26 @@ async def test_calibration_fallback_when_predictor_has_no_data():
     assert AGI._capacity["127.0.0.1:8787"] == 1.0
 
 
+@pytest.mark.asyncio
+async def test_calibration_fallback_uses_localhost_when_no_workers_exist():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = []
+    AGI._workers = {}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [1.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI._capacity == {"localhost:0": 1.0}
+    assert AGI.workers_info == {"localhost:0": {"label": 1.0}}
+
+
 def test_update_capacity_success_and_guard_paths(tmp_path, monkeypatch):
     AGI._workers = {"127.0.0.1": 1}
     AGI.workers_info = {
@@ -326,6 +346,47 @@ def test_update_capacity_success_and_guard_paths(tmp_path, monkeypatch):
     AGI._run_time = [{"127.0.0.1:8787": 2.0}]
     with pytest.raises(RuntimeError, match="workers BaseWorker.do_works failed"):
         capacity_support.update_capacity(AGI)
+
+
+def test_update_capacity_adjusts_against_other_workers(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        },
+        "10.0.0.2:8788": {
+            "nb_workers": 1,
+            "ram_total": 20.0,
+            "ram_available": 10.0,
+            "cpu_count": 8.0,
+            "cpu_frequency": 3.0,
+            "network_speed": 2.0,
+            "label": 2.0,
+        },
+    }
+    AGI._run_time = [
+        {"127.0.0.1:8787": 2.0},
+        {"10.0.0.2:8788": 1.0},
+    ]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert Path(AGI._capacity_data_file).exists()
+    assert train_calls["count"] == 1
 
 
 def test_train_capacity_missing_and_success(tmp_path):

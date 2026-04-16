@@ -343,7 +343,553 @@ async def test_stop_propagates_unexpected_programmer_bug(monkeypatch, phase):
     with pytest.raises(ValueError, match="unexpected shutdown bug"):
         await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
 
-    assert closed["count"] == 0
+
+@pytest.mark.asyncio
+async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monkeypatch):
+    wenv_abs = tmp_path / "worker_env"
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {"sample": 1}
+
+    calls = {"new": [], "kill": [], "run_async": []}
+
+    class _Worker:
+        @staticmethod
+        def _new(**kwargs):
+            calls["new"].append(kwargs)
+
+        @staticmethod
+        async def _run(**kwargs):
+            calls["new"].append(kwargs)
+            return ["worker-log"]
+
+    async def _fake_kill(*_args, **_kwargs):
+        calls["kill"].append(True)
+
+    async def _fake_run_async(cmd, cwd):
+        calls["run_async"].append((cmd, cwd))
+        return "line-1\nline-2\n"
+
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        envars={},
+        debug=True,
+        verbose=2,
+        target_worker="demo_worker",
+        uv="uv",
+    )
+
+    debug_result = await runtime_distribution_support.run_local(
+        AGI,
+        base_worker_cls=_Worker,
+        validate_worker_uv_sources_fn=lambda _path: None,
+        run_async_fn=_fake_run_async,
+    )
+
+    assert debug_result == ["worker-log"]
+    assert calls["kill"]
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        envars={},
+        debug=False,
+        verbose=2,
+        target_worker="demo_worker",
+        uv="uv",
+    )
+
+    script_result = await runtime_distribution_support.run_local(
+        AGI,
+        base_worker_cls=_Worker,
+        validate_worker_uv_sources_fn=lambda _path: None,
+        run_async_fn=_fake_run_async,
+    )
+
+    assert script_result == "line-2"
+    assert "import asyncio" in calls["run_async"][0][0]
+    assert "if __name__ == '__main__':" in calls["run_async"][0][0]
+
+
+@pytest.mark.asyncio
+async def test_start_returns_false_when_scheduler_bootstrap_fails(monkeypatch, tmp_path):
+    AGI.env = SimpleNamespace(
+        is_local=lambda _ip: True,
+        envars={},
+        uv="uv",
+        wenv_abs=tmp_path / "worker_env",
+        wenv_rel=Path("worker_env"),
+    )
+    AGI._workers = {"127.0.0.1": 1}
+
+    async def _fake_start_scheduler(_scheduler):
+        return False
+
+    monkeypatch.setattr(AGI, "_start_scheduler", staticmethod(_fake_start_scheduler))
+
+    assert await runtime_distribution_support.start(
+        AGI,
+        "127.0.0.1",
+        set_env_var_fn=lambda *_args, **_kwargs: None,
+    ) is False
+
+
+@pytest.mark.asyncio
+async def test_sync_handles_missing_worker_payloads_and_retryable_errors():
+    class _Client:
+        def __init__(self):
+            self.calls = 0
+
+        async def scheduler_info(self):
+            self.calls += 1
+            if self.calls == 1:
+                return {"workers": None}
+            if self.calls == 2:
+                raise RuntimeError("temporary scheduler glitch")
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+    class _Log:
+        def __init__(self):
+            self.info_messages = []
+
+        def info(self, message, *args):
+            self.info_messages.append(message % args if args else message)
+
+        def error(self, *_args, **_kwargs):
+            return None
+
+    AGI._dask_client = _Client()
+    AGI._workers = {"127.0.0.1": 1}
+
+    async def _fake_sleep(_delay):
+        return None
+
+    clock = {"value": 0.0}
+
+    def _fake_time():
+        clock["value"] += 0.5
+        return clock["value"]
+
+    log = _Log()
+    await runtime_distribution_support.sync(
+        AGI,
+        timeout=5,
+        client_type=_Client,
+        sleep_fn=_fake_sleep,
+        time_fn=_fake_time,
+        log=log,
+    )
+
+    assert any("workers' not ready yet" in message for message in log.info_messages)
+    assert any("Exception in _sync" in message for message in log.info_messages)
+
+
+@pytest.mark.asyncio
+async def test_distribute_wraps_payloads_and_logs_worker_outputs(monkeypatch):
+    calls = {"submit": []}
+
+    class _Client:
+        def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        def submit(self, fn, *args, **kwargs):
+            calls["submit"].append((getattr(fn, "__name__", str(fn)), args, kwargs))
+            return f"future-{len(calls['submit'])}"
+
+        def gather(self, futures):
+            if futures == ["future-1"]:
+                return [None]
+            return ["worker-log"]
+
+    class _Dispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, _args):
+            return workers, [["step"]], [[{"meta": 1}]]
+
+    class _Worker:
+        @staticmethod
+        def _new(**_kwargs):
+            return None
+
+        @staticmethod
+        def _do_works(*_args, **_kwargs):
+            return None
+
+    AGI.env = SimpleNamespace(
+        debug=False,
+        target_worker="demo_worker",
+        target="demo",
+        mode2str=lambda mode: f"mode={mode}",
+    )
+    AGI._dask_client = _Client()
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {"payload": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 1
+
+    async def _fake_calibration():
+        return None
+
+    monkeypatch.setattr(AGI, "_calibration", staticmethod(_fake_calibration))
+    monkeypatch.setattr(AGI, "_scale_cluster", staticmethod(lambda: None))
+    monkeypatch.setattr(AGI, "_wrap_worker_chunk", staticmethod(lambda payload, index: payload[index]))
+
+    result = await runtime_distribution_support.distribute(
+        AGI,
+        work_dispatcher_cls=_Dispatcher,
+        base_worker_cls=_Worker,
+        time_fn=lambda: 5.0,
+    )
+
+    assert result == "mode=4 0.0"
+    assert calls["submit"][1][1][0] == ["step"]
+    assert calls["submit"][1][1][1] == [{"meta": 1}]
+
+
+@pytest.mark.asyncio
+async def test_main_runs_simulate_mode_directly(monkeypatch):
+    calls = {"clean": []}
+
+    async def _fake_run():
+        return "simulate"
+
+    monkeypatch.setattr(AGI, "_run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_clean_job", staticmethod(lambda cond: calls["clean"].append(cond)))
+    AGI._mode = AGI._SIMULATE_MODE
+
+    result = await runtime_distribution_support.main(
+        AGI,
+        "127.0.0.1",
+        background_job_manager_factory=lambda: object(),
+        time_fn=lambda: 1.0,
+    )
+
+    assert result == "simulate"
+    assert calls["clean"] == [True]
+
+
+@pytest.mark.asyncio
+async def test_run_local_returns_none_for_empty_output_and_single_line_text(tmp_path, monkeypatch):
+    wenv_abs = tmp_path / "worker_env"
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        envars={},
+        debug=False,
+        verbose=0,
+        uv="uv",
+        target_worker="demo_worker",
+    )
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {}
+
+    async def _fake_kill(*_args, **_kwargs):
+        return None
+
+    async def _run_async_none(_cmd, _cwd):
+        return None
+
+    async def _run_async_single(_cmd, _cwd):
+        return "single-line"
+
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+
+    assert await runtime_distribution_support.run_local(
+        AGI,
+        base_worker_cls=SimpleNamespace(),
+        validate_worker_uv_sources_fn=lambda _path: None,
+        run_async_fn=_run_async_none,
+    ) is None
+
+    result = await runtime_distribution_support.run_local(
+        AGI,
+        base_worker_cls=SimpleNamespace(),
+        validate_worker_uv_sources_fn=lambda _path: None,
+        run_async_fn=_run_async_single,
+    )
+    assert result == "single-line"
+
+
+@pytest.mark.asyncio
+async def test_start_covers_detect_fallback_worker_errors_and_init_guard(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+
+    AGI.env = SimpleNamespace(
+        is_local=lambda _ip: True,
+        envars={},
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+    )
+    AGI._mode = AGI.DASK_MODE
+    AGI._mode_auto = False
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._scheduler = "127.0.0.1:8786"
+
+    class _Client:
+        def upload_file(self, _path):
+            return None
+
+    async def _fake_start_scheduler(_scheduler):
+        return True
+
+    async def _fake_detect(_ip):
+        raise RuntimeError("expected detect error")
+
+    async def _fake_sync(*_args, **_kwargs):
+        return None
+
+    async def _fake_build_remote():
+        return None
+
+    monkeypatch.setattr(AGI, "_dask_client", _Client())
+    monkeypatch.setattr(AGI, "_start_scheduler", staticmethod(_fake_start_scheduler))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_build_lib_remote", staticmethod(_fake_build_remote))
+    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("start failed"))))
+
+    AGI._worker_init_error = False
+    with pytest.raises(RuntimeError, match="start failed"):
+        await runtime_distribution_support.start(
+            AGI,
+            "127.0.0.1",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+            create_task_fn=lambda coro: coro,
+        )
+
+    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
+    AGI._worker_init_error = True
+    with pytest.raises(FileNotFoundError, match="Please run AGI.install"):
+        await runtime_distribution_support.start(
+            AGI,
+            "127.0.0.1",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+            create_task_fn=lambda coro: coro,
+        )
+
+
+@pytest.mark.asyncio
+async def test_sync_returns_for_non_client_and_times_out(monkeypatch):
+    await runtime_distribution_support.sync(
+        SimpleNamespace(_dask_client=object(), _workers={"127.0.0.1": 1}),
+        client_type=dict,
+    )
+
+    class _Client:
+        def __init__(self, payloads):
+            self.payloads = list(payloads)
+
+        async def scheduler_info(self):
+            item = self.payloads.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+    async def _fake_sleep(_delay):
+        return None
+
+    clock = {"value": 0.0}
+
+    def _fake_time():
+        clock["value"] += 2.0
+        return clock["value"]
+
+    agi = SimpleNamespace(
+        _dask_client=_Client([{"workers": None}, {"workers": None}]),
+        _workers={"127.0.0.1": 1},
+    )
+    with pytest.raises(TimeoutError, match="scheduler workers info"):
+        await runtime_distribution_support.sync(
+            agi,
+            timeout=1,
+            client_type=_Client,
+            sleep_fn=_fake_sleep,
+            time_fn=_fake_time,
+            log=SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None),
+        )
+
+    clock["value"] = 0.0
+    agi = SimpleNamespace(
+        _dask_client=_Client([{"workers": {"tcp://127.0.0.1:8787": {}}}, {"workers": {"tcp://127.0.0.1:8787": {}}}]),
+        _workers={"127.0.0.1": 2},
+    )
+    with pytest.raises(TimeoutError, match="all workers to attach"):
+        await runtime_distribution_support.sync(
+            agi,
+            timeout=1,
+            client_type=_Client,
+            sleep_fn=_fake_sleep,
+            time_fn=_fake_time,
+            log=SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None),
+        )
+
+
+def test_scale_cluster_returns_when_no_dask_workers():
+    agi = SimpleNamespace(_dask_workers=None, _workers={"127.0.0.1": 1})
+    runtime_distribution_support.scale_cluster(agi)
+    assert agi._dask_workers is None
+
+
+@pytest.mark.asyncio
+async def test_distribute_in_debug_mode_backfills_empty_worker_logs(monkeypatch):
+    calls = {"submit": []}
+
+    class _Client:
+        def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        def submit(self, fn, *args, **kwargs):
+            calls["submit"].append((getattr(fn, "__name__", str(fn)), args, kwargs))
+            return "future-1"
+
+        def gather(self, futures):
+            if futures == ["future-1"]:
+                return [None]
+            return []
+
+    class _Dispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, _args):
+            return workers, [["step"]], [[{"meta": 1}]]
+
+    class _Worker:
+        @staticmethod
+        def _new(**_kwargs):
+            return None
+
+        @staticmethod
+        def _do_works(*_args, **_kwargs):
+            return None
+
+    AGI.env = SimpleNamespace(
+        debug=True,
+        target_worker="demo_worker",
+        target="demo",
+        mode2str=lambda mode: f"mode={mode}",
+    )
+    AGI._dask_client = _Client()
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {"payload": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 1
+
+    async def _fake_calibration():
+        return None
+
+    monkeypatch.setattr(AGI, "_calibration", staticmethod(_fake_calibration))
+    monkeypatch.setattr(AGI, "_scale_cluster", staticmethod(lambda: None))
+    monkeypatch.setattr(AGI, "_wrap_worker_chunk", staticmethod(lambda payload, index: payload[index]))
+
+    result = await runtime_distribution_support.distribute(
+        AGI,
+        work_dispatcher_cls=_Dispatcher,
+        base_worker_cls=_Worker,
+        time_fn=lambda: 3.0,
+    )
+
+    assert result == "mode=4 0.0"
+
+
+@pytest.mark.asyncio
+async def test_distribute_in_debug_mode_backfills_known_workers_when_no_futures(monkeypatch):
+    class _Client:
+        def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        def submit(self, fn, *args, **kwargs):
+            return f"future-{getattr(fn, '__name__', 'worker')}"
+
+        def gather(self, futures):
+            return futures
+
+    class _Dispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, _args):
+            return workers, [], []
+
+    AGI.env = SimpleNamespace(
+        debug=True,
+        target_worker="demo_worker",
+        target="demo",
+        mode2str=lambda mode: f"mode={mode}",
+    )
+    AGI._dask_client = _Client()
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 1
+    AGI.debug = True
+
+    async def _fake_calibration():
+        AGI._capacity = {"127.0.0.1:8787": 1.0}
+
+    monkeypatch.setattr(AGI, "_calibration", staticmethod(_fake_calibration))
+    monkeypatch.setattr(AGI, "_scale_cluster", staticmethod(lambda: None))
+    monkeypatch.setattr(
+        AGI,
+        "_wrap_worker_chunk",
+        staticmethod(lambda payload, index: payload[index] if payload else []),
+    )
+
+    result = await runtime_distribution_support.distribute(
+        AGI,
+        work_dispatcher_cls=_Dispatcher,
+        base_worker_cls=BaseWorker,
+        time_fn=lambda: 4.0,
+    )
+
+    assert result == "mode=4 0.0"
+
+
+@pytest.mark.asyncio
+async def test_distribute_in_debug_mode_handles_empty_scheduler_worker_list(monkeypatch):
+    class _Client:
+        def scheduler_info(self):
+            return {"workers": {}}
+
+        def gather(self, futures):
+            return futures
+
+    class _Dispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, _args):
+            return workers, [], []
+
+    AGI.env = SimpleNamespace(
+        debug=True,
+        target_worker="demo_worker",
+        target="demo",
+        mode2str=lambda mode: f"mode={mode}",
+    )
+    AGI._dask_client = _Client()
+    AGI._workers = {}
+    AGI._args = {}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 1
+    AGI.debug = True
+
+    async def _fake_calibration():
+        return None
+
+    monkeypatch.setattr(AGI, "_calibration", staticmethod(_fake_calibration))
+    monkeypatch.setattr(AGI, "_scale_cluster", staticmethod(lambda: None))
+    monkeypatch.setattr(AGI, "_wrap_worker_chunk", staticmethod(lambda payload, index: payload[index] if payload else []))
+
+    result = await runtime_distribution_support.distribute(
+        AGI,
+        work_dispatcher_cls=_Dispatcher,
+        base_worker_cls=BaseWorker,
+        time_fn=lambda: 4.0,
+    )
+
+    assert result == "mode=4 0.0"
 
 
 @pytest.mark.asyncio

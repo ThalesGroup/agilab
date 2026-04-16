@@ -168,6 +168,22 @@ def test_agi_version_missing_on_pypi_propagates_unexpected_lookup_bug(tmp_path, 
         runtime_misc_support.agi_version_missing_on_pypi(project)
 
 
+def test_agi_version_missing_on_pypi_ignores_unpinned_specs_and_read_failures(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir(parents=True, exist_ok=True)
+    pyproject = project / "pyproject.toml"
+    pyproject.write_text('agi-core = ">=1.2"\n', encoding="utf-8")
+
+    assert runtime_misc_support.agi_version_missing_on_pypi(project) is False
+
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(UnicodeError("bad file")),
+    )
+    assert runtime_misc_support.agi_version_missing_on_pypi(project) is False
+
+
 def test_format_exception_chain_compacts_causes():
     try:
         try:
@@ -188,6 +204,49 @@ def test_format_exception_chain_strips_generic_error_prefixes():
     text = runtime_misc_support.format_exception_chain(CustomError("CustomError: precise detail"))
 
     assert text.endswith("CustomError: precise detail")
+
+
+def test_format_exception_chain_handles_context_normalization_edges(monkeypatch):
+    class SilentError(Exception):
+        def __str__(self):
+            return ""
+
+    def _fake_tb(lines):
+        return SimpleNamespace(format_exception_only=lambda: list(lines))
+
+    try:
+        try:
+            try:
+                try:
+                    raise SilentError()
+                except SilentError:
+                    raise RuntimeError("duplicate")
+            except RuntimeError:
+                raise RuntimeError("duplicate")
+        except RuntimeError:
+            raise RuntimeError("fresh detail")
+    except RuntimeError as exc:
+        exc_4 = exc
+        exc_3 = exc.__context__
+        exc_2 = exc_3.__context__
+        exc_1 = exc_2.__context__
+
+    mapping = {
+        id(exc_1): _fake_tb([""]),
+        id(exc_2): _fake_tb(["SilentError: \n"]),
+        id(exc_3): _fake_tb(["prefix SilentError:\n"]),
+        id(exc_4): _fake_tb(["fresh detail\n"]),
+    }
+    monkeypatch.setattr(
+        runtime_misc_support.traceback.TracebackException,
+        "from_exception",
+        staticmethod(lambda current: mapping[id(current)]),
+    )
+
+    text = runtime_misc_support.format_exception_chain(exc_4)
+
+    assert "SilentError:" in text
+    assert "fresh detail" in text
 
 
 def test_load_capacity_predictor_returns_loaded_value(tmp_path):
@@ -317,6 +376,17 @@ def test_configure_runtime_mode_rejects_invalid_type_with_custom_message():
         )
 
 
+def test_configure_runtime_mode_rejects_missing_default_and_unimplemented_mask():
+    agi_cls = SimpleNamespace(_RUN_MASK=0b011111, RAPIDS_MODE=16, DASK_MODE=4)
+    env = SimpleNamespace(mode2int=lambda value: value)
+
+    with pytest.raises(ValueError, match="parameter <mode> must be an int or a string"):
+        runtime_misc_support.configure_runtime_mode(agi_cls, env, None)
+
+    with pytest.raises(ValueError, match="mode 16 not implemented"):
+        runtime_misc_support.configure_runtime_mode(agi_cls, env, 16)
+
+
 def test_resolve_install_worker_group_supports_sb3_alias_without_import():
     assert (
         runtime_misc_support.resolve_install_worker_group(
@@ -358,6 +428,32 @@ def test_configure_install_worker_group_sets_resolved_alias_on_agi_cls():
     assert worker_group == "dag-worker"
     assert agi_cls.install_worker_group == ["dag-worker"]
     assert agi_cls.agi_workers["DagWorker"] == "dag-worker"
+
+
+def test_install_worker_group_helpers_cover_none_and_unresolved_inputs():
+    class _BlankBase:
+        pass
+
+    _BlankBase.__name__ = ""
+
+    class _CustomWorker(_BlankBase):
+        pass
+
+    fake_module = SimpleNamespace(CustomWorker=_CustomWorker)
+
+    groups = runtime_misc_support.install_worker_groups()
+
+    assert groups["DagWorker"] == "dag-worker"
+    assert runtime_misc_support.resolve_install_worker_group(None) is None
+    assert runtime_misc_support.resolve_install_worker_group("CustomWorker") is None
+    assert (
+        runtime_misc_support.resolve_install_worker_group(
+            "CustomWorker",
+            base_worker_module="custom_worker",
+            import_module_fn=lambda _name: fake_module,
+        )
+        is None
+    )
 
 
 def test_hardware_supports_rapids_true_and_false(monkeypatch):

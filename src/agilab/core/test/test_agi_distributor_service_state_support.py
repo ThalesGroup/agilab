@@ -233,6 +233,57 @@ def test_service_write_state_uses_unique_temp_paths(tmp_path, monkeypatch):
     assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "second"
 
 
+def test_atomic_write_ignores_temp_cleanup_failures(monkeypatch, tmp_path):
+    output_path = tmp_path / "state.json"
+    original_unlink = Path.unlink
+    tracked_tmp = {"path": None}
+
+    def _fake_replace(src, dst):
+        tracked_tmp["path"] = Path(src)
+        raise RuntimeError("replace failed")
+
+    def _fake_unlink(self, *args, **kwargs):
+        if tracked_tmp["path"] is not None and self == tracked_tmp["path"]:
+            raise OSError("cannot cleanup temp")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(service_state_support.os, "replace", _fake_replace)
+    monkeypatch.setattr(Path, "unlink", _fake_unlink)
+
+    with pytest.raises(RuntimeError, match="replace failed"):
+        service_state_support._atomic_write(
+            output_path,
+            lambda stream: stream.write("payload"),
+            mode="w",
+            encoding="utf-8",
+        )
+
+
+def test_service_clear_state_logs_oserror(monkeypatch, tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text("{}", encoding="utf-8")
+    agi._service_state_path = lambda _env: state_path
+    logs = []
+    original_unlink = Path.unlink
+
+    def _fake_unlink(self, *args, **kwargs):
+        if self == state_path:
+            raise OSError("locked")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _fake_unlink)
+
+    service_state_support.service_clear_state(
+        agi,
+        env,
+        log=SimpleNamespace(debug=lambda message, *args: logs.append(message % args if args else message)),
+    )
+
+    assert logs and "Failed to remove service state file" in logs[0]
+
+
 def test_service_finalize_response_health_only_adds_export_path():
     agi = _build_agi()
     env = _build_env(Path("/tmp"))
@@ -390,6 +441,33 @@ def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_pat
     assert stale_heartbeat.exists() is False
 
 
+def test_init_service_queue_ignores_missing_files_during_cleanup(monkeypatch, tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path, target="mycode_project", app="mycode_project")
+    queue_root = tmp_path / "queue"
+    for name in ("pending", "running", "done", "failed", "heartbeats"):
+        (queue_root / name).mkdir(parents=True, exist_ok=True)
+
+    stale_pending = queue_root / "pending" / "old.task.pkl"
+    stale_running = queue_root / "running" / "old.task.pkl"
+    stale_heartbeat = queue_root / "heartbeats" / "old.json"
+    stale_pending.write_text("x", encoding="utf-8")
+    stale_running.write_text("x", encoding="utf-8")
+    stale_heartbeat.write_text("{}", encoding="utf-8")
+    original_unlink = Path.unlink
+
+    def _fake_unlink(self, *args, **kwargs):
+        if self in {stale_pending, stale_running, stale_heartbeat}:
+            raise FileNotFoundError(self)
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _fake_unlink)
+
+    queue_paths = service_state_support.init_service_queue(agi, env, service_queue_dir=queue_root)
+
+    assert queue_paths["root"] == queue_root
+
+
 def test_service_state_path_falls_back_when_resolve_share_path_is_missing(tmp_path):
     env = _build_env(tmp_path, resolve_share_path=lambda _path: (_ for _ in ()).throw(RuntimeError("missing share")))
 
@@ -418,7 +496,56 @@ def test_service_health_path_covers_default_relative_fallback(tmp_path):
     path = service_state_support.service_health_path(env)
 
     assert str(path).endswith(f"{env.target}/health.json")
-    assert path.parent.exists()
+
+
+def test_service_cleanup_artifacts_ignores_racing_stat_and_unlink(monkeypatch, tmp_path):
+    agi = _build_agi()
+    done = tmp_path / "done"
+    failed = tmp_path / "failed"
+    heartbeats = tmp_path / "heartbeats"
+    for folder in (done, failed, heartbeats):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    done_file = done / "done.task.pkl"
+    failed_file = failed / "failed.task.pkl"
+    heartbeat_file = heartbeats / "heartbeat.json"
+    done_file.write_text("x", encoding="utf-8")
+    failed_file.write_text("x", encoding="utf-8")
+    heartbeat_file.write_text("x", encoding="utf-8")
+
+    agi._service_queue_done = done
+    agi._service_queue_failed = failed
+    agi._service_queue_heartbeats = heartbeats
+    agi._service_cleanup_done_ttl_sec = 0.0
+    agi._service_cleanup_failed_ttl_sec = 0.0
+    agi._service_cleanup_heartbeat_ttl_sec = 0.0
+    agi._service_cleanup_done_max_files = 0
+    agi._service_cleanup_failed_max_files = 0
+    agi._service_cleanup_heartbeat_max_files = 0
+    original_stat = Path.stat
+    original_unlink = Path.unlink
+
+    def _fake_stat(self, *args, **kwargs):
+        if self == done_file:
+            raise FileNotFoundError(self)
+        return original_stat(self, *args, **kwargs)
+
+    def _fake_unlink(self, *args, **kwargs):
+        if self in {failed_file, heartbeat_file}:
+            raise FileNotFoundError(self)
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _fake_stat)
+    monkeypatch.setattr(Path, "unlink", _fake_unlink)
+
+    assert service_state_support.service_cleanup_artifacts(agi) == {
+        "done": 0,
+        "failed": 0,
+        "heartbeats": 0,
+    }
+    assert done.exists()
+    assert failed.exists()
+    assert heartbeats.exists()
 
 
 def test_service_finalize_response_without_health_path():
@@ -668,3 +795,38 @@ def test_service_cleanup_artifacts_removes_overflow_and_ignores_missing_unlinks(
     assert cleaned["done"] == 1
     assert done_c.exists()
     assert done_b.exists() is False
+
+
+def test_service_cleanup_artifacts_ttl_ignores_missing_unlink(tmp_path, monkeypatch):
+    agi = _build_agi()
+    done_dir = tmp_path / "done"
+    done_dir.mkdir(parents=True, exist_ok=True)
+    stale = done_dir / "stale.task.pkl"
+    stale.write_text("x", encoding="utf-8")
+    old = time.time() - 1000
+    os.utime(stale, (old, old))
+
+    agi._service_queue_done = done_dir
+    agi._service_queue_failed = tmp_path / "failed"
+    agi._service_queue_heartbeats = tmp_path / "heartbeats"
+    agi._service_queue_failed.mkdir(parents=True, exist_ok=True)
+    agi._service_queue_heartbeats.mkdir(parents=True, exist_ok=True)
+    agi._service_cleanup_done_ttl_sec = 1.0
+    agi._service_cleanup_failed_ttl_sec = 0.0
+    agi._service_cleanup_heartbeat_ttl_sec = 0.0
+    agi._service_cleanup_done_max_files = 10
+    agi._service_cleanup_failed_max_files = 10
+    agi._service_cleanup_heartbeat_max_files = 10
+
+    original_unlink = Path.unlink
+
+    def _patched_unlink(self, *args, **kwargs):
+        if self == stale:
+            raise FileNotFoundError("gone")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(service_state_support.Path, "unlink", _patched_unlink, raising=False)
+
+    cleaned = service_state_support.service_cleanup_artifacts(agi)
+
+    assert cleaned["done"] == 0

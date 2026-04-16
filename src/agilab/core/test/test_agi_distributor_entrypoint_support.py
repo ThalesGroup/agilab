@@ -740,3 +740,299 @@ async def test_start_scheduler_propagates_unexpected_connect_bug(monkeypatch, tm
             create_task_fn=lambda coro: coro,
             sleep_fn=_fake_sleep,
         )
+
+
+@pytest.mark.asyncio
+async def test_update_get_distrib_and_distribute_delegate_to_run(monkeypatch):
+    calls = []
+
+    async def _fake_run(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"ok": kwargs.get("mode")}
+
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+
+    env = SimpleNamespace()
+    await entrypoint_support.update(
+        AGI,
+        env=env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        modes_enabled=AGI.DASK_MODE,
+        args={"upgrade": True},
+    )
+    distrib = await entrypoint_support.get_distrib(
+        AGI,
+        env=env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        args={"simulate": True},
+    )
+    alias = await entrypoint_support.distribute(
+        AGI,
+        env=env,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        args={"alias": True},
+    )
+
+    assert AGI._run_type == "simulate"
+    assert calls[0][1]["mode"] == ((AGI._UPDATE_MODE | AGI.DASK_MODE) & AGI._DASK_RESET)
+    assert calls[1][0] == (env, "127.0.0.1", {"127.0.0.1": 1})
+    assert calls[1][1]["mode"] == AGI._SIMULATE_MODE
+    assert distrib == {"ok": AGI._SIMULATE_MODE}
+    assert alias == {"ok": AGI._SIMULATE_MODE}
+
+
+@pytest.mark.asyncio
+async def test_detect_export_cmd_expected_lookup_error_returns_empty(monkeypatch):
+    async def _fake_exec(_ip, _cmd):
+        raise RuntimeError("expected lookup failure")
+
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
+
+    assert await entrypoint_support.detect_export_cmd(
+        AGI,
+        "10.0.0.7",
+        is_local_fn=lambda _ip: False,
+        local_export_bin="LOCAL ",
+    ) == ""
+
+
+@pytest.mark.asyncio
+async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_missing_remote_scheduler(monkeypatch, tmp_path):
+    cluster_pck = tmp_path / "cluster"
+    cli_path = cluster_pck / "agi_distributor" / "cli.py"
+    cli_path.parent.mkdir(parents=True, exist_ok=True)
+    cli_path.write_text("print('cli')\n", encoding="utf-8")
+
+    calls = {"send": [], "kill": [], "info": []}
+
+    async def _fake_send(_env, ip, local_path, remote_path):
+        calls["send"].append((ip, local_path, remote_path))
+
+    async def _fake_kill(ip, _pid, force=True):
+        calls["kill"].append((ip, force))
+
+    log = SimpleNamespace(info=lambda message, *args: calls["info"].append(message % args if args else message))
+
+    AGI.env = SimpleNamespace(cluster_pck=cluster_pck, envars={}, hw_rapids_capable=False)
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+
+    scheduler = await entrypoint_support._prepare_scheduler_nodes(
+        AGI,
+        None,
+        cli_rel=Path("worker/cli.py"),
+        log=log,
+    )
+
+    assert scheduler == "127.0.0.1"
+    assert calls["kill"] == [("127.0.0.1", True)]
+
+    calls = {"send": [], "kill": [], "info": []}
+    AGI._workers = {"10.0.0.2": 1}
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("10.0.0.1", 8786)))
+
+    scheduler = await entrypoint_support._prepare_scheduler_nodes(
+        AGI,
+        None,
+        cli_rel=Path("worker/cli.py"),
+        log=log,
+    )
+
+    assert scheduler is None
+    assert any("required -> Stop" in message for message in calls["info"])
+    assert ("10.0.0.1", True) in calls["kill"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_scheduler_cmd_prefix_ignores_expected_detect_error(monkeypatch):
+    AGI.env = SimpleNamespace(envars={})
+    AGI._scheduler_ip = "10.0.0.9"
+    updates = []
+
+    async def _fake_detect(_ip):
+        raise RuntimeError("expected detect failure")
+
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+
+    prefix = await entrypoint_support._resolve_scheduler_cmd_prefix(
+        AGI,
+        set_env_var_fn=lambda *args: updates.append(args),
+    )
+
+    assert prefix == ""
+    assert updates == []
+
+
+@pytest.mark.asyncio
+async def test_launch_scheduler_process_local_logs_background_result(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+
+    calls = {"info": []}
+    AGI.env = SimpleNamespace(
+        active_app=app_path,
+        wenv_rel=Path("worker"),
+        wenv_abs=tmp_path / "worker",
+        uv="uv",
+        export_local_bin="",
+        app="demo",
+        is_local=lambda _ip: True,
+    )
+    AGI.env.wenv_abs.mkdir(parents=True, exist_ok=True)
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 8786
+    monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
+    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: "started"))
+
+    log = SimpleNamespace(info=lambda message, *args: calls["info"].append(message % args if args else message))
+
+    async def _fake_sleep(_delay):
+        return None
+
+    await entrypoint_support._launch_scheduler_process(
+        AGI,
+        cmd_prefix="",
+        create_task_fn=lambda coro: coro,
+        sleep_fn=_fake_sleep,
+        log=log,
+    )
+
+    assert "started" in calls["info"]
+
+
+@pytest.mark.asyncio
+async def test_launch_scheduler_process_remote_sends_pyproject_and_starts_async_worker(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+
+    calls = {"exec": [], "send": [], "tasks": []}
+    AGI.env = SimpleNamespace(
+        active_app=app_path,
+        wenv_rel=Path("worker"),
+        wenv_abs=tmp_path / "worker",
+        uv="uv",
+        export_local_bin="",
+        app="demo",
+        is_local=lambda _ip: False,
+    )
+    AGI._scheduler_ip = "10.0.0.2"
+    AGI._scheduler_port = 8786
+
+    async def _fake_exec_ssh(ip, cmd):
+        calls["exec"].append((ip, cmd))
+
+    async def _fake_send(_env, ip, local_path, remote_path):
+        calls["send"].append((ip, local_path, remote_path))
+
+    monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: "ENV=1 "))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec_ssh))
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send))
+    monkeypatch.setattr(
+        AGI,
+        "exec_ssh_async",
+        staticmethod(lambda ip, cmd: ("exec_ssh_async", ip, cmd)),
+    )
+
+    async def _fake_sleep(_delay):
+        return None
+
+    await entrypoint_support._launch_scheduler_process(
+        AGI,
+        cmd_prefix="PREFIX ",
+        create_task_fn=lambda task: calls["tasks"].append(task),
+        sleep_fn=_fake_sleep,
+    )
+
+    assert calls["exec"]
+    assert calls["send"][0][1] == app_path / "pyproject.toml"
+    assert calls["send"][0][2] == Path("worker") / "pyproject.toml"
+    assert calls["tasks"][0][0] == "exec_ssh_async"
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_reraises_runtime_error_and_worker_init_error(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    cluster_pck = tmp_path / "cluster"
+    (cluster_pck / "agi_distributor").mkdir(parents=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_rel=Path("wenv/demo_worker"),
+        wenv_abs=tmp_path / "wenv" / "demo_worker",
+        active_app=app_path,
+        cluster_pck=cluster_pck,
+        envars={},
+        uv="uv",
+        export_local_bin="",
+        app="demo",
+        hw_rapids_capable=False,
+        is_local=lambda ip: True,
+    )
+    env.wenv_abs.mkdir(parents=True)
+    AGI.env = env
+    AGI._mode_auto = True
+    AGI._mode = AGI.DASK_MODE
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._TIMEOUT = 1
+    AGI._scheduler = "127.0.0.1:8799"
+
+    async def _fake_send_file(*_args, **_kwargs):
+        return None
+
+    async def _fake_kill(*_args, **_kwargs):
+        return None
+
+    async def _fake_wait_for_port_release(*_args, **_kwargs):
+        return True
+
+    async def _fake_detect_export_cmd(*_args, **_kwargs):
+        return ""
+
+    async def _fake_sleep(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd))
+    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
+    monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
+    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
+
+    async def _raise_runtime(*_args, **_kwargs):
+        raise RuntimeError("retry exhausted")
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_raise_runtime))
+    AGI._worker_init_error = False
+    with pytest.raises(RuntimeError, match="retry exhausted"):
+        await entrypoint_support.start_scheduler(
+            AGI,
+            "127.0.0.1",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+            create_task_fn=lambda coro: coro,
+            sleep_fn=_fake_sleep,
+        )
+
+    async def _connect_ok(*_args, **_kwargs):
+        return "client"
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_connect_ok))
+    AGI._worker_init_error = True
+    with pytest.raises(FileNotFoundError, match="Please run AGI.install"):
+        await entrypoint_support.start_scheduler(
+            AGI,
+            "127.0.0.1",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+            create_task_fn=lambda coro: coro,
+            sleep_fn=_fake_sleep,
+        )

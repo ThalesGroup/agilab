@@ -532,6 +532,17 @@ def test_resolve_primary_cython_dist_path_handles_missing_primary_and_skips_miss
     assert sys_path == []
 
 
+def test_append_sibling_worker_dist_paths_skips_missing_root(tmp_path):
+    sys_path = ["existing"]
+
+    execution_support._append_sibling_worker_dist_paths(
+        tmp_path / "missing",
+        sys_path=sys_path,
+    )
+
+    assert sys_path == ["existing"]
+
+
 def test_baseworker_run_plan_mode_and_distribution_failures(monkeypatch, tmp_path):
     env = SimpleNamespace(
         wenv_abs=tmp_path / "demo_worker",
