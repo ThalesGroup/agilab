@@ -83,3 +83,16 @@ def test_main_json_output_for_explicit_files(capsys) -> None:
     assert any(zone["key"] == "runconfig" for zone in payload["risk_zones"])
     assert any(action["key"] == "runconfig-regenerate" for action in payload["artifact_actions"])
     assert "test/test_view_maps_network.py" in payload["guessed_tests"]
+
+
+def test_analyze_paths_adds_install_contract_check_for_install_entrypoint() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(["src/agilab/apps/install.py"])
+
+    assert report.overall_risk == "high"
+    assert any(gate.key == "install-contract" for gate in report.push_gates)
+    contract_check = next(
+        action for action in report.required_validations if action.key == "install-contract-check"
+    )
+    assert "tools/install_contract_check.py" in contract_check.commands[0]
