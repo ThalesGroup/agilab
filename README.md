@@ -34,10 +34,10 @@
 
 # AGILAB Open Source Project
 
-AGILAB is an open-source platform for **reproducible AI/ML workflows** that takes you from local experimentation to
-distributed execution and long-lived services. It combines app scaffolding, environment isolation, workflow
-orchestration, and service health gates in one stack so teams can move from prototype to production-like operation
-without rebuilding their tooling at every stage.
+AGILAB is an open-source platform for **reproducible AI/ML workflows** that takes the same application from local
+experimentation to distributed execution and long-lived services. It is aimed first at applied ML engineers who need
+one control path for setup, execution, replay, and analysis instead of hand-wiring those steps separately at each
+stage.
 
 AGILAB is maintained by the Thales Group and released under the
 [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
@@ -51,16 +51,27 @@ distributed execution, and operational experimentation. AGILAB reflects that
 vision: turning AI apps from isolated scripts into structured, testable,
 benchmarkable, and shareable workflows.
 
+## Who AGILAB Is For
+
+AGILAB is strongest when your problem is not just "run one script once" but:
+
+- you need the same workflow to stay understandable from local trial to distributed run
+- you want execution, replay, and analysis to stay tied to the same app context
+- you want service mode to be part of the workflow instead of a separate rewrite
+
+If you only want the smallest possible single-notebook path, AGILAB may be more structure than you need. If you need
+reproducibility once the workflow starts growing, that is the target use case.
+
 ## Why teams use AGILAB
 
 - **One control path** from Streamlit or CLI entrypoints to isolated local and distributed workers.
 - **Reproducible execution** through managed environments, explicit execution pipelines, and per-app settings.
 - **Persistent service mode** through `AGI.serve` (`start` / `status` / `health` / `stop`) with machine-readable health gates.
 - **Production-style orchestration** using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
-- **Free-threaded Python aware** when both the selected environment and worker declare support.
-- **Agent-friendly developer workflow** through `AGENTS.md`, repo skill trees (`.claude/skills` and `.codex/skills`), PyCharm run configs, generated VS Code tasks and launch configs, and agent helpers.
 - **Ready-to-adapt examples** for applied AI/ML scenarios such as flight simulation, network traffic, industrial IoT,
   and optimization workloads.
+- **Agent-friendly developer workflow** through `AGENTS.md`, repo skill trees (`.claude/skills` and `.codex/skills`), PyCharm run configs, generated VS Code tasks and launch configs, and agent helpers.
+- **Free-threaded Python aware** when both the selected environment and worker declare support.
 
 ## Where AGILAB fits in production ML
 
@@ -89,17 +100,42 @@ plane for each stage.
 
 ![AGILAB runtime stack](docs/source/Agilab-Overview.svg)
 
-## Quick start
+## Recommended First Run
 
-If you are new to AGILab, keep the first run local and use a built-in app. Pick
-one onboarding path first and stay on it until you get one successful run:
+If you are new to AGILAB, start with one path only:
 
-- Use the published package if you want to evaluate AGILab quickly.
-- Use the source checkout with the web UI if you want the full AGILAB workflow.
-- Use the source checkout with a notebook if you want to stay code-first and
-  learn `agi-core` before the UI.
+- use a source checkout
+- launch the web UI
+- run the built-in `flight_project`
+- keep the first run local
 
-### Evaluate the published package
+This is the strongest first proof of the product because it shows the full AGILAB workflow instead of only the
+thinnest install path.
+
+```bash
+git clone https://github.com/ThalesGroup/agilab.git
+cd agilab
+./install.sh --install-apps --test-apps
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+```
+
+Then in the UI:
+
+1. select `src/agilab/apps/builtin/flight_project` in **PROJECT**
+2. run the install/distribute/run flow in **ORCHESTRATE**
+3. inspect the generated step in **PIPELINE**
+4. open the resulting view in **ANALYSIS**
+
+Your first proof point is explicit:
+
+- fresh generated output appears under `~/log/execute/flight/`
+- the workflow stays visible as `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
+
+## Alternative Onboarding Paths
+
+Use these only if you already know why you want them.
+
+### Evaluate the published package quickly
 
 ```bash
 mkdir ~/agi-workspace && cd ~/agi-workspace
@@ -107,15 +143,6 @@ uv venv
 source .venv/bin/activate
 uv pip install agilab
 uv run agilab
-```
-
-### Work from source
-
-```bash
-git clone https://github.com/ThalesGroup/agilab.git
-cd agilab
-./install.sh --install-apps --test-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
 
 ### Stay in a notebook with `agi-core`
@@ -132,12 +159,10 @@ bundled applications into the workspace, and validate the setup with tests and c
 
 For a first pass through the product:
 
-- Start with `src/agilab/apps/builtin/mycode_project` or `src/agilab/apps/builtin/flight_project`.
+- Start with `src/agilab/apps/builtin/flight_project`.
 - Do one successful local run before touching SSH hosts, cluster settings, or private app repositories.
-- Treat `~/log/execute/<app>/` as the "it worked" checkpoint: AGILab writes generated snippets, logs, and run history there.
-- If you prefer to stay in a notebook at the beginning, use
-  `examples/notebook_quickstart/agi_core_first_run.ipynb` and the public guide at
-  `https://thalesgroup.github.io/agilab/notebook-quickstart.html`.
+- Treat `~/log/execute/flight/` as the "it worked" checkpoint: AGILAB writes generated snippets, logs, and run history there.
+- Use `examples/notebook_quickstart/agi_core_first_run.ipynb` only if you intentionally want the code-first path.
 
 See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes and end-user
 deployment instructions.
