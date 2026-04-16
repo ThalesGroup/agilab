@@ -25,7 +25,8 @@ Do not fragment this launch wave across multiple unrelated product stories.
 
 Use one primary demo asset for this wave:
 
-- primary demo video: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- published public video: `https://youtu.be/kOMDyvbnC9w`
+- local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
 - primary still image fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 - supporting workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 
@@ -156,6 +157,7 @@ https://thalesgroup.github.io/agilab
 ### Asset for LinkedIn
 
 - first choice: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- public fallback link: `https://youtu.be/kOMDyvbnC9w`
 - fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 
 ## Reddit

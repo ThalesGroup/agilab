@@ -17,7 +17,7 @@ The goal is not bookkeeping. The goal is to learn which launch actions are impro
 
 | Week | Stars start | Stars end | Net stars | README views | Docs visits | PyPI installs | External questions | Main traffic source | Main leak in funnel | Decision for next week |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-04-13 | 4 | 5 | 1 | n/a | n/a | n/a | 0 | GitHub discussion #8 | launch wave incomplete and traffic is still not instrumented; the demo video is also local-only | publish LinkedIn post, regenerate the flight reel on the launch machine, and add traffic measurement |
+| 2026-04-13 | 4 | 5 | 1 | n/a | n/a | n/a | 0 | GitHub discussion #8 | launch wave incomplete and traffic is still not instrumented | publish LinkedIn post and add traffic measurement |
 | YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
 | YYYY-MM-DD |  |  |  |  |  |  |  |  |  |  |
 
@@ -29,11 +29,12 @@ The goal is not bookkeeping. The goal is to learn which launch actions are impro
 
 - Public repo stars: `5`
 - Launch artifact executed: GitHub discussion `#8`
+- Published public flight video: `https://youtu.be/kOMDyvbnC9w`
 - External questions/comments observed on the discussion: `0`
 - README and GitHub repo description are aligned with the locked positioning
 - Docs landing copy and quick-start wording are now aligned in the canonical source and public mirror
 - The CLI-safe quick-start path is present in both README and docs
-- The primary canonical demo video was regenerated locally with `tools/build_product_demo_reel.py`, but it remains a local-only asset because `artifacts/demo_media/` is git-ignored
+- The source reel can still be regenerated locally with `tools/build_product_demo_reel.py` when a native-upload asset is needed
 
 ## Weekly review questions
 
