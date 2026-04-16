@@ -112,10 +112,7 @@ def normalize_lab_choice(raw_value: Any, modules: List[str]) -> str:
         if candidate in modules:
             return candidate
     candidate_stems = {candidate.removesuffix("_project") for candidate in candidates if candidate}
-    for module in modules:
-        if module.removesuffix("_project") in candidate_stems:
-            return module
-    return ""
+    return next((module for module in modules if module.removesuffix("_project") in candidate_stems), "")
 
 
 def resolve_lab_export_dir(export_root: Path, lab_choice: str) -> Path:

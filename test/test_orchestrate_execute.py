@@ -851,6 +851,42 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_render_execute_section_combo_button_queues_action(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"combo_exec_load_export": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
+    )
+
+    assert any(kind == "rerun" and msg == "called" for kind, msg in fake_st.messages)
+    assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
+    assert fake_st.session_state["_combo_load_trigger"] is True
+    assert fake_st.session_state["_combo_export_trigger"] is True
+
+
+@pytest.mark.asyncio
 async def test_render_execute_section_load_warns_when_no_preview_or_empty_batch(monkeypatch, tmp_path):
     no_target_st = _FakeStreamlit(
         {
@@ -1446,6 +1482,97 @@ async def test_render_execute_section_loads_single_file_and_combo_install_gap(mo
     )
 
     assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in combo_st.messages)
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_combo_runs_when_installation_exists(monkeypatch, tmp_path):
+    project_path = tmp_path / "project"
+    manager_venv = project_path / ".venv"
+    worker_venv = (tmp_path / "wenv") / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        if log_callback is not None:
+            log_callback("combo run log")
+        return "", ""
+
+    combo_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "combo",
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", combo_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        run_agi=_run_agi,
+        snippet_tail="pass",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=project_path,
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=_make_execute_deps(combo_st.messages, combo_st.session_state),
+    )
+
+    assert any(kind == "caption" and "Logs saved to" in msg for kind, msg in combo_st.messages)
+    assert combo_st.session_state["_combo_load_trigger"] is True
+    assert combo_st.session_state["_combo_export_trigger"] is True
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_export_checkbox_callbacks_update_selection(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "loaded_df": pd.DataFrame({"a": [1], "b": [2]}),
+            "selected_cols": ["b"],
+            "check_all": False,
+            "export_col_0": True,
+            "export_col_1": False,
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={
+            "__checkbox__::export_col_0": True,
+            "__checkbox__::export_col_1": True,
+        },
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=False,
+        cmd=None,
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
+    )
+
+    assert fake_st.session_state["selected_cols"] == ["a"]
+    assert fake_st.session_state["check_all"] is False
+    assert fake_st.session_state["_force_export_open"] is True
 
 
 @pytest.mark.asyncio

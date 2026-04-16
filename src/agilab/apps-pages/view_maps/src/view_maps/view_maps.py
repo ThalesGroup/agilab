@@ -689,10 +689,7 @@ def page(env):
     for col in numeric_cols:
         if not is_integer_dtype(df[col]):
             continue
-        try:
-            value_range = df[col].max() - df[col].min()
-        except TypeError:
-            continue
+        value_range = df[col].max() - df[col].min()
         if pd.isna(value_range) or value_range > range_threshold:
             continue
         if col in continuous_cols:
@@ -800,36 +797,27 @@ def page(env):
 
     if st.session_state.get("lat") and st.session_state.get("long"):
         if st.session_state.get("coltype") and st.session_state.get(st.session_state["coltype"]):
-            if discreteseq:
-                # Get the color sequence
-                color_sequence = getattr(px.colors.qualitative, discreteseq)
-                fig = px.scatter_map(
-                    plot_df,
-                    lat=st.session_state.lat,
-                    lon=st.session_state.long,
-                    zoom=map_cfg["default_zoom"],
-                    center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
-                    color_discrete_sequence=color_sequence,
-                    color=st.session_state[st.session_state.coltype],
-                )
-            elif colorscale:
-                fig = px.scatter_map(
-                    plot_df,
-                    lat=st.session_state.lat,
-                    lon=st.session_state.long,
-                    zoom=map_cfg["default_zoom"],
-                    center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
-                    color_continuous_scale=colorscale,
-                    color=st.session_state[st.session_state.coltype],
-                )
-            else:
-                fig = px.scatter_map(
-                    plot_df,
-                    lat=st.session_state.lat,
-                    lon=st.session_state.long,
-                    zoom=map_cfg["default_zoom"],
-                    center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
-                )
+            color_kwargs = (
+                {
+                    "color_discrete_sequence": getattr(px.colors.qualitative, discreteseq),
+                    "color": st.session_state[st.session_state.coltype],
+                }
+                if discreteseq
+                else {
+                    "color_continuous_scale": colorscale,
+                    "color": st.session_state[st.session_state.coltype],
+                }
+                if colorscale
+                else {}
+            )
+            fig = px.scatter_map(
+                plot_df,
+                lat=st.session_state.lat,
+                lon=st.session_state.long,
+                zoom=map_cfg["default_zoom"],
+                center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
+                **color_kwargs,
+            )
 
             if (
                 show_sat_overlay

@@ -188,10 +188,8 @@ def macos_autofs_hint(share_candidate: Path) -> Optional[str]:
             nfs_text = ""
         if candidate_str.startswith("/mnt/"):
             mount_root = "/mnt"
-        elif candidate_str.startswith("/Volumes/"):
-            mount_root = "/Volumes"
         else:
-            mount_root = None
+            mount_root = "/Volumes"
         if mount_root and mount_root not in nfs_text:
             return (
                 f"`{auto_nfs}` exists but does not mention `{mount_root}`. Verify the map entry for `{share_candidate}` "

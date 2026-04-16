@@ -234,6 +234,11 @@ def test_normalize_lab_choice_handles_empty_and_stem_matches():
     )
 
 
+def test_normalize_lab_choice_matches_module_by_stem_only_and_returns_empty_for_unmatched():
+    assert pipeline_sidebar.normalize_lab_choice("/tmp/work/demo_project", ["demo"]) == "demo"
+    assert pipeline_sidebar.normalize_lab_choice("/tmp/work/missing_project", ["demo"]) == ""
+
+
 def test_resolve_lab_export_dir_handles_blank_and_missing_candidates(tmp_path):
     export_root = tmp_path / "export"
     export_root.mkdir()

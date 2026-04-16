@@ -557,3 +557,23 @@ def test_evaluate_service_health_gate_returns_ok_when_thresholds_are_respected()
     assert code == 0
     assert message == "ok"
     assert details["restart_rate"] == pytest.approx(1 / 3)
+
+
+def test_orchestrate_support_covers_unhealthy_and_parse_fallback_edges():
+    code, message, details = orchestrate_support.evaluate_service_health_gate(
+        {
+            "status": "ok",
+            "workers_unhealthy_count": 3,
+            "workers_running_count": 3,
+            "workers_restarted_count": 0,
+        },
+        allow_idle=True,
+        max_unhealthy=1,
+        max_restart_rate=1.0,
+    )
+
+    assert code == 2
+    assert "exceeds limit" in message
+    assert details["workers_unhealthy_count"] == 3
+    assert orchestrate_support.extract_result_dict_from_output("{bad literal}\n{'ok': 1}") == {"ok": 1}
+    assert orchestrate_support.coerce_float_setting("not-a-number", 0.25) == 0.25

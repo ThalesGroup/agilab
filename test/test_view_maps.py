@@ -368,6 +368,26 @@ def test_view_maps_repo_path_helpers(monkeypatch, tmp_path) -> None:
     assert module._default_app() == expected_app
 
 
+def test_view_maps_default_app_returns_none_without_builtin_projects(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_module()
+
+    missing_module = tmp_path / "repo" / "src" / "agilab" / "apps-pages" / "view_maps" / "src" / "view_maps" / "view_maps.py"
+    missing_module.parent.mkdir(parents=True)
+    missing_module.write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setattr(module, "__file__", str(missing_module))
+    assert module._default_app() is None
+
+    apps_root = tmp_path / "repo2" / "src" / "agilab" / "apps"
+    apps_root.mkdir(parents=True)
+    (apps_root / ".hidden_project").mkdir()
+    (apps_root / "notes").mkdir()
+    existing_module = tmp_path / "repo2" / "src" / "agilab" / "apps-pages" / "view_maps" / "src" / "view_maps" / "view_maps.py"
+    existing_module.parent.mkdir(parents=True, exist_ok=True)
+    existing_module.write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setattr(module, "__file__", str(existing_module))
+    assert module._default_app() is None
+
+
 def test_view_maps_computes_viewport_for_numeric_coordinates() -> None:
     module = _load_view_maps_module()
     df = pd.DataFrame(
@@ -747,6 +767,402 @@ def test_view_maps_page_regex_mode_reports_load_errors_and_uses_continuous_color
     assert fake_st.session_state["df_files_selected"] == ["export.csv", "other.csv"]
     assert fake_st.session_state["view_maps:df_files_selected"] == ["export.csv", "other.csv"]
     assert fake_st.session_state["df_file"] == "export.csv"
+
+
+def test_view_maps_page_recovers_legacy_selection_and_reclassifies_integer_ranges(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_csv = datadir / "export.csv"
+    export_csv.write_text(
+        "lat,long,cont_val,reclass_int,int_huge,timestamp\n"
+        "48.8566,2.3522,1.5,1,0,2025-01-01 00:00:00\n"
+        "48.8570,2.3600,2.5,2,1000,2025-01-02 00:00:00\n"
+        "48.8580,2.3610,3.5,3,2000,2025-01-03 00:00:00\n"
+        "48.8590,2.3620,4.5,4,3000,2025-01-04 00:00:00\n",
+        encoding="utf-8",
+    )
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Regex (multi)"\n'
+        'coltype = "continuous"\n'
+        'lat = "lat"\n'
+        'long = "long"\n'
+        'show_sat_overlay = false\n'
+        'unique_threshold = 2\n'
+        'range_threshold = 10\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    selection_key = module._vm_key("df_files_selected")
+
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): "",
+            ("sidebar.multiselect", "DataFrames"): ["export.csv"],
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 10,
+            ("selectbox", "discrete"): "reclass_int",
+            ("selectbox", "continuous"): "cont_val",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Scale"): "Viridis",
+            ("slider", "Select the desired number of points:"): 4,
+        }
+    )
+
+    def _button_value(**_kwargs):
+        fake_st.session_state[selection_key] = None
+        return False
+
+    fake_st.widget_values[("sidebar.button", "Select all matching (1)")] = _button_value
+    fake_st.session_state["csv_files"] = [datadir / "legacy.csv"]
+    fake_st.session_state[selection_key] = "not-a-list"
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+
+    module.page(env)
+
+    assert fake_st.calls["sidebar.write"] == [""]
+    assert fake_st.calls["plotly_chart"]
+    assert fake_st.session_state[selection_key] == ["export.csv"]
+    assert fake_st.session_state["df_file"] == "export.csv"
+    assert fake_st.session_state["coltype"] == "continuous"
+
+
+def test_view_maps_page_reports_missing_files_and_many_load_errors(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    missing_files = [datadir / f"missing_{idx}.csv" for idx in range(55)]
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Regex (multi)"\n'
+        'df_file_regex = ".*"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Regex (multi)",
+            ("sidebar.text_input", "DataFrame filename regex"): ".*",
+            ("sidebar.button", "Select all matching (55)"): True,
+            ("sidebar.multiselect", "DataFrames"): [path.name for path in missing_files],
+        }
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: missing_files if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: (_ for _ in ()).throw(FileNotFoundError(path)))
+
+    module.page(env)
+
+    assert any("Some selected files failed to load" in message for message in fake_st.calls["sidebar.warning"])
+    assert any("... (5 more)" in message for message in fake_st.calls["write"])
+    assert any("No selected dataframes could be loaded." in message for message in fake_st.calls["error"])
+
+
+def test_view_maps_page_handles_invalid_concat_and_empty_sampling(tmp_path, monkeypatch) -> None:
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_csv = datadir / "export.csv"
+    export_csv.write_text("lat,long\n48.0,2.0\n49.0,3.0\n", encoding="utf-8")
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.csv"\n'
+        'df_files_selected = ["export.csv"]\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+
+    with monkeypatch.context() as mp:
+        module = _load_view_maps_module()
+        fake_st_invalid_concat = _FakeStreamlit(
+            {
+                ("sidebar.selectbox", "File type"): "all",
+                ("sidebar.radio", "Dataset selection"): "Single file",
+                ("sidebar.selectbox", "DataFrame"): "export.csv",
+            }
+        )
+        mp.setattr(module, "st", fake_st_invalid_concat)
+        mp.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+        mp.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+        mp.setattr(module.pd, "concat", lambda *args, **kwargs: pd.DataFrame(index=[0]))
+
+        module.page(env)
+
+        assert any(
+            "The dataset is empty or could not be loaded." in message
+            for message in fake_st_invalid_concat.calls["warning"]
+        )
+
+    with monkeypatch.context() as mp:
+        module = _load_view_maps_module()
+        env = _make_env(tmp_path, datadir)
+        env.app_settings_file = settings_path
+        line_limit_key = module._vm_key("table_max_rows")
+        fake_st_empty_sample = _FakeStreamlit(
+            {
+                ("sidebar.selectbox", "File type"): "all",
+                ("sidebar.radio", "Dataset selection"): "Single file",
+                ("sidebar.selectbox", "DataFrame"): "export.csv",
+                ("column.number_input", "Sampling ratio"): 1,
+            }
+        )
+        fake_st_empty_sample.session_state["TABLE_MAX_ROWS"] = object()
+        fake_st_empty_sample.session_state[line_limit_key] = object()
+
+        mp.setattr(module, "st", fake_st_empty_sample)
+        mp.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+        mp.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+        mp.setattr(module, "downsample_df_deterministic", lambda df, ratio: df.iloc[0:0].copy())
+
+        module.page(env)
+
+    assert any(
+        "No points remain after sampling." in message
+        for message in fake_st_empty_sample.calls["warning"]
+    )
+
+
+def test_view_maps_page_persists_datadir_and_recovers_invalid_line_limits(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    export_root = tmp_path / "export"
+    initial_datadir = export_root / "demo_map"
+    redirected_datadir = tmp_path / "redirected" / "demo_map"
+    for datadir in (initial_datadir, redirected_datadir):
+        datadir.mkdir(parents=True, exist_ok=True)
+        (datadir / "export.csv").write_text(
+            "lat,long,metric\n48.0,2.0,1.0\n49.0,3.0,2.0\n",
+            encoding="utf-8",
+        )
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{initial_datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.csv"\n'
+        'df_files_selected = ["export.csv"]\n'
+        'coltype = "continuous"\n'
+        'lat = "lat"\n'
+        'long = "long"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, initial_datadir)
+    env.app_settings_file = settings_path
+    line_limit_key = module._vm_key("table_max_rows")
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
+            ("selectbox", "discrete"): "metric",
+            ("selectbox", "continuous"): "metric",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Scale"): "Viridis",
+            ("slider", "Select the desired number of points:"): 2,
+        }
+    )
+    fake_st.session_state["datadir"] = str(redirected_datadir)
+    fake_st.session_state["_view_maps_last_target"] = env.target
+    fake_st.session_state["TABLE_MAX_ROWS"] = object()
+    fake_st.session_state[line_limit_key] = object()
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [Path(base) / "export.csv"] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+
+    module.page(env)
+
+    assert fake_st.calls["plotly_chart"]
+    assert str(redirected_datadir) in settings_path.read_text(encoding="utf-8")
+
+
+def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_csv = datadir / "export.csv"
+    export_csv.write_text(
+        "lat,long,metric\n48.0,2.0,1.0\n49.0,3.0,2.0\n",
+        encoding="utf-8",
+    )
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.csv"\n'
+        'df_files_selected = ["export.csv"]\n'
+        'coltype = "continuous"\n'
+        'lat = "lat"\n'
+        'long = "long"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+
+    fake_st_warn = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 10,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+        }
+    )
+
+    monkeypatch.setattr(module, "st", fake_st_warn)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+
+    module.page(env)
+
+    assert any("Please select a valid column for coloring." in message for message in fake_st_warn.calls["warning"])
+
+    module = _load_view_maps_module()
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st_plain = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
+            ("selectbox", "discrete"): "metric",
+            ("selectbox", "continuous"): "lat",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Scale"): "",
+            ("slider", "Select the desired number of points:"): 2,
+        }
+    )
+
+    monkeypatch.setattr(module, "st", fake_st_plain)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+
+    module.page(env)
+
+    assert fake_st_plain.calls["plotly_chart"]
+
+
+def test_view_maps_page_covers_continuous_and_plain_color_rendering(tmp_path, monkeypatch) -> None:
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_csv = datadir / "export.csv"
+    export_csv.write_text(
+        "lat,long,metric\n48.0,2.0,1.0\n49.0,3.0,2.0\n",
+        encoding="utf-8",
+    )
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.csv"\n'
+        'df_files_selected = ["export.csv"]\n'
+        'coltype = "continuous"\n'
+        'continuous = "metric"\n'
+        'lat = "lat"\n'
+        'long = "long"\n',
+        encoding="utf-8",
+    )
+
+    module = _load_view_maps_module()
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st_scale = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
+            ("selectbox", "discrete"): "metric",
+            ("selectbox", "continuous"): "metric",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Scale"): "Viridis",
+            ("slider", "Select the desired number of points:"): 2,
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st_scale)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    module.page(env)
+    assert fake_st_scale.calls["plotly_chart"]
+
+    module = _load_view_maps_module()
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st_plain = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.csv",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
+            ("selectbox", "discrete"): "metric",
+            ("selectbox", "continuous"): "metric",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Scale"): "",
+            ("slider", "Select the desired number of points:"): 2,
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st_plain)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
+    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    module.page(env)
+    assert fake_st_plain.calls["plotly_chart"]
 
 
 def test_view_maps_page_reports_discovery_errors_as_no_dataset(tmp_path, monkeypatch) -> None:

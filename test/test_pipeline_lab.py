@@ -464,6 +464,27 @@ def test_pipeline_lab_import_falls_back_when_pipeline_modules_are_unavailable():
     assert fallback.ORCHESTRATE_LOCKED_STEP_KEY == pipeline_lab.ORCHESTRATE_LOCKED_STEP_KEY
 
 
+def test_pipeline_lab_import_falls_back_when_code_editor_support_is_unavailable():
+    fallback = _load_pipeline_lab_with_missing("agilab.code_editor_support")
+
+    assert fallback.normalize_custom_buttons([{"name": "Run"}]) == [{"name": "Run"}]
+    assert fallback.normalize_custom_buttons({"buttons": [{"name": "Run"}]}) == [{"name": "Run"}]
+
+
+def test_pipeline_lab_import_fallback_raises_when_code_editor_support_local_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _fake_spec(name, location, *args, **kwargs):
+        if name == "agilab_code_editor_support_fallback":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="code_editor_support"):
+        _load_pipeline_lab_with_missing("agilab.code_editor_support")
+
+
 def test_pipeline_lab_import_fallback_raises_when_pipeline_steps_local_spec_is_missing(monkeypatch):
     original_spec = importlib.util.spec_from_file_location
 

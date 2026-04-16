@@ -134,6 +134,30 @@ def test_update_datadir_clears_selected_file_state(monkeypatch) -> None:
     assert initialize_calls == ["called"]
 
 
+def test_view_autoencoder_latentspace_ensure_repo_on_path_adds_src_and_repo(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    app_root = (
+        src_root
+        / "agilab"
+        / "apps-pages"
+        / "view_autoencoder_latentspace"
+        / "src"
+        / "view_autoencoder_latentspace"
+    )
+    app_root.mkdir(parents=True)
+    module_path = app_root / "autoencoder_latentspace.py"
+    module_path.write_text("# stub\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(module.sys, "path", [])
+    module._ensure_repo_on_path()
+
+    assert str(src_root) in module.sys.path
+    assert str(repo_root) in module.sys.path
+
+
 def test_lazy_import_helpers_and_normalize_data(monkeypatch) -> None:
     module = _load_module()
 
@@ -354,6 +378,11 @@ def test_bary_visualisation_supports_color_and_plain_modes(monkeypatch) -> None:
     assert plotted[-1][1] == "svg"
     assert plotted[-1][0].attrs.markers_colormap["colorscale"] == ["blue", "blue"]
 
+    plotted.clear()
+    numeric_color_data = pd.Series([1.0, 2.0])
+    module.__bary_visualisation(df, df.copy(), "label", "demo", "png", color_data=numeric_color_data)
+    assert plotted[-1][0].attrs.markers_colormap["colorscale"] == "Blues"
+
 
 def test_page_handles_missing_and_empty_data(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
@@ -381,6 +410,16 @@ def test_page_handles_missing_and_empty_data(monkeypatch, tmp_path: Path) -> Non
     )
     module.page(env)
     assert any("empty or could not be loaded" in message for message in warnings_seen)
+
+    warnings_seen.clear()
+    monkeypatch.setattr(module, "load_df", lambda *args, **kwargs: ["bad-payload"])
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(session_state=_State(datadir="/tmp/data", df_file="invalid.csv"), warning=warnings_seen.append),
+    )
+    module.page(env)
+    assert any("empty or could not be loaded" in message.lower() for message in warnings_seen)
 
 
 def test_page_runs_autoencoder_flow_and_persists_settings(monkeypatch, tmp_path: Path) -> None:
@@ -469,6 +508,72 @@ def test_page_runs_autoencoder_flow_and_persists_settings(monkeypatch, tmp_path:
     written = settings_path.read_text(encoding="utf-8")
     assert "view_autoencoder_latentspace" in written
     assert "df_file = \"data.csv\"" in written
+
+
+def test_page_persistence_tolerates_invalid_settings_and_write_failures(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text('view_autoencoder_latentspace = "broken"\n', encoding="utf-8")
+    data = pd.DataFrame(
+        {
+            "x": [1.0 + i for i in range(12)],
+            "y": [2.0 + i for i in range(12)],
+            "label": [i % 2 for i in range(12)],
+        }
+    )
+
+    class FakeSequential:
+        def __init__(self, layers=None):
+            self.layers = list(layers or [])
+
+        def predict(self, values, verbose=0):
+            return np.column_stack((values[:, 0], values[:, 1]))
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(module, "sidebar_views", lambda: None)
+    monkeypatch.setattr(module, "load_df", lambda *args, **kwargs: data.copy())
+    monkeypatch.setattr(module, "lazy_import_keras", lambda: (FakeSequential, object, object))
+    monkeypatch.setattr(
+        module,
+        "lazy_import_sklearn",
+        lambda: (
+            lambda X, y, test_size=0.2, random_state=42: (X[:8], X[8:], y.iloc[:8], y.iloc[8:]),
+            object,
+        ),
+    )
+    monkeypatch.setattr(module, "__normalize_data", lambda df: df.fillna(0))
+    monkeypatch.setattr(
+        module,
+        "build_AE",
+        lambda X_train, ndim, ndim_inter, ndim_middle: SimpleNamespace(layers=["enc1", "enc2", "latent", "dec1", "dec2"]),
+    )
+    monkeypatch.setattr(module, "__bary_visualisation", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.Path, "mkdir", lambda *args, **kwargs: None, raising=False)
+    monkeypatch.setattr(module, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")), raising=False)
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(datadir=str(tmp_path), df_file="data.csv", coltype="discrete"),
+            slider=lambda *args, **kwargs: 10,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            number_input=lambda *args, **kwargs: 2,
+            selectbox=lambda label, options, **kwargs: "label" if label == "Color" else options[0],
+            text_input=lambda *args, **kwargs: "latent-demo",
+            warning=lambda *args, **kwargs: None,
+        ),
+    )
+
+    env = SimpleNamespace(target="demo", projects=["demo_project"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert settings_path.read_text(encoding="utf-8") == 'view_autoencoder_latentspace = "broken"\n'
 
 
 def test_main_missing_active_app_sets_error(monkeypatch, tmp_path: Path) -> None:

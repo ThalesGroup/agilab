@@ -638,6 +638,73 @@ def test_page_warns_when_loaded_df_invalid(monkeypatch, tmp_path: Path) -> None:
     assert any("dataset is empty" in message.lower() for message in warnings)
 
 
+def test_view_barycentric_page_seeds_df_file_from_persisted_settings(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    data_file = datadir / "dataset.csv"
+    data_file.write_text("axis_a,axis_b,color_axis\n0,1,blue\n1,2,blue\n", encoding="utf-8")
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        "[view_barycentric]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'df_file = "dataset.csv"\n',
+        encoding="utf-8",
+    )
+
+    dataset = pd.DataFrame(
+        {
+            "axis_a": list(range(10)),
+            "axis_b": list(range(10, 20)),
+            "color_axis": ["blue"] * 10,
+        }
+    )
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    session_state = _State()
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(module, "load_df", lambda *_args, **_kwargs: dataset.copy())
+    monkeypatch.setattr(module, "__bary_visualisation", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            sidebar=sidebar,
+            warning=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+            slider=lambda *args, **kwargs: 10,
+            markdown=lambda *args, **kwargs: None,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            selectbox=lambda label, options, **kwargs: {
+                "Correlated variables pair": "axis_a",
+                "Correlated variables": "axis_b",
+                "Color": "color_axis",
+                "Format": "png",
+            }.get(label, options[0] if options else None),
+            text_input=lambda *args, **kwargs: "figure",
+            info=lambda *args, **kwargs: None,
+        ),
+    )
+
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert session_state["datadir"] == str(datadir)
+    assert session_state["df_file"] == "dataset.csv"
+
+
 def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     errors: list[str] = []
@@ -810,3 +877,87 @@ def test_view_barycentric_page_persists_and_calls_visualisation(monkeypatch, tmp
     assert (selected_x1, selected_x2, color) == ("axis_a", "axis_b", "color_axis")
     assert pivot_df.shape[1] > 1
     assert saved_payloads and saved_payloads[0]["view_barycentric"]["df_file"] == "dataset.csv"
+
+
+def test_view_barycentric_page_seeds_persisted_df_file_and_tolerates_write_failures(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    datadir = tmp_path / "data"
+    datadir.mkdir()
+    data_file = datadir / "dataset.csv"
+    data_file.write_text("axis_a,axis_b,color_axis\n1,2,blue\n2,3,blue\n3,4,blue\n4,5,blue\n5,6,blue\n", encoding="utf-8")
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        "[view_barycentric]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'df_file = "dataset.csv"\n',
+        encoding="utf-8",
+    )
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    sidebar = SimpleNamespace(
+        text_input=lambda *args, **kwargs: None,
+        selectbox=lambda *args, **kwargs: session_state.get("df_file", "dataset.csv"),
+        error=lambda *args, **kwargs: None,
+    )
+
+    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda *_args, **_kwargs: pd.DataFrame(
+            {
+                "axis_a": [0, 0, 1, 1, 2, 2],
+                "axis_b": [10, 11, 12, 13, 14, 15],
+                "color_axis": ["blue"] * 6,
+            }
+        ),
+    )
+    monkeypatch.setattr(module, "_maybe_smooth_long_column", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "__bary_visualisation", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.Path, "mkdir", lambda *args, **kwargs: None, raising=False)
+    monkeypatch.setattr(module, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")), raising=False)
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            sidebar=sidebar,
+            warning=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+            slider=lambda *args, **kwargs: 10,
+            markdown=lambda *args, **kwargs: None,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            selectbox=lambda label, options, **kwargs: {
+                "Correlated variables pair": "axis_a",
+                "Correlated variables": "axis_b",
+                "Color": "color_axis",
+                "Format": "png",
+            }.get(label, options[0] if options else None),
+            text_input=lambda *args, **kwargs: "figure",
+            info=lambda *args, **kwargs: None,
+        ),
+    )
+
+    env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    module.page(env)
+
+    assert session_state["df_file"] == "dataset.csv"
+
+
+def test_view_barycentric_main_reports_outer_exception(monkeypatch) -> None:
+    module = _load_module()
+    errors: list[str] = []
+
+    monkeypatch.setattr(module.argparse, "ArgumentParser", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("arg boom")))
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=_State(), error=errors.append))
+
+    module.main()
+
+    assert any("arg boom" in message for message in errors)

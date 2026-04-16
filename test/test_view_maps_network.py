@@ -12,6 +12,7 @@ import warnings
 import networkx as nx
 import numpy as np
 import pytest
+from streamlit.runtime.scriptrunner_utils.script_requests import RerunData
 
 from agi_env import AgiEnv
 import pandas as pd
@@ -2282,3 +2283,223 @@ def test_view_maps_network_misc_helper_fallback_branches(
     ).empty
 
     assert len(warnings) >= 2
+
+
+def test_view_maps_network_helper_skip_and_error_branches(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    module.st = SimpleNamespace(
+        warning=lambda *_args, **_kwargs: None,
+        sidebar=SimpleNamespace(warning=lambda *_args, **_kwargs: None),
+        session_state={},
+    )
+
+    share_root = tmp_path / "share"
+    topology = share_root / "pipeline" / "topology.gml"
+    topology.parent.mkdir(parents=True)
+    topology.write_text("graph", encoding="utf-8")
+
+    path_type = type(share_root)
+    original_iterdir = path_type.iterdir
+    original_resolve = path_type.resolve
+
+    def _iterdir_with_duplicate(self):
+        if self == share_root:
+            return iter([share_root])
+        return original_iterdir(self)
+
+    def _resolve_with_failure(self, strict=False):
+        if self == topology:
+            raise OSError("bad resolve")
+        return original_resolve(self, strict=strict)
+
+    monkeypatch.setattr(path_type, "iterdir", _iterdir_with_duplicate, raising=False)
+    monkeypatch.setattr(path_type, "resolve", _resolve_with_failure, raising=False)
+    assert module._quick_share_edges_paths(share_root) == [topology]
+
+    class _BadSeries:
+        def head(self, _count):
+            raise RuntimeError("boom")
+
+    class _BadFrame:
+        columns = ["edge_col"]
+
+        def __getitem__(self, key):
+            assert key == "edge_col"
+            return _BadSeries()
+
+    assert module._preview_edge_count(_BadFrame(), "edge_col") == 0
+
+    edge_df = pd.DataFrame(
+        {
+            "satcom_link": [[("1001", "9999")]],
+            "flight_id": ["1001"],
+            "long": [2.0],
+            "lat": [48.0],
+            "alt": [1000.0],
+        }
+    )
+    current_positions = pd.DataFrame(
+        {
+            "flight_id": ["1001"],
+            "long": [2.0],
+            "lat": [48.0],
+            "alt": [1000.0],
+        }
+    )
+    assert module.create_edges_geomap(edge_df, "satcom_link", current_positions).empty
+
+    scalar_alloc = tmp_path / "scalar.json"
+    scalar_alloc.write_text("1", encoding="utf-8")
+    assert module.load_allocations(scalar_alloc).empty
+
+    row_error_path = tmp_path / "row_error.json"
+    row_error_path.write_text("[]", encoding="utf-8")
+
+    class _BadRow:
+        def __getitem__(self, _key):
+            raise RuntimeError("row access failed")
+
+    class _FakeEdgesFrame:
+        columns = ["source", "target", "bearer"]
+
+        def iterrows(self):
+            yield 0, _BadRow()
+
+    monkeypatch.setattr(module.pd, "read_json", lambda *_args, **_kwargs: _FakeEdgesFrame())
+    assert module.load_edges_file(row_error_path) == {}
+
+    bad_positions = tmp_path / "bad_positions.csv"
+    bad_positions.write_text("time_s,flight_id\n0,1\n", encoding="utf-8")
+    good_positions = tmp_path / "good_positions.csv"
+    good_positions.write_text(
+        "time_s,flight_id,latitude,longitude,alt_m\n0,2,48.0,2.0,1000.0\n",
+        encoding="utf-8",
+    )
+    positions = module.load_positions_at_time(f"{bad_positions};{good_positions}", 0.0)
+    assert positions["flight_id"].tolist() == ["2"]
+
+    pair_df = pd.DataFrame(
+        {
+            "source": ["1"],
+            "destination": ["2"],
+            "time_index": [0],
+            "bearers": [["satcom"]],
+            "routed": [True],
+        }
+    )
+    assert module._selected_pair_bearer_timeline(pair_df, {"9", "10"}, "RL").empty
+    assert module._selected_pair_bearer_timeline(pair_df, {"1", "2"}, "RL", focus_pair=(3, 4)).empty
+
+
+def test_view_maps_network_main_handles_errors_and_propagates_reruns(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    errors: list[str] = []
+    codes: list[str] = []
+    module.st = SimpleNamespace(error=errors.append, code=codes.append)
+
+    def _raise_runtime():
+        raise RuntimeError("boom")
+
+    module.page = _raise_runtime
+    module.main()
+
+    assert errors == ["An error occurred: boom"]
+    assert len(codes) == 1
+    assert "RuntimeError: boom" in codes[0]
+
+    module.page = lambda: (_ for _ in ()).throw(module.RerunException(RerunData()))
+    with pytest.raises(module.RerunException):
+        module.main()
+
+
+def test_view_maps_network_helper_covers_remaining_fallback_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    module.st = SimpleNamespace(
+        warning=lambda *_args, **_kwargs: None,
+        sidebar=SimpleNamespace(warning=lambda *_args, **_kwargs: None),
+        session_state={
+            "show_trajectory_traces": True,
+        },
+    )
+
+    npz_path = tmp_path / "CloudMapSat.npz"
+    _write_heatmap_npz(npz_path)
+
+    original_sort_values = module.pd.DataFrame.sort_values
+
+    def _sort_values_with_selected_failures(self, by=None, *args, **kwargs):
+        if by == "time_col":
+            raise TypeError("bad timeline sort")
+        if by == ["id_col", "time_col"]:
+            raise TypeError("bad trajectory sort")
+        return original_sort_values(self, by=by, *args, **kwargs)
+
+    monkeypatch.setattr(module.pd.DataFrame, "sort_values", _sort_values_with_selected_failures, raising=False)
+
+    traj_df = pd.DataFrame(
+        [
+            {"id_col": "1001", "time_col": 1.0, "lat": 48.1, "long": 2.1},
+            {"id_col": "1001", "time_col": 0.0, "lat": 48.0, "long": 2.0},
+        ]
+    )
+    timeline = module._selected_nodes_heatmap_timeline(
+        traj_df,
+        npz_path,
+        {"1001"},
+        neighborhood_radius_cells=1,
+    )
+    assert not timeline.empty
+
+    assert module._trajectory_trace_layers(pd.DataFrame()) == []
+
+    layers = module._trajectory_trace_layers(
+        pd.DataFrame(
+            [
+                {"id_col": "1001", "time_col": 1.0, "long": 2.1, "lat": 48.1},
+                {"id_col": "1001", "time_col": 0.0, "long": 2.0, "lat": 48.0},
+            ]
+        )
+    )
+    assert layers
+
+    empty_alloc_path = tmp_path / "allocations_empty.json"
+    empty_alloc_path.write_text("[]", encoding="utf-8")
+    assert module._allocation_routed_edge_pairs(
+        {"1001", "2002"},
+        allocation_paths=[empty_alloc_path],
+    ) == set()
+
+    jsonl_alloc_path = tmp_path / "allocations.jsonl"
+    jsonl_alloc_path.write_text('\n{"source": 1001, "destination": 2002, "time_index": 0}\n', encoding="utf-8")
+    alloc_df = module.load_allocations(jsonl_alloc_path)
+    assert alloc_df["source"].tolist() == [1001]
+
+    empty_positions = tmp_path / "positions_empty.csv"
+    good_positions = tmp_path / "positions_good.csv"
+    empty_positions.write_text("empty", encoding="utf-8")
+    good_positions.write_text("good", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "_load_traj_file",
+        lambda fname: pd.DataFrame()
+        if "empty" in str(fname)
+        else pd.DataFrame(
+            [
+                {
+                    "time_s": 0.0,
+                    "flight_id": "2002",
+                    "latitude": 48.0,
+                    "longitude": 2.0,
+                    "alt_m": 1000.0,
+                }
+            ]
+        ),
+    )
+    positions = module.load_positions_at_time(f"{empty_positions};{good_positions}", 0.0)
+    assert positions["flight_id"].tolist() == ["2002"]
+
+    assert module._canonical_bearer_state("   ", routed=True) == "Routed"

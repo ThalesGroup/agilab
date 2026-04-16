@@ -566,8 +566,6 @@ def _downsample_heatmap_timeline(
 
     sampled_groups: list[pd.DataFrame] = []
     for _, group in timeline_df.groupby("node_id", sort=False):
-        if group.empty:
-            continue
         group = group.sort_values("map_time").copy()
         map_time = group["map_time"]
         elapsed_s: pd.Series | None = None
@@ -589,8 +587,6 @@ def _downsample_heatmap_timeline(
         keep_mask = buckets.ne(buckets.shift(fill_value=-1))
         sampled_groups.append(group.loc[keep_mask.fillna(False)].copy())
 
-    if not sampled_groups:
-        return timeline_df
     return pd.concat(sampled_groups, ignore_index=True)
 
 
@@ -2001,8 +1997,6 @@ def parse_edges(column):
     for item in column:
         tuples = convert_to_tuples(item)
         for edge in tuples:
-            if len(edge) != 2:
-                continue
             try:
                 u = str(edge[0])
                 v = str(edge[1])
@@ -3242,7 +3236,6 @@ def page():
     )
 
     base_path: Path
-    custom_base_warning = None
     if base_choice == "AGI_SHARE_DIR":
         base_path = share_base
     elif base_choice == "AGILAB_EXPORT":
@@ -3256,14 +3249,8 @@ def page():
             "Custom data directory",
             key="input_datadir",
         )
-        try:
-            base_path = Path(custom_val).expanduser()
-        except Exception:
-            base_path = export_base
-            custom_base_warning = "Invalid custom path; using AGILAB_EXPORT."
-        if custom_base_warning:
-            st.sidebar.warning(custom_base_warning)
-        elif not base_path.exists():
+        base_path = Path(custom_val).expanduser()
+        if not base_path.exists():
             st.sidebar.info(f"{base_path} does not exist. Adjust the path or create it before exploring data.")
 
     rel_default = (
@@ -3297,12 +3284,9 @@ def page():
     st.session_state["datadir_rel"] = rel_subdir
 
     # Persist selection for reloads / share links
-    try:
-        st.query_params["base_dir_choice"] = base_choice
-        st.query_params["input_datadir"] = st.session_state.get("input_datadir", "") if base_choice == "Custom" else ""
-        st.query_params["datadir_rel"] = rel_subdir
-    except Exception:
-        pass
+    st.query_params["base_dir_choice"] = base_choice
+    st.query_params["input_datadir"] = st.session_state.get("input_datadir", "") if base_choice == "Custom" else ""
+    st.query_params["datadir_rel"] = rel_subdir
 
     final_path = (base_path / rel_subdir).expanduser() if rel_subdir else base_path.expanduser()
     if base_choice == "AGILAB_EXPORT":
@@ -3376,10 +3360,7 @@ def page():
     def _visible_only(paths):
         visible = []
         for path in paths:
-            try:
-                rel_parts = path.relative_to(datadir_path).parts
-            except ValueError:
-                rel_parts = path.parts
+            rel_parts = path.relative_to(datadir_path).parts
             if any(part.startswith(".") for part in rel_parts):
                 continue
             visible.append(path)
@@ -3637,35 +3618,18 @@ def page():
         key="time_col",
     )
 
-    # Check and fix flight_id presence
-    if flight_col not in df.columns:
-        st.error(f"The dataset must contain a '{flight_col}' column.")
-        st.stop()
-
-    # Ensure time column is usable; keep numeric durations as-is to avoid 1970 epoch
-    if time_col not in df.columns:
-        try:
-            df[time_col] = pd.to_datetime(df.index)
-        except Exception:
-            st.error(f"No '{time_col}' column found and failed to convert index to datetime.")
-            st.stop()
+    # Ensure time column is usable; keep numeric durations as-is to avoid 1970 epoch.
+    if pd.api.types.is_datetime64_any_dtype(df[time_col]):
+        df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
+    elif pd.api.types.is_numeric_dtype(df[time_col]):
+        df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
     else:
-        try:
-            if pd.api.types.is_datetime64_any_dtype(df[time_col]):
-                df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
-            elif pd.api.types.is_numeric_dtype(df[time_col]):
-                # leave numeric durations as-is (seconds), avoid epoch conversion to 1970
-                df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
-            else:
-                # Some exports store step/time as strings ("0", "1", ...); prefer numeric when possible.
-                as_num = pd.to_numeric(df[time_col], errors="coerce")
-                if as_num.notna().any():
-                    df[time_col] = as_num
-                else:
-                    df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
-        except Exception:
-            st.error(f"Failed to convert '{time_col}' to datetime.")
-            st.stop()
+        # Some exports store step/time as strings ("0", "1", ...); prefer numeric when possible.
+        as_num = pd.to_numeric(df[time_col], errors="coerce")
+        if as_num.notna().any():
+            df[time_col] = as_num
+        else:
+            df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
     if df[time_col].isna().all():
         # Allow static datasets (no timestamps) to render by falling back to a single synthetic step.
         original_time_col = time_col
@@ -3681,10 +3645,6 @@ def page():
     df = df.sort_values(by=[flight_col, time_col])
     # Normalize to standard column names for downstream helpers (keep aliases for backward helpers)
     df_std = df.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
-    if "id_col" not in df_std.columns:
-        df_std["id_col"] = df[flight_col]
-    if "time_col" not in df_std.columns:
-        df_std["time_col"] = df[time_col]
     preferred_ids = df_std.apply(
         lambda row: _preferred_node_id_from_row(row),
         axis=1,
@@ -3742,10 +3702,6 @@ def page():
     if selected_node_set:
         df_std = df_std[df_std["id_col"].isin(selected_node_set)].copy()
         df = df[df["flight_id"].astype(str).isin(selected_node_set)].copy()
-    if df.empty:
-        st.warning("The dataset is empty. Please select a valid data file.")
-        return
-
     st.sidebar.markdown("### Display options")
     share_root = env.share_root_path()
     default_edges_candidates = _candidate_edges_paths(
@@ -3818,10 +3774,7 @@ def page():
             f"Recovered topology source from missing `{edges_prev}` to `{edges_clean}`."
         )
     st.session_state["edges_file"] = edges_clean
-    try:
-        st.query_params["edges_file"] = edges_clean
-    except Exception:
-        pass
+    st.query_params["edges_file"] = edges_clean
     edges_candidate_bases = [
         share_root,
         env.AGILAB_EXPORT_ABS,
@@ -3869,10 +3822,7 @@ def page():
     else:
         current_links = []
     if current_links and loaded_edges:
-        try:
-            has_edges = any(_preview_edge_count(df_std, c) > 0 for c in current_links)
-        except Exception:
-            has_edges = False
+        has_edges = any(_preview_edge_count(df_std, c) > 0 for c in current_links)
         if not has_edges and link_default:
             current_links = link_default
             st.sidebar.info("Reset link selection to detected topology edge types.")
@@ -4147,10 +4097,7 @@ def page():
             if not raw_path:
                 allocation_paths_for_display.append(None)
                 continue
-            try:
-                allocation_paths_for_display.append(Path(raw_path).expanduser())
-            except Exception:
-                allocation_paths_for_display.append(None)
+            allocation_paths_for_display.append(Path(raw_path).expanduser())
         display_node_set = _expanded_node_ids_from_allocations(
             selected_node_set,
             sample_time=selected_time,
@@ -4191,16 +4138,9 @@ def page():
         fallback_idx = display_df[display_df[flight_col].isin(missing_ids)].groupby(flight_col)[time_col].idxmax()
         if not fallback_idx.empty:
             idx_list.append(fallback_idx)
-    if not idx_list:
-        st.warning("No rows found up to the selected time.")
-        st.stop()
     idx = pd.concat(idx_list).unique()
     df_positions = display_df.loc[idx].copy()
     df_positions_std = df_positions.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
-    if "id_col" not in df_positions_std.columns:
-        df_positions_std["id_col"] = df_positions[flight_col]
-    if "time_col" not in df_positions_std.columns:
-        df_positions_std["time_col"] = df_positions[time_col]
     df_positions_std["id_col"] = df_positions_std["id_col"].astype(str)
     if "flight_id" not in df_positions_std.columns:
         df_positions_std["flight_id"] = df_positions_std["id_col"]
@@ -4215,17 +4155,10 @@ def page():
         if coord not in df_positions_std.columns:
             df_positions_std[coord] = 0.0
         df_positions_std[coord] = pd.to_numeric(df_positions_std[coord], errors="coerce").fillna(0.0)
-    if df_positions_std.empty:
-        st.warning("No rows found at the selected time.")
-        st.stop()
     current_positions = df_positions_std.groupby("id_col").last().reset_index()
     if "flight_id" not in current_positions.columns:
         current_positions["flight_id"] = current_positions["id_col"]
     current_positions["flight_id"] = current_positions["flight_id"].astype(str)
-
-    if current_positions.empty:
-        st.warning("No data available for the selected time.")
-        st.stop()
 
     color_map_ids = tuple(available_node_ids)
     color_map_sig = (flight_col, st.session_state.get("_prev_df_selection_sig"), color_map_ids)
@@ -4499,15 +4432,9 @@ def page():
     else:
         alloc_clean = alloc_choice.strip()
     st.session_state["allocations_file"] = alloc_clean
-    try:
-        st.query_params["allocations_file"] = alloc_clean
-    except Exception:
-        pass
+    st.query_params["allocations_file"] = alloc_clean
     alloc_path = alloc_clean
-    try:
-        alloc_path_obj = Path(alloc_path).expanduser() if alloc_path else None
-    except Exception:
-        alloc_path_obj = None
+    alloc_path_obj = Path(alloc_path).expanduser() if alloc_path else None
     if alloc_path_obj is not None and alloc_path and not alloc_path_obj.exists():
         st.info("Allocations file not found. Update the path or generate allocations.")
 
@@ -4552,15 +4479,9 @@ def page():
     else:
         baseline_clean = baseline_choice.strip()
     st.session_state["baseline_allocations_file"] = baseline_clean
-    try:
-        st.query_params["baseline_allocations_file"] = baseline_clean
-    except Exception:
-        pass
+    st.query_params["baseline_allocations_file"] = baseline_clean
     baseline_path_input = baseline_clean
-    try:
-        baseline_path_obj = Path(baseline_path_input).expanduser() if baseline_path_input else None
-    except Exception:
-        baseline_path_obj = None
+    baseline_path_obj = Path(baseline_path_input).expanduser() if baseline_path_input else None
     if baseline_path_obj is not None and baseline_path_input and not baseline_path_obj.exists():
         st.info("Baseline allocations file not found. Update the path or generate a baseline.")
     declared_traj_globs = _expand_glob_patterns(
@@ -4628,10 +4549,7 @@ def page():
         traj_clean = traj_choice.strip()
 
     st.session_state["traj_glob"] = traj_clean
-    try:
-        st.query_params["traj_glob"] = traj_clean
-    except Exception:
-        pass
+    st.query_params["traj_glob"] = traj_clean
     traj_glob_clean = traj_clean
     if (
         vm_settings.get("allocations_file") != alloc_clean
@@ -4693,10 +4611,7 @@ def page():
             format_func=lambda p: "All demands" if p is None else f"{p[0]} → {p[1]}",
             key="alloc_demand_pair_focus",
         )
-        try:
-            st.query_params["alloc_pair"] = "" if selected_pair is None else f"{selected_pair[0]}-{selected_pair[1]}"
-        except Exception:
-            pass
+        st.query_params["alloc_pair"] = "" if selected_pair is None else f"{selected_pair[0]}-{selected_pair[1]}"
 
     selected_nodes_pair: tuple[str, str] | None = None
     if len(selected_node_set) == 2:
@@ -4740,10 +4655,7 @@ def page():
     def _display_alloc_source(path_obj: Path | None) -> str:
         if path_obj is None:
             return "(none)"
-        try:
-            return path_obj.name or str(path_obj)
-        except Exception:
-            return str(path_obj)
+        return path_obj.name or str(path_obj)
 
     times = sorted(set(_time_values(alloc_df_view)) | set(_time_values(baseline_df_view)))
     if not times:
@@ -4787,10 +4699,7 @@ def page():
         else:
             t_sel = st.select_slider("Decision step", options=times, key=DECISION_STEP_KEY)
             st.session_state["alloc_time_index"] = t_sel
-        try:
-            st.query_params["alloc_time_index"] = str(t_sel)
-        except Exception:
-            pass
+        st.query_params["alloc_time_index"] = str(t_sel)
         alloc_step = (
             alloc_df_view[alloc_df_view["time_index"] == t_sel]
             if (not alloc_df_view.empty and "time_index" in alloc_df_view.columns)
@@ -4957,8 +4866,6 @@ def page():
             sat_heatmap_path = str(st.session_state.get("cloud_heatmap_sat_path", "")).strip()
             if not sat_heatmap_path:
                 st.info("No SAT cloud heatmap path configured for plane sampling.")
-            elif df_std.empty:
-                st.info("No trajectory history available for SAT cloud heatmap sampling.")
             else:
                 heatmap_plot_step_s = st.selectbox(
                     "SAT cloud plot step (s)",
