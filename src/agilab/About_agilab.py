@@ -328,40 +328,54 @@ def quick_logo(resources_path: Path) -> None:
         st.info("Welcome to AGILAB", icon="📦")
 
 
+def _landing_page_sections() -> Dict[str, Any]:
+    """Return a clearer, lower-noise About-page summary."""
+    return {
+        "headline": "AGILAB is a Python framework for reproducible data, ML, and RL workflows.",
+        "summary": (
+            "It helps you move from one runnable project to exported artifacts, analysis pages, "
+            "and repeatable execution without rebuilding the environment glue for every app."
+        ),
+        "use_when": [
+            "you want one project structure that covers data preparation, execution, pipeline inspection, and analysis",
+            "you need app-local execution first, with a path to distributed execution later",
+            "you want visible outputs and reusable artifacts instead of notebook-only state",
+        ],
+        "how_it_works": [
+            "manager layer: lightweight UI and orchestration surface",
+            "worker layer: execution environment that can stay app-specific and scalable",
+            "analysis pages: reusable views that read exported artifacts after a run",
+        ],
+        "not_first": [
+            "do not start with cluster mode",
+            "do not start with private app repositories",
+            "do not start by wiring your whole stack into AGILAB at once",
+        ],
+        "recommended_path": (
+            "For a first success, use the built-in flight demo and stay on the local "
+            "`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` path."
+        ),
+    }
+
+
 def display_landing_page(resources_path: Path) -> None:
     """Display the introductory copy describing AGILab's value proposition."""
-    from agi_env.pagelib import get_base64_of_image
-    # You can optionally show a small logo here if wanted.
-    md_content = f"""
-    <div class="uvp-highlight">
-    <ul>
-      AGILAB revolutionizing data Science experimentation with zero integration hassles. As a comprehensive framework built on pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
-    </ul>
-    </div>
-    <div class="uvp-highlight">
-      <strong>Founding Concept:</strong>
-    <ul>
-      AGILAB outlines a method for scaling into a project’s execution environment without the need for virtualization or containerization (such as Docker). The approach involves encapsulating an app's logic into two components: a worker (which is scalable and free from dependency constraints) and a manager (which is easily integrable due to minimal dependency requirements). This design enables seamless integration within a single app, contributing to the move toward Artificial General Intelligence (AGI).
-      For infrastructure that required docker, there is an agilab docker script to generate a docker image in the docker directory under the project root.
-    </ul>      
-    </div>
-      <strong>Key Features:</strong>
-    <ul>
-      <li><strong>Strong AI Enabler</strong>: Algos Integrations.</li>
-      <li><strong>Engineering AI Enabler</strong>: Feature Engineering.</li>
-      <li><strong>Availability</strong>: Works online and in standalone mode.</li>
-      <li><strong>Enhanced Deployment Productivity</strong>: Automates virtual environment deployment.</li>
-      <li><strong>Assisted by Generative AI</strong>: Seamless integration with OpenAI API (online), GPT-OSS (local), and Mistral-instruct (local).</li>
-      <li><strong>Enhanced Scalability</strong>: Distributes both data and algorithms on a cluster.</li>
-      <li><strong>User-Friendly Interface for Data Science</strong>: Integration of Jupyter-ai and ML Flow.</li>
-      <li><strong>Advanced Execution Tools</strong>: Enables Map Reduce and Direct Acyclic Graph Orchestration.</li>
-    </ul>
-    <p>
-      With AGILAB, there’s no need for additional integration—our all-in-one framework is ready to deploy, enabling you to focus on innovation rather than setup.
-    </p>
-    
-    """
-    st.markdown(md_content, unsafe_allow_html=True)
+    del resources_path
+    sections = _landing_page_sections()
+
+    st.markdown(f"**{sections['headline']}**")
+    st.caption(sections["summary"])
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Use AGILAB when**")
+        st.markdown("\n".join(f"- {item}" for item in sections["use_when"]))
+        st.markdown("**How it works**")
+        st.markdown("\n".join(f"- {item}" for item in sections["how_it_works"]))
+    with right:
+        st.markdown("**Do not start with**")
+        st.markdown("\n".join(f"- {item}" for item in sections["not_first"]))
+        st.info(sections["recommended_path"])
 
 
 def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
