@@ -643,6 +643,37 @@ def test_view_training_analysis_handles_active_app_and_settings_error_paths(monk
     assert module._coerce_str_list(3) == ["3"]
 
 
+def test_view_training_analysis_unexpected_settings_helper_errors_propagate(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text('trainer = "alpha"\n', encoding="utf-8")
+
+    module.st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(
+        module.tomllib,
+        "load",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
+    )
+    with pytest.raises(TypeError, match="bad load"):
+        module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=settings_path))
+
+    module.st = SimpleNamespace(session_state={"app_settings": {module.PAGE_KEY: {}}})
+    monkeypatch.setattr(
+        module,
+        "_dump_toml",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
+    )
+    with pytest.raises(ValueError, match="bad dump"):
+        module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+
+    monkeypatch.setattr(Path, "resolve", lambda self: (_ for _ in ()).throw(TypeError("bad path")))
+    with pytest.raises(TypeError, match="bad path"):
+        module._relative_label(tmp_path / "child", tmp_path)
+
+
 def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     export_root = tmp_path / "export"
