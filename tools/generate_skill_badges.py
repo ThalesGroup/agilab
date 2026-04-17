@@ -33,6 +33,16 @@ def parse_args() -> argparse.Namespace:
         choices=sorted(PROVIDERS),
         help="Only refresh the selected skill badge provider(s).",
     )
+    parser.add_argument(
+        "--include-repo",
+        action="append",
+        default=[],
+        help=(
+            "Additional local repo root(s) whose matching skill trees should contribute "
+            "to the count. Skill names are unioned across repos so shared skills are not "
+            "double-counted. Intended for local-only composite badge refreshes."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -71,10 +81,14 @@ def render_badge(label: str, value: str, color: str) -> str:
 """
 
 
-def visible_skill_dirs(skills_dir: Path) -> list[Path]:
-    return sorted(
-        path for path in skills_dir.iterdir() if path.is_dir() and not path.name.startswith(".")
-    )
+def visible_skill_names(skills_dir: Path) -> set[str]:
+    if not skills_dir.exists():
+        return set()
+    return {
+        path.name
+        for path in skills_dir.iterdir()
+        if path.is_dir() and not path.name.startswith(".")
+    }
 
 
 def format_skill_count(count: int) -> str:
@@ -88,10 +102,18 @@ def selected_provider_items(requested: list[str] | None) -> list[tuple[str, dict
     return [(name, PROVIDERS[name]) for name in requested]
 
 
+def provider_skill_names(config: dict[str, object], include_repos: list[str]) -> set[str]:
+    names = set(visible_skill_names(config["skills_dir"]))
+    repo_relative_skills_dir = config["skills_dir"].relative_to(REPO_ROOT)
+    for repo_root in include_repos:
+        names.update(visible_skill_names(Path(repo_root) / repo_relative_skills_dir))
+    return names
+
+
 def main() -> int:
     args = parse_args()
     for name, config in selected_provider_items(args.providers):
-        count = len(visible_skill_dirs(config["skills_dir"]))
+        count = len(provider_skill_names(config, args.include_repo))
         value = format_skill_count(count)
         svg = render_badge(config["label"], value, config["color"])
         badge_path = config["badge"]
