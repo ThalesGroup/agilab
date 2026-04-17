@@ -909,11 +909,16 @@ class AGI:
 
     @staticmethod
     async def _detect_export_cmd(ip: str) -> Optional[str]:
+        local_export_bin = getattr(
+            AgiEnv,
+            "export_local_bin",
+            "" if os.name == "nt" else 'export PATH="~/.local/bin:$PATH";',
+        )
         return await entrypoint_support.detect_export_cmd(
             AGI,
             ip,
             is_local_fn=AgiEnv.is_local,
-            local_export_bin=AgiEnv.export_local_bin,
+            local_export_bin=local_export_bin,
         )
 
     @staticmethod
