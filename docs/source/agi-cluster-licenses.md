@@ -41,7 +41,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | fsspec | BSD-3-CLAUSE |
 | h11 | MIT LICENSE |
-| httpcore | BSD-3-CLAUSE |
+| httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
 | humanize | MIT License |
 | idna | BSD-3-CLAUSE |
@@ -89,8 +89,8 @@ It does **not** change the AGILab source license; refer to the repository root `
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
-| numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| numpy | 0BSD;; BSD-3-CLAUSE;; CC0-1.0;; MIT;; ZLIB |
+| packaging | APACHE-2.0;; BSD-2-CLAUSE |
 | pandocfilters | BSD LICENSE |
 | paramiko | LGPL-2.1 |
 | parso | MIT LICENSE |
