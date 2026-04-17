@@ -74,6 +74,30 @@ def test_open_local_page_docs_tries_legacy_aliases(monkeypatch):
     assert opened == ["explore-help.html", "views_help.html"]
 
 
+def test_open_local_page_docs_falls_back_to_source_checkout_docs(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    docs_root = repo_root / "docs" / "html"
+    docs_root.mkdir(parents=True)
+    local_doc = docs_root / "execute-help.html"
+    local_doc.write_text("<html>ok</html>", encoding="utf-8")
+
+    env = types.SimpleNamespace(agilab_pck=repo_root / "src" / "agilab")
+    opened: list[str] = []
+
+    monkeypatch.setattr(
+        page_docs,
+        "open_local_docs",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("missing")),
+    )
+    monkeypatch.setattr(page_docs, "open_docs_url", lambda url: opened.append(url))
+    monkeypatch.setattr(page_docs, "__file__", str(repo_root / "src" / "agilab" / "page_docs.py"))
+
+    resolved = page_docs._open_local_page_docs(env, "execute-help.html", "cluster")
+
+    assert resolved == "execute-help.html"
+    assert opened == [f"{local_doc.as_uri()}#cluster"]
+
+
 def test_open_local_page_docs_raises_when_no_candidate_exists(monkeypatch):
     monkeypatch.setattr(
         page_docs,
