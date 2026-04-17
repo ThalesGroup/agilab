@@ -46,6 +46,151 @@ Reason:
 - it already anchors the README tour
 - it gives one concrete path from UI to workers to analysis
 
+## ML-facing secondary asset
+
+Use this package when the channel needs proof of a real ML workflow, not just a
+general product tour.
+
+- published public video: `https://youtu.be/yIZ6vTBg95w`
+- local upload/source reel: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4)
+- local poster: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png)
+
+If the local video asset is missing, regenerate it before packaging the post:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/build_product_demo_reel.py --variant meteo_forecast --mp4 artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4 --gif artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.gif --poster artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png
+```
+
+Reference app for this package:
+
+- `meteo_forecast_project`
+
+Use it for:
+
+- YouTube packaging of the public ML reel
+- LinkedIn posts aimed at applied ML engineers
+- any channel where the proof must visibly end on metrics and prediction curves
+
+Do not use it as the general first-wave repo asset. Keep `flight_project` as the
+primary broad launch path.
+
+## Technical three-project demo plan
+
+Use this plan when the goal is to prove that AGILAB can cover:
+
+- data workflow
+- ML workflow
+- RL workflow
+
+This is not a 45-second teaser anymore. Treat it as a technical hero demo.
+
+### Format
+
+- target length: `75-90 seconds`
+- preferred capture style: real live capture, not a synthetic one-app reel
+- editing rule: one short act per project, then one closing synthesis frame
+
+Do not force this into the current short-reel pattern. The existing reel system
+is optimized for one app and one claim. A three-project proof needs more time and
+must stay honest.
+
+### Project sequence
+
+1. Data workflow: `execution_pandas_project`
+2. ML workflow: `meteo_forecast_project`
+3. RL workflow: `sb3_trainer_project`
+
+### Scope note
+
+The first two projects are public built-ins in `agilab`.
+
+The RL proof comes from the sibling apps repo via
+[`sb3_trainer_project`](/Users/agi/PycharmProjects/thales_agilab/apps/sb3_trainer_project).
+Do not imply that all three acts come from the same built-in public app set.
+
+### Why this trio
+
+- `execution_pandas_project` proves data generation, partitioning, and repeatable
+  compute instead of a toy notebook
+- `meteo_forecast_project` proves a real ML path ending on forecast metrics and
+  prediction curves
+- `sb3_trainer_project` proves AGILAB can also host RL policy training instead of
+  stopping at classic supervised workflows
+
+### Story structure
+
+#### Act 1: Data
+
+- show `execution_pandas_project` selected in `PROJECT`
+- show explicit dataset and partition settings
+- show `ORCHESTRATE` building a repeatable compute run
+- show `PIPELINE` with reusable data/export steps
+- finish the act on a concrete exported dataset/result signal, not just a config form
+
+#### Act 2: ML
+
+- switch to `meteo_forecast_project`
+- show station, target, and horizon in `PROJECT`
+- show backtest/forecast execution intent in `ORCHESTRATE`
+- show replayable forecast steps in `PIPELINE`
+- finish on `ANALYSIS` with `MAE`, `RMSE`, `MAPE`, and observed-vs-predicted curves
+
+#### Act 3: RL
+
+- switch to `sb3_trainer_project`
+- show a real trainer choice such as PPO-GNN or path actor-critic in `PROJECT`
+- show the runnable training path in `ORCHESTRATE`
+- show replayable training/inference steps in `PIPELINE`
+- finish on exported policy artifacts or routing-analysis evidence, not just the args form
+
+#### Closing frame
+
+- one simple synthesis panel:
+  - `DATA -> ML -> RL`
+  - `one reproducible workflow shell`
+  - `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
+
+### Timing guide
+
+- intro: `4s`
+- data act: `20-24s`
+- ML act: `20-24s`
+- RL act: `20-24s`
+- closing synthesis: `6-8s`
+
+### Recording rule
+
+Each act must show one visible proof outcome:
+
+- data: generated/exported dataset or compute result
+- ML: forecast metrics and prediction curve
+- RL: trained policy artifact, trainer output, or routing-analysis evidence
+
+If one act cannot finish on evidence, do not record yet. Fix the app state first.
+
+### Positioning rule
+
+Use this asset for:
+
+- technical LinkedIn posts
+- direct outreach to ML / RL engineers
+- a richer landing-page or release companion video
+
+Do not replace the broad `flight_project` asset with this one for first-time
+visitors who only need the product story fast.
+
+### Working title options
+
+- `AGILAB Demo: Data, ML, and RL Workflows in One Reproducible Stack`
+- `From Data Pipeline to Forecasting to RL Training in AGILAB`
+- `AGILAB Technical Demo: Data Prep, ML Forecasting, and RL Policy Training`
+
+### Capture constraint
+
+The RL act is the pacing risk. If `sb3_trainer_project` makes the video too heavy,
+keep the live capture but trim the visible training setup to one clear trainer
+selection, one run snippet, and one final policy/output evidence frame.
+
 ## GitHub About / Topics
 
 ### Primary About text
@@ -159,6 +304,79 @@ https://thalesgroup.github.io/agilab
 - first choice: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
 - public fallback link: `https://youtu.be/kOMDyvbnC9w`
 - fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
+
+## ML-facing video package
+
+Use this package with the public meteo reel:
+
+- video: `https://youtu.be/yIZ6vTBg95w`
+- poster: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png)
+
+### YouTube title
+
+`AGILAB in 45 Seconds: A Real ML Forecast Workflow`
+
+### Backup YouTube title
+
+`AGILAB Demo: A Real ML Forecast Workflow in 45 Seconds`
+
+### YouTube description
+
+This reel shows a real ML workflow in AGILAB, not just a generic product tour.
+
+Using the built-in `meteo_forecast_project`, the flow goes from project selection
+to a runnable forecast/backtest path, then ends on analysis with MAE, RMSE, MAPE,
+and observed-vs-predicted curves.
+
+Why this matters:
+
+- one reproducible workflow from local experimentation to execution and analysis
+- a concrete built-in app instead of a synthetic placeholder
+- proof that AGILAB can show real ML outcomes, not only orchestration UI
+
+Repo:
+https://github.com/ThalesGroup/agilab
+
+Docs:
+https://thalesgroup.github.io/agilab
+
+Video:
+https://youtu.be/yIZ6vTBg95w
+
+### Pinned comment
+
+If you want the shortest proof point, watch the last frames: the reel finishes on
+forecast metrics and observed-vs-predicted curves, not only on UI navigation.
+
+The built-in app used here is `meteo_forecast_project`.
+
+Repo:
+https://github.com/ThalesGroup/agilab
+
+### Thumbnail text
+
+`REAL ML WORKFLOW IN 45s`
+
+### LinkedIn post
+
+Most short product reels show interface motion. This one shows a real ML workflow.
+
+In 45 seconds, AGILAB uses a built-in weather forecasting app to move from project
+selection to a runnable forecast/backtest path, then ends on analysis with MAE,
+RMSE, MAPE, and observed-vs-predicted curves.
+
+That is the point of AGILAB: keep one reproducible workflow from local
+experimentation to execution, service mode, and analysis without rebuilding the
+control path at each step.
+
+Video:
+https://youtu.be/yIZ6vTBg95w
+
+Repo:
+https://github.com/ThalesGroup/agilab
+
+Docs:
+https://thalesgroup.github.io/agilab
 
 ## Reddit
 
