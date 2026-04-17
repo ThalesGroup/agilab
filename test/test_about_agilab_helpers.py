@@ -120,21 +120,15 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
 def test_landing_page_sections_use_clear_product_language():
     sections = about_agilab._landing_page_sections()
 
-    assert sections["headline"] == "Start with one local demo."
-    assert sections["goal"] == "Goal: leave this page, run one demo, and open one result page."
-    assert sections["do_this_now"] == [
-        "Go to `PROJECT`.",
-        "Choose `flight_project`.",
-        "Open ORCHESTRATE.",
-        "Click INSTALL.",
-        "Click EXECUTE.",
-        "Open ANALYSIS.",
+    assert sections["headline"] == "About AGILAB"
+    assert sections["goal"] == "AGILAB helps you run a demo, generate outputs, and open result pages."
+    assert sections["what_pages_do"] == [
+        "`PROJECT` chooses the demo.",
+        "`ORCHESTRATE` runs it.",
+        "`ANALYSIS` opens the result pages.",
     ]
-    assert sections["done_when"] == [
-        "you can open one result page",
-    ]
-    assert sections["then"] == [
-        "try another demo",
+    assert sections["after_first_demo"] == [
+        "try another built-in demo",
         "keep cluster mode for later",
     ]
 
