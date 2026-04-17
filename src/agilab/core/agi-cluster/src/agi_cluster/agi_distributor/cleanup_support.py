@@ -69,7 +69,7 @@ async def kill_processes(
     ip = ip or localhost
     current_pid = current_pid or os.getpid()
 
-    for pid_file in path_cls(env.wenv_abs.parent).glob("*.pid"):
+    for pid_file in sorted(path_cls(env.wenv_abs.parent).glob("*.pid"), key=lambda candidate: candidate.name):
         try:
             pid = int(pid_file.read_text().strip())
             if pid == current_pid:

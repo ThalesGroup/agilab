@@ -20,6 +20,13 @@ DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
 PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)
 
 
+def _latest_glob_match(root: Path, pattern: str) -> Path | None:
+    matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
+    if not matches:
+        return None
+    return max(matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name))
+
+
 def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
     """Delete a path robustly, falling back to Windows `rmdir` when needed."""
     if not path.exists():
@@ -493,9 +500,8 @@ async def deploy_local_worker(
         cmd = f"{uv} --project \"{menv}\" build --wheel"
         await run_fn(cmd, menv)
         src = menv / "dist"
-        try:
-            next(iter(src.glob("agi_env*.whl")))
-        except StopIteration:
+        env_whl = _latest_glob_match(src, "agi_env*.whl")
+        if env_whl is None:
             raise RuntimeError(cmd)
 
         cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.agi_env}\""
@@ -505,11 +511,10 @@ async def deploy_local_worker(
         cmd = f"{uv} --project \"{menv}\" build --wheel"
         await run_fn(cmd, menv)
         src = menv / "dist"
-        try:
-            whl = next(iter(src.glob("agi_node*.whl")))
-            shutil.copy2(whl, wenv_abs)
-        except StopIteration:
+        whl = _latest_glob_match(src, "agi_node*.whl")
+        if whl is None:
             raise RuntimeError(cmd)
+        shutil.copy2(whl, wenv_abs)
 
         cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.agi_node}\""
         await run_fn(cmd, wenv_abs)
@@ -528,7 +533,7 @@ async def deploy_local_worker(
     try:
         active_src = Path(env.active_app) / "src"
         if active_src.exists():
-            for candidate in active_src.rglob("Trajectory.7z"):
+            for candidate in sorted(active_src.rglob("Trajectory.7z"), key=lambda path: path.as_posix()):
                 if candidate.is_file():
                     archives.append(candidate)
     except OSError:
@@ -542,7 +547,7 @@ async def deploy_local_worker(
             os.makedirs(install_dataset_dir, exist_ok=True)
 
             seen_archives: set[str] = set()
-            for archive_path in archives:
+            for archive_path in sorted(archives, key=lambda path: path.as_posix()):
                 if archive_path.name == "Trajectory.7z":
                     try:
                         sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)

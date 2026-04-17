@@ -75,7 +75,8 @@ def test_dask_env_prefix_and_scale_cluster_trim_workers():
 async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "worker_env"
     (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "dist" / "demo.egg").write_text("x", encoding="utf-8")
+    (wenv_abs / "dist" / "z-demo.egg").write_text("x", encoding="utf-8")
+    (wenv_abs / "dist" / "a-demo.egg").write_text("x", encoding="utf-8")
 
     AGI.env = SimpleNamespace(
         is_local=lambda ip: ip == "127.0.0.1",
@@ -135,7 +136,7 @@ async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
 
     assert calls["bg"]
     assert any(ip == "10.0.0.2" for ip, _ in calls["remote"])
-    assert calls["uploaded"]
+    assert [Path(path).name for path in calls["uploaded"]] == ["a-demo.egg", "z-demo.egg"]
 
 
 @pytest.mark.asyncio
