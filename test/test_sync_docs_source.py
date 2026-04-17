@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -103,3 +104,53 @@ def test_main_check_and_apply_modes(tmp_path: Path, capsys) -> None:
 
     assert exit_code == 0
     assert (target / "guide.rst").read_text(encoding="utf-8") == "guide\n"
+    stamp = target.parent / module.STAMP_FILE_NAME
+    assert stamp.exists()
+    payload = json.loads(stamp.read_text(encoding="utf-8"))
+    assert payload["file_count"] == 1
+    assert payload["managed_target"] == "docs/source"
+
+
+def test_verify_stamp_passes_after_apply(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+
+    assert module.main(["--source", str(source), "--target", str(target), "--apply"]) == 0
+
+    exit_code = module.main(["--target", str(target), "--verify-stamp"])
+
+    assert exit_code == 0
+    assert "mirror stamp ok:" in capsys.readouterr().out
+
+
+def test_verify_stamp_detects_unmanaged_edit(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+
+    assert module.main(["--source", str(source), "--target", str(target), "--apply"]) == 0
+    (target / "guide.rst").write_text("changed\n", encoding="utf-8")
+
+    exit_code = module.main(["--target", str(target), "--verify-stamp"])
+
+    assert exit_code == 1
+    assert "mirror stamp mismatch" in capsys.readouterr().out
+
+
+def test_verify_stamp_reports_missing_stamp(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+
+    exit_code = module.main(["--target", str(target), "--verify-stamp"])
+
+    assert exit_code == 1
+    assert "missing mirror stamp" in capsys.readouterr().out

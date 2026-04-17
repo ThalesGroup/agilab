@@ -1,0 +1,51 @@
+name: docs-source-guard
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/source/**"
+      - "docs/.docs_source_mirror_stamp.json"
+      - "tools/sync_docs_source.py"
+      - "test/test_sync_docs_source.py"
+      - ".github/workflows/docs-source-guard.yaml"
+  pull_request:
+    paths:
+      - "docs/source/**"
+      - "docs/.docs_source_mirror_stamp.json"
+      - "tools/sync_docs_source.py"
+      - "test/test_sync_docs_source.py"
+      - ".github/workflows/docs-source-guard.yaml"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Verify managed docs/source mirror stamp
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --quiet
+
+      - name: Test docs/source sync tool
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_sync_docs_source.py
