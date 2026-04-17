@@ -110,7 +110,7 @@ Use this runbook whenever you:
 - **Installer flags**: For automation, set `CLUSTER_CREDENTIALS` / `OPENAI_API_KEY` in the
   environment, then use `./install.sh --non-interactive`/`-y`. Optional flags:
   `--apps-repository`, `--install-path`, `--install-apps [all|builtin|comma list]`,
-  `--test-apps`.
+  `--test-apps`, `--test-core`.
 - **Apps repository symlinks**: Set `APPS_REPOSITORY` (or `AGILAB_APPS_REPOSITORY`) in
   `~/.local/share/agilab/.env` to the path of your apps repository checkout. The installer can
   create symlinks so optional apps/pages resolve without manual action.
