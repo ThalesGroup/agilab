@@ -117,6 +117,16 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert any("compatibility-matrix" in url for _, url in content["links"])
 
 
+def test_landing_page_sections_use_clear_product_language():
+    sections = about_agilab._landing_page_sections()
+
+    assert sections["headline"] == "AGILAB is a Python framework for reproducible data, ML, and RL workflows."
+    assert any("exported artifacts" in item or "exported artifacts" in sections["summary"] for item in sections["use_when"])
+    assert any("manager layer" in item for item in sections["how_it_works"])
+    assert any("do not start with cluster mode" == item for item in sections["not_first"])
+    assert "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS" in sections["recommended_path"]
+
+
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     apps_path = tmp_path / "apps"
     flight_project = apps_path / "builtin" / "flight_project"
