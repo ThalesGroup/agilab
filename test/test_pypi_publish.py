@@ -97,6 +97,75 @@ def test_update_static_badge_rewrites_svg(tmp_path, monkeypatch) -> None:
     assert 'width="158"' in text
 
 
+def test_fetch_url_text_falls_back_to_curl(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("urllib down")
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", _raise)
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/curl" if name == "curl" else None)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, stdout="simple body", stderr=""),
+    )
+
+    assert module.fetch_url_text("https://example.test") == "simple body"
+
+
+def test_pypi_releases_uses_simple_index_when_json_is_stale(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    monkeypatch.setattr(module, "fetch_url_json", lambda *_args, **_kwargs: {"releases": {"2026.4.18": []}})
+    monkeypatch.setattr(
+        module,
+        "fetch_url_text",
+        lambda *_args, **_kwargs: '<a href="https://files.pythonhosted.org/packages/x/agilab-2026.4.19.tar.gz">agilab-2026.4.19.tar.gz</a>',
+    )
+
+    assert module.pypi_releases("agilab", "pypi") == {"2026.4.18", "2026.4.19"}
+
+
+def test_require_safe_pypi_release_rejects_missing_repo_sync_flags() -> None:
+    module = _load_pypi_publish()
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version=None,
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agilab"],
+        gen_docs=False,
+    )
+
+    try:
+        module.require_safe_pypi_release(cfg)
+    except SystemExit as exc:
+        assert "--git-commit-version" in str(exc)
+        assert "--git-tag" in str(exc)
+        assert "--git-reset-on-failure" in str(exc)
+    else:
+        raise AssertionError("require_safe_pypi_release() should reject unsafe real PyPI publish settings")
+
+
 def test_compute_date_tag_without_collision(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -175,7 +244,7 @@ def test_main_rejects_invalid_explicit_version(monkeypatch) -> None:
     module = _load_pypi_publish()
 
     cfg = module.Cfg(
-        repo="pypi",
+        repo="testpypi",
         dist="both",
         skip_existing=True,
         retries=1,
@@ -211,6 +280,46 @@ def test_main_rejects_invalid_explicit_version(monkeypatch) -> None:
         raise AssertionError("main() should reject an invalid explicit version")
 
 
+def test_main_rejects_real_pypi_publish_without_repo_sync_flags(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version=None,
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agilab"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+
+    try:
+        module.main()
+    except SystemExit as exc:
+        assert "Real PyPI releases must run with" in str(exc)
+    else:
+        raise AssertionError("main() should reject unsafe real PyPI publish settings")
+
+
 def test_main_rejects_explicit_version_lower_than_latest_release(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -223,7 +332,7 @@ def test_main_rejects_explicit_version_lower_than_latest_release(tmp_path, monke
     )
 
     cfg = module.Cfg(
-        repo="pypi",
+        repo="testpypi",
         dist="both",
         skip_existing=True,
         retries=1,
@@ -283,7 +392,7 @@ def test_main_updates_badges_before_build(tmp_path, monkeypatch) -> None:
     order: list[str] = []
 
     cfg = module.Cfg(
-        repo="pypi",
+        repo="testpypi",
         dist="both",
         skip_existing=True,
         retries=1,
@@ -302,7 +411,7 @@ def test_main_updates_badges_before_build(tmp_path, monkeypatch) -> None:
         yank_previous=False,
         git_tag=False,
         git_commit_version=False,
-        git_reset_on_failure=False,
+        git_reset_on_failure=True,
         pypirc_check=False,
         packages=["agi-env"],
         gen_docs=False,
@@ -408,7 +517,7 @@ def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -
     upload_calls = {"count": 0}
 
     cfg = module.Cfg(
-        repo="pypi",
+        repo="testpypi",
         dist="both",
         skip_existing=True,
         retries=1,
@@ -504,7 +613,7 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
     )
 
     cfg = module.Cfg(
-        repo="pypi",
+        repo="testpypi",
         dist="both",
         skip_existing=True,
         retries=1,
@@ -583,7 +692,7 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
         yank_previous=False,
         git_tag=True,
         git_commit_version=True,
-        git_reset_on_failure=False,
+        git_reset_on_failure=True,
         pypirc_check=False,
         packages=["agi-env"],
         gen_docs=False,
@@ -649,7 +758,7 @@ def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch
     )
 
     cfg = module.Cfg(
-        repo="pypi",
+        repo="testpypi",
         dist="both",
         skip_existing=True,
         retries=1,
