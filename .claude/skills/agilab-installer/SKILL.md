@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-16
+  updated: 2026-04-17
 ---
 
 # AGILAB Installer Skill
@@ -29,10 +29,19 @@ Use this skill when working on:
 
 ## Common Commands
 
-- Full install (macOS/Linux):
+- Full install with app tests (macOS/Linux):
   - `./install.sh --non-interactive --cluster-ssh-credentials user:pass --apps-repository /path/to/apps-repo --install-apps --test-apps`
+- Add core suites only when needed:
+  - macOS/Linux: `./install.sh --install-apps --test-apps --test-core`
+  - Windows: `.\install.ps1 -InstallApps -TestApps -TestCore`
 - Apps/pages install only:
   - `cd src/agilab && ./install_apps.sh --test-apps`
+
+## Installer test switches
+
+- App tests stay opt-in via `--test-apps` / `-TestApps`.
+- Root core suites stay opt-in via `--test-core` / `-TestCore`.
+- Do not make core suites implicit in the default developer install path unless the user explicitly asks for that stricter gate.
 
 ## Debugging Patterns
 
