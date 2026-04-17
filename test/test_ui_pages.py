@@ -316,10 +316,12 @@ def load_args_from_toml(path):
 
 def test_agilab_main_page_env_editor(mock_ui_env):
     """Test the main AGILAB page and interacting with the .env editor form."""
+    home_root = mock_ui_env["apps_dir"].parent
     at = _app_test("src/agilab/About_agilab.py")
-    
+
     # Run the app to initialize
-    at.run()
+    with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
+        at.run()
     assert not at.exception
     
     # Find the environment editor form
@@ -345,13 +347,31 @@ def test_agilab_main_page_env_editor(mock_ui_env):
             break
             
     assert save_btn is not None
-    save_btn.click().run()
+    with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
+        save_btn.click().run()
     
     assert not at.exception
     # Check if the success message appeared
     # In AppTest, st.success is mapped to at.success
     success_msgs = [s.value for s in at.success]
     assert any("Environment variables updated" in msg for msg in success_msgs)
+
+
+def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
+    home_root = mock_ui_env["apps_dir"].parent
+    env_file = home_root / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    existing = env_file.read_text(encoding="utf-8") if env_file.exists() else ""
+    if "127.0.0.1_PYTHON_VERSION" not in existing:
+        env_file.write_text(existing.rstrip("\n") + "\n127.0.0.1_PYTHON_VERSION=3.12\n", encoding="utf-8")
+
+    at = _app_test("src/agilab/About_agilab.py")
+    with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
+        at.run()
+
+    assert not at.exception
+    assert any("<worker-host>_PYTHON_VERSION" in str(item.value) for item in at.caption)
+    assert "env_editor_val_127.0.0.1_PYTHON_VERSION" in [ti.key for ti in at.text_input]
 
 
 def test_execute_page_cluster_settings(mock_ui_env):

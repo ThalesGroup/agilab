@@ -612,6 +612,33 @@ def _read_env_file(path: Path) -> List[Dict[str, str]]:
                 entries.append({"type": "comment", "raw": raw})
     return entries
 
+
+def _is_worker_python_override_key(key: str) -> bool:
+    """Return True for host-specific worker Python version keys."""
+    normalized = str(key).strip()
+    return normalized.endswith("_PYTHON_VERSION") and normalized != "AGI_PYTHON_VERSION"
+
+
+def _visible_env_editor_keys(
+    template_keys: List[str],
+    existing_entries: List[Dict[str, str]],
+) -> List[str]:
+    """Return env-editor keys in template order plus worker Python overrides."""
+    ordered_keys: List[str] = list(template_keys)
+    seen = set(ordered_keys)
+    for entry in existing_entries:
+        if entry.get("type") != "entry":
+            continue
+        key = str(entry.get("key", "")).strip()
+        if not key or key in seen:
+            continue
+        if _is_worker_python_override_key(key):
+            ordered_keys.append(key)
+            seen.add(key)
+    if ordered_keys:
+        return ordered_keys
+    return list(dict.fromkeys(str(entry["key"]).strip() for entry in existing_entries if entry.get("type") == "entry"))
+
 def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str, str], new_entry: Dict[str, str] | None) -> None:
     """Write the .env file, consolidating duplicate keys (last value wins)."""
     path = _ensure_env_file(path)
@@ -751,9 +778,13 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
         except (OSError, UnicodeError):
             pass
 
-    unique_keys = template_keys if template_keys else list(dict.fromkeys(
-        entry["key"] for entry in existing_entries
-    ))
+    unique_keys = _visible_env_editor_keys(template_keys, existing_entries)
+
+    st.caption(
+        "`AGI_PYTHON_VERSION` sets the default Python version. "
+        "Workers can override it with `<worker-host>_PYTHON_VERSION`, "
+        "for example `127.0.0.1_PYTHON_VERSION=3.13`."
+    )
 
     with st.form("env_editor_form"):
         updated_values: Dict[str, str] = {}
@@ -865,6 +896,13 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
             if key == CLUSTER_CREDENTIALS_KEY and value == KEYRING_SENTINEL:
                 value = "<stored in keyring>"
             merged.append(f"{key}={value}")
+        for key in sorted(current.keys()):
+            if key in template_keys:
+                continue
+            if key == CLUSTER_CREDENTIALS_KEY and current.get(key) == KEYRING_SENTINEL:
+                merged.append(f"{key}=<stored in keyring>")
+            else:
+                merged.append(f"{key}={current[key]}")
         if merged:
             st.code("\n".join(merged))
         else:
