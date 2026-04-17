@@ -81,6 +81,11 @@ Then use :doc:`newcomer-troubleshooting` for the five common first-run failures:
 - About / ORCHESTRATE startup failure
 - no fresh output under ``~/log/execute/flight/``
 
+If you want the current public support picture before branching into other
+routes, use :doc:`compatibility-matrix`. It makes the current validated slices
+explicit and separates them from routes that are documented but not the
+recommended newcomer proof.
+
 Alternative install routes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -91,6 +91,8 @@ Where to go next
 
 - :doc:`quick-start` for the shortest install/run commands.
 - :doc:`newcomer-troubleshooting` for the five most common first-run failures.
+- :doc:`compatibility-matrix` for the current public validated-vs-documented
+  support slices.
 - :doc:`notebook-quickstart` for the code-first notebook route.
 - :doc:`architecture` for the runtime control path.
 - :doc:`execute-help` for the ORCHESTRATE workflow.

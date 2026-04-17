@@ -182,6 +182,86 @@ if __name__ == "__main__":
     asyncio.run(main())""")
 
 
+def build_service_operator_summary(
+    *,
+    status: str,
+    worker_health: Any,
+    allow_idle: bool,
+    max_unhealthy: int,
+    max_restart_rate: float,
+    heartbeat_timeout_sec: float,
+) -> dict[str, Any]:
+    tracked_workers = 0
+    unhealthy_workers = 0
+    late_heartbeats = 0
+    missing_heartbeats = 0
+    max_heartbeat_age_sec: float | None = None
+    reasons: list[str] = []
+
+    health_rows = worker_health if isinstance(worker_health, list) else []
+    for row in health_rows:
+        if not isinstance(row, dict):
+            continue
+        tracked_workers += 1
+
+        healthy_value = row.get("healthy")
+        if healthy_value is False:
+            unhealthy_workers += 1
+
+        heartbeat_state = str(row.get("heartbeat_state", "")).strip().lower()
+        if heartbeat_state in {"late", "stale", "timeout", "expired"}:
+            late_heartbeats += 1
+        elif heartbeat_state in {"missing", "absent", "none"}:
+            missing_heartbeats += 1
+
+        try:
+            heartbeat_age_sec = float(row.get("heartbeat_age_sec"))
+        except (TypeError, ValueError):
+            heartbeat_age_sec = None
+        if heartbeat_age_sec is not None:
+            if max_heartbeat_age_sec is None or heartbeat_age_sec > max_heartbeat_age_sec:
+                max_heartbeat_age_sec = heartbeat_age_sec
+
+        reason = str(row.get("reason", "")).strip()
+        if reason:
+            reasons.append(reason)
+
+    summary = {
+        "status": str(status),
+        "tracked_workers": tracked_workers,
+        "unhealthy_workers": unhealthy_workers,
+        "late_heartbeats": late_heartbeats,
+        "missing_heartbeats": missing_heartbeats,
+        "max_heartbeat_age_sec": max_heartbeat_age_sec,
+        "reason_examples": list(dict.fromkeys(reasons))[:3],
+        "gate_allow_idle": bool(allow_idle),
+        "gate_max_unhealthy": int(max_unhealthy),
+        "gate_max_restart_rate": float(max_restart_rate),
+        "heartbeat_timeout_sec": float(heartbeat_timeout_sec),
+    }
+    lines = [
+        f"Status: `{summary['status']}`",
+        f"Tracked workers: `{summary['tracked_workers']}`",
+        f"Unhealthy workers: `{summary['unhealthy_workers']}`",
+        f"Late heartbeats: `{summary['late_heartbeats']}`",
+        f"Missing heartbeats: `{summary['missing_heartbeats']}`",
+        f"Heartbeat timeout: `{summary['heartbeat_timeout_sec']:.1f}s`",
+        "Health gate: "
+        f"`allow_idle={summary['gate_allow_idle']}, "
+        f"max_unhealthy={summary['gate_max_unhealthy']}, "
+        f"max_restart_rate={summary['gate_max_restart_rate']:.2f}`",
+    ]
+    if summary["max_heartbeat_age_sec"] is not None:
+        lines.insert(
+            5,
+            f"Max heartbeat age: `{summary['max_heartbeat_age_sec']:.1f}s`",
+        )
+    if summary["reason_examples"]:
+        lines.append(f"Observed reasons: `{', '.join(summary['reason_examples'])}`")
+    summary["lines"] = lines
+    return summary
+
+
 async def render_service_panel(
     *,
     env: Any,
@@ -397,6 +477,7 @@ async def render_service_panel(
 
         service_log_placeholder = st.empty()
         service_health_placeholder = st.empty()
+        service_summary_placeholder = st.empty()
 
         def _render_service_health_table() -> None:
             health_rows = st.session_state.get("service_health_cache") or []
@@ -421,7 +502,21 @@ async def render_service_panel(
                 health_df = health_df[display_cols]
             service_health_placeholder.dataframe(health_df, width="stretch")
 
+        def _render_service_operator_summary() -> None:
+            summary = build_service_operator_summary(
+                status=str(st.session_state.get("service_status_cache", "idle")),
+                worker_health=st.session_state.get("service_health_cache") or [],
+                allow_idle=bool(service_health_allow_idle),
+                max_unhealthy=int(service_health_max_unhealthy),
+                max_restart_rate=float(service_health_max_restart_rate),
+                heartbeat_timeout_sec=float(service_heartbeat_timeout),
+            )
+            service_summary_placeholder.info(
+                "\n".join(f"- {line}" for line in summary["lines"])
+            )
+
         _render_service_health_table()
+        _render_service_operator_summary()
         cached_service_log = st.session_state.get("service_log_cache", "").strip()
         if cached_service_log:
             service_log_placeholder.code(
@@ -516,6 +611,7 @@ async def render_service_panel(
                 if st.session_state["service_status_cache"] in {"stopped", "idle"}:
                     st.session_state["service_health_cache"] = []
                     _render_service_health_table()
+                    _render_service_operator_summary()
                 restarted_workers = result_payload.get("restarted_workers") or []
                 restart_reasons = result_payload.get("restart_reasons") or {}
                 cleanup_stats = result_payload.get("cleanup") or {}
@@ -526,6 +622,7 @@ async def render_service_panel(
                 if isinstance(worker_health, list):
                     st.session_state["service_health_cache"] = worker_health
                     _render_service_health_table()
+                    _render_service_operator_summary()
                     if worker_health:
                         deps.append_log_lines(local_log, "=== Service health ===")
                         for row in worker_health:
@@ -545,6 +642,7 @@ async def render_service_panel(
                 else:
                     st.session_state["service_health_cache"] = []
                     _render_service_health_table()
+                    _render_service_operator_summary()
 
                 if restarted_workers:
                     deps.append_log_lines(local_log, "=== Service auto-restart ===")
@@ -572,6 +670,7 @@ async def render_service_panel(
                 st.session_state["service_status_cache"] = "error"
                 st.session_state["service_health_cache"] = []
                 _render_service_health_table()
+                _render_service_operator_summary()
 
             st.session_state["service_log_cache"] = "\n".join(local_log[-deps.log_display_max_lines:])
             _render_logs()
