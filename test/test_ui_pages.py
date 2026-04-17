@@ -357,6 +357,17 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert any("Environment variables updated" in msg for msg in success_msgs)
 
 
+def test_agilab_main_page_shows_agilab_version(mock_ui_env):
+    home_root = mock_ui_env["apps_dir"].parent
+    at = _app_test("src/agilab/About_agilab.py")
+
+    with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
+        at.run()
+
+    assert not at.exception
+    assert any(str(caption.value).startswith("AGILAB version: v") for caption in at.caption)
+
+
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
     home_root = mock_ui_env["apps_dir"].parent
     env_file = home_root / ".agilab" / ".env"
