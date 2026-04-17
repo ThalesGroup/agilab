@@ -39,6 +39,8 @@ Do not hand-edit both repo trees for the same shared skill.
    - repo-specific domain skill
    - personal home-only skill
    - system/plugin-managed skill
+   If the skill is personal, career-related, or otherwise not an AGILAB workflow asset,
+   stop and keep it out of the repo-managed trees.
 2. For shared repo skills, edit `.claude/skills/<skill>/` first.
 3. Keep the skill self-contained:
    - `SKILL.md`
@@ -75,6 +77,9 @@ python3 tools/codex_skills.py --root .codex/skills generate
   for the same shared skill.
 - If a skill is domain-specific to another repo, keep it there instead of forcing
   it into `agilab`.
+- Do not add private CV, recruiting, or personal productivity skills to the public
+  AGILAB repo-managed skill trees. Put them in `~/.codex/skills/` or the relevant
+  private repo instead.
 
 ## Typical fixes
 
