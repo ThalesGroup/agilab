@@ -79,11 +79,9 @@ def _newcomer_first_proof_content() -> Dict[str, Any]:
         "steps": [
             ("PROJECT", "Go to `PROJECT`. Choose `flight_project`."),
             ("ORCHESTRATE", "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."),
-            ("PIPELINE", "Go to `PIPELINE`. Check the generated files."),
             ("ANALYSIS", "Go to `ANALYSIS`. Open one result page."),
         ],
         "success_criteria": [
-            "You can see files under `~/log/execute/flight/`.",
             "You can open one result page.",
             "Now you can try another demo.",
         ],
@@ -253,7 +251,6 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
             f"1. {content['steps'][0][1]}",
             f"2. {content['steps'][1][1]}",
             f"3. {content['steps'][2][1]}",
-            f"4. {content['steps'][3][1]}",
         ]
         st.markdown("\n".join(step_lines))
 
@@ -279,7 +276,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
             preview = ", ".join(path.name for path in state["visible_outputs"][:3])
             if len(state["visible_outputs"]) > 3:
                 preview += ", …"
-            st.caption(f"Files found: {preview}")
+            st.caption(f"Generated files found: {preview}")
 
         st.markdown("**You are done when**")
         st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
@@ -325,10 +322,9 @@ def _landing_page_sections() -> Dict[str, Any]:
             "Open ORCHESTRATE.",
             "Click INSTALL.",
             "Click EXECUTE.",
-            "Open PIPELINE, then ANALYSIS.",
+            "Open ANALYSIS.",
         ],
         "done_when": [
-            "you can see generated files",
             "you can open one result page",
         ],
         "then": [

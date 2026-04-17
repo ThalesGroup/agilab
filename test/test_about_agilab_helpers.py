@@ -109,11 +109,10 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert [label for label, _ in content["steps"]] == [
         "PROJECT",
         "ORCHESTRATE",
-        "PIPELINE",
         "ANALYSIS",
     ]
     assert any("flight_project" in detail for _, detail in content["steps"])
-    assert any("~/log/execute/flight/" in item for item in content["success_criteria"])
+    assert any("result page" in item for item in content["success_criteria"])
     assert any("newcomer-guide" in url for _, url in content["links"])
     assert any("compatibility-matrix" in url for _, url in content["links"])
 
@@ -129,10 +128,9 @@ def test_landing_page_sections_use_clear_product_language():
         "Open ORCHESTRATE.",
         "Click INSTALL.",
         "Click EXECUTE.",
-        "Open PIPELINE, then ANALYSIS.",
+        "Open ANALYSIS.",
     ]
     assert sections["done_when"] == [
-        "you can see generated files",
         "you can open one result page",
     ]
     assert sections["then"] == [
