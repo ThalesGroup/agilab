@@ -15,29 +15,34 @@ references, and example projects.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Getting Started
+   :caption: Start
 
-   introduction
    newcomer-guide
    quick-start
    newcomer-troubleshooting
    compatibility-matrix
-   notebook-quickstart
-   features
 
 .. toctree::
    :maxdepth: 2
-   :caption: Core Topics
+   :caption: Use
 
-   cluster
-   distributed-workers
+   introduction
+   features
+   notebook-quickstart
    agilab
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Build
+
    architecture
    agi-core-architecture
    agilab-mlops-positioning
    learning-workflows
    framework-api
    framework-submodule-contract
+   cluster
+   distributed-workers
    modules
    environment
    faq
@@ -47,7 +52,7 @@ references, and example projects.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Web Interface Pages
+   :caption: Pages
 
    About AGILab <agilab-help>
    edit-help
@@ -76,7 +81,7 @@ references, and example projects.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Hosting Sites
+   :caption: Reference
 
    agilab-github
 
