@@ -211,10 +211,6 @@ def _render_newcomer_first_proof_static() -> None:
         f"<li>{item}</li>"
         for item in content["success_criteria"]
     )
-    links_html = " · ".join(
-        f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
-        for label, url in content["links"]
-    )
     st.markdown(
         f"""
         <div style="border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0 1.25rem 0; background: rgba(250, 250, 250, 0.82);">
@@ -224,7 +220,6 @@ def _render_newcomer_first_proof_static() -> None:
           <ol style="margin-top: 0.1rem; margin-bottom: 0.75rem;">{steps_html}</ol>
           <p style="margin-bottom: 0.35rem;"><strong>You are done when</strong></p>
           <ul style="margin-top: 0.1rem; margin-bottom: 0.5rem;">{success_html}</ul>
-          <p style="margin: 0;"><strong>Docs:</strong> {links_html}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -280,11 +275,6 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
         st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
         st.caption("After that: try another demo. Keep cluster mode for later.")
 
-        links_html = " · ".join(
-            f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
-            for label, url in content["links"]
-        )
-        st.markdown(f"**Docs:** {links_html}", unsafe_allow_html=True)
         st.divider()
         display_landing_page(Path(env.st_resources))
 
