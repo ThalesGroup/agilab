@@ -1,11 +1,10 @@
 AGILab
 ========
 
-.. rubric:: Unique value proposition
+This page is the entry point for the AGILab web interface.
 
-AGILab is the only notebook-like tool designed for simultaneous multiple virtual
-environments, with one runtime per cell/snippet. It combines interactive
-prototyping, managed execution, and reusable project packaging under one workflow.
+It describes the UI surface, the built-in pages, and the Python module
+reference behind that interface.
 
 .. figure:: Agilab-Overview.svg
    :alt: AGILab Overview
@@ -14,6 +13,13 @@ prototyping, managed execution, and reusable project packaging under one workflo
 
 The web interface exposes a set of built-in pages plus optional app-specific
 dashboards ("page bundles", sometimes called ``apps-pages``).
+
+For newcomer onboarding, start with :doc:`newcomer-guide` and
+:doc:`quick-start`.
+
+For current shipped capabilities, see :doc:`features`.
+
+For toolchain fit and framework comparison, see :doc:`agilab-mlops-positioning`.
 
 See:
 
