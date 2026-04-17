@@ -355,7 +355,7 @@ def openai_status_banner(env: Any) -> None:
     key = _clean_openai_key(os.environ.get("OPENAI_API_KEY") or env_key)
     if not key:
         st.warning(
-            f"OpenAI features are disabled. Set OPENAI_API_KEY in {ENV_FILE_PATH} via the 'Environment Variables' expander, then reload the app.",
+            f"OpenAI features are disabled. Set OPENAI_API_KEY below in 'Environment Variables', then reload the app. The value will be saved in {ENV_FILE_PATH}.",
             icon="⚠️",
         )
 
