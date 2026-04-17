@@ -19,7 +19,10 @@ summarises the supported keys.
      - App loaded when no explicit project is provided.
    * - ``AGI_PYTHON_VERSION``
      - ``3.13``
-     - Python version passed to ``uv`` when syncing or running apps.
+     - Default Python version passed to ``uv`` for the manager environment and as the fallback worker version when no host-specific override is set.
+   * - ``<worker-host>_PYTHON_VERSION``
+     - unset
+     - Optional worker-specific Python version override written per host (for example ``127.0.0.1_PYTHON_VERSION=3.13``). Use this when workers must run a different Python version than the manager side.
    * - ``AGI_PYTHON_FREE_THREADED``
      - ``0``
      - Enables free-threaded Python if both the environment and worker declare support. Either the
@@ -67,8 +70,9 @@ summarises the supported keys.
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).
 
 Additional host specific keys are supported for worker provisioning (for example
-``127.0.0.1_CMD_PREFIX`` or ``127.0.0.1_PYTHON_VERSION``); these are written automatically into
-``$HOME/.agilab/.env`` when you run installers and rarely need manual editing.
+``127.0.0.1_CMD_PREFIX`` or ``127.0.0.1_PYTHON_VERSION``). These are written automatically into
+``$HOME/.agilab/.env`` when you run installers and can be adjusted manually when one worker host
+needs a different Python version or command prefix.
 
 Remember to restart the web interface session after changing ``$HOME/.agilab/.env`` so ``AgiEnv`` picks
 up the new values.
