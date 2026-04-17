@@ -116,12 +116,12 @@ global aggregate stays lower until the other components also move up.
 
 Which docs repo should I edit?
 ------------------------------
-The canonical editable documentation source is the sibling
-``thales_agilab`` checkout under ``docs/source``. The public AGILAB Pages build
-still publishes from the mirrored ``agilab/docs/source`` tree, so public docs
-changes need both steps:
+The canonical editable documentation source is the sibling documentation
+checkout under ``docs/source``. The public AGILAB Pages build still publishes
+from the mirrored ``agilab/docs/source`` tree, so public docs changes need both
+steps:
 
-1. edit the canonical source in ``../thales_agilab/docs/source``
+1. edit the canonical source in the sibling documentation checkout
 2. mirror the touched files into ``agilab/docs/source``
 
 Do not treat ``docs/html`` as editable source. It is generated output only.
