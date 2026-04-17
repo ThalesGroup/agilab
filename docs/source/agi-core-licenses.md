@@ -19,7 +19,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | asttokens | APACHE 2.0 |
 | async-lru | MIT LICENSE |
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
-| attrs | MIT LICENSE |
+| attrs | MIT |
 | babel | BSD LICENSE |
 | backports-zstd | PSF-2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
@@ -49,7 +49,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | gitdb | BSD LICENSE |
 | gitpython | BSD-3-CLAUSE |
 | h11 | MIT LICENSE |
-| httpcore | BSD-3-CLAUSE |
+| httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
 | humanize | MIT License |
 | idna | BSD-3-CLAUSE |
@@ -98,8 +98,8 @@ It does **not** change the AGILab source license; refer to the repository root `
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
-| numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| numpy | 0BSD;; BSD-3-CLAUSE;; CC0-1.0;; MIT;; ZLIB |
+| packaging | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
 | paramiko | LGPL-2.1 |
@@ -118,7 +118,7 @@ It does **not** change the AGILab source license; refer to the repository root `
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | LGPL-2.1-OR-LATER |
-| pyarrow | APACHE SOFTWARE LICENSE |
+| pyarrow | APACHE-2.0 |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycparser | BSD-3-CLAUSE |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |

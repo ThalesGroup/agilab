@@ -23,8 +23,8 @@ It does **not** change the AGILab source license; refer to the repository root `
 | msgpack | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | numba | BSD LICENSE |
-| numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| numpy | 0BSD;; BSD-3-CLAUSE;; CC0-1.0;; MIT;; ZLIB |
+| packaging | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | BSD LICENSE |
 | parso | MIT LICENSE |
 | partd | BSD |

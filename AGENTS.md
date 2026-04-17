@@ -178,11 +178,16 @@ Use this runbook whenever you:
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
 - **Docs source of truth**: Editable docs sources live in the sibling docs
   checkout `../thales_agilab/docs/source` (for this machine:
-  `/Users/agi/thales_agilab/docs/source`). Keep the public mirror under
-  `docs/source` aligned whenever a change must land on the public site.
+  `/Users/agi/PycharmProjects/thales_agilab/docs/source`). Treat
+  `docs/source` in this repo as a managed public mirror, not as a second
+  authoring tree.
+- **Docs mirror sync**: Refresh the public mirror with
+  `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
+  after canonical docs edits. Use the same command without `--apply` as a drift
+  check.
 - **Docs edits**: `docs/html` in this repo is generated local output and is ignored by
   git. Do not treat `docs/html/_sources/*.txt` as editable source files. Edit docs in
-  `../thales_agilab/docs/source`.
+  `../thales_agilab/docs/source`, then sync the mirror into `docs/source`.
 - **Docs guardrail**: Never stage or commit `docs/html/**`. If generated files appear in
   status, unstage/remove them from the index and keep only source edits.
 - **VIRTUAL_ENV warning**: `uv` may emit `VIRTUAL_ENV=... does not match the project environment path ...; use --active...`.
