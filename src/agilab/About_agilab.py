@@ -75,12 +75,12 @@ def _newcomer_first_proof_content() -> Dict[str, Any]:
     """Return the first-proof onboarding contract shown on the landing page."""
     return {
         "title": "Start here",
-        "intro": "Goal: make one demo work on your computer.",
+        "intro": "Goal: make one demo work on your computer. Start from PROJECT, not from this page.",
         "steps": [
-            ("PROJECT", "Choose `flight_project`."),
-            ("ORCHESTRATE", "Click INSTALL, then EXECUTE."),
-            ("PIPELINE", "Check the generated files."),
-            ("ANALYSIS", "Open one result page."),
+            ("PROJECT", "Go to `PROJECT`. Choose `flight_project`."),
+            ("ORCHESTRATE", "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."),
+            ("PIPELINE", "Go to `PIPELINE`. Check the generated files."),
+            ("ANALYSIS", "Go to `ANALYSIS`. Open one result page."),
         ],
         "success_criteria": [
             "You can see files under `~/log/execute/flight/`.",
@@ -167,11 +167,11 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
     if project_path is None:
         next_step = "Fix the app list first. `flight_project` is missing."
     elif not current_app_matches:
-        next_step = "In PROJECT, choose `flight_project`."
+        next_step = "Go to `PROJECT`. Choose `flight_project`."
     elif not visible_outputs:
-        next_step = "Open ORCHESTRATE. Click INSTALL, then EXECUTE."
+        next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     else:
-        next_step = "Open ANALYSIS and check one result page."
+        next_step = "Go to `ANALYSIS`. Open one result page."
 
     return {
         "content": content,
@@ -318,9 +318,10 @@ def _landing_page_sections() -> Dict[str, Any]:
     """Return a minimal newcomer-oriented landing page summary."""
     return {
         "headline": "Start with one local demo.",
-        "goal": "Goal: run one demo and open one result page.",
+        "goal": "Goal: leave this page, run one demo, and open one result page.",
         "do_this_now": [
-            "Choose `flight_project` in PROJECT.",
+            "Go to `PROJECT`.",
+            "Choose `flight_project`.",
             "Open ORCHESTRATE.",
             "Click INSTALL.",
             "Click EXECUTE.",
@@ -344,6 +345,7 @@ def display_landing_page(resources_path: Path) -> None:
 
     st.markdown(f"**{sections['headline']}**")
     st.write(sections["goal"])
+    st.caption("You do not run the demo from the About page.")
     st.markdown("**Do this now**")
     st.markdown("\n".join(f"1. {item}" if idx == 0 else f"{idx + 1}. {item}" for idx, item in enumerate(sections["do_this_now"])))
     st.markdown("**You are done when**")
