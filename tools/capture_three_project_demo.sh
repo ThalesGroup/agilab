@@ -4,7 +4,7 @@ set -euo pipefail
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
 Usage:
-  tools/capture_three_project_demo.sh [--name demo-name] [--duration 95] [--start 0] [--trim 85] [--crop x:y:w:h] [--rl-app-root /path/to/sb3_trainer_project] [--print-only]
+  tools/capture_three_project_demo.sh [--name demo-name] [--duration 95] [--start 0] [--trim 85] [--crop x:y:w:h] [--rl-app-root /path/to/sb3_trainer_project] [--print-only] [--via-terminal]
 
 What it does:
   1. Writes a concrete cue sheet for a technical AGILAB demo covering data, ML, and RL.
@@ -19,6 +19,7 @@ Default acts:
 Examples:
   tools/capture_three_project_demo.sh
   tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85
+  tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85 --via-terminal
   tools/capture_three_project_demo.sh --print-only
 EOF
   exit 0
@@ -31,6 +32,7 @@ TRIM="85"
 CROP=""
 PRINT_ONLY="0"
 RL_APP_ROOT=""
+VIA_TERMINAL="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +62,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --print-only)
       PRINT_ONLY="1"
+      shift
+      ;;
+    --via-terminal)
+      VIA_TERMINAL="1"
       shift
       ;;
     *)
@@ -194,6 +200,10 @@ fi
 
 if [[ -n "$CROP" ]]; then
   CMD+=(--crop "$CROP")
+fi
+
+if [[ "$VIA_TERMINAL" == "1" ]]; then
+  CMD+=(--via-terminal)
 fi
 
 echo "Capture command:"
