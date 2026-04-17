@@ -1,11 +1,12 @@
 Learning Workflows
 ==================
 
-Some AGILab apps include learning components (for example supervised models,
-reinforcement learning, or graph neural networks). This page describes how to
-separate **training** from **inference**, and how **continuous learning** and
-**federated learning** can be implemented with AGILab’s orchestration and
-artifact conventions.
+Some AGILab apps include learning components such as supervised models,
+reinforcement learning, or graph neural networks.
+
+This page is a conceptual guide. It explains how AGILab can structure
+**training**, **inference**, **continuous learning**, and **federated
+learning** workflows. It is not part of the newcomer path.
 
 Training vs inference
 ---------------------

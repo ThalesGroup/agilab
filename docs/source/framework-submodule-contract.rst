@@ -1,18 +1,21 @@
 Pinned public framework submodule
 =================================
 
-This repository contains private AGILab apps, not the public framework itself.
-Those apps depend on the shared AGILab core packages:
+This page is a contributor/reference note for repositories that pin the public
+AGILab framework as a Git submodule instead of relying on an implicit local
+checkout.
+
+Those repositories depend on the shared AGILab core packages:
 
 - ``agi-env``
 - ``agi-node``
 - ``agi-cluster``
 - ``agi-core``
 
-Decision
---------
+Recommended default
+-------------------
 
-The default framework source is the pinned git submodule at::
+Use the pinned Git submodule at::
 
    .external/agilab
 
@@ -20,16 +23,16 @@ and the default core root is::
 
    .external/agilab/src/agilab/core
 
-Rationale
----------
+Why this is the default
+-----------------------
 
-The previous local developer workflow often relied on a machine-specific
-symlink such as ``core -> ../agilab/src/agilab/core`` or on an implicit sibling
-checkout. That was convenient, but it weakened the audit story:
+Older local workflows often relied on a machine-specific symlink or on an
+implicit sibling checkout. That was convenient, but it made the effective
+framework revision less explicit:
 
-- a fresh clone of the private apps repository was not enough to reproduce the setup
+- a fresh clone was not always enough to reproduce the setup
 - local developers, CI, and reviewers could silently use different framework revisions
-- the effective framework version was not pinned inside the private repo boundary
+- the effective framework version was not pinned inside the repository boundary
 
 The pinned submodule fixes that by making the framework revision explicit in Git
 history and by giving CI, developers, and auditors the same default source.
