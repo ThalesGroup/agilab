@@ -210,6 +210,20 @@ uv --preview-features extra-build-dependencies run --with imageio --with imageio
 Use it honestly as a composite technical explainer, not as a claimed live UI
 walkthrough.
 
+Current fallback quality bar:
+
+- about `52s`
+- `1920x1080`, `30 fps`
+- one shared reel language across the three acts
+- explicit intro and closing synthesis cards
+- data and ML acts rendered by the same AGILAB reel engine as the public
+  one-app demos
+- RL act rendered in the same visual system, using FCAS routing figures only as
+  evidence support
+
+This means the fallback is now credible for technical launch channels. It is no
+longer just a placeholder video.
+
 ## GitHub About / Topics
 
 ### Primary About text

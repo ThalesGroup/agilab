@@ -160,7 +160,7 @@ Keep the act discipline strict:
 - end each act on evidence, then cut immediately
 
 If interactive screen capture is not possible from your environment, build the
-synthetic composite fallback instead:
+coherent synthetic composite instead:
 
 ```bash
 uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg \
@@ -173,9 +173,29 @@ Outputs:
 - `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.gif`
 - `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic_poster.png`
 
-This fallback is a synthetic composite built from real AGILAB and FCAS assets.
+Current synthetic reel contract:
+
+- `1920x1080`
+- `30 fps`
+- about `52s`
+- one consistent visual system across the three acts
+- data and ML acts rendered from the same AGILAB reel engine as the public
+  one-app demos
+- RL act rendered in the same style, with FCAS routing figures used only as
+  evidence material
+
+This is not the old crude fallback anymore. It is a coherent technical
+composite built from the same scene language as the one-app reels, then stitched
+into one operator story:
+
+- intro card
+- `execution_pandas_project`
+- `meteo_forecast_project`
+- `sb3_trainer_project`
+- closing synthesis card
+
 Use it when you need a deterministic technical explainer rather than a live UI
-walkthrough.
+walkthrough, but still want the video to feel like one consistent product asset.
 
 ## Self-generated fallback
 
