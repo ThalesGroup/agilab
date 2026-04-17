@@ -17,7 +17,9 @@ H = 1080
 FPS = 30
 
 ROOT = Path(__file__).resolve().parents[1]
+THALES_ROOT = ROOT.parent / "thales_agilab"
 PAGE_SHOTS = ROOT / "docs/source/_static/page-shots"
+FCAS_FIGURES = THALES_ROOT / "FCAS/figures"
 
 BG = ImageColor.getrgb("#07111d")
 BG_2 = ImageColor.getrgb("#0d1b2f")
@@ -302,13 +304,189 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
 )
 
 
+EXECUTION_PANDAS_SCENES: tuple[Scene, ...] = (
+    Scene(
+        name="intro",
+        image=PAGE_SHOTS / "core-pages-overview.png",
+        stage="AGILAB",
+        title="From dataset setup to repeatable compute.",
+        body="Use one built-in AGILAB app to generate data, run compute, replay steps, and keep exported outputs inspectable.",
+        seconds=2.2,
+        active_step=-1,
+        focus=(0.56, 0.52),
+        zoom_start=1.0,
+        zoom_end=1.05,
+        highlight=None,
+        highlight_label=None,
+        footer="execution_pandas_project",
+    ),
+    Scene(
+        name="project",
+        image=PAGE_SHOTS / "project-page.png",
+        stage="PROJECT",
+        title="Choose the data generator.",
+        body="Keep file count, row volume, and output layout explicit in one app context instead of rebuilding setup by hand.",
+        seconds=3.0,
+        active_step=0,
+        focus=(0.54, 0.46),
+        zoom_start=1.0,
+        zoom_end=1.04,
+        highlight=(0.01, 0.43, 0.18, 0.67),
+        highlight_label="Dataset setup",
+        overlay="data_project_context",
+        footer="execution_pandas_project",
+    ),
+    Scene(
+        name="orchestrate",
+        image=PAGE_SHOTS / "orchestrate-page.png",
+        stage="ORCHESTRATE",
+        title="Run one repeatable compute path.",
+        body="Generate the same runnable path every time, then keep data volume and exported artifacts tractable.",
+        seconds=3.2,
+        active_step=1,
+        focus=(0.60, 0.44),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.23, 0.20, 0.95, 0.77),
+        highlight_label="Compute run snippet",
+        overlay="data_orchestrate_compute",
+        footer="execution_pandas_project",
+    ),
+    Scene(
+        name="pipeline",
+        image=PAGE_SHOTS / "pipeline-page.png",
+        stage="PIPELINE",
+        title="Keep the data path replayable.",
+        body="Make generation, partitioning, and export explicit so downstream ML or analytics runs can reuse the same outputs.",
+        seconds=3.1,
+        active_step=2,
+        focus=(0.60, 0.48),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.22, 0.39, 0.95, 0.80),
+        highlight_label="Generation + export steps",
+        overlay="data_pipeline_snippet",
+        footer="execution_pandas_project",
+    ),
+    Scene(
+        name="finale",
+        image=PAGE_SHOTS / "analysis-page.png",
+        stage="ANALYSIS",
+        title="Finish on written artifacts.",
+        body="End on exported files, partition counts, and downstream-ready outputs instead of a generic success message.",
+        seconds=3.0,
+        active_step=3,
+        focus=(0.54, 0.42),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.22, 0.30, 0.95, 0.93),
+        highlight_label="Data export evidence",
+        overlay="data_analysis_exports",
+        footer="execution_pandas_project",
+    ),
+)
+
+
+SB3_ROUTING_SCENES: tuple[Scene, ...] = (
+    Scene(
+        name="intro",
+        image=FCAS_FIGURES / "routing_strategy_context.png",
+        stage="AGILAB",
+        title="From routing context to policy evidence.",
+        body="Treat reinforcement learning as another reproducible workflow instead of a notebook-only experiment.",
+        seconds=2.4,
+        active_step=-1,
+        focus=(0.54, 0.50),
+        zoom_start=1.0,
+        zoom_end=1.04,
+        highlight=None,
+        highlight_label=None,
+        footer="sb3_trainer_project",
+    ),
+    Scene(
+        name="project",
+        image=PAGE_SHOTS / "project-page.png",
+        stage="PROJECT",
+        title="Choose the routing trainer.",
+        body="Keep PPO-GNN or path actor-critic choices explicit so the trainer contract is inspectable before the run starts.",
+        seconds=3.0,
+        active_step=0,
+        focus=(0.54, 0.46),
+        zoom_start=1.0,
+        zoom_end=1.04,
+        highlight=(0.01, 0.43, 0.18, 0.67),
+        highlight_label="Trainer setup",
+        overlay="rl_project_context",
+        footer="sb3_trainer_project",
+    ),
+    Scene(
+        name="orchestrate",
+        image=PAGE_SHOTS / "orchestrate-page.png",
+        stage="ORCHESTRATE",
+        title="Run the training path cleanly.",
+        body="Package the trainer launch once, keep the same app path, and surface checkpoint or export intent instead of hiding it in ad-hoc scripts.",
+        seconds=3.2,
+        active_step=1,
+        focus=(0.60, 0.44),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.23, 0.20, 0.95, 0.77),
+        highlight_label="Trainer run snippet",
+        overlay="rl_orchestrate_train",
+        footer="sb3_trainer_project",
+    ),
+    Scene(
+        name="pipeline",
+        image=FCAS_FIGURES / "ppo_training_loop_2020x1369.png",
+        stage="PIPELINE",
+        title="Keep the learning loop explicit.",
+        body="Turn observation, action, reward, update, and checkpoint logic into a visible and explainable training path.",
+        seconds=3.2,
+        active_step=2,
+        focus=(0.52, 0.48),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=None,
+        highlight_label=None,
+        overlay="rl_pipeline_loop",
+        footer="sb3_trainer_project",
+    ),
+    Scene(
+        name="finale",
+        image=FCAS_FIGURES / "routing_pipeline_overview_2020x1369.png",
+        stage="ANALYSIS",
+        title="Finish on policy-side evidence.",
+        body="Show the trained-policy path, exported allocations, or routing summary instead of stopping at a trainer form.",
+        seconds=3.1,
+        active_step=3,
+        focus=(0.50, 0.50),
+        zoom_start=1.0,
+        zoom_end=1.02,
+        highlight=None,
+        highlight_label=None,
+        overlay="rl_analysis_evidence",
+        footer="sb3_trainer_project",
+    ),
+)
+
+
 VARIANTS: dict[str, Variant] = {
     "flight": Variant(key="flight", app_badge="FLIGHT PROJECT", scenes=FLIGHT_SCENES),
     "uav_queue": Variant(key="uav_queue", app_badge="UAV RELAY QUEUE", scenes=UAV_QUEUE_SCENES),
+    "execution_pandas": Variant(
+        key="execution_pandas",
+        app_badge="EXECUTION PANDAS",
+        scenes=EXECUTION_PANDAS_SCENES,
+    ),
     "meteo_forecast": Variant(
         key="meteo_forecast",
         app_badge="METEO FORECAST",
         scenes=METEO_FORECAST_SCENES,
+    ),
+    "sb3_routing": Variant(
+        key="sb3_routing",
+        app_badge="ROUTING RL",
+        scenes=SB3_ROUTING_SCENES,
     ),
 }
 
@@ -572,6 +750,22 @@ def draw_screenshot_card(canvas: Image.Image, scene: Scene, t: float, variant: V
         draw_meteo_pipeline_snippet_overlay(canvas, scene, slide_x, slide_y)
     elif scene.overlay == "meteo_analysis":
         draw_meteo_analysis_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "data_project_context":
+        draw_data_project_context_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "data_orchestrate_compute":
+        draw_data_orchestrate_compute_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "data_pipeline_snippet":
+        draw_data_pipeline_snippet_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "data_analysis_exports":
+        draw_data_analysis_exports_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "rl_project_context":
+        draw_rl_project_context_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "rl_orchestrate_train":
+        draw_rl_orchestrate_train_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "rl_pipeline_loop":
+        draw_rl_pipeline_loop_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "rl_analysis_evidence":
+        draw_rl_analysis_evidence_overlay(canvas, scene, slide_x, slide_y)
 
 
 def fit_contain(img: Image.Image, width: int, height: int) -> Image.Image:
@@ -1218,6 +1412,362 @@ def draw_meteo_analysis_overlay(canvas: Image.Image, scene: Scene, slide_x: int,
 
     draw.rounded_rectangle((rx0 + 18, ry1 - 46, rx1 - 18, ry1 - 18), radius=12, fill=(18, 56, 44, 255))
     draw.text((rx0 + 34, ry1 - 38), "metrics + predictions -> analysis evidence", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_data_project_context_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 138 + slide_x
+    box_y = CARD_Y + 214 + slide_y
+    box_w = 676
+    box_h = 254
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=24, fill=(11, 22, 34, 246), outline=(255, 255, 255, 38), width=2)
+    draw.rounded_rectangle((18, 16, 222, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Dataset context", font=FONT_HIGHLIGHT, fill=WHITE)
+
+    specs = [
+        ("App", "execution_pandas_project"),
+        ("Files", "24"),
+        ("Rows / file", "250000"),
+        ("Engine", "pandas"),
+        ("Artifacts", "csv + parquet"),
+    ]
+    row_y = 78
+    for label, value in specs:
+        draw.rounded_rectangle((24, row_y, box_w - 24, row_y + 34), radius=12, fill=(17, 34, 52, 255))
+        draw.text((38, row_y + 8), label, font=FONT_STEP, fill=MUTED)
+        value_bbox = draw.textbbox((0, 0), value, font=FONT_HIGHLIGHT)
+        vw = value_bbox[2] - value_bbox[0]
+        draw.text((box_w - vw - 42, row_y + 7), value, font=FONT_HIGHLIGHT, fill=INK)
+        row_y += 38
+
+    draw.rounded_rectangle((24, box_h - 52, 188, box_h - 18), radius=12, fill=(18, 56, 44, 255))
+    draw.text((42, box_h - 43), "built-in data app", font=FONT_STEP, fill=WHITE)
+    draw.rounded_rectangle((box_w - 194, box_h - 52, box_w - 24, box_h - 18), radius=12, fill=(18, 39, 60, 255))
+    draw.text((box_w - 176, box_h - 43), "reusable outputs", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_data_orchestrate_compute_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 122 + slide_x
+    box_y = CARD_Y + 182 + slide_y
+    box_w = 748
+    box_h = 330
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=(12, 22, 34, 248), outline=(255, 255, 255, 36), width=2)
+    draw.rounded_rectangle((18, 16, 234, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Compute run", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.rounded_rectangle((20, 70, box_w - 20, box_h - 74), radius=18, fill=(9, 15, 24, 255), outline=(92, 160, 255), width=2)
+
+    code_lines = [
+        "import asyncio",
+        "from agi_cluster.agi_distributor import AGI",
+        "from agi_env import AgiEnv",
+        "",
+        "APP = \"execution_pandas_project\"",
+        "env = AgiEnv(app=APP, verbose=1)",
+        "await AGI.run(env, mode=15, data_out=\"execution_pandas/output\")",
+        "# writes partitioned parquet + csv artifacts",
+    ]
+    line_y = 92
+    code_font = load_font(18)
+    for line in code_lines:
+        fill = INK if line and not line.startswith("APP") else (164, 194, 230)
+        if "AGI.run" in line or "parquet" in line:
+            fill = ACCENT_WARM
+        draw.text((38, line_y), line, font=code_font, fill=fill)
+        line_y += 24
+
+    sx = 28
+    sy = box_h - 58
+    for label, fill in [
+        ("generate", (17, 40, 62, 255)),
+        ("compute", (18, 56, 44, 255)),
+        ("export", (79, 115, 168, 255)),
+    ]:
+        pill_w = draw.textbbox((0, 0), label, font=FONT_STEP)[2] + 34
+        draw.rounded_rectangle((sx, sy, sx + pill_w, sy + 34), radius=14, fill=fill)
+        draw.text((sx + 17, sy + 9), label, font=FONT_STEP, fill=WHITE)
+        sx += pill_w + 12
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_data_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 112 + slide_x
+    box_y = CARD_Y + 184 + slide_y
+    box_w = 760
+    box_h = 336
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=(12, 22, 34, 248), outline=(255, 255, 255, 36), width=2)
+    draw.rounded_rectangle((18, 16, 214, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Replayable data path", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.rounded_rectangle((20, 70, box_w - 20, box_h - 20), radius=18, fill=(9, 15, 24, 255), outline=(92, 160, 255), width=2)
+
+    steps = [
+        "1. generate_dataframe()",
+        "2. split_partition_outputs()",
+        "3. run_compute_passes()",
+        "4. export parquet artifacts",
+        "5. export csv summary",
+        "6. reuse outputs downstream",
+    ]
+    line_y = 94
+    code_font = load_font(21)
+    for idx, line in enumerate(steps):
+        fill = INK if idx < 4 else ACCENT_WARM
+        draw.text((42, line_y), line, font=code_font, fill=fill)
+        line_y += 34
+
+    draw.rounded_rectangle((34, box_h - 58, 232, box_h - 24), radius=14, fill=(17, 40, 62, 255))
+    draw.text((52, box_h - 49), "stable output contract", font=FONT_STEP, fill=WHITE)
+    draw.rounded_rectangle((box_w - 172, box_h - 58, box_w - 28, box_h - 24), radius=14, fill=(18, 56, 44, 255))
+    draw.text((box_w - 153, box_h - 49), "ML-ready export", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_data_analysis_exports_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 86 + slide_x
+    box_y = CARD_Y + 172 + slide_y
+    box_w = 844
+    box_h = 376
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=28, fill=(9, 22, 35, 244), outline=(255, 255, 255, 34), width=2)
+    draw.rounded_rectangle((18, 16, 244, 52), radius=14, fill=(255, 255, 255, 22))
+    draw.text((36, 24), "data export evidence", font=FONT_HIGHLIGHT, fill=INK)
+
+    metric_boxes = [
+        ((24, 76, 204, 160), "Files", "24", (83, 111, 156)),
+        ((222, 76, 402, 160), "Partitions", "8", (85, 162, 116)),
+        ((420, 76, 600, 160), "Rows", "6.0M", (211, 126, 57)),
+    ]
+    for box, title, value, outline in metric_boxes:
+        x0, y0, x1, y1 = box
+        draw.rounded_rectangle(box, radius=18, fill=(12, 28, 44, 255), outline=outline, width=3)
+        draw.text((x0 + 18, y0 + 16), title, font=FONT_STEP, fill=MUTED)
+        draw.text((x0 + 18, y0 + 42), value, font=FONT_HIGHLIGHT, fill=INK)
+
+    meta = (618, 76, box_w - 24, 160)
+    mx0, my0, mx1, my1 = meta
+    draw.rounded_rectangle(meta, radius=18, fill=(12, 28, 44, 255), outline=(75, 123, 171), width=2)
+    draw.text((mx0 + 18, my0 + 16), "Artifact layout", font=FONT_HIGHLIGHT, fill=INK)
+    draw.text((mx0 + 18, my0 + 46), "output/parquet/", font=FONT_STEP, fill=WHITE)
+    draw.text((mx0 + 18, my0 + 68), "output/csv/", font=FONT_STEP, fill=WHITE)
+    draw.text((mx0 + 18, my0 + 90), "summary.json", font=FONT_STEP, fill=WHITE)
+
+    left = (24, 188, 402, 332)
+    lx0, ly0, lx1, ly1 = left
+    draw.rounded_rectangle(left, radius=18, fill=(10, 18, 28, 255))
+    draw.text((lx0 + 16, ly0 + 14), "Sample exports", font=FONT_HIGHLIGHT, fill=INK)
+    exports = [
+        "dataset_part_00.parquet",
+        "dataset_part_01.parquet",
+        "compute_summary.csv",
+        "export_manifest.json",
+    ]
+    line_y = ly0 + 48
+    for item in exports:
+        draw.rounded_rectangle((lx0 + 18, line_y, lx1 - 18, line_y + 24), radius=8, fill=(14, 28, 42, 255))
+        draw.text((lx0 + 28, line_y + 6), item, font=FONT_STEP, fill=WHITE)
+        line_y += 30
+
+    right = (420, 188, box_w - 24, 332)
+    rx0, ry0, rx1, ry1 = right
+    draw.rounded_rectangle(right, radius=18, fill=(10, 18, 28, 255))
+    draw.text((rx0 + 18, ry0 + 14), "Why it matters", font=FONT_HIGHLIGHT, fill=INK)
+    notes = [
+        "data generation is rerunnable",
+        "partitions stay explicit",
+        "exports can feed later ML runs",
+        "artifacts are not trapped in notebooks",
+    ]
+    line_y = ry0 + 46
+    for note in notes:
+        draw.rounded_rectangle((rx0 + 18, line_y, rx1 - 18, line_y + 24), radius=8, fill=(14, 28, 42, 255))
+        draw.text((rx0 + 28, line_y + 6), note, font=FONT_STEP, fill=WHITE)
+        line_y += 30
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_rl_project_context_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 138 + slide_x
+    box_y = CARD_Y + 212 + slide_y
+    box_w = 676
+    box_h = 254
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=24, fill=(11, 22, 34, 246), outline=(255, 255, 255, 38), width=2)
+    draw.rounded_rectangle((18, 16, 222, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Trainer context", font=FONT_HIGHLIGHT, fill=WHITE)
+
+    specs = [
+        ("App", "sb3_trainer_project"),
+        ("Trainer", "PPO-GNN"),
+        ("Alt. path", "Path Actor-Critic"),
+        ("Environment", "routing"),
+        ("Artifacts", "policy + allocations"),
+    ]
+    row_y = 78
+    for label, value in specs:
+        draw.rounded_rectangle((24, row_y, box_w - 24, row_y + 34), radius=12, fill=(17, 34, 52, 255))
+        draw.text((38, row_y + 8), label, font=FONT_STEP, fill=MUTED)
+        value_bbox = draw.textbbox((0, 0), value, font=FONT_HIGHLIGHT)
+        vw = value_bbox[2] - value_bbox[0]
+        draw.text((box_w - vw - 42, row_y + 7), value, font=FONT_HIGHLIGHT, fill=INK)
+        row_y += 38
+
+    draw.rounded_rectangle((24, box_h - 52, 180, box_h - 18), radius=12, fill=(18, 56, 44, 255))
+    draw.text((42, box_h - 43), "routing-aware RL", font=FONT_STEP, fill=WHITE)
+    draw.rounded_rectangle((box_w - 186, box_h - 52, box_w - 24, box_h - 18), radius=12, fill=(18, 39, 60, 255))
+    draw.text((box_w - 168, box_h - 43), "policy artifacts", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_rl_orchestrate_train_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 122 + slide_x
+    box_y = CARD_Y + 180 + slide_y
+    box_w = 748
+    box_h = 332
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=(12, 22, 34, 248), outline=(255, 255, 255, 36), width=2)
+    draw.rounded_rectangle((18, 16, 224, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Trainer run", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.rounded_rectangle((20, 70, box_w - 20, box_h - 74), radius=18, fill=(9, 15, 24, 255), outline=(92, 160, 255), width=2)
+
+    code_lines = [
+        "import asyncio",
+        "from agi_cluster.agi_distributor import AGI",
+        "from agi_env import AgiEnv",
+        "",
+        "APP = \"sb3_trainer_project\"",
+        "env = AgiEnv(app=APP, verbose=1)",
+        "await AGI.run(env, mode=15, data_in=\"routing_training/share\")",
+        "# writes checkpoints + routing outputs",
+    ]
+    line_y = 92
+    code_font = load_font(18)
+    for line in code_lines:
+        fill = INK if line and not line.startswith("APP") else (164, 194, 230)
+        if "AGI.run" in line or "checkpoints" in line:
+            fill = ACCENT_WARM
+        draw.text((38, line_y), line, font=code_font, fill=fill)
+        line_y += 24
+
+    sx = 28
+    sy = box_h - 58
+    for label, fill in [
+        ("ppo-gnn", (17, 40, 62, 255)),
+        ("actor-critic", (18, 56, 44, 255)),
+        ("checkpoint", (79, 115, 168, 255)),
+    ]:
+        pill_w = draw.textbbox((0, 0), label, font=FONT_STEP)[2] + 34
+        draw.rounded_rectangle((sx, sy, sx + pill_w, sy + 34), radius=14, fill=fill)
+        draw.text((sx + 17, sy + 9), label, font=FONT_STEP, fill=WHITE)
+        sx += pill_w + 12
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_rl_pipeline_loop_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 560 + slide_x
+    box_y = CARD_Y + 388 + slide_y
+    box_w = 420
+    box_h = 204
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=24, fill=SURFACE_2 + (246,), outline=(255, 255, 255, 40), width=2)
+    draw.rounded_rectangle((18, 16, 198, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Learning loop", font=FONT_HIGHLIGHT, fill=WHITE)
+
+    steps = [
+        "observe routing state",
+        "choose path action",
+        "measure reward / backlog",
+        "update policy + checkpoint",
+    ]
+    line_y = 78
+    for step in steps:
+        draw.rounded_rectangle((22, line_y, box_w - 22, line_y + 28), radius=10, fill=(12, 28, 44, 255))
+        draw.text((34, line_y + 7), step, font=FONT_STEP, fill=INK)
+        line_y += 34
+
+    draw.rounded_rectangle((22, box_h - 46, box_w - 22, box_h - 18), radius=12, fill=(18, 56, 44, 255))
+    draw.text((38, box_h - 38), "explicit loop -> replayable training narrative", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_rl_analysis_evidence_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 86 + slide_x
+    box_y = CARD_Y + 172 + slide_y
+    box_w = 844
+    box_h = 376
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=28, fill=(9, 22, 35, 244), outline=(255, 255, 255, 34), width=2)
+    draw.rounded_rectangle((18, 16, 242, 52), radius=14, fill=(255, 255, 255, 22))
+    draw.text((36, 24), "routing evidence", font=FONT_HIGHLIGHT, fill=INK)
+
+    metric_boxes = [
+        ((24, 76, 214, 160), "Trainer", "PPO-GNN", (83, 111, 156)),
+        ((232, 76, 422, 160), "Checkpoint", "policy.zip", (85, 162, 116)),
+        ((440, 76, 630, 160), "Export", "allocations.csv", (211, 126, 57)),
+    ]
+    for box, title, value, outline in metric_boxes:
+        x0, y0, x1, y1 = box
+        draw.rounded_rectangle(box, radius=18, fill=(12, 28, 44, 255), outline=outline, width=3)
+        draw.text((x0 + 18, y0 + 16), title, font=FONT_STEP, fill=MUTED)
+        draw.text((x0 + 18, y0 + 42), value, font=FONT_HIGHLIGHT, fill=INK)
+
+    meta = (648, 76, box_w - 24, 160)
+    mx0, my0, mx1, my1 = meta
+    draw.rounded_rectangle(meta, radius=18, fill=(12, 28, 44, 255), outline=(75, 123, 171), width=2)
+    draw.text((mx0 + 18, my0 + 16), "Policy view", font=FONT_HIGHLIGHT, fill=INK)
+    draw.text((mx0 + 18, my0 + 46), "inference-ready", font=FONT_STEP, fill=WHITE)
+    draw.text((mx0 + 18, my0 + 68), "routing summary", font=FONT_STEP, fill=WHITE)
+    draw.text((mx0 + 18, my0 + 90), "artifact-backed", font=FONT_STEP, fill=WHITE)
+
+    left = (24, 188, 404, 332)
+    lx0, ly0, lx1, ly1 = left
+    draw.rounded_rectangle(left, radius=18, fill=(10, 18, 28, 255))
+    draw.text((lx0 + 16, ly0 + 14), "Policy-side outputs", font=FONT_HIGHLIGHT, fill=INK)
+    outputs = [
+        "policy.zip",
+        "allocations.csv",
+        "routing_summary.json",
+        "training_metrics.json",
+    ]
+    line_y = ly0 + 48
+    for item in outputs:
+        draw.rounded_rectangle((lx0 + 18, line_y, lx1 - 18, line_y + 24), radius=8, fill=(14, 28, 42, 255))
+        draw.text((lx0 + 28, line_y + 6), item, font=FONT_STEP, fill=WHITE)
+        line_y += 30
+
+    right = (422, 188, box_w - 24, 332)
+    rx0, ry0, rx1, ry1 = right
+    draw.rounded_rectangle(right, radius=18, fill=(10, 18, 28, 255))
+    draw.text((rx0 + 18, ry0 + 14), "Why this is real RL", font=FONT_HIGHLIGHT, fill=INK)
+    notes = [
+        "trainer choice is explicit",
+        "learning loop is documented",
+        "artifacts survive the run",
+        "routing outputs stay inspectable",
+    ]
+    line_y = ry0 + 46
+    for note in notes:
+        draw.rounded_rectangle((rx0 + 18, line_y, rx1 - 18, line_y + 24), radius=8, fill=(14, 28, 42, 255))
+        draw.text((rx0 + 28, line_y + 6), note, font=FONT_STEP, fill=WHITE)
+        line_y += 30
     canvas.alpha_composite(panel, (box_x, box_y))
 
 
