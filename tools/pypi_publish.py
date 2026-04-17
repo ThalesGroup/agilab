@@ -200,6 +200,10 @@ PYPI_JSON = {
     "testpypi": "https://test.pypi.org/pypi/{name}/json",
     "pypi":     "https://pypi.org/pypi/{name}/json",
 }
+PYPI_SIMPLE = {
+    "testpypi": "https://test.pypi.org/simple/{name}/",
+    "pypi":     "https://pypi.org/simple/{name}/",
+}
 
 BADGE_PATTERN = re.compile(
     r"\[!\[PyPI version\]\(https://img\.shields\.io/[^)]+\)\]\(https://pypi\.org/project/[^)]+\)"
@@ -296,30 +300,57 @@ def sanitize_project_names(paths: List[pathlib.Path]):
 
 
 # ---------- Version work ----------
+def fetch_url_text(url: str, *, timeout: int = 10) -> str:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            return response.read().decode("utf-8", "ignore")
+    except Exception as urllib_exc:
+        curl = shutil.which("curl")
+        if not curl:
+            raise RuntimeError(f"{url}: {urllib_exc}") from urllib_exc
+        try:
+            proc = subprocess.run(
+                [curl, "-fsSL", "--max-time", str(timeout), url],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            return proc.stdout
+        except subprocess.CalledProcessError as curl_exc:
+            raise RuntimeError(f"{url}: urllib={urllib_exc}; curl={curl_exc}") from curl_exc
+
+
+def fetch_url_json(url: str, *, timeout: int = 10) -> dict:
+    text = fetch_url_text(url, timeout=timeout)
+    data = json.loads(text) or {}
+    if not isinstance(data, dict):
+        raise RuntimeError(f"{url}: expected JSON object")
+    return data
+
+
+class _SimpleVersionParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.versions: set[str] = set()
+
+    def handle_data(self, data: str) -> None:
+        self.versions |= set(re.findall(r"\d+\.\d+\.\d+(?:\.post\d+)?", data or ""))
+
+
 def pypi_releases(name: str, repo_target: str) -> set[str]:
     url = PYPI_JSON[repo_target].format(name=name)
     releases: set[str] = set()
 
     try:
-        with urllib.request.urlopen(url, timeout=10) as r:
-            data = json.load(r) or {}
+        data = fetch_url_json(url, timeout=10)
         releases |= set((data.get("releases") or {}).keys())
     except Exception as e:
         print(f"[warn] Could not fetch releases for {name} from {url}: {e}")
 
-    simple_url = f"https://{'test.' if repo_target == 'testpypi' else ''}pypi.org/simple/{name}/"
-
-    class _SimpleVersionParser(HTMLParser):
-        def __init__(self) -> None:
-            super().__init__()
-            self.versions: set[str] = set()
-
-        def handle_data(self, data: str) -> None:
-            self.versions |= set(re.findall(r"\d+\.\d+\.\d+(?:\.post\d+)?", data or ""))
+    simple_url = PYPI_SIMPLE[repo_target].format(name=name)
 
     try:
-        with urllib.request.urlopen(simple_url, timeout=10) as r:
-            html = r.read().decode("utf-8", "ignore")
+        html = fetch_url_text(simple_url, timeout=10)
         parser = _SimpleVersionParser()
         parser.feed(html)
         releases |= parser.versions
@@ -331,6 +362,24 @@ def pypi_releases(name: str, repo_target: str) -> set[str]:
 
     # Do NOT silently ignore; this commonly leads to version collisions later.
     return {"0.0.0.post0"}
+
+
+def require_safe_pypi_release(cfg: Cfg) -> None:
+    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
+        return
+    missing: list[str] = []
+    if not cfg.git_commit_version:
+        missing.append("--git-commit-version")
+    if not cfg.git_tag:
+        missing.append("--git-tag")
+    if not cfg.git_reset_on_failure:
+        missing.append("--git-reset-on-failure")
+    if missing:
+        raise SystemExit(
+            "ERROR: Real PyPI releases must run with "
+            + ", ".join(missing)
+            + " so the repo state, tag state, and rollback path stay aligned."
+        )
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -1064,6 +1113,7 @@ def main():
 
     if cfg.pypirc_check:
         assert_pypirc_has(cfg.repo)
+    require_safe_pypi_release(cfg)
 
     # Validate explicit version if provided
     if cfg.version is not None and not re.fullmatch(r"\d+\.\d+\.\d+(?:\.post\d+)?", cfg.version):
