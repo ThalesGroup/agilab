@@ -312,41 +312,33 @@ def quick_logo(resources_path: Path) -> None:
 
 
 def _landing_page_sections() -> Dict[str, Any]:
-    """Return a minimal newcomer-oriented landing page summary."""
+    """Return secondary explanatory copy for users who want more context."""
     return {
-        "headline": "Start with one local demo.",
-        "goal": "Goal: leave this page, run one demo, and open one result page.",
-        "do_this_now": [
-            "Go to `PROJECT`.",
-            "Choose `flight_project`.",
-            "Open ORCHESTRATE.",
-            "Click INSTALL.",
-            "Click EXECUTE.",
-            "Open ANALYSIS.",
+        "headline": "About AGILAB",
+        "goal": "AGILAB helps you run a demo, generate outputs, and open result pages.",
+        "what_pages_do": [
+            "`PROJECT` chooses the demo.",
+            "`ORCHESTRATE` runs it.",
+            "`ANALYSIS` opens the result pages.",
         ],
-        "done_when": [
-            "you can open one result page",
-        ],
-        "then": [
-            "try another demo",
+        "after_first_demo": [
+            "try another built-in demo",
             "keep cluster mode for later",
         ],
     }
 
 
 def display_landing_page(resources_path: Path) -> None:
-    """Display a minimal start-here message."""
+    """Display secondary context without repeating the first-step instructions."""
     del resources_path
     sections = _landing_page_sections()
 
     st.markdown(f"**{sections['headline']}**")
     st.write(sections["goal"])
-    st.caption("You do not run the demo from the About page.")
-    st.markdown("**Do this now**")
-    st.markdown("\n".join(f"1. {item}" if idx == 0 else f"{idx + 1}. {item}" for idx, item in enumerate(sections["do_this_now"])))
-    st.markdown("**You are done when**")
-    st.markdown("\n".join(f"- {item}" for item in sections["done_when"]))
-    st.info("Then: try another demo. Keep cluster mode for later.")
+    st.caption("Use the `Start here` box above for the first demo path.")
+    st.markdown("**Main pages**")
+    st.markdown("\n".join(f"- {item}" for item in sections["what_pages_do"]))
+    st.info("After the first demo: try another built-in demo. Keep cluster mode for later.")
 
 
 def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
@@ -886,7 +878,7 @@ def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
     cols = st.columns(1)
 
-    with st.expander("Introduction", expanded=True):
+    with st.expander("More info", expanded=False):
         display_landing_page(Path(env.st_resources))
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
