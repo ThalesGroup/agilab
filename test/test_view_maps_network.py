@@ -253,6 +253,14 @@ def test_view_maps_network_extracts_semantic_node_id_from_label(monkeypatch, tmp
     assert module._semantic_node_id_from_text("NSS-11") == "11"
 
 
+def test_view_maps_network_unexpected_semantic_label_errors_propagate(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    monkeypatch.setattr(module, "_strip_export_suffix", lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad strip")))
+
+    with pytest.raises(TypeError, match="bad strip"):
+        module._semantic_node_id_from_text("SES-10")
+
+
 def test_view_maps_network_prefers_semantic_ids_over_local_plane_counters(monkeypatch, tmp_path: Path) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
@@ -2061,6 +2069,14 @@ def test_view_maps_network_visual_helper_fallback_branches(
     )
     out_of_bounds_stats = module._sample_cloud_heatmap_stats("grid.npz", 90.0, 180.0)
     assert all(math.isnan(value) for value in out_of_bounds_stats.values())
+
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_grid",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad grid")),
+    )
+    with pytest.raises(TypeError, match="bad grid"):
+        module._sample_cloud_heatmap_stats("grid.npz", 0.0, 0.0)
 
     assert module._selected_nodes_heatmap_timeline(None, "heatmap.npz", {"A"}).empty
     assert module._selected_nodes_heatmap_timeline(

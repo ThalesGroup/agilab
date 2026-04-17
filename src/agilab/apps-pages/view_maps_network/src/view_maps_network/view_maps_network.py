@@ -414,7 +414,7 @@ def _sample_cloud_heatmap_stats(
     try:
         lat_f = float(lat)
         lon_f = float(lon)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return {
             "raw_value": float("nan"),
             "proxy_value": float("nan"),
@@ -431,7 +431,7 @@ def _sample_cloud_heatmap_stats(
 
     try:
         grid = _load_cloud_heatmap_grid(npz_path)
-    except Exception:
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
         return {
             "raw_value": float("nan"),
             "proxy_value": float("nan"),
@@ -491,7 +491,7 @@ def _decision_time_samples(
         if not np.isfinite(sample_time):
             try:
                 sample_time = float(time_index)
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 continue
         rows.append({"time_index": int(time_index), "sample_time_s": sample_time})
     return pd.DataFrame(rows)
@@ -1210,7 +1210,7 @@ def _semantic_node_id_from_text(value: Any) -> str | None:
         return None
     try:
         return str(int(digits))
-    except Exception:
+    except ValueError:
         return None
 
 
