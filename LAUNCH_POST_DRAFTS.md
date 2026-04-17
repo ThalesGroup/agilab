@@ -26,7 +26,7 @@ Do not fragment this launch wave across multiple unrelated product stories.
 Use one primary demo asset for this wave:
 
 - published public video: `https://youtu.be/kOMDyvbnC9w`
-- local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- local canonical reel: regenerate locally when needed with the command below
 - primary still image fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 - supporting workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 
@@ -52,8 +52,7 @@ Use this package when the channel needs proof of a real ML workflow, not just a
 general product tour.
 
 - published public video: `https://youtu.be/yIZ6vTBg95w`
-- local upload/source reel: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4)
-- local poster: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png)
+- local ML reel/poster: regenerate locally when needed with the command below
 
 If the local video asset is missing, regenerate it before packaging the post:
 
@@ -334,7 +333,7 @@ https://thalesgroup.github.io/agilab
 
 ### Asset for LinkedIn
 
-- first choice: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- first choice: current regenerated `flight` reel
 - public fallback link: `https://youtu.be/kOMDyvbnC9w`
 - fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 
@@ -343,7 +342,7 @@ https://thalesgroup.github.io/agilab
 Use this package with the public meteo reel:
 
 - video: `https://youtu.be/yIZ6vTBg95w`
-- poster: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png)
+- poster: regenerate locally if you need a static companion image
 
 ### YouTube title
 

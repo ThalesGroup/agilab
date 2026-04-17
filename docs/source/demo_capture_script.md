@@ -27,13 +27,13 @@ Default recommendation:
 - use `UAV Relay Queue` (`uav_relay_queue_project`) as the second product demo when
   you want a more specialized "wow" path
 
-Core assets already in the repo:
+Stable visual assets already tracked in the repo:
 
 - `docs/source/diagrams/agilab_readme_tour.svg`
 - `docs/source/diagrams/agilab_social_card.svg`
-- `artifacts/demo_media/agilab_explainer.gif`
-- `artifacts/demo_media/agilab_explainer.mp4`
-- `artifacts/demo_media/agilab_explainer_poster.png`
+
+Generated demo media is intentionally local. Rebuild it when needed instead of
+linking documentation to repo-local `artifacts/demo_media/...` files.
 
 The key message should stay consistent across all three formats:
 
@@ -211,6 +211,8 @@ This produces:
 - `artifacts/demo_media/agilab_explainer.gif`
 - `artifacts/demo_media/agilab_explainer.mp4`
 - `artifacts/demo_media/agilab_explainer_poster.png`
+
+Treat those outputs as local build artifacts, not as stable tracked docs assets.
 
 ## Storyboard
 
@@ -439,8 +441,7 @@ If you want a static slideshow instead of a video, use this sequence:
    - `docs/source/diagrams/agilab_readme_tour.svg`
 2. `One app, one path`
    - `docs/source/diagrams/agilab_social_card.svg`
-3. `Explainer poster`
-   - `artifacts/demo_media/agilab_explainer_poster.png`
+3. `Explainer poster` (optional, regenerate locally if needed)
 4. Optional closing frame
    - a screenshot from `ANALYSIS`
 
