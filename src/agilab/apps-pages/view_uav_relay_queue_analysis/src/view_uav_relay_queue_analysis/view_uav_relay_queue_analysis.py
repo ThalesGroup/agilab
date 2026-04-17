@@ -55,7 +55,7 @@ def _default_artifact_root(env: AgiEnv) -> Path:
 def _discover_files(base: Path, pattern: str) -> list[Path]:
     try:
         return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return []
 
 
@@ -71,14 +71,14 @@ def _peer_csv(path: Path, suffix: str) -> Path:
 def _safe_metric(value: Any) -> str:
     try:
         return f"{float(value):.3f}"
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return "n/a"
 
 
 def _relative_summary_label(path: Path, artifact_root: Path) -> str:
     try:
         return str(path.relative_to(artifact_root))
-    except Exception:
+    except (RuntimeError, TypeError, ValueError):
         return path.name
 
 

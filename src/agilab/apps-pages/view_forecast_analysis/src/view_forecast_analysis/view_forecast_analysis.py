@@ -51,14 +51,14 @@ def _default_artifact_root(env: AgiEnv) -> Path:
 def _discover_files(base: Path, pattern: str) -> list[Path]:
     try:
         return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return []
 
 
 def _safe_float(value: Any) -> float | None:
     try:
         return float(value)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
