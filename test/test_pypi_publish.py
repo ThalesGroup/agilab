@@ -310,7 +310,9 @@ def test_main_updates_badges_before_build(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(module, "parse_args", lambda: object())
     monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
     monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
     monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
@@ -324,6 +326,63 @@ def test_main_updates_badges_before_build(tmp_path, monkeypatch) -> None:
     module.main()
 
     assert order[:2] == ["badge", "build"]
+
+
+def test_main_dry_run_restores_release_files(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir(parents=True)
+    pyproject = project_dir / "pyproject.toml"
+    original_text = (
+        "[project]\n"
+        "name = 'agi-env'\n"
+        "version = '2026.03.16'\n"
+        "dependencies = []\n"
+    )
+    pyproject.write_text(original_text, encoding="utf-8")
+
+    cfg = module.Cfg(
+        repo="testpypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=True,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [])
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+
+    module.main()
+
+    assert pyproject.read_text(encoding="utf-8") == original_text
 
 
 def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -> None:
@@ -385,7 +444,9 @@ def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -
 
     monkeypatch.setattr(module, "parse_args", lambda: object())
     monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
     monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
     monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
@@ -472,7 +533,9 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
 
     monkeypatch.setattr(module, "parse_args", lambda: object())
     monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
     monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
     monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
@@ -487,6 +550,91 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
     module.main()
 
     assert reset_calls == []
+
+
+def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    order: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+
+    module.main()
+
+    assert order == ["commit", "tag"]
+
+
+def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(module, "git_paths_to_commit", lambda include_docs=False: ["pyproject.toml"])
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(["git"], 1),
+    )
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append(cmd))
+
+    module.git_commit_version("2026.03.23", push=True)
+
+    assert calls == [
+        ["git", "add", "pyproject.toml"],
+        ["git", "commit", "-m", "chore(release): bump version to 2026.03.23"],
+        ["git", "push", "origin", "main"],
+    ]
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
@@ -530,7 +678,9 @@ def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch
 
     monkeypatch.setattr(module, "parse_args", lambda: object())
     monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
     monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
     monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
