@@ -372,6 +372,8 @@ def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
     assert not at.exception
     assert any("<worker-host>_PYTHON_VERSION" in str(item.value) for item in at.caption)
     assert "env_editor_val_127.0.0.1_PYTHON_VERSION" in [ti.key for ti in at.text_input]
+    assert at.text_input(key="env_editor_val_AGI_PYTHON_VERSION").label == "Default Python version"
+    assert at.text_input(key="env_editor_val_127.0.0.1_PYTHON_VERSION").label == "Worker Python version for 127.0.0.1"
 
 
 def test_execute_page_cluster_settings(mock_ui_env):

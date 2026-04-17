@@ -595,6 +595,27 @@ def _is_worker_python_override_key(key: str) -> bool:
     return normalized.endswith("_PYTHON_VERSION") and normalized != "AGI_PYTHON_VERSION"
 
 
+def _worker_python_override_host(key: str) -> str:
+    """Return the host portion of ``<worker-host>_PYTHON_VERSION``."""
+    normalized = str(key).strip()
+    if not _is_worker_python_override_key(normalized):
+        return ""
+    return normalized[: -len("_PYTHON_VERSION")]
+
+
+def _env_editor_field_label(key: str) -> str:
+    """Return a human-readable label for environment-variable fields."""
+    normalized = str(key).strip()
+    if normalized == "AGI_PYTHON_VERSION":
+        return "Default Python version"
+    if normalized == "AGI_PYTHON_FREE_THREADED":
+        return "Use free-threaded Python"
+    if _is_worker_python_override_key(normalized):
+        host = _worker_python_override_host(normalized)
+        return f"Worker Python version for {host}" if host else "Worker Python version"
+    return normalized
+
+
 def _visible_env_editor_keys(
     template_keys: List[str],
     existing_entries: List[Dict[str, str]],
@@ -772,7 +793,7 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
                     or str(getattr(env, "envars", {}).get(CLUSTER_CREDENTIALS_KEY, "") or "")
                 )
             updated_values[key] = st.text_input(
-                key,
+                _env_editor_field_label(key),
                 value=default_value,
                 key=f"env_editor_val_{key}",
                 help=f"Set value for {key}",
