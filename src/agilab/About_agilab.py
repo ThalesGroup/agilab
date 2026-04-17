@@ -79,10 +79,10 @@ def _newcomer_first_proof_content() -> Dict[str, Any]:
         "steps": [
             ("PROJECT", "Go to `PROJECT`. Choose `flight_project`."),
             ("ORCHESTRATE", "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."),
-            ("ANALYSIS", "Go to `ANALYSIS`. Open one result page."),
         ],
         "success_criteria": [
-            "You can open one result page.",
+            "`flight_project` runs without error.",
+            "Generated files are created for `flight_project`.",
             "Now you can try another demo.",
         ],
         "links": [
@@ -169,7 +169,7 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
     elif not visible_outputs:
         next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     else:
-        next_step = "Go to `ANALYSIS`. Open one result page."
+        next_step = "First proof done. Now you can try another demo."
 
     return {
         "content": content,
@@ -247,9 +247,8 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
         st.write(content["intro"])
         st.markdown("**Do this now**")
         step_lines = [
-            f"1. {content['steps'][0][1]}",
-            f"2. {content['steps'][1][1]}",
-            f"3. {content['steps'][2][1]}",
+            f"{index}. {detail}"
+            for index, (_, detail) in enumerate(content["steps"], start=1)
         ]
         st.markdown("\n".join(step_lines))
 
@@ -319,7 +318,7 @@ def _landing_page_sections() -> Dict[str, Any]:
         "what_pages_do": [
             "`PROJECT` chooses the demo.",
             "`ORCHESTRATE` runs it.",
-            "`ANALYSIS` opens the result pages.",
+            "`ANALYSIS` opens result pages when a demo provides them.",
         ],
         "after_first_demo": [
             "try another built-in demo",
