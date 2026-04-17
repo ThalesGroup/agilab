@@ -123,6 +123,21 @@ def test_resolve_service_health_defaults_uses_coercers():
     }
 
 
+def test_resolve_service_health_defaults_ignores_non_mapping_settings():
+    deps = _deps()
+
+    resolved = orchestrate_services.resolve_service_health_defaults(
+        {"service_health": "not-a-dict"},
+        deps,
+    )
+
+    assert resolved == {
+        "allow_idle": False,
+        "max_unhealthy": 0,
+        "max_restart_rate": 0.25,
+    }
+
+
 def test_build_service_snippet_embeds_core_parameters():
     snippet = orchestrate_services.build_service_snippet(
         env=SimpleNamespace(apps_path="/tmp/apps", app="demo"),
@@ -756,3 +771,159 @@ def test_render_service_panel_exports_operator_snapshot(monkeypatch, tmp_path):
     assert fake_st._placeholders[3].last_caption is not None
     assert str(expected_path) in fake_st._placeholders[3].last_caption
     assert any("Operator snapshot exported" in msg for msg in fake_st._success_messages)
+
+
+def test_render_service_panel_health_gate_failure_renders_error(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_health_gate_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: {"status": "running", "worker_health": []},
+        evaluate_service_health_gate=lambda *args, **kwargs: (
+            3,
+            "restart rate too high",
+            {
+                "status": "running",
+                "workers_unhealthy_count": 0,
+                "workers_restarted_count": 2,
+                "workers_running_count": 1,
+                "restart_rate": 2.0,
+            },
+        ),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    async def fake_run_agi(*_args, **_kwargs):
+        return ("{'status': 'running'}", "")
+
+    env = SimpleNamespace(
+        app="demo",
+        target="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert any("HEALTH gate failed (code 3): restart rate too high" in msg for msg in fake_st._error_messages)
+
+
+def test_render_service_panel_snapshot_export_failure_surfaces_oserror(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+            "service_status_cache": "running",
+            "service_health_cache": [],
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_export_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+    monkeypatch.setattr(orchestrate_services.Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(
+        orchestrate_services,
+        "write_service_operator_snapshot",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    env = SimpleNamespace(
+        app="demo_project",
+        target="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=_deps(),
+        )
+    )
+
+    assert any("Operator snapshot export failed: disk full" in msg for msg in fake_st._error_messages)
+
+
+def test_render_service_panel_skips_redundant_service_health_write(monkeypatch, tmp_path):
+    writes: list[tuple[object, object]] = []
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state)
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: None,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: writes.append((path, payload)) or payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+
+    env = SimpleNamespace(app="demo", apps_path=tmp_path, app_settings_file=tmp_path / "app_settings.toml")
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={
+                "cluster_enabled": True,
+                "service_health": {
+                    "allow_idle": False,
+                    "max_unhealthy": 0,
+                    "max_restart_rate": 0.25,
+                },
+            },
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert writes == []
