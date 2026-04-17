@@ -1,4 +1,4 @@
-name: ci
+name: repo-guardrails
 
 on:
   push:
@@ -23,6 +23,17 @@ jobs:
           if [ "${tracked}" != "0" ]; then
             echo "docs/html artifacts must not be tracked in git."
             git ls-files docs/html
+            exit 1
+          fi
+
+      - name: Fail if symlinks are present in repo
+        run: |
+          set -euo pipefail
+          symlinks="$(git ls-files -s | awk '$1 ~ /^120000/ {print $4}')"
+          if [ -n "$symlinks" ]; then
+            echo "Symlinks detected in repository (tracked files):" >&2
+            echo "$symlinks" >&2
+            echo "Please remove these symlinks or replace with real files." >&2
             exit 1
           fi
 
