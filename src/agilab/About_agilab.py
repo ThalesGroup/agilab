@@ -63,6 +63,64 @@ from agi_env.credential_store_support import (
 from agi_env.ui_support import load_last_active_app, store_last_active_app
 
 # ----------------- Fast-Loading Banner UI -----------------
+def _newcomer_first_proof_content() -> Dict[str, Any]:
+    """Return the first-proof onboarding contract shown on the landing page."""
+    return {
+        "title": "New here? Use one proof path only",
+        "intro": (
+            "Ignore cluster mode, private app repositories, packaged install, and notebook-first "
+            "workflows until the local built-in flight demo works once."
+        ),
+        "steps": [
+            ("PROJECT", "Select `src/agilab/apps/builtin/flight_project`."),
+            ("ORCHESTRATE", "Run the install/distribute/run flow locally."),
+            ("PIPELINE", "Inspect the generated step instead of treating the run as disposable."),
+            ("ANALYSIS", "Open the resulting built-in view and confirm visible output."),
+        ],
+        "success_criteria": [
+            "Fresh generated output exists under `~/log/execute/flight/`.",
+            "The workflow stayed understandable as `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`.",
+            "You can point to one visible analysis result, not just logs.",
+        ],
+        "links": [
+            ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
+            ("Newcomer guide", "https://thalesgroup.github.io/agilab/newcomer-guide.html"),
+            ("Flight project guide", "https://thalesgroup.github.io/agilab/flight-project.html"),
+        ],
+    }
+
+
+def render_newcomer_first_proof() -> None:
+    """Render a concise newcomer checklist instead of forcing users into the full docs tree."""
+    content = _newcomer_first_proof_content()
+    steps_html = "".join(
+        f"<li><strong>{label}</strong>: {detail}</li>"
+        for label, detail in content["steps"]
+    )
+    success_html = "".join(
+        f"<li>{item}</li>"
+        for item in content["success_criteria"]
+    )
+    links_html = " · ".join(
+        f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
+        for label, url in content["links"]
+    )
+    st.markdown(
+        f"""
+        <div style="border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0 1.25rem 0; background: rgba(250, 250, 250, 0.82);">
+          <h3 style="margin-top: 0;">{content["title"]}</h3>
+          <p style="margin-bottom: 0.75rem;">{content["intro"]}</p>
+          <p style="margin-bottom: 0.35rem;"><strong>First proof steps</strong></p>
+          <ol style="margin-top: 0.1rem; margin-bottom: 0.75rem;">{steps_html}</ol>
+          <p style="margin-bottom: 0.35rem;"><strong>You are done when</strong></p>
+          <ul style="margin-top: 0.1rem; margin-bottom: 0.5rem;">{success_html}</ul>
+          <p style="margin: 0;"><strong>Docs:</strong> {links_html}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def quick_logo(resources_path: Path) -> None:
     """Render a lightweight banner with the AGILab logo."""
     try:
@@ -124,6 +182,7 @@ def display_landing_page(resources_path: Path) -> None:
 def show_banner_and_intro(resources_path: Path) -> None:
     """Render the branding banner."""
     quick_logo(resources_path)
+    render_newcomer_first_proof()
 
 def _clean_openai_key(key: str | None) -> str | None:
     """Return None for missing/placeholder keys to avoid confusing 401s."""
