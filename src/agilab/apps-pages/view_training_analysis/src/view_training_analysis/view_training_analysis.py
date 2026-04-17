@@ -31,7 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover
         def _dump_toml(data: dict, handle) -> None:
             handle.write(_tomlkit_dumps(data).encode("utf-8"))
 
-    except Exception as _toml_exc:  # pragma: no cover
+    except ImportError as _toml_exc:  # pragma: no cover
         _tomlkit_dumps = None  # type: ignore[assignment]
 
         def _dump_toml(data: dict, handle) -> None:
@@ -86,7 +86,7 @@ def _ensure_app_settings_loaded(env: AgiEnv) -> None:
             with path.open("rb") as handle:
                 st.session_state["app_settings"] = tomllib.load(handle)
                 return
-        except Exception:
+        except (OSError, tomllib.TOMLDecodeError):
             pass
     st.session_state["app_settings"] = {}
 
@@ -100,7 +100,7 @@ def _persist_app_settings(env: AgiEnv) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as handle:
             _dump_toml(settings, handle)
-    except Exception:
+    except (OSError, RuntimeError):
         pass
 
 
@@ -286,7 +286,7 @@ def _relative_label(path: Path, base: Path) -> str:
     try:
         relative = path.resolve().relative_to(base.resolve())
         return "." if not relative.parts else relative.as_posix()
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         return path.name
 
 
