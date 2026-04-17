@@ -331,26 +331,25 @@ def quick_logo(resources_path: Path) -> None:
 def _landing_page_sections() -> Dict[str, Any]:
     """Return a task-oriented About-page summary."""
     return {
-        "headline": "AGILAB helps you run a Python data, ML, or RL project from one place.",
+        "headline": "AGILAB helps you run a data, ML, or RL project step by step.",
         "summary": (
-            "Select a project, run it, inspect the generated pipeline, and open the results "
-            "in analysis views."
+            "Choose one project. Run it. Check the generated files. Open the result pages."
         ),
         "workflow": [
-            "PROJECT: choose one app",
-            "ORCHESTRATE: run it locally first",
-            "PIPELINE: inspect what was generated",
-            "ANALYSIS: open the resulting outputs",
+            "PROJECT: pick one demo",
+            "ORCHESTRATE: install and run it on your computer",
+            "PIPELINE: see the steps and output files",
+            "ANALYSIS: open charts, maps, or tables",
         ],
         "gives_you": [
-            "one visible workflow instead of scattered scripts and notebooks",
-            "exported artifacts you can inspect after the run",
-            "a local-first path before you decide to scale out",
+            "one clear path from project to results",
+            "saved files after each run",
+            "a simple local start before cluster mode",
         ],
         "use_when": [
-            "you want reproducible runs with visible outputs",
-            "you want one workflow from project setup to analysis",
-            "you want to validate locally before touching cluster mode",
+            "you want to run a project without many manual steps",
+            "you want to see files and result pages after the run",
+            "you want to start local before using a cluster",
         ],
         "not_first": [
             "do not start with cluster mode",
@@ -358,8 +357,8 @@ def _landing_page_sections() -> Dict[str, Any]:
             "do not start by integrating your whole stack at once",
         ],
         "recommended_path": (
-            "Start with the built-in flight demo and stay on the local "
-            "`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` path."
+            "Start with the built-in flight demo. Stay local. Do one full "
+            "`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` run first."
         ),
     }
 
@@ -374,16 +373,16 @@ def display_landing_page(resources_path: Path) -> None:
 
     left, right = st.columns(2)
     with left:
-        st.markdown("**Start here**")
+        st.markdown("**What you do here**")
         st.markdown("\n".join(f"- {item}" for item in sections["workflow"]))
-        st.markdown("**AGILAB gives you**")
+        st.markdown("**What you get**")
         st.markdown("\n".join(f"- {item}" for item in sections["gives_you"]))
     with right:
         st.markdown("**Use AGILAB when**")
         st.markdown("\n".join(f"- {item}" for item in sections["use_when"]))
         st.markdown("**Do not start with**")
         st.markdown("\n".join(f"- {item}" for item in sections["not_first"]))
-        st.info(sections["recommended_path"])
+        st.info(f"Best first step: {sections['recommended_path']}")
 
 
 def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
