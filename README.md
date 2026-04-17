@@ -56,8 +56,11 @@ install. Use one path only:
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps --test-apps
+uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
+
+The newcomer proof command gives an explicit pass/fail verdict for the recommended source-checkout path before you start clicking through the UI.
 
 Then in the UI:
 

@@ -48,20 +48,32 @@ Why first:
 
 ### 2. Add a true newcomer proof command
 
-Status: pending
+Status: implemented
 
-Target outcome:
+Current outcome:
 
 - one command that validates the local built-in proof path
 - explicit pass/fail verdict
 - output tailored to first-time users instead of maintainers
 
+Implemented as:
+
+- `uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py`
+
+Current behavior:
+
+- validates the built-in `flight_project` path
+- runs the preinit smoke
+- runs a source UI smoke for `About` + `ORCHESTRATE`
+- prints a clear `PASS` / `FAIL` verdict
+- optionally runs `src/agilab/apps/install.py` and checks seeded `AGI_*.py` helpers with `--with-install`
+
 Scope:
 
 - install prerequisites check
 - built-in app discovery
-- local run smoke
-- artifact existence check
+- local UI smoke
+- optional artifact existence check
 - concise recovery messages
 
 ### 3. Add a first-failure recovery page
