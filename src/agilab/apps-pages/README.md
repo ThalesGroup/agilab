@@ -38,6 +38,10 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_training_analysis/src/view_training_analysis/view_training_analysis.py -- --active-app src/agilab/apps/builtin/flight_project
   - Generic TensorBoard scalar browser for any app that exports trainer logs under a `tensorboard/` folder.
 
+- view_inference_analysis
+  - uv run streamlit run src/agilab/apps-pages/view_inference_analysis/src/view_inference_analysis/view_inference_analysis.py -- --active-app src/agilab/apps/builtin/flight_project
+  - Generic allocations comparison page for `allocations_steps.{json,jsonl,ndjson,csv,parquet}` exports. It can aggregate metrics such as mean `delivered_bandwidth` across multiple folders and plot them side by side.
+
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_project`).
 - Each page falls back to `AGILAB_APP` env var, then tries a default `flight_project` under the saved `~/.local/share/agilab/.agilab-path` if not provided.
