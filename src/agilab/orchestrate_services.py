@@ -55,9 +55,37 @@ class OrchestrateServiceDeps:
     install_log_height: int
 
 
+@dataclass(frozen=True)
+class ServiceHealthGateKeys:
+    allow_idle: str
+    max_unhealthy: str
+    max_restart_rate: str
+
+
 def ensure_service_session_defaults(session_state: Any) -> None:
     for key, value in SERVICE_SESSION_DEFAULTS.items():
         session_state.setdefault(key, value)
+
+
+def service_health_gate_keys(app: str) -> ServiceHealthGateKeys:
+    return ServiceHealthGateKeys(
+        allow_idle=f"service_health_allow_idle__{app}",
+        max_unhealthy=f"service_health_max_unhealthy__{app}",
+        max_restart_rate=f"service_health_max_restart_rate__{app}",
+    )
+
+
+def ensure_service_health_gate_defaults(
+    session_state: Any,
+    *,
+    app: str,
+    defaults: dict[str, Any],
+) -> ServiceHealthGateKeys:
+    keys = service_health_gate_keys(app)
+    session_state.setdefault(keys.allow_idle, defaults["allow_idle"])
+    session_state.setdefault(keys.max_unhealthy, defaults["max_unhealthy"])
+    session_state.setdefault(keys.max_restart_rate, defaults["max_restart_rate"])
+    return keys
 
 
 def compute_service_mode(cluster_params: dict[str, Any], service_enabled: bool) -> int:
@@ -258,38 +286,34 @@ async def render_service_panel(
 
         service_health_defaults = resolve_service_health_defaults(cluster_params, deps)
 
-        gate_allow_idle_key = f"service_health_allow_idle__{env.app}"
-        gate_max_unhealthy_key = f"service_health_max_unhealthy__{env.app}"
-        gate_max_restart_rate_key = f"service_health_max_restart_rate__{env.app}"
-        if gate_allow_idle_key not in st.session_state:
-            st.session_state[gate_allow_idle_key] = service_health_defaults["allow_idle"]
-        if gate_max_unhealthy_key not in st.session_state:
-            st.session_state[gate_max_unhealthy_key] = service_health_defaults["max_unhealthy"]
-        if gate_max_restart_rate_key not in st.session_state:
-            st.session_state[gate_max_restart_rate_key] = service_health_defaults["max_restart_rate"]
+        gate_keys = ensure_service_health_gate_defaults(
+            st.session_state,
+            app=env.app,
+            defaults=service_health_defaults,
+        )
 
         with st.expander("Health gate (SLA)", expanded=False):
             st.caption("Used by the one-click HEALTH gate action and persisted in app_settings.toml.")
             service_health_allow_idle = st.toggle(
                 "Allow idle status",
-                key=gate_allow_idle_key,
+                key=gate_keys.allow_idle,
                 disabled=not service_enabled,
             )
             service_health_max_unhealthy = st.number_input(
                 "Max unhealthy workers",
                 min_value=0,
-                value=int(st.session_state.get(gate_max_unhealthy_key, 0)),
+                value=int(st.session_state.get(gate_keys.max_unhealthy, service_health_defaults["max_unhealthy"])),
                 step=1,
-                key=gate_max_unhealthy_key,
+                key=gate_keys.max_unhealthy,
                 disabled=not service_enabled,
             )
             service_health_max_restart_rate = st.number_input(
                 "Max restart rate (0.0-1.0)",
                 min_value=0.0,
                 max_value=1.0,
-                value=float(st.session_state.get(gate_max_restart_rate_key, 0.25)),
+                value=float(st.session_state.get(gate_keys.max_restart_rate, service_health_defaults["max_restart_rate"])),
                 step=0.05,
-                key=gate_max_restart_rate_key,
+                key=gate_keys.max_restart_rate,
                 disabled=not service_enabled,
             )
 
