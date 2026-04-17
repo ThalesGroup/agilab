@@ -304,12 +304,6 @@ def quick_logo(resources_path: Path) -> None:
 def _landing_page_sections() -> Dict[str, Any]:
     """Return compact secondary guidance shown under the first-step path."""
     return {
-        "headline": "What the main pages do",
-        "what_pages_do": [
-            "`PROJECT` chooses the demo.",
-            "`ORCHESTRATE` runs it.",
-            "`ANALYSIS` opens result pages when a demo provides them.",
-        ],
         "after_first_demo": [
             "try another built-in demo",
             "keep cluster mode for later",
@@ -320,10 +314,6 @@ def _landing_page_sections() -> Dict[str, Any]:
 def display_landing_page(resources_path: Path) -> None:
     """Display compact secondary context under the first-step instructions."""
     del resources_path
-    sections = _landing_page_sections()
-
-    st.markdown(f"**{sections['headline']}**")
-    st.markdown("\n".join(f"- {item}" for item in sections["what_pages_do"]))
     st.info("After the first demo: try another built-in demo. Keep cluster mode for later.")
 
 
