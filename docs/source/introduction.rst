@@ -1,102 +1,78 @@
 Introduction
 ============
 
-Overview
---------
-Building robust models from data requires close collaboration between domain experts and data scientists. Once the algorithm is trained, the process becomes similar to standard engineering activities.
+This page gives background and terminology.
 
-.. figure:: AI-Problematic.svg
-   :alt: AI Problematic
-   :align: center
-   :class: diagram-panel diagram-standard
+If you are new to AGILab, do not start here. Start with :doc:`newcomer-guide`
+and :doc:`quick-start`.
 
-AGILab is a multi-project data science solution designed to manage projects using template-based frameworks. It also serves as a first step towards an experimental Python IDE for data science applied to engineering.
+What AGILab is
+--------------
 
-**Remark**: Historically, AGILab was developed as a playground for ``agi-core``.
-If you only need cluster automation, you can use ``agi-core`` directly (for
-example from a notebook) without the web interface.
+AGILab is a framework and web UI for running Python data, ML, and RL projects
+through one visible workflow.
 
-**Purpose**
------------
-AGILab aims to enhance data science productivity
+It has two main user interfaces:
 
-- **Cross-Functional Collaboration in Data Science:**
-  Provide project templates plus import/export and cloning workflows to promote
-  **code reuse** across teams.
+- ``agi-core``: the Python API you can call directly from code or notebooks
+- ``agilab``: the web UI that helps select projects, install them, run them,
+  and inspect outputs
 
-- **Enhance Agility in AI Projects:**
-  Provide **scalability** for both data and execution so you do not need to
-  rework your code as datasets grow.
-  Provide built-in online and offline **generative AI** helpers to assist
-  algorithm exploration and coding assistance (prompt engineering).
+Shared components include:
 
-- **Overcome IT Constraints:**
-  Automate deployment on local or SSH clusters so you can run workloads at
-  scale without bespoke DevOps workflows.
+- ``agi-env`` for environment setup
+- ``agi-node`` for worker/runtime packaging
+- ``agi-cluster`` for local and distributed execution
 
-**Target Audience**
--------------------
-AGILab is intended for professionals and domain experts, offering a tool that simplifies AI project development.
+Historical note
+---------------
 
-**Main Dependencies**
-------------------------
+AGILab started as a playground around ``agi-core``.
 
-- `uv <https://docs.astral.sh/uv/>`_: Advanced utilities to manage Python virtual environments.
-- `asyncssh <https://asyncssh.readthedocs.io/en/stable/>`_: Enabling SSHv2 protocol on top of the Python asyncio framework.
-- `Cython <https://cython.org/>`_: Cython is an optimising static compiler for both the Python programming language and the extended Cython programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.
-- `Dask <https://www.dask.org/>`_: Parallel computing for handling large datasets and computations.
-- `Streamlit <https://streamlit.io/>`_: Rapidly develop and deploy interactive applications.
-- `Pycharm <https://www.jetbrains.com/pycharm>`_: Assist you for advanced code development with AGI.
-- `OpenAI <https://platform.openai.com/>`_: Assist you for algorithm discovery and code generation.
-- `Ollama (local) <https://ollama.com/>`_: Runs a local Ollama model (configurable; not limited to Mistral) for offline experimentation and code generation.
-- Optional offline document Q&A pipeline (PDF indexing + vector store), backed by a local Ollama model.
-- `GPT-OSS Offline <https://gpt-oss.com>`_: Runs open-weight GPT-OSS responses locally so experimentation keeps working without external connectivity.
-  Configure the assistant via the AGILab web sidebar or the `GPT_OSS_ENDPOINT` and
-  `GPT_OSS_MODEL`
-  environment variables (defaults to ``http://127.0.0.1:8000/v1/responses`` and ``gpt-oss-120b``).
+That is still visible in the product structure today:
+
+- you can use the web UI for an app-oriented workflow
+- or you can use ``agi-core`` directly when you only need the execution layer
+
+Why the project is built this way
+---------------------------------
+
+The design goal is not to replace every MLOps or orchestration tool. The design
+goal is to make experimentation easier to run, replay, and inspect before a
+team commits to heavier platform choices.
+
+The technical choices are driven by three practical goals:
+
+- **Portability**: keep projects runnable across local machines and SSH-accessed
+  workers without full VM or container infrastructure as a starting point
+- **Simplicity**: keep environment setup, execution, and analysis visible in one
+  workflow
+- **Performance**: allow different execution modes such as pure Python, Cython,
+  and local or distributed runs
+
+Main dependencies
+-----------------
+
+AGILab relies on a small set of core technologies:
+
+- `uv <https://docs.astral.sh/uv/>`_ for Python environment management
+- `Streamlit <https://streamlit.io/>`_ for the web UI
+- `Dask <https://www.dask.org/>`_ for distributed execution support
+- `asyncssh <https://asyncssh.readthedocs.io/en/stable/>`_ for SSH-based remote execution
+- `Cython <https://cython.org/>`_ for optional compiled execution paths
+
+Optional helpers include OpenAI-compatible models and local assistants such as
+Ollama and GPT-OSS when configured.
 
 .. note::
-   Windows builds are still catching up. Features that rely on local assistants—such as the GPT-OSS offline coding helper—are only partially supported while the port is in progress.
+   Windows support is still catching up. Some local-assistant features remain
+   partial while that work continues.
 
-**Technologies Selection Criteria**
------------------------------------
+What to read next
+-----------------
 
-The selection of these technologies have been done for Portability, Simplicity and Performances:
-
-- **Portability**: AGILab runs and shares environments across systems without
-  the overhead of full virtualization.
-- **Simplicity**: AGILab manages dependencies and isolates project environments,
-  reducing conflicts.
-- **Performance**: AGILab provides runtime benchmarks for combinations of
-  Cython, Dask, and thread/process execution modes.
-
-
-Example: Aircraft Radio Communication
--------------------------------------
-
-- **Needs Algos Set**
-
-Today, a single algorithm is rarely enough to solve complex problems. Instead, a suite of algorithms is needed to address diverse use cases with intricate implementations. For example, consider telecom systems in an aircraft:
-
-.. figure:: needs-algos-set.svg
-   :alt: Needs for Algo Set
-   :align: center
-   :class: diagram-panel diagram-standard
-
-This scenario requires reuse across organizations, infrastructure, and operating systems. While many consider virtualization and containerization (e.g., Docker) as the solution, AGILab offers an alternative.
-
-AGILab is designed for modern development needs—reducing overhead, promoting collaboration, and simplifying the deployment pipeline without compromising on power or flexibility.
-
-- **Needs Model of Models**
-
-Since Artificial General Intelligence (AGI) has not yet been achieved with a single algorithm, a "model of models" is necessary. For instance, in aircraft radio communication, this approach is illustrated as follows:
-
-.. figure:: model-of-models.svg
-   :alt: Model Of Models
-   :align: center
-   :class: diagram-panel diagram-standard
-
-AGILab provides a dynamic playground to experiment with various architectural solutions without reworking your code. This flexibility is achieved through two main mechanisms:
-
-- A versatile GUI that allows selection from 16 different execution modes.
-- A decoupling of software architecture from available hardware resources.
+- :doc:`newcomer-guide` for the first-proof path
+- :doc:`quick-start` for the install and launch commands
+- :doc:`features` for the current capability list
+- :doc:`agilab-mlops-positioning` for toolchain fit and framework comparison
+- :doc:`architecture` for the full stack overview
