@@ -101,6 +101,31 @@ def test_resolve_share_dir_path_rejects_invalid_value(tmp_path):
         about_agilab._resolve_share_dir_path("\0bad-path", home_path=tmp_path)
 
 
+def test_worker_python_override_key_detection():
+    assert about_agilab._is_worker_python_override_key("127.0.0.1_PYTHON_VERSION") is True
+    assert about_agilab._is_worker_python_override_key("worker-a_PYTHON_VERSION") is True
+    assert about_agilab._is_worker_python_override_key("AGI_PYTHON_VERSION") is False
+    assert about_agilab._is_worker_python_override_key("127.0.0.1_CMD_PREFIX") is False
+
+
+def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides():
+    template_keys = ["AGI_PYTHON_VERSION", "AGI_PYTHON_FREE_THREADED", "OPENAI_API_KEY"]
+    existing_entries = [
+        {"type": "entry", "key": "OPENAI_API_KEY", "value": "dummy"},
+        {"type": "entry", "key": "127.0.0.1_PYTHON_VERSION", "value": "3.12"},
+        {"type": "entry", "key": "10.0.0.5_CMD_PREFIX", "value": "ssh"},
+        {"type": "entry", "key": "worker-a_PYTHON_VERSION", "value": "3.11"},
+    ]
+
+    assert about_agilab._visible_env_editor_keys(template_keys, existing_entries) == [
+        "AGI_PYTHON_VERSION",
+        "AGI_PYTHON_FREE_THREADED",
+        "OPENAI_API_KEY",
+        "127.0.0.1_PYTHON_VERSION",
+        "worker-a_PYTHON_VERSION",
+    ]
+
+
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
