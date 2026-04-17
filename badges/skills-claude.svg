@@ -10,7 +10,7 @@
 </mask>
 <g mask="url(#a)">
   <rect width="101" height="20" fill="#555"/>
-  <rect x="101" width="73" height="20" fill="#4F46E5"/>
+  <rect x="101" width="73" height="20" fill="#0F766E"/>
   <rect width="174" height="20" fill="url(#b)"/>
 </g>
 <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
