@@ -6,25 +6,24 @@ Technology Readiness Level 3 (TRL‑3), where teams validate concepts, explore
 algorithms, and collaborate on data preparation. This page explains how AGILab
 fits alongside the broader MLOps landscape.
 
+This page is about positioning, not the detailed feature list or the roadmap.
+
+- For current shipped capabilities, see :doc:`features`.
+- For planned work, see :doc:`roadmap/agilab-future-work`.
+
 Where AGILab helps
 ------------------
 
-- **Rapid experimentation**: templates, web pages, and CLI mirrors reduce
-  the friction of testing new ideas without scaffolding bespoke dashboards.
-- **Multi-algorithm workflows**: built-in orchestration (``AGI.run`` /
-  ``AGI.get_distrib``) lets engineers cycle through multiple models using the
-  same datasets and environment setup.
-- **Distributed execution without DevOps**: Dask-based scheduling, SSH helpers,
-  and worker packaging (`agi_cluster`, `agi_env`) allow TRL‑3 teams to scale out
-  experiments without managing Kubernetes or cloud stacks.
-- **Lower operational footprint during experimentation**: AGILab packages
-  environment setup, execution, distributed runs, and pipeline replay into one
-  workspace, so early-stage teams can do useful work with less orchestration
-  glue and fewer platform dependencies.
-- **Offline productivity**: optional offline assistants (Mistral/GPT‑OSS paths, plus
-  local documentation assets when configured) can keep experimentation usable in
-  air-gapped environments once the dependencies and local model/runtime setup are
-  installed.
+- **Rapid experimentation**: one workspace for selecting a project, running it,
+  and inspecting outputs.
+- **Managed execution without heavy platform setup**: local and distributed
+  execution stay accessible to small teams before they commit to a larger
+  platform stack.
+- **Application-oriented workflows**: AGILab is stronger when the problem is an
+  end-to-end engineering workflow, not only a scheduler or a pipeline library.
+- **Lower operational overhead during experimentation**: useful work can happen
+  before a team invests in production-serving, governance, or platform-heavy
+  tooling.
 
 What AGILab does *not* aim to cover
 -----------------------------------
@@ -160,6 +159,8 @@ off stabilized assets to a broader orchestration or production platform.
 Suggested workflow
 ------------------
 
+This is a handoff sketch, not a roadmap.
+
 1. Use AGILab to prototype algorithms, reuse app templates, and validate data
    processing. Capture run history via ``~/log/execute/<app>/``.
 2. Once an approach stabilises, prepare the project artefacts for your target
@@ -173,6 +174,8 @@ Suggested workflow
 See also
 --------
 
+- :doc:`features` for the current capability list.
+- :doc:`roadmap/agilab-future-work` for planned work.
 - :doc:`architecture` for the full stack overview.
 - :doc:`framework-api` for automation hooks (``AGI.run``, ``AGI.install``).
 - :doc:`introduction` for background and terminology around TRL and AGI use
