@@ -555,6 +555,7 @@ def test_flight_app_args_form_import_warns_for_missing_input_and_persists_data_o
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
     at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -680,6 +681,7 @@ def test_execute_service_snippet_maps_runtime_health_settings():
 def test_explore_page_multiple_views_selected(mock_ui_env):
     """Test selecting multiple views and verifying a button is rendered for each."""
     at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.run()
@@ -700,6 +702,7 @@ def test_explore_page_multiple_views_selected(mock_ui_env):
 def test_explore_page_deselect_view(mock_ui_env):
     """Test selecting then deselecting a view removes its button."""
     at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
     at.run()

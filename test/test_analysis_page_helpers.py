@@ -105,6 +105,36 @@ def test_render_selected_view_route_ignores_main_route():
     assert handled is False
 
 
+def test_resolve_default_view_accepts_named_view(tmp_path: Path):
+    module = _load_analysis_module()
+    view_path = tmp_path / "view_maps_network.py"
+    view_path.write_text("", encoding="utf-8")
+
+    key, resolved = module._resolve_default_view(
+        "view_maps_network",
+        ["view_maps_network", "view_maps"],
+        {"view_maps_network": view_path},
+        {},
+    )
+
+    assert key == "view_maps_network"
+    assert resolved == view_path
+
+
+def test_resolve_default_view_returns_none_when_missing():
+    module = _load_analysis_module()
+
+    key, resolved = module._resolve_default_view(
+        "view_maps_network",
+        ["view_maps"],
+        {},
+        {},
+    )
+
+    assert key is None
+    assert resolved is None
+
+
 def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
     module = _load_analysis_module()
 

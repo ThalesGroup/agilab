@@ -791,6 +791,33 @@ def _resolve_discovered_views(all_views: list[Path]) -> dict[str, Path]:
     return resolved_pages
 
 
+def _resolve_default_view(
+    configured_default: object,
+    available_views: list[str],
+    resolved_pages: dict[str, Path],
+    custom_view_lookup: dict[str, Path],
+) -> tuple[str | None, Path | None]:
+    """Return the configured default view key and path when it is available."""
+    if not isinstance(configured_default, str):
+        return None, None
+    raw_value = configured_default.strip()
+    if not raw_value:
+        return None, None
+
+    candidates = [raw_value]
+    normalized = _normalize_view_name(raw_value)
+    if normalized and normalized not in candidates:
+        candidates.append(normalized)
+
+    for candidate in candidates:
+        if candidate not in available_views:
+            continue
+        view_path = resolved_pages.get(candidate) or custom_view_lookup.get(candidate)
+        if view_path is not None:
+            return candidate, view_path
+    return None, None
+
+
 async def _render_selected_view_route(current_page: str | None) -> bool:
     """Render a selected analysis view route and surface one explicit user-facing failure."""
     if not current_page or current_page in ("", "main"):
@@ -1214,6 +1241,21 @@ async def main():
                 normalized_config.append(str(Path(page_id).resolve()))
         cfg.setdefault("pages", {})["view_module"] = normalized_config
         _write_config(app_settings, cfg)
+
+    default_view_name, default_view_path = _resolve_default_view(
+        cfg.get("pages", {}).get("default_view"),
+        view_names,
+        resolved_pages,
+        custom_view_lookup,
+    )
+    if not current_page and default_view_name and default_view_path is not None:
+        if default_view_name not in selected_views:
+            selected_views = [default_view_name, *selected_views]
+            st.session_state[selection_key] = selected_views
+        view_str = str(default_view_path.resolve())
+        st.session_state["current_page"] = view_str
+        st.query_params["current_page"] = view_str
+        st.rerun()
 
     # Show buttons for the selected pages
     st.divider()

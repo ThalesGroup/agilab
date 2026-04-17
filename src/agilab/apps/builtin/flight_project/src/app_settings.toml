@@ -39,6 +39,7 @@ long = "longitude"
 coltype = "discrete"
 
 [pages]
+default_view = "view_maps_network"
 view_module = [
     "view_maps_network",
 ]
