@@ -53,6 +53,7 @@ openai_api_key="${OPENAI_API_KEY}"
 SOURCE="local"
 INSTALL_APPS_FLAG=0
 TEST_APPS_FLAG=0
+TEST_CORE_FLAG=0
 APPS_REPOSITORY=""
 CUSTOM_INSTALL_APPS=""
 INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
@@ -739,6 +740,14 @@ run_core_tests() {
     fi
 }
 
+maybe_run_core_tests() {
+    if (( TEST_CORE_FLAG )); then
+        run_core_tests
+    else
+        echo -e "${BLUE}Skipping core test suites by default (use --test-core to enable).${NC}"
+    fi
+}
+
 run_repository_tests_with_coverage() {
     local repo_root="$AGI_INSTALL_PATH"
     local coverage_status=0
@@ -908,7 +917,7 @@ install_pycharm_script() {
 }
 
 usage() {
-  echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test]"
+  echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test] [--test-core]"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
     exit 1
 }
@@ -957,6 +966,10 @@ while [[ "$#" -gt 0 ]]; do
         --test-apps|--apps-test)
             TEST_APPS_FLAG=1
             INSTALL_APPS_FLAG=1
+            shift
+            ;;
+        --test-core)
+            TEST_CORE_FLAG=1
             shift
             ;;
         --skip-offline)       SKIP_OFFLINE=1; shift;;
@@ -1015,7 +1028,7 @@ backup_existing_project
 copy_project_files
 update_environment
 install_core
-run_core_tests
+maybe_run_core_tests
 
 echo -e "${BLUE}Installing agilab (repo root)...${NC}"
 pushd "$AGI_INSTALL_PATH" > /dev/null
