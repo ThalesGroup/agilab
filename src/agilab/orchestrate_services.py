@@ -1,4 +1,5 @@
 import textwrap
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,7 @@ DEFAULT_SERVICE_CLEANUP_HEARTBEAT_MAX_FILES = 1000
 SERVICE_SESSION_DEFAULTS: dict[str, Any] = {
     "service_log_cache": "",
     "service_status_cache": "idle",
+    "service_snapshot_path_cache": "",
     "service_poll_interval": DEFAULT_SERVICE_POLL_INTERVAL_SEC,
     "service_stop_timeout": DEFAULT_SERVICE_STOP_TIMEOUT_SEC,
     "service_shutdown_on_stop": True,
@@ -262,6 +264,60 @@ def build_service_operator_summary(
     return summary
 
 
+def service_operator_snapshot_path(target: str, *, home_dir: Path | None = None) -> Path:
+    base_dir = (home_dir or Path.home()) / "log" / "execute" / str(target)
+    return base_dir / "service_operator_snapshot.json"
+
+
+def build_service_operator_snapshot(
+    *,
+    app: str,
+    target: str,
+    status: str,
+    worker_health: Any,
+    allow_idle: bool,
+    max_unhealthy: int,
+    max_restart_rate: float,
+    heartbeat_timeout_sec: float,
+) -> dict[str, Any]:
+    summary = build_service_operator_summary(
+        status=status,
+        worker_health=worker_health,
+        allow_idle=allow_idle,
+        max_unhealthy=max_unhealthy,
+        max_restart_rate=max_restart_rate,
+        heartbeat_timeout_sec=heartbeat_timeout_sec,
+    )
+    return {
+        "schema": "agilab.service.operator_snapshot.v1",
+        "exported_at": datetime.now().isoformat(timespec="seconds"),
+        "app": str(app),
+        "target": str(target),
+        "status": str(summary["status"]),
+        "health_gate": {
+            "allow_idle": bool(summary["gate_allow_idle"]),
+            "max_unhealthy": int(summary["gate_max_unhealthy"]),
+            "max_restart_rate": float(summary["gate_max_restart_rate"]),
+            "heartbeat_timeout_sec": float(summary["heartbeat_timeout_sec"]),
+        },
+        "summary": {
+            "tracked_workers": int(summary["tracked_workers"]),
+            "unhealthy_workers": int(summary["unhealthy_workers"]),
+            "late_heartbeats": int(summary["late_heartbeats"]),
+            "missing_heartbeats": int(summary["missing_heartbeats"]),
+            "max_heartbeat_age_sec": summary["max_heartbeat_age_sec"],
+            "reason_examples": list(summary["reason_examples"]),
+        },
+        "worker_health": worker_health if isinstance(worker_health, list) else [],
+    }
+
+
+def write_service_operator_snapshot(path: Path, payload: dict[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 async def render_service_panel(
     *,
     env: Any,
@@ -445,7 +501,7 @@ async def render_service_panel(
             language="python",
         )
 
-        start_col, status_col, health_col, stop_col = st.columns(4)
+        start_col, status_col, health_col, export_col, stop_col = st.columns(5)
         start_service_clicked = start_col.button(
             "START service",
             key="service_start_btn",
@@ -467,6 +523,13 @@ async def render_service_panel(
             width="stretch",
             disabled=not service_enabled,
         )
+        export_snapshot_clicked = export_col.button(
+            "EXPORT snapshot",
+            key="service_export_btn",
+            type="secondary",
+            width="stretch",
+            disabled=not service_enabled,
+        )
         stop_service_clicked = stop_col.button(
             "STOP service",
             key="service_stop_btn",
@@ -478,6 +541,7 @@ async def render_service_panel(
         service_log_placeholder = st.empty()
         service_health_placeholder = st.empty()
         service_summary_placeholder = st.empty()
+        service_snapshot_placeholder = st.empty()
 
         def _render_service_health_table() -> None:
             health_rows = st.session_state.get("service_health_cache") or []
@@ -515,8 +579,18 @@ async def render_service_panel(
                 "\n".join(f"- {line}" for line in summary["lines"])
             )
 
+        def _render_service_snapshot_status() -> None:
+            snapshot_path = str(st.session_state.get("service_snapshot_path_cache", "") or "").strip()
+            if snapshot_path:
+                service_snapshot_placeholder.caption(
+                    f"Operator snapshot: `{snapshot_path}`"
+                )
+            else:
+                service_snapshot_placeholder.empty()
+
         _render_service_health_table()
         _render_service_operator_summary()
+        _render_service_snapshot_status()
         cached_service_log = st.session_state.get("service_log_cache", "").strip()
         if cached_service_log:
             service_log_placeholder.code(
@@ -720,5 +794,25 @@ async def render_service_panel(
                     st.error(f"HEALTH gate failed (code {gate_code}): {gate_reason}")
             else:
                 st.error("HEALTH gate failed: unable to parse service health payload.")
+        elif export_snapshot_clicked:
+            snapshot_payload = build_service_operator_snapshot(
+                app=env.app,
+                target=env.target,
+                status=str(st.session_state.get("service_status_cache", "idle")),
+                worker_health=st.session_state.get("service_health_cache") or [],
+                allow_idle=bool(service_health_allow_idle),
+                max_unhealthy=int(service_health_max_unhealthy),
+                max_restart_rate=float(service_health_max_restart_rate),
+                heartbeat_timeout_sec=float(service_heartbeat_timeout),
+            )
+            snapshot_path = service_operator_snapshot_path(env.target)
+            try:
+                written_path = write_service_operator_snapshot(snapshot_path, snapshot_payload)
+            except OSError as exc:
+                st.error(f"Operator snapshot export failed: {exc}")
+            else:
+                st.session_state["service_snapshot_path_cache"] = str(written_path)
+                _render_service_snapshot_status()
+                st.success(f"Operator snapshot exported to '{written_path}'.")
         elif stop_service_clicked:
             await _execute_service_action("stop")

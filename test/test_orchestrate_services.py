@@ -187,6 +187,28 @@ def test_build_service_operator_summary_counts_health_state_and_gate_values():
     assert any("max_restart_rate=0.25" in line for line in summary["lines"])
 
 
+def test_build_service_operator_snapshot_and_path_are_compact_and_stable(tmp_path):
+    snapshot = orchestrate_services.build_service_operator_snapshot(
+        app="demo_project",
+        target="demo",
+        status="running",
+        worker_health=[{"worker": "w1", "healthy": True, "heartbeat_state": "fresh"}],
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=0.25,
+        heartbeat_timeout_sec=10.0,
+    )
+
+    path = orchestrate_services.service_operator_snapshot_path("demo", home_dir=tmp_path)
+
+    assert path == tmp_path / "log" / "execute" / "demo" / "service_operator_snapshot.json"
+    assert snapshot["schema"] == "agilab.service.operator_snapshot.v1"
+    assert snapshot["app"] == "demo_project"
+    assert snapshot["target"] == "demo"
+    assert snapshot["health_gate"]["max_unhealthy"] == 0
+    assert snapshot["summary"]["tracked_workers"] == 1
+
+
 class _SessionState(dict):
     def __getattr__(self, name):
         try:
@@ -211,6 +233,7 @@ class _Placeholder:
         self.last_code = None
         self.last_df = None
         self.last_info = None
+        self.last_caption = None
 
     def code(self, value, **kwargs):
         self.last_code = value
@@ -221,10 +244,14 @@ class _Placeholder:
     def info(self, value, **kwargs):
         self.last_info = value
 
+    def caption(self, value, **kwargs):
+        self.last_caption = value
+
     def empty(self):
         self.last_code = None
         self.last_df = None
         self.last_info = None
+        self.last_caption = None
 
 
 def _service_st(session_state, *, clicked: str | None = None):
@@ -250,6 +277,7 @@ def _service_st(session_state, *, clicked: str | None = None):
             "service_start_btn",
             "service_status_btn",
             "service_health_gate_btn",
+            "service_export_btn",
             "service_stop_btn",
         ]
 
@@ -657,6 +685,7 @@ def test_render_service_panel_health_gate_failure_and_stop_action(monkeypatch, t
 
     env = SimpleNamespace(
         app="demo",
+        target="demo",
         apps_path=tmp_path,
         app_settings_file=tmp_path / "app_settings.toml",
         run_agi=fake_run_agi,
@@ -677,19 +706,53 @@ def test_render_service_panel_health_gate_failure_and_stop_action(monkeypatch, t
 
     assert any("completed with status 'running'" in msg for msg in fake_st._success_messages)
 
-    health_st = _service_st(session_state, clicked="service_health_gate_btn")
-    monkeypatch.setattr(orchestrate_services, "st", health_st)
+
+def test_render_service_panel_exports_operator_snapshot(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+            "service_status_cache": "running",
+            "service_health_cache": [
+                {
+                    "worker": "w1",
+                    "healthy": False,
+                    "reason": "timeout",
+                    "heartbeat_state": "late",
+                    "heartbeat_age_sec": 12.5,
+                }
+            ],
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_export_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+    monkeypatch.setattr(orchestrate_services.Path, "home", staticmethod(lambda: tmp_path))
+
+    env = SimpleNamespace(
+        app="demo_project",
+        target="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
 
     asyncio.run(
         orchestrate_services.render_service_panel(
             env=env,
             project_path=tmp_path,
-            cluster_params={"cluster_enabled": True},
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
             verbose=1,
             scheduler='"127.0.0.1:8786"',
             workers="{'127.0.0.1': 1}",
-            deps=deps,
+            deps=_deps(),
         )
     )
 
-    assert any("HEALTH gate failed" in msg for msg in health_st._error_messages)
+    expected_path = tmp_path / "log" / "execute" / "demo" / "service_operator_snapshot.json"
+    assert expected_path.exists()
+    payload = __import__("json").loads(expected_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "running"
+    assert payload["summary"]["unhealthy_workers"] == 1
+    assert session_state["service_snapshot_path_cache"] == str(expected_path)
+    assert fake_st._placeholders[3].last_caption is not None
+    assert str(expected_path) in fake_st._placeholders[3].last_caption
+    assert any("Operator snapshot exported" in msg for msg in fake_st._success_messages)
