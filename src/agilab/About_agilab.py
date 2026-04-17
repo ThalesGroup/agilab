@@ -333,9 +333,6 @@ def display_landing_page(resources_path: Path) -> None:
 def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
     """Render the branding banner."""
     quick_logo(resources_path)
-    version_text = _landing_page_version_text(env)
-    if version_text:
-        st.caption(version_text)
     render_newcomer_first_proof(env)
 
 def _clean_openai_key(key: str | None) -> str | None:
@@ -927,7 +924,9 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
 
 def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
-    cols = st.columns(1)
+    version_text = _landing_page_version_text(env)
+    if version_text:
+        st.sidebar.caption(version_text)
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)

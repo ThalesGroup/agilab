@@ -366,6 +366,7 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
 
     assert not at.exception
     assert any(str(caption.value).startswith("AGILAB version: v") for caption in at.caption)
+    assert any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
