@@ -108,6 +108,13 @@ def test_worker_python_override_key_detection():
     assert about_agilab._is_worker_python_override_key("127.0.0.1_CMD_PREFIX") is False
 
 
+def test_env_editor_field_label_for_python_keys():
+    assert about_agilab._env_editor_field_label("AGI_PYTHON_VERSION") == "Default Python version"
+    assert about_agilab._env_editor_field_label("AGI_PYTHON_FREE_THREADED") == "Use free-threaded Python"
+    assert about_agilab._env_editor_field_label("127.0.0.1_PYTHON_VERSION") == "Worker Python version for 127.0.0.1"
+    assert about_agilab._env_editor_field_label("OPENAI_API_KEY") == "OPENAI_API_KEY"
+
+
 def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides():
     template_keys = ["AGI_PYTHON_VERSION", "AGI_PYTHON_FREE_THREADED", "OPENAI_API_KEY"]
     existing_entries = [
