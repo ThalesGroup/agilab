@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -164,6 +165,92 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     assert any(any(item["name"] == "agi_env-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any(any(item["name"] == "agi_node-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_source_env_prefers_latest_artifacts(tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    old_egg = dist_abs / "demo_worker-0.0.1.egg"
+    new_egg = dist_abs / "demo_worker-0.0.2.egg"
+    old_egg.write_text("old-egg", encoding="utf-8")
+    new_egg.write_text("new-egg", encoding="utf-8")
+    os.utime(old_egg, (1, 1))
+    os.utime(new_egg, (2, 2))
+
+    agi_env = tmp_path / "agi_env"
+    agi_node = tmp_path / "agi_node"
+    for root, older_name, newer_name in (
+        (
+            agi_env,
+            "agi_env-0.0.1-py3-none-any.whl",
+            "agi_env-0.0.2-py3-none-any.whl",
+        ),
+        (
+            agi_node,
+            "agi_node-0.0.1-py3-none-any.whl",
+            "agi_node-0.0.2-py3-none-any.whl",
+        ),
+    ):
+        dist_dir = root / "dist"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        older = dist_dir / older_name
+        newer = dist_dir / newer_name
+        older.write_text("old", encoding="utf-8")
+        newer.write_text("new", encoding="utf-8")
+        os.utime(older, (1, 1))
+        os.utime(newer, (2, 2))
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "wenv",
+        wenv_rel=Path("wenv"),
+        dist_rel=Path("wenv/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={},
+        uv_worker="uv",
+        is_source_env=True,
+        app="demo_app",
+        target_worker="demo_worker",
+        agi_env=agi_env,
+        agi_node=agi_node,
+        post_install_rel="demo.post_install",
+        verbose=0,
+    )
+    sent: list[tuple[str, list[str], str]] = []
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        del user, password
+        sent.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+        del _env, ip, user, password
+        sent.append(("10.0.0.2", [Path(local_path).name], str(remote_path.parent)))
+
+    async def _fake_exec(_ip, _cmd):
+        return "ok"
+
+    agi_cls = SimpleNamespace(
+        _rapids_enabled=False,
+        _workers_data_path=None,
+        exec_ssh=_fake_exec,
+        send_files=_fake_send,
+        send_file=_fake_send_file,
+    )
+
+    await _call_deploy_remote_worker(
+        agi_cls,
+        "10.0.0.2",
+        env,
+        Path("wenv"),
+        "",
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=deployment_remote_support.logger,
+    )
+
+    assert any(names == ["demo_worker-0.0.2.egg"] for _, names, _ in sent)
+    assert any("agi_env-0.0.2-py3-none-any.whl" in names for _, names, _ in sent)
+    assert any("agi_node-0.0.2-py3-none-any.whl" in names for _, names, _ in sent)
 
 
 @pytest.mark.asyncio

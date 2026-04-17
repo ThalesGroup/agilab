@@ -1276,13 +1276,26 @@ def test_get_projects_zip_templates_and_about_content(tmp_path, monkeypatch):
     agilab_pkg = tmp_path / "pkg"
     (agilab_pkg / "agilab" / "templates" / "builtin").mkdir(parents=True)
 
+    class _ExportApps:
+        def glob(self, pattern):
+            assert pattern == "*.zip"
+            return [export_apps / "beta.zip", export_apps / "alpha.zip"]
+
     monkeypatch.setattr(
         pagelib,
         "st",
-        SimpleNamespace(session_state={"env": SimpleNamespace(export_apps=export_apps, apps_path=apps_root, agilab_pck=agilab_pkg)}),
+        SimpleNamespace(
+            session_state={
+                "env": SimpleNamespace(
+                    export_apps=_ExportApps(),
+                    apps_path=apps_root,
+                    agilab_pck=agilab_pkg,
+                )
+            }
+        ),
     )
 
-    assert sorted(pagelib.get_projects_zip()) == ["alpha.zip", "beta.zip"]
+    assert pagelib.get_projects_zip() == ["alpha.zip", "beta.zip"]
     assert pagelib.get_templates() == ["builtin", "demo"]
     assert "AGILab" in pagelib.get_about_content()["About"]
 

@@ -467,7 +467,7 @@ def get_projects_zip():
         list: A list of zip file names for projects found in the env export_apps directory.
     """
     env = st.session_state["env"]
-    return [p.name for p in env.export_apps.glob("*.zip")]
+    return sorted(p.name for p in env.export_apps.glob("*.zip"))
 
 
 def get_templates():

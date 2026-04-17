@@ -27,7 +27,7 @@ def test_get_first_match_and_keyword_handles_empty_inputs():
     assert support.get_first_match_and_keyword(["alpha"], ["time"]) == (None, None)
 
 
-def test_find_files_filters_hidden_entries_and_respects_recursive_flag(tmp_path):
+def test_find_files_filters_hidden_entries_and_respects_recursive_flag(tmp_path, monkeypatch):
     root_csv = tmp_path / "root.csv"
     root_csv.write_text("value\n1\n", encoding="utf-8")
     nested = tmp_path / "nested"
@@ -38,8 +38,24 @@ def test_find_files_filters_hidden_entries_and_respects_recursive_flag(tmp_path)
     hidden.mkdir()
     (hidden / "ignored.csv").write_text("value\n3\n", encoding="utf-8")
 
-    recursive = sorted(path.relative_to(tmp_path).as_posix() for path in support.find_files(tmp_path, ".csv", True))
-    non_recursive = sorted(path.relative_to(tmp_path).as_posix() for path in support.find_files(tmp_path, ".csv", False))
+    real_rglob = Path.rglob
+    real_glob = Path.glob
+
+    def _fake_rglob(self, pattern):
+        if self == tmp_path and pattern == "*.csv":
+            return iter([root_csv, hidden / "ignored.csv", nested_csv])
+        return real_rglob(self, pattern)
+
+    def _fake_glob(self, pattern):
+        if self == tmp_path and pattern == "*/*.csv":
+            return iter([nested_csv])
+        return real_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _fake_rglob)
+    monkeypatch.setattr(Path, "glob", _fake_glob)
+
+    recursive = [path.relative_to(tmp_path).as_posix() for path in support.find_files(tmp_path, ".csv", True)]
+    non_recursive = [path.relative_to(tmp_path).as_posix() for path in support.find_files(tmp_path, ".csv", False)]
 
     assert recursive == ["nested/inner.csv", "root.csv"]
     assert non_recursive == ["nested/inner.csv"]

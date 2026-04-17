@@ -947,7 +947,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if not base.exists():
                 continue
 
-            for project_path in base.glob("*_project"):
+            for project_path in sorted(base.glob("*_project"), key=lambda candidate: candidate.name):
                 if project_path.is_symlink() and not project_path.exists():
                     try:
                         project_path.unlink()
