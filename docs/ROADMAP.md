@@ -8,6 +8,9 @@
 - Add realtime analytical and geospatial views with Plotly.js/WebGL first,
   deck.gl for dense map/network overlays, and Three.js only for specialized 3D
   mission views.
+- Promote current distributed work-plan execution into a first-class
+  map/reduce contract with explicit reducers, merge semantics, and aggregation
+  artefacts.
 - Add an internal DeepWiki/Open-style repository knowledge layer for codebase
   exploration and onboarding, while keeping versioned docs as the source of
   truth.
