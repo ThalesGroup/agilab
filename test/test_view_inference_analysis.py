@@ -263,6 +263,74 @@ def test_view_inference_analysis_formats_heatmap_text_without_applymap_dependenc
     }
 
 
+def test_view_inference_analysis_builds_uniform_matrix_heatmap_coordinates() -> None:
+    module = _load_module()
+
+    matrix = pd.DataFrame(
+        [[10.0, None], [20.0, 30.0]],
+        index=pd.Index([5, 900]),
+        columns=pd.Index([1, 1001]),
+    )
+
+    fig = module._build_heatmap_figure(matrix, colorbar_title="Value")
+    heatmap = fig.data[0]
+
+    assert list(heatmap.x) == [0, 1]
+    assert list(heatmap.y) == [0, 1]
+    assert fig.layout.xaxis.title.text == "Source node"
+    assert fig.layout.yaxis.title.text == "Destination node"
+    assert list(fig.layout.xaxis.ticktext) == ["1", "1001"]
+    assert list(fig.layout.yaxis.ticktext) == ["5", "900"]
+    assert fig.layout.yaxis.scaleanchor == "x"
+    assert fig.layout.yaxis.scaleratio == 1
+    assert heatmap.colorbar.len == pytest.approx(0.72)
+    assert heatmap.colorbar.thickness == 14
+    assert fig.layout.title.text is None
+    assert heatmap.texttemplate is None
+    assert heatmap.customdata[0][0] == ["5", "1"]
+    assert heatmap.customdata[1][1] == ["900", "1001"]
+
+
+def test_view_inference_analysis_can_hide_redundant_heatmap_colorbars() -> None:
+    module = _load_module()
+
+    matrix = pd.DataFrame(
+        [[10.0, None], [20.0, 30.0]],
+        index=pd.Index([5, 900]),
+        columns=pd.Index([1, 1001]),
+    )
+
+    fig = module._build_heatmap_figure(matrix, colorbar_title="Value", show_colorbar=False)
+    heatmap = fig.data[0]
+
+    assert heatmap.showscale is False
+
+
+def test_view_inference_analysis_builds_detached_heatmap_colorbar_figure() -> None:
+    module = _load_module()
+
+    fig = module._build_heatmap_colorbar_figure(colorbar_title="Value", zmax=100.0, height=420)
+    scatter = fig.data[0]
+
+    assert scatter.marker.showscale is True
+    assert scatter.marker.colorbar.title.text == "Value"
+    assert scatter.marker.colorbar.len == pytest.approx(0.66)
+    assert scatter.marker.colorbar.x == pytest.approx(0.92)
+    assert scatter.marker.colorbar.xanchor == "right"
+    assert scatter.marker.colorbar.thickness == 12
+    assert fig.layout.height == 420
+    assert fig.layout.xaxis.visible is False
+    assert fig.layout.yaxis.visible is False
+
+
+def test_view_inference_analysis_chunks_heatmap_labels_for_wrapped_matrix_grid() -> None:
+    module = _load_module()
+
+    rows = module._chunk_labels(["run_a", "run_b", "run_c"], max_columns=2)
+
+    assert rows == [["run_a", "run_b"], ["run_c"]]
+
+
 def test_view_inference_analysis_latency_distribution_uses_only_routed_rows() -> None:
     module = _load_module()
 

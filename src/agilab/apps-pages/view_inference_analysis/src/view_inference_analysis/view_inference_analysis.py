@@ -11,7 +11,7 @@ import json
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import pandas as pd
 import plotly.express as px
@@ -52,8 +52,11 @@ AGGREGATION_KEY = f"{PAGE_KEY}:aggregation"
 PROFILE_METRIC_KEY = f"{PAGE_KEY}:profile_metric"
 PROFILE_AXIS_KEY = f"{PAGE_KEY}:profile_axis"
 DETAIL_RUNS_KEY = f"{PAGE_KEY}:detail_runs"
+HEATMAP_ANNOTATIONS_KEY = f"{PAGE_KEY}:heatmap_annotations"
 ENV_KEY = f"{PAGE_KEY}:env"
 LOAD_CACHE_VERSION = 2
+HEATMAP_ANNOTATION_MAX_DIM = 12
+HEATMAP_MAX_COLUMNS = 2
 
 BASE_CHOICES = ("AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom")
 AGGREGATIONS = ("mean", "sum", "median", "min", "max", "std", "count")
@@ -838,11 +841,143 @@ def align_heatmap_frames(
     return aligned, resolved_rows, resolved_columns
 
 
+def _chunk_labels(labels: Sequence[str], *, max_columns: int) -> list[list[str]]:
+    if max_columns < 1:
+        raise ValueError("max_columns must be at least 1")
+    return [list(labels[index:index + max_columns]) for index in range(0, len(labels), max_columns)]
+
+
 def _format_heatmap_text_frame(matrix: pd.DataFrame) -> pd.DataFrame:
     formatter = lambda value: "" if pd.isna(value) else f"{float(value):.1f}"
     if hasattr(matrix, "map"):
         return matrix.map(formatter)
     return matrix.applymap(formatter)
+
+
+def _resolve_heatmap_height(row_count: int) -> int:
+    return max(400, min(900, 160 + 42 * row_count))
+
+
+def _build_heatmap_figure(
+    matrix: pd.DataFrame,
+    *,
+    title: str | None = None,
+    colorbar_title: str,
+    zmax: float | None = None,
+    show_annotations: bool = False,
+    show_colorbar: bool = True,
+) -> go.Figure:
+    finite_values = pd.Series(matrix.to_numpy().ravel()).dropna()
+    resolved_zmax = zmax if zmax is not None else (max(100.0, float(finite_values.max())) if not finite_values.empty else 100.0)
+    text = _format_heatmap_text_frame(matrix)
+    x_positions = list(range(len(matrix.columns)))
+    y_positions = list(range(len(matrix.index)))
+    annotations_enabled = show_annotations and max(len(matrix.index), len(matrix.columns)) <= HEATMAP_ANNOTATION_MAX_DIM
+    customdata = [
+        [[str(row_label), str(column_label)] for column_label in matrix.columns]
+        for row_label in matrix.index
+    ]
+
+    heatmap_kwargs: dict[str, Any] = {
+        "z": matrix.to_numpy(dtype=float),
+        "x": x_positions,
+        "y": y_positions,
+        "text": text.to_numpy() if annotations_enabled else None,
+        "customdata": customdata,
+        "texttemplate": "%{text}" if annotations_enabled else None,
+        "textfont": {"size": 10},
+        "colorscale": "Viridis",
+        "xgap": 1,
+        "ygap": 1,
+        "zmin": 0.0,
+        "zmax": resolved_zmax,
+        "showscale": show_colorbar,
+        "hovertemplate": (
+            "Destination node=%{customdata[0]}<br>"
+            "Source node=%{customdata[1]}<br>"
+            "Value=%{z:.1f}<extra></extra>"
+        ),
+        "hoverongaps": False,
+    }
+    if show_colorbar:
+        heatmap_kwargs["colorbar"] = {
+            "title": {"text": colorbar_title},
+            "lenmode": "fraction",
+            "len": 0.72,
+            "y": 0.5,
+            "yanchor": "middle",
+            "thickness": 14,
+        }
+
+    fig = go.Figure(data=go.Heatmap(**heatmap_kwargs))
+    layout_kwargs: dict[str, Any] = {
+        "margin": {"l": 20, "r": 12 if not show_colorbar else 20, "t": 50 if title else 20, "b": 20},
+        "xaxis_title": "Source node",
+        "yaxis_title": "Destination node",
+        "xaxis": dict(
+            tickmode="array",
+            tickvals=x_positions,
+            ticktext=[str(value) for value in matrix.columns.tolist()],
+            constrain="domain",
+        ),
+        "yaxis": dict(
+            tickmode="array",
+            tickvals=y_positions,
+            ticktext=[str(value) for value in matrix.index.tolist()],
+            scaleanchor="x",
+            scaleratio=1,
+            constrain="domain",
+        ),
+        "height": _resolve_heatmap_height(len(matrix.index)),
+    }
+    if title:
+        layout_kwargs["title"] = {"text": title}
+    fig.update_layout(**layout_kwargs)
+    return fig
+
+
+def _build_heatmap_colorbar_figure(
+    *,
+    colorbar_title: str,
+    zmax: float | None = None,
+    height: int = 400,
+) -> go.Figure:
+    resolved_zmax = 100.0 if zmax is None else float(zmax)
+    fig = go.Figure(
+        data=go.Scatter(
+            x=[0.0, 0.0],
+            y=[0.0, 1.0],
+            mode="markers",
+            hoverinfo="skip",
+            marker={
+                "size": 0.1,
+                "color": [0.0, resolved_zmax],
+                "colorscale": "Viridis",
+                "cmin": 0.0,
+                "cmax": resolved_zmax,
+                "showscale": True,
+                "colorbar": {
+                    "title": {"text": colorbar_title, "side": "top"},
+                    "lenmode": "fraction",
+                    "len": 0.66,
+                    "y": 0.5,
+                    "yanchor": "middle",
+                    "x": 0.92,
+                    "xanchor": "right",
+                    "thickness": 12,
+                },
+            },
+        )
+    )
+    fig.update_xaxes(visible=False, fixedrange=True)
+    fig.update_yaxes(visible=False, fixedrange=True)
+    fig.update_layout(
+        height=height,
+        margin={"l": 0, "r": 0, "t": 8, "b": 8},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
 
 
 def _render_heatmap(
@@ -852,38 +987,63 @@ def _render_heatmap(
     colorbar_title: str,
     zmax: float | None = None,
     chart_key: str | None = None,
+    show_annotations: bool = False,
+    show_colorbar: bool = True,
 ) -> None:
     if matrix.empty:
         label = title.lower() if isinstance(title, str) and title.strip() else "this heatmap"
         st.info(f"No data available for {label}.")
         return
-    finite_values = pd.Series(matrix.to_numpy().ravel()).dropna()
-    resolved_zmax = zmax if zmax is not None else (max(100.0, float(finite_values.max())) if not finite_values.empty else 100.0)
-    text = _format_heatmap_text_frame(matrix)
-    fig = go.Figure(
-        data=
-        go.Heatmap(
-            z=matrix.to_numpy(dtype=float),
-            x=[str(value) for value in matrix.columns.tolist()],
-            y=[str(value) for value in matrix.index.tolist()],
-            text=text.to_numpy(),
-            texttemplate="%{text}",
-            textfont={"size": 10},
-            colorscale="Viridis",
-            zmin=0.0,
-            zmax=resolved_zmax,
-            colorbar={"title": colorbar_title},
-            hovertemplate="Destination=%{y}<br>Source=%{x}<br>Value=%{z:.1f}<extra></extra>",
-            hoverongaps=False,
-        )
-    )
-    fig.update_layout(
+    fig = _build_heatmap_figure(
+        matrix,
         title=title,
-        margin={"l": 20, "r": 20, "t": 50 if title else 20, "b": 20},
-        xaxis_title="Source",
-        yaxis_title="Destination",
+        colorbar_title=colorbar_title,
+        zmax=zmax,
+        show_annotations=show_annotations,
+        show_colorbar=show_colorbar,
     )
     st.plotly_chart(fig, width="stretch", key=chart_key)
+
+
+def _render_heatmap_section(
+    section_title: str,
+    matrices: dict[str, pd.DataFrame],
+    *,
+    colorbar_title: str,
+    zmax: float | None = None,
+    chart_key_prefix: str,
+    show_annotations: bool = False,
+) -> None:
+    st.markdown(f"**{section_title}**")
+    non_empty_matrices = [matrix for matrix in matrices.values() if not matrix.empty]
+    max_row_count = max((len(matrix.index) for matrix in non_empty_matrices), default=0)
+    heatmap_height = _resolve_heatmap_height(max_row_count)
+    heatmap_column, legend_column = st.columns([14, 1])
+
+    with heatmap_column:
+        label_rows = _chunk_labels(list(matrices.keys()), max_columns=min(HEATMAP_MAX_COLUMNS, max(1, len(matrices))))
+        for row_labels in label_rows:
+            columns = st.columns(len(row_labels))
+            for column, label in zip(columns, row_labels):
+                with column:
+                    st.markdown(f"##### {label}")
+                    _render_heatmap(
+                        matrices[label],
+                        colorbar_title=colorbar_title,
+                        zmax=zmax,
+                        chart_key=f"{chart_key_prefix}:{label}",
+                        show_annotations=show_annotations,
+                        show_colorbar=False,
+                    )
+
+    with legend_column:
+        if non_empty_matrices:
+            scale_fig = _build_heatmap_colorbar_figure(
+                colorbar_title=colorbar_title,
+                zmax=zmax,
+                height=heatmap_height,
+            )
+            st.plotly_chart(scale_fig, width="stretch", key=f"{chart_key_prefix}:scale")
 
 
 def main() -> None:
@@ -1192,12 +1352,13 @@ def main() -> None:
         st.session_state[DETAIL_RUNS_KEY] = detail_run_current
 
     st.subheader("Detailed run diagnostics")
-    st.caption("Columns are selected runs. Rows are comparable diagnostics.")
+    st.caption("Time-series diagnostics keep selected runs in columns. Matrix sections wrap into a wider grid when several runs are selected.")
     st.multiselect("Detailed runs", options=selected_labels, key=DETAIL_RUNS_KEY)
     detail_run_labels = _coerce_selection(st.session_state.get(DETAIL_RUNS_KEY), selected_labels, fallback=detail_run_defaults)
     if not detail_run_labels:
         st.info("Select at least one detailed run to compare.")
         return
+    st.checkbox("Show cell annotations on heatmaps", key=HEATMAP_ANNOTATIONS_KEY, value=False)
 
     detail_frames = {label: frames.get(label, pd.DataFrame()) for label in detail_run_labels}
     detail_axes = {
@@ -1247,6 +1408,19 @@ def main() -> None:
     ]
     served_heatmap_zmax = max([100.0, *served_max_candidates]) if served_max_candidates else 100.0
     rejected_heatmap_zmax = 100.0
+    show_heatmap_annotations = bool(st.session_state.get(HEATMAP_ANNOTATIONS_KEY, False))
+    largest_heatmap_dim = max(
+        [
+            max(matrix.shape) if not matrix.empty else 0
+            for matrix in [*detail_served_heatmaps.values(), *detail_rejected_heatmaps.values()]
+        ],
+        default=0,
+    )
+    if show_heatmap_annotations and largest_heatmap_dim > HEATMAP_ANNOTATION_MAX_DIM:
+        st.caption(
+            f"Cell annotations are shown only up to {HEATMAP_ANNOTATION_MAX_DIM}x{HEATMAP_ANNOTATION_MAX_DIM} matrices. "
+            "Use hover for larger heatmaps."
+        )
 
     st.markdown("**Bearer Involvement**")
     bearer_cols = st.columns(len(detail_run_labels))
@@ -1294,29 +1468,28 @@ def main() -> None:
                 key=f"{PAGE_KEY}:detail:bearer:{label}",
             )
 
-    st.markdown("**Served Bandwidth Heatmap**")
-    served_cols = st.columns(len(detail_run_labels))
-    for column, label in zip(served_cols, detail_run_labels):
-        with column:
-            _render_heatmap(
-                detail_served_heatmaps[label],
-                colorbar_title="Served bandwidth (%)",
-                zmax=served_heatmap_zmax,
-                chart_key=f"{PAGE_KEY}:detail:served_heatmap:{label}",
-            )
-
-    st.markdown("**Rejected Allocation Heatmap**")
-    rejected_cols = st.columns(len(detail_run_labels))
-    for column, label in zip(rejected_cols, detail_run_labels):
-        with column:
-            _render_heatmap(
-                detail_rejected_heatmaps[label],
-                colorbar_title="Rejected ratio (%)",
-                zmax=rejected_heatmap_zmax,
-                chart_key=f"{PAGE_KEY}:detail:rejected_heatmap:{label}",
-            )
+    _render_heatmap_section(
+        "Served Bandwidth Matrix",
+        detail_served_heatmaps,
+        colorbar_title="Served bandwidth (%)",
+        zmax=served_heatmap_zmax,
+        chart_key_prefix=f"{PAGE_KEY}:detail:served_heatmap",
+        show_annotations=show_heatmap_annotations,
+    )
+    _render_heatmap_section(
+        "Rejected Allocation Matrix",
+        detail_rejected_heatmaps,
+        colorbar_title="Rejected ratio (%)",
+        zmax=rejected_heatmap_zmax,
+        chart_key_prefix=f"{PAGE_KEY}:detail:rejected_heatmap",
+        show_annotations=show_heatmap_annotations,
+    )
     if not heatmap_nodes.empty:
-        st.caption("Heatmaps use one shared node list on both axes across all selected runs. Blank cells mean no data for that source-destination pair in that run.")
+        st.caption(
+            "Matrices use one shared node list across all selected runs. Axes show source and destination nodes, "
+            "while the internal layout keeps uniform cell sizes. Exact values are available on hover, and the shared color scale is rendered separately on the right of each matrix section. "
+            "Blank cells mean no data for that source-destination pair in that run."
+        )
 
 
 if __name__ == "__main__":
