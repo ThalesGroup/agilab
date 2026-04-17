@@ -1,0 +1,14 @@
+[project]
+name = "view-inference-analysis"
+version = "2026.04.17"
+requires-python = ">=3.13"
+dependencies = [
+    "streamlit>=1.55.0",
+    "watchdog>=6.0.0",
+    "agi-env",
+    "pandas>=2.3.0",
+    "plotly>=6.3.0",
+]
+
+[tool.uv.sources]
+agi-env = { path = "../../core/agi-env", editable = true }
