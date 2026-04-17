@@ -88,3 +88,55 @@ Every installer run streams output to the UI and also appends a timestamped log 
 ``$AGI_LOG_DIR/install_logs``. By default ``$AGI_LOG_DIR`` is ``~/log`` (see
 ``$HOME/.agilab/.env``), so you will find files like
 ``~/log/install_logs/install_20250921_072751.log_`` with the full transcript.
+
+Why did my local coverage run not change the README badge?
+----------------------------------------------------------
+AGILAB coverage badges are generated artifacts, not live views of the last
+local ``pytest --cov`` run. A local coverage command updates XML files such as
+``coverage-agi-gui.xml`` or ``coverage-agilab.xml``, but the README still shows
+the last committed SVG badge until you regenerate and commit it.
+
+Typical refresh path::
+
+    uv --preview-features extra-build-dependencies run python tools/generate_component_coverage_badges.py --components agi-gui
+
+For the global badge, you also need the corresponding aggregate XML inputs
+before regenerating ``badges/coverage-agilab.svg``.
+
+Why can ``agi-gui`` be at 99% while global ``agilab`` coverage is lower?
+-------------------------------------------------------------------------
+The component badges and the global badge measure different scopes.
+
+- ``agi-gui`` only measures the GUI/profile slice covered by the GUI workflow.
+- ``agilab`` aggregates all tracked components together, including shared core
+  modules such as ``agi-env``, ``agi-node``, and ``agi-cluster``.
+
+So a component badge can legitimately reach ``99%`` or ``100%`` while the
+global aggregate stays lower until the other components also move up.
+
+Which docs repo should I edit?
+------------------------------
+The canonical editable documentation source is the sibling
+``thales_agilab`` checkout under ``docs/source``. The public AGILAB Pages build
+still publishes from the mirrored ``agilab/docs/source`` tree, so public docs
+changes need both steps:
+
+1. edit the canonical source in ``../thales_agilab/docs/source``
+2. mirror the touched files into ``agilab/docs/source``
+
+Do not treat ``docs/html`` as editable source. It is generated output only.
+
+What does ``tools/newcomer_first_proof.py`` actually prove?
+-----------------------------------------------------------
+It proves the recommended newcomer startup path is healthy. Specifically, it
+checks that:
+
+- the lightweight ``agi_env`` preinit smoke works
+- the ``About`` page boots
+- the ``ORCHESTRATE`` page boots against the built-in ``flight_project``
+
+It does **not** replace the full first visible workflow proof. Passing
+``tools/newcomer_first_proof.py`` means the source checkout and UI startup path
+are sane; you still need the normal first run in the web interface to produce
+fresh output under ``~/log/execute/flight/`` and complete the
+``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`` story.
