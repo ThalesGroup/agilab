@@ -68,6 +68,14 @@ Concrete capture command for the default `flight_project` tutorial:
 tools/capture_demo_workflow.sh --name agilab-flight --duration 45 --trim 30
 ```
 
+If you launch the recording from Codex, PyCharm, or another non-interactive
+runner, use the Terminal handoff so the interactive macOS recorder runs in a
+real operator shell:
+
+```bash
+tools/capture_demo_workflow.sh --name agilab-flight --duration 45 --trim 30 --via-terminal
+```
+
 Concrete capture command for the `uav_relay_queue_project` variant:
 
 ```bash
@@ -107,6 +115,12 @@ Concrete command:
 
 ```bash
 tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85
+```
+
+If the capture is triggered from an automated or agent-driven shell, use:
+
+```bash
+tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85 --via-terminal
 ```
 
 This wrapper:
