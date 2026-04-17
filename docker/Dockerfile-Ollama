@@ -1,5 +1,5 @@
 FROM ubuntu:24.04
-LABEL authors="Julien BESTARD"
+LABEL maintainer="Jean-Pierre Morard"
 LABEL description="AGILAB Offline LLM container with Ollama"
 
 # Prevent interactive prompts during package installation
