@@ -74,21 +74,18 @@ FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
 def _newcomer_first_proof_content() -> Dict[str, Any]:
     """Return the first-proof onboarding contract shown on the landing page."""
     return {
-        "title": "New here? Use one proof path only",
-        "intro": (
-            "Ignore cluster mode, private app repositories, packaged install, and notebook-first "
-            "workflows until the local built-in flight demo works once."
-        ),
+        "title": "Start here",
+        "intro": "Goal: make one demo work on your computer.",
         "steps": [
-            ("PROJECT", "Select `src/agilab/apps/builtin/flight_project`."),
-            ("ORCHESTRATE", "Run the install/distribute/run flow locally."),
-            ("PIPELINE", "Inspect the generated step instead of treating the run as disposable."),
-            ("ANALYSIS", "Open the resulting built-in view and confirm visible output."),
+            ("PROJECT", "Choose `flight_project`."),
+            ("ORCHESTRATE", "Click INSTALL, then EXECUTE."),
+            ("PIPELINE", "Check the generated files."),
+            ("ANALYSIS", "Open one result page."),
         ],
         "success_criteria": [
-            "Fresh generated output exists under `~/log/execute/flight/`.",
-            "The workflow stayed understandable as `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`.",
-            "You can point to one visible analysis result, not just logs.",
+            "You can see files under `~/log/execute/flight/`.",
+            "You can open one result page.",
+            "Now you can try another demo.",
         ],
         "links": [
             ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
@@ -168,13 +165,13 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
     current_app_matches = active_app_name == FIRST_PROOF_PROJECT
 
     if project_path is None:
-        next_step = "Fix the apps path or installation so the built-in flight project is available."
+        next_step = "Fix the app list first. `flight_project` is missing."
     elif not current_app_matches:
-        next_step = "Select the built-in flight project before branching into any other workflow."
+        next_step = "In PROJECT, choose `flight_project`."
     elif not visible_outputs:
-        next_step = "Open ORCHESTRATE and run the built-in flight proof locally."
+        next_step = "Open ORCHESTRATE. Click INSTALL, then EXECUTE."
     else:
-        next_step = "Open PIPELINE and ANALYSIS to confirm a visible result from the generated outputs."
+        next_step = "Open ANALYSIS and check one result page."
 
     return {
         "content": content,
@@ -250,54 +247,43 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
 
     with st.container(border=True):
         st.markdown(f"### {content['title']}")
-        st.caption(content["intro"])
-        st.caption(f"Compatibility slice: {state['compatibility_slice']}")
-
-        st.markdown("**Current proof status**")
-        status_lines = [
-            f"- {'OK' if state['project_available'] else 'Missing'} built-in proof project: `{state['project_path'] or 'flight_project not found'}`",
-            f"- {'OK' if state['current_app_matches'] else 'Pending'} current project selection: `{state['active_app_name'] or '<none>'}`",
-            f"- {'OK' if state['helper_scripts_present'] else 'Pending'} seeded helper scripts under `{state['output_dir']}`",
-            f"- {'OK' if state['run_output_detected'] else 'Pending'} generated run outputs detected",
+        st.write(content["intro"])
+        st.markdown("**Do this now**")
+        step_lines = [
+            f"1. {content['steps'][0][1]}",
+            f"2. {content['steps'][1][1]}",
+            f"3. {content['steps'][2][1]}",
+            f"4. {content['steps'][3][1]}",
         ]
-        st.markdown("\n".join(status_lines))
+        st.markdown("\n".join(step_lines))
 
         if not state["project_available"]:
-            st.error("The built-in `flight_project` is not available from the current apps path.")
+            st.error(state["next_step"])
         elif not state["current_app_matches"]:
-            st.warning(state["next_step"])
+            st.warning(f"Next action: {state['next_step']}")
             if st.button(
-                "Use built-in flight proof path",
+                "Use `flight_project`",
                 key="first_proof:activate",
                 type="primary",
                 use_container_width=True,
             ):
                 if _activate_newcomer_first_proof_project(env, state["project_path"]):
-                    st.session_state["first_proof_feedback"] = "Built-in flight proof path selected."
+                    st.session_state["first_proof_feedback"] = "`flight_project` selected."
                     st.rerun()
         elif not state["run_output_detected"]:
-            st.info(state["next_step"])
+            st.info(f"Next action: {state['next_step']}")
         else:
-            st.success(state["next_step"])
-
-        st.markdown("**Guided flow**")
-        guided_flow = [
-            ("PROJECT", "Confirm the built-in `flight_project` proof path."),
-            ("ORCHESTRATE", "Run INSTALL once, then EXECUTE the proof workflow."),
-            ("PIPELINE", "Verify the generated steps and saved helper scripts."),
-            ("ANALYSIS", "Confirm visible outputs under `~/log/execute/flight/`."),
-        ]
-        cols = st.columns(len(guided_flow))
-        for col, (label, detail) in zip(cols, guided_flow):
-            with col:
-                st.markdown(f"**{label}**")
-                st.caption(detail)
+            st.success(f"Next action: {state['next_step']}")
 
         if state["visible_outputs"]:
             preview = ", ".join(path.name for path in state["visible_outputs"][:3])
             if len(state["visible_outputs"]) > 3:
                 preview += ", …"
-            st.caption(f"Observed output entries: {preview}")
+            st.caption(f"Files found: {preview}")
+
+        st.markdown("**You are done when**")
+        st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
+        st.caption("After that: try another demo. Keep cluster mode for later.")
 
         links_html = " · ".join(
             f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
@@ -329,60 +315,40 @@ def quick_logo(resources_path: Path) -> None:
 
 
 def _landing_page_sections() -> Dict[str, Any]:
-    """Return a task-oriented About-page summary."""
+    """Return a minimal newcomer-oriented landing page summary."""
     return {
-        "headline": "AGILAB helps you run a data, ML, or RL project step by step.",
-        "summary": (
-            "Choose one project. Run it. Check the generated files. Open the result pages."
-        ),
-        "workflow": [
-            "PROJECT: pick one demo",
-            "ORCHESTRATE: install and run it on your computer",
-            "PIPELINE: see the steps and output files",
-            "ANALYSIS: open charts, maps, or tables",
+        "headline": "Start with one local demo.",
+        "goal": "Goal: run one demo and open one result page.",
+        "do_this_now": [
+            "Choose `flight_project` in PROJECT.",
+            "Open ORCHESTRATE.",
+            "Click INSTALL.",
+            "Click EXECUTE.",
+            "Open PIPELINE, then ANALYSIS.",
         ],
-        "gives_you": [
-            "one clear path from project to results",
-            "saved files after each run",
-            "a simple local start before cluster mode",
+        "done_when": [
+            "you can see generated files",
+            "you can open one result page",
         ],
-        "use_when": [
-            "you want to run a project without many manual steps",
-            "you want to see files and result pages after the run",
-            "you want to start local before using a cluster",
+        "then": [
+            "try another demo",
+            "keep cluster mode for later",
         ],
-        "not_first": [
-            "do not start with cluster mode",
-            "do not start with private app repositories",
-            "do not start by integrating your whole stack at once",
-        ],
-        "recommended_path": (
-            "Start with the built-in flight demo. Stay local. Do one full "
-            "`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` run first."
-        ),
     }
 
 
 def display_landing_page(resources_path: Path) -> None:
-    """Display the introductory copy describing AGILab's value proposition."""
+    """Display a minimal start-here message."""
     del resources_path
     sections = _landing_page_sections()
 
     st.markdown(f"**{sections['headline']}**")
-    st.caption(sections["summary"])
-
-    left, right = st.columns(2)
-    with left:
-        st.markdown("**What you do here**")
-        st.markdown("\n".join(f"- {item}" for item in sections["workflow"]))
-        st.markdown("**What you get**")
-        st.markdown("\n".join(f"- {item}" for item in sections["gives_you"]))
-    with right:
-        st.markdown("**Use AGILAB when**")
-        st.markdown("\n".join(f"- {item}" for item in sections["use_when"]))
-        st.markdown("**Do not start with**")
-        st.markdown("\n".join(f"- {item}" for item in sections["not_first"]))
-        st.info(f"Best first step: {sections['recommended_path']}")
+    st.write(sections["goal"])
+    st.markdown("**Do this now**")
+    st.markdown("\n".join(f"1. {item}" if idx == 0 else f"{idx + 1}. {item}" for idx, item in enumerate(sections["do_this_now"])))
+    st.markdown("**You are done when**")
+    st.markdown("\n".join(f"- {item}" for item in sections["done_when"]))
+    st.info("Then: try another demo. Keep cluster mode for later.")
 
 
 def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
