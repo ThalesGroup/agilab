@@ -22,7 +22,7 @@ def _path_exists(value: str) -> bool:
         return False
     try:
         return Path(value).expanduser().exists()
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return False
 
 
