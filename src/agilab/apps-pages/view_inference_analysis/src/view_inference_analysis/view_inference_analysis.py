@@ -174,6 +174,7 @@ def _coerce_selection(
     *,
     fallback: list[str] | None = None,
 ) -> list[str]:
+    explicit_empty = isinstance(saved_value, (list, tuple, set)) and len(saved_value) == 0
     if isinstance(saved_value, str):
         candidates = [saved_value]
     elif isinstance(saved_value, (list, tuple, set)):
@@ -181,7 +182,7 @@ def _coerce_selection(
     else:
         candidates = []
     selected = [value for value in candidates if value in options]
-    if selected:
+    if selected or explicit_empty:
         return selected
     return [value for value in (fallback or []) if value in options]
 
@@ -994,8 +995,10 @@ def main() -> None:
 
     selected_labels = _coerce_selection(st.session_state.get(FILES_KEY), selection_options)
     if not selected_labels:
-        st.info("Select at least one allocation file in the sidebar.")
-        st.stop()
+        st.info("No allocation file selected. Use the sidebar to choose one or more files.")
+        with st.expander("Available file inventory", expanded=False):
+            st.dataframe(build_inventory_frame({}, label_to_path, dataset_root), width="stretch", hide_index=True)
+        return
 
     selected_paths = {label: label_to_path[label] for label in selected_labels}
     frames: dict[str, pd.DataFrame] = {}

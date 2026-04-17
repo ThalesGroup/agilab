@@ -177,6 +177,16 @@ def test_view_inference_analysis_detects_when_requested_load_varies() -> None:
     assert module._series_varies(pd.Series([10.0, 11.0, 10.0])) is True
 
 
+def test_view_inference_analysis_preserves_explicit_empty_selection() -> None:
+    module = _load_module()
+
+    options = ["run_a", "run_b"]
+
+    assert module._coerce_selection([], options, fallback=["run_a"]) == []
+    assert module._coerce_selection(None, options, fallback=["run_a"]) == ["run_a"]
+    assert module._coerce_selection(["missing"], options, fallback=["run_a"]) == ["run_a"]
+
+
 def test_view_inference_analysis_aligns_heatmap_frames_to_shared_axes() -> None:
     module = _load_module()
 
