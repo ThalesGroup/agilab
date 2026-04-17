@@ -1,19 +1,23 @@
 Quick-Start
 ===========
 
-AGILab is an open-source platform for reproducible AI/ML workflows. For a
-first-time visitor, the recommended proof path is simple: source checkout, web
-UI, built-in ``flight_project``, local run, visible analysis. For architectural
-context see :doc:`architecture` and :doc:`agi-core-architecture`.
+If you are new to AGILab, do one thing first: run the built-in
+``flight_project`` locally from the web UI.
 
-If you are evaluating AGILab for the first time, read :doc:`newcomer-guide`
-first. This page now treats the source checkout + ``flight_project`` workflow as
-the recommended first proof path. Alternative install routes stay available
-below. If that first proof fails, use :doc:`newcomer-troubleshooting`.
+That first proof is:
 
-Before the first run, ignore PyCharm, Codex helpers, SSH hosts, cluster mode,
-and private app repositories. They are useful later, but they add noise to the
-first proof.
+- source checkout
+- local install
+- web UI
+- ``PROJECT`` -> choose ``flight_project``
+- ``ORCHESTRATE`` -> ``INSTALL`` then ``EXECUTE``
+- ``ANALYSIS`` -> open the default view
+
+If that works once, then branch into notebooks, cluster mode, or package mode.
+If it fails, use :doc:`newcomer-troubleshooting`.
+
+For architectural context, see :doc:`architecture` and
+:doc:`agi-core-architecture`.
 
 Prerequisites
 -------------
@@ -27,7 +31,7 @@ Prerequisites
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use this path if you want to understand what AGILAB actually does:
+Use this path exactly once before trying anything broader:
 
 1. **Clone the repository and install the built-in apps**::
 
@@ -44,16 +48,15 @@ Use this path if you want to understand what AGILAB actually does:
    In the UI, use:
 
    - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
-   - ``ORCHESTRATE`` -> run the install/distribute/run flow
-   - ``PIPELINE`` -> inspect the generated step
-   - ``ANALYSIS`` -> open the resulting built-in view
+   - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
+   - ``ANALYSIS`` -> open the default built-in view
 
 4. **Check the first proof outcome**
 
    You are past the newcomer hurdle when both are true:
 
    - fresh output exists under ``~/log/execute/flight/``
-   - the workflow stayed understandable as ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``
+   - you can open the default ``ANALYSIS`` view for ``flight_project``
 
 5. **Only after that, branch into alternative paths**
 
