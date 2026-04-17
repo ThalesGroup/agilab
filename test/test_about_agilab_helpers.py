@@ -114,6 +114,52 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert any("flight_project" in detail for _, detail in content["steps"])
     assert any("~/log/execute/flight/" in item for item in content["success_criteria"])
     assert any("newcomer-guide" in url for _, url in content["links"])
+    assert any("compatibility-matrix" in url for _, url in content["links"])
+
+
+def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="mycode_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    state = about_agilab._newcomer_first_proof_state(env)
+
+    assert state["project_path"] == flight_project.resolve()
+    assert state["project_available"] is True
+    assert state["current_app_matches"] is False
+    assert state["compatibility_slice"] == "Web UI local first proof"
+    assert "Select the built-in flight project" in state["next_step"]
+
+
+def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "flight_project"
+    flight_project.mkdir(parents=True)
+    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir.mkdir(parents=True)
+    (output_dir / "AGI_install_flight.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "AGI_run_flight.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="flight_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    state = about_agilab._newcomer_first_proof_state(env)
+
+    assert state["current_app_matches"] is True
+    assert state["helper_scripts_present"] is True
+    assert state["run_output_detected"] is True
+    assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
+    assert "Open PIPELINE and ANALYSIS" in state["next_step"]
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
