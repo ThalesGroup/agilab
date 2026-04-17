@@ -99,3 +99,38 @@ def test_resolve_share_dir_path_accepts_relative_value(tmp_path):
 def test_resolve_share_dir_path_rejects_invalid_value(tmp_path):
     with pytest.raises(ValueError, match="AGI_SHARE_DIR"):
         about_agilab._resolve_share_dir_path("\0bad-path", home_path=tmp_path)
+
+
+def test_newcomer_first_proof_content_exposes_single_recommended_path():
+    content = about_agilab._newcomer_first_proof_content()
+
+    assert content["title"] == "New here? Use one proof path only"
+    assert [label for label, _ in content["steps"]] == [
+        "PROJECT",
+        "ORCHESTRATE",
+        "PIPELINE",
+        "ANALYSIS",
+    ]
+    assert any("flight_project" in detail for _, detail in content["steps"])
+    assert any("~/log/execute/flight/" in item for item in content["success_criteria"])
+    assert any("newcomer-guide" in url for _, url in content["links"])
+
+
+def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_markdown(body: str, unsafe_allow_html: bool = False):
+        captured["body"] = body
+        captured["unsafe_allow_html"] = unsafe_allow_html
+
+    monkeypatch.setattr(about_agilab.st, "markdown", fake_markdown)
+
+    about_agilab.render_newcomer_first_proof()
+
+    assert captured["unsafe_allow_html"] is True
+    body = str(captured["body"])
+    assert "Use one proof path only" in body
+    assert "PROJECT" in body
+    assert "ORCHESTRATE" in body
+    assert "flight_project" in body
+    assert "You are done when" in body
