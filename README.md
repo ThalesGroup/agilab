@@ -12,7 +12,7 @@
 [![agilab coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse)
-[![Agents Codex & Claude](https://img.shields.io/badge/agents-codex%20%26%20claude-4F46E5)](tools/codex_workflow.md)
+[![Agents Codex & Claude](https://img.shields.io/badge/agents-codex%20%26%20claude-0F766E)](tools/codex_workflow.md)
 [![Language Python Free-threaded and Cythonized](https://img.shields.io/badge/language-python%20free--threaded%20%26%20cythonized-5B6CFF)](docs/source/environment.rst)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls)
 [![Codex skills](badges/skills-codex.svg)](.codex/skills/README.md)
