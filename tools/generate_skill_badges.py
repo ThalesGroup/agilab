@@ -14,7 +14,7 @@ PROVIDERS = {
         "label": "Codex skills",
         "skills_dir": REPO_ROOT / ".codex" / "skills",
         "badge": REPO_ROOT / "badges" / "skills-codex.svg",
-        "color": "#00A67E",
+        "color": "#6B7280",
     },
     "claude": {
         "label": "Claude skills",
