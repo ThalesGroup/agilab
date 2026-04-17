@@ -86,7 +86,7 @@ This is not a 45-second teaser anymore. Treat it as a technical hero demo.
 
 ### Format
 
-- target length: `75-90 seconds`
+- target length: `70-75 seconds`
 - preferred capture style: real live capture, not a synthetic one-app reel
 - editing rule: one short act per project, then one closing synthesis frame
 
@@ -122,17 +122,17 @@ Do not imply that all three acts come from the same built-in public app set.
 #### Act 1: Data
 
 - show `execution_pandas_project` selected in `PROJECT`
-- show explicit dataset and partition settings
-- show `ORCHESTRATE` building a repeatable compute run
-- show `PIPELINE` with reusable data/export steps
+- show only two high-signal data settings
+- show `ORCHESTRATE` building one repeatable compute run
+- flash `PIPELINE` only long enough to prove replayable data/export steps
 - finish the act on a concrete exported dataset/result signal, not just a config form
 
 #### Act 2: ML
 
 - switch to `meteo_forecast_project`
-- show station, target, and horizon in `PROJECT`
+- show station and horizon in `PROJECT`
 - show backtest/forecast execution intent in `ORCHESTRATE`
-- show replayable forecast steps in `PIPELINE`
+- flash replayable forecast steps in `PIPELINE`
 - finish on `ANALYSIS` with `MAE`, `RMSE`, `MAPE`, and observed-vs-predicted curves
 
 #### Act 3: RL
@@ -140,7 +140,7 @@ Do not imply that all three acts come from the same built-in public app set.
 - switch to `sb3_trainer_project`
 - show a real trainer choice such as PPO-GNN or path actor-critic in `PROJECT`
 - show the runnable training path in `ORCHESTRATE`
-- show replayable training/inference steps in `PIPELINE`
+- show replayable training/inference steps in `PIPELINE` only if already visible
 - finish on exported policy artifacts or routing-analysis evidence, not just the args form
 
 #### Closing frame
@@ -152,11 +152,11 @@ Do not imply that all three acts come from the same built-in public app set.
 
 ### Timing guide
 
-- intro: `4s`
-- data act: `20-24s`
-- ML act: `20-24s`
-- RL act: `20-24s`
-- closing synthesis: `6-8s`
+- intro: `3s`
+- data act: `18s`
+- ML act: `21s`
+- RL act: `22s`
+- closing synthesis: `8s`
 
 ### Recording rule
 
@@ -167,6 +167,12 @@ Each act must show one visible proof outcome:
 - RL: trained policy artifact, trainer output, or routing-analysis evidence
 
 If one act cannot finish on evidence, do not record yet. Fix the app state first.
+
+Editing rule:
+
+- use hard cuts between acts
+- do not leave long-running waits on screen
+- if an act needs more than two visible settings, it is too slow
 
 ### Positioning rule
 

@@ -109,18 +109,18 @@ can host:
 - an RL workflow
 
 This is not a short teaser anymore. Treat it as a technical hero demo and keep
-the recording in the `75-90s` range.
+the recording in the `70-75s` final range.
 
 Concrete command:
 
 ```bash
-tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85
+tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 82 --trim 74
 ```
 
 If the capture is triggered from an automated or agent-driven shell, use:
 
 ```bash
-tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85 --via-terminal
+tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 82 --trim 74 --via-terminal
 ```
 
 This wrapper:
@@ -143,6 +143,21 @@ Important scope note:
 
 Use this asset for technical audiences. Do not replace the broad one-app intro
 video with it for first-time visitors.
+
+Preferred operator cut:
+
+- intro: `3s`
+- data act: `18s`
+- ML act: `21s`
+- RL act: `22s`
+- closing frame: `8s`
+
+Keep the act discipline strict:
+
+- show at most two settings before moving on
+- use one fast `ORCHESTRATE` proof frame per act
+- flash `PIPELINE` only long enough to prove replayability
+- end each act on evidence, then cut immediately
 
 ## Self-generated fallback
 
