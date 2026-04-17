@@ -105,7 +105,7 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
     assert content["title"] == "Start here"
-    assert content["intro"] == "Goal: make one demo work on your computer."
+    assert content["intro"] == "Goal: make one demo work on your computer. Start from PROJECT, not from this page."
     assert [label for label, _ in content["steps"]] == [
         "PROJECT",
         "ORCHESTRATE",
@@ -122,9 +122,10 @@ def test_landing_page_sections_use_clear_product_language():
     sections = about_agilab._landing_page_sections()
 
     assert sections["headline"] == "Start with one local demo."
-    assert sections["goal"] == "Goal: run one demo and open one result page."
+    assert sections["goal"] == "Goal: leave this page, run one demo, and open one result page."
     assert sections["do_this_now"] == [
-        "Choose `flight_project` in PROJECT.",
+        "Go to `PROJECT`.",
+        "Choose `flight_project`.",
         "Open ORCHESTRATE.",
         "Click INSTALL.",
         "Click EXECUTE.",
@@ -157,7 +158,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["project_available"] is True
     assert state["current_app_matches"] is False
     assert state["compatibility_slice"] == "Web UI local first proof"
-    assert state["next_step"] == "In PROJECT, choose `flight_project`."
+    assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
 def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
@@ -182,7 +183,7 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     assert state["helper_scripts_present"] is True
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
-    assert state["next_step"] == "Open ANALYSIS and check one result page."
+    assert state["next_step"] == "Go to `ANALYSIS`. Open one result page."
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
