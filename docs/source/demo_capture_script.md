@@ -159,6 +159,24 @@ Keep the act discipline strict:
 - flash `PIPELINE` only long enough to prove replayability
 - end each act on evidence, then cut immediately
 
+If interactive screen capture is not possible from your environment, build the
+synthetic composite fallback instead:
+
+```bash
+uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg \
+  python tools/build_three_project_demo_reel.py
+```
+
+Outputs:
+
+- `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.mp4`
+- `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.gif`
+- `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic_poster.png`
+
+This fallback is a synthetic composite built from real AGILAB and FCAS assets.
+Use it when you need a deterministic technical explainer rather than a live UI
+walkthrough.
+
 ## Self-generated fallback
 
 Use this when you do not want to rely on interactive capture:
