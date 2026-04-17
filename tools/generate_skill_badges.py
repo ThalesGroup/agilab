@@ -20,7 +20,7 @@ PROVIDERS = {
         "label": "Claude skills",
         "skills_dir": REPO_ROOT / ".claude" / "skills",
         "badge": REPO_ROOT / "badges" / "skills-claude.svg",
-        "color": "#D97706",
+        "color": "#6B7280",
     },
 }
 
