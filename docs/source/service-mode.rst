@@ -1,12 +1,11 @@
 Service Mode
 ============
 
-Purpose
--------
-
 Service mode keeps persistent worker loops alive so you can reuse the same
-execution context across multiple runs. This avoids paying startup cost for each
-request and makes health/SLA checks explicit.
+execution context across multiple requests.
+
+It is useful after a project already runs correctly in the normal local or
+distributed path. It is not part of the first-proof workflow.
 
 When to use it
 --------------

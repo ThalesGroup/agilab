@@ -3,11 +3,16 @@
 Page Bundles (apps-pages)
 =========================
 
-AGILab can optionally launch **page bundles** (sometimes called “apps-pages”):
-standalone dashboards that complement the built-in workflow pages.
+This page explains the optional analysis dashboards that AGILab can launch from
+the **ANALYSIS** page.
 
-In the UI, page bundles are presented the same way as core pages, but they run
-in their own sidecar web process and are embedded back into the main app.
+If you are new to AGILab, do not start here. Start with
+:doc:`newcomer-guide`, then use :doc:`explore-help` when you are ready to add
+custom or optional views.
+
+Page bundles (sometimes called ``apps-pages``) are standalone dashboards that
+complement the built-in workflow pages. In the UI they appear alongside the
+main pages, but they run in their own sidecar web process.
 
 What is a page bundle?
 ----------------------
@@ -54,8 +59,8 @@ Configure, which writes the same list for you.
 Included page bundles
 ---------------------
 
-This page lists the page bundles shipped with the repository. You can discover
-and launch them from :doc:`explore-help`.
+This section summarizes the public page bundles shipped with the repository.
+Use :doc:`explore-help` to discover, configure, and launch them from the UI.
 
 view_autoencoder_latentspace
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -123,3 +128,9 @@ Notes for distributed runs
   ``~/export/uav_relay_queue/queue_analysis/<artifact_stem>/`` directory, so
   distributed runs with several scenario files do not overwrite each other's
   ``pipeline/`` artifacts.
+
+See also
+--------
+
+- :doc:`explore-help` for the ANALYSIS page workflow
+- :doc:`agilab-help` for the built-in page map
