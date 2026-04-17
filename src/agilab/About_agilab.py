@@ -967,7 +967,6 @@ def page(env: Any) -> None:
         html_file="agilab-help.html",
         key_prefix="about",
         sidebar=True,
-        caption="Open the AGILAB overview and core page tour.",
     )
 
     current_year = datetime.now().year
