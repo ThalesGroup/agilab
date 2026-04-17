@@ -1,6 +1,23 @@
 ## AGILAB Roadmap
 
-- [UX improvement roadmap](./UX_ROADMAP.md): concrete backlog for environment health, action feedback, settings provenance, heavy-page responsiveness, and intent-first workflow pages.
+Recommended near-term order:
+
+1. Run manifest + evidence bundle
+2. Promotion / release decision workflow
+3. First-proof wizard in product
+4. Compatibility matrix automation
+5. Connector registry hardening
+6. First-class reduce contract for distributed aggregation
+7. Intent-first operator mode
+
+Supporting roadmap documents:
+
+- [UX improvement roadmap](./UX_ROADMAP.md): environment health, action
+  feedback, settings provenance, heavy-page responsiveness, and intent-first
+  workflow pages.
+
+Longer-horizon items:
+
 - Migrate to uv 1.0 once available.
 - Rework documentation published on GitHub.
 - Add run diff / counterfactual analysis to compare baseline and candidate runs
@@ -8,9 +25,6 @@
 - Add realtime analytical and geospatial views with Plotly.js/WebGL first,
   deck.gl for dense map/network overlays, and Three.js only for specialized 3D
   mission views.
-- Promote current distributed work-plan execution into a first-class
-  map/reduce contract with explicit reducers, merge semantics, and aggregation
-  artefacts.
 - Add an internal DeepWiki/Open-style repository knowledge layer for codebase
   exploration and onboarding, while keeping versioned docs as the source of
   truth.

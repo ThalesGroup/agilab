@@ -79,6 +79,9 @@ This first matrix closes the small, manual version of the compatibility item.
 The larger roadmap work is still open:
 
 - automatic generation from workflow evidence
+- promotion from a documented matrix to a workflow-backed compatibility report
+- integration with the first-proof wizard so newcomers land on one validated
+  path instead of choosing routes too early
 - per-release compatibility status
 - stronger app/core revision traceability
 - explicit certification for more than the public newcomer/operator slices
