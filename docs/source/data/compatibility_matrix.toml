@@ -1,0 +1,61 @@
+[metadata]
+version = 1
+updated = "2026-04-17"
+owner = "manual-public-docs"
+purpose = "First public compatibility and certification slice for AGILAB"
+notes = "Manual matrix. Workflow-backed automation and broader certification remain roadmap work."
+
+[[entries]]
+id = "source-checkout-first-proof"
+label = "Source checkout first proof"
+status = "validated"
+surface = "local source checkout"
+primary_proof = "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "Public built-in flight_project, local execution, newcomer proof contract"
+limits = ["No SSH", "No private apps", "No packaged install"]
+
+[[entries]]
+id = "web-ui-local-first-proof"
+label = "Web UI local first proof"
+status = "validated"
+surface = "streamlit web UI"
+primary_proof = "uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS on a public built-in app"
+limits = ["Local path only", "Not a remote cluster proof"]
+
+[[entries]]
+id = "service-mode-operator-surface"
+label = "Service-mode operator surface"
+status = "validated"
+surface = "ORCHESTRATE service controls"
+primary_proof = "Local service panel regressions and agi-gui parity checks"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "start/status/health/stop actions, health gate thresholds, operator summary"
+limits = ["Does not certify every remote topology", "Does not replace deployment-specific ops validation"]
+
+[[entries]]
+id = "notebook-quickstart"
+label = "Notebook quickstart"
+status = "documented"
+surface = "Jupyter notebook"
+primary_proof = "examples/notebook_quickstart/agi_core_first_run.ipynb"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "Public notebook-first route for agi-core users"
+limits = ["Alternative path", "Not the recommended newcomer proof"]
+
+[[entries]]
+id = "published-package-route"
+label = "Published package route"
+status = "documented"
+surface = "PyPI package"
+primary_proof = "uv pip install agilab && uv run agilab"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "Fast public package install outside the source checkout"
+limits = ["Less representative than the source-checkout first proof", "Not the main contributor workflow"]

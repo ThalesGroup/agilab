@@ -42,6 +42,8 @@ uv --preview-features extra-build-dependencies run streamlit run src/agilab/Abou
 The newcomer proof command gives an explicit pass/fail verdict for the recommended source-checkout path before you start clicking through the UI.
 If it fails, use the newcomer recovery page:
 [Newcomer first-failure recovery](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html).
+If you want the current public validated-vs-documented support picture before branching out,
+use the [compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html).
 
 Then in the UI:
 
@@ -59,6 +61,7 @@ Fast orientation:
 
 - [45-second workflow intro video](https://youtu.be/kOMDyvbnC9w)
 - [Documentation](https://thalesgroup.github.io/agilab)
+- [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
 
 ## Why teams use AGILAB
@@ -123,6 +126,7 @@ Video tutorial and slideshow:
 ## Quick links
 
 - **Documentation:** https://thalesgroup.github.io/agilab
+- **Compatibility matrix:** https://thalesgroup.github.io/agilab/compatibility-matrix.html
 - **Execution Playground guide:** https://thalesgroup.github.io/agilab/execution-playground.html
 - **Service mode guide:** https://thalesgroup.github.io/agilab/service-mode.html
 - **Flight project guide:** https://thalesgroup.github.io/agilab/flight-project.html

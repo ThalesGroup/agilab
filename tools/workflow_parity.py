@@ -47,6 +47,18 @@ class ProfileResult:
     commands: list[CommandResult]
 
 
+def _expand_repo_globs(paths: Sequence[str]) -> list[str]:
+    expanded: list[str] = []
+    for path in paths:
+        if any(token in path for token in "*?["):
+            matches = sorted(REPO_ROOT.glob(path))
+            if matches:
+                expanded.extend(match.relative_to(REPO_ROOT).as_posix() for match in matches)
+                continue
+        expanded.append(path)
+    return expanded
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -124,6 +136,33 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
 
 
 def _agi_gui_profile() -> list[CommandSpec]:
+    test_targets = _expand_repo_globs(
+        [
+            "src/agilab/test",
+            "test/test_orchestrate_cluster.py",
+            "test/test_orchestrate_distribution.py",
+            "test/test_orchestrate_execute.py",
+            "test/test_orchestrate_page_helpers.py",
+            "test/test_orchestrate_services.py",
+            "test/test_orchestrate_support.py",
+            "test/test_page_docs.py",
+            "test/test_pipeline_ai.py",
+            "test/test_pipeline_editor.py",
+            "test/test_pipeline_lab.py",
+            "test/test_pipeline_openai.py",
+            "test/test_pipeline_runtime.py",
+            "test/test_pipeline_service_guard.py",
+            "test/test_pipeline_sidebar.py",
+            "test/test_pipeline_steps.py",
+            "test/test_pipeline_views.py",
+            "test/test_ui_pages.py",
+            "test/test_apps_pages_launcher.py",
+            "test/test_view*.py",
+            "test/test_app_args.py",
+            "test/test_streamlit_args.py",
+            "test/test_pagelib.py",
+        ]
+    )
     return [
         CommandSpec(
             label="agi-gui coverage",
@@ -149,29 +188,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "--cov-report=xml:coverage-agi-gui.xml",
                 "--junitxml=test-results/junit.xml",
                 "--ignore=src/agilab/test/test_model_returns_code.py",
-                "src/agilab/test",
-                "test/test_orchestrate_cluster.py",
-                "test/test_orchestrate_distribution.py",
-                "test/test_orchestrate_execute.py",
-                "test/test_orchestrate_page_helpers.py",
-                "test/test_orchestrate_services.py",
-                "test/test_orchestrate_support.py",
-                "test/test_page_docs.py",
-                "test/test_pipeline_ai.py",
-                "test/test_pipeline_editor.py",
-                "test/test_pipeline_lab.py",
-                "test/test_pipeline_openai.py",
-                "test/test_pipeline_runtime.py",
-                "test/test_pipeline_service_guard.py",
-                "test/test_pipeline_sidebar.py",
-                "test/test_pipeline_steps.py",
-                "test/test_pipeline_views.py",
-                "test/test_ui_pages.py",
-                "test/test_apps_pages_launcher.py",
-                "test/test_view*.py",
-                "test/test_app_args.py",
-                "test/test_streamlit_args.py",
-                "test/test_pagelib.py",
+                *test_targets,
             ],
             env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1", "COVERAGE_FILE": ".coverage.agi-gui"},
             timeout_seconds=12 * 60,

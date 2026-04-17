@@ -20,6 +20,7 @@ exploring cluster, notebook, or private-app flows.
    newcomer-guide
    quick-start
    newcomer-troubleshooting
+   compatibility-matrix
    notebook-quickstart
    features
 

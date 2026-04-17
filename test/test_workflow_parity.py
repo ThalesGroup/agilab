@@ -32,6 +32,8 @@ def test_profile_commands_cover_expected_gui_and_docs_contracts() -> None:
     assert agi_gui.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
     assert "coverage-agi-gui.xml" in " ".join(agi_gui.argv)
     assert "test/test_ui_pages.py" in agi_gui.argv
+    assert "test/test_view*.py" not in agi_gui.argv
+    assert "test/test_view_maps.py" in agi_gui.argv
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
     assert strict_typing.argv[-1] == "tools/shared_core_strict_typing.py"
 

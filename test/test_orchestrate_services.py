@@ -151,6 +151,42 @@ def test_build_service_snippet_embeds_core_parameters():
     assert "foo=1, bar=2" in snippet
 
 
+def test_build_service_operator_summary_counts_health_state_and_gate_values():
+    summary = orchestrate_services.build_service_operator_summary(
+        status="running",
+        worker_health=[
+            {
+                "worker": "w1",
+                "healthy": False,
+                "reason": "timeout",
+                "heartbeat_state": "late",
+                "heartbeat_age_sec": 12.5,
+            },
+            {
+                "worker": "w2",
+                "healthy": True,
+                "reason": "",
+                "heartbeat_state": "missing",
+                "heartbeat_age_sec": 2.0,
+            },
+            "bad-row",
+        ],
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=0.25,
+        heartbeat_timeout_sec=10.0,
+    )
+
+    assert summary["tracked_workers"] == 2
+    assert summary["unhealthy_workers"] == 1
+    assert summary["late_heartbeats"] == 1
+    assert summary["missing_heartbeats"] == 1
+    assert summary["max_heartbeat_age_sec"] == 12.5
+    assert summary["reason_examples"] == ["timeout"]
+    assert any("Status: `running`" in line for line in summary["lines"])
+    assert any("max_restart_rate=0.25" in line for line in summary["lines"])
+
+
 class _SessionState(dict):
     def __getattr__(self, name):
         try:
@@ -174,6 +210,7 @@ class _Placeholder:
     def __init__(self):
         self.last_code = None
         self.last_df = None
+        self.last_info = None
 
     def code(self, value, **kwargs):
         self.last_code = value
@@ -181,9 +218,13 @@ class _Placeholder:
     def dataframe(self, value, **kwargs):
         self.last_df = value
 
+    def info(self, value, **kwargs):
+        self.last_info = value
+
     def empty(self):
         self.last_code = None
         self.last_df = None
+        self.last_info = None
 
 
 def _service_st(session_state, *, clicked: str | None = None):
@@ -276,6 +317,8 @@ def test_render_service_panel_renders_preview_without_actions(monkeypatch, tmp_p
     assert any("APP = \"demo\"" in block for block in fake_st._code_blocks)
     assert session_state["service_status_cache"] == "idle"
     assert session_state["service_health_allow_idle__demo"] is False
+    assert fake_st._placeholders[2].last_info is not None
+    assert "Tracked workers: `0`" in fake_st._placeholders[2].last_info
 
 
 def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
@@ -360,6 +403,8 @@ def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
     assert any("restart_rate=0.500" in msg for msg in fake_st._caption_messages)
     assert fake_st._placeholders[0].last_code is not None
     assert fake_st._placeholders[1].last_df is not None
+    assert fake_st._placeholders[2].last_info is not None
+    assert "Unhealthy workers: `1`" in fake_st._placeholders[2].last_info
 
 
 def test_render_service_panel_health_gate_skips_non_mapping_worker_health_rows(monkeypatch, tmp_path):
