@@ -12,6 +12,25 @@ This page gives the shortest mental model for the framework. For the exact
 installation commands, see :doc:`quick-start`. If the first proof fails, use
 :doc:`newcomer-troubleshooting` before branching into broader troubleshooting.
 
+Shortest first proof
+--------------------
+
+Do this in order:
+
+1. Install and launch AGILab with the commands from :doc:`quick-start`.
+2. In the web UI, go to ``PROJECT`` and choose
+   ``src/agilab/apps/builtin/flight_project``.
+3. Go to ``ORCHESTRATE`` and click ``INSTALL``, then ``EXECUTE``.
+4. Go to ``ANALYSIS`` and open the default view.
+
+You are done when:
+
+- fresh output exists under ``~/log/execute/flight/``
+- the default ``ANALYSIS`` view opens for ``flight_project``
+
+Only after that should you try notebooks, cluster mode, private apps, or
+packaged install.
+
 What success looks like
 -----------------------
 
@@ -42,8 +61,9 @@ The first 10 minutes
    ``mycode_project`` only later, when you intentionally want the smallest
    reference app instead of the clearest product demonstration.
 4. Use the UI in this order:
-   **PROJECT** -> **ORCHESTRATE** -> **PIPELINE** -> **ANALYSIS**.
-5. Confirm that ``~/log/execute/flight/`` contains fresh output.
+   **PROJECT** -> **ORCHESTRATE** -> **ANALYSIS**.
+5. Confirm that ``~/log/execute/flight/`` contains fresh output and the
+   default analysis view opens.
 
 If that path fails at any point, stop and use :doc:`newcomer-troubleshooting`
 instead of jumping directly into cluster, packaging, or general FAQ material.
