@@ -20,6 +20,9 @@ and analysis instead of separate ad hoc scripts at each stage.
 AGILAB is maintained by the Thales Group and released under the
 [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
 
+Lead author and maintainer: Jean-Pierre Morard.
+Contributors include Guillaume Demets and Julien Bestard.
+
 ## Start Here
 
 If this is your first visit, ignore cluster mode, private app repositories, notebook-first flows, and packaged

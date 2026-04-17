@@ -1,5 +1,5 @@
 FROM ubuntu:24.04
-LABEL authors="Julien BESTARD"
+LABEL maintainer="Jean-Pierre Morard"
 LABEL description="AGILAB main application container"
 
 # Prevent interactive prompts during package installation
