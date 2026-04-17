@@ -27,12 +27,14 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import contextlib
 import glob
 import json
 import os
 import pathlib
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import urllib.request
@@ -603,6 +605,45 @@ def update_selected_badges(selected_core: List[Tuple[str, pathlib.Path, pathlib.
     return touched
 
 
+def capture_release_file_state(paths: List[str]) -> Dict[pathlib.Path, bytes | None]:
+    snapshot: Dict[pathlib.Path, bytes | None] = {}
+    for rel_path in paths:
+        path = REPO_ROOT / rel_path
+        if path.is_file():
+            snapshot[path] = path.read_bytes()
+        elif path.exists():
+            snapshot[path] = None
+        else:
+            snapshot[path] = None
+    return snapshot
+
+
+def restore_release_file_state(snapshot: Dict[pathlib.Path, bytes | None]) -> None:
+    for path, data in snapshot.items():
+        if data is None:
+            if path.exists() and path.is_file():
+                path.unlink()
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
+@contextlib.contextmanager
+def defer_sigint(label: str):
+    interrupted = {"value": False}
+    previous_handler = signal.getsignal(signal.SIGINT)
+
+    def _handler(signum, frame):
+        interrupted["value"] = True
+        print(f"[signal] Deferring interrupt during {label}; stopping once it completes.")
+
+    signal.signal(signal.SIGINT, _handler)
+    try:
+        yield interrupted
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
+
+
 # ---------- Build ----------
 def uv_build_project(project_dir: pathlib.Path, dist_kind: str):
     # clean
@@ -960,7 +1001,18 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
     return unique
 
 
-def git_commit_version(chosen_version: str, include_docs: bool = False):
+def current_git_branch(repo: pathlib.Path = REPO_ROOT) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return result.stdout.strip()
+
+
+def git_commit_version(chosen_version: str, include_docs: bool = False, *, push: bool = False):
     files = git_paths_to_commit(include_docs=include_docs)
     if not files:
         print("[git] nothing to commit")
@@ -972,8 +1024,20 @@ def git_commit_version(chosen_version: str, include_docs: bool = False):
     if app_prefixed:
         # app paths can live under ignored parent globs; stage tracked updates only.
         run(["git", "add", "-u", *app_prefixed], cwd=REPO_ROOT)
+    diff_status = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=str(REPO_ROOT),
+        check=False,
+    )
+    if diff_status.returncode == 0:
+        print("[git] no staged release metadata changes to commit")
+        return
     run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
     print(f"[git] committed version bump to {chosen_version}")
+    if push:
+        branch = current_git_branch(REPO_ROOT)
+        run(["git", "push", "origin", branch], cwd=REPO_ROOT)
+        print(f"[git] pushed release metadata on {branch}")
 
 
 def git_reset_pyprojects():
@@ -992,6 +1056,8 @@ def main():
     args = parse_args()
     cfg = make_cfg(args)
     upload_completed = False
+    release_finalized = False
+    release_snapshot: Dict[pathlib.Path, bytes | None] | None = None
 
     print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
           f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
@@ -1077,6 +1143,7 @@ def main():
             cleanup_leave_latest(cfg, version_targets)
 
         # Apply version + pin internal deps, then build
+        release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
         current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in CORE}
         pins = current_versions.copy()
         for name in selected_core_names:
@@ -1171,22 +1238,32 @@ def main():
             cleanup_leave_latest(cfg, version_targets)
 
         # Git tag/commit (optional)
-        if cfg.repo == "pypi" and cfg.git_tag:
-            tag = compute_date_tag()  # resolves collisions with existing tags
-            create_and_push_tag(tag)
-        if cfg.git_commit_version:
-            git_commit_version(chosen, include_docs=cfg.gen_docs)
+        if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
+            with defer_sigint("release metadata finalization") as deferred_interrupt:
+                if cfg.git_commit_version:
+                    git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
+                if cfg.repo == "pypi" and cfg.git_tag:
+                    tag = compute_date_tag()  # resolves collisions with existing tags
+                    create_and_push_tag(tag)
+            release_finalized = True
+            if deferred_interrupt["value"]:
+                raise KeyboardInterrupt("Interrupted after release metadata finalization")
+        else:
+            release_finalized = upload_completed
 
         if cfg.gen_docs:
             if cfg.dry_run:
                 print("[docs] --gen-docs requested; skipping because this is a dry-run")
             else:
                 generate_docs_from_apps_repository()
+                release_finalized = True
 
     finally:
         if removed_symlinks:
             restore_symlinks(removed_symlinks)
-        if cfg.git_reset_on_failure and not cfg.dry_run and not upload_completed:
+        if cfg.dry_run and release_snapshot is not None:
+            restore_release_file_state(release_snapshot)
+        if cfg.git_reset_on_failure and not cfg.dry_run and not release_finalized:
             git_reset_pyprojects()
 
 

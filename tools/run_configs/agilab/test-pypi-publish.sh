@@ -8,4 +8,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$REPO_ROOT"
 export PYTHONUNBUFFERED="1 PYDEVD_USE_FRAME_EVAL=NO"
 export UV_NO_SYNC="1"
-uv run python $REPO_ROOT/tools/pypi_publish.py --repo testpypi --leave-most-recent --verbose --cleanup $Prompt:Cleanup credentials$
+uv run python $REPO_ROOT/tools/pypi_publish.py --repo testpypi --verbose --git-reset-on-failure
