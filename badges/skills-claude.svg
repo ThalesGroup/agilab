@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="174" height="20" role="img" aria-label="Claude skills: 22 skills">
+<linearGradient id="b" x2="0" y2="100%">
+  <stop offset="0" stop-color="#fff" stop-opacity=".7"/>
+  <stop offset=".1" stop-opacity=".1"/>
+  <stop offset=".9" stop-opacity=".3"/>
+  <stop offset="1" stop-opacity=".5"/>
+</linearGradient>
+<mask id="a">
+  <rect width="174" height="20" rx="3" fill="#fff"/>
+</mask>
+<g mask="url(#a)">
+  <rect width="101" height="20" fill="#555"/>
+  <rect x="101" width="73" height="20" fill="#D97706"/>
+  <rect width="174" height="20" fill="url(#b)"/>
+</g>
+<g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+  <text x="50.5" y="15" fill="#010101" fill-opacity=".3">Claude skills</text>
+  <text x="50.5" y="14">Claude skills</text>
+  <text x="137.5" y="15" fill="#010101" fill-opacity=".3">22 skills</text>
+  <text x="137.5" y="14">22 skills</text>
+</g>
+</svg>

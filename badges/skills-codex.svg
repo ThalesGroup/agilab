@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="167" height="20" role="img" aria-label="Codex skills: 22 skills">
+<linearGradient id="b" x2="0" y2="100%">
+  <stop offset="0" stop-color="#fff" stop-opacity=".7"/>
+  <stop offset=".1" stop-opacity=".1"/>
+  <stop offset=".9" stop-opacity=".3"/>
+  <stop offset="1" stop-opacity=".5"/>
+</linearGradient>
+<mask id="a">
+  <rect width="167" height="20" rx="3" fill="#fff"/>
+</mask>
+<g mask="url(#a)">
+  <rect width="94" height="20" fill="#555"/>
+  <rect x="94" width="73" height="20" fill="#00A67E"/>
+  <rect width="167" height="20" fill="url(#b)"/>
+</g>
+<g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+  <text x="47.0" y="15" fill="#010101" fill-opacity=".3">Codex skills</text>
+  <text x="47.0" y="14">Codex skills</text>
+  <text x="130.5" y="15" fill="#010101" fill-opacity=".3">22 skills</text>
+  <text x="130.5" y="14">22 skills</text>
+</g>
+</svg>
