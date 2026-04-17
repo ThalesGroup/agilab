@@ -8,6 +8,7 @@ param(
     [string]$Source = "local",
     [switch]$InstallApps,
     [switch]$TestApps,
+    [switch]$TestCore,
     [string]$AgiShareDir,
     [string]$AgiLocalDir,
     [string]$InstallAppsList,
@@ -563,6 +564,102 @@ function Install-Core {
     }
 }
 
+function Invoke-CoreTests {
+    param([string]$RepoRoot)
+
+    if (-not $script:AgiPythonVersion) {
+        Write-Warn "Python version not available; skipping core test suites."
+        return $true
+    }
+    if (-not (Test-Path -LiteralPath $RepoRoot)) {
+        Write-Warn "Repository root '$RepoRoot' not found; skipping core test suites."
+        return $true
+    }
+
+    $failures = @()
+    Write-Info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    Write-Info "RUNNING CORE TEST SUITES"
+    Write-Info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    Push-Location $RepoRoot
+    try {
+        Write-Info "Syncing repository environment for core tests..."
+        Invoke-UvPreview @("sync", "-p", $script:AgiPythonVersion, "--preview-features", "python-upgrade") | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Failure "Failed to sync repository environment for core tests."
+            return $false
+        }
+
+        $envTestsArgs = @(
+            "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
+            "-m", "pytest",
+            "src/agilab/core/agi-env/test",
+            "--cov=src/agilab/core/agi-env/src/agi_env",
+            "--cov-report=term-missing",
+            "--cov-report=xml:coverage-agi-env.xml"
+        )
+        Invoke-UvPreview $envTestsArgs | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            $failures += "agi-env tests"
+        }
+
+        $coreTestsArgs = @(
+            "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
+            "-m", "pytest",
+            "src/agilab/core/test",
+            "--cov=src/agilab/core",
+            "--cov=src/agilab/core/agi-node/src/agi_node",
+            "--cov=src/agilab/core/agi-cluster/src/agi_cluster",
+            "--cov-report=term-missing",
+            "--cov-report=xml:coverage-agi-core.xml"
+        )
+        Invoke-UvPreview $coreTestsArgs | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            $failures += "core tests"
+        }
+
+        Write-Info "Generating coverage reports..."
+        $originalCoverageFile = $env:COVERAGE_FILE
+        try {
+            $env:COVERAGE_FILE = ".coverage-agi-core"
+            Invoke-UvPreview @(
+                "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
+                "-m", "coverage", "xml", "-i",
+                "--include=src/agilab/core/agi-node/src/agi_node/*",
+                "-o", "coverage-agi-node.xml"
+            ) | Out-Host
+            Invoke-UvPreview @(
+                "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
+                "-m", "coverage", "xml", "-i",
+                "--include=src/agilab/core/agi-cluster/src/agi_cluster/*",
+                "-o", "coverage-agi-cluster.xml"
+            ) | Out-Host
+        } finally {
+            $env:COVERAGE_FILE = $originalCoverageFile
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if ($failures.Count -gt 0) {
+        Write-Failure ("Core test suites reported failures: {0}. Aborting install." -f ($failures -join ", "))
+        return $false
+    }
+
+    return $true
+}
+
+function Maybe-InvokeCoreTests {
+    param([string]$RepoRoot)
+
+    if ($TestCore) {
+        return Invoke-CoreTests -RepoRoot $RepoRoot
+    }
+
+    Write-Info "Skipping core test suites by default (use -TestCore to enable)."
+    return $true
+}
+
 function Invoke-AppPytest {
     param([string]$AppsRoot)
     if (-not (Test-Path -LiteralPath $AppsRoot)) {
@@ -945,6 +1042,9 @@ try {
     }
 
     Install-Core
+    if (-not (Maybe-InvokeCoreTests -RepoRoot $InstallPathFull)) {
+        exit 1
+    }
 
     if ($InstallApps) {
         $customAppSelection = @()
