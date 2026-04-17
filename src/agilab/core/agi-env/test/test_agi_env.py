@@ -2388,6 +2388,24 @@ def test_get_projects_and_copy_existing_projects_handle_symlinks_and_nested_proj
     assert (dst_apps / "group" / "alpha_project" / "app.py").exists()
 
 
+def test_get_projects_returns_sorted_names_when_glob_order_varies(tmp_path: Path, monkeypatch):
+    (tmp_path / "zeta_project").mkdir()
+    (tmp_path / "alpha_project").mkdir()
+
+    real_glob = agi_env_module.Path.glob
+
+    def _fake_glob(self: Path, pattern: str):
+        if self == tmp_path and pattern == "*_project":
+            return iter([tmp_path / "zeta_project", tmp_path / "alpha_project"])
+        return real_glob(self, pattern)
+
+    monkeypatch.setattr(agi_env_module.Path, "glob", _fake_glob)
+
+    env = object.__new__(AgiEnv)
+
+    assert env.get_projects(tmp_path) == ["alpha_project", "zeta_project"]
+
+
 def test_apps_repository_root_wrapper_uses_repository_support(monkeypatch):
     env = object.__new__(AgiEnv)
     env.envars = {"APPS_REPOSITORY": "/tmp/repo"}

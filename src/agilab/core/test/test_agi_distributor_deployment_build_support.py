@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -130,6 +131,47 @@ def test_copy_cython_worker_lib_raises_when_output_missing(tmp_path):
             build_output="",
             failure_message="build_ext failed",
         )
+
+
+def test_upload_built_eggs_uses_sorted_order(tmp_path):
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    egg_b = dist_dir / "z-last.egg"
+    egg_a = dist_dir / "a-first.egg"
+    egg_b.write_text("b", encoding="utf-8")
+    egg_a.write_text("a", encoding="utf-8")
+    uploads: list[str] = []
+
+    class _Client:
+        def upload_file(self, path):
+            uploads.append(Path(path).name)
+
+    deployment_build_support._upload_built_eggs(_Client(), dist_dir)
+
+    assert uploads == ["a-first.egg", "z-last.egg"]
+
+
+def test_copy_cython_worker_lib_prefers_latest_output(tmp_path):
+    wenv_abs = tmp_path / "wenv"
+    dist_dir = wenv_abs / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    older_lib = dist_dir / "worker_old_cy.so"
+    newer_lib = dist_dir / "worker_new_cy.so"
+    older_lib.write_text("old", encoding="utf-8")
+    newer_lib.write_text("new", encoding="utf-8")
+    os.utime(older_lib, (1, 1))
+    os.utime(newer_lib, (2, 2))
+
+    deployment_build_support._copy_cython_worker_lib(
+        wenv_abs=wenv_abs,
+        pyvers_worker="3.13",
+        build_output="",
+        failure_message="build_ext failed",
+    )
+
+    destination = wenv_abs / ".venv" / "lib" / "python3.13" / "site-packages"
+    assert (destination / "worker_new_cy.so").exists()
+    assert not (destination / "worker_old_cy.so").exists()
 
 
 def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_threading: bool = False):

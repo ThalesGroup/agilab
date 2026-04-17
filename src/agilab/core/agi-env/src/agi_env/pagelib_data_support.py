@@ -82,7 +82,8 @@ def find_files(
     else:
         candidates = directory.glob(f"*/*{normalized_ext}")
 
-    return list(_without_hidden_entries(directory, candidates))
+    visible_paths = _without_hidden_entries(directory, candidates)
+    return sorted(visible_paths, key=lambda path: path.relative_to(directory).as_posix())
 
 
 def load_df(

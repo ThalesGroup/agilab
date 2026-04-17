@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 _REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
 
 
+def _latest_artifact_match(root: Path, pattern: str) -> Path | None:
+    matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
+    if not matches:
+        return None
+    return max(matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name))
+
+
 async def deploy_remote_worker(
     agi_cls: Any,
     ip: str,
@@ -42,24 +49,22 @@ async def deploy_remote_worker(
         )
 
     if env.is_source_env:
-        egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
+        egg_file = _latest_artifact_match(dist_abs, f"{env.target_worker}*.egg")
         if egg_file is None:
-            egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
+            egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
         if egg_file is None:
             log.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
             raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
 
         wenv = env.agi_env / "dist"
-        try:
-            env_whl = next(iter(wenv.glob("agi_env*.whl")))
-        except StopIteration as exc:
-            raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_env*'}") from exc
+        env_whl = _latest_artifact_match(wenv, "agi_env*.whl")
+        if env_whl is None:
+            raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_env*'}")
 
         wenv = env.agi_node / "dist"
-        try:
-            node_whl = next(iter(wenv.glob("agi_node*.whl")))
-        except StopIteration as exc:
-            raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_node*'}") from exc
+        node_whl = _latest_artifact_match(wenv, "agi_node*.whl")
+        if node_whl is None:
+            raise FileNotFoundError(f"no existing whl file in {wenv / 'agi_node*'}")
 
         dist_remote = wenv_rel / "dist"
         log.info(f"mkdir {dist_remote}")
@@ -67,9 +72,9 @@ async def deploy_remote_worker(
         await agi_cls.send_files(env, ip, [egg_file], wenv_rel)
         await agi_cls.send_files(env, ip, [node_whl, env_whl], dist_remote)
     else:
-        egg_file = next(iter(dist_abs.glob(f"{env.target_worker}*.egg")), None)
+        egg_file = _latest_artifact_match(dist_abs, f"{env.target_worker}*.egg")
         if egg_file is None:
-            egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
+            egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
         if egg_file is None:
             log.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
             raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")

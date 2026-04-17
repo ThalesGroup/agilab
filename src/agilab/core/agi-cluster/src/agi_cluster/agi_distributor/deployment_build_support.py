@@ -10,6 +10,17 @@ from agi_env.share_runtime_support import python_supports_free_threading
 logger = logging.getLogger(__name__)
 
 
+def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
+    return sorted(root.glob(pattern), key=lambda candidate: candidate.name)
+
+
+def _latest_glob_match(root: Path, pattern: str) -> Path | None:
+    matches = _sorted_glob_matches(root, pattern)
+    if not matches:
+        return None
+    return max(matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name))
+
+
 def _worker_packages(baseworker: str | None, *, worker_group: str | None = None) -> str:
     packages = "agi_dispatcher, "
     if worker_group == "dag-worker":
@@ -128,7 +139,7 @@ def _build_ext_command(*, uv: str, module_cmd: str, app_path_arg: str, wenv_arg:
 def _upload_built_eggs(dask_client: Any, dist_dir: Path) -> None:
     if not dask_client:
         return
-    for egg_file in dist_dir.glob("*.egg"):
+    for egg_file in _sorted_glob_matches(dist_dir, "*.egg"):
         dask_client.upload_file(str(egg_file))
 
 
@@ -140,7 +151,7 @@ def _copy_cython_worker_lib(
     failure_message: str,
     log: Any = logger,
 ) -> None:
-    worker_lib = next(iter((wenv_abs / "dist").glob("*_cy.*")), None)
+    worker_lib = _latest_glob_match(wenv_abs / "dist", "*_cy.*")
     if worker_lib is None:
         raise RuntimeError(failure_message)
 
