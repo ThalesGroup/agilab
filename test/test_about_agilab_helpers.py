@@ -134,10 +134,9 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert [label for label, _ in content["steps"]] == [
         "PROJECT",
         "ORCHESTRATE",
-        "ANALYSIS",
     ]
     assert any("flight_project" in detail for _, detail in content["steps"])
-    assert any("result page" in item for item in content["success_criteria"])
+    assert any("Generated files" in item for item in content["success_criteria"])
     assert any("newcomer-guide" in url for _, url in content["links"])
     assert any("compatibility-matrix" in url for _, url in content["links"])
 
@@ -149,7 +148,7 @@ def test_landing_page_sections_use_clear_product_language():
     assert sections["what_pages_do"] == [
         "`PROJECT` chooses the demo.",
         "`ORCHESTRATE` runs it.",
-        "`ANALYSIS` opens the result pages.",
+        "`ANALYSIS` opens result pages when a demo provides them.",
     ]
     assert sections["after_first_demo"] == [
         "try another built-in demo",
@@ -199,7 +198,7 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     assert state["helper_scripts_present"] is True
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
-    assert state["next_step"] == "Go to `ANALYSIS`. Open one result page."
+    assert state["next_step"] == "First proof done. Now you can try another demo."
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):

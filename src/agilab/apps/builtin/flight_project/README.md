@@ -10,7 +10,7 @@ The project focuses on a simple but useful workflow:
 ## What it is good for
 
 - a compact end-to-end AGILAB demo around real-world flight data
-- validating the `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` flow
+- validating the `PROJECT -> ORCHESTRATE` flow and then opening compatible analysis pages when needed
 - showing how a raw data source becomes a reusable dataset for visual exploration
 
 ## What is not implemented in the public version
