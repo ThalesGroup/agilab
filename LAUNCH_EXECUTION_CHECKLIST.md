@@ -15,8 +15,8 @@ This is not a brainstorming document. It is the run list for the current public 
 ## Locked canonical demo
 
 - published public video: `https://youtu.be/kOMDyvbnC9w`
-- local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
-- ML-facing alternative reel: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4)
+- local canonical reel: regenerate locally with the command below when needed
+- ML-facing alternative reel: regenerate locally with the command below when needed
 - still fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 - workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 - reference app: `flight_project`
