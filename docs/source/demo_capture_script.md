@@ -91,6 +91,45 @@ uv --preview-features extra-build-dependencies run --with imageio-ffmpeg \
   --duration 30
 ```
 
+### Three-project technical hero demo
+
+Use this when one app is not enough and you explicitly want to prove that AGILAB
+can host:
+
+- a data workflow
+- an ML workflow
+- an RL workflow
+
+This is not a short teaser anymore. Treat it as a technical hero demo and keep
+the recording in the `75-90s` range.
+
+Concrete command:
+
+```bash
+tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 95 --trim 85
+```
+
+This wrapper:
+
+- writes a cue sheet under `artifacts/demo_media/<name>/`
+- points to the exact project roots for the three acts
+- then delegates the actual recording/export to `tools/capture_demo_workflow.sh`
+
+Default sequence:
+
+1. `execution_pandas_project`
+2. `meteo_forecast_project`
+3. `sb3_trainer_project`
+
+Important scope note:
+
+- the first two acts are public built-ins from `agilab`
+- the RL act uses `sb3_trainer_project` from the sibling `thales_agilab/apps/`
+  repo
+
+Use this asset for technical audiences. Do not replace the broad one-app intro
+video with it for first-time visitors.
+
 ## Self-generated fallback
 
 Use this when you do not want to rely on interactive capture:
