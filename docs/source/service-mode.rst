@@ -25,7 +25,9 @@ Fast path in ORCHESTRATE (web interface)
 3. In **Service mode (persistent workers)**, click **START service** once.
 4. Use **STATUS service** to inspect running/pending workers.
 5. Use **HEALTH gate** to enforce SLA thresholds from ``app_settings.toml``.
-6. Use **STOP service** before changing topology or ending the session.
+6. Use **EXPORT snapshot** to write the current operator summary, health rows,
+   and gate thresholds to a JSON file under ``~/log/execute/<app_target>/``.
+7. Use **STOP service** before changing topology or ending the session.
 
 Action semantics
 ----------------
@@ -36,6 +38,12 @@ Action semantics
   ``agi.service.health.v1``).
 - ``action="stop"``: requests loop termination and optionally shuts down the
   Dask cluster.
+
+The ORCHESTRATE panel also provides a UI-only export action for operators:
+
+- ``EXPORT snapshot`` writes ``service_operator_snapshot.json`` under
+  ``~/log/execute/<app_target>/`` with the current status, cached worker health,
+  and effective SLA thresholds.
 
 End-to-end CLI example
 ----------------------
@@ -96,6 +104,10 @@ Use this checker for automation/monitoring:
 Health JSON is written by default to:
 
 - ``${AGI_SHARE_DIR}/service/<app_target>/health.json``
+
+Operator snapshot JSON written from the ORCHESTRATE page is stored at:
+
+- ``~/log/execute/<app_target>/service_operator_snapshot.json``
 
 Common pitfalls
 ---------------
