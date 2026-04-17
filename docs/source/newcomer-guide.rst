@@ -9,7 +9,8 @@ flows, or packaging work. The first goal is not to explore every mode. The
 first goal is to see one full AGILab workflow work end to end.
 
 This page gives the shortest mental model for the framework. For the exact
-installation commands, see :doc:`quick-start`.
+installation commands, see :doc:`quick-start`. If the first proof fails, use
+:doc:`newcomer-troubleshooting` before branching into broader troubleshooting.
 
 What success looks like
 -----------------------
@@ -43,6 +44,9 @@ The first 10 minutes
 4. Use the UI in this order:
    **PROJECT** -> **ORCHESTRATE** -> **PIPELINE** -> **ANALYSIS**.
 5. Confirm that ``~/log/execute/flight/`` contains fresh output.
+
+If that path fails at any point, stop and use :doc:`newcomer-troubleshooting`
+instead of jumping directly into cluster, packaging, or general FAQ material.
 
 The core ideas, in plain language
 ---------------------------------
@@ -86,6 +90,7 @@ Where to go next
 ----------------
 
 - :doc:`quick-start` for the shortest install/run commands.
+- :doc:`newcomer-troubleshooting` for the five most common first-run failures.
 - :doc:`notebook-quickstart` for the code-first notebook route.
 - :doc:`architecture` for the runtime control path.
 - :doc:`execute-help` for the ORCHESTRATE workflow.
