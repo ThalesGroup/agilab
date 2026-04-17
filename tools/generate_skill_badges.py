@@ -14,13 +14,13 @@ PROVIDERS = {
         "label": "Codex skills",
         "skills_dir": REPO_ROOT / ".codex" / "skills",
         "badge": REPO_ROOT / "badges" / "skills-codex.svg",
-        "color": "#6B7280",
+        "color": "#4F46E5",
     },
     "claude": {
         "label": "Claude skills",
         "skills_dir": REPO_ROOT / ".claude" / "skills",
         "badge": REPO_ROOT / "badges" / "skills-claude.svg",
-        "color": "#6B7280",
+        "color": "#4F46E5",
     },
 }
 
