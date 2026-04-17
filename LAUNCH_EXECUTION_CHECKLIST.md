@@ -16,6 +16,7 @@ This is not a brainstorming document. It is the run list for the current public 
 
 - published public video: `https://youtu.be/kOMDyvbnC9w`
 - local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
+- ML-facing alternative reel: [`artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4)
 - still fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
 - workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
 - reference app: `flight_project`
@@ -24,6 +25,7 @@ If the local video asset is missing, regenerate it before launch:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/build_product_demo_reel.py --variant flight
+uv --preview-features extra-build-dependencies run python tools/build_product_demo_reel.py --variant meteo_forecast --mp4 artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.mp4 --gif artifacts/demo_media/meteo_forecast/agilab_meteo_forecast.gif --poster artifacts/demo_media/meteo_forecast/agilab_meteo_forecast_poster.png
 ```
 
 ## Pre-flight checks
@@ -57,7 +59,8 @@ Published artifact:
 ### Step 3: LinkedIn launch
 
 - [ ] publish the LinkedIn post from [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
-- [ ] use the flight demo video if possible
+- [ ] use the flight demo video for broad product positioning
+- [ ] use the meteo forecast reel when the post must visibly show an ML workflow
 - [ ] if not, use the social card
 - [ ] keep the wording aligned with the locked launch theme
 
