@@ -141,6 +141,31 @@ Narration:
 
 `Instead of hand-wiring environments, scripts, and checks, AGILAB gives the same app one controlled path from UI to workers to analysis.`
 
+### Meteo forecast 45-second version
+
+Use this when the audience expects an actual ML workflow, not only a product tour.
+
+1. Open AGILAB.
+2. Select `src/agilab/apps/builtin/meteo_forecast_project` in `PROJECT`.
+3. Briefly show the forecasting context:
+   - weather dataset
+   - target column
+   - lag / horizon setup
+4. Move to `ORCHESTRATE`.
+5. Show one runnable forecast / backtest execution path.
+6. Move to `PIPELINE`.
+7. Show the replayable steps:
+   - load series
+   - backtest forecaster
+   - forecast next days
+   - export metrics and predictions
+8. Move to `ANALYSIS`.
+9. End on forecast metrics and observed-vs-predicted evidence.
+
+Narration:
+
+`This AGILAB path is a real ML workflow: select the forecasting project, run the backtest cleanly, keep the pipeline replayable, and finish on exported metrics and predictions instead of a notebook-only result.`
+
 ### Flight 60-second version
 
 Use this only when you need a slightly more explanatory walkthrough.

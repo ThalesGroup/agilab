@@ -219,9 +219,97 @@ UAV_QUEUE_SCENES: tuple[Scene, ...] = (
 )
 
 
+METEO_FORECAST_SCENES: tuple[Scene, ...] = (
+    Scene(
+        name="intro",
+        image=PAGE_SHOTS / "core-pages-overview.png",
+        stage="AGILAB",
+        title="From dataset to forecast evidence.",
+        body="Use one public AGILAB app to configure, run, replay, and inspect a real ML-style forecasting workflow.",
+        seconds=2.2,
+        active_step=-1,
+        focus=(0.56, 0.52),
+        zoom_start=1.0,
+        zoom_end=1.05,
+        highlight=None,
+        highlight_label=None,
+        footer="meteo_forecast_project",
+    ),
+    Scene(
+        name="project",
+        image=PAGE_SHOTS / "project-page.png",
+        stage="PROJECT",
+        title="Choose the forecasting app.",
+        body="Start with the built-in weather forecasting project, then keep station, horizon, and lag settings explicit.",
+        seconds=3.0,
+        active_step=0,
+        focus=(0.54, 0.46),
+        zoom_start=1.0,
+        zoom_end=1.04,
+        highlight=(0.01, 0.43, 0.18, 0.67),
+        highlight_label="Forecast setup",
+        overlay="meteo_project_context",
+        footer="meteo_forecast_project",
+    ),
+    Scene(
+        name="orchestrate",
+        image=PAGE_SHOTS / "orchestrate-page.png",
+        stage="ORCHESTRATE",
+        title="Run the backtest cleanly.",
+        body="Package one repeatable backtest and forecast run instead of hand-wiring notebook state and shell glue.",
+        seconds=3.3,
+        active_step=1,
+        focus=(0.60, 0.44),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.23, 0.20, 0.95, 0.77),
+        highlight_label="Forecast run snippet",
+        overlay="meteo_orchestrate_forecast",
+        footer="meteo_forecast_project",
+    ),
+    Scene(
+        name="pipeline",
+        image=PAGE_SHOTS / "pipeline-page.png",
+        stage="PIPELINE",
+        title="Keep the ML path replayable.",
+        body="Promote the forecast flow into explicit steps: load series, backtest, forecast, export analysis artifacts.",
+        seconds=3.3,
+        active_step=2,
+        focus=(0.60, 0.48),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.22, 0.39, 0.95, 0.80),
+        highlight_label="Backtest + export steps",
+        overlay="meteo_pipeline_snippet",
+        footer="meteo_forecast_project",
+    ),
+    Scene(
+        name="finale",
+        image=PAGE_SHOTS / "analysis-page.png",
+        stage="ANALYSIS",
+        title="Finish on forecast metrics.",
+        body="Land on MAE, RMSE, and observed-vs-predicted curves, not on a generic success message.",
+        seconds=3.2,
+        active_step=3,
+        focus=(0.54, 0.42),
+        zoom_start=1.0,
+        zoom_end=1.03,
+        highlight=(0.22, 0.30, 0.95, 0.93),
+        highlight_label="view_forecast_analysis",
+        overlay="meteo_analysis",
+        footer="meteo_forecast_project",
+    ),
+)
+
+
 VARIANTS: dict[str, Variant] = {
     "flight": Variant(key="flight", app_badge="FLIGHT PROJECT", scenes=FLIGHT_SCENES),
     "uav_queue": Variant(key="uav_queue", app_badge="UAV RELAY QUEUE", scenes=UAV_QUEUE_SCENES),
+    "meteo_forecast": Variant(
+        key="meteo_forecast",
+        app_badge="METEO FORECAST",
+        scenes=METEO_FORECAST_SCENES,
+    ),
 }
 
 
@@ -476,6 +564,14 @@ def draw_screenshot_card(canvas: Image.Image, scene: Scene, t: float, variant: V
         draw_uav_pipeline_snippet_overlay(canvas, scene, slide_x, slide_y)
     elif scene.overlay == "uav_analysis":
         draw_uav_analysis_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "meteo_project_context":
+        draw_meteo_project_context_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "meteo_orchestrate_forecast":
+        draw_meteo_orchestrate_forecast_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "meteo_pipeline_snippet":
+        draw_meteo_pipeline_snippet_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "meteo_analysis":
+        draw_meteo_analysis_overlay(canvas, scene, slide_x, slide_y)
 
 
 def fit_contain(img: Image.Image, width: int, height: int) -> Image.Image:
@@ -937,6 +1033,191 @@ def draw_uav_analysis_overlay(canvas: Image.Image, scene: Scene, slide_x: int, s
         draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill=ACCENT_WARM, outline=WHITE, width=1)
     draw.text((mx0 + 14, my0 + 8), "view_maps reusable", font=FONT_STEP, fill=INK)
 
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_meteo_project_context_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 138 + slide_x
+    box_y = CARD_Y + 212 + slide_y
+    box_w = 676
+    box_h = 262
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=24, fill=(11, 22, 34, 246), outline=(255, 255, 255, 38), width=2)
+    draw.rounded_rectangle((18, 16, 246, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Forecast context", font=FONT_HIGHLIGHT, fill=WHITE)
+
+    specs = [
+        ("App", "meteo_forecast_project"),
+        ("Station", "Paris-Montsouris"),
+        ("Target", "tmax_c"),
+        ("Lags / horizon", "7 / 7 days"),
+        ("Artifacts", "metrics + predictions"),
+    ]
+    row_y = 78
+    for label, value in specs:
+        draw.rounded_rectangle((24, row_y, box_w - 24, row_y + 34), radius=12, fill=(17, 34, 52, 255))
+        draw.text((38, row_y + 8), label, font=FONT_STEP, fill=MUTED)
+        value_bbox = draw.textbbox((0, 0), value, font=FONT_HIGHLIGHT)
+        vw = value_bbox[2] - value_bbox[0]
+        draw.text((box_w - vw - 42, row_y + 7), value, font=FONT_HIGHLIGHT, fill=INK)
+        row_y += 38
+
+    draw.rounded_rectangle((24, box_h - 52, 212, box_h - 18), radius=12, fill=(18, 56, 44, 255))
+    draw.text((42, box_h - 43), "notebook migration path", font=FONT_STEP, fill=WHITE)
+    draw.rounded_rectangle((box_w - 174, box_h - 52, box_w - 24, box_h - 18), radius=12, fill=(18, 39, 60, 255))
+    draw.text((box_w - 155, box_h - 43), "public built-in app", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_meteo_orchestrate_forecast_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 122 + slide_x
+    box_y = CARD_Y + 178 + slide_y
+    box_w = 748
+    box_h = 332
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=(12, 22, 34, 248), outline=(255, 255, 255, 36), width=2)
+    draw.rounded_rectangle((18, 16, 230, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Forecast run", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.rounded_rectangle((20, 70, box_w - 20, box_h - 74), radius=18, fill=(9, 15, 24, 255), outline=(92, 160, 255), width=2)
+
+    code_lines = [
+        "import asyncio",
+        "from agi_cluster.agi_distributor import AGI",
+        "from agi_env import AgiEnv",
+        "",
+        "APP = \"meteo_forecast_project\"",
+        "env = AgiEnv(app=APP, verbose=1)",
+        "await AGI.run(env, mode=15, data_in=\"meteo_forecast/dataset\")",
+        "# exports forecast_metrics.json + forecast_predictions.csv",
+    ]
+    line_y = 92
+    code_font = load_font(18)
+    for line in code_lines:
+        fill = INK if line and not line.startswith("APP") else (164, 194, 230)
+        if "AGI.run" in line or "forecast_" in line:
+            fill = ACCENT_WARM
+        draw.text((38, line_y), line, font=code_font, fill=fill)
+        line_y += 24
+
+    sx = 28
+    sy = box_h - 58
+    for label, fill in [
+        ("backtest", (17, 40, 62, 255)),
+        ("forecast", (18, 56, 44, 255)),
+        ("export", (79, 115, 168, 255)),
+    ]:
+        pill_w = draw.textbbox((0, 0), label, font=FONT_STEP)[2] + 34
+        draw.rounded_rectangle((sx, sy, sx + pill_w, sy + 34), radius=14, fill=fill)
+        draw.text((sx + 17, sy + 9), label, font=FONT_STEP, fill=WHITE)
+        sx += pill_w + 12
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_meteo_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 112 + slide_x
+    box_y = CARD_Y + 178 + slide_y
+    box_w = 760
+    box_h = 340
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=(12, 22, 34, 248), outline=(255, 255, 255, 36), width=2)
+    draw.rounded_rectangle((18, 16, 214, 52), radius=14, fill=ACCENT_WARM + (236,))
+    draw.text((34, 24), "Replayable ML path", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.rounded_rectangle((20, 70, box_w - 20, box_h - 20), radius=18, fill=(9, 15, 24, 255), outline=(92, 160, 255), width=2)
+
+    steps = [
+        "1. load_meteo_series()",
+        "2. configure_lags(horizon_days=7)",
+        "3. backtest_forecaster()",
+        "4. forecast_next_days()",
+        "5. export forecast_metrics.json",
+        "6. export forecast_predictions.csv",
+    ]
+    line_y = 94
+    code_font = load_font(21)
+    for idx, line in enumerate(steps):
+        fill = INK if idx < 4 else ACCENT_WARM
+        draw.text((42, line_y), line, font=code_font, fill=fill)
+        line_y += 34
+
+    draw.rounded_rectangle((34, box_h - 58, 238, box_h - 24), radius=14, fill=(17, 40, 62, 255))
+    draw.text((52, box_h - 49), "stable artifact contract", font=FONT_STEP, fill=WHITE)
+    draw.rounded_rectangle((box_w - 162, box_h - 58, box_w - 28, box_h - 24), radius=14, fill=(18, 56, 44, 255))
+    draw.text((box_w - 143, box_h - 49), "analysis-ready", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_meteo_analysis_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 86 + slide_x
+    box_y = CARD_Y + 170 + slide_y
+    box_w = 844
+    box_h = 382
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=28, fill=(9, 22, 35, 244), outline=(255, 255, 255, 34), width=2)
+    draw.rounded_rectangle((18, 16, 242, 52), radius=14, fill=(255, 255, 255, 22))
+    draw.text((36, 24), "view_forecast_analysis", font=FONT_HIGHLIGHT, fill=INK)
+
+    metric_boxes = [
+        ((24, 76, 188, 160), "MAE", "1.87", (83, 111, 156)),
+        ((206, 76, 370, 160), "RMSE", "2.41", (85, 162, 116)),
+        ((388, 76, 552, 160), "MAPE", "4.8%", (211, 126, 57)),
+    ]
+    for box, title, value, outline in metric_boxes:
+        x0, y0, x1, y1 = box
+        draw.rounded_rectangle(box, radius=18, fill=(12, 28, 44, 255), outline=outline, width=3)
+        draw.text((x0 + 18, y0 + 16), title, font=FONT_STEP, fill=MUTED)
+        draw.text((x0 + 18, y0 + 42), value, font=FONT_HIGHLIGHT, fill=INK)
+
+    meta = (572, 76, box_w - 24, 160)
+    mx0, my0, mx1, my1 = meta
+    draw.rounded_rectangle(meta, radius=18, fill=(12, 28, 44, 255), outline=(75, 123, 171), width=2)
+    draw.text((mx0 + 18, my0 + 16), "Run metadata", font=FONT_HIGHLIGHT, fill=INK)
+    draw.text((mx0 + 18, my0 + 46), "station: Paris-Montsouris", font=FONT_STEP, fill=WHITE)
+    draw.text((mx0 + 18, my0 + 68), "target: tmax_c", font=FONT_STEP, fill=WHITE)
+    draw.text((mx0 + 18, my0 + 90), "model: RandomForest", font=FONT_STEP, fill=WHITE)
+
+    chart = (24, 188, 544, 340)
+    x0, y0, x1, y1 = chart
+    draw.rounded_rectangle(chart, radius=18, fill=(10, 18, 28, 255))
+    for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
+        yy = int(y0 + frac * (y1 - y0))
+        draw.line((x0 + 16, yy, x1 - 16, yy), fill=(255, 255, 255, 16), width=1)
+    for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
+        xx = int(x0 + frac * (x1 - x0))
+        draw.line((xx, y0 + 12, xx, y1 - 12), fill=(255, 255, 255, 12), width=1)
+    draw.text((x0 + 16, y0 + 12), "Observed vs predicted", font=FONT_HIGHLIGHT, fill=INK)
+    observed = [(x0 + 28, y1 - 46), (x0 + 96, y1 - 68), (x0 + 164, y1 - 88), (x0 + 232, y1 - 74), (x0 + 300, y1 - 112), (x0 + 368, y1 - 98), (x0 + 436, y1 - 126), (x0 + 504, y1 - 118)]
+    predicted = [(x0 + 28, y1 - 52), (x0 + 96, y1 - 74), (x0 + 164, y1 - 84), (x0 + 232, y1 - 80), (x0 + 300, y1 - 106), (x0 + 368, y1 - 102), (x0 + 436, y1 - 122), (x0 + 504, y1 - 120)]
+    draw.line(observed, fill=ACCENT + (255,), width=5, joint="curve")
+    draw.line(predicted, fill=GREEN + (255,), width=5, joint="curve")
+    draw.text((x0 + 24, y1 - 28), "observed", font=FONT_STEP, fill=ACCENT)
+    draw.text((x0 + 112, y1 - 28), "predicted", font=FONT_STEP, fill=GREEN)
+
+    right = (564, 188, box_w - 24, 340)
+    rx0, ry0, rx1, ry1 = right
+    draw.rounded_rectangle(right, radius=18, fill=(10, 18, 28, 255))
+    draw.text((rx0 + 18, ry0 + 14), "Why this is an ML workflow", font=FONT_HIGHLIGHT, fill=INK)
+    notes = [
+        "backtest metrics are exported",
+        "predictions stay reusable across runs",
+        "analysis does not depend on a live notebook kernel",
+        "same page can compare future reruns",
+    ]
+    line_y = ry0 + 46
+    for note in notes:
+        draw.rounded_rectangle((rx0 + 18, line_y, rx1 - 18, line_y + 24), radius=8, fill=(14, 28, 42, 255))
+        draw.text((rx0 + 28, line_y + 6), note, font=FONT_STEP, fill=WHITE)
+        line_y += 30
+
+    draw.rounded_rectangle((rx0 + 18, ry1 - 46, rx1 - 18, ry1 - 18), radius=12, fill=(18, 56, 44, 255))
+    draw.text((rx0 + 34, ry1 - 38), "metrics + predictions -> analysis evidence", font=FONT_STEP, fill=WHITE)
     canvas.alpha_composite(panel, (box_x, box_y))
 
 
