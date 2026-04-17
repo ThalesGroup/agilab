@@ -46,6 +46,12 @@ canonical source can serve both agents.
 3. Keep the skill self-contained; include scripts/examples only when they materially help.
 4. Run `python3 tools/sync_agent_skills.py --skills <skill-name>` to mirror it into `.codex/skills/`.
 
+Before adding a skill, classify it correctly:
+
+- Put AGILAB-specific or repo-workflow skills in this repo.
+- Put personal or non-AGILAB skills in `~/.codex/skills/` or the relevant private repo.
+- Do not add private career/CV/job-search skills to this public repository.
+
 ## Keeping Codex and Claude trees in sync
 
 Shared repo skills are now maintained with this contract:
@@ -61,4 +67,4 @@ Use:
 - `python3 tools/codex_skills.py --root .codex/skills validate --strict`
 - `python3 tools/codex_skills.py --root .codex/skills generate`
 
-Do not hand-edit both trees for the same shared skill. Edit `.claude/skills/`, sync the specific skill into `.codex/skills/`, then regenerate the Codex index. Keep `~/.codex/skills/` for personal or machine-local skills only.
+Do not hand-edit both trees for the same shared skill. Edit `.claude/skills/`, sync the specific skill into `.codex/skills/`, then regenerate the Codex index. Keep `~/.codex/skills/` for personal or machine-local skills only, especially anything unrelated to AGILAB or unsuitable for the public repo.

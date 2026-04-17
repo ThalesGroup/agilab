@@ -145,6 +145,11 @@ Use this runbook whenever you:
 - **Model defaults**: `agi_env.defaults` centralises the fallback OpenAI model. Set
   `AGILAB_DEFAULT_OPENAI_MODEL` to override globally without editing code; individual
   runs can still pass `OPENAI_MODEL`.
+- **Skill placement guardrail**: Repo-managed skills under `.claude/skills/` and
+  `.codex/skills/` must stay AGILAB-specific, cross-repo reusable for AGILAB work,
+  or directly support this repository’s workflows. Personal skills or skills for
+  non-AGILAB domains such as private CV editing belong in `~/.codex/skills/` or
+  the relevant private repo, not in this public repo.
 - **Service health gates**: For service mode projects, persist SLA thresholds in
   `[cluster.service_health]` in each app `app_settings.toml`:
   - `allow_idle` (bool)
