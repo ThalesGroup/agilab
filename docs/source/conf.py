@@ -255,7 +255,7 @@ if "/" in _github_repository:
     _github_owner, _github_repo = _github_repository.split("/", 1)
     html_baseurl = f"https://{_github_owner}.github.io/{_github_repo}"
 else:
-    html_baseurl = "https://jpmorard.github.io/thales_agilab"
+    html_baseurl = "https://thalesgroup.github.io/agilab"
 
 # -- Templates Path ----------------------------------------------------------
 

@@ -27,7 +27,7 @@ The previous local developer workflow often relied on a machine-specific
 symlink such as ``core -> ../agilab/src/agilab/core`` or on an implicit sibling
 checkout. That was convenient, but it weakened the audit story:
 
-- a fresh clone of ``thales_agilab`` was not enough to reproduce the setup
+- a fresh clone of the private apps repository was not enough to reproduce the setup
 - local developers, CI, and reviewers could silently use different framework revisions
 - the effective framework version was not pinned inside the private repo boundary
 
@@ -54,7 +54,7 @@ Initialise the submodule after cloning::
 Then launch the framework from the pinned checkout::
 
    cd .external/agilab
-   uv run streamlit run src/agilab/agilab.py -- --apps-dir "/path/to/thales_agilab/apps"
+   uv run streamlit run src/agilab/agilab.py -- --apps-dir "/path/to/private-apps-repo/apps"
 
 Consequences
 ------------
