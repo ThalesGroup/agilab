@@ -243,8 +243,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
     if feedback:
         st.success(str(feedback))
 
-    with st.container(border=True):
-        st.markdown(f"### {content['title']}")
+    with st.expander(content["title"], expanded=True):
         st.write(content["intro"])
         st.markdown("**Do this now**")
         step_lines = [
@@ -287,6 +286,8 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
             for label, url in content["links"]
         )
         st.markdown(f"**Docs:** {links_html}", unsafe_allow_html=True)
+        st.divider()
+        display_landing_page(Path(env.st_resources))
 
 
 def quick_logo(resources_path: Path) -> None:
@@ -312,10 +313,9 @@ def quick_logo(resources_path: Path) -> None:
 
 
 def _landing_page_sections() -> Dict[str, Any]:
-    """Return secondary explanatory copy for users who want more context."""
+    """Return compact secondary guidance shown under the first-step path."""
     return {
-        "headline": "About AGILAB",
-        "goal": "AGILAB helps you run a demo, generate outputs, and open result pages.",
+        "headline": "What the main pages do",
         "what_pages_do": [
             "`PROJECT` chooses the demo.",
             "`ORCHESTRATE` runs it.",
@@ -329,14 +329,11 @@ def _landing_page_sections() -> Dict[str, Any]:
 
 
 def display_landing_page(resources_path: Path) -> None:
-    """Display secondary context without repeating the first-step instructions."""
+    """Display compact secondary context under the first-step instructions."""
     del resources_path
     sections = _landing_page_sections()
 
     st.markdown(f"**{sections['headline']}**")
-    st.write(sections["goal"])
-    st.caption("Use the `Start here` box above for the first demo path.")
-    st.markdown("**Main pages**")
     st.markdown("\n".join(f"- {item}" for item in sections["what_pages_do"]))
     st.info("After the first demo: try another built-in demo. Keep cluster mode for later.")
 
@@ -915,9 +912,6 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
 def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
     cols = st.columns(1)
-
-    with st.expander("More info", expanded=False):
-        display_landing_page(Path(env.st_resources))
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)
