@@ -60,7 +60,7 @@ from agi_env.credential_store_support import (
     read_cluster_credentials,
     store_cluster_credentials,
 )
-from agi_env.ui_support import load_last_active_app, store_last_active_app
+from agi_env.ui_support import detect_agilab_version, load_last_active_app, store_last_active_app
 
 FIRST_PROOF_PROJECT = "flight_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = "Web UI local first proof"
@@ -92,6 +92,19 @@ def _newcomer_first_proof_content() -> Dict[str, Any]:
             ("Flight project guide", "https://thalesgroup.github.io/agilab/flight-project.html"),
         ],
     }
+
+
+def _landing_page_version_text(env: Any | None) -> str:
+    """Return the AGILAB version line shown on the landing page."""
+    if env is None:
+        return ""
+    try:
+        version = str(detect_agilab_version(env) or "").strip()
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return ""
+    if not version:
+        return ""
+    return f"AGILAB version: v{version}"
 
 
 def _newcomer_first_proof_project_path(env: Any) -> Path | None:
@@ -320,6 +333,9 @@ def display_landing_page(resources_path: Path) -> None:
 def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
     """Render the branding banner."""
     quick_logo(resources_path)
+    version_text = _landing_page_version_text(env)
+    if version_text:
+        st.caption(version_text)
     render_newcomer_first_proof(env)
 
 def _clean_openai_key(key: str | None) -> str | None:
