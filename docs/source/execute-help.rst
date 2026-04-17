@@ -6,12 +6,12 @@ ORCHESTRATE
 
 Introduction
 ------------
-Orchestrate walks through the lifecycle required to ship and operate an AGILab
-application. It generates ready-to-run snippets, streams logs back into the UI
-and keeps the per-user ``app_settings.toml`` workspace copy synchronised so
-that installs, distribution checks and runs are reproducible. The mutable file
-now lives under ``~/.agilab/apps/<app>/app_settings.toml`` and is seeded from
-the app's versioned ``app_settings.toml`` source file on first use.
+ORCHESTRATE is the operational page for one project.
+
+It handles install, distribution, run, service mode, and generated execution
+snippets. The mutable per-user settings file lives under
+``~/.agilab/apps/<app>/app_settings.toml`` and is seeded from the app's
+versioned ``app_settings.toml`` source file on first use.
 
 Page snapshot
 -------------

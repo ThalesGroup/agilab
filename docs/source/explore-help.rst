@@ -6,10 +6,10 @@ ANALYSIS
 
 Introduction
 ------------
-The **Analysis** page is the catalog for web views that belong to your
-AGILab installation. It lets you pick which views should appear on the main
-landing page and launch any of them in an isolated sidecar session for a richer
-interactive experience.
+The **Analysis** page is the catalog and launcher for installed analysis views.
+
+It lets you choose which views belong to the active project and launch them in
+isolated sidecar sessions.
 
 Page snapshot
 -------------

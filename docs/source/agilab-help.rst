@@ -1,21 +1,12 @@
 About AGILab
 ============
 
-agilab.py is the main web interface entry point. It provides a single navigation
- surface for:
+This page maps the built-in AGILab web pages and shows how they fit together.
+
+The main web interface exposes one navigation surface for:
 
 - **Core pages** (Project, Orchestrate, Pipeline, Analysis), and
 - **Page bundles** (optional dashboards launched from Analysis).
-
-Creator
--------
-
-AGILAB was created by **Jean-Pierre Morard**.
-
-Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
-distributed execution, and operational experimentation. AGILAB reflects that
-vision: turning AI applications from isolated scripts into structured,
-testable, benchmarkable, and shareable workflows.
 
 How pages are presented
 -----------------------
@@ -58,7 +49,7 @@ Page bundles are optional dashboards stored under ``${AGILAB_PAGES_ABS}``
 First-time navigation
 ---------------------
 
-Use this flow the first time:
+Use this as a page map, not as the newcomer proof path:
 
 1. Open :doc:`edit-help` (Project) to inspect or select the target project.
 2. Use :doc:`execute-help` (Orchestrate) to install dependencies, build
@@ -72,6 +63,7 @@ Use this flow the first time:
 See also
 --------
 
+- :doc:`newcomer-guide` and :doc:`quick-start` for the first-proof path.
 - :doc:`architecture` for the end-to-end pipeline view.
 - :doc:`apps-pages` for how page bundles work (and the built-in bundle catalog).
 - :doc:`distributed-workers` for the UI-driven cluster workflow from ORCHESTRATE to PIPELINE.
