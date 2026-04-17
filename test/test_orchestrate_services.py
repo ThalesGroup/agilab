@@ -86,6 +86,28 @@ def test_service_mode_flags_and_defaults_are_named_constants():
     )
 
 
+def test_service_health_gate_key_helpers_initialize_session_state():
+    keys = orchestrate_services.service_health_gate_keys("demo")
+    session_state = {}
+
+    returned = orchestrate_services.ensure_service_health_gate_defaults(
+        session_state,
+        app="demo",
+        defaults={
+            "allow_idle": False,
+            "max_unhealthy": 2,
+            "max_restart_rate": 0.5,
+        },
+    )
+
+    assert returned == keys
+    assert session_state == {
+        "service_health_allow_idle__demo": False,
+        "service_health_max_unhealthy__demo": 2,
+        "service_health_max_restart_rate__demo": 0.5,
+    }
+
+
 def test_resolve_service_health_defaults_uses_coercers():
     deps = _deps()
 
