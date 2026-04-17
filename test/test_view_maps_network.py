@@ -468,6 +468,14 @@ def test_view_maps_network_builds_cloud_and_trace_layers(monkeypatch, tmp_path: 
     assert heatmap_layers[0].data == [{"long": 1.0, "lat": 2.0, "weight": 3.0}]
     assert warnings == ["IVDL cloud map unavailable (missing_map.npz): missing_map.npz"]
 
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_points",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad loader")),
+    )
+    with pytest.raises(TypeError, match="bad loader"):
+        module._cloud_heatmap_layers()
+
     traces = module._trajectory_trace_layers(
         pd.DataFrame(
             {

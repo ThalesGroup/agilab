@@ -526,7 +526,7 @@ def _selected_nodes_heatmap_timeline(
     for _, group in traj_df.groupby("id_col", sort=False):
         try:
             group = group.sort_values("time_col")
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             pass
         if len(group) > max_points:
             keep = np.linspace(0, len(group) - 1, max_points, dtype=int)
@@ -672,7 +672,7 @@ def _cloud_heatmap_layers() -> list[Any]:
             continue
         try:
             points = _load_cloud_heatmap_points(path, stride=stride, min_weight=min_weight)
-        except Exception as exc:
+        except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
             st.sidebar.warning(f"{label} cloud map unavailable ({path}): {exc}")
             continue
         if points.empty:
@@ -712,7 +712,7 @@ def _trajectory_trace_layers(points_df: pd.DataFrame, color_lookup: dict[str, An
     if "time_col" in traj_df.columns:
         try:
             traj_df = traj_df.sort_values(["id_col", "time_col"])
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             traj_df = traj_df.sort_values(["id_col"])
     else:
         traj_df = traj_df.sort_values(["id_col"])
