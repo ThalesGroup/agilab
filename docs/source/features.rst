@@ -50,8 +50,13 @@ agi-core
 
   - Facilitates partitioned data processing, worker dispatch, and app-level
     aggregation.
-  - AGILab currently exposes first-class distribution and execution primitives;
-    a generic framework-level reduce contract remains future work.
+  - AGILab currently standardizes the ``map`` side of the workflow: building
+    distribution plans, dispatching partitions, and running them on local or
+    cluster workers.
+  - What is still missing is a first-class generic ``reduce`` contract.
+    Today, most final merge semantics and aggregation artefacts are still
+    defined by each app.
+  - A shared framework-level reduce contract remains roadmap work.
 
 - **Optimized Run-Mode Selection:**
 

@@ -10,11 +10,90 @@ discussions:
 The goal is not to freeze a roadmap prematurely. The goal is to make the next
 high-value choices explicit and easy to rank.
 
+## Recommended near-term execution order
+
+If the goal is near-term product sequencing rather than broad idea collection,
+use this order:
+
+1. **Run manifest + evidence bundle**
+   - establish one factual run record and one portable evidence surface
+   - this is the dependency for promotion, compatibility automation, and the
+     first-proof wizard
+2. **Promotion / release decision workflow**
+   - turn the evidence bundle into an explicit promotable / blocked decision
+   - this is the first strong evidence-driven product surface
+3. **First-proof wizard in product**
+   - guide newcomers through one validated proof path in the UI
+   - it should consume the same run/evidence model instead of inventing a
+     separate onboarding proof contract
+4. **Compatibility matrix automation**
+   - replace the current manual compatibility page with workflow-backed status
+   - this becomes much cleaner once run evidence is standardized
+5. **Connector registry hardening**
+   - stabilize path portability and artefact resolution across apps/pages
+   - this reduces glue before deeper cross-app automation
+6. **First-class reduce contract**
+   - AGILab already has distributed work-plan execution; the missing piece is a
+     shared reducer contract
+   - this should come after evidence and connector stabilization, not before
+7. **Intent-first operator mode**
+   - valuable, but it benefits from the cleaner evidence, compatibility, and
+     connector contracts above
+
+Why this order:
+
+- start with evidence before decisions
+- start with validated proof before broader onboarding automation
+- stabilize contracts before standardizing distributed reduction
+- keep operator refinements downstream of the proof/evidence layer
+
 ## Streamlit-inspired AGILab views
 
 The most promising Streamlit-style view patterns for AGILab are not generic
 gallery clones. They are focused application views that reinforce AGILab's core
 value: orchestration, evidence, and domain-specific interaction.
+
+### 0. First-proof wizard
+
+Purpose:
+
+- guide a newcomer to one successful proof path inside the product
+- reduce early branching into cluster, package, or notebook routes
+
+Suggested layout:
+
+- environment readiness check
+- recommended proof path card
+- one guided launch flow
+- explicit success or failure evidence at the end
+
+Why it matters:
+
+- strongest adoption accelerator after evidence-backed runs
+- reuses the same compatibility and proof contracts instead of inventing a
+  separate tutorial-only path
+
+### 0b. Run manifest + evidence bundle
+
+Purpose:
+
+- give every meaningful run one stable factual record and one exportable
+  evidence bundle
+
+Suggested contents:
+
+- resolved inputs and settings
+- output artefact references
+- KPI summary
+- provenance and execution context
+- validation results
+- human-reviewable evidence attachments
+
+Why it matters:
+
+- this is the base layer for promotion, compatibility automation, and
+  onboarding proof
+- without it, release and newcomer flows stay partly implicit
 
 ### 1. Experiment Cockpit
 
@@ -398,6 +477,9 @@ Why it matters:
 
 Use this rule of thumb:
 
+- if the goal is near-term execution order rather than thematic discussion, use
+  the ordered list from **Recommended near-term execution order** first
+
 - choose **Experiment Cockpit** if the next need is better daily usability for
   engineers comparing runs
 - choose **Evidence / Release View** if the next need is promotion readiness and
@@ -444,16 +526,13 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Experiment Cockpit
-- Evidence / Release View
-- Scenario Playback View
-- Realtime Analytical and Geospatial Views
-- Run Diff / Counterfactual Analysis
-- Connector framework hardening and external integrations
-- DeepWiki/Open-style repository knowledge layer
-- Elastic/OpenSearch + Grafana
-- OpenSearch + OpenSearch Dashboards
-- Postgres + Superset
+- Run manifest + evidence bundle
+- Promotion / release decision workflow
+- First-proof wizard in product
+- Compatibility matrix automation
+- Connector registry hardening
+- First-class reduce contract
+- Intent-first operator mode
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
 works. The repository workflow will create or update that label on the next
