@@ -27,4 +27,5 @@ max_restart_rate = 0.25
 [pages]
 view_module = [
     "view_forecast_analysis",
+    "view_release_decision",
 ]
