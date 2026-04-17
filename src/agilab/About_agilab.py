@@ -329,30 +329,36 @@ def quick_logo(resources_path: Path) -> None:
 
 
 def _landing_page_sections() -> Dict[str, Any]:
-    """Return a clearer, lower-noise About-page summary."""
+    """Return a task-oriented About-page summary."""
     return {
-        "headline": "AGILAB is a Python framework for reproducible data, ML, and RL workflows.",
+        "headline": "AGILAB helps you run a Python data, ML, or RL project from one place.",
         "summary": (
-            "It helps you move from one runnable project to exported artifacts, analysis pages, "
-            "and repeatable execution without rebuilding the environment glue for every app."
+            "Select a project, run it, inspect the generated pipeline, and open the results "
+            "in analysis views."
         ),
-        "use_when": [
-            "you want one project structure that covers data preparation, execution, pipeline inspection, and analysis",
-            "you need app-local execution first, with a path to distributed execution later",
-            "you want visible outputs and reusable artifacts instead of notebook-only state",
+        "workflow": [
+            "PROJECT: choose one app",
+            "ORCHESTRATE: run it locally first",
+            "PIPELINE: inspect what was generated",
+            "ANALYSIS: open the resulting outputs",
         ],
-        "how_it_works": [
-            "manager layer: lightweight UI and orchestration surface",
-            "worker layer: execution environment that can stay app-specific and scalable",
-            "analysis pages: reusable views that read exported artifacts after a run",
+        "gives_you": [
+            "one visible workflow instead of scattered scripts and notebooks",
+            "exported artifacts you can inspect after the run",
+            "a local-first path before you decide to scale out",
+        ],
+        "use_when": [
+            "you want reproducible runs with visible outputs",
+            "you want one workflow from project setup to analysis",
+            "you want to validate locally before touching cluster mode",
         ],
         "not_first": [
             "do not start with cluster mode",
             "do not start with private app repositories",
-            "do not start by wiring your whole stack into AGILAB at once",
+            "do not start by integrating your whole stack at once",
         ],
         "recommended_path": (
-            "For a first success, use the built-in flight demo and stay on the local "
+            "Start with the built-in flight demo and stay on the local "
             "`PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` path."
         ),
     }
@@ -368,11 +374,13 @@ def display_landing_page(resources_path: Path) -> None:
 
     left, right = st.columns(2)
     with left:
+        st.markdown("**Start here**")
+        st.markdown("\n".join(f"- {item}" for item in sections["workflow"]))
+        st.markdown("**AGILAB gives you**")
+        st.markdown("\n".join(f"- {item}" for item in sections["gives_you"]))
+    with right:
         st.markdown("**Use AGILAB when**")
         st.markdown("\n".join(f"- {item}" for item in sections["use_when"]))
-        st.markdown("**How it works**")
-        st.markdown("\n".join(f"- {item}" for item in sections["how_it_works"]))
-    with right:
         st.markdown("**Do not start with**")
         st.markdown("\n".join(f"- {item}" for item in sections["not_first"]))
         st.info(sections["recommended_path"])
