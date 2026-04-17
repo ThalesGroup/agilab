@@ -185,6 +185,10 @@ Use this runbook whenever you:
   `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
   after canonical docs edits. Use the same command without `--apply` as a drift
   check.
+- **Docs mirror stamp**: `docs/.docs_source_mirror_stamp.json` is the guardrail
+  for the managed public mirror. Do not edit it by hand. Refresh it through
+  `tools/sync_docs_source.py --apply --delete`, or CI and Pages publication will
+  fail on a mirror integrity mismatch.
 - **Docs edits**: `docs/html` in this repo is generated local output and is ignored by
   git. Do not treat `docs/html/_sources/*.txt` as editable source files. Edit docs in
   `../thales_agilab/docs/source`, then sync the mirror into `docs/source`.

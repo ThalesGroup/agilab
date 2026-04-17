@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import shutil
 import sys
 from dataclasses import dataclass
@@ -11,6 +13,8 @@ import unicodedata
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = REPO_ROOT.parent / "thales_agilab" / "docs" / "source"
 DEFAULT_TARGET = REPO_ROOT / "docs" / "source"
+STAMP_FILE_NAME = ".docs_source_mirror_stamp.json"
+STAMP_FORMAT_VERSION = 1
 IGNORED_FILE_NAMES = {".DS_Store"}
 IGNORED_DIR_NAMES = {"__pycache__", ".ipynb_checkpoints"}
 
@@ -52,6 +56,83 @@ def _same_file_content(left: Path, right: Path) -> bool:
     if left.stat().st_size != right.stat().st_size:
         return False
     return left.read_bytes() == right.read_bytes()
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _manifest_state(root: Path) -> dict[str, int | str]:
+    manifest = build_manifest(root)
+    digest = hashlib.sha256()
+    for rel_path, path in sorted(manifest.items()):
+        file_hash = _file_sha256(path)
+        digest.update(rel_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(file_hash.encode("ascii"))
+        digest.update(b"\n")
+    return {
+        "file_count": len(manifest),
+        "digest_sha256": digest.hexdigest(),
+    }
+
+
+def stamp_path_for_target(target: Path) -> Path:
+    return target.parent / STAMP_FILE_NAME
+
+
+def build_mirror_stamp(source: Path, target: Path) -> dict[str, int | str]:
+    source_state = _manifest_state(source)
+    target_state = _manifest_state(target)
+    return {
+        "format_version": STAMP_FORMAT_VERSION,
+        "managed_target": "docs/source",
+        "source_hint": "../thales_agilab/docs/source",
+        "source_digest_sha256": source_state["digest_sha256"],
+        "target_digest_sha256": target_state["digest_sha256"],
+        "file_count": target_state["file_count"],
+        "sync_tool": "tools/sync_docs_source.py",
+    }
+
+
+def write_mirror_stamp(source: Path, target: Path) -> Path:
+    stamp_path = stamp_path_for_target(target)
+    stamp_path.write_text(
+        json.dumps(build_mirror_stamp(source, target), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return stamp_path
+
+
+def verify_mirror_stamp(target: Path) -> tuple[bool, str]:
+    stamp_path = stamp_path_for_target(target)
+    if not stamp_path.exists():
+        return False, f"missing mirror stamp: {stamp_path}"
+
+    try:
+        stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return False, f"invalid mirror stamp {stamp_path}: {exc}"
+
+    if stamp.get("format_version") != STAMP_FORMAT_VERSION:
+        return False, (
+            f"unsupported mirror stamp format in {stamp_path}: "
+            f"{stamp.get('format_version')!r}"
+        )
+
+    state = _manifest_state(target)
+    if stamp.get("file_count") != state["file_count"]:
+        return False, (
+            f"mirror stamp mismatch for {target}: expected file_count "
+            f"{stamp.get('file_count')}, got {state['file_count']}"
+        )
+    if stamp.get("target_digest_sha256") != state["digest_sha256"]:
+        return False, (
+            f"mirror stamp mismatch for {target}: expected digest "
+            f"{stamp.get('target_digest_sha256')}, got {state['digest_sha256']}"
+        )
+
+    return True, f"mirror stamp ok: {stamp_path}"
 
 
 def make_sync_plan(source: Path, target: Path, *, delete_extra: bool) -> SyncPlan:
@@ -137,6 +218,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress the sync summary output when nothing changes.",
     )
+    parser.add_argument(
+        "--verify-stamp",
+        action="store_true",
+        help=(
+            "Verify that the managed docs/source mirror stamp matches the current "
+            "target tree. This does not require access to the canonical source tree."
+        ),
+    )
     return parser
 
 
@@ -144,9 +233,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    source = args.source.expanduser().resolve()
     target = args.target.expanduser().resolve()
 
+    if args.verify_stamp:
+        if not target.exists():
+            parser.error(f"target directory not found: {target}")
+        ok, message = verify_mirror_stamp(target)
+        if not ok or not args.quiet:
+            print(message)
+        return 0 if ok else 1
+
+    source = args.source.expanduser().resolve()
     if not source.exists():
         parser.error(f"source directory not found: {source}")
     if not source.is_dir():
@@ -160,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.apply:
         apply_sync_plan(source, target, plan)
+        write_mirror_stamp(source, target)
         return 0
 
     return 1 if plan.has_changes() else 0
