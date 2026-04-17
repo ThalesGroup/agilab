@@ -1,16 +1,17 @@
 AGILab Documentation
 =====================
 
-AGILab is an open-source platform for reproducible AI/ML workflows, from local
-experimentation to distributed workers and long-lived services.
-This documentation covers installation, quick starts, architecture, service
-mode, API references, and example projects that keep the same workflow visible
-from first run to analysis.
+If you are new to AGILab, start here:
 
-If you are new to AGILab, start with :doc:`newcomer-guide`, then
-:doc:`quick-start`, then :doc:`newcomer-troubleshooting` if that first proof
-fails. Use the built-in ``flight_project`` as the first local proof path before
-exploring cluster, notebook, or private-app flows.
+1. Read :doc:`newcomer-guide`.
+2. Follow :doc:`quick-start`.
+3. If the first proof fails, use :doc:`newcomer-troubleshooting`.
+
+Use the built-in ``flight_project`` first. Keep cluster mode, notebook-first
+flows, and private-app repositories for later.
+
+This documentation then expands into architecture, service mode, API
+references, and example projects.
 
 .. toctree::
    :maxdepth: 2
