@@ -258,6 +258,65 @@ Compatibility rule:
 Expected impact:
 
 - `view_maps_network` is the primary beneficiary
+
+## Distributed execution and reduction
+
+AGILab already ships real distributed execution primitives, but the product
+surface is not yet a first-class generic map/reduce layer.
+
+Current state:
+
+- apps can build explicit distribution plans
+- workers execute partitioned plans locally or on Dask-backed clusters
+- aggregation is still mostly app-specific
+
+Current gap:
+
+- docs can overstate the capability as a full generic map/reduce mechanism
+- reducer semantics are not declared in shared core
+- merge artefacts and aggregation summaries are not standardized across apps
+
+### 1. First-class reduce contract
+
+Purpose:
+
+- promote the current distributed work-plan execution model into a clear,
+  reusable aggregation contract
+
+Focus areas:
+
+- explicit reducer interface
+- merge semantics for partial outputs
+- standard aggregation artefacts
+- validation hooks for reducer correctness
+- user-visible evidence that a distributed run was merged successfully
+
+Why it matters:
+
+- makes the product claim honest and specific
+- reduces repeated merge logic across apps
+- improves reviewability of distributed results
+- gives AGILab a clearer story than “Dask-backed execution exists somewhere in
+  the stack”
+
+Concrete change request:
+
+- define a reducer contract in shared core with explicit inputs, partial
+  outputs, merge operation, and final artefact schema
+- expose the reducer result as a named run artefact instead of leaving it
+  implicit in app-specific outputs
+- ship one public benchmark/demo app that proves the end-to-end model
+
+Compatibility rule:
+
+- keep current app-owned aggregation working in phase 1
+- let apps opt into the shared reducer contract incrementally
+
+Expected impact:
+
+- cleaner public positioning for distributed execution
+- easier regression testing of distributed apps
+- a better foundation for future run-diff and evidence views
 - `PROJECT` must expose connector references clearly enough to stay debuggable
 - `PIPELINE` should remain unchanged in phase 1
 

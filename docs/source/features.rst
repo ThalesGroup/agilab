@@ -46,9 +46,12 @@ agi-core
 
   - Distributes workloads evenly across nodes to ensure efficient resource utilization.
 
-- **Integrated Map-Reduce Mechanism:**
+- **Distributed Work-Plan Execution:**
 
-  - Facilitates parallel data processing and aggregation.
+  - Facilitates partitioned data processing, worker dispatch, and app-level
+    aggregation.
+  - AGILab currently exposes first-class distribution and execution primitives;
+    a generic framework-level reduce contract remains future work.
 
 - **Optimized Run-Mode Selection:**
 
