@@ -1,6 +1,6 @@
 [project]
 name = "execution_polars_project"
-version = "2026.4.12"
+version = "2026.4.18"
 description = "Built-in AGILab execution playground using PolarsWorker"
 requires-python = ">=3.11"
 dependencies = [
