@@ -1,14 +1,11 @@
 # AGILab future work
 
-This note merges three roadmap axes that came out of recent AGILab design
-discussions:
+This page tracks planned work only.
 
-- Streamlit-inspired AGILab views
-- Backend observability and audit architecture
-- Connectors and integration
+- For current shipped capabilities, see {doc}`../features`.
+- For toolchain fit and framework comparison, see {doc}`../agilab-mlops-positioning`.
 
-The goal is not to freeze a roadmap prematurely. The goal is to make the next
-high-value choices explicit and easy to rank.
+The goal here is to rank future work, not to restate the current feature set.
 
 ## Recommended near-term execution order
 

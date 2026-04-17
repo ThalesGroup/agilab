@@ -1,13 +1,14 @@
 Features
 ========
 
-Unique value proposition
-------------------------
+This page lists current shipped capabilities.
 
-AGILab delivers a single, notebook-like workflow where you can run each cell/snippet in a dedicated virtual environment while keeping the whole project coordinated through the same AGILab interface.
+For toolchain fit, framework comparison, and when to choose AGILab, see
+:doc:`agilab-mlops-positioning`.
 
+For planned work, see :doc:`roadmap/agilab-future-work`.
 
-AGI framework offers 2 user interfaces:
+AGILab currently exposes 2 main user interfaces:
 
  - ``agi-core``: an API interface callable directly from your Python program.
  - ``agilab``: a web interface that generates ``agi-core`` calls and can render generated snippets for execution.
@@ -66,11 +67,10 @@ agi-core
 agilab
 ------
 
-- **Notebook-Like Multi-Venv Execution (One Venv per Cell):**
+- **Notebook-like multi-venv execution:**
 
-  - AGILab is positioned as the only notebook-like tool that supports
-    simultaneous multiple virtual environments, with one runtime per
-    cell/snippet.
+  - Coordinate runs through one interface while keeping isolated runtimes for
+    project steps, workers, or page bundles.
 
 - **agi-core API Generation:**
 
