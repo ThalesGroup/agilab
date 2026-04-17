@@ -62,6 +62,14 @@ from agi_env.credential_store_support import (
 )
 from agi_env.ui_support import load_last_active_app, store_last_active_app
 
+FIRST_PROOF_PROJECT = "flight_project"
+FIRST_PROOF_COMPATIBILITY_SLICE = "Web UI local first proof"
+FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
+    "AGI_install_",
+    "AGI_run_",
+    "AGI_get_",
+)
+
 # ----------------- Fast-Loading Banner UI -----------------
 def _newcomer_first_proof_content() -> Dict[str, Any]:
     """Return the first-proof onboarding contract shown on the landing page."""
@@ -85,13 +93,120 @@ def _newcomer_first_proof_content() -> Dict[str, Any]:
         "links": [
             ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
             ("Newcomer guide", "https://thalesgroup.github.io/agilab/newcomer-guide.html"),
+            ("Compatibility matrix", "https://thalesgroup.github.io/agilab/compatibility-matrix.html"),
             ("Flight project guide", "https://thalesgroup.github.io/agilab/flight-project.html"),
         ],
     }
 
 
-def render_newcomer_first_proof() -> None:
-    """Render a concise newcomer checklist instead of forcing users into the full docs tree."""
+def _newcomer_first_proof_project_path(env: Any) -> Path | None:
+    """Return the preferred built-in first-proof app path when available."""
+    candidates: list[Path] = []
+    try:
+        apps_path = Path(getattr(env, "apps_path", "")).expanduser()
+    except (TypeError, ValueError, RuntimeError):
+        apps_path = Path()
+    if str(apps_path):
+        candidates.extend(
+            [
+                apps_path / FIRST_PROOF_PROJECT,
+                apps_path / "builtin" / FIRST_PROOF_PROJECT,
+            ]
+        )
+
+    module_builtin = Path(__file__).resolve().parent / "apps" / "builtin" / FIRST_PROOF_PROJECT
+    candidates.append(module_builtin)
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.exists():
+            return resolved
+    return None
+
+
+def _first_proof_output_dir(env: Any) -> Path:
+    """Return the log directory used by the built-in first-proof route."""
+    log_root = Path(getattr(env, "AGILAB_LOG_ABS", Path.home() / "log")).expanduser()
+    return log_root / "execute" / "flight"
+
+
+def _list_first_proof_outputs(output_dir: Path) -> list[Path]:
+    """Return evidence-like outputs, excluding seeded AGI helper scripts."""
+    if not output_dir.exists():
+        return []
+    outputs: list[Path] = []
+    for child in sorted(output_dir.iterdir(), key=lambda item: item.name):
+        if child.name.startswith("."):
+            continue
+        if child.is_file() and child.suffix == ".py" and child.name.startswith(FIRST_PROOF_HELPER_SCRIPT_PREFIXES):
+            continue
+        outputs.append(child)
+    return outputs
+
+
+def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
+    """Return concrete wizard state for the in-product first-proof path."""
+    content = _newcomer_first_proof_content()
+    project_path = _newcomer_first_proof_project_path(env)
+    active_app_name = str(getattr(env, "app", "") or "")
+    output_dir = _first_proof_output_dir(env)
+    visible_outputs = _list_first_proof_outputs(output_dir)
+    helper_scripts_present = all(
+        (output_dir / script_name).exists()
+        for script_name in (
+            "AGI_install_flight.py",
+            "AGI_run_flight.py",
+        )
+    )
+    current_app_matches = active_app_name == FIRST_PROOF_PROJECT
+
+    if project_path is None:
+        next_step = "Fix the apps path or installation so the built-in flight project is available."
+    elif not current_app_matches:
+        next_step = "Select the built-in flight project before branching into any other workflow."
+    elif not visible_outputs:
+        next_step = "Open ORCHESTRATE and run the built-in flight proof locally."
+    else:
+        next_step = "Open PIPELINE and ANALYSIS to confirm a visible result from the generated outputs."
+
+    return {
+        "content": content,
+        "compatibility_slice": FIRST_PROOF_COMPATIBILITY_SLICE,
+        "project_path": project_path,
+        "project_available": project_path is not None,
+        "active_app_name": active_app_name,
+        "current_app_matches": current_app_matches,
+        "output_dir": output_dir,
+        "helper_scripts_present": helper_scripts_present,
+        "visible_outputs": visible_outputs,
+        "run_output_detected": bool(visible_outputs),
+        "next_step": next_step,
+    }
+
+
+def _activate_newcomer_first_proof_project(env: Any, project_path: Path) -> bool:
+    """Switch the current app to the built-in flight project and persist the choice."""
+    changed = _apply_active_app_request(env, str(project_path))
+    try:
+        st.query_params["active_app"] = env.app
+    except (AttributeError, RuntimeError, TypeError):
+        pass
+    try:
+        store_last_active_app(project_path)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return changed or str(getattr(env, "app", "")) == FIRST_PROOF_PROJECT
+
+
+def _render_newcomer_first_proof_static() -> None:
+    """Render the legacy concise newcomer checklist used by helper tests."""
     content = _newcomer_first_proof_content()
     steps_html = "".join(
         f"<li><strong>{label}</strong>: {detail}</li>"
@@ -119,6 +234,76 @@ def render_newcomer_first_proof() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_newcomer_first_proof(env: Any | None = None) -> None:
+    """Render the first-proof onboarding surface."""
+    if env is None:
+        _render_newcomer_first_proof_static()
+        return
+
+    state = _newcomer_first_proof_state(env)
+    content = state["content"]
+    feedback = st.session_state.pop("first_proof_feedback", None)
+    if feedback:
+        st.success(str(feedback))
+
+    with st.container(border=True):
+        st.markdown(f"### {content['title']}")
+        st.caption(content["intro"])
+        st.caption(f"Compatibility slice: {state['compatibility_slice']}")
+
+        st.markdown("**Current proof status**")
+        status_lines = [
+            f"- {'OK' if state['project_available'] else 'Missing'} built-in proof project: `{state['project_path'] or 'flight_project not found'}`",
+            f"- {'OK' if state['current_app_matches'] else 'Pending'} current project selection: `{state['active_app_name'] or '<none>'}`",
+            f"- {'OK' if state['helper_scripts_present'] else 'Pending'} seeded helper scripts under `{state['output_dir']}`",
+            f"- {'OK' if state['run_output_detected'] else 'Pending'} generated run outputs detected",
+        ]
+        st.markdown("\n".join(status_lines))
+
+        if not state["project_available"]:
+            st.error("The built-in `flight_project` is not available from the current apps path.")
+        elif not state["current_app_matches"]:
+            st.warning(state["next_step"])
+            if st.button(
+                "Use built-in flight proof path",
+                key="first_proof:activate",
+                type="primary",
+                use_container_width=True,
+            ):
+                if _activate_newcomer_first_proof_project(env, state["project_path"]):
+                    st.session_state["first_proof_feedback"] = "Built-in flight proof path selected."
+                    st.rerun()
+        elif not state["run_output_detected"]:
+            st.info(state["next_step"])
+        else:
+            st.success(state["next_step"])
+
+        st.markdown("**Guided flow**")
+        guided_flow = [
+            ("PROJECT", "Confirm the built-in `flight_project` proof path."),
+            ("ORCHESTRATE", "Run INSTALL once, then EXECUTE the proof workflow."),
+            ("PIPELINE", "Verify the generated steps and saved helper scripts."),
+            ("ANALYSIS", "Confirm visible outputs under `~/log/execute/flight/`."),
+        ]
+        cols = st.columns(len(guided_flow))
+        for col, (label, detail) in zip(cols, guided_flow):
+            with col:
+                st.markdown(f"**{label}**")
+                st.caption(detail)
+
+        if state["visible_outputs"]:
+            preview = ", ".join(path.name for path in state["visible_outputs"][:3])
+            if len(state["visible_outputs"]) > 3:
+                preview += ", …"
+            st.caption(f"Observed output entries: {preview}")
+
+        links_html = " · ".join(
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
+            for label, url in content["links"]
+        )
+        st.markdown(f"**Docs:** {links_html}", unsafe_allow_html=True)
 
 
 def quick_logo(resources_path: Path) -> None:
@@ -179,10 +364,10 @@ def display_landing_page(resources_path: Path) -> None:
     st.markdown(md_content, unsafe_allow_html=True)
 
 
-def show_banner_and_intro(resources_path: Path) -> None:
+def show_banner_and_intro(resources_path: Path, env: Any | None = None) -> None:
     """Render the branding banner."""
     quick_logo(resources_path)
-    render_newcomer_first_proof()
+    render_newcomer_first_proof(env)
 
 def _clean_openai_key(key: str | None) -> str | None:
     """Return None for missing/placeholder keys to avoid confusing 401s."""
@@ -948,7 +1133,7 @@ def main() -> None:
         store_last_active_app(Path(env.apps_path) / env.app)
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
-    show_banner_and_intro(resources_path)
+    show_banner_and_intro(resources_path, env)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
     page(env)
