@@ -104,7 +104,8 @@ def test_resolve_share_dir_path_rejects_invalid_value(tmp_path):
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
-    assert content["title"] == "New here? Use one proof path only"
+    assert content["title"] == "Start here"
+    assert content["intro"] == "Goal: make one demo work on your computer."
     assert [label for label, _ in content["steps"]] == [
         "PROJECT",
         "ORCHESTRATE",
@@ -120,17 +121,23 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
 def test_landing_page_sections_use_clear_product_language():
     sections = about_agilab._landing_page_sections()
 
-    assert sections["headline"] == "AGILAB helps you run a data, ML, or RL project step by step."
-    assert sections["summary"] == "Choose one project. Run it. Check the generated files. Open the result pages."
-    assert sections["workflow"] == [
-        "PROJECT: pick one demo",
-        "ORCHESTRATE: install and run it on your computer",
-        "PIPELINE: see the steps and output files",
-        "ANALYSIS: open charts, maps, or tables",
+    assert sections["headline"] == "Start with one local demo."
+    assert sections["goal"] == "Goal: run one demo and open one result page."
+    assert sections["do_this_now"] == [
+        "Choose `flight_project` in PROJECT.",
+        "Open ORCHESTRATE.",
+        "Click INSTALL.",
+        "Click EXECUTE.",
+        "Open PIPELINE, then ANALYSIS.",
     ]
-    assert "saved files after each run" in sections["gives_you"]
-    assert any("do not start with cluster mode" == item for item in sections["not_first"])
-    assert "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS" in sections["recommended_path"]
+    assert sections["done_when"] == [
+        "you can see generated files",
+        "you can open one result page",
+    ]
+    assert sections["then"] == [
+        "try another demo",
+        "keep cluster mode for later",
+    ]
 
 
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
@@ -150,7 +157,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["project_available"] is True
     assert state["current_app_matches"] is False
     assert state["compatibility_slice"] == "Web UI local first proof"
-    assert "Select the built-in flight project" in state["next_step"]
+    assert state["next_step"] == "In PROJECT, choose `flight_project`."
 
 
 def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
@@ -175,7 +182,7 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     assert state["helper_scripts_present"] is True
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
-    assert "Open PIPELINE and ANALYSIS" in state["next_step"]
+    assert state["next_step"] == "Open ANALYSIS and check one result page."
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
@@ -191,7 +198,7 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
 
     assert captured["unsafe_allow_html"] is True
     body = str(captured["body"])
-    assert "Use one proof path only" in body
+    assert "Start here" in body
     assert "PROJECT" in body
     assert "ORCHESTRATE" in body
     assert "flight_project" in body
