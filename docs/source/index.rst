@@ -8,8 +8,9 @@ mode, API references, and example projects that keep the same workflow visible
 from first run to analysis.
 
 If you are new to AGILab, start with :doc:`newcomer-guide`, then
-:doc:`quick-start`, and use the built-in ``flight_project`` as the first local
-proof path before exploring cluster, notebook, or private-app flows.
+:doc:`quick-start`, then :doc:`newcomer-troubleshooting` if that first proof
+fails. Use the built-in ``flight_project`` as the first local proof path before
+exploring cluster, notebook, or private-app flows.
 
 .. toctree::
    :maxdepth: 2
@@ -18,6 +19,7 @@ proof path before exploring cluster, notebook, or private-app flows.
    introduction
    newcomer-guide
    quick-start
+   newcomer-troubleshooting
    notebook-quickstart
    features
 

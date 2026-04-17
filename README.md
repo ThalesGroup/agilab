@@ -61,6 +61,8 @@ uv --preview-features extra-build-dependencies run streamlit run src/agilab/Abou
 ```
 
 The newcomer proof command gives an explicit pass/fail verdict for the recommended source-checkout path before you start clicking through the UI.
+If it fails, use the newcomer recovery page:
+[Newcomer first-failure recovery](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html).
 
 Then in the UI:
 

@@ -78,13 +78,25 @@ Scope:
 
 ### 3. Add a first-failure recovery page
 
-Status: pending
+Status: implemented
 
-Target outcome:
+Current outcome:
 
 - one short doc focused on the most common newcomer failures
 - exact commands for recovery
 - no deep internal architecture content
+
+Implemented as:
+
+- `docs/source/newcomer-troubleshooting.rst` in the public docs mirror
+
+Current scope:
+
+- `uv` missing
+- install failed
+- built-in app path not found
+- About / ORCHESTRATE startup failed
+- no output under `~/log/execute/flight/`
 
 Initial failure set:
 

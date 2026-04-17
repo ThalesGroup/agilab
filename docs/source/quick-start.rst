@@ -9,7 +9,7 @@ context see :doc:`architecture` and :doc:`agi-core-architecture`.
 If you are evaluating AGILab for the first time, read :doc:`newcomer-guide`
 first. This page now treats the source checkout + ``flight_project`` workflow as
 the recommended first proof path. Alternative install routes stay available
-below.
+below. If that first proof fails, use :doc:`newcomer-troubleshooting`.
 
 Before the first run, ignore PyCharm, Codex helpers, SSH hosts, cluster mode,
 and private app repositories. They are useful later, but they add noise to the
@@ -59,6 +59,27 @@ Use this path if you want to understand what AGILAB actually does:
 
    Do not switch to packaged install, notebook-first, or cluster setup before
    this local proof works once from end to end.
+
+If the first proof fails
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Do not broaden the problem immediately. Stay on the built-in local path and run
+the explicit newcomer proof first::
+
+    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+
+If you also want the built-in app installer and seeded helper scripts checked in
+the same run::
+
+    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install
+
+Then use :doc:`newcomer-troubleshooting` for the five common first-run failures:
+
+- missing ``uv``
+- installer failure
+- built-in app path not found
+- About / ORCHESTRATE startup failure
+- no fresh output under ``~/log/execute/flight/``
 
 Alternative install routes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
