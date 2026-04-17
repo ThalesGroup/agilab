@@ -229,7 +229,20 @@ def _badges_profile(components: Sequence[str] | None) -> list[CommandSpec]:
     ]
     if components:
         argv.extend(["--components", *components])
-    return [CommandSpec(label="coverage badge refresh", argv=argv)]
+    return [
+        CommandSpec(label="coverage badge refresh", argv=argv),
+        CommandSpec(
+            label="skill badge refresh",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/generate_skill_badges.py",
+            ],
+        ),
+    ]
 
 
 def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
