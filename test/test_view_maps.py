@@ -559,6 +559,48 @@ def test_view_maps_persist_view_maps_settings_tolerates_write_failure(tmp_path, 
     assert not env.app_settings_file.exists()
 
 
+def test_view_maps_unexpected_helper_errors_propagate(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("[view_maps]\ndatadir = \"/tmp/export\"\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module._toml,
+        "load",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
+    )
+    with pytest.raises(TypeError, match="bad load"):
+        module._load_view_maps_settings(SimpleNamespace(app_settings_file=settings_path))
+
+    monkeypatch.setattr(
+        module,
+        "_dump_toml_payload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
+    )
+    with pytest.raises(ValueError, match="bad dump"):
+        module._persist_view_maps_settings(
+            SimpleNamespace(app_settings_file=tmp_path / "persist.toml"),
+            {"ui": {}},
+            {"datadir": "/tmp/export"},
+        )
+
+    class _BadRelativePath:
+        parts = ("visible.csv",)
+
+        def relative_to(self, other):
+            raise TypeError("bad relative")
+
+    with pytest.raises(TypeError, match="bad relative"):
+        module._visible_dataset_files(tmp_path, [_BadRelativePath()])
+
+    class _TypeErrorFrame:
+        def __getitem__(self, key):
+            raise TypeError("bad frame")
+
+    with pytest.raises(TypeError, match="bad frame"):
+        module._compute_viewport(_TypeErrorFrame(), "lat", "lon")
+
+
 def test_view_maps_main_rejects_missing_active_app(tmp_path, monkeypatch) -> None:
     module = _load_view_maps_module()
     fake_st = _FakeStreamlit()

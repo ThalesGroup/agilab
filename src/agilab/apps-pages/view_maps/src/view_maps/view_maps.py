@@ -38,7 +38,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
         def _dump_toml_payload(data: dict, handle) -> None:
             handle.write(_tomlkit_dumps(data).encode("utf-8"))
 
-    except Exception as _toml_exc:
+    except ImportError as _toml_exc:
 
         def _dump_toml_payload(data: dict, handle) -> None:
             raise RuntimeError(
@@ -103,7 +103,7 @@ def _visible_dataset_files(datadir: Path, files: list[Path]) -> list[Path]:
     for file_path in files:
         try:
             parts = file_path.relative_to(datadir).parts
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             parts = file_path.parts
         if any(part.startswith(".") for part in parts):
             continue
@@ -180,7 +180,7 @@ def _compute_viewport(df: pd.DataFrame, lat_col: str, lon_col: str) -> dict[str,
     try:
         latitudes = pd.to_numeric(df[lat_col], errors="coerce").dropna()
         longitudes = pd.to_numeric(df[lon_col], errors="coerce").dropna()
-    except Exception:
+    except (KeyError, RuntimeError, ValueError):
         return None
     if latitudes.empty or longitudes.empty:
         return None
@@ -221,7 +221,7 @@ def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
             data = _toml.load(fh)
     except FileNotFoundError:
         data = {}
-    except Exception:
+    except (OSError, _toml.TOMLDecodeError):
         data = {}
     view_section = data.get("view_maps")
     if not isinstance(view_section, dict):
@@ -236,7 +236,7 @@ def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings:
     try:
         with open(env.app_settings_file, "wb") as fh:
             _dump_toml_payload(payload, fh)
-    except Exception:
+    except (OSError, RuntimeError):
         pass
     return payload
 
