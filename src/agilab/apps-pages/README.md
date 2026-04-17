@@ -25,6 +25,10 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/mycode_project
   - Designed for notebook-to-AGILAB forecasting migrations. Reads `forecast_metrics.json` and `forecast_predictions.csv` from the selected export directory.
 
+- view_release_decision
+  - uv run streamlit run src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py -- --active-app src/agilab/apps/builtin/meteo_forecast_project
+  - Compares a candidate bundle against a baseline bundle, applies explicit evidence gates, and exports `promotion_decision.json`.
+
 - view_uav_relay_queue_analysis
   - uv run streamlit run src/agilab/apps-pages/view_uav_relay_queue_analysis/src/view_uav_relay_queue_analysis/view_uav_relay_queue_analysis.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
   - Designed for the lightweight UAV queue demo. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
