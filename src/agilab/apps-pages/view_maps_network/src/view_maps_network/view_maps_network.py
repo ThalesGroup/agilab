@@ -43,7 +43,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
         def _dump_toml(data: dict, handle) -> None:
             handle.write(_tomlkit_dumps(data).encode("utf-8"))
 
-    except Exception as _toml_exc:  # pragma: no cover - defensive guard
+    except ImportError as _toml_exc:  # pragma: no cover - defensive guard
         _tomlkit_dumps = None  # type: ignore
 
         def _dump_toml(data: dict, handle) -> None:
@@ -114,7 +114,7 @@ def _ensure_app_settings_loaded(env: AgiEnv) -> None:
             with open(path, "rb") as handle:
                 st.session_state["app_settings"] = tomllib.load(handle)
                 return
-        except Exception:
+        except (OSError, tomllib.TOMLDecodeError):
             pass
     st.session_state["app_settings"] = {}
 
@@ -128,7 +128,7 @@ def _persist_app_settings(env: AgiEnv) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as handle:
             _dump_toml(settings, handle)
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
 
@@ -213,7 +213,7 @@ def _list_subdirectories(base: Path) -> list[str]:
                     if entry.is_dir() and not entry.name.startswith(".")
                 ]
             )
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         st.sidebar.warning(f"Unable to list directories under {base}: {exc}")
     return []
 

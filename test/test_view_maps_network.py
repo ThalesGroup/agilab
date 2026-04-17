@@ -1095,6 +1095,44 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(monkeypat
     assert any("Unable to persist app_settings" in message for message in warnings)
 
 
+def test_view_maps_network_unexpected_helper_errors_propagate(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        "[view_maps_network]\n"
+        'dataset_base_choice = "AGI_SHARE_DIR"\n',
+        encoding="utf-8",
+    )
+
+    module.st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(
+        module.tomllib,
+        "load",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
+    )
+    with pytest.raises(TypeError, match="bad load"):
+        module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=settings_path))
+
+    warnings: list[str] = []
+    module.st = SimpleNamespace(session_state={"app_settings": {"view_maps_network": {}}})
+    monkeypatch.setattr(module.logger, "warning", lambda message: warnings.append(message))
+    monkeypatch.setattr(
+        module,
+        "_dump_toml",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
+    )
+    with pytest.raises(ValueError, match="bad dump"):
+        module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+    assert warnings == []
+
+    class _BadBase:
+        def exists(self) -> bool:
+            raise TypeError("bad exists")
+
+    with pytest.raises(TypeError, match="bad exists"):
+        module._list_subdirectories(_BadBase())
+
+
 def test_view_maps_network_heatmap_loader_error_paths(monkeypatch, tmp_path: Path) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
