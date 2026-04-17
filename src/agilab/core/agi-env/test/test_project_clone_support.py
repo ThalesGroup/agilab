@@ -77,6 +77,39 @@ def test_copy_existing_projects_merges_nested_projects(tmp_path: Path):
     assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
 
 
+def test_copy_existing_projects_uses_sorted_project_order_when_rglob_varies(tmp_path: Path, monkeypatch):
+    src_apps = tmp_path / "src"
+    dst_apps = tmp_path / "dst"
+    alpha = src_apps / "alpha_project"
+    zeta = src_apps / "nested" / "zeta_project"
+    alpha.mkdir(parents=True)
+    zeta.mkdir(parents=True)
+    copy_order: list[Path] = []
+    logger = mock.Mock()
+
+    real_rglob = Path.rglob
+
+    def _fake_rglob(self: Path, pattern: str):
+        if self == src_apps and pattern == "*_project":
+            return iter([zeta, alpha])
+        return real_rglob(self, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _fake_rglob)
+    monkeypatch.setattr(
+        "agi_env.project_clone_support.shutil.copytree",
+        lambda src, dst, **kwargs: copy_order.append(Path(src)),
+    )
+
+    copy_existing_projects(
+        src_apps,
+        dst_apps,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        logger=logger,
+    )
+
+    assert copy_order == [alpha, zeta]
+
+
 def test_copy_existing_projects_noops_for_same_tree_and_skips_non_directory_candidates(tmp_path: Path):
     src_apps = tmp_path / "src"
     src_apps.mkdir()

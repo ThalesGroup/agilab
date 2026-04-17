@@ -44,6 +44,47 @@ def test_sync_repository_apps_links_missing_projects(tmp_path):
     assert linked == [(project, apps_path / "alpha_project", True)]
 
 
+def test_sync_repository_apps_links_projects_in_sorted_order_when_glob_varies(tmp_path, monkeypatch):
+    apps_path = tmp_path / "apps"
+    apps_path.mkdir()
+    repo_apps = tmp_path / "repo-apps"
+    alpha = repo_apps / "alpha_project"
+    zeta = repo_apps / "zeta_project"
+    alpha.mkdir(parents=True)
+    zeta.mkdir(parents=True)
+    linked: list[tuple[Path, Path, bool]] = []
+
+    real_glob = Path.glob
+
+    def _fake_glob(self: Path, pattern: str):
+        if self == repo_apps and pattern == "*_project":
+            return iter([zeta, alpha])
+        return real_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "glob", _fake_glob)
+
+    sync_repository_apps(
+        can_link_repo=True,
+        apps_path=apps_path,
+        apps_root=tmp_path / "packaged-apps",
+        active_app=apps_path / "demo_project",
+        is_source_env=False,
+        apps_repository_root=repo_apps,
+        get_apps_repository_root_fn=lambda: repo_apps,
+        ensure_dir_fn=lambda path: path.mkdir(parents=True, exist_ok=True),
+        copy_existing_projects_fn=lambda *_args: None,
+        create_symlink_windows_fn=lambda *_args: None,
+        symlink_fn=lambda src, dst, target_is_directory=False: linked.append((src, dst, target_is_directory)),
+        logger=None,
+        os_name="posix",
+    )
+
+    assert linked == [
+        (alpha, apps_path / "alpha_project", True),
+        (zeta, apps_path / "zeta_project", True),
+    ]
+
+
 def test_sync_repository_apps_falls_back_to_copy_when_repo_source_missing(tmp_path):
     copied: list[tuple[Path, Path]] = []
     apps_path = tmp_path / "apps"

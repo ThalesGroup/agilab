@@ -336,12 +336,12 @@ def init_service_queue(
     )
 
     for stale_dir in (queue_paths["pending"], queue_paths["running"]):
-        for stale_task in stale_dir.glob("*.task.pkl"):
+        for stale_task in sorted(stale_dir.glob("*.task.pkl"), key=lambda candidate: candidate.name):
             try:
                 stale_task.unlink()
             except FileNotFoundError:
                 continue
-    for heartbeat_file in queue_paths["heartbeats"].glob("*.json"):
+    for heartbeat_file in sorted(queue_paths["heartbeats"].glob("*.json"), key=lambda candidate: candidate.name):
         try:
             heartbeat_file.unlink()
         except FileNotFoundError:
@@ -380,7 +380,7 @@ def service_cleanup_artifacts(agi_cls: Any) -> Dict[str, int]:
         kept: List[Tuple[float, Path]] = []
         removed = 0
 
-        for file_path in path.glob(pattern):
+        for file_path in sorted(path.glob(pattern), key=lambda candidate: candidate.name):
             try:
                 mtime = file_path.stat().st_mtime
             except FileNotFoundError:
@@ -515,7 +515,7 @@ def service_read_heartbeats(agi_cls: Any) -> Dict[str, float]:
         return {}
 
     beats: Dict[str, float] = {}
-    for beat_file in heartbeat_dir.glob("*.json"):
+    for beat_file in sorted(heartbeat_dir.glob("*.json"), key=lambda candidate: candidate.name):
         try:
             with open(beat_file, "r", encoding="utf-8") as stream:
                 payload = json.load(stream)
@@ -538,7 +538,7 @@ def service_read_heartbeat_payloads(agi_cls: Any) -> Dict[str, Dict[str, Any]]:
         return {}
 
     payloads: Dict[str, Dict[str, Any]] = {}
-    for beat_file in heartbeat_dir.glob("*.json"):
+    for beat_file in sorted(heartbeat_dir.glob("*.json"), key=lambda candidate: candidate.name):
         try:
             with open(beat_file, "r", encoding="utf-8") as stream:
                 payload = json.load(stream)

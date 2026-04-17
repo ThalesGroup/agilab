@@ -81,10 +81,16 @@ def copy_existing_projects(
     ensure_dir_fn(dst_apps)
 
     logger.info(f"copy_existing_projects src={_safe_resolve(src_apps)} dst={_safe_resolve(dst_apps)}")
-    candidates = [path for path in src_apps.rglob("*_project") if path.is_dir()]
+    candidates = sorted(
+        [path for path in src_apps.rglob("*_project") if path.is_dir()],
+        key=lambda candidate: candidate.relative_to(src_apps).as_posix(),
+    )
     logger.info("Matched projects: " + ", ".join(str(path.relative_to(src_apps)) for path in candidates) or "<none>")
 
-    for item in src_apps.rglob("*_project"):
+    for item in sorted(
+        src_apps.rglob("*_project"),
+        key=lambda candidate: candidate.relative_to(src_apps).as_posix(),
+    ):
         if not item.is_dir():
             continue
 

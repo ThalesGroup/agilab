@@ -7,20 +7,35 @@ from typing import Any, Callable, Optional
 import pandas as pd
 import streamlit as st
 
+SERVICE_MODE_POOL = 1
+SERVICE_MODE_CYTHON = 2
+SERVICE_MODE_ENABLED = 4
+SERVICE_MODE_RAPIDS = 8
+
+DEFAULT_SERVICE_POLL_INTERVAL_SEC = 1.0
+DEFAULT_SERVICE_STOP_TIMEOUT_SEC = 30.0
+DEFAULT_SERVICE_HEARTBEAT_TIMEOUT_SEC = 10.0
+DEFAULT_SERVICE_CLEANUP_DONE_TTL_HOURS = 168.0
+DEFAULT_SERVICE_CLEANUP_FAILED_TTL_HOURS = 336.0
+DEFAULT_SERVICE_CLEANUP_HEARTBEAT_TTL_HOURS = 24.0
+DEFAULT_SERVICE_CLEANUP_DONE_MAX_FILES = 2000
+DEFAULT_SERVICE_CLEANUP_FAILED_MAX_FILES = 2000
+DEFAULT_SERVICE_CLEANUP_HEARTBEAT_MAX_FILES = 1000
+
 
 SERVICE_SESSION_DEFAULTS: dict[str, Any] = {
     "service_log_cache": "",
     "service_status_cache": "idle",
-    "service_poll_interval": 1.0,
-    "service_stop_timeout": 30.0,
+    "service_poll_interval": DEFAULT_SERVICE_POLL_INTERVAL_SEC,
+    "service_stop_timeout": DEFAULT_SERVICE_STOP_TIMEOUT_SEC,
     "service_shutdown_on_stop": True,
-    "service_heartbeat_timeout": 10.0,
-    "service_cleanup_done_ttl_hours": 168.0,
-    "service_cleanup_failed_ttl_hours": 336.0,
-    "service_cleanup_heartbeat_ttl_hours": 24.0,
-    "service_cleanup_done_max_files": 2000,
-    "service_cleanup_failed_max_files": 2000,
-    "service_cleanup_heartbeat_max_files": 1000,
+    "service_heartbeat_timeout": DEFAULT_SERVICE_HEARTBEAT_TIMEOUT_SEC,
+    "service_cleanup_done_ttl_hours": DEFAULT_SERVICE_CLEANUP_DONE_TTL_HOURS,
+    "service_cleanup_failed_ttl_hours": DEFAULT_SERVICE_CLEANUP_FAILED_TTL_HOURS,
+    "service_cleanup_heartbeat_ttl_hours": DEFAULT_SERVICE_CLEANUP_HEARTBEAT_TTL_HOURS,
+    "service_cleanup_done_max_files": DEFAULT_SERVICE_CLEANUP_DONE_MAX_FILES,
+    "service_cleanup_failed_max_files": DEFAULT_SERVICE_CLEANUP_FAILED_MAX_FILES,
+    "service_cleanup_heartbeat_max_files": DEFAULT_SERVICE_CLEANUP_HEARTBEAT_MAX_FILES,
     "service_health_cache": [],
 }
 
@@ -47,10 +62,10 @@ def ensure_service_session_defaults(session_state: Any) -> None:
 
 def compute_service_mode(cluster_params: dict[str, Any], service_enabled: bool) -> int:
     return (
-        int(cluster_params.get("pool", False))
-        + int(cluster_params.get("cython", False)) * 2
-        + int(service_enabled) * 4
-        + int(cluster_params.get("rapids", False)) * 8
+        int(cluster_params.get("pool", False)) * SERVICE_MODE_POOL
+        + int(cluster_params.get("cython", False)) * SERVICE_MODE_CYTHON
+        + int(service_enabled) * SERVICE_MODE_ENABLED
+        + int(cluster_params.get("rapids", False)) * SERVICE_MODE_RAPIDS
     )
 
 
@@ -161,7 +176,7 @@ async def render_service_panel(
         service_poll_interval = st.number_input(
             "Service poll interval (seconds)",
             min_value=0.0,
-            value=float(st.session_state.get("service_poll_interval", 1.0)),
+            value=float(st.session_state.get("service_poll_interval", DEFAULT_SERVICE_POLL_INTERVAL_SEC)),
             step=0.1,
             key="service_poll_interval",
             disabled=not service_enabled,
@@ -170,7 +185,7 @@ async def render_service_panel(
         service_stop_timeout = st.number_input(
             "Service stop timeout (seconds)",
             min_value=0.0,
-            value=float(st.session_state.get("service_stop_timeout", 30.0)),
+            value=float(st.session_state.get("service_stop_timeout", DEFAULT_SERVICE_STOP_TIMEOUT_SEC)),
             step=1.0,
             key="service_stop_timeout",
             disabled=not service_enabled,
@@ -185,7 +200,7 @@ async def render_service_panel(
         service_heartbeat_timeout = st.number_input(
             "Heartbeat timeout (seconds)",
             min_value=0.1,
-            value=float(st.session_state.get("service_heartbeat_timeout", 10.0)),
+            value=float(st.session_state.get("service_heartbeat_timeout", DEFAULT_SERVICE_HEARTBEAT_TIMEOUT_SEC)),
             step=0.5,
             key="service_heartbeat_timeout",
             disabled=not service_enabled,
@@ -195,7 +210,7 @@ async def render_service_panel(
             service_cleanup_done_ttl_hours = st.number_input(
                 "Done artifacts TTL (hours)",
                 min_value=0.0,
-                value=float(st.session_state.get("service_cleanup_done_ttl_hours", 168.0)),
+                value=float(st.session_state.get("service_cleanup_done_ttl_hours", DEFAULT_SERVICE_CLEANUP_DONE_TTL_HOURS)),
                 step=1.0,
                 key="service_cleanup_done_ttl_hours",
                 disabled=not service_enabled,
@@ -203,7 +218,7 @@ async def render_service_panel(
             service_cleanup_failed_ttl_hours = st.number_input(
                 "Failed artifacts TTL (hours)",
                 min_value=0.0,
-                value=float(st.session_state.get("service_cleanup_failed_ttl_hours", 336.0)),
+                value=float(st.session_state.get("service_cleanup_failed_ttl_hours", DEFAULT_SERVICE_CLEANUP_FAILED_TTL_HOURS)),
                 step=1.0,
                 key="service_cleanup_failed_ttl_hours",
                 disabled=not service_enabled,
@@ -211,7 +226,7 @@ async def render_service_panel(
             service_cleanup_heartbeat_ttl_hours = st.number_input(
                 "Heartbeat artifacts TTL (hours)",
                 min_value=0.0,
-                value=float(st.session_state.get("service_cleanup_heartbeat_ttl_hours", 24.0)),
+                value=float(st.session_state.get("service_cleanup_heartbeat_ttl_hours", DEFAULT_SERVICE_CLEANUP_HEARTBEAT_TTL_HOURS)),
                 step=1.0,
                 key="service_cleanup_heartbeat_ttl_hours",
                 disabled=not service_enabled,
@@ -219,7 +234,7 @@ async def render_service_panel(
             service_cleanup_done_max_files = st.number_input(
                 "Done artifacts max files",
                 min_value=0,
-                value=int(st.session_state.get("service_cleanup_done_max_files", 2000)),
+                value=int(st.session_state.get("service_cleanup_done_max_files", DEFAULT_SERVICE_CLEANUP_DONE_MAX_FILES)),
                 step=100,
                 key="service_cleanup_done_max_files",
                 disabled=not service_enabled,
@@ -227,7 +242,7 @@ async def render_service_panel(
             service_cleanup_failed_max_files = st.number_input(
                 "Failed artifacts max files",
                 min_value=0,
-                value=int(st.session_state.get("service_cleanup_failed_max_files", 2000)),
+                value=int(st.session_state.get("service_cleanup_failed_max_files", DEFAULT_SERVICE_CLEANUP_FAILED_MAX_FILES)),
                 step=100,
                 key="service_cleanup_failed_max_files",
                 disabled=not service_enabled,
@@ -235,7 +250,7 @@ async def render_service_panel(
             service_cleanup_heartbeat_max_files = st.number_input(
                 "Heartbeat artifacts max files",
                 min_value=0,
-                value=int(st.session_state.get("service_cleanup_heartbeat_max_files", 1000)),
+                value=int(st.session_state.get("service_cleanup_heartbeat_max_files", DEFAULT_SERVICE_CLEANUP_HEARTBEAT_MAX_FILES)),
                 step=100,
                 key="service_cleanup_heartbeat_max_files",
                 disabled=not service_enabled,

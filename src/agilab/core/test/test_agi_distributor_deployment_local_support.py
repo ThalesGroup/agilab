@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import getpass
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -1066,7 +1067,12 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
         project.mkdir(parents=True, exist_ok=True)
         (project / "dist").mkdir(parents=True, exist_ok=True)
     (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
-    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    old_node_whl = agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl"
+    new_node_whl = agi_node / "dist" / "agi_node-0.0.2-py3-none-any.whl"
+    old_node_whl.write_text("old-whl", encoding="utf-8")
+    new_node_whl.write_text("new-whl", encoding="utf-8")
+    os.utime(old_node_whl, (1, 1))
+    os.utime(new_node_whl, (2, 2))
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
     (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
@@ -1133,7 +1139,8 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
     assert any("pip install -e '" in cmd and str(agi_cluster) in cmd for cmd, _ in commands)
     assert any("build --wheel" in cmd and str(agi_env) in cmd for cmd, _ in commands)
     assert any("build --wheel" in cmd and str(agi_node) in cmd for cmd, _ in commands)
-    assert (wenv_abs / "agi_node-0.0.1-py3-none-any.whl").exists()
+    assert (wenv_abs / "agi_node-0.0.2-py3-none-any.whl").exists()
+    assert not (wenv_abs / "agi_node-0.0.1-py3-none-any.whl").exists()
 
 
 @pytest.mark.asyncio
@@ -1698,3 +1705,103 @@ async def test_deploy_local_worker_skips_duplicate_trajectory_archive_after_sat_
     )
 
     assert copy_calls == [(archive, wenv_abs / "src" / "demo_worker" / "Trajectory.7z")]
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(tmp_path, monkeypatch):
+    app_path = tmp_path / "app"
+    active_src = app_path / "src"
+    first_dir = active_src / "zeta"
+    second_dir = active_src / "alpha"
+    first_dir.mkdir(parents=True, exist_ok=True)
+    second_dir.mkdir(parents=True, exist_ok=True)
+    first_archive = first_dir / "Trajectory.7z"
+    second_archive = second_dir / "Trajectory.7z"
+    first_archive.write_text("z", encoding="utf-8")
+    second_archive.write_text("a", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+        share_root_path=lambda: tmp_path / "share",
+    )
+
+    async def _fake_run(_cmd, _cwd):
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    original_rglob = Path.rglob
+    copy_calls: list[tuple[Path, Path]] = []
+
+    def _patched_rglob(self, pattern):
+        if self == active_src and pattern == "Trajectory.7z":
+            return iter([first_archive, second_archive])
+        return original_rglob(self, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _patched_rglob)
+    monkeypatch.setattr(
+        deployment_local_support.shutil,
+        "copy2",
+        lambda src, dst, *args, **kwargs: copy_calls.append((Path(src), Path(dst))),
+    )
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        "",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    copied_archives = [src for src, _dst in copy_calls if src.name == "Trajectory.7z"]
+    assert copied_archives == [second_archive, first_archive]

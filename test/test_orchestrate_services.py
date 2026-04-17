@@ -70,6 +70,22 @@ def test_compute_service_mode_uses_expected_bitmask():
     assert result == 15
 
 
+def test_service_mode_flags_and_defaults_are_named_constants():
+    assert orchestrate_services.SERVICE_MODE_POOL == 1
+    assert orchestrate_services.SERVICE_MODE_CYTHON == 2
+    assert orchestrate_services.SERVICE_MODE_ENABLED == 4
+    assert orchestrate_services.SERVICE_MODE_RAPIDS == 8
+    assert orchestrate_services.SERVICE_SESSION_DEFAULTS["service_cleanup_done_ttl_hours"] == (
+        orchestrate_services.DEFAULT_SERVICE_CLEANUP_DONE_TTL_HOURS
+    )
+    assert orchestrate_services.SERVICE_SESSION_DEFAULTS["service_cleanup_failed_ttl_hours"] == (
+        orchestrate_services.DEFAULT_SERVICE_CLEANUP_FAILED_TTL_HOURS
+    )
+    assert orchestrate_services.SERVICE_SESSION_DEFAULTS["service_cleanup_heartbeat_ttl_hours"] == (
+        orchestrate_services.DEFAULT_SERVICE_CLEANUP_HEARTBEAT_TTL_HOURS
+    )
+
+
 def test_resolve_service_health_defaults_uses_coercers():
     deps = _deps()
 

@@ -54,7 +54,7 @@ def sync_repository_apps(
             same_tree = False
 
         if not same_tree:
-            for src_app in link_source.glob("*_project"):
+            for src_app in sorted(link_source.glob("*_project"), key=lambda candidate: candidate.name):
                 dest_app = apps_path / src_app.relative_to(link_source)
                 try:
                     if dest_app.exists() or dest_app.resolve(strict=False) == src_app.resolve():

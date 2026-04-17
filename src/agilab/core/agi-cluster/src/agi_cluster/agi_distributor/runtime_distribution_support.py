@@ -16,6 +16,10 @@ _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 
 
+def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
+    return sorted(root.glob(pattern), key=lambda candidate: candidate.name)
+
+
 async def _maybe_await(result: Any) -> Any:
     if inspect.isawaitable(result):
         return await result
@@ -153,7 +157,7 @@ async def start(
     if not agi_cls._mode_auto or (agi_cls._mode_auto and agi_cls._mode == 0):
         await agi_cls._build_lib_remote()
         if agi_cls._mode & agi_cls.DASK_MODE:
-            for egg_file in (agi_cls.env.wenv_abs / "dist").glob("*.egg"):
+            for egg_file in _sorted_glob_matches(agi_cls.env.wenv_abs / "dist", "*.egg"):
                 agi_cls._dask_client.upload_file(str(egg_file))
     return True
 
