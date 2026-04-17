@@ -120,9 +120,15 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
 def test_landing_page_sections_use_clear_product_language():
     sections = about_agilab._landing_page_sections()
 
-    assert sections["headline"] == "AGILAB is a Python framework for reproducible data, ML, and RL workflows."
-    assert any("exported artifacts" in item or "exported artifacts" in sections["summary"] for item in sections["use_when"])
-    assert any("manager layer" in item for item in sections["how_it_works"])
+    assert sections["headline"] == "AGILAB helps you run a Python data, ML, or RL project from one place."
+    assert "Select a project, run it, inspect the generated pipeline" in sections["summary"]
+    assert sections["workflow"] == [
+        "PROJECT: choose one app",
+        "ORCHESTRATE: run it locally first",
+        "PIPELINE: inspect what was generated",
+        "ANALYSIS: open the resulting outputs",
+    ]
+    assert any("exported artifacts" in item for item in sections["gives_you"])
     assert any("do not start with cluster mode" == item for item in sections["not_first"])
     assert "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS" in sections["recommended_path"]
 
