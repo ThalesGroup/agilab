@@ -1234,7 +1234,7 @@ async def test_serve_status_reports_missing_client_and_future_states(monkeypatch
         staticmethod(lambda workers: [{"worker": worker, "healthy": True} for worker in workers]),
     )
     monkeypatch.setattr(AGI, "_service_finalize_response", staticmethod(lambda _env, payload, **_kwargs: payload))
-    
+
     async def _no_restart(_env, _client):
         return {"restarted": [], "reasons": {}}
 
@@ -1349,6 +1349,8 @@ async def test_serve_start_rejects_duplicate_service_loops(monkeypatch):
 @pytest.mark.asyncio
 async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env.base_worker_cls = "PandasWorker"
+    fake_client = _FakeClient(["127.0.0.1:8787"])
     AGI._service_futures = {}
     AGI._service_state = None
     AGI._worker_default = {"127.0.0.1": 1}
@@ -1364,7 +1366,20 @@ async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch)
     async def _fake_recover(*_args, **_kwargs):
         return False
 
+    async def _fake_start(_scheduler):
+        AGI._dask_client = fake_client
+
+    async def _fake_sync():
+        return None
+
     monkeypatch.setattr(AGI, "_service_recover", staticmethod(_fake_recover))
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(
+        agi_distributor_module,
+        "wait",
+        lambda futures, **_kwargs: (set(futures), set()),
+    )
     monkeypatch.setattr(AGI, "_service_state_path", staticmethod(lambda _env: Path("/tmp/service_state.json")))
     monkeypatch.setattr(AGI, "_service_health_path", staticmethod(lambda _env: Path("/tmp/service_health.json")))
     monkeypatch.setattr(AGI, "_service_queue_paths", staticmethod(lambda _env: {"pending": Path("/tmp/pending"), "running": Path("/tmp/running"), "done": Path("/tmp/done"), "failed": Path("/tmp/failed"), "heartbeats": Path("/tmp/heartbeats")}))
@@ -1375,8 +1390,9 @@ async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch)
     monkeypatch.setattr(AGI, "_service_clear_state", staticmethod(lambda _env: None))
     monkeypatch.setattr(AGI, "_reset_service_queue_state", staticmethod(lambda: None))
 
-    await AGI.serve(env, action="start")
+    result = await AGI.serve(env, action="start")
 
+    assert result["status"] == "running"
     assert AGI._workers == {"127.0.0.1": 1}
 
 
