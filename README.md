@@ -1,4 +1,4 @@
-<p><a href="https://pypi.org/project/agilab/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg" alt="PyPI version" /></a><a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License: BSD 3-Clause" /></a><a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Documentation-online-brightgreen.svg" alt="Documentation" /></a><a href="https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb"><img src="https://img.shields.io/badge/Colab-data%20%2B%20dag-3F51B5?logo=googlecolab" alt="Open data and dag notebook in Colab" /></a><a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/stars/ThalesGroup/agilab.svg" alt="GitHub stars" /></a></p>
+<p><a href="https://pypi.org/project/agilab/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg" alt="PyPI version" /></a><a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License: BSD 3-Clause" /></a><a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Documentation-online-brightgreen.svg" alt="Documentation" /></a><a href="https://thalesgroup.github.io/agilab/demos.html"><img src="https://img.shields.io/badge/UI%20demo-no%20install-0F766E" alt="Watch the AGILAB UI demo without installing" /></a><a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/stars/ThalesGroup/agilab.svg" alt="GitHub stars" /></a></p>
 
 <details>
 <summary>More project badges</summary>
@@ -33,6 +33,10 @@ install. Use one path only:
 - built-in `flight_project`
 - local run
 - visible analysis
+
+If you want to see the AGILAB web UI before installing anything, start here instead:
+
+- [Pre-install UI demo](https://thalesgroup.github.io/agilab/demos.html)
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git

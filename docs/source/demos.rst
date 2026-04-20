@@ -6,10 +6,15 @@ Demos
 
    demo_capture_script
 
-Use this page as the public entry point for AGILAB videos and short product demos.
+Use this page as the public entry point for AGILAB demos you can watch before
+installing anything.
 
 Start Here
 ----------
+
+If you want a pre-install UI demo, use this page first.
+
+You do not need to install AGILAB to watch these demos.
 
 If you are new to AGILAB, start with the short `flight_project` intro reel:
 
