@@ -38,6 +38,14 @@ If you want the lightest public notebook entry path, open the Colab notebook:
 This route installs ``agilab`` from PyPI inside Colab and runs the packaged
 ``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
 
+If you want the benchmark variant instead, use:
+
+`Open benchmark notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
+
+That notebook passes a list of modes to ``AGI.run(...)`` so AGILAB benchmarks
+``mycode_project`` across local execution modes and writes the benchmark JSON
+artifact.
+
 Repository launch flow
 ----------------------
 
