@@ -37,6 +37,8 @@ Before configuring distributed workers, make sure the environment is ready:
 - A shared writable cluster path is mounted on every node with the same
   effective location. In cluster mode, do not rely on ``AGI_LOCAL_SHARE`` as a
   fallback.
+- In multi-user environments, each operator uses a separate cluster-share root.
+  Do not let several users write into the same ``AGI_CLUSTER_SHARE`` tree.
 - ``uv`` and the required Python runtime are available on the manager and the
   remote workers.
 - The target app can be installed cleanly before you scale it to more nodes.
@@ -61,6 +63,11 @@ Typical distributed settings include:
 These values are persisted in the per-user workspace copy of
 ``app_settings.toml``, so future snippet generations stay aligned with the same
 cluster definition.
+
+The share directory should follow the same isolation rule: one user, one share
+root. Keep worker staging, generated snippets, datasets, and run outputs in a
+per-user cluster-share path instead of a common writable directory shared by
+multiple operators.
 
 .. figure:: _static/page-shots/orchestrate-page.png
    :alt: Screenshot of the ORCHESTRATE page showing system settings, install, distribute, and run areas.

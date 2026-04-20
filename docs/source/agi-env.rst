@@ -37,8 +37,10 @@ The behaviour differs depending on whether cluster mode is enabled:
 * **Cluster mode enabled** – ``AgiEnv`` uses ``AGI_CLUSTER_SHARE``. Relative
   inputs are expanded against ``AgiEnv.home_abs`` on manager/developer shells.
   The configured share must be mounted and writable, and it must be distinct
-  from ``AGI_LOCAL_SHARE``. Missing or read-only shares now raise immediately
-  instead of silently degrading to a local path.
+  from ``AGI_LOCAL_SHARE``. In multi-user deployments, this should also be a
+  per-user share root rather than a common writable directory shared by
+  several operators. Missing or read-only shares now raise immediately instead
+  of silently degrading to a local path.
 * **Cluster mode disabled** – ``AgiEnv`` uses ``AGI_LOCAL_SHARE`` for local
   datasets and outputs.
 * **Remote workers** – the configured cluster-share value remains relative
@@ -53,6 +55,10 @@ Because the worker value stays relative, it will fail fast if
 ``agi_share_path``
 is not mounted. This makes data provenance explicit and avoids hidden copies of
 datasets on remote machines.
+
+Per-user cluster-share isolation is part of that contract: each user should
+resolve to their own share root so one operator's datasets, generated steps,
+and outputs do not overwrite another operator's workspace.
 
 Reference
 ----------

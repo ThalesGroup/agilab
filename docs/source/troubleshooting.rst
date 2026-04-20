@@ -94,6 +94,8 @@ your server IP and adjust mount paths as needed. The default ``AGI_SHARE_DIR`` i
 ``clustershare`` under ``$HOME``. For cluster-enabled apps, that path must be mounted
 and writable on every node: ``AgiEnv`` now fails fast instead of silently falling back
 to ``AGI_LOCAL_SHARE`` or ``$HOME/localshare``. Ensure the chosen path exists and is writable.
+In multi-user setups, keep one exported share root per user instead of pointing several
+operators at the same writable cluster-share directory.
 is now managed with a ``nobody:nogroup`` ownership policy so every worker sees identical UID/GID
 mapping—keep that in mind if you point exports somewhere else.
 
