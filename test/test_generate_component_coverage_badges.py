@@ -50,3 +50,103 @@ def test_component_badges_use_component_name_in_label() -> None:
     assert module.COMPONENTS["agi-cluster"]["label"] == "agi-cluster coverage"
     assert module.COMPONENTS["agi-gui"]["label"] == "agi-gui coverage"
     assert module.COMPONENTS["agi-core"]["label"] == "agi-core coverage"
+
+
+def test_resolve_component_counts_falls_back_to_aggregate_xml(tmp_path: Path) -> None:
+    module = _load_module()
+
+    combined_xml = tmp_path / "coverage-agi-core.xml"
+    combined_xml.write_text(
+        """
+<coverage>
+  <packages>
+    <package name="agi-node">
+      <classes>
+        <class filename="src/agilab/core/agi-node/src/agi_node/example.py">
+          <lines>
+            <line number="1" hits="1" />
+            <line number="2" hits="0" />
+            <line number="3" hits="1" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
+""".strip()
+    )
+
+    original = module.COMPONENTS["agi-node"].copy()
+    try:
+        module.COMPONENTS["agi-node"] = {
+            **original,
+            "xml": tmp_path / "missing-node.xml",
+            "fallback_xmls": (combined_xml,),
+        }
+        assert module.resolve_component_counts("agi-node", tmp_path / "unused.xml") == (2, 3)
+    finally:
+        module.COMPONENTS["agi-node"] = original
+
+
+def test_compute_aggregate_percent_uses_component_fallback_counts(tmp_path: Path) -> None:
+    module = _load_module()
+
+    env_xml = tmp_path / "coverage-agi-env.xml"
+    env_xml.write_text('<coverage lines-covered="4" lines-valid="5" line-rate="0.8" />')
+
+    combined_xml = tmp_path / "coverage-agi-core.xml"
+    combined_xml.write_text(
+        """
+<coverage>
+  <packages>
+    <package name="agi-node">
+      <classes>
+        <class filename="src/agilab/core/agi-node/src/agi_node/example.py">
+          <lines>
+            <line number="1" hits="1" />
+            <line number="2" hits="1" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="agi-cluster">
+      <classes>
+        <class filename="src/agilab/core/agi-cluster/src/agi_cluster/example.py">
+          <lines>
+            <line number="1" hits="1" />
+            <line number="2" hits="0" />
+            <line number="3" hits="1" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
+""".strip()
+    )
+
+    originals = {
+        key: module.COMPONENTS[key].copy()
+        for key in ("agi-env", "agi-node", "agi-cluster")
+    }
+    try:
+        module.COMPONENTS["agi-env"] = {
+            **originals["agi-env"],
+            "xml": env_xml,
+            "fallback_xmls": (),
+        }
+        module.COMPONENTS["agi-node"] = {
+            **originals["agi-node"],
+            "xml": tmp_path / "missing-node.xml",
+            "fallback_xmls": (combined_xml,),
+        }
+        module.COMPONENTS["agi-cluster"] = {
+            **originals["agi-cluster"],
+            "xml": tmp_path / "missing-cluster.xml",
+            "fallback_xmls": (combined_xml,),
+        }
+        percent = module.compute_aggregate_percent(("agi-env", "agi-node", "agi-cluster"), tmp_path / "unused.xml")
+        assert percent == 80.0
+    finally:
+        for key, value in originals.items():
+            module.COMPONENTS[key] = value

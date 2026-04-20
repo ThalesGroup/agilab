@@ -22,12 +22,20 @@ COMPONENTS = {
         "xml": REPO_ROOT / "coverage-agi-node.xml",
         "prefix": "src/agilab/core/agi-node/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-node.svg",
+        "fallback_xmls": (
+            REPO_ROOT / "coverage-agi-core.xml",
+            REPO_ROOT / "coverage-agilab.xml",
+        ),
     },
     "agi-cluster": {
         "label": "agi-cluster coverage",
         "xml": REPO_ROOT / "coverage-agi-cluster.xml",
         "prefix": "src/agilab/core/agi-cluster/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-cluster.svg",
+        "fallback_xmls": (
+            REPO_ROOT / "coverage-agi-core.xml",
+            REPO_ROOT / "coverage-agilab.xml",
+        ),
     },
     "agi-gui": {
         "label": "agi-gui coverage",
@@ -140,7 +148,7 @@ def coverage_counts_from_xml(path: Path) -> tuple[int, int] | None:
     return int(covered), int(total)
 
 
-def compute_from_combined_xml(path: Path, prefix: str) -> float | None:
+def coverage_counts_from_prefixed_xml(path: Path, prefix: str) -> tuple[int, int] | None:
     if not path.exists():
         return None
     root = ET.parse(path).getroot()
@@ -156,14 +164,48 @@ def compute_from_combined_xml(path: Path, prefix: str) -> float | None:
                 covered += 1
     if total == 0:
         return None
+    return covered, total
+
+
+def compute_from_combined_xml(path: Path, prefix: str) -> float | None:
+    counts = coverage_counts_from_prefixed_xml(path, prefix)
+    if counts is None:
+        return None
+    covered, total = counts
     return covered * 100.0 / total
 
 
-def compute_aggregate_percent(components: tuple[str, ...]) -> float | None:
+def resolve_component_counts(name: str, combined_xml: Path) -> tuple[int, int] | None:
+    config = COMPONENTS[name]
+    xml_path = config.get("xml")
+    if isinstance(xml_path, Path):
+        counts = coverage_counts_from_xml(xml_path)
+        if counts is not None:
+            return counts
+
+    prefix = config.get("prefix")
+    if not isinstance(prefix, str):
+        return None
+
+    fallback_paths: list[Path] = []
+    for candidate in config.get("fallback_xmls", ()):
+        if isinstance(candidate, Path):
+            fallback_paths.append(candidate)
+    if combined_xml not in fallback_paths:
+        fallback_paths.append(combined_xml)
+
+    for fallback_path in fallback_paths:
+        counts = coverage_counts_from_prefixed_xml(fallback_path, prefix)
+        if counts is not None:
+            return counts
+    return None
+
+
+def compute_aggregate_percent(components: tuple[str, ...], combined_xml: Path) -> float | None:
     covered = 0
     total = 0
     for component in components:
-        counts = coverage_counts_from_xml(COMPONENTS[component]["xml"])
+        counts = resolve_component_counts(component, combined_xml)
         if counts is None:
             return None
         component_covered, component_total = counts
@@ -186,11 +228,12 @@ def main() -> int:
     for name, config in selected_component_items(args.components):
         percent = None
         if "aggregate" in config:
-            percent = compute_aggregate_percent(config["aggregate"])
+            percent = compute_aggregate_percent(config["aggregate"], combined_xml)
         elif "xml" in config:
-            percent = compute_from_component_xml(config["xml"])
-            if percent is None:
-                percent = compute_from_combined_xml(combined_xml, config["prefix"])
+            counts = resolve_component_counts(name, combined_xml)
+            if counts is not None:
+                covered, total = counts
+                percent = covered * 100.0 / total
         if percent is None:
             raise SystemExit(f"Missing coverage data for {name}")
         value = format_percent(percent)
