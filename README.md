@@ -99,6 +99,7 @@ uv run agilab
 ### Stay in a notebook with `agi-core`
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb)
+[![Open Benchmark In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb)
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
