@@ -175,6 +175,53 @@ async def test_install_into_project_venv_uses_target_python(tmp_path):
     ]
 
 
+def test_resolve_install_spec_prefers_project_path_over_distribution_metadata(tmp_path, monkeypatch):
+    project_path = tmp_path / "agi-env"
+    project_path.mkdir()
+    (project_path / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+    monkeypatch.setattr(
+        deployment_local_support,
+        "_resolve_distribution_install_spec",
+        lambda _name: "agi-env==0.0.0",
+    )
+
+    assert deployment_local_support._resolve_install_spec(project_path, "agi-env") == str(project_path)
+
+
+def test_resolve_distribution_install_spec_uses_direct_url_git_revision(monkeypatch):
+    class _Dist:
+        version = "1.2.3"
+
+        @staticmethod
+        def read_text(name):
+            assert name == "direct_url.json"
+            return (
+                '{"url":"https://github.com/ThalesGroup/agilab.git",'
+                '"vcs_info":{"vcs":"git","requested_revision":"main"},'
+                '"subdirectory":"src/agilab/core/agi-env"}'
+            )
+
+    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+
+    assert (
+        deployment_local_support._resolve_distribution_install_spec("agi-env")
+        == "agi-env @ git+https://github.com/ThalesGroup/agilab.git@main#subdirectory=src/agilab/core/agi-env"
+    )
+
+
+def test_resolve_distribution_install_spec_falls_back_to_installed_version(monkeypatch):
+    class _Dist:
+        version = "2026.4.20"
+
+        @staticmethod
+        def read_text(_name):
+            return None
+
+    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+
+    assert deployment_local_support._resolve_distribution_install_spec("agi-env") == "agi-env==2026.4.20"
+
+
 def test_format_dependency_spec_and_repo_helpers_cover_edge_cases(tmp_path):
     assert (
         deployment_local_support._format_dependency_spec(
@@ -849,6 +896,115 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
     assert any("pip install --python" in cmd and str(wenv_abs / ".venv") in cmd for cmd, _ in commands)
     assert any("demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_install_type_zero_non_source_uses_distribution_specs_for_non_project_paths(
+    tmp_path,
+    monkeypatch,
+):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / ".venv").mkdir(parents=True, exist_ok=True)
+    (app_path / "uv.lock").write_text("lock", encoding="utf-8")
+
+    wenv_abs = tmp_path / "wenv"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+
+    env_pck = tmp_path / "site-packages" / "agi_env"
+    env_pck.mkdir(parents=True, exist_ok=True)
+    (env_pck / "resources").mkdir(parents=True, exist_ok=True)
+
+    node_pck = tmp_path / "site-packages" / "agi_node"
+    node_pck.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "site-packages" / "agi_cluster"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=tmp_path / "bad" / "agi_env",
+        agi_node=tmp_path / "bad" / "agi_node",
+        agi_cluster=tmp_path / "bad" / "agi_cluster",
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=env_pck,
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user="another-user",
+        cluster_pck=cluster_pck,
+        share_root_path=lambda: tmp_path / "share",
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    async def _fake_ssh(_ip, _cmd):
+        raise ConnectionError("localhost ssh denied")
+
+    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None))
+    monkeypatch.setattr(
+        deployment_local_support,
+        "_infer_repo_root_from_runtime",
+        lambda _runtime_file: None,
+    )
+    monkeypatch.setattr(
+        deployment_local_support,
+        "_resolve_distribution_install_spec",
+        lambda package_name: f"{package_name} @ git+https://example.invalid/repo.git@main#subdirectory={package_name}",
+    )
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+        exec_ssh=_fake_ssh,
+        _mode=0,
+        DASK_MODE=4,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("wenv"),
+        "",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        runtime_file="short.py",
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    assert not any(f'"{tmp_path / "bad" / "agi_env"}"' in cmd for cmd, _ in commands)
+    assert any("agi-env @ git+https://example.invalid/repo.git@main#subdirectory=agi-env" in cmd for cmd, _ in commands)
+    assert any("agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node" in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio
