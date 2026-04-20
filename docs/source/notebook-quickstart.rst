@@ -35,8 +35,8 @@ If you want the lightest public notebook entry path, open the Colab notebook:
 
 `Open in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
 
-This route installs ``agilab`` from PyPI inside Colab and runs the packaged
-``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
+This route clones the AGILAB repository inside Colab, installs it in editable
+mode, and runs ``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
 
 All Colab notebooks in this section also apply a tiny Python 3.12 compatibility
 shim before importing AGILAB modules, because some notebook runtimes expose
@@ -46,19 +46,19 @@ If you want the benchmark variant instead, use:
 
 `Open benchmark notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
 
-That notebook passes a list of modes to ``AGI.run(...)`` so AGILAB benchmarks
-``mycode_project`` across local execution modes and writes the benchmark JSON
-artifact.
+That notebook clones the repository, installs it in editable mode, and passes a
+list of modes to ``AGI.run(...)`` so AGILAB benchmarks ``mycode_project``
+across local execution modes and writes the benchmark JSON artifact.
 
 If you want one Colab notebook that shows a data-worker-style app and a
 DAG-shaped pipeline app, use:
 
 `Open data + DAG notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
 
-That notebook installs ``agilab`` from PyPI, clones the repository to fetch the
-built-in app sources, and runs ``execution_pandas_project`` and
-``uav_relay_queue_project`` so you can see both a data-oriented workload and a
-pipeline-shaped workflow from the same notebook entry point.
+That notebook clones the repository, installs it in editable mode, and runs
+``execution_pandas_project`` and ``uav_relay_queue_project`` so you can see
+both a data-oriented workload and a pipeline-shaped workflow from the same
+notebook entry point.
 
 If you want the stricter class-path notebook instead, use:
 
@@ -71,8 +71,8 @@ That notebook clones the repository, resolves the worker source path for
 base class.
 
 It also applies a tiny Python 3.12 compatibility shim before importing the
-AGILAB modules, because Colab can expose an older ``agi_env`` wheel whose
-``pathlib`` import path is not safe otherwise.
+AGILAB modules, because Colab can expose a runtime where ``pathlib`` no longer
+exports ``UnsupportedOperation``.
 
 Repository launch flow
 ----------------------
