@@ -151,16 +151,27 @@ def test_cleanup_editable_ignores_missing_entries():
 
 
 @pytest.mark.asyncio
-async def test_ensure_pip_uses_project_scoped_uv_command(tmp_path):
+async def test_install_into_project_venv_uses_target_python(tmp_path):
     calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
 
-    await deployment_local_support._ensure_pip("uv", tmp_path, run_fn=_fake_run)
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+    )
 
     assert calls == [
-        (f"uv run --project '{tmp_path}' python -m ensurepip --upgrade", tmp_path),
+        (
+            f'uv pip install --python "{tmp_path / ".venv" / "bin" / "python"}" '
+            f'--upgrade --no-deps "{package_path}"',
+            tmp_path,
+        ),
     ]
 
 
@@ -836,7 +847,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     )
     assert not any("add agi-env" in cmd and str(wenv_abs) in cmd for cmd, _ in commands)
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
-    assert any("run --project" in cmd and "python -m ensurepip --upgrade" in cmd for cmd, _ in commands)
+    assert any("pip install --python" in cmd and str(wenv_abs / ".venv") in cmd for cmd, _ in commands)
     assert any("demo.post_install" in cmd for cmd in ssh_calls)
 
 

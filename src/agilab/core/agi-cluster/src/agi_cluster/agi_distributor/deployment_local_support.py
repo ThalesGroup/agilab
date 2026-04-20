@@ -66,8 +66,25 @@ def _cleanup_editable(site_packages: Path) -> None:
                 pass
 
 
-async def _ensure_pip(uv_cmd: str, project: Path, *, run_fn: Callable[..., Any]) -> None:
-    cmd = f"{uv_cmd} run --project '{project}' python -m ensurepip --upgrade"
+def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
+    if os_name == "nt":
+        return project / ".venv" / "Scripts" / "python.exe"
+    return project / ".venv" / "bin" / "python"
+
+
+async def _install_into_project_venv(
+    uv_cmd: str,
+    project: Path,
+    package_path: Path,
+    *,
+    run_fn: Callable[..., Any],
+    os_name: str = os.name,
+) -> None:
+    venv_python = _project_venv_python(project, os_name=os_name)
+    cmd = (
+        f'{uv_cmd} pip install --python "{venv_python}" '
+        f'--upgrade --no-deps "{package_path}"'
+    )
     await run_fn(cmd, project)
 
 
@@ -393,17 +410,11 @@ async def deploy_local_worker(
     await run_fn(cmd_manager, app_path)
 
     if (not env.is_source_env) and (not env.is_worker_env):
-        await _ensure_pip(uv, app_path, run_fn=run_fn)
-
         for project_path in (agilab_project, env_project, node_project, core_project, cluster_project):
             if project_path and project_path.exists():
                 if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
                     continue
-                cmd = (
-                    f"{uv} run --project '{app_path}' python -m pip install "
-                    f"--upgrade --no-deps '{project_path}'"
-                )
-                await run_fn(cmd, app_path)
+                await _install_into_project_venv(uv, app_path, project_path, run_fn=run_fn)
 
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
@@ -504,8 +515,6 @@ async def deploy_local_worker(
     )
 
     if (not env.is_source_env) and (not env.is_worker_env):
-        await _ensure_pip(uv_worker, wenv_abs, run_fn=run_fn)
-
         worker_resources_src = env_project / "src/agi_env/resources"
         if not worker_resources_src.exists():
             worker_resources_src = env.env_pck / "resources"
@@ -521,11 +530,12 @@ async def deploy_local_worker(
             if project_path and project_path.exists():
                 if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
                     continue
-                cmd = (
-                    f"{uv_worker} run --project \"{wenv_abs}\" python -m pip install "
-                    f"--upgrade --no-deps \"{project_path}\""
+                await _install_into_project_venv(
+                    uv_worker,
+                    wenv_abs,
+                    project_path,
+                    run_fn=run_fn,
                 )
-                await run_fn(cmd, wenv_abs)
 
         python_dirs = env.pyvers_worker.split(".")
         if python_dirs[-1].endswith("t"):
