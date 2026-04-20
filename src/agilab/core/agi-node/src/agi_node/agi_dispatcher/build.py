@@ -15,6 +15,13 @@ from zipfile import ZipFile
 import argparse
 import subprocess
 
+try:
+    from .bootstrap_source_paths import bootstrap_core_source_paths
+except ImportError:  # pragma: no cover - script execution fallback
+    from bootstrap_source_paths import bootstrap_core_source_paths
+
+bootstrap_core_source_paths(source_file=__file__)
+
 from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning
 from Cython.Build import cythonize
 

@@ -1,6 +1,41 @@
+from __future__ import annotations
+
 from pathlib import Path
 
+import pytest
+
 from agi_node.agi_dispatcher import build as build_mod
+import agi_node.agi_dispatcher.bootstrap_source_paths as bootstrap_mod
+
+
+def test_bootstrap_core_source_paths_prefers_repo_layout(tmp_path, monkeypatch):
+    source_file = (
+        tmp_path
+        / "repo"
+        / "src"
+        / "agilab"
+        / "core"
+        / "agi-node"
+        / "src"
+        / "agi_node"
+        / "agi_dispatcher"
+        / "build.py"
+    )
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("", encoding="utf-8")
+
+    core_root = source_file.parents[4]
+    env_src = core_root / "agi-env" / "src"
+    node_src = core_root / "agi-node" / "src"
+    cluster_src = core_root / "agi-cluster" / "src"
+    for path in (env_src, node_src, cluster_src):
+        path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(bootstrap_mod.sys, "path", [], raising=False)
+    added = bootstrap_mod.bootstrap_core_source_paths(source_file=source_file)
+
+    assert added == (env_src, node_src, cluster_src)
+    assert bootstrap_mod.sys.path[:3] == [str(cluster_src), str(node_src), str(env_src)]
 
 
 def test_resolve_main_inputs_uses_explicit_app_path_and_normalizes_windows_style_outdirs(tmp_path):
