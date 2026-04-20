@@ -51,9 +51,10 @@ DAG-shaped pipeline app, use:
 
 `Open data + DAG notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
 
-That notebook runs ``execution_pandas_project`` and ``uav_relay_queue_project``
-so you can see both a data-oriented workload and a pipeline-shaped workflow
-from the same notebook entry point.
+That notebook installs ``agilab`` from PyPI, clones the repository to fetch the
+built-in app sources, and runs ``execution_pandas_project`` and
+``uav_relay_queue_project`` so you can see both a data-oriented workload and a
+pipeline-shaped workflow from the same notebook entry point.
 
 Repository launch flow
 ----------------------
