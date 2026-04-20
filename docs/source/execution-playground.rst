@@ -113,9 +113,11 @@ matrix on 2 Macs over SSH:
 
    uv --preview-features extra-build-dependencies run python tools/benchmark_execution_mode_matrix.py --remote-host <remote-macos-ip> --scheduler-host <local-macos-ip> --rows-per-file 100000 --compute-passes 32 --n-partitions 16 --repeats 2
 
-``--remote-host`` accepts either ``host`` or ``user@host``. If you pass only a
-host or IP, the helper defaults to ``agi@<host>`` for both the SSH probe/setup
-steps and the dataset ``rsync`` step.
+``--remote-host`` accepts either ``host`` or ``user@host``. For portable use,
+prefer ``user@host`` with the real login user of the remote worker. If you pass
+only a host or IP, the helper currently defaults to ``agi@<host>`` for both the
+SSH probe/setup steps and the dataset ``rsync`` step, so only rely on the bare
+host form when the remote account is actually named ``agi``.
 
 This run uses:
 

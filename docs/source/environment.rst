@@ -35,7 +35,7 @@ summarises the supported keys.
      - Sample size used when previewing large tables.
    * - ``CLUSTER_CREDENTIALS``
      - Current OS user
-     - Username/password pair (``user:pass``) used by cluster automation scripts.
+     - Username/password pair (``user:pass``) used by cluster automation scripts. In portable cluster setups, set this explicitly to the real login user on the worker machines. Do not assume ``agi`` unless the remote account is actually named ``agi``.
    * - ``OPENAI_API_KEY``
      - unset
      - API key surfaced to features that rely on OpenAI endpoints.
@@ -84,6 +84,8 @@ For cluster-enabled use cases, treat the share directory as part of the user's
 workspace contract, not as a generic team dropbox.
 
 - Each user should have their own ``AGI_SHARE_DIR`` / ``AGI_CLUSTER_SHARE`` root.
+- Each user should also use their own real worker login account or explicit
+  ``user@host`` targets when connecting to the cluster.
 - Do not point multiple users at the same writable cluster-share directory.
 - Keep per-user datasets, worker installation files, and cluster-visible outputs
   isolated from other users.
