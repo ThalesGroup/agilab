@@ -57,6 +57,8 @@ ENV_KEY = f"{PAGE_KEY}:env"
 LOAD_CACHE_VERSION = 2
 HEATMAP_ANNOTATION_MAX_DIM = 12
 HEATMAP_MAX_COLUMNS = 2
+BEARER_MAX_COLUMNS = 3
+HEATMAP_GRID_COLOR = "#d9dee7"
 
 BASE_CHOICES = ("AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom")
 AGGREGATIONS = ("mean", "sum", "median", "min", "max", "std", "count")
@@ -858,6 +860,90 @@ def _resolve_heatmap_height(row_count: int) -> int:
     return max(400, min(900, 160 + 42 * row_count))
 
 
+def _resolve_heatmap_section_column_count(item_count: int) -> int:
+    return min(HEATMAP_MAX_COLUMNS, max(1, item_count))
+
+
+def _collect_bearer_legend_items(bearer_frames: dict[str, pd.DataFrame]) -> list[str]:
+    observed: set[str] = set()
+    for frame in bearer_frames.values():
+        if frame.empty or "bearer" not in frame.columns:
+            continue
+        observed.update(str(value) for value in frame["bearer"].dropna().tolist())
+
+    ordered = [bearer for bearer in BEARER_COLOR_MAP if bearer in observed]
+    extras = sorted(observed.difference(BEARER_COLOR_MAP))
+    return [*ordered, *extras]
+
+
+def _add_missing_bearer_legend_traces(fig: go.Figure, legend_items: Sequence[str]) -> None:
+    existing_names = {trace.name for trace in fig.data if getattr(trace, "name", None)}
+    for bearer in legend_items:
+        if bearer in existing_names:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="lines",
+                name=bearer,
+                line={"color": BEARER_COLOR_MAP.get(bearer, "#7f7f7f"), "width": 2},
+                hoverinfo="skip",
+                showlegend=True,
+            )
+        )
+
+
+def _format_heatmap_scale_label(colorbar_title: str) -> str:
+    text = colorbar_title.strip()
+    if not text:
+        return ""
+    if text.endswith(")") and " (" in text:
+        head, suffix = text.rsplit(" (", 1)
+        return f"**{head}**  \n({suffix}"
+    return f"**{text}**"
+
+
+def _build_heatmap_grid_shapes(row_count: int, column_count: int) -> list[dict[str, Any]]:
+    if row_count < 1 or column_count < 1:
+        return []
+
+    grid_line = {
+        "type": "line",
+        "xref": "x",
+        "yref": "y",
+        "layer": "above",
+        "line": {"color": HEATMAP_GRID_COLOR, "width": 1},
+    }
+    shapes: list[dict[str, Any]] = []
+    max_x = column_count - 0.5
+    max_y = row_count - 0.5
+
+    for x_boundary in range(column_count + 1):
+        x_coord = x_boundary - 0.5
+        shapes.append(
+            {
+                **grid_line,
+                "x0": x_coord,
+                "x1": x_coord,
+                "y0": -0.5,
+                "y1": max_y,
+            }
+        )
+    for y_boundary in range(row_count + 1):
+        y_coord = y_boundary - 0.5
+        shapes.append(
+            {
+                **grid_line,
+                "x0": -0.5,
+                "x1": max_x,
+                "y0": y_coord,
+                "y1": y_coord,
+            }
+        )
+    return shapes
+
+
 def _build_heatmap_figure(
     matrix: pd.DataFrame,
     *,
@@ -887,8 +973,8 @@ def _build_heatmap_figure(
         "texttemplate": "%{text}" if annotations_enabled else None,
         "textfont": {"size": 10},
         "colorscale": "Viridis",
-        "xgap": 1,
-        "ygap": 1,
+        "xgap": 0,
+        "ygap": 0,
         "zmin": 0.0,
         "zmax": resolved_zmax,
         "showscale": show_colorbar,
@@ -911,23 +997,27 @@ def _build_heatmap_figure(
 
     fig = go.Figure(data=go.Heatmap(**heatmap_kwargs))
     layout_kwargs: dict[str, Any] = {
-        "margin": {"l": 20, "r": 12 if not show_colorbar else 20, "t": 50 if title else 20, "b": 20},
+        "margin": {"l": 20, "r": 12 if not show_colorbar else 20, "t": 50 if title else 20, "b": 56},
         "xaxis_title": "Source node",
         "yaxis_title": "Destination node",
         "xaxis": dict(
             tickmode="array",
             tickvals=x_positions,
             ticktext=[str(value) for value in matrix.columns.tolist()],
+            tickangle=-45,
+            automargin=True,
             constrain="domain",
         ),
         "yaxis": dict(
             tickmode="array",
             tickvals=y_positions,
             ticktext=[str(value) for value in matrix.index.tolist()],
+            automargin=True,
             scaleanchor="x",
             scaleratio=1,
             constrain="domain",
         ),
+        "shapes": _build_heatmap_grid_shapes(len(matrix.index), len(matrix.columns)),
         "height": _resolve_heatmap_height(len(matrix.index)),
     }
     if title:
@@ -943,6 +1033,18 @@ def _build_heatmap_colorbar_figure(
     height: int = 400,
 ) -> go.Figure:
     resolved_zmax = 100.0 if zmax is None else float(zmax)
+    colorbar_config: dict[str, Any] = {
+        "lenmode": "fraction",
+        "len": 0.66,
+        "y": 0.5,
+        "yanchor": "middle",
+        "x": 0.58,
+        "xanchor": "right",
+        "thickness": 10,
+        "tickfont": {"size": 11},
+    }
+    if colorbar_title.strip():
+        colorbar_config["title"] = {"text": colorbar_title, "side": "top"}
     fig = go.Figure(
         data=go.Scatter(
             x=[0.0, 0.0],
@@ -956,16 +1058,7 @@ def _build_heatmap_colorbar_figure(
                 "cmin": 0.0,
                 "cmax": resolved_zmax,
                 "showscale": True,
-                "colorbar": {
-                    "title": {"text": colorbar_title, "side": "top"},
-                    "lenmode": "fraction",
-                    "len": 0.66,
-                    "y": 0.5,
-                    "yanchor": "middle",
-                    "x": 0.92,
-                    "xanchor": "right",
-                    "thickness": 12,
-                },
+                "colorbar": colorbar_config,
             },
         )
     )
@@ -973,7 +1066,7 @@ def _build_heatmap_colorbar_figure(
     fig.update_yaxes(visible=False, fixedrange=True)
     fig.update_layout(
         height=height,
-        margin={"l": 0, "r": 0, "t": 8, "b": 8},
+        margin={"l": 0, "r": 28, "t": 8, "b": 8},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
@@ -1018,12 +1111,14 @@ def _render_heatmap_section(
     non_empty_matrices = [matrix for matrix in matrices.values() if not matrix.empty]
     max_row_count = max((len(matrix.index) for matrix in non_empty_matrices), default=0)
     heatmap_height = _resolve_heatmap_height(max_row_count)
-    heatmap_column, legend_column = st.columns([14, 1])
+    column_count = _resolve_heatmap_section_column_count(len(matrices))
+    scale_label = _format_heatmap_scale_label(colorbar_title)
 
-    with heatmap_column:
-        label_rows = _chunk_labels(list(matrices.keys()), max_columns=min(HEATMAP_MAX_COLUMNS, max(1, len(matrices))))
-        for row_labels in label_rows:
-            columns = st.columns(len(row_labels))
+    label_rows = _chunk_labels(list(matrices.keys()), max_columns=column_count)
+    for row_index, row_labels in enumerate(label_rows):
+        heatmap_column, legend_column = st.columns([13, 2])
+        with heatmap_column:
+            columns = st.columns(column_count)
             for column, label in zip(columns, row_labels):
                 with column:
                     st.markdown(f"##### {label}")
@@ -1036,14 +1131,16 @@ def _render_heatmap_section(
                         show_colorbar=False,
                     )
 
-    with legend_column:
-        if non_empty_matrices:
-            scale_fig = _build_heatmap_colorbar_figure(
-                colorbar_title=colorbar_title,
-                zmax=zmax,
-                height=heatmap_height,
-            )
-            st.plotly_chart(scale_fig, width="stretch", key=f"{chart_key_prefix}:scale")
+        with legend_column:
+            if non_empty_matrices:
+                if scale_label:
+                    st.markdown(scale_label)
+                scale_fig = _build_heatmap_colorbar_figure(
+                    colorbar_title="",
+                    zmax=zmax,
+                    height=heatmap_height,
+                )
+                st.plotly_chart(scale_fig, width="stretch", key=f"{chart_key_prefix}:scale:{row_index}")
 
 
 def main() -> None:
@@ -1352,7 +1449,7 @@ def main() -> None:
         st.session_state[DETAIL_RUNS_KEY] = detail_run_current
 
     st.subheader("Detailed run diagnostics")
-    st.caption("Time-series diagnostics keep selected runs in columns. Matrix sections wrap into a wider grid when several runs are selected.")
+    st.caption("Diagnostics wrap into comparable rows when several runs are selected.")
     st.multiselect("Detailed runs", options=selected_labels, key=DETAIL_RUNS_KEY)
     detail_run_labels = _coerce_selection(st.session_state.get(DETAIL_RUNS_KEY), selected_labels, fallback=detail_run_defaults)
     if not detail_run_labels:
@@ -1397,10 +1494,6 @@ def main() -> None:
         column_index=heatmap_nodes,
     )
 
-    header_cols = st.columns(len(detail_run_labels))
-    for column, label in zip(header_cols, detail_run_labels):
-        column.markdown(f"#### {label}")
-
     served_max_candidates = [
         float(pd.Series(matrix.to_numpy().ravel()).dropna().max())
         for matrix in detail_served_heatmaps.values()
@@ -1423,50 +1516,57 @@ def main() -> None:
         )
 
     st.markdown("**Bearer Involvement**")
-    bearer_cols = st.columns(len(detail_run_labels))
-    for index, (column, label) in enumerate(zip(bearer_cols, detail_run_labels)):
-        with column:
-            axis_name = detail_axes[label]
-            bearer_mix_df = detail_bearer_mix[label]
-            if not axis_name or bearer_mix_df.empty:
-                st.info("No bearer involvement data available.")
-                continue
-            plot_df = bearer_mix_df.copy()
-            totals = plot_df.groupby(axis_name)["count"].transform("sum")
-            plot_df["share_pct"] = (plot_df["count"] / totals.where(totals > 0)) * 100.0
-            plot_df = plot_df.dropna(subset=["share_pct"])
-            if plot_df.empty:
-                st.info("No bearer involvement data available.")
-                continue
-            bearer_fig = px.area(
-                plot_df,
-                x=axis_name,
-                y="share_pct",
-                color="bearer",
-                color_discrete_map=BEARER_COLOR_MAP,
-                category_orders={"bearer": list(BEARER_COLOR_MAP.keys())},
-            )
-            bearer_fig.update_layout(
-                xaxis_title=axis_name,
-                yaxis_title="Bearer involvement (%)",
-                showlegend=index == 0,
-                legend_title_text="Bearer",
-            )
-            if index == 0:
-                bearer_fig.update_layout(
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="left",
-                        x=0.0,
-                    )
+    bearer_column_count = min(BEARER_MAX_COLUMNS, max(1, len(detail_run_labels)))
+    bearer_label_rows = _chunk_labels(detail_run_labels, max_columns=bearer_column_count)
+    bearer_legend_items = _collect_bearer_legend_items(detail_bearer_mix)
+    for row_labels in bearer_label_rows:
+        bearer_cols = st.columns(bearer_column_count)
+        for index, (column, label) in enumerate(zip(bearer_cols, row_labels)):
+            global_index = detail_run_labels.index(label)
+            with column:
+                st.markdown(f"##### {label}")
+                axis_name = detail_axes[label]
+                bearer_mix_df = detail_bearer_mix[label]
+                if not axis_name or bearer_mix_df.empty:
+                    st.info("No bearer involvement data available.")
+                    continue
+                plot_df = bearer_mix_df.copy()
+                totals = plot_df.groupby(axis_name)["count"].transform("sum")
+                plot_df["share_pct"] = (plot_df["count"] / totals.where(totals > 0)) * 100.0
+                plot_df = plot_df.dropna(subset=["share_pct"])
+                if plot_df.empty:
+                    st.info("No bearer involvement data available.")
+                    continue
+                bearer_fig = px.area(
+                    plot_df,
+                    x=axis_name,
+                    y="share_pct",
+                    color="bearer",
+                    color_discrete_map=BEARER_COLOR_MAP,
+                    category_orders={"bearer": list(BEARER_COLOR_MAP.keys())},
                 )
-            st.plotly_chart(
-                bearer_fig,
-                width="stretch",
-                key=f"{PAGE_KEY}:detail:bearer:{label}",
-            )
+                bearer_fig.update_layout(
+                    xaxis_title=axis_name,
+                    yaxis_title="Bearer involvement (%)",
+                    showlegend=global_index == 0,
+                    legend_title_text="Bearer",
+                )
+                if global_index == 0:
+                    _add_missing_bearer_legend_traces(bearer_fig, bearer_legend_items)
+                    bearer_fig.update_layout(
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="left",
+                            x=0.0,
+                        )
+                    )
+                st.plotly_chart(
+                    bearer_fig,
+                    width="stretch",
+                    key=f"{PAGE_KEY}:detail:bearer:{label}",
+                )
 
     _render_heatmap_section(
         "Served Bandwidth Matrix",
@@ -1487,7 +1587,7 @@ def main() -> None:
     if not heatmap_nodes.empty:
         st.caption(
             "Matrices use one shared node list across all selected runs. Axes show source and destination nodes, "
-            "while the internal layout keeps uniform cell sizes. Exact values are available on hover, and the shared color scale is rendered separately on the right of each matrix section. "
+            "while the internal layout keeps uniform cell sizes. Exact values are available on hover, and the shared color scale is rendered separately on the right of each matrix row. "
             "Blank cells mean no data for that source-destination pair in that run."
         )
 

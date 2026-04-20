@@ -281,8 +281,25 @@ def test_view_inference_analysis_builds_uniform_matrix_heatmap_coordinates() -> 
     assert fig.layout.yaxis.title.text == "Destination node"
     assert list(fig.layout.xaxis.ticktext) == ["1", "1001"]
     assert list(fig.layout.yaxis.ticktext) == ["5", "900"]
+    assert fig.layout.xaxis.tickangle == -45
     assert fig.layout.yaxis.scaleanchor == "x"
     assert fig.layout.yaxis.scaleratio == 1
+    assert heatmap.xgap == 0
+    assert heatmap.ygap == 0
+    assert len(fig.layout.shapes) == 6
+    vertical_boundaries = {
+        float(shape.x0)
+        for shape in fig.layout.shapes
+        if shape.type == "line" and float(shape.x0) == float(shape.x1)
+    }
+    horizontal_boundaries = {
+        float(shape.y0)
+        for shape in fig.layout.shapes
+        if shape.type == "line" and float(shape.y0) == float(shape.y1)
+    }
+    assert vertical_boundaries == {-0.5, 0.5, 1.5}
+    assert horizontal_boundaries == {-0.5, 0.5, 1.5}
+    assert all(shape.line.color == module.HEATMAP_GRID_COLOR for shape in fig.layout.shapes)
     assert heatmap.colorbar.len == pytest.approx(0.72)
     assert heatmap.colorbar.thickness == 14
     assert fig.layout.title.text is None
@@ -315,12 +332,33 @@ def test_view_inference_analysis_builds_detached_heatmap_colorbar_figure() -> No
     assert scatter.marker.showscale is True
     assert scatter.marker.colorbar.title.text == "Value"
     assert scatter.marker.colorbar.len == pytest.approx(0.66)
-    assert scatter.marker.colorbar.x == pytest.approx(0.92)
+    assert scatter.marker.colorbar.x == pytest.approx(0.58)
     assert scatter.marker.colorbar.xanchor == "right"
-    assert scatter.marker.colorbar.thickness == 12
+    assert scatter.marker.colorbar.thickness == 10
+    assert scatter.marker.colorbar.tickfont.size == 11
     assert fig.layout.height == 420
+    assert fig.layout.margin.r == 28
     assert fig.layout.xaxis.visible is False
     assert fig.layout.yaxis.visible is False
+
+
+def test_view_inference_analysis_can_build_detached_heatmap_colorbar_without_internal_title() -> None:
+    module = _load_module()
+
+    fig = module._build_heatmap_colorbar_figure(colorbar_title="", zmax=100.0, height=420)
+    scatter = fig.data[0]
+
+    assert scatter.marker.showscale is True
+    assert scatter.marker.colorbar.title.text is None
+
+
+def test_view_inference_analysis_formats_wrapped_heatmap_scale_labels() -> None:
+    module = _load_module()
+
+    assert module._format_heatmap_scale_label("Served bandwidth (%)") == "**Served bandwidth**  \n(%)"
+    assert module._format_heatmap_scale_label("Rejected ratio (%)") == "**Rejected ratio**  \n(%)"
+    assert module._format_heatmap_scale_label("Value") == "**Value**"
+    assert module._format_heatmap_scale_label("   ") == ""
 
 
 def test_view_inference_analysis_chunks_heatmap_labels_for_wrapped_matrix_grid() -> None:
@@ -329,6 +367,57 @@ def test_view_inference_analysis_chunks_heatmap_labels_for_wrapped_matrix_grid()
     rows = module._chunk_labels(["run_a", "run_b", "run_c"], max_columns=2)
 
     assert rows == [["run_a", "run_b"], ["run_c"]]
+
+
+def test_view_inference_analysis_keeps_heatmap_grid_column_count_fixed_for_odd_rows() -> None:
+    module = _load_module()
+
+    assert module._resolve_heatmap_section_column_count(1) == 1
+    assert module._resolve_heatmap_section_column_count(2) == 2
+    assert module._resolve_heatmap_section_column_count(3) == 2
+
+
+def test_view_inference_analysis_chunks_bearer_plots_with_three_max_per_row() -> None:
+    module = _load_module()
+
+    rows = module._chunk_labels(["run_a", "run_b", "run_c", "run_d"], max_columns=module.BEARER_MAX_COLUMNS)
+
+    assert rows == [["run_a", "run_b", "run_c"], ["run_d"]]
+
+
+def test_view_inference_analysis_collects_bearer_legend_items_across_runs() -> None:
+    module = _load_module()
+
+    legend_items = module._collect_bearer_legend_items(
+        {
+            "run_a": pd.DataFrame({"bearer": ["OPT", "not routed"]}),
+            "run_b": pd.DataFrame({"bearer": ["SAT", "IVDL"]}),
+            "run_c": pd.DataFrame(),
+        }
+    )
+
+    assert legend_items == ["SAT", "OPT", "IVDL", "not routed"]
+
+
+def test_view_inference_analysis_adds_missing_bearer_legend_traces() -> None:
+    module = _load_module()
+
+    fig = module.go.Figure(
+        data=[
+            module.go.Scatter(
+                x=[0, 1],
+                y=[10, 20],
+                mode="lines",
+                name="SAT",
+                showlegend=True,
+            )
+        ]
+    )
+
+    module._add_missing_bearer_legend_traces(fig, ["SAT", "OPT", "not routed"])
+
+    names = [trace.name for trace in fig.data]
+    assert names == ["SAT", "OPT", "not routed"]
 
 
 def test_view_inference_analysis_latency_distribution_uses_only_routed_rows() -> None:
