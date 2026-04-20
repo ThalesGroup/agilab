@@ -31,43 +31,37 @@ later when you want the higher-level AGILAB workflow around the same API.
 Colab launch flow
 -----------------
 
-The Colab notebooks are now split explicitly by install path.
+Recommended notebook
+^^^^^^^^^^^^^^^^^^^^
 
-Published-package notebooks
+- `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
+  clones the repository, installs editable AGILAB and core packages, and runs
+  ``mycode_project``.
+
+Other notebook entry points
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- `First Run <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
-  installs AGILAB from PyPI and runs ``mycode_project``.
-- `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
-  installs AGILAB from PyPI, benchmarks ``mycode_project`` across the default
-  execution-mode sweep, renders a ranked comparison table, and writes the
-  benchmark JSON artifact.
-- `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb>`_
-  installs AGILAB from PyPI and runs ``execution_pandas_project`` plus
-  ``uav_relay_queue_project``.
-- `Worker Paths <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb>`_
-  installs AGILAB from PyPI and inspects packaged worker-class paths.
+- `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
+  is a source-checkout notebook that clones the repository, installs editable
+  AGILAB and core packages, benchmarks ``mycode_project`` across the default
+  AGILAB mode sweep, and renders a ranked comparison table.
+- `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
+  is an advanced source-checkout notebook for a data-worker app and a
+  DAG-style app.
+- `Worker Paths <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb>`_
+  is an advanced source-checkout notebook for worker-class and source-path
+  inspection.
 
-Source-checkout notebooks
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Published-package variants
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- `First Run (source) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
-  clones the repository, installs editable packages, and runs
-  ``mycode_project``.
-- `Benchmark (source) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
-  clones the repository, installs editable packages, and benchmarks
-  ``mycode_project`` across the default execution-mode sweep.
-- `Data + DAG (source) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
-  clones the repository, installs editable packages, and runs
-  ``execution_pandas_project`` plus ``uav_relay_queue_project`` so you can see
-  both a data-oriented workload and a pipeline-shaped workflow from the same
-  notebook entry point.
-- `Worker Paths (source) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb>`_
-  clones the repository, installs editable packages, resolves the worker path
-  for ``execution_pandas_project``, ``flight_project``, and
-  ``uav_relay_queue_project``, and prints the imported class lineage for
-  ``ExecutionPandasWorker``, ``FlightWorker``, and the shared ``DagWorker``
-  base class.
+Use these only when you explicitly want the current PyPI release instead of
+GitHub ``main``.
+
+- `First Run (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
+- `Benchmark (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
+- `Data + DAG (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb>`_
+- `Worker Paths (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb>`_
 
 Repository launch flow
 ----------------------
