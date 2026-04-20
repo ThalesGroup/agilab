@@ -66,6 +66,10 @@ That notebook clones the repository, resolves the worker source path for
 ``ExecutionPandasWorker``, ``FlightWorker``, and the shared ``DagWorker``
 base class.
 
+It also applies a tiny Python 3.12 compatibility shim before importing the
+AGILAB modules, because Colab can expose an older ``agi_env`` wheel whose
+``pathlib`` import path is not safe otherwise.
+
 Repository launch flow
 ----------------------
 
