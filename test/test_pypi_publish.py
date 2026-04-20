@@ -220,9 +220,6 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
     builtin_toml = builtin_dir / "pyproject.toml"
     builtin_toml.write_text("[project]\nname='flight_project'\nversion='1.0.0'\n", encoding="utf-8")
 
-    docs_html = tmp_path / "docs" / "html"
-    docs_html.mkdir(parents=True)
-
     monkeypatch.setattr(module, "CORE", [("agi-env", core_toml, core_dir)])
     monkeypatch.setattr(module, "UMBRELLA", ("agilab", umbrella_toml, umbrella_dir))
     monkeypatch.setattr(module, "builtin_app_pyprojects", lambda: [builtin_toml, builtin_toml])
@@ -236,7 +233,6 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "src/agilab/apps/builtin/flight_project/pyproject.toml",
         "README.md",
         "badges/pypi-version-agilab.svg",
-        "docs/html",
     ]
 
 

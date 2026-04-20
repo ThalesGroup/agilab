@@ -1036,10 +1036,8 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
         badge_path = static_badge_path(package_name)
         if badge_path.exists():
             paths.append(str(badge_path.relative_to(REPO_ROOT)))
-    if include_docs:
-        docs_html = REPO_ROOT / "docs" / "html"
-        if docs_html.exists():
-            paths.append(str(docs_html.relative_to(REPO_ROOT)))
+    # Generated HTML stays out of git even when --gen-docs is requested.
+    # Docs publication consumes the generated site separately from release metadata.
     # Preserve order but drop duplicates
     seen: set[str] = set()
     unique: list[str] = []
