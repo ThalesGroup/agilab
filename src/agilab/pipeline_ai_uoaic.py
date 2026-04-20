@@ -11,7 +11,10 @@ from agi_env import AgiEnv
 
 try:
     from agilab.pipeline_ai_support import (
+        OLLAMA_DEEPSEEK_PROVIDER,
+        OLLAMA_QWEN_PROVIDER,
         _ensure_uoaic_runtime as _ensure_uoaic_runtime_impl,
+        default_ollama_family_model,
         format_uoaic_question as _format_uoaic_question,
         _load_uoaic_modules as _load_uoaic_modules_impl,
         normalize_ollama_endpoint as _normalize_ollama_endpoint,
@@ -28,7 +31,10 @@ except ModuleNotFoundError:
         raise
     _pipeline_ai_support_module = importlib.util.module_from_spec(_pipeline_ai_support_spec)
     _pipeline_ai_support_spec.loader.exec_module(_pipeline_ai_support_module)
+    OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+    OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
     _ensure_uoaic_runtime_impl = _pipeline_ai_support_module._ensure_uoaic_runtime
+    default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
     _format_uoaic_question = _pipeline_ai_support_module.format_uoaic_question
     _load_uoaic_modules_impl = _pipeline_ai_support_module._load_uoaic_modules
     _normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
@@ -215,36 +221,46 @@ def render_universal_offline_controls(
     *,
     deps: UoaicControlDeps,
 ) -> None:
-    if deps.session_state.get("lab_llm_provider") != UOAIC_PROVIDER:
+    selected_provider = deps.session_state.get("lab_llm_provider")
+    provider_family = {
+        OLLAMA_QWEN_PROVIDER: "qwen",
+        OLLAMA_DEEPSEEK_PROVIDER: "deepseek",
+    }.get(str(selected_provider or ""))
+    if selected_provider not in {UOAIC_PROVIDER, OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
         return
 
-    mode_default = (
-        deps.session_state.get(UOAIC_MODE_STATE_KEY)
-        or env.envars.get(UOAIC_MODE_ENV)
-        or os.getenv(UOAIC_MODE_ENV)
-        or UOAIC_MODE_OLLAMA
-    )
-    mode_options = {
-        "Code (Ollama)": UOAIC_MODE_OLLAMA,
-        "RAG (offline docs)": UOAIC_MODE_RAG,
-    }
-    mode_labels = list(mode_options.keys())
-    current_mode_label = next(
-        (label for label, value in mode_options.items() if value == mode_default),
-        mode_labels[0],
-    )
-    selected_mode_label = deps.sidebar.selectbox(
-        "Local assistant mode",
-        mode_labels,
-        index=mode_labels.index(current_mode_label),
-        help="Use direct Ollama generation for code correctness, or the Universal Offline RAG chain for doc Q&A.",
-    )
-    selected_mode = mode_options[selected_mode_label]
-    previous_mode = deps.session_state.get(UOAIC_MODE_STATE_KEY)
-    deps.session_state[UOAIC_MODE_STATE_KEY] = selected_mode
-    env.envars[UOAIC_MODE_ENV] = selected_mode
-    if previous_mode and previous_mode != selected_mode:
-        deps.session_state.pop(UOAIC_RUNTIME_KEY, None)
+    if provider_family is None:
+        mode_default = (
+            deps.session_state.get(UOAIC_MODE_STATE_KEY)
+            or env.envars.get(UOAIC_MODE_ENV)
+            or os.getenv(UOAIC_MODE_ENV)
+            or UOAIC_MODE_OLLAMA
+        )
+        mode_options = {
+            "Code (Ollama)": UOAIC_MODE_OLLAMA,
+            "RAG (offline docs)": UOAIC_MODE_RAG,
+        }
+        mode_labels = list(mode_options.keys())
+        current_mode_label = next(
+            (label for label, value in mode_options.items() if value == mode_default),
+            mode_labels[0],
+        )
+        selected_mode_label = deps.sidebar.selectbox(
+            "Local assistant mode",
+            mode_labels,
+            index=mode_labels.index(current_mode_label),
+            help="Use direct Ollama generation for code correctness, or the Universal Offline RAG chain for doc Q&A.",
+        )
+        selected_mode = mode_options[selected_mode_label]
+        previous_mode = deps.session_state.get(UOAIC_MODE_STATE_KEY)
+        deps.session_state[UOAIC_MODE_STATE_KEY] = selected_mode
+        env.envars[UOAIC_MODE_ENV] = selected_mode
+        if previous_mode and previous_mode != selected_mode:
+            deps.session_state.pop(UOAIC_RUNTIME_KEY, None)
+    else:
+        selected_mode = UOAIC_MODE_OLLAMA
+        deps.session_state[UOAIC_MODE_STATE_KEY] = selected_mode
+        env.envars[UOAIC_MODE_ENV] = selected_mode
 
     with deps.sidebar.expander("Ollama settings", expanded=True):
         endpoint_default = (
@@ -267,9 +283,17 @@ def render_universal_offline_controls(
             deps.session_state.get("uoaic_model")
             or env.envars.get(UOAIC_MODEL_ENV)
             or os.getenv(UOAIC_MODEL_ENV, "")
-            or deps.default_ollama_model_fn(
-                normalized_endpoint,
-                prefer_code=selected_mode == UOAIC_MODE_OLLAMA,
+            or (
+                default_ollama_family_model(
+                    normalized_endpoint,
+                    family=provider_family,
+                    prefer_code=True,
+                )
+                if provider_family is not None
+                else deps.default_ollama_model_fn(
+                    normalized_endpoint,
+                    prefer_code=selected_mode == UOAIC_MODE_OLLAMA,
+                )
             )
         )
         model_input = deps.sidebar.text_input(
@@ -384,6 +408,9 @@ def render_universal_offline_controls(
         )
         deps.session_state[UOAIC_AUTOFIX_MAX_STATE_KEY] = int(max_attempts)
         env.envars[UOAIC_AUTOFIX_MAX_ENV] = str(int(max_attempts))
+
+    if provider_family is not None:
+        return
 
     if selected_mode != UOAIC_MODE_RAG:
         deps.sidebar.caption("RAG knowledge-base settings are hidden (switch mode to enable).")

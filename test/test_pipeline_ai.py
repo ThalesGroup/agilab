@@ -1604,6 +1604,38 @@ def test_configure_assistant_engine_switches_back_to_openai(monkeypatch):
     assert fake_st.session_state["page"][3] == ""
 
 
+def test_configure_assistant_engine_selects_qwen_and_seeds_local_family_model(monkeypatch):
+    fake_sidebar = SimpleNamespace(
+        selectbox=lambda label, options, index=0, help=None: "Qwen (local)",
+        text_input=lambda *args, **kwargs: "",
+    )
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": "openai",
+            "index_page": "page",
+            "page": [0, 0, 0, "stale-model"],
+            "uoaic_model": "codegemma",
+        },
+        sidebar=fake_sidebar,
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setitem(
+        pipeline_ai._configure_assistant_engine_impl.__globals__,
+        "default_ollama_family_model",
+        lambda endpoint, family, prefer_code=False: "qwen2.5-coder:7b",
+    )
+    env = SimpleNamespace(envars={"LAB_LLM_PROVIDER": "openai"})
+
+    provider = pipeline_ai.configure_assistant_engine(env)
+
+    assert provider == pipeline_ai.OLLAMA_QWEN_PROVIDER
+    assert env.envars["LAB_LLM_PROVIDER"] == pipeline_ai.OLLAMA_QWEN_PROVIDER
+    assert env.envars[pipeline_ai.UOAIC_MODE_ENV] == pipeline_ai.UOAIC_MODE_OLLAMA
+    assert env.envars[pipeline_ai.UOAIC_MODEL_ENV] == "qwen2.5-coder:7b"
+    assert fake_st.session_state["uoaic_model"] == "qwen2.5-coder:7b"
+    assert fake_st.session_state["page"][3] == ""
+
+
 def test_gpt_oss_controls_start_button_persists_backend_checkpoint_and_flags(monkeypatch):
     messages: list[tuple[str, str]] = []
 
@@ -2414,6 +2446,56 @@ def test_universal_offline_controls_cover_code_mode_and_invalid_rag_inputs(monke
     assert any("Set the data directory before rebuilding" in msg for kind, msg in messages if kind == "error")
 
 
+def test_universal_offline_controls_support_standalone_qwen_provider(monkeypatch):
+    messages: list[tuple[str, str]] = []
+
+    class QwenSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            raise AssertionError(label)
+
+        def expander(self, label, expanded=True):
+            return nullcontext()
+
+        def text_input(self, label, value="", help=None):
+            if label == "Ollama endpoint":
+                return "http://127.0.0.1:11434"
+            return value
+
+        def slider(self, *args, **kwargs):
+            return kwargs["value"]
+
+        def number_input(self, label, **kwargs):
+            return 0 if "Max fix attempts" not in label else 0
+
+        def checkbox(self, label, value=False, help=None):
+            return False
+
+        def caption(self, message):
+            messages.append(("caption", str(message)))
+
+    fake_st = SimpleNamespace(
+        session_state={"lab_llm_provider": pipeline_ai.OLLAMA_QWEN_PROVIDER},
+        sidebar=QwenSidebar(),
+        text_input=lambda *args, **kwargs: QwenSidebar().text_input(*args, **kwargs),
+        slider=lambda *args, **kwargs: QwenSidebar().slider(*args, **kwargs),
+        number_input=lambda *args, **kwargs: QwenSidebar().number_input(*args, **kwargs),
+        checkbox=lambda *args, **kwargs: QwenSidebar().checkbox(*args, **kwargs),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setitem(
+        pipeline_ai._render_universal_offline_controls_impl.__globals__,
+        "default_ollama_family_model",
+        lambda endpoint, family, prefer_code=False: "qwen2.5-coder:latest",
+    )
+    env = SimpleNamespace(envars={})
+
+    pipeline_ai.universal_offline_controls(env)
+
+    assert env.envars[pipeline_ai.UOAIC_MODE_ENV] == pipeline_ai.UOAIC_MODE_OLLAMA
+    assert env.envars[pipeline_ai.UOAIC_MODEL_ENV] == "qwen2.5-coder:latest"
+    assert not [msg for kind, msg in messages if kind == "caption"]
+
+
 def test_ask_gpt_and_autofix_cover_empty_and_failed_repair_paths(monkeypatch):
     fake_st = SimpleNamespace(
         session_state={
@@ -2472,6 +2554,31 @@ def test_ask_gpt_and_autofix_cover_empty_and_failed_repair_paths(monkeypatch):
     assert detail == "detail-a"
     assert any("model returned no code" in entry for entry in logs)
     assert any("keeping the last generated code" in entry for entry in logs)
+
+
+def test_ask_gpt_routes_qwen_and_deepseek_through_local_ollama(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": pipeline_ai.OLLAMA_QWEN_PROVIDER,
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    calls: list[str] = []
+
+    def _fake_chat_ollama_local(question, prompt, envars):
+        calls.append(fake_st.session_state["lab_llm_provider"])
+        return ("```python\nprint('ok')\n```", fake_st.session_state["lab_llm_provider"])
+
+    monkeypatch.setattr(pipeline_ai, "chat_ollama_local", _fake_chat_ollama_local)
+
+    qwen_result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
+    fake_st.session_state["lab_llm_provider"] = pipeline_ai.OLLAMA_DEEPSEEK_PROVIDER
+    deepseek_result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
+
+    assert calls == [pipeline_ai.OLLAMA_QWEN_PROVIDER, pipeline_ai.OLLAMA_DEEPSEEK_PROVIDER]
+    assert qwen_result[2:] == [pipeline_ai.OLLAMA_QWEN_PROVIDER, "print('ok')", ""]
+    assert deepseek_result[2:] == [pipeline_ai.OLLAMA_DEEPSEEK_PROVIDER, "print('ok')", ""]
 
 
 def test_autofix_and_provider_switch_cover_remaining_error_paths(monkeypatch):
