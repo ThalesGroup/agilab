@@ -28,6 +28,26 @@ def test_agi_singleton_marks_instance_on_first_init():
     assert AGI._instantiated is True
 
 
+def test_resolve_node_src_returns_none_for_shallow_prefix(tmp_path):
+    assert (
+        agi_distributor_module._resolve_node_src(
+            sys_prefix="/usr",
+            source_file=tmp_path / "pkg" / "agi_distributor.py",
+        )
+        is None
+    )
+
+
+def test_resolve_node_src_prefers_existing_repo_layout(tmp_path):
+    node_src = tmp_path / "env" / "agi-node" / "src"
+    node_src.mkdir(parents=True)
+
+    assert agi_distributor_module._resolve_node_src(
+        sys_prefix=tmp_path / "env",
+        source_file=tmp_path / "pkg" / "agi_distributor.py",
+    ) == str(node_src)
+
+
 def test_agi_sync_wrapper_surface_delegates(monkeypatch, tmp_path):
     calls = []
 
