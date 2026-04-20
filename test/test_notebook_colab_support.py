@@ -71,6 +71,43 @@ def test_worker_venv_path_uses_target_name(monkeypatch, tmp_path: Path):
     assert path == tmp_path / "wenv" / "demo_worker" / ".venv"
 
 
+def test_worker_env_ready_returns_false_when_missing(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(colab_support.Path, "home", staticmethod(lambda: tmp_path))
+
+    assert colab_support.worker_env_ready(SimpleNamespace(target="demo", app="demo")) is False
+
+
+def test_worker_env_ready_checks_agi_imports(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(colab_support.Path, "home", staticmethod(lambda: tmp_path))
+    worker_venv = tmp_path / "wenv" / "demo_worker" / ".venv"
+    worker_venv.mkdir(parents=True, exist_ok=True)
+    calls: list[list[str]] = []
+
+    def _fake_run(cmd, **_kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0)
+
+    ready = colab_support.worker_env_ready(
+        SimpleNamespace(target="demo", app="demo", pyvers_worker="3.13"),
+        run_fn=_fake_run,
+    )
+
+    assert ready is True
+    assert calls == [[
+        "uv",
+        "--quiet",
+        "run",
+        "--no-sync",
+        "--project",
+        str(worker_venv.parent),
+        "--python",
+        "3.13",
+        "python",
+        "-c",
+        "import agi_env, agi_node",
+    ]]
+
+
 def test_resolve_builtin_root_handles_builtin_and_apps_roots(tmp_path: Path):
     builtin_root = tmp_path / "apps" / "builtin"
     builtin_root.mkdir(parents=True)
@@ -108,6 +145,8 @@ async def test_install_if_needed_skips_existing_worker(monkeypatch, tmp_path: Pa
         async def install(*args, **kwargs):
             calls.append((args, kwargs))
 
+    monkeypatch.setattr(colab_support, "worker_env_ready", lambda _app_env: True)
+
     installed = await colab_support.install_if_needed(
         _AGI,
         SimpleNamespace(target="demo", app="demo"),
@@ -141,3 +180,32 @@ async def test_install_if_needed_runs_install_when_worker_missing(monkeypatch, t
     assert installed is True
     assert messages == ["Installing worker for demo..."]
     assert calls == [((env,), {"scheduler": "127.0.0.1", "workers": {"127.0.0.1": 1}, "modes_enabled": 0})]
+
+
+@pytest.mark.asyncio
+async def test_install_if_needed_reinstalls_broken_existing_worker(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(colab_support.Path, "home", staticmethod(lambda: tmp_path))
+    existing = tmp_path / "wenv" / "demo_worker" / ".venv"
+    existing.mkdir(parents=True, exist_ok=True)
+    (existing.parent / "stale.txt").write_text("x", encoding="utf-8")
+    calls: list[tuple] = []
+    messages: list[str] = []
+    env = SimpleNamespace(target="demo", app="demo")
+
+    class _AGI:
+        @staticmethod
+        async def install(*args, **kwargs):
+            calls.append((args, kwargs))
+
+    monkeypatch.setattr(colab_support, "worker_env_ready", lambda _app_env: False)
+
+    installed = await colab_support.install_if_needed(
+        _AGI,
+        env,
+        print_fn=messages.append,
+    )
+
+    assert installed is True
+    assert messages == ["Reinstalling worker for demo..."]
+    assert calls == [((env,), {"scheduler": "127.0.0.1", "workers": {"127.0.0.1": 1}, "modes_enabled": 0})]
+    assert not existing.parent.exists()

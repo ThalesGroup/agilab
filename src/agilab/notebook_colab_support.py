@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import types
@@ -188,6 +189,37 @@ def worker_venv_path(app_env: Any) -> Path:
     return Path.home() / "wenv" / f"{app_env.target}_worker" / ".venv"
 
 
+def worker_env_ready(
+    app_env: Any,
+    *,
+    run_fn: Callable[..., Any] = subprocess.run,
+) -> bool:
+    worker_venv = worker_venv_path(app_env)
+    if not worker_venv.exists():
+        return False
+
+    worker_root = worker_venv.parent
+    cmd = [
+        "uv",
+        "--quiet",
+        "run",
+        "--no-sync",
+        "--project",
+        str(worker_root),
+    ]
+    pyvers_worker = getattr(app_env, "pyvers_worker", None)
+    if pyvers_worker:
+        cmd.extend(["--python", str(pyvers_worker)])
+    cmd.extend(["python", "-c", "import agi_env, agi_node"])
+    result = run_fn(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return getattr(result, "returncode", 1) == 0
+
+
 async def install_if_needed(
     AGI: Any,
     app_env: Any,
@@ -200,10 +232,16 @@ async def install_if_needed(
     if workers is None:
         workers = {"127.0.0.1": 1}
 
-    if worker_venv_path(app_env).exists():
+    worker_venv = worker_venv_path(app_env)
+    if worker_env_ready(app_env):
         return False
 
-    print_fn(f"Installing worker for {app_env.app}...")
+    action = "Installing"
+    if worker_venv.parent.exists():
+        shutil.rmtree(worker_venv.parent, ignore_errors=True)
+        action = "Reinstalling"
+
+    print_fn(f"{action} worker for {app_env.app}...")
     await AGI.install(
         app_env,
         scheduler=scheduler,
