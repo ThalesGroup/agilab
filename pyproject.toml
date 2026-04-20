@@ -194,6 +194,16 @@ agilab = [
     "resources/*.*",
     "resources/help/*",
     "pages/*.py",
+    "apps/builtin/*/pyproject.toml",
+    "apps/builtin/*/README.md",
+    "apps/builtin/*/lab_steps.toml",
+    "apps/builtin/*/pipeline_view.dot",
+    "apps/builtin/*/src/**/*.py",
+    "apps/builtin/*/src/**/*.pyx",
+    "apps/builtin/*/src/**/*.toml",
+    "apps/builtin/*/src/**/*.csv",
+    "apps/builtin/*/src/**/*.dot",
+    "apps/builtin/*/src/*/sample_data/*.json",
     "apps-pages/README.md",
     "apps-pages/*/pyproject.toml",
     "apps-pages/*/*.py",
@@ -206,19 +216,18 @@ agilab = [
 agilab = [
     # Keep internal tests out of the distribution.
     "test/*",
-]
-"agilab.apps" = [
-    # Never ship repository apps (often local symlinks to private checkouts).
-    "*_project/*",
-    # Drop generated artifacts if they exist locally.
-    "*/build/*",
-    "*/__pycache__/*",
-    "*/.pytest_cache/*",
-    "*/.venv/*",
-    "*/.coverage*",
-    # Local-only configs created during installs/runs.
-    "builtin/*/src/app_args_form.py",
-    "builtin/*/src/app_settings.toml",
+    # Drop local build artifacts from packaged built-in apps.
+    "apps/builtin/*/src/pre_prompt.json",
+    "apps/builtin/*/src/__pycache__/*",
+    "apps/builtin/*/src/*/__pycache__/*",
+    "apps/builtin/*/src/*/*/__pycache__/*",
+    "apps/builtin/*/src/*.pyc",
+    "apps/builtin/*/src/*/*.pyc",
+    "apps/builtin/*/src/*/*/*.pyc",
+    "apps/builtin/*/src/*.egg-info/*",
+    "apps/builtin/*/src/*/*.egg-info/*",
+    "apps/builtin/*/src/*/*.c",
+    "apps/builtin/*/src/*/*.7z",
 ]
 
 [tool.mypy]

@@ -21,19 +21,26 @@ from typing import Any, Callable
 
 @dataclass(frozen=True)
 class ColabNotebookContext:
-    repo_root: Path
-    apps_path: Path
-    builtin_root: Path
+    repo_root: Path | None
+    apps_path: Path | None
+    builtin_root: Path | None
     AGI: Any
     AgiEnv: type
     ensure_app_core_packages: Callable[[Path], None]
     ensure_env_core_packages: Callable[[Any], None]
 
 
-def configure_local_notebook_environ(environ: dict[str, str] | None = None) -> None:
+def configure_local_notebook_environ(
+    environ: dict[str, str] | None = None,
+    *,
+    source_env: bool = True,
+) -> None:
     if environ is None:
         environ = os.environ
-    environ["IS_SOURCE_ENV"] = "1"
+    if source_env:
+        environ["IS_SOURCE_ENV"] = "1"
+    else:
+        environ.pop("IS_SOURCE_ENV", None)
     environ["AGI_CLUSTER_ENABLED"] = "0"
     environ.pop("IS_WORKER_ENV", None)
 
@@ -63,6 +70,27 @@ def prepend_sys_path_entries(entries: list[Path]) -> None:
 
 def ensure_env_core_packages(ensure_app_core_packages: Callable[[Path], None], app_env: Any) -> None:
     ensure_app_core_packages(Path(app_env.active_app))
+
+
+def resolve_builtin_root(apps_path: Path | None) -> Path | None:
+    if apps_path is None:
+        return None
+    if apps_path.name == "builtin":
+        return apps_path
+    candidate = apps_path / "builtin"
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def _noop(*_args: Any, **_kwargs: Any) -> None:
+    return None
+
+
+def installed_apps_path() -> Path:
+    import agilab
+
+    return Path(agilab.__file__).resolve().parent / "apps"
 
 
 def bootstrap_colab_core(repo_root: str | Path = "/content/agilab") -> ColabNotebookContext:
@@ -129,6 +157,30 @@ def bootstrap_colab_core(repo_root: str | Path = "/content/agilab") -> ColabNote
         AgiEnv=AgiEnv,
         ensure_app_core_packages=ensure_app_core_packages,
         ensure_env_core_packages=lambda app_env: ensure_env_core_packages(ensure_app_core_packages, app_env),
+    )
+
+
+def bootstrap_installed_colab(apps_path: str | Path | None = None) -> ColabNotebookContext:
+    configure_local_notebook_environ(source_env=False)
+    ensure_pathlib_unsupported_operation()
+    clear_agilab_core_modules()
+
+    from agi_cluster.agi_distributor import AGI
+    from agi_env import AgiEnv
+
+    resolved_apps_path = (
+        Path(apps_path).expanduser() if apps_path is not None else installed_apps_path()
+    )
+    builtin_root = resolve_builtin_root(resolved_apps_path)
+
+    return ColabNotebookContext(
+        repo_root=None,
+        apps_path=resolved_apps_path,
+        builtin_root=builtin_root,
+        AGI=AGI,
+        AgiEnv=AgiEnv,
+        ensure_app_core_packages=_noop,
+        ensure_env_core_packages=_noop,
     )
 
 
