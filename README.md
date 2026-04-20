@@ -124,8 +124,10 @@ uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first
 
 ## Watch the workflow
 
-After the first `flight_project` proof, use the built-in `uav_relay_queue_project`
-as the full workflow tour:
+Keep the two public paths separate:
+
+- first proof: `flight_project` through `PROJECT -> ORCHESTRATE -> ANALYSIS`
+- full workflow tour: `uav_relay_queue_project` through `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
 
 ![AGILAB 3-minute tour](docs/source/diagrams/agilab_readme_tour.svg)
 

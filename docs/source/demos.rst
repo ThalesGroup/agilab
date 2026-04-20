@@ -29,8 +29,8 @@ Which Demo To Watch
 
 - ``flight_project``: best first local proof of the AGILAB workflow
   (``PROJECT -> ORCHESTRATE -> ANALYSIS``).
-- ``UAV Relay Queue`` (install id ``uav_relay_queue_project``): best short technical
-  demo when you want the full public tour
+- ``UAV Relay Queue`` (install id ``uav_relay_queue_project``): best public
+  full-tour demo when you want the main four-page story
   (``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``) ending on queue evidence.
 
 Core Tour
@@ -66,6 +66,8 @@ The difference is the role:
 
 - ``flight_project`` is the safest first proof.
 - ``UAV Relay Queue`` is the strongest README/social/demo tour.
+- The compatibility matrix records those two paths separately, because they do
+  not carry the same proof level.
 
 See Also
 --------

@@ -1,9 +1,9 @@
 [metadata]
 version = 1
-updated = "2026-04-17"
+updated = "2026-04-20"
 owner = "manual-public-docs"
-purpose = "First public compatibility and certification slice for AGILAB"
-notes = "Manual matrix. Workflow-backed automation and broader certification remain roadmap work."
+purpose = "Public compatibility and demo-tour slice for AGILAB"
+notes = "Manual matrix. Workflow-backed automation and broader certification remain roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
 
 [[entries]]
 id = "source-checkout-first-proof"
@@ -26,6 +26,17 @@ python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
 scope = "PROJECT -> ORCHESTRATE -> ANALYSIS on a public built-in app, with fresh output under ~/log/execute/flight/"
 limits = ["Local path only", "Not a remote cluster proof"]
+
+[[entries]]
+id = "public-full-tour-demo"
+label = "Public full-tour demo"
+status = "documented"
+surface = "README, demos page, and public SVG/video assets"
+primary_proof = "demos.rst plus uav_relay_queue_project public tour assets"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS on uav_relay_queue_project, ending on queue and topology evidence"
+limits = ["Not the validated newcomer proof", "No separate workflow-backed certification yet"]
 
 [[entries]]
 id = "service-mode-operator-surface"

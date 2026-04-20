@@ -6,7 +6,7 @@ run of the built-in ``flight_project`` from the web UI.
 
 Do not start with cluster installs, private app repositories, notebook-first
 flows, or packaging work. The first goal is not to explore every mode. The
-first goal is to see one full AGILab workflow work end to end.
+first goal is one successful local proof from app selection to visible result.
 
 This page gives the shortest mental model for the framework. For the exact
 installation commands, see :doc:`quick-start`. If the first proof fails, use
@@ -14,6 +14,9 @@ installation commands, see :doc:`quick-start`. If the first proof fails, use
 
 Shortest first proof
 --------------------
+
+This proof does **not** require ``PIPELINE``. ``PIPELINE`` becomes important
+later, after the first local path is already working.
 
 Do this in order:
 
@@ -64,6 +67,10 @@ The first 10 minutes
    **PROJECT** -> **ORCHESTRATE** -> **ANALYSIS**.
 5. Confirm that ``~/log/execute/flight/`` contains fresh output and the
    default analysis view opens.
+
+That is enough for day 1. The fuller four-page demo story
+(``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``) is a separate public tour
+based on ``uav_relay_queue_project``, not the newcomer proof.
 
 If that path fails at any point, stop and use :doc:`newcomer-troubleshooting`
 instead of jumping directly into cluster, packaging, or general FAQ material.
