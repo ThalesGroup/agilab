@@ -82,7 +82,7 @@ def _format_dependency_spec(name: str, extras: set[str], specifiers: list[str]) 
 
 
 def _is_within_repo(path: Path, root: Path | None) -> bool:
-    if root is None:
+    if root is None or not isinstance(root, Path):
         return False
     try:
         return path.resolve().is_relative_to(root.resolve())
@@ -102,7 +102,8 @@ def _infer_repo_root_from_runtime(runtime_file: str) -> Path | None:
 
 def _read_agilab_repo_root() -> Path | None:
     read_agilab_path = cast(Callable[[], Path | None], AgiEnv.read_agilab_path)
-    return read_agilab_path()
+    repo_root = read_agilab_path()
+    return repo_root if isinstance(repo_root, Path) else None
 
 
 def _update_pyproject_dependencies(
