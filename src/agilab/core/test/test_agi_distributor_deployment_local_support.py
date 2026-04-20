@@ -657,6 +657,7 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     assert any(" add agi-env" in cmd for cmd, _ in commands)
     assert any(" add agi-node" in cmd for cmd, _ in commands)
     assert any("AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd for cmd, _ in commands)
+    assert any(f'"{app_path}"' in cmd and "demo.post_install" in cmd for cmd, _ in commands)
     assert any("threaded" in cmd for cmd, _ in commands)
 
 

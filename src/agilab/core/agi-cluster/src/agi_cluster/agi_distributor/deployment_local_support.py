@@ -723,7 +723,7 @@ async def deploy_local_worker(
         f"{_local_worker_post_install_env_prefix(agi_cls)}"
         f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "
         f"--python {pyvers_worker} python -m {env.post_install_rel} "
-        f"{wenv_rel.stem}"
+        f"\"{env.active_app}\""
     )
 
     if env.user and env.user != getpass.getuser():
