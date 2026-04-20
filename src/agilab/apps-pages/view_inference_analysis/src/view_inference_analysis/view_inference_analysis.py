@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import ast
 import fnmatch
+import html
 import json
 import sys
 import tomllib
@@ -52,13 +53,12 @@ AGGREGATION_KEY = f"{PAGE_KEY}:aggregation"
 PROFILE_METRIC_KEY = f"{PAGE_KEY}:profile_metric"
 PROFILE_AXIS_KEY = f"{PAGE_KEY}:profile_axis"
 DETAIL_RUNS_KEY = f"{PAGE_KEY}:detail_runs"
-HEATMAP_ANNOTATIONS_KEY = f"{PAGE_KEY}:heatmap_annotations"
 ENV_KEY = f"{PAGE_KEY}:env"
 LOAD_CACHE_VERSION = 2
 HEATMAP_ANNOTATION_MAX_DIM = 12
 HEATMAP_MAX_COLUMNS = 2
 BEARER_MAX_COLUMNS = 3
-HEATMAP_GRID_COLOR = "#d9dee7"
+HEATMAP_GRID_COLOR = "rgba(217, 222, 231, 0.35)"
 
 BASE_CHOICES = ("AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom")
 AGGREGATIONS = ("mean", "sum", "median", "min", "max", "std", "count")
@@ -105,6 +105,16 @@ BEARER_COLOR_MAP = {
     "routed/no bearer": "#9467bd",
     "not routed": "#7f7f7f",
 }
+BEARER_EXTRA_COLOR_SEQUENCE = (
+    "#d62728",
+    "#8c564b",
+    "#e377c2",
+    "#17becf",
+    "#bcbd22",
+    "#1f77b4",
+    "#ff9896",
+    "#98df8a",
+)
 
 
 def _resolve_active_app() -> Path:
@@ -666,6 +676,88 @@ def build_latency_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.Data
     return pd.concat(rows, ignore_index=True)
 
 
+def _is_missing_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, (list, tuple, dict, set)):
+        return False
+    try:
+        missing = pd.isna(value)
+    except Exception:
+        return False
+    return bool(missing) if isinstance(missing, (bool, int, float)) else False
+
+
+def _coerce_path_sequence(value: Any) -> list[Any]:
+    parsed = _parse_structured_value(value)
+    while True:
+        if parsed is None:
+            return []
+        if isinstance(parsed, tuple):
+            parsed = list(parsed)
+        if not isinstance(parsed, list):
+            return []
+
+        cleaned = [item for item in parsed if not _is_missing_value(item)]
+        if not cleaned:
+            return []
+
+        if all(_is_scalar_like(item) for item in cleaned):
+            return cleaned
+
+        nested_sequences = [item for item in cleaned if isinstance(item, (list, tuple))]
+        if len(cleaned) == 1 and len(nested_sequences) == 1:
+            parsed = nested_sequences[0]
+            continue
+
+        return cleaned
+
+
+def _path_hop_count(value: Any) -> int | None:
+    path_values = _coerce_path_sequence(value)
+    if not path_values:
+        return None
+    if all(isinstance(item, (list, tuple)) for item in path_values):
+        return len(path_values)
+    return max(len(path_values) - 1, 0)
+
+
+def build_hop_count_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    rows: list[pd.DataFrame] = []
+    for label, frame in frames.items():
+        if "path" not in frame.columns:
+            continue
+
+        routed = _routed_flag_series(frame)
+        hop_counts = [
+            hop_count
+            for idx in frame.index
+            if routed.get(idx, 0.0) > 0
+            for hop_count in [_path_hop_count(frame.at[idx, "path"])]
+            if hop_count is not None
+        ]
+        if not hop_counts:
+            continue
+
+        counts = (
+            pd.Series(hop_counts, name="hop_count")
+            .value_counts()
+            .sort_index()
+            .rename_axis("hop_count")
+            .reset_index(name="count")
+        )
+        total = int(counts["count"].sum())
+        if total <= 0:
+            continue
+        counts["run_label"] = label
+        counts["share_pct"] = (counts["count"] / total) * 100.0
+        rows.append(counts)
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True)
+
+
 def build_latency_percentile_frame(
     frames: dict[str, pd.DataFrame],
     axis_column: str,
@@ -768,6 +860,32 @@ def build_bearer_mix_frame(frame: pd.DataFrame, axis_column: str) -> pd.DataFram
         .sort_values([axis_column, "bearer"])
     )
     return grouped
+
+
+def _build_bearer_involvement_figure(
+    plot_df: pd.DataFrame,
+    *,
+    axis_name: str,
+    run_label: str,
+    bearer_color_map: dict[str, str],
+    bearer_legend_items: Sequence[str],
+) -> go.Figure:
+    bearer_fig = px.area(
+        plot_df,
+        x=axis_name,
+        y="share_pct",
+        color="bearer",
+        color_discrete_map=bearer_color_map,
+        category_orders={"bearer": list(bearer_legend_items)},
+    )
+    bearer_fig.update_layout(
+        title={"text": run_label, "x": 0.5, "xanchor": "center", "font": {"size": 16}},
+        xaxis_title=axis_name,
+        yaxis_title="Bearer involvement (%)",
+        showlegend=False,
+        margin={"l": 24, "r": 12, "t": 52, "b": 40},
+    )
+    return bearer_fig
 
 
 def build_flow_heatmap_frame(frame: pd.DataFrame, *, value_kind: str) -> pd.DataFrame:
@@ -876,7 +994,19 @@ def _collect_bearer_legend_items(bearer_frames: dict[str, pd.DataFrame]) -> list
     return [*ordered, *extras]
 
 
-def _add_missing_bearer_legend_traces(fig: go.Figure, legend_items: Sequence[str]) -> None:
+def _resolve_bearer_color_map(legend_items: Sequence[str]) -> dict[str, str]:
+    color_map = dict(BEARER_COLOR_MAP)
+    extras = [bearer for bearer in legend_items if bearer not in color_map]
+    for index, bearer in enumerate(extras):
+        color_map[bearer] = BEARER_EXTRA_COLOR_SEQUENCE[index % len(BEARER_EXTRA_COLOR_SEQUENCE)]
+    return color_map
+
+
+def _add_missing_bearer_legend_traces(
+    fig: go.Figure,
+    legend_items: Sequence[str],
+    bearer_color_map: dict[str, str],
+) -> None:
     existing_names = {trace.name for trace in fig.data if getattr(trace, "name", None)}
     for bearer in legend_items:
         if bearer in existing_names:
@@ -887,11 +1017,38 @@ def _add_missing_bearer_legend_traces(fig: go.Figure, legend_items: Sequence[str
                 y=[None],
                 mode="lines",
                 name=bearer,
-                line={"color": BEARER_COLOR_MAP.get(bearer, "#7f7f7f"), "width": 2},
+                line={"color": bearer_color_map[bearer], "width": 6},
                 hoverinfo="skip",
                 showlegend=True,
             )
         )
+
+
+def _build_bearer_legend_html(
+    legend_items: Sequence[str],
+    bearer_color_map: dict[str, str],
+) -> str:
+    if not legend_items:
+        return ""
+
+    item_html = "".join(
+        (
+            '<span style="display:inline-flex;align-items:center;gap:0.45rem;">'
+            f'<span style="width:0.9rem;height:0.9rem;display:inline-block;'
+            f'background:{html.escape(bearer_color_map[bearer])};'
+            'border-radius:2px;border:1px solid rgba(0,0,0,0.14);"></span>'
+            f'<span>{html.escape(str(bearer))}</span>'
+            "</span>"
+        )
+        for bearer in legend_items
+    )
+    return (
+        '<div style="margin:0.2rem 0 0.8rem 0;">'
+        '<div style="display:flex;flex-wrap:wrap;gap:0.5rem 1.2rem;align-items:center;">'
+        f"{item_html}"
+        "</div>"
+        "</div>"
+    )
 
 
 def _format_heatmap_scale_label(colorbar_title: str) -> str:
@@ -1021,7 +1178,7 @@ def _build_heatmap_figure(
         "height": _resolve_heatmap_height(len(matrix.index)),
     }
     if title:
-        layout_kwargs["title"] = {"text": title}
+        layout_kwargs["title"] = {"text": title, "x": 0.5, "xanchor": "center", "font": {"size": 16}}
     fig.update_layout(**layout_kwargs)
     return fig
 
@@ -1107,12 +1264,11 @@ def _render_heatmap_section(
     chart_key_prefix: str,
     show_annotations: bool = False,
 ) -> None:
-    st.markdown(f"**{section_title}**")
+    st.write(section_title)
     non_empty_matrices = [matrix for matrix in matrices.values() if not matrix.empty]
     max_row_count = max((len(matrix.index) for matrix in non_empty_matrices), default=0)
     heatmap_height = _resolve_heatmap_height(max_row_count)
     column_count = _resolve_heatmap_section_column_count(len(matrices))
-    scale_label = _format_heatmap_scale_label(colorbar_title)
 
     label_rows = _chunk_labels(list(matrices.keys()), max_columns=column_count)
     for row_index, row_labels in enumerate(label_rows):
@@ -1121,9 +1277,9 @@ def _render_heatmap_section(
             columns = st.columns(column_count)
             for column, label in zip(columns, row_labels):
                 with column:
-                    st.markdown(f"##### {label}")
                     _render_heatmap(
                         matrices[label],
+                        title=label,
                         colorbar_title=colorbar_title,
                         zmax=zmax,
                         chart_key=f"{chart_key_prefix}:{label}",
@@ -1133,8 +1289,6 @@ def _render_heatmap_section(
 
         with legend_column:
             if non_empty_matrices:
-                if scale_label:
-                    st.markdown(scale_label)
                 scale_fig = _build_heatmap_colorbar_figure(
                     colorbar_title="",
                     zmax=zmax,
@@ -1455,7 +1609,6 @@ def main() -> None:
     if not detail_run_labels:
         st.info("Select at least one detailed run to compare.")
         return
-    st.checkbox("Show cell annotations on heatmaps", key=HEATMAP_ANNOTATIONS_KEY, value=False)
 
     detail_frames = {label: frames.get(label, pd.DataFrame()) for label in detail_run_labels}
     detail_axes = {
@@ -1470,6 +1623,7 @@ def main() -> None:
         label: (build_bearer_mix_frame(frame, detail_axes[label]) if detail_axes[label] else pd.DataFrame())
         for label, frame in detail_frames.items()
     }
+    hop_count_distribution_df = build_hop_count_distribution_frame(detail_frames)
     detail_served_heatmaps = {
         label: build_flow_heatmap_frame(frame, value_kind="served_bandwidth_pct")
         for label, frame in detail_frames.items()
@@ -1501,88 +1655,91 @@ def main() -> None:
     ]
     served_heatmap_zmax = max([100.0, *served_max_candidates]) if served_max_candidates else 100.0
     rejected_heatmap_zmax = 100.0
-    show_heatmap_annotations = bool(st.session_state.get(HEATMAP_ANNOTATIONS_KEY, False))
-    largest_heatmap_dim = max(
-        [
-            max(matrix.shape) if not matrix.empty else 0
-            for matrix in [*detail_served_heatmaps.values(), *detail_rejected_heatmaps.values()]
-        ],
-        default=0,
-    )
-    if show_heatmap_annotations and largest_heatmap_dim > HEATMAP_ANNOTATION_MAX_DIM:
-        st.caption(
-            f"Cell annotations are shown only up to {HEATMAP_ANNOTATION_MAX_DIM}x{HEATMAP_ANNOTATION_MAX_DIM} matrices. "
-            "Use hover for larger heatmaps."
-        )
 
-    st.markdown("**Bearer Involvement**")
+    st.write("Bearer involvement")
     bearer_column_count = min(BEARER_MAX_COLUMNS, max(1, len(detail_run_labels)))
     bearer_label_rows = _chunk_labels(detail_run_labels, max_columns=bearer_column_count)
     bearer_legend_items = _collect_bearer_legend_items(detail_bearer_mix)
+    bearer_color_map = _resolve_bearer_color_map(bearer_legend_items)
+    bearer_legend_html = _build_bearer_legend_html(bearer_legend_items, bearer_color_map)
+    if bearer_legend_html:
+        st.markdown(bearer_legend_html, unsafe_allow_html=True)
     for row_labels in bearer_label_rows:
         bearer_cols = st.columns(bearer_column_count)
         for index, (column, label) in enumerate(zip(bearer_cols, row_labels)):
-            global_index = detail_run_labels.index(label)
             with column:
-                st.markdown(f"##### {label}")
                 axis_name = detail_axes[label]
                 bearer_mix_df = detail_bearer_mix[label]
                 if not axis_name or bearer_mix_df.empty:
-                    st.info("No bearer involvement data available.")
+                    st.info(f"{label}: No bearer involvement data available.")
                     continue
                 plot_df = bearer_mix_df.copy()
                 totals = plot_df.groupby(axis_name)["count"].transform("sum")
                 plot_df["share_pct"] = (plot_df["count"] / totals.where(totals > 0)) * 100.0
                 plot_df = plot_df.dropna(subset=["share_pct"])
                 if plot_df.empty:
-                    st.info("No bearer involvement data available.")
+                    st.info(f"{label}: No bearer involvement data available.")
                     continue
-                bearer_fig = px.area(
+                bearer_fig = _build_bearer_involvement_figure(
                     plot_df,
-                    x=axis_name,
-                    y="share_pct",
-                    color="bearer",
-                    color_discrete_map=BEARER_COLOR_MAP,
-                    category_orders={"bearer": list(BEARER_COLOR_MAP.keys())},
+                    axis_name=axis_name,
+                    run_label=label,
+                    bearer_color_map=bearer_color_map,
+                    bearer_legend_items=bearer_legend_items,
                 )
-                bearer_fig.update_layout(
-                    xaxis_title=axis_name,
-                    yaxis_title="Bearer involvement (%)",
-                    showlegend=global_index == 0,
-                    legend_title_text="Bearer",
-                )
-                if global_index == 0:
-                    _add_missing_bearer_legend_traces(bearer_fig, bearer_legend_items)
-                    bearer_fig.update_layout(
-                        legend=dict(
-                            orientation="h",
-                            yanchor="bottom",
-                            y=1.02,
-                            xanchor="left",
-                            x=0.0,
-                        )
-                    )
                 st.plotly_chart(
                     bearer_fig,
                     width="stretch",
                     key=f"{PAGE_KEY}:detail:bearer:{label}",
                 )
 
+    if hop_count_distribution_df.empty:
+        st.info("No routed path data available.")
+    else:
+        hop_count_fig = px.bar(
+            hop_count_distribution_df,
+            x="hop_count",
+            y="share_pct",
+            color="run_label",
+            barmode="group",
+            category_orders={"run_label": detail_run_labels},
+            color_discrete_map=run_color_map,
+        )
+        hop_count_fig.update_layout(
+            title={"text": "Routed hop count distribution", "x": 0.5, "xanchor": "center", "font": {"size": 16}},
+            xaxis_title="Hop count",
+            yaxis_title="Routed allocations (%)",
+            legend_title_text="Run",
+            margin={"l": 24, "r": 12, "t": 50, "b": 40},
+        )
+        hop_count_fig.update_xaxes(dtick=1)
+        hop_count_fig.update_traces(
+            hovertemplate=(
+                "Run=%{fullData.name}<br>"
+                "Hop count=%{x}<br>"
+                "Routed allocations=%{y:.1f}%<extra></extra>"
+            )
+        )
+        st.plotly_chart(
+            hop_count_fig,
+            width="stretch",
+            key=f"{PAGE_KEY}:detail:hop_count_distribution",
+        )
+        st.caption("Hop count is computed as `len(path) - 1` on routed allocations with a valid path.")
+
     _render_heatmap_section(
-        "Served Bandwidth Matrix",
+        "Served bandwidth matrix",
         detail_served_heatmaps,
         colorbar_title="Served bandwidth (%)",
         zmax=served_heatmap_zmax,
         chart_key_prefix=f"{PAGE_KEY}:detail:served_heatmap",
-        show_annotations=show_heatmap_annotations,
     )
     _render_heatmap_section(
-        "Rejected Allocation Matrix",
+        "Rejected allocation matrix",
         detail_rejected_heatmaps,
         colorbar_title="Rejected ratio (%)",
         zmax=rejected_heatmap_zmax,
         chart_key_prefix=f"{PAGE_KEY}:detail:rejected_heatmap",
-        show_annotations=show_heatmap_annotations,
     )
     if not heatmap_nodes.empty:
         st.caption(

@@ -399,8 +399,20 @@ def test_view_inference_analysis_collects_bearer_legend_items_across_runs() -> N
     assert legend_items == ["SAT", "OPT", "IVDL", "not routed"]
 
 
+def test_view_inference_analysis_resolves_stable_colors_for_unknown_bearers() -> None:
+    module = _load_module()
+
+    color_map = module._resolve_bearer_color_map(["SAT", "OPT", "mesh", "lte"])
+
+    assert color_map["SAT"] == module.BEARER_COLOR_MAP["SAT"]
+    assert color_map["OPT"] == module.BEARER_COLOR_MAP["OPT"]
+    assert color_map["mesh"] == module.BEARER_EXTRA_COLOR_SEQUENCE[0]
+    assert color_map["lte"] == module.BEARER_EXTRA_COLOR_SEQUENCE[1]
+
+
 def test_view_inference_analysis_adds_missing_bearer_legend_traces() -> None:
     module = _load_module()
+    color_map = module._resolve_bearer_color_map(["SAT", "OPT", "not routed"])
 
     fig = module.go.Figure(
         data=[
@@ -414,10 +426,52 @@ def test_view_inference_analysis_adds_missing_bearer_legend_traces() -> None:
         ]
     )
 
-    module._add_missing_bearer_legend_traces(fig, ["SAT", "OPT", "not routed"])
+    module._add_missing_bearer_legend_traces(fig, ["SAT", "OPT", "not routed"], color_map)
 
     names = [trace.name for trace in fig.data]
     assert names == ["SAT", "OPT", "not routed"]
+    assert fig.data[1].line.color == module.BEARER_COLOR_MAP["OPT"]
+    assert fig.data[2].line.color == module.BEARER_COLOR_MAP["not routed"]
+
+
+def test_view_inference_analysis_builds_shared_bearer_legend_html() -> None:
+    module = _load_module()
+    color_map = module._resolve_bearer_color_map(["SAT", "mesh"])
+
+    legend_html = module._build_bearer_legend_html(["SAT", "mesh"], color_map)
+
+    assert "SAT" in legend_html
+    assert "mesh" in legend_html
+    assert module.BEARER_COLOR_MAP["SAT"] in legend_html
+    assert module.BEARER_EXTRA_COLOR_SEQUENCE[0] in legend_html
+    assert "display:flex" in legend_html
+
+
+def test_view_inference_analysis_builds_bearer_figure_with_embedded_title() -> None:
+    module = _load_module()
+    color_map = module._resolve_bearer_color_map(["SAT", "OPT"])
+    plot_df = pd.DataFrame(
+        {
+            "time_index": [0, 0, 1, 1],
+            "bearer": ["SAT", "OPT", "SAT", "OPT"],
+            "share_pct": [60.0, 40.0, 55.0, 45.0],
+        }
+    )
+
+    fig = module._build_bearer_involvement_figure(
+        plot_df,
+        axis_name="time_index",
+        run_label="ppo_run",
+        bearer_color_map=color_map,
+        bearer_legend_items=["SAT", "OPT"],
+    )
+
+    assert fig.layout.title.text == "ppo_run"
+    assert fig.layout.title.x == pytest.approx(0.5)
+    assert fig.layout.xaxis.title.text == "time_index"
+    assert fig.layout.yaxis.title.text == "Bearer involvement (%)"
+    assert fig.layout.showlegend is False
+    assert fig.layout.margin.t == 52
 
 
 def test_view_inference_analysis_latency_distribution_uses_only_routed_rows() -> None:
@@ -444,4 +498,54 @@ def test_view_inference_analysis_latency_distribution_uses_only_routed_rows() ->
         {"latency": 5.0, "run_label": "ilp"},
         {"latency": 7.5, "run_label": "ilp"},
         {"latency": 8.0, "run_label": "ppo"},
+    ]
+
+
+def test_view_inference_analysis_builds_routed_hop_count_distribution() -> None:
+    module = _load_module()
+
+    frames = {
+        "ilp": pd.DataFrame(
+            {
+                "path": ["[1, 3, 2]", "[1, 4, 5, 2]", None],
+                "delivered_bandwidth": [1.0, 1.0, 0.0],
+            }
+        ),
+        "ppo": pd.DataFrame(
+            {
+                "path": [[1, 2], [1, 4, 2], [1, 7, 8, 2], []],
+                "routed": [1, 1, 0, 1],
+            }
+        ),
+    }
+
+    hop_count_df = module.build_hop_count_distribution_frame(frames)
+
+    records = hop_count_df.sort_values(["run_label", "hop_count"]).reset_index(drop=True).to_dict("records")
+    assert records == [
+        {"hop_count": 2, "count": 1, "run_label": "ilp", "share_pct": pytest.approx(50.0)},
+        {"hop_count": 3, "count": 1, "run_label": "ilp", "share_pct": pytest.approx(50.0)},
+        {"hop_count": 1, "count": 1, "run_label": "ppo", "share_pct": pytest.approx(50.0)},
+        {"hop_count": 2, "count": 1, "run_label": "ppo", "share_pct": pytest.approx(50.0)},
+    ]
+
+
+def test_view_inference_analysis_handles_nested_path_values_for_hop_count() -> None:
+    module = _load_module()
+
+    frames = {
+        "edge_mlp": pd.DataFrame(
+            {
+                "path": [[[1, 4, 2]], [[1, 5, 6, 2]], [None], "[[1, 9, 2]]"],
+                "routed": [1, 1, 1, 1],
+            }
+        )
+    }
+
+    hop_count_df = module.build_hop_count_distribution_frame(frames)
+
+    records = hop_count_df.sort_values(["run_label", "hop_count"]).reset_index(drop=True).to_dict("records")
+    assert records == [
+        {"hop_count": 2, "count": 2, "run_label": "edge_mlp", "share_pct": pytest.approx(66.66666666666666)},
+        {"hop_count": 3, "count": 1, "run_label": "edge_mlp", "share_pct": pytest.approx(33.33333333333333)},
     ]
