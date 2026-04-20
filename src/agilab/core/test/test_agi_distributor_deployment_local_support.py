@@ -1132,7 +1132,7 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
         uv_worker="uv",
         python_version="3.13",
         pyvers_worker="3.13",
-        envars={},
+        envars={"AGI_INTERNET_ON": "0"},
         verbose=1,
         env_pck=tmp_path / "env_pck",
         dataset_archive=tmp_path / "missing.7z",
@@ -1177,14 +1177,15 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
     )
 
     assert agi_cls._install_done_local is True
-    assert any(f"pip install --no-deps -e '{agi_env}'" in cmd for cmd, _ in commands)
-    assert any(f"pip install --no-deps -e '{agi_node}'" in cmd for cmd, _ in commands)
-    assert any(f"pip install --no-deps -e '{agi_cluster}'" in cmd for cmd, _ in commands)
-    assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{agi_env}"' in cmd for cmd, _ in commands)
-    assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{agi_node}"' in cmd for cmd, _ in commands)
+    assert any("uv --offline sync" in cmd and str(app_path) in cmd for cmd, _ in commands)
+    assert any(f"uv --offline pip install -e '{agi_env}'" in cmd for cmd, _ in commands)
+    assert any(f"uv --offline pip install -e '{agi_node}'" in cmd for cmd, _ in commands)
+    assert any(f"uv --offline pip install -e '{agi_cluster}'" in cmd for cmd, _ in commands)
+    assert any(f'uv --offline --project "{agi_env}" build --wheel' in cmd for cmd, _ in commands)
+    assert any(f'uv --offline --project "{agi_node}" build --wheel' in cmd for cmd, _ in commands)
+    assert any(f'uv --offline pip install --project "{wenv_abs}" --no-deps -e "{agi_env}"' in cmd for cmd, _ in commands)
+    assert any(f'uv --offline pip install --project "{wenv_abs}" --no-deps -e "{agi_node}"' in cmd for cmd, _ in commands)
     assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{app_path}"' in cmd for cmd, _ in commands)
-    assert any("build --wheel" in cmd and str(agi_env) in cmd for cmd, _ in commands)
-    assert any("build --wheel" in cmd and str(agi_node) in cmd for cmd, _ in commands)
     assert (wenv_abs / "agi_node-0.0.2-py3-none-any.whl").exists()
     assert not (wenv_abs / "agi_node-0.0.1-py3-none-any.whl").exists()
 
