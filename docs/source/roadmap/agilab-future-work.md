@@ -29,11 +29,29 @@ use this order:
 5. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
-6. **First-class reduce contract**
+6. **Multi-app DAG orchestration**
+   - extend orchestration from one app flow to DAGs that span multiple apps
+   - this is the contract needed before the pipeline can become a true
+     cross-app orchestrated graph
+7. **Global orchestrated pipeline DAG**
+   - let `PIPELINE` represent one orchestrated DAG across the full workflow,
+     not just one app-local execution view
+   - this depends on clearer multi-app orchestration contracts
+8. **Bidirectional notebook interop**
+   - import notebook logic into AGILab pipelines and export a pipeline back to a
+     runnable notebook
+   - exported notebooks should run in an environment that is the union of the
+     pipeline step environments
+9. **Data connector facility**
+   - make SQL, ELK, object storage, and other external data sources first-class
+     connector targets
+   - this turns connector work into a practical data-access layer, not just path
+     cleanup
+10. **First-class reduce contract**
    - AGILab already has distributed work-plan execution; the missing piece is a
      shared reducer contract
    - this should come after evidence and connector stabilization, not before
-7. **Intent-first operator mode**
+11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
 
@@ -41,6 +59,8 @@ Why this order:
 
 - start with evidence before decisions
 - start with validated proof before broader onboarding automation
+- stabilize cross-app orchestration before claiming a global orchestrated DAG
+- keep notebook interop after the orchestration contract is clearer
 - stabilize contracts before standardizing distributed reduction
 - keep operator refinements downstream of the proof/evidence layer
 
@@ -194,6 +214,65 @@ Why it matters:
 - fits AGILab better than generic BI dashboards because it stays tied to runs,
   artefacts, and orchestration decisions
 - creates a strong bridge between experimentation and promotion workflows
+
+### 6. Multi-app DAG orchestration
+
+Purpose:
+
+- extend orchestration from one app flow to DAGs that span multiple apps
+- make inter-app dependencies explicit instead of hiding them in manual glue
+
+Suggested scope:
+
+- app-to-app step dependencies
+- explicit cross-app artefact handoff
+- orchestration contracts for retries, partial reruns, and provenance
+- one run record that still captures the whole multi-app execution
+
+Why it matters:
+
+- this is the missing bridge between app-local execution and a real product-wide
+  orchestrated workflow
+- it turns AGILab orchestration from “one app at a time” into a reusable
+  workflow fabric
+
+### 7. Global orchestrated pipeline DAG
+
+Purpose:
+
+- make `PIPELINE` the view of one global orchestrated DAG rather than a mainly
+  app-local execution trace
+
+Suggested scope:
+
+- one graph that spans preparation, training, simulation, analysis, and export
+- explicit upstream/downstream dependency visualization across apps
+- orchestration-state visibility for the full DAG
+
+Why it matters:
+
+- this gives AGILab a clearer product story than isolated per-app pipelines
+- it makes the orchestration layer visible to operators and reviewers
+
+### 8. Bidirectional notebook interop
+
+Purpose:
+
+- let users move in both directions between notebooks and AGILab pipelines
+
+Suggested scope:
+
+- import notebook logic into pipeline steps
+- export an AGILab pipeline to a runnable notebook
+- generate a notebook runtime environment that is the union of the pipeline step
+  environments
+- preserve enough provenance so the notebook remains explainable
+
+Why it matters:
+
+- reduces the gap between exploratory notebook work and reproducible product
+  workflows
+- gives teams a practical adoption bridge instead of a one-way migration story
 
 ## Backend observability and audit architecture
 
@@ -409,15 +488,17 @@ Acceptance target:
 - existing apps still work without migration
 - connector definitions remain plain-text and git-friendly
 
-### 2. External system connectors
+### 2. Data connector facility
 
 Purpose:
 
-- connect AGILab cleanly to external systems and storage backends
+- connect AGILab cleanly to external data systems and storage backends
 
 Typical targets:
 
+- SQL databases
 - Elasticsearch or OpenSearch
+- ELK-backed data sources
 - object storage
 - GitHub or GitLab
 - simulation backends
@@ -487,13 +568,19 @@ Use this rule of thumb:
   denser live analysis, faster interaction, and higher-volume visual playback
 - choose **Run Diff / Counterfactual Analysis** if the next need is faster
   debugging, clearer run review, and defensible explanation of KPI changes
+- choose **Multi-app DAG orchestration** if the next need is one orchestrated
+  workflow that spans several apps with explicit dependencies
+- choose **Global orchestrated pipeline DAG** if the next need is to expose that
+  orchestration as a single product-visible graph in `PIPELINE`
+- choose **Bidirectional notebook interop** if the next need is a stronger bridge
+  between exploratory notebooks and AGILab-managed workflows
 - choose **Elastic/OpenSearch + Grafana** if the next need is operations and
   observability
 - choose **OpenSearch + OpenSearch Dashboards** if the next need is audit and
   historical search
 - choose **Postgres + Superset** if the next need is curated KPI analytics
-- choose **Connector framework hardening and external integrations** if the next
-  need is portability, external system access, and reliable artefact flow
+- choose **Connector framework hardening and the data connector facility** if the
+  next need is portability, SQL/ELK/data-system access, and reliable artefact flow
 - choose **DeepWiki/Open-style repository knowledge layer** if the next need is
   faster codebase onboarding, architecture discovery, and repository Q&A without
   turning generated content into official docs
@@ -528,6 +615,10 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - First-proof wizard in product
 - Compatibility matrix automation
 - Connector registry hardening
+- Multi-app DAG orchestration
+- Global orchestrated pipeline DAG
+- Bidirectional notebook interop
+- Data connector facility
 - First-class reduce contract
 - Intent-first operator mode
 
