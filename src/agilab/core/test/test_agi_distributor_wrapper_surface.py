@@ -48,6 +48,22 @@ def test_resolve_node_src_prefers_existing_repo_layout(tmp_path):
     ) == str(node_src)
 
 
+def test_bootstrap_node_src_prepends_repo_layout_ahead_of_existing_paths(tmp_path):
+    node_src = tmp_path / "env" / "agi-node" / "src"
+    node_src.mkdir(parents=True)
+    sys_path = ["site-packages/agi-node", "other"]
+
+    added = agi_distributor_module._bootstrap_node_src(
+        sys_path=sys_path,
+        sys_prefix=tmp_path / "env",
+        source_file=tmp_path / "pkg" / "agi_distributor.py",
+    )
+
+    assert added == str(node_src)
+    assert sys_path[0] == str(node_src)
+    assert sys_path[1:] == ["site-packages/agi-node", "other"]
+
+
 def test_agi_sync_wrapper_surface_delegates(monkeypatch, tmp_path):
     calls = []
 

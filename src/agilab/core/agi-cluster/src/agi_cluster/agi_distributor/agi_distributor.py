@@ -112,9 +112,22 @@ def _resolve_node_src(
     return None
 
 
-_node_src = _resolve_node_src()
-if _node_src and _node_src not in sys.path:
-    sys.path.append(_node_src)
+def _bootstrap_node_src(
+    *,
+    sys_path: list[str] | None = None,
+    sys_prefix: str | os.PathLike[str] | None = None,
+    source_file: str | os.PathLike[str] | None = None,
+) -> str | None:
+    """Prepend the best repo-local ``agi-node/src`` path to ``sys.path``."""
+
+    target_sys_path = sys.path if sys_path is None else sys_path
+    node_src = _resolve_node_src(sys_prefix=sys_prefix, source_file=source_file)
+    if node_src and node_src not in target_sys_path:
+        target_sys_path.insert(0, node_src)
+    return node_src
+
+
+_node_src = _bootstrap_node_src()
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"

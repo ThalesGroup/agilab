@@ -18,6 +18,13 @@ import sys
 from pathlib import Path
 import py7zr
 
+try:
+    from .bootstrap_source_paths import bootstrap_core_source_paths
+except ImportError:  # pragma: no cover - script execution fallback
+    from bootstrap_source_paths import bootstrap_core_source_paths
+
+bootstrap_core_source_paths(source_file=__file__)
+
 from agi_env import AgiEnv
 
 
