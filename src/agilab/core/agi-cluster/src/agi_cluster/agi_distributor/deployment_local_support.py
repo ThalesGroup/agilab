@@ -406,13 +406,13 @@ async def deploy_local_worker(
                     log.debug("Dependency %s not installed in manager environment", meta["name"])
 
     if env.is_source_env:
-        cmd = f"{uv} pip install -e '{env.agi_env}'"
+        cmd = f"{uv} pip install --no-deps -e '{env.agi_env}'"
         await run_fn(cmd, app_path)
-        cmd = f"{uv} pip install -e '{env.agi_node}'"
+        cmd = f"{uv} pip install --no-deps -e '{env.agi_node}'"
         await run_fn(cmd, app_path)
-        cmd = f"{uv} pip install -e '{env.agi_cluster}'"
+        cmd = f"{uv} pip install --no-deps -e '{env.agi_cluster}'"
         await run_fn(cmd, app_path)
-        cmd = f"{uv} pip install -e ."
+        cmd = f"{uv} pip install --no-deps -e ."
         await run_fn(cmd, app_path)
 
     await agi_cls._build_lib_local()
@@ -513,6 +513,7 @@ async def deploy_local_worker(
         site_packages_worker = wenv_abs / ".venv" / "lib" / f"python{python_dir}" / "site-packages"
         _cleanup_editable(site_packages_worker)
     else:
+        editable_flags = "--no-deps " if env.is_source_env else ""
         menv = env.agi_env
         cmd = f"{uv} --project \"{menv}\" build --wheel"
         await run_fn(cmd, menv)
@@ -521,7 +522,7 @@ async def deploy_local_worker(
         if env_whl is None:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.agi_env}\""
+        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_env}\""
         await run_fn(cmd, wenv_abs)
 
         menv = env.agi_node
@@ -533,10 +534,11 @@ async def deploy_local_worker(
             raise RuntimeError(cmd)
         shutil.copy2(whl, wenv_abs)
 
-        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.agi_node}\""
+        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_node}\""
         await run_fn(cmd, wenv_abs)
 
-    cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.active_app}\""
+    editable_flags = "--no-deps " if env.is_source_env else ""
+    cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.active_app}\""
     await run_fn(cmd, wenv_abs)
 
     dest = wenv_abs / "src" / env.target_worker

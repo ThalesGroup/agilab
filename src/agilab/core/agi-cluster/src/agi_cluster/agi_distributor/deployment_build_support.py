@@ -76,7 +76,7 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
     )
     for package_name, source_path in core_packages:
         if getattr(env, "is_source_env", False) and source_path:
-            commands.append(f"{uv} --project {app_path_arg} pip install -e '{source_path}'")
+            commands.append(f"{uv} --project {app_path_arg} pip install --no-deps -e '{source_path}'")
         else:
             commands.append(f"{uv} --project {app_path_arg} pip install {package_name} ")
     return commands

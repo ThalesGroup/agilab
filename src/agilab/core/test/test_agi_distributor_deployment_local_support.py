@@ -1177,7 +1177,12 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
     )
 
     assert agi_cls._install_done_local is True
-    assert any("pip install -e '" in cmd and str(agi_cluster) in cmd for cmd, _ in commands)
+    assert any(f"pip install --no-deps -e '{agi_env}'" in cmd for cmd, _ in commands)
+    assert any(f"pip install --no-deps -e '{agi_node}'" in cmd for cmd, _ in commands)
+    assert any(f"pip install --no-deps -e '{agi_cluster}'" in cmd for cmd, _ in commands)
+    assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{agi_env}"' in cmd for cmd, _ in commands)
+    assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{agi_node}"' in cmd for cmd, _ in commands)
+    assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{app_path}"' in cmd for cmd, _ in commands)
     assert any("build --wheel" in cmd and str(agi_env) in cmd for cmd, _ in commands)
     assert any("build --wheel" in cmd and str(agi_node) in cmd for cmd, _ in commands)
     assert (wenv_abs / "agi_node-0.0.2-py3-none-any.whl").exists()
