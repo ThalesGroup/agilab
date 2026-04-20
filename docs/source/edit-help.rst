@@ -46,6 +46,34 @@ Sidebar
   clean import (strips ``.gitignore`` files) and the modal overwrite flow guards
   against accidentally replacing an existing project.
 
+Tutorial: clone a project
+-------------------------
+
+Use this when you want to duplicate an existing project before editing code or
+settings.
+
+1. Open **PROJECT**.
+2. In the sidebar, choose **Clone**.
+3. Select the source project or template you want to duplicate.
+4. Enter the new project name. AGILab adds the ``_project`` suffix if needed.
+5. Choose the environment strategy:
+
+   - ``Temporary clone (share source .venv)`` for quick experiments.
+   - ``Working clone (no shared .venv)`` for real development work.
+
+6. Confirm the clone action.
+7. Select the new cloned project in the sidebar.
+
+What to do next:
+
+- If you chose ``Temporary clone``, you can usually inspect or edit the clone
+  immediately.
+- If you chose ``Working clone``, go to :doc:`execute-help`, run ``INSTALL``,
+  then run ``EXECUTE`` before expecting the clone to behave like the source
+  project.
+- If the clone should expose optional analysis bundles, open ``APP-SETTINGS``
+  and check the ``[pages]`` section.
+
 Main Content Area
 -----------------
 - When ``Select`` is active the page reveals a stack of expanders backed by the
