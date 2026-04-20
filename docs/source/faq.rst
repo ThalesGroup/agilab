@@ -139,4 +139,4 @@ It does **not** replace the full first visible workflow proof. Passing
 ``tools/newcomer_first_proof.py`` means the source checkout and UI startup path
 are sane; you still need the normal first run in the web interface to produce
 fresh output under ``~/log/execute/flight/`` and complete the
-``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`` story.
+``PROJECT -> ORCHESTRATE -> ANALYSIS`` story.

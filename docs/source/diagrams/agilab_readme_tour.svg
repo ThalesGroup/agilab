@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1360" height="940" viewBox="0 0 1360 940" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB 3-minute tour</title>
-  <desc id="desc">Narrative README diagram showing the built-in flight project path across Project, Orchestrate, Pipeline, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
+  <desc id="desc">Narrative README diagram showing the built-in flight project path across Project, Orchestrate, run outputs, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
   <defs>
     <style>
       text {
@@ -120,7 +120,7 @@
     <text class="title" x="0" y="56">AGILAB 3-minute tour</text>
     <text class="subtitle" x="0" y="100">
       <tspan x="0" dy="0">Use the built-in flight project to see the full path:</tspan>
-      <tspan x="0" dy="28">select one app, run one execution path, inspect the trace, and end on visible evidence.</tspan>
+      <tspan x="0" dy="28">select one app, run one local path, check the output files, and end on visible evidence.</tspan>
     </text>
   </g>
 
@@ -178,17 +178,17 @@
     <rect x="0" y="0" width="274" height="286" rx="30" ry="30" fill="#fff1bf" class="card-stroke"/>
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">3</text>
-    <text class="card-title" x="64" y="42">PIPELINE</text>
-    <text class="card-kicker" x="28" y="78">Inspect the trace</text>
+    <text class="card-title" x="64" y="42">OUTPUTS</text>
+    <text class="card-kicker" x="28" y="78">Check the run</text>
     <text class="body" x="28" y="116">
-      <tspan x="28" dy="0">Generated steps stay</tspan>
-      <tspan x="28" dy="24">visible, replayable,</tspan>
-      <tspan x="28" dy="24">and easy to inspect</tspan>
-      <tspan x="28" dy="24">when you debug or iterate.</tspan>
+      <tspan x="28" dy="0">Fresh files appear</tspan>
+      <tspan x="28" dy="24">under log/execute/flight</tspan>
+      <tspan x="28" dy="24">so the first proof is</tspan>
+      <tspan x="28" dy="24">visible before analysis.</tspan>
     </text>
     <text class="mini" x="28" y="230">
-      <tspan x="28" dy="0">Execution becomes reviewable,</tspan>
-      <tspan x="28" dy="22">not just “it ran once”.</tspan>
+      <tspan x="28" dy="0">Run evidence is explicit,</tspan>
+      <tspan x="28" dy="22">not just a green button.</tspan>
     </text>
   </g>
 

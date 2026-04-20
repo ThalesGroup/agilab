@@ -37,8 +37,8 @@ Current public matrix
    * - Web UI local first proof
      - validated
      - ``uv run streamlit run src/agilab/About_agilab.py``
-     - ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`` on the local built-in
-       app path
+     - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
+       with fresh output under ``~/log/execute/flight/``
      - Not a remote cluster proof
    * - Service-mode operator surface
      - validated

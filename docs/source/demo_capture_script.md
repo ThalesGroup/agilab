@@ -37,7 +37,7 @@ linking documentation to repo-local `artifacts/demo_media/...` files.
 
 The key message should stay consistent across all three formats:
 
-`One app, one control path from PROJECT to ORCHESTRATE to PIPELINE to ANALYSIS.`
+`One app, one control path from PROJECT to ORCHESTRATE to ANALYSIS, with visible output files in between.`
 
 ## Which format to use
 
@@ -45,7 +45,7 @@ Use a live tutorial when you want to show the real UI flow:
 
 - selecting the app
 - launching orchestration
-- inspecting pipeline steps
+- checking the produced files
 - ending on analysis results
 
 Use the self-generated explainer when you want a lightweight shareable asset:
@@ -223,7 +223,7 @@ Use this when you want a quick social/demo clip.
 1. Show the AGILAB home screen.
 2. Show `flight_project` selected in `PROJECT`.
 3. Jump to `ORCHESTRATE` and trigger the run path.
-4. Show `PIPELINE` with generated/replayable steps.
+4. Show the fresh output folder under `~/log/execute/flight/`.
 5. End in `ANALYSIS` on a visible result.
 
 Narration:
@@ -240,10 +240,9 @@ Use this as the default product tutorial.
 4. Move to `ORCHESTRATE`.
 5. Trigger install, distribute, and run.
 6. Show that the workflow is packaged and executed without ad-hoc shell glue.
-7. Move to `PIPELINE`.
-8. Show generated or replayable steps.
-9. Move to `ANALYSIS`.
-10. End on a built-in page over produced artifacts.
+7. Show the fresh files under `~/log/execute/flight/`.
+8. Move to `ANALYSIS`.
+9. End on a built-in page over produced artifacts.
 
 Narration:
 
@@ -315,9 +314,8 @@ Suggested timeline:
    explain that AGILAB generates the operational snippet instead of asking the
    user to hand-wire the workflow first.
 4. `1:35 -> 2:05`
-   Move to `PIPELINE`, show the generated or replayable step, and explain that
-   the same execution path can now be inspected, rerun, and tracked as part of
-   the lab workflow.
+   Show the fresh output folder under `~/log/execute/flight/` and explain that
+   the first proof leaves explicit files instead of only transient logs.
 5. `2:05 -> 2:40`
    Move to `ANALYSIS`, open a visible result page, and show that the run ends
    on an operator-facing view rather than raw infrastructure logs.
@@ -329,9 +327,9 @@ Suggested narration:
 
 `This is AGILAB in one path. In PROJECT, I select the app and keep its context.
 In ORCHESTRATE, AGILAB packages and runs the workflow without ad-hoc shell glue.
-In PIPELINE, the same execution becomes inspectable and replayable. In ANALYSIS,
-the workflow ends on visible evidence, not just logs. The point is not another
-generic DAG. The point is one app, one controlled path, from setup to result.`
+Then I check the fresh output files. In ANALYSIS, the workflow ends on visible
+evidence, not just logs. The point is not another generic DAG. The point is
+one app, one controlled path, from setup to result.`
 
 Suggested click path:
 
@@ -341,10 +339,9 @@ Suggested click path:
 4. one short pause on app context
 5. `ORCHESTRATE`
 6. one short pause on generated install / run area
-7. `PIPELINE`
-8. one short pause on generated or imported step
-9. `ANALYSIS`
-10. final pause on a visible result
+7. output folder / run files
+8. `ANALYSIS`
+9. final pause on a visible result
 
 If you need a static deck with the same message, keep the slideshow sequence
 below unchanged and use the 3-minute talk track above as the narration layer.
@@ -467,7 +464,7 @@ opening AGILAB figure, but end the static sequence on screenshots from:
 ## Quality checklist
 
 - each tutorial uses one app only
-- the visible sequence is `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
+- the visible sequence is `PROJECT -> ORCHESTRATE -> ANALYSIS`
 - the ending frame shows a result, not infrastructure noise
 - the video and slideshow use the same message
 - the social/static assets do not contradict the live capture
