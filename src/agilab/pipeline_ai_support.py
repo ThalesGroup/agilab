@@ -20,6 +20,9 @@ from agi_env import normalize_path
 
 DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
 
+OLLAMA_QWEN_PROVIDER = "ollama-qwen"
+OLLAMA_DEEPSEEK_PROVIDER = "ollama-deepseek"
+
 CODE_STRICT_INSTRUCTIONS = (
     "Return ONLY Python code wrapped in ```python ...``` with no explanations.\n"
     "Assume there is a pandas DataFrame df and pandas is imported as pd.\n"
@@ -28,6 +31,12 @@ CODE_STRICT_INSTRUCTIONS = (
 )
 
 _OLLAMA_CODE_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:code|coder|codestral|deepseek)(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_QWEN_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:qwen|qwq)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_DEEPSEEK_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:deepseek)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_FAMILY_DEFAULTS = {
+    "qwen": "qwen2.5-coder:latest",
+    "deepseek": "deepseek-coder:latest",
+}
 _API_KEY_PATTERNS = [
     re.compile(r"(sk-[A-Za-z0-9]{6})([A-Za-z0-9\\-_]{8,})"),
     re.compile(r"(sk-proj)-[A-Za-z0-9\\-_]{4,}"),
@@ -137,6 +146,41 @@ def _default_ollama_model(
     if models:
         return models[0]
     return preferred
+
+
+def _ollama_family_pattern(family: str) -> re.Pattern[str]:
+    normalized = str(family or "").strip().lower()
+    if normalized == "qwen":
+        return _OLLAMA_QWEN_MODEL_RE
+    if normalized == "deepseek":
+        return _OLLAMA_DEEPSEEK_MODEL_RE
+    raise ValueError(f"Unsupported Ollama model family: {family}")
+
+
+def ollama_model_matches_family(model: str, family: str) -> bool:
+    name = str(model or "").strip()
+    if not name:
+        return False
+    return bool(_ollama_family_pattern(family).search(name))
+
+
+def default_ollama_family_model(
+    endpoint: str,
+    family: str,
+    *,
+    prefer_code: bool = False,
+) -> str:
+    models = _ollama_available_models(endpoint)
+    pattern = _ollama_family_pattern(family)
+    if models:
+        if prefer_code:
+            for name in models:
+                if pattern.search(name) and _OLLAMA_CODE_MODEL_RE.search(name):
+                    return name
+        for name in models:
+            if pattern.search(name):
+                return name
+    return _OLLAMA_FAMILY_DEFAULTS.get(str(family).strip().lower(), _default_ollama_model(endpoint, prefer_code=prefer_code))
 
 
 def _ollama_generate(

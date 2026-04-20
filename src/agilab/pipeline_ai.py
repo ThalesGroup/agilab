@@ -65,6 +65,8 @@ try:
     from agilab.pipeline_ai_support import (
         CODE_STRICT_INSTRUCTIONS,
         DEFAULT_GPT_OSS_ENDPOINT,
+        OLLAMA_DEEPSEEK_PROVIDER,
+        OLLAMA_QWEN_PROVIDER,
         _API_KEY_PATTERNS,
         normalize_user_path as _normalize_user_path,
         _OLLAMA_CODE_MODEL_RE,
@@ -102,6 +104,8 @@ except ModuleNotFoundError:
     _pipeline_ai_support_spec.loader.exec_module(_pipeline_ai_support_module)
     CODE_STRICT_INSTRUCTIONS = _pipeline_ai_support_module.CODE_STRICT_INSTRUCTIONS
     DEFAULT_GPT_OSS_ENDPOINT = _pipeline_ai_support_module.DEFAULT_GPT_OSS_ENDPOINT
+    OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+    OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
     _API_KEY_PATTERNS = _pipeline_ai_support_module._API_KEY_PATTERNS
     _normalize_user_path = _pipeline_ai_support_module.normalize_user_path
     _OLLAMA_CODE_MODEL_RE = _pipeline_ai_support_module._OLLAMA_CODE_MODEL_RE
@@ -614,6 +618,8 @@ def ask_gpt(
     model_label = ""
     if provider == "gpt-oss":
         result, model_label = chat_offline(question, prompt, envars)
+    elif provider in {OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
+        result, model_label = chat_ollama_local(question, prompt, envars)
     elif provider == UOAIC_PROVIDER:
         mode = (
             st.session_state.get(UOAIC_MODE_STATE_KEY)
@@ -658,7 +664,7 @@ def _maybe_autofix_generated_code(
 ) -> Tuple[str, str, str]:
     """Optionally run + repair generated code using the active assistant."""
     provider = st.session_state.get("lab_llm_provider") or env.envars.get("LAB_LLM_PROVIDER", "openai")
-    if provider != UOAIC_PROVIDER:
+    if provider not in {UOAIC_PROVIDER, OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
         return merged_code, model_label, detail
 
     enabled = bool(st.session_state.get(UOAIC_AUTOFIX_STATE_KEY, False))

@@ -13,7 +13,15 @@ from agi_env.defaults import get_default_openai_model
 from agi_env.pagelib import activate_gpt_oss
 
 try:
-    from agilab.pipeline_ai_uoaic import UOAIC_PROVIDER, UOAIC_RUNTIME_KEY
+    from agilab.pipeline_ai_uoaic import (
+        UOAIC_MODE_ENV,
+        UOAIC_MODE_OLLAMA,
+        UOAIC_MODE_STATE_KEY,
+        UOAIC_MODEL_ENV,
+        UOAIC_OLLAMA_ENDPOINT_ENV,
+        UOAIC_PROVIDER,
+        UOAIC_RUNTIME_KEY,
+    )
 except ModuleNotFoundError:
     _pipeline_ai_uoaic_path = Path(__file__).resolve().parent / "pipeline_ai_uoaic.py"
     _pipeline_ai_uoaic_spec = importlib.util.spec_from_file_location(
@@ -25,8 +33,38 @@ except ModuleNotFoundError:
     _pipeline_ai_uoaic_module = importlib.util.module_from_spec(_pipeline_ai_uoaic_spec)
     sys.modules[_pipeline_ai_uoaic_spec.name] = _pipeline_ai_uoaic_module
     _pipeline_ai_uoaic_spec.loader.exec_module(_pipeline_ai_uoaic_module)
+    UOAIC_MODE_ENV = _pipeline_ai_uoaic_module.UOAIC_MODE_ENV
+    UOAIC_MODE_OLLAMA = _pipeline_ai_uoaic_module.UOAIC_MODE_OLLAMA
+    UOAIC_MODE_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_MODE_STATE_KEY
+    UOAIC_MODEL_ENV = _pipeline_ai_uoaic_module.UOAIC_MODEL_ENV
+    UOAIC_OLLAMA_ENDPOINT_ENV = _pipeline_ai_uoaic_module.UOAIC_OLLAMA_ENDPOINT_ENV
     UOAIC_PROVIDER = _pipeline_ai_uoaic_module.UOAIC_PROVIDER
     UOAIC_RUNTIME_KEY = _pipeline_ai_uoaic_module.UOAIC_RUNTIME_KEY
+
+try:
+    from agilab.pipeline_ai_support import (
+        OLLAMA_DEEPSEEK_PROVIDER,
+        OLLAMA_QWEN_PROVIDER,
+        default_ollama_family_model,
+        normalize_ollama_endpoint,
+        ollama_model_matches_family,
+    )
+except ModuleNotFoundError:
+    _pipeline_ai_support_path = Path(__file__).resolve().parent / "pipeline_ai_support.py"
+    _pipeline_ai_support_spec = importlib.util.spec_from_file_location(
+        "agilab_pipeline_ai_support_fallback",
+        _pipeline_ai_support_path,
+    )
+    if _pipeline_ai_support_spec is None or _pipeline_ai_support_spec.loader is None:
+        raise
+    _pipeline_ai_support_module = importlib.util.module_from_spec(_pipeline_ai_support_spec)
+    sys.modules[_pipeline_ai_support_spec.name] = _pipeline_ai_support_module
+    _pipeline_ai_support_spec.loader.exec_module(_pipeline_ai_support_module)
+    OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+    OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
+    default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
+    normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
+    ollama_model_matches_family = _pipeline_ai_support_module.ollama_model_matches_family
 
 
 class PipelineAiControlDeps:
@@ -52,10 +90,19 @@ def configure_assistant_engine(
     uoaic_runtime_key: str = UOAIC_RUNTIME_KEY,
 ) -> str:
     """Render assistant-provider controls and persist provider-specific settings."""
+    local_family_providers = {
+        "Qwen (local)": OLLAMA_QWEN_PROVIDER,
+        "DeepSeek (local)": OLLAMA_DEEPSEEK_PROVIDER,
+    }
     provider_options = {
         "OpenAI (online)": "openai",
         "GPT-OSS (local)": "gpt-oss",
+        **local_family_providers,
         "Ollama (local)": uoaic_provider,
+    }
+    provider_families = {
+        OLLAMA_QWEN_PROVIDER: "qwen",
+        OLLAMA_DEEPSEEK_PROVIDER: "deepseek",
     }
     stored_provider = deps.session_state.get("lab_llm_provider")
     current_provider = stored_provider or env.envars.get("LAB_LLM_PROVIDER", "openai")
@@ -94,6 +141,31 @@ def configure_assistant_engine(
             env.envars["OPENAI_MODEL"] = oss_model
         else:
             env.envars.pop("OPENAI_MODEL", None)
+            if selected_provider in provider_families:
+                deps.session_state[UOAIC_MODE_STATE_KEY] = UOAIC_MODE_OLLAMA
+                env.envars[UOAIC_MODE_ENV] = UOAIC_MODE_OLLAMA
+                endpoint = normalize_ollama_endpoint(
+                    deps.session_state.get("uoaic_ollama_endpoint")
+                    or env.envars.get(UOAIC_OLLAMA_ENDPOINT_ENV)
+                    or os.getenv(UOAIC_OLLAMA_ENDPOINT_ENV, "")
+                )
+                family = provider_families[selected_provider]
+                local_model = str(
+                    deps.session_state.get("uoaic_model")
+                    or env.envars.get(UOAIC_MODEL_ENV)
+                    or os.getenv(UOAIC_MODEL_ENV, "")
+                ).strip()
+                if not ollama_model_matches_family(local_model, family):
+                    local_model = default_ollama_family_model(
+                        endpoint,
+                        family=family,
+                        prefer_code=True,
+                    )
+                deps.session_state["uoaic_model"] = local_model
+                if local_model:
+                    env.envars[UOAIC_MODEL_ENV] = local_model
+                else:
+                    env.envars.pop(UOAIC_MODEL_ENV, None)
 
     if selected_provider == "gpt-oss":
         default_endpoint = (

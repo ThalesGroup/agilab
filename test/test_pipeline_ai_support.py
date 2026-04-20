@@ -112,6 +112,36 @@ def test_default_ollama_model_prefers_code_model_when_requested():
         pipeline_ai_support._ollama_available_models = original
 
 
+def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
+    def _fake_available(_endpoint: str):
+        return [
+            "mistral",
+            "qwen2.5-coder:7b",
+            "qwen2.5:14b",
+            "deepseek-r1:8b",
+            "deepseek-coder:latest",
+        ]
+
+    original = pipeline_ai_support._ollama_available_models
+    pipeline_ai_support._ollama_available_models = _fake_available
+    try:
+        assert pipeline_ai_support.default_ollama_family_model(
+            "http://127.0.0.1:11434",
+            family="qwen",
+            prefer_code=True,
+        ) == "qwen2.5-coder:7b"
+        assert pipeline_ai_support.default_ollama_family_model(
+            "http://127.0.0.1:11434",
+            family="deepseek",
+            prefer_code=True,
+        ) == "deepseek-r1:8b"
+        assert pipeline_ai_support.ollama_model_matches_family("qwen2.5-coder:7b", "qwen") is True
+        assert pipeline_ai_support.ollama_model_matches_family("deepseek-coder:latest", "deepseek") is True
+        assert pipeline_ai_support.ollama_model_matches_family("codestral:latest", "qwen") is False
+    finally:
+        pipeline_ai_support._ollama_available_models = original
+
+
 def test_ollama_generate_parses_generate_response_and_forwards_payload(monkeypatch):
     captured = {}
 
