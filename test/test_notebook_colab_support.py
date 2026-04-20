@@ -38,6 +38,20 @@ def test_configure_local_notebook_environ_forces_local_mode():
     assert "IS_WORKER_ENV" not in environ
 
 
+def test_configure_local_notebook_environ_can_clear_source_mode():
+    environ = {
+        "IS_SOURCE_ENV": "1",
+        "IS_WORKER_ENV": "1",
+        "AGI_CLUSTER_ENABLED": "1",
+    }
+
+    colab_support.configure_local_notebook_environ(environ, source_env=False)
+
+    assert "IS_SOURCE_ENV" not in environ
+    assert environ["AGI_CLUSTER_ENABLED"] == "0"
+    assert "IS_WORKER_ENV" not in environ
+
+
 def test_prepend_sys_path_entries_deduplicates(monkeypatch, tmp_path: Path):
     existing = str(tmp_path / "existing")
     fresh = tmp_path / "fresh"
@@ -55,6 +69,22 @@ def test_worker_venv_path_uses_target_name(monkeypatch, tmp_path: Path):
     path = colab_support.worker_venv_path(SimpleNamespace(target="demo", app="demo"))
 
     assert path == tmp_path / "wenv" / "demo_worker" / ".venv"
+
+
+def test_resolve_builtin_root_handles_builtin_and_apps_roots(tmp_path: Path):
+    builtin_root = tmp_path / "apps" / "builtin"
+    builtin_root.mkdir(parents=True)
+
+    assert colab_support.resolve_builtin_root(builtin_root) == builtin_root
+    assert colab_support.resolve_builtin_root(builtin_root.parent) == builtin_root
+    assert colab_support.resolve_builtin_root(tmp_path / "missing") is None
+
+
+def test_installed_apps_path_resolves_from_agilab_module(monkeypatch, tmp_path: Path):
+    fake_agilab = SimpleNamespace(__file__=str(tmp_path / "site-packages" / "agilab" / "__init__.py"))
+    monkeypatch.setitem(sys.modules, "agilab", fake_agilab)
+
+    assert colab_support.installed_apps_path() == tmp_path / "site-packages" / "agilab" / "apps"
 
 
 def test_ensure_env_core_packages_uses_resolved_active_app():
