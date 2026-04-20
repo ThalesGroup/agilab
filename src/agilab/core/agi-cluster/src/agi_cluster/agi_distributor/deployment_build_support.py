@@ -154,7 +154,7 @@ def _build_ext_command(*, uv: str, module_cmd: str, app_path_arg: str, wenv_arg:
     quiet_flag = "" if verbose > 1 else "-q "
     return (
         f"{uv} --project {app_path_arg} run --no-sync "
-        f"{module_cmd} --app-path {wenv_arg} {quiet_flag}build_ext -b {wenv_arg}"
+        f"{module_cmd} --app-path {app_path_arg} {quiet_flag}build_ext -b {wenv_arg}"
     )
 
 
