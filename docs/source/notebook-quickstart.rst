@@ -48,8 +48,9 @@ If you want the benchmark variant instead, use:
 `Open benchmark notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
 
 That notebook also installs AGILAB plus the core runtime packages from GitHub
-``main``. It passes a list of modes to ``AGI.run(...)`` so AGILAB benchmarks
-``mycode_project`` across local execution modes and writes the benchmark JSON
+``main``. It calls ``AGI.run(...)`` without a ``mode`` override so AGILAB
+benchmarks ``mycode_project`` across the default execution-mode sweep, renders
+a ranked comparison table in the notebook, and writes the benchmark JSON
 artifact.
 
 If you want one Colab notebook that shows a data-worker-style app and a
