@@ -401,6 +401,8 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
         verbose=2,
         target_worker="demo_worker",
         uv="uv",
+        uv_worker="uv-worker",
+        pyvers_worker="3.13",
     )
 
     script_result = await runtime_distribution_support.run_local(
@@ -411,6 +413,8 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
     )
 
     assert script_result == "line-2"
+    assert "uv-worker run --preview-features python-upgrade --no-sync" in calls["run_async"][0][0]
+    assert "--python 3.13 python -c" in calls["run_async"][0][0]
     assert "import asyncio" in calls["run_async"][0][0]
     assert "if __name__ == '__main__':" in calls["run_async"][0][0]
 
