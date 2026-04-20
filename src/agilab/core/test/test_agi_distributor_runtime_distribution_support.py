@@ -399,6 +399,9 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
         envars={},
         debug=False,
         verbose=2,
+        app="demo_project",
+        apps_path=Path("/tmp/apps"),
+        active_app=Path("/tmp/apps/demo_project"),
         target_worker="demo_worker",
         uv="uv",
         uv_worker="uv-worker",
@@ -415,6 +418,10 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
     assert script_result == "line-2"
     assert "uv-worker run --preview-features python-upgrade --no-sync" in calls["run_async"][0][0]
     assert "--python 3.13 python -c" in calls["run_async"][0][0]
+    assert "from agi_env import AgiEnv" in calls["run_async"][0][0]
+    assert "AgiEnv(apps_path=Path('/tmp/apps'), app='demo_project', verbose=2)" in calls["run_async"][0][0]
+    assert "BaseWorker._new(env=env" in calls["run_async"][0][0]
+    assert "BaseWorker._run(env=env" in calls["run_async"][0][0]
     assert "import asyncio" in calls["run_async"][0][0]
     assert "if __name__ == '__main__':" in calls["run_async"][0][0]
 
