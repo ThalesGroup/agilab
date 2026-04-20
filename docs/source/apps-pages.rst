@@ -39,6 +39,30 @@ For fastest setup, AGILAB Analysis also exposes a **minimal template generator**
   **Clone from existing apps-page**.
 - Open the generated page and replace the sample logic with your own visuals.
 
+Tutorial: clone an existing apps-page
+-------------------------------------
+
+Use this when one public page bundle is already close to what you need and you
+want a new copy to modify safely.
+
+1. Open **ANALYSIS**.
+2. Find the page-bundle creation area.
+3. Enter the new page name you want to create.
+4. In **Clone from existing apps-page**, choose the source bundle to duplicate.
+5. Confirm the creation step.
+
+AGILAB creates a new bundle under ``${AGILAB_PAGES_ABS}`` with its own
+``pyproject.toml`` and ``src/<page>/<page>.py`` entrypoint.
+
+What to do next:
+
+- Open the new page bundle source on disk and replace the copied sample logic
+  with your own visuals or tables.
+- If the bundle needs extra dependencies, edit its local ``pyproject.toml``.
+- Enable the new bundle for a project through the ``[pages]`` section in
+  ``~/.agilab/apps/<project>/app_settings.toml`` or through Analysis →
+  Configure.
+
 Enabling bundles (per project)
 ------------------------------
 
