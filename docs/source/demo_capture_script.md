@@ -15,17 +15,17 @@ Keep one app per video, but support two stable narrative packs:
 
 - `flight_project`
   - safest default
-  - best for newcomer onboarding
-  - easiest to keep aligned with the existing README/slideshow story
+  - best for newcomer onboarding and first local proof
 - `UAV Relay Queue` (`uav_relay_queue_project`)
-  - stronger novelty and more visible `ANALYSIS`
-  - best when you want a more technical and more memorable queueing demo
+  - strongest public `PIPELINE` + `ANALYSIS` story
+  - best for the README/slideshow/full-tour demo assets
 
 Default recommendation:
 
-- use `flight_project` for the main AGILAB intro video
-- use `UAV Relay Queue` (`uav_relay_queue_project`) as the second product demo when
-  you want a more specialized "wow" path
+- use `flight_project` for newcomer onboarding clips and first-proof demos
+- use `UAV Relay Queue` (`uav_relay_queue_project`) for the main README/slideshow
+  and full-tour product demo when you want a truthful
+  `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` story
 
 Stable visual assets already tracked in the repo:
 
@@ -35,9 +35,12 @@ Stable visual assets already tracked in the repo:
 Generated demo media is intentionally local. Rebuild it when needed instead of
 linking documentation to repo-local `artifacts/demo_media/...` files.
 
-The key message should stay consistent across all three formats:
+Keep two stable public messages instead of forcing one app to carry both roles:
 
-`One app, one control path from PROJECT to ORCHESTRATE to ANALYSIS, with visible output files in between.`
+- `flight_project`: `PROJECT -> ORCHESTRATE -> ANALYSIS`, with visible output files
+  in between
+- `UAV Relay Queue`: `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`, ending on
+  queue evidence
 
 ## Which format to use
 
@@ -232,7 +235,7 @@ Narration:
 
 ### Flight 45-second version
 
-Use this as the default product tutorial.
+Use this as the default newcomer tutorial.
 
 1. Open AGILAB.
 2. Select `src/agilab/apps/builtin/flight_project` in `PROJECT`.
@@ -281,21 +284,21 @@ Keep the same path, but add one explicit sentence on each stage:
 
 - `PROJECT` defines the app and settings
 - `ORCHESTRATE` packages and runs the workflow
-- `PIPELINE` makes the steps inspectable and replayable
+- fresh output files make the first proof visible
 - `ANALYSIS` ends on visible evidence
 
 Do not add a second app. Do not branch into alternative flows.
 
 ### Flight 3-minute version
 
-Use this when you want a narrated product walkthrough that still stays aligned
-with the existing `AGILAB 3-minute tour` figure.
+Use this when you want a narrated newcomer walkthrough, not the full four-page
+pipeline tour.
 
 Keep the same single-app path:
 
 1. `PROJECT`
 2. `ORCHESTRATE`
-3. `PIPELINE`
+3. output folder
 4. `ANALYSIS`
 
 Do not introduce a second app, an alternative branch, or a second execution
@@ -305,7 +308,7 @@ Suggested timeline:
 
 1. `0:00 -> 0:20`
    Open the AGILAB home screen and state the single message:
-   `one app, one control path from project selection to execution to analysis.`
+   `one app, one control path from project selection to visible evidence.`
 2. `0:20 -> 0:50`
    Go to `PROJECT`, select `src/agilab/apps/builtin/flight_project`, and show
    that the app already carries its own arguments, pages, and outputs.
@@ -348,8 +351,7 @@ below unchanged and use the 3-minute talk track above as the narration layer.
 
 ### UAV queue 45-second version
 
-Use this when you want a technically stronger demo without changing the core
-AGILAB message.
+Use this as the default full-tour product clip.
 
 Keep the same page order:
 
@@ -442,7 +444,8 @@ If you want a static slideshow instead of a video, use this sequence:
 4. Optional closing frame
    - a screenshot from `ANALYSIS`
 
-The slideshow should tell the same story as the video, not introduce extra claims.
+The slideshow should tell the same story as the full-tour video, not introduce
+extra claims.
 
 For the `UAV Relay Queue` video (`uav_relay_queue_project` install id), reuse the same
 opening AGILAB figure, but end the static sequence on screenshots from:
@@ -464,7 +467,9 @@ opening AGILAB figure, but end the static sequence on screenshots from:
 ## Quality checklist
 
 - each tutorial uses one app only
-- the visible sequence is `PROJECT -> ORCHESTRATE -> ANALYSIS`
+- `flight_project` clips show `PROJECT -> ORCHESTRATE -> ANALYSIS`, with fresh
+  output files in between
+- `UAV Relay Queue` clips show `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
 - the ending frame shows a result, not infrastructure noise
 - the video and slideshow use the same message
 - the social/static assets do not contradict the live capture
@@ -472,4 +477,4 @@ opening AGILAB figure, but end the static sequence on screenshots from:
 
 ## Default tagline
 
-`AGILAB gives one app one control path from project selection to execution to analysis.`
+`AGILAB gives one app one control path from selection to visible evidence.`
