@@ -57,8 +57,9 @@ is not mounted. This makes data provenance explicit and avoids hidden copies of
 datasets on remote machines.
 
 Per-user cluster-share isolation is part of that contract: each user should
-resolve to their own share root so one operator's datasets, generated steps,
-and outputs do not overwrite another operator's workspace.
+resolve to their own share root so one operator's datasets and cluster-visible
+outputs do not overwrite another operator's workspace. Generated snippets and
+operator logs remain local under ``AGI_LOG_DIR``.
 
 Reference
 ----------

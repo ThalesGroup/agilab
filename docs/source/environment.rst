@@ -41,7 +41,7 @@ summarises the supported keys.
      - API key surfaced to features that rely on OpenAI endpoints.
    * - ``AGI_SHARE_DIR``
      - ``clustershare`` (resolved under ``$HOME`` if relative).
-     - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. In multi-user environments, each user should point this at their own share root rather than a common team directory, so datasets, generated snippets, and run outputs stay isolated per workspace.
+     - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. In multi-user environments, each user should point this at their own share root rather than a common team directory, so shared datasets and cluster-visible outputs stay isolated per workspace.
    * - ``AGI_LOCAL_SHARE``
      - ``$HOME/localshare``
      - Local datasets/outputs root used when cluster mode is disabled. In cluster mode, AGILab no longer falls back to this path if the shared mount is missing.
@@ -85,8 +85,11 @@ workspace contract, not as a generic team dropbox.
 
 - Each user should have their own ``AGI_SHARE_DIR`` / ``AGI_CLUSTER_SHARE`` root.
 - Do not point multiple users at the same writable cluster-share directory.
-- Keep per-user datasets, generated snippets, staged worker assets, and run
-  outputs isolated from other users.
+- Keep per-user datasets, worker installation files, and cluster-visible outputs
+  isolated from other users.
+
+Generated snippets and operator logs are a separate concern: they live under
+``AGI_LOG_DIR`` (by default ``~/log``), not under the cluster share.
 
 This avoids accidental reuse or overwrite of another operator's intermediate
 files and keeps cluster troubleshooting tied to one workspace at a time.
