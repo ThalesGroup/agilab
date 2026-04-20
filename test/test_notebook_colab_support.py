@@ -43,6 +43,15 @@ def test_worker_venv_path_uses_target_name(monkeypatch, tmp_path: Path):
     assert path == tmp_path / "wenv" / "demo_worker" / ".venv"
 
 
+def test_ensure_env_core_packages_uses_resolved_active_app():
+    calls: list[Path] = []
+    env = SimpleNamespace(active_app=Path("/repo/src/agilab/apps/builtin/mycode_project"))
+
+    colab_support.ensure_env_core_packages(lambda app_root: calls.append(app_root), env)
+
+    assert calls == [Path("/repo/src/agilab/apps/builtin/mycode_project")]
+
+
 @pytest.mark.asyncio
 async def test_install_if_needed_skips_existing_worker(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(colab_support.Path, "home", staticmethod(lambda: tmp_path))
