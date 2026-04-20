@@ -16,20 +16,22 @@ If you want a pre-install UI demo, use this page first.
 
 You do not need to install AGILAB to watch these demos.
 
-If you are new to AGILAB, start with the short `flight_project` intro reel:
+If you are new to AGILAB, start with the short `flight_project` first-proof reel:
 
-- `AGILAB in 45 Seconds: From Project to Orchestrate to Pipeline to Analysis <https://youtu.be/kOMDyvbnC9w>`_
+- `AGILAB in 45 Seconds: First proof with flight_project <https://youtu.be/kOMDyvbnC9w>`_
 
-If you want the more technical benchmark story, use the `UAV Relay Queue` reel:
+If you want the full four-page tour, use the `UAV Relay Queue` reel:
 
 - `How AGILAB makes UAV queue benchmarks reproducible <https://youtu.be/zxWZUyoEb9U>`_
 
 Which Demo To Watch
 -------------------
 
-- ``flight_project``: best first introduction to the AGILAB workflow.
+- ``flight_project``: best first local proof of the AGILAB workflow
+  (``PROJECT -> ORCHESTRATE -> ANALYSIS``).
 - ``UAV Relay Queue`` (install id ``uav_relay_queue_project``): best short technical
-  demo when you want to see a reproducible benchmark ending on queue evidence.
+  demo when you want the full public tour
+  (``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``) ending on queue evidence.
 
 Core Tour
 ---------
@@ -44,17 +46,26 @@ Core Tour
 What The Reels Show
 -------------------
 
-Both public demos keep the same AGILAB structure:
+The two public demos have different scopes:
 
-1. ``PROJECT`` selects one app and keeps its context visible.
-2. ``ORCHESTRATE`` packages the runnable execution path.
-3. ``PIPELINE`` keeps the execution replayable as an explicit step.
-4. ``ANALYSIS`` ends on visible evidence instead of raw infrastructure logs.
+``flight_project`` is the newcomer proof:
 
-The difference is the message:
+- ``PROJECT`` selects one built-in app and keeps its context visible.
+- ``ORCHESTRATE`` packages and runs the local path.
+- Fresh output files under ``~/log/execute/flight/`` make the first proof visible.
+- ``ANALYSIS`` ends on a visible result instead of raw infrastructure logs.
 
-- ``flight_project`` is the product-first overview.
-- ``UAV Relay Queue`` is the technical benchmark comparison.
+``UAV Relay Queue`` is the full four-page public tour:
+
+- ``PROJECT`` selects the app and routing scenario.
+- ``ORCHESTRATE`` runs the queue experiment through one packaged path.
+- ``PIPELINE`` keeps the experiment replayable as explicit steps and artifacts.
+- ``ANALYSIS`` ends on queue and topology evidence.
+
+The difference is the role:
+
+- ``flight_project`` is the safest first proof.
+- ``UAV Relay Queue`` is the strongest README/social/demo tour.
 
 See Also
 --------
