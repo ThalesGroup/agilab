@@ -30,6 +30,14 @@ class ColabNotebookContext:
     ensure_env_core_packages: Callable[[Any], None]
 
 
+def configure_local_notebook_environ(environ: dict[str, str] | None = None) -> None:
+    if environ is None:
+        environ = os.environ
+    environ["IS_SOURCE_ENV"] = "1"
+    environ["AGI_CLUSTER_ENABLED"] = "0"
+    environ.pop("IS_WORKER_ENV", None)
+
+
 def ensure_pathlib_unsupported_operation(pathlib_module=pathlib) -> None:
     if not hasattr(pathlib_module, "UnsupportedOperation"):
         pathlib_module.UnsupportedOperation = IOUnsupportedOperation
@@ -59,8 +67,7 @@ def ensure_env_core_packages(ensure_app_core_packages: Callable[[Path], None], a
 
 def bootstrap_colab_core(repo_root: str | Path = "/content/agilab") -> ColabNotebookContext:
     repo_root = Path(repo_root)
-    os.environ["IS_SOURCE_ENV"] = "1"
-    os.environ.pop("IS_WORKER_ENV", None)
+    configure_local_notebook_environ()
 
     ensure_pathlib_unsupported_operation()
     clear_agilab_core_modules()

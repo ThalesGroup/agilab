@@ -24,6 +24,20 @@ def test_ensure_pathlib_unsupported_operation_injects_fallback():
     assert fake_pathlib.UnsupportedOperation is colab_support.IOUnsupportedOperation
 
 
+def test_configure_local_notebook_environ_forces_local_mode():
+    environ = {
+        "IS_SOURCE_ENV": "0",
+        "IS_WORKER_ENV": "1",
+        "AGI_CLUSTER_ENABLED": "1",
+    }
+
+    colab_support.configure_local_notebook_environ(environ)
+
+    assert environ["IS_SOURCE_ENV"] == "1"
+    assert environ["AGI_CLUSTER_ENABLED"] == "0"
+    assert "IS_WORKER_ENV" not in environ
+
+
 def test_prepend_sys_path_entries_deduplicates(monkeypatch, tmp_path: Path):
     existing = str(tmp_path / "existing")
     fresh = tmp_path / "fresh"
