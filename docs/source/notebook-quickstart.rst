@@ -35,8 +35,8 @@ If you want the lightest public notebook entry path, open the Colab notebook:
 
 `Open in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
 
-This route installs the published ``agilab`` wheel inside Colab and runs the
-built-in ``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
+This route installs AGILAB directly from GitHub ``main`` inside Colab and runs
+the built-in ``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
 
 All Colab notebooks in this section also apply a tiny Python 3.12 compatibility
 shim before importing AGILAB modules, because some notebook runtimes expose
@@ -46,7 +46,7 @@ If you want the benchmark variant instead, use:
 
 `Open benchmark notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
 
-That notebook also uses the published wheel. It passes a list of modes to
+That notebook also installs from GitHub ``main``. It passes a list of modes to
 ``AGI.run(...)`` so AGILAB benchmarks ``mycode_project`` across local execution
 modes and writes the benchmark JSON artifact.
 
