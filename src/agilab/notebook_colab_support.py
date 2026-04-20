@@ -27,6 +27,7 @@ class ColabNotebookContext:
     AGI: Any
     AgiEnv: type
     ensure_app_core_packages: Callable[[Path], None]
+    ensure_env_core_packages: Callable[[Any], None]
 
 
 def ensure_pathlib_unsupported_operation(pathlib_module=pathlib) -> None:
@@ -50,6 +51,10 @@ def prepend_sys_path_entries(entries: list[Path]) -> None:
         entry_str = str(entry)
         if entry_str not in sys.path:
             sys.path.insert(0, entry_str)
+
+
+def ensure_env_core_packages(ensure_app_core_packages: Callable[[Path], None], app_env: Any) -> None:
+    ensure_app_core_packages(Path(app_env.active_app))
 
 
 def bootstrap_colab_core(repo_root: str | Path = "/content/agilab") -> ColabNotebookContext:
@@ -116,6 +121,7 @@ def bootstrap_colab_core(repo_root: str | Path = "/content/agilab") -> ColabNote
         AGI=AGI,
         AgiEnv=AgiEnv,
         ensure_app_core_packages=ensure_app_core_packages,
+        ensure_env_core_packages=lambda app_env: ensure_env_core_packages(ensure_app_core_packages, app_env),
     )
 
 
