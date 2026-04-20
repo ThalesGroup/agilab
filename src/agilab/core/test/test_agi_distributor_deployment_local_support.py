@@ -174,12 +174,23 @@ def test_format_dependency_spec_and_repo_helpers_cover_edge_cases(tmp_path):
         == "pandas[performance]>=2,<3"
     )
     assert deployment_local_support._is_within_repo(tmp_path / "child", None) is False
+    assert deployment_local_support._is_within_repo(tmp_path / "child", False) is False
 
     class _BrokenPath:
         def resolve(self):
             raise RuntimeError("resolve failed")
 
     assert deployment_local_support._is_within_repo(_BrokenPath(), tmp_path) is False
+
+
+def test_read_agilab_repo_root_normalizes_missing_marker(monkeypatch):
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv,
+        "read_agilab_path",
+        staticmethod(lambda: False),
+    )
+
+    assert deployment_local_support._read_agilab_repo_root() is None
 
 
 def test_infer_repo_root_from_runtime_returns_none_for_short_path():
