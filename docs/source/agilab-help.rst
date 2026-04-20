@@ -60,6 +60,19 @@ Use this as a page map, not as the newcomer proof path:
 4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for
    deeper views.
 
+Public navigation split
+-----------------------
+
+Keep these two public paths separate:
+
+- newcomer proof: ``flight_project`` through
+  ``PROJECT -> ORCHESTRATE -> ANALYSIS``
+- full tour demo: ``uav_relay_queue_project`` through
+  ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``
+
+That distinction keeps the docs truthful: the safest first local proof is not
+the same thing as the strongest four-page product tour.
+
 See also
 --------
 

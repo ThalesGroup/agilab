@@ -140,3 +140,8 @@ It does **not** replace the full first visible workflow proof. Passing
 are sane; you still need the normal first run in the web interface to produce
 fresh output under ``~/log/execute/flight/`` and complete the
 ``PROJECT -> ORCHESTRATE -> ANALYSIS`` story.
+
+It also does **not** prove the separate public full-tour demo
+(``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``) based on
+``uav_relay_queue_project``. That tour is currently documented, but it is not
+the same contract as the validated newcomer proof.

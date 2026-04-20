@@ -16,6 +16,10 @@ That first proof is:
 If that works once, then branch into notebooks, cluster mode, or package mode.
 If it fails, use :doc:`newcomer-troubleshooting`.
 
+This first proof is deliberately narrower than the public four-page tour. It
+proves the safest local path first; it does not try to prove ``PIPELINE`` on
+day 1.
+
 For architectural context, see :doc:`architecture` and
 :doc:`agi-core-architecture`.
 
@@ -62,6 +66,9 @@ Use this path exactly once before trying anything broader:
 
    Do not switch to packaged install, notebook-first, or cluster setup before
    this local proof works once from end to end.
+
+   If you want the full public four-page story after that, use the
+   ``uav_relay_queue_project`` demo path documented in :doc:`demos`.
 
 If the first proof fails
 ^^^^^^^^^^^^^^^^^^^^^^^^
