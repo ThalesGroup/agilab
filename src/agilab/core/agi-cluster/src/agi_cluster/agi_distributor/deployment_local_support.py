@@ -106,6 +106,22 @@ def _read_agilab_repo_root() -> Path | None:
     return repo_root if isinstance(repo_root, Path) else None
 
 
+def _shell_env_prefix(env_overrides: dict[str, str], *, os_name: str = os.name) -> str:
+    if not env_overrides:
+        return ""
+    if os_name == "nt":
+        return "".join(f'set "{key}={value}" && ' for key, value in env_overrides.items())
+    return "".join(f"{key}={value} " for key, value in env_overrides.items())
+
+
+def _local_worker_post_install_env_prefix(agi_cls: Any, *, os_name: str = os.name) -> str:
+    mode = int(getattr(agi_cls, "_mode", 0) or 0)
+    dask_mode = int(getattr(agi_cls, "DASK_MODE", 0) or 0)
+    if dask_mode and (mode & dask_mode):
+        return ""
+    return _shell_env_prefix({"AGI_CLUSTER_ENABLED": "0"}, os_name=os_name)
+
+
 def _update_pyproject_dependencies(
     pyproject_file: Path,
     dependency_info: dict[str, dict[str, Any]],
@@ -590,6 +606,7 @@ async def deploy_local_worker(
             )
 
     post_install_cmd = (
+        f"{_local_worker_post_install_env_prefix(agi_cls)}"
         f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "
         f"--python {pyvers_worker} python -m {env.post_install_rel} "
         f"{wenv_rel.stem}"
