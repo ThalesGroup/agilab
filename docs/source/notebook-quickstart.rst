@@ -56,6 +56,16 @@ built-in app sources, and runs ``execution_pandas_project`` and
 ``uav_relay_queue_project`` so you can see both a data-oriented workload and a
 pipeline-shaped workflow from the same notebook entry point.
 
+If you want the stricter class-path notebook instead, use:
+
+`Open worker paths notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb>`_
+
+That notebook clones the repository, resolves the worker source path for
+``execution_pandas_project``, ``flight_project``, and
+``uav_relay_queue_project``, and prints the imported class lineage for
+``ExecutionPandasWorker``, ``FlightWorker``, and the shared ``DagWorker``
+base class.
+
 Repository launch flow
 ----------------------
 
