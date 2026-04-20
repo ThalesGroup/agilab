@@ -8,6 +8,12 @@ from agi_cluster.agi_distributor import AGI
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
 from agi_env import AgiEnv
 
+_BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
+
+
+def _mycode_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="mycode_project", verbose=verbose)
+
 
 @pytest.fixture(autouse=True)
 def _reset_agi_run_state():
@@ -31,7 +37,7 @@ def _reset_agi_run_state():
 
 @pytest.mark.asyncio
 async def test_agi_run_delegates_to_benchmark_with_sorted_mode_list(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     captured = {}
 
     async def _fake_benchmark(env_, scheduler, workers, verbose, mode_range, rapids_enabled, **args):
@@ -68,7 +74,7 @@ async def test_agi_run_delegates_to_benchmark_with_sorted_mode_list(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_agi_run_uses_default_workers_in_benchmark(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=1)
+    env = _mycode_env(verbose=1)
     captured = {}
 
     async def _fake_benchmark(_env, _scheduler, workers, _verbose, mode_range, _rapids_enabled, **_args):
@@ -91,7 +97,7 @@ async def test_agi_run_uses_default_workers_in_benchmark(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_rejects_invalid_workers_type():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     with pytest.raises(ValueError, match=r"workers must be a dict"):
         await AGI.run(
             env,
@@ -102,7 +108,7 @@ async def test_agi_run_rejects_invalid_workers_type():
 
 @pytest.mark.asyncio
 async def test_agi_run_rejects_invalid_mode_string():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     with pytest.raises(ValueError, match=r"parameter <mode> must only contain the letters"):
         await AGI.run(
             env,
@@ -113,7 +119,7 @@ async def test_agi_run_rejects_invalid_mode_string():
 
 @pytest.mark.asyncio
 async def test_agi_run_rejects_invalid_mode_type():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     with pytest.raises(ValueError, match=r"parameter <mode> must be an int"):
         await AGI.run(
             env,
@@ -124,7 +130,7 @@ async def test_agi_run_rejects_invalid_mode_type():
 
 @pytest.mark.asyncio
 async def test_agi_run_rejects_unsupported_base_worker_class(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "UnknownWorker"
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
 
@@ -138,7 +144,7 @@ async def test_agi_run_rejects_unsupported_base_worker_class(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "Sb3TrainerWorker"
     env._base_worker_module = "sb3_trainer_worker"
 
@@ -160,7 +166,7 @@ async def test_agi_run_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_mode_string_valid_path_calls_mode2int_and_main(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
     called = {"mode2int": None, "main": None}
 
@@ -189,7 +195,7 @@ async def test_agi_run_mode_string_valid_path_calls_mode2int_and_main(monkeypatc
 
 @pytest.mark.asyncio
 async def test_agi_run_mode_zero_sets_run_type(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
 
     async def _fake_main(_scheduler):
@@ -210,7 +216,7 @@ async def test_agi_run_mode_zero_sets_run_type(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_trains_capacity_when_model_is_missing(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
     called = {"train": 0}
 
@@ -237,7 +243,7 @@ async def test_agi_run_trains_capacity_when_model_is_missing(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_returns_none_on_process_error(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
 
     class _FakeProcessError(Exception):
@@ -261,7 +267,7 @@ async def test_agi_run_returns_none_on_process_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_returns_connection_error_payload(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
 
@@ -281,7 +287,7 @@ async def test_agi_run_returns_connection_error_payload(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_returns_none_on_module_not_found(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
 
@@ -294,7 +300,7 @@ async def test_agi_run_returns_none_on_module_not_found(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_reraises_unhandled_exception(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
 
@@ -308,7 +314,7 @@ async def test_agi_run_reraises_unhandled_exception(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_logs_debug_traceback_when_debug_enabled(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = "PandasWorker"
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
 
@@ -345,7 +351,7 @@ async def test_agi_run_logs_debug_traceback_when_debug_enabled(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_run_requires_base_worker_cls():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.base_worker_cls = None
     with pytest.raises(ValueError, match=r"Missing .* definition; expected"):
         await AGI.run(

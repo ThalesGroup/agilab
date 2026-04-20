@@ -13,6 +13,12 @@ from agi_cluster.agi_distributor import service_lifecycle_support
 from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker
 
+_BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
+
+
+def _mycode_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="mycode_project", verbose=verbose)
+
 # Set AGI verbosity low to avoid extra prints during test.
 AGI.verbose = 0
 
@@ -61,7 +67,7 @@ def _reset_agi_service_state():
         "verbose": AGI.verbose,
     }
 
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     AGI._args = None
     AGI._dask_client = None
     AGI._dask_workers = None
@@ -1334,7 +1340,7 @@ async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypat
 
 @pytest.mark.asyncio
 async def test_serve_start_rejects_duplicate_service_loops(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     AGI._service_futures = {"w1": _FakeFuture(status="running")}
 
     async def _fake_recover(*_args, **_kwargs):
@@ -1348,7 +1354,7 @@ async def test_serve_start_rejects_duplicate_service_loops(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     AGI._service_futures = {}
     AGI._service_state = None
     AGI._worker_default = {"127.0.0.1": 1}
@@ -1360,11 +1366,16 @@ async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch)
     AGI._service_queue_failed = None
     AGI._service_queue_heartbeats = None
     AGI._service_workers = []
+    AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
 
     async def _fake_recover(*_args, **_kwargs):
         return False
 
+    async def _fake_sync(*_args, **_kwargs):
+        return None
+
     monkeypatch.setattr(AGI, "_service_recover", staticmethod(_fake_recover))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
     monkeypatch.setattr(AGI, "_service_state_path", staticmethod(lambda _env: Path("/tmp/service_state.json")))
     monkeypatch.setattr(AGI, "_service_health_path", staticmethod(lambda _env: Path("/tmp/service_health.json")))
     monkeypatch.setattr(AGI, "_service_queue_paths", staticmethod(lambda _env: {"pending": Path("/tmp/pending"), "running": Path("/tmp/running"), "done": Path("/tmp/done"), "failed": Path("/tmp/failed"), "heartbeats": Path("/tmp/heartbeats")}))
