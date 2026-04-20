@@ -24,7 +24,7 @@ surface = "streamlit web UI"
 primary_proof = "uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS on a public built-in app"
+scope = "PROJECT -> ORCHESTRATE -> ANALYSIS on a public built-in app, with fresh output under ~/log/execute/flight/"
 limits = ["Local path only", "Not a remote cluster proof"]
 
 [[entries]]

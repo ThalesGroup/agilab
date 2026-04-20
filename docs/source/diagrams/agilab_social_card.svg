@@ -82,5 +82,5 @@
   <rect x="70" y="524" width="1060" height="96" rx="24" ry="24" fill="#fffaf4" stroke="#dfd6cc" stroke-width="2.2" />
   <text class="footer" x="600" y="560" text-anchor="middle">Best fit: experimentation and validation teams</text>
   <text class="footer" x="600" y="588" text-anchor="middle">who want less manual orchestration.</text>
-  <text class="card-body" x="600" y="616" text-anchor="middle">Good demo path: flight_project from PROJECT → ORCHESTRATE → PIPELINE → ANALYSIS.</text>
+  <text class="card-body" x="600" y="616" text-anchor="middle">Good demo path: flight_project from PROJECT → ORCHESTRATE → ANALYSIS.</text>
 </svg>

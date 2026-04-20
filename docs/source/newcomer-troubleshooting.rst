@@ -142,7 +142,7 @@ Then relaunch the UI and follow the first-proof path again:
 
 1. ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
 2. ``ORCHESTRATE`` -> run the local install/distribute/run path
-3. ``PIPELINE`` -> confirm the generated step exists
+3. confirm fresh output exists under ``~/log/execute/flight/``
 4. ``ANALYSIS`` -> confirm one visible result exists
 
 When you are past the newcomer hurdle
@@ -152,8 +152,8 @@ You are done with this page when all of the following are true:
 
 - the newcomer proof command returns ``PASS``
 - AGILAB writes fresh output under ``~/log/execute/flight/``
-- the four-page path stays understandable as
-  ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``
+- the first-proof path stays understandable as
+  ``PROJECT -> ORCHESTRATE -> ANALYSIS``
 
 After that, go back to:
 

@@ -56,13 +56,13 @@ Then in the UI:
 
 1. select `src/agilab/apps/builtin/flight_project` in **PROJECT**
 2. run the install/distribute/run flow in **ORCHESTRATE**
-3. inspect the generated step in **PIPELINE**
+3. confirm fresh output appears under `~/log/execute/flight/`
 4. open the resulting view in **ANALYSIS**
 
 Your first proof is explicit:
 
 - fresh generated output appears under `~/log/execute/flight/`
-- the workflow stays visible as `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
+- the first proof stays visible as `PROJECT -> ORCHESTRATE -> ANALYSIS`
 
 Fast orientation:
 
