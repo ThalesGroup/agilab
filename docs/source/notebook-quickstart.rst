@@ -28,6 +28,16 @@ What this path does not cover
 You can stay in notebook mode for your first local runs. Move to the web UI
 later when you want the higher-level AGILAB workflow around the same API.
 
+Colab launch flow
+-----------------
+
+If you want the lightest public notebook entry path, open the Colab notebook:
+
+`Open in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
+
+This route installs ``agilab`` from PyPI inside Colab and runs the packaged
+``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
+
 Repository launch flow
 ----------------------
 
