@@ -105,7 +105,7 @@ uv run agilab
 [![Open First Run In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb)
 
 Other notebook entry points:
-- [`Benchmark`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb): use the published wheel to compare Python and Cython execution modes on `mycode_project`
+- [`Benchmark`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb): install from GitHub `main` and compare Python and Cython execution modes on `mycode_project`
 - [`Data + DAG`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb): advanced source-checkout notebook for a data-worker app and a DAG-style app
 - [`Worker Paths`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb): advanced source-checkout notebook for worker-class and source-path inspection
 
