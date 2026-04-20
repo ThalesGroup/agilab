@@ -6,6 +6,7 @@
 - Théo PLANTEFOL contributor
 - Julien BESTARD contributor
 - Remy CHEN contributor
+- Guillaume Demets
 
 ### Roles
 Content developper
