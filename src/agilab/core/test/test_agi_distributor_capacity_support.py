@@ -10,6 +10,12 @@ from agi_cluster.agi_distributor import AGI, capacity_support
 from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker
 
+_BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
+
+
+def _mycode_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="mycode_project", verbose=verbose)
+
 
 @pytest.fixture(autouse=True)
 def _reset_agi_capacity_state():
@@ -59,7 +65,7 @@ def _reset_agi_capacity_state():
 
 @pytest.mark.asyncio
 async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.benchmark = tmp_path / "benchmark.json"
     env.benchmark.write_text("stale", encoding="utf-8")
 
@@ -93,7 +99,7 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.benchmark = tmp_path / "benchmark.json"
     called = {"install": 0}
 
@@ -116,7 +122,7 @@ async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path
 
 @pytest.mark.asyncio
 async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.benchmark = tmp_path / "benchmark.json"
 
     async def _bad_run(*_args, **_kwargs):
@@ -132,7 +138,7 @@ async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     env.benchmark = tmp_path / "benchmark.json"
 
     async def _non_str_run(*_args, **_kwargs):
@@ -148,7 +154,7 @@ async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     calls = {"start": 0, "stop": 0, "update": 0}
     runs = {}
     sequence = iter(["m4 2.0", "m5 1.0"])
@@ -190,7 +196,7 @@ async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_stops_even_when_run_format_is_invalid(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = _mycode_env()
     calls = {"stop": 0}
 
     async def _start(_scheduler):
