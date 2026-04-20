@@ -5,12 +5,17 @@ from __future__ import annotations
 import ast
 import os
 import shutil
-from pathlib import Path, UnsupportedOperation
+from pathlib import Path
 from typing import Any, Callable
 
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
+
+try:
+    from pathlib import UnsupportedOperation
+except ImportError:
+    from io import UnsupportedOperation
 
 PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 PROJECT_COPY_EXCEPTIONS = (OSError, shutil.Error)
