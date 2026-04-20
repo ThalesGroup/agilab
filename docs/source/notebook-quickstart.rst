@@ -42,6 +42,10 @@ All Colab notebooks in this section also apply a tiny Python 3.12 compatibility
 shim before importing AGILAB modules, because some notebook runtimes expose
 ``pathlib.UnsupportedOperation`` differently.
 
+The notebooks also prepend the repo-local ``agi-env`` and ``agi-cluster`` source
+paths before importing AGILAB, so Colab does not fall back to an older published
+wheel for the core runtime modules.
+
 If you want the benchmark variant instead, use:
 
 `Open benchmark notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
