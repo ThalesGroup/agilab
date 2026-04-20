@@ -535,9 +535,9 @@ async def deploy_local_worker(
 
     _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
 
-    worker_core_add_paths: list[Path] = []
+    worker_core_add_specs: list[str] = []
     if env.is_source_env:
-        worker_core_add_paths = [env.agi_env, env.agi_node]
+        worker_core_add_specs = [str(env.agi_env), str(env.agi_node)]
     elif (
         (not env.is_worker_env)
         and env.install_type == 0
@@ -546,11 +546,18 @@ async def deploy_local_worker(
         and env_project.exists()
         and node_project.exists()
     ):
-        worker_core_add_paths = [env_project, node_project]
+        worker_core_add_specs = [
+            spec
+            for spec in (
+                _resolve_install_spec(env_project, "agi-env"),
+                _resolve_install_spec(node_project, "agi-node"),
+            )
+            if spec
+        ]
 
-    if worker_core_add_paths:
-        quoted_paths = " ".join(f"\"{path}\"" for path in worker_core_add_paths)
-        cmd_worker = f"{worker_extra_indexes}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_paths}"
+    if worker_core_add_specs:
+        quoted_specs = " ".join(f"\"{spec}\"" for spec in worker_core_add_specs)
+        cmd_worker = f"{worker_extra_indexes}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}"
         await run_fn(cmd_worker, wenv_abs)
     else:
         cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
