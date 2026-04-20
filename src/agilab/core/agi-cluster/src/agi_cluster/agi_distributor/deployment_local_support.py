@@ -1,12 +1,14 @@
 import getpass
+import json
 import logging
 import os
 import shutil
 import stat
 import subprocess
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError, distribution as pkg_distribution, version as pkg_version
 from pathlib import Path
 from typing import Any, Callable, cast
+from urllib.parse import unquote, urlparse
 
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
@@ -66,6 +68,58 @@ def _cleanup_editable(site_packages: Path) -> None:
                 pass
 
 
+def _is_python_project(path: Path) -> bool:
+    return path.is_dir() and any((path / marker).exists() for marker in ("pyproject.toml", "setup.py"))
+
+
+def _resolve_distribution_install_spec(package_name: str) -> str | None:
+    try:
+        distribution = pkg_distribution(package_name)
+    except PackageNotFoundError:
+        return None
+
+    direct_url_text = distribution.read_text("direct_url.json")
+    if direct_url_text:
+        try:
+            direct_url = json.loads(direct_url_text)
+        except json.JSONDecodeError:
+            direct_url = None
+        if isinstance(direct_url, dict):
+            raw_url = direct_url.get("url")
+            subdirectory = direct_url.get("subdirectory")
+            if isinstance(raw_url, str) and raw_url:
+                parsed = urlparse(raw_url)
+                if parsed.scheme == "file":
+                    local_path = Path(unquote(parsed.path))
+                    if _is_python_project(local_path):
+                        return str(local_path)
+
+                vcs_info = direct_url.get("vcs_info")
+                if isinstance(vcs_info, dict):
+                    vcs = vcs_info.get("vcs")
+                    if isinstance(vcs, str) and vcs:
+                        spec = f"{package_name} @ {vcs}+{raw_url}"
+                        requested_revision = vcs_info.get("requested_revision") or vcs_info.get("commit_id")
+                        if isinstance(requested_revision, str) and requested_revision:
+                            spec += f"@{requested_revision}"
+                        if isinstance(subdirectory, str) and subdirectory:
+                            spec += f"#subdirectory={subdirectory}"
+                        return spec
+
+                spec = f"{package_name} @ {raw_url}"
+                if isinstance(subdirectory, str) and subdirectory:
+                    spec += f"#subdirectory={subdirectory}"
+                return spec
+
+    return f"{package_name}=={distribution.version}"
+
+
+def _resolve_install_spec(project_path: Path | None, package_name: str) -> str | None:
+    if isinstance(project_path, Path) and _is_python_project(project_path):
+        return str(project_path)
+    return _resolve_distribution_install_spec(package_name)
+
+
 def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
     if os_name == "nt":
         return project / ".venv" / "Scripts" / "python.exe"
@@ -75,15 +129,16 @@ def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
 async def _install_into_project_venv(
     uv_cmd: str,
     project: Path,
-    package_path: Path,
+    package_ref: str | Path,
     *,
     run_fn: Callable[..., Any],
     os_name: str = os.name,
 ) -> None:
     venv_python = _project_venv_python(project, os_name=os_name)
+    package_spec = str(package_ref)
     cmd = (
         f'{uv_cmd} pip install --python "{venv_python}" '
-        f'--upgrade --no-deps "{package_path}"'
+        f'--upgrade --no-deps "{package_spec}"'
     )
     await run_fn(cmd, project)
 
@@ -410,11 +465,20 @@ async def deploy_local_worker(
     await run_fn(cmd_manager, app_path)
 
     if (not env.is_source_env) and (not env.is_worker_env):
-        for project_path in (agilab_project, env_project, node_project, core_project, cluster_project):
+        install_targets = (
+            (agilab_project, "agilab"),
+            (env_project, "agi-env"),
+            (node_project, "agi-node"),
+            (core_project, "agi-core"),
+            (cluster_project, "agi-cluster"),
+        )
+        for project_path, package_name in install_targets:
             if project_path and project_path.exists():
                 if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
                     continue
-                await _install_into_project_venv(uv, app_path, project_path, run_fn=run_fn)
+            install_spec = _resolve_install_spec(project_path, package_name)
+            if install_spec:
+                await _install_into_project_venv(uv, app_path, install_spec, run_fn=run_fn)
 
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
@@ -526,14 +590,23 @@ async def deploy_local_worker(
         if worker_resources_src.exists():
             shutil.copytree(worker_resources_src, resources_dest, dirs_exist_ok=True)
 
-        for project_path in (agilab_project, env_project, node_project, core_project, cluster_project):
+        install_targets = (
+            (agilab_project, "agilab"),
+            (env_project, "agi-env"),
+            (node_project, "agi-node"),
+            (core_project, "agi-core"),
+            (cluster_project, "agi-cluster"),
+        )
+        for project_path, package_name in install_targets:
             if project_path and project_path.exists():
                 if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
                     continue
+            install_spec = _resolve_install_spec(project_path, package_name)
+            if install_spec:
                 await _install_into_project_venv(
                     uv_worker,
                     wenv_abs,
-                    project_path,
+                    install_spec,
                     run_fn=run_fn,
                 )
 
