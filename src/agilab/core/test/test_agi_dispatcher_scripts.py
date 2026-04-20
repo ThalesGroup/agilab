@@ -3,6 +3,7 @@ import builtins
 import runpy
 import shutil
 import subprocess
+import sys
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -211,6 +212,45 @@ def test_pre_install_ensure_agi_env_raises_when_source_layout_missing(monkeypatc
         pre_mod.sys.modules.pop("agi_env", None)
         if original_agi_env is not None:
             pre_mod.sys.modules["agi_env"] = original_agi_env
+
+
+def test_post_install_module_bootstraps_agi_env_from_source_layout(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    dispatcher_dir = workspace / "agilab" / "core" / "agi-node" / "src" / "agi_node" / "agi_dispatcher"
+    dispatcher_dir.mkdir(parents=True)
+    source_script = Path(post_mod.__file__).resolve()
+    (dispatcher_dir / "post_install.py").write_text(source_script.read_text(encoding="utf-8"), encoding="utf-8")
+    bootstrap_script = source_script.parent / "bootstrap_source_paths.py"
+    (dispatcher_dir / "bootstrap_source_paths.py").write_text(
+        bootstrap_script.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    candidate = workspace / "agilab" / "core" / "agi-env" / "src" / "agi_env"
+    candidate.mkdir(parents=True)
+    (candidate / "__init__.py").write_text("class AgiEnv:\n    pass\n", encoding="utf-8")
+
+    original_sys_path = list(sys.path)
+    original_agi_env = sys.modules.pop("agi_env", None)
+    sys.path.insert(0, str(dispatcher_dir))
+
+    original_import = builtins.__import__
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agi_env" and str(candidate.parent) not in sys.path:
+            raise ModuleNotFoundError("agi_env")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _patched_import)
+    try:
+        runpy.run_path(str(dispatcher_dir / "post_install.py"), run_name="post_install_bootstrap_test")
+        assert str(candidate.parent) in sys.path
+        assert Path(sys.modules["agi_env"].__file__).resolve() == (candidate / "__init__.py").resolve()
+    finally:
+        sys.path[:] = original_sys_path
+        sys.modules.pop("agi_env", None)
+        if original_agi_env is not None:
+            sys.modules["agi_env"] = original_agi_env
 
 
 def test_post_iter_data_files_and_has_samples(tmp_path):
