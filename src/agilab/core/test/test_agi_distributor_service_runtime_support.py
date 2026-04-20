@@ -5,11 +5,14 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+_SERVICE_RUNTIME_SUPPORT_PATH = (
+    Path(__file__).resolve().parents[4]
+    / "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service_runtime_support.py"
+)
+
 
 def test_service_runtime_support_reexports_service_helpers(monkeypatch):
-    source_path = Path(
-        "/Users/agi/PycharmProjects/agilab/src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service_runtime_support.py"
-    )
+    source_path = _SERVICE_RUNTIME_SUPPORT_PATH
 
     agi_cluster_pkg = ModuleType("agi_cluster")
     agi_cluster_pkg.__path__ = []  # type: ignore[attr-defined]
