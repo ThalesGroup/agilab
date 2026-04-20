@@ -65,9 +65,10 @@ These values are persisted in the per-user workspace copy of
 cluster definition.
 
 The share directory should follow the same isolation rule: one user, one share
-root. Keep worker staging, generated snippets, datasets, and run outputs in a
-per-user cluster-share path instead of a common writable directory shared by
-multiple operators.
+root. Keep worker installation files, datasets, and cluster-visible outputs in
+a per-user cluster-share path instead of a common writable directory shared by
+multiple operators. Generated snippets remain under the local ``AGI_LOG_DIR``
+workspace.
 
 .. figure:: _static/page-shots/orchestrate-page.png
    :alt: Screenshot of the ORCHESTRATE page showing system settings, install, distribute, and run areas.
