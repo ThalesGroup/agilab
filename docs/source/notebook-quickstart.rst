@@ -38,6 +38,10 @@ If you want the lightest public notebook entry path, open the Colab notebook:
 This route installs ``agilab`` from PyPI inside Colab and runs the packaged
 ``mycode_project`` through ``AgiEnv`` and ``AGI.run(...)``.
 
+All Colab notebooks in this section also apply a tiny Python 3.12 compatibility
+shim before importing AGILAB modules, because some notebook runtimes expose
+``pathlib.UnsupportedOperation`` differently.
+
 If you want the benchmark variant instead, use:
 
 `Open benchmark notebook in Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
