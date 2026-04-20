@@ -33,6 +33,10 @@ In the rest of the guide, I would refer to:
 - Worker: The remote machine that accepts SSH connections.
 - Remote account: The user account on the worker machine used for SSH login.
 
+Use the real remote account name for your cluster. Do not replace
+``<remote account>`` with ``agi`` unless the worker machine actually exposes an
+``agi`` login.
+
 1. Generate the keys
 ~~~~~~~~~~~~~~~~~~~~
 

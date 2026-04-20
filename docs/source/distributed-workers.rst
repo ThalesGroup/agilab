@@ -34,6 +34,9 @@ Before configuring distributed workers, make sure the environment is ready:
 
 - The machine running AGILAB can reach every worker over the network.
 - SSH access works non-interactively from the manager to every worker.
+- Use the real login user for each worker. Do not assume ``agi`` unless that
+  host really exposes an ``agi`` account. Prefer explicit ``user@host``
+  notation whenever the username is not obvious.
 - A shared writable cluster path is mounted on every node with the same
   effective location. In cluster mode, do not rely on ``AGI_LOCAL_SHARE`` as a
   fallback.
