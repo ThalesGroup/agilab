@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any, Callable, cast
@@ -51,6 +52,26 @@ def _python_site_version(pyvers_worker: str) -> str:
     return python_dirs[0] + "." + python_dirs[1]
 
 
+def _uv_offline_flag(env: Any) -> str:
+    envars = getattr(env, "envars", {})
+    raw = os.environ.get("AGI_INTERNET_ON")
+    if raw is None:
+        try:
+            raw = envars.get("AGI_INTERNET_ON")
+        except (AttributeError, RuntimeError, TypeError):
+            raw = None
+    if raw is None:
+        return ""
+    if isinstance(raw, bool):
+        return "" if raw else "--offline "
+    if isinstance(raw, (int, float)):
+        try:
+            return "" if int(raw) == 1 else "--offline "
+        except (TypeError, ValueError):
+            return "--offline "
+    return "" if str(raw).strip().lower() in {"1", "true", "yes", "on"} else "--offline "
+
+
 def _project_uv(env: Any) -> str:
     if not env.is_free_threading_available or not python_supports_free_threading():
         return str(env.uv)
@@ -70,13 +91,14 @@ def _worker_pyproject_source(env: Any) -> Path:
 
 def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]:
     commands: list[str] = []
+    offline_flag = _uv_offline_flag(env)
     core_packages = (
         ("agi-env", getattr(env, "agi_env", None)),
         ("agi-node", getattr(env, "agi_node", None)),
     )
     for package_name, source_path in core_packages:
         if getattr(env, "is_source_env", False) and source_path:
-            commands.append(f"{uv} --project {app_path_arg} pip install --no-deps -e '{source_path}'")
+            commands.append(f"{uv} {offline_flag}--project {app_path_arg} pip install -e '{source_path}'")
         else:
             commands.append(f"{uv} --project {app_path_arg} pip install {package_name} ")
     return commands

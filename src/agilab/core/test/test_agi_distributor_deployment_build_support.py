@@ -276,6 +276,7 @@ async def test_build_lib_local_uses_free_threading_uv_prefix(monkeypatch, tmp_pa
 async def test_build_lib_local_uses_editable_core_installs_in_source_env(tmp_path):
     env = _build_env(tmp_path)
     env.is_source_env = True
+    env.envars = {"AGI_INTERNET_ON": "0"}
     (env.wenv_abs / "dist" / "demo.egg").write_text("egg", encoding="utf-8")
     commands = []
 
@@ -296,8 +297,8 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(tmp_pat
         run_fn=_fake_run,
     )
 
-    assert any(f"pip install --no-deps -e '{env.agi_env}'" in cmd for cmd, _ in commands)
-    assert any(f"pip install --no-deps -e '{env.agi_node}'" in cmd for cmd, _ in commands)
+    assert any(f'--offline --project "{env.active_app}" pip install -e \'{env.agi_env}\'' in cmd for cmd, _ in commands)
+    assert any(f'--offline --project "{env.active_app}" pip install -e \'{env.agi_node}\'' in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio

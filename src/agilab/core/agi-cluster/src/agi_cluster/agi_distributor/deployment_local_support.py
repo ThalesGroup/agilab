@@ -114,6 +114,25 @@ def _shell_env_prefix(env_overrides: dict[str, str], *, os_name: str = os.name) 
     return "".join(f"{key}={value} " for key, value in env_overrides.items())
 
 
+def _uv_offline_flag(envars: Any) -> str:
+    raw = os.environ.get("AGI_INTERNET_ON")
+    if raw is None:
+        try:
+            raw = envars.get("AGI_INTERNET_ON")
+        except (AttributeError, RuntimeError, TypeError):
+            raw = None
+    if raw is None:
+        return ""
+    if isinstance(raw, bool):
+        return "" if raw else "--offline "
+    if isinstance(raw, (int, float)):
+        try:
+            return "" if int(raw) == 1 else "--offline "
+        except (TypeError, ValueError):
+            return "--offline "
+    return "" if str(raw).strip().lower() in {"1", "true", "yes", "on"} else "--offline "
+
+
 def _local_worker_post_install_env_prefix(agi_cls: Any, *, os_name: str = os.name) -> str:
     mode = int(getattr(agi_cls, "_mode", 0) or 0)
     dask_mode = int(getattr(agi_cls, "DASK_MODE", 0) or 0)
@@ -321,6 +340,7 @@ async def deploy_local_worker(
     wenv_abs = env.wenv_abs
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     uv = cmd_prefix + env.uv
+    offline_flag = _uv_offline_flag(getattr(env, "envars", {}))
     pyvers = env.python_version
 
     if hw_rapids_capable:
@@ -350,15 +370,17 @@ async def deploy_local_worker(
             )
 
     extra_indexes = ""
-    if str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(app_path):
+    if (not offline_flag) and str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(app_path):
         extra_indexes = (
             "PIP_INDEX_URL=https://test.pypi.org/simple "
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple "
         )
     if hw_rapids_capable:
-        cmd_manager = f"{extra_indexes}{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
+        cmd_manager = (
+            f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml --project '{app_path}'"
+        )
     else:
-        cmd_manager = f"{extra_indexes}{uv} {run_type} --project '{app_path}'"
+        cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{app_path}'"
 
     _force_remove(app_path / ".venv", env_logger=getattr(env, "logger", None))
     try:
@@ -406,11 +428,11 @@ async def deploy_local_worker(
                     log.debug("Dependency %s not installed in manager environment", meta["name"])
 
     if env.is_source_env:
-        cmd = f"{uv} pip install --no-deps -e '{env.agi_env}'"
+        cmd = f"{uv} {offline_flag}pip install -e '{env.agi_env}'"
         await run_fn(cmd, app_path)
-        cmd = f"{uv} pip install --no-deps -e '{env.agi_node}'"
+        cmd = f"{uv} {offline_flag}pip install -e '{env.agi_node}'"
         await run_fn(cmd, app_path)
-        cmd = f"{uv} pip install --no-deps -e '{env.agi_cluster}'"
+        cmd = f"{uv} {offline_flag}pip install -e '{env.agi_cluster}'"
         await run_fn(cmd, app_path)
         cmd = f"{uv} pip install --no-deps -e ."
         await run_fn(cmd, app_path)
@@ -421,7 +443,7 @@ async def deploy_local_worker(
     pyvers_worker = env.pyvers_worker
 
     worker_extra_indexes = ""
-    if str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(wenv_abs):
+    if (not offline_flag) and str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(wenv_abs):
         worker_extra_indexes = (
             "PIP_INDEX_URL=https://test.pypi.org/simple; "
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple; "
@@ -453,7 +475,7 @@ async def deploy_local_worker(
 
     if worker_core_add_paths:
         quoted_paths = " ".join(f"\"{path}\"" for path in worker_core_add_paths)
-        cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add {quoted_paths}"
+        cmd_worker = f"{worker_extra_indexes}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_paths}"
         await run_fn(cmd_worker, wenv_abs)
     else:
         cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
@@ -463,12 +485,12 @@ async def deploy_local_worker(
 
     if hw_rapids_capable:
         cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} {run_type} --python {pyvers_worker} "
+            f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} --python {pyvers_worker} "
             f"--config-file uv_config.toml --project \"{wenv_abs}\""
         )
     else:
         cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} {run_type} {options_worker} "
+            f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} {options_worker} "
             f"--python {pyvers_worker} --project \"{wenv_abs}\""
         )
 
@@ -515,18 +537,18 @@ async def deploy_local_worker(
     else:
         editable_flags = "--no-deps " if env.is_source_env else ""
         menv = env.agi_env
-        cmd = f"{uv} --project \"{menv}\" build --wheel"
+        cmd = f"{uv} {offline_flag}--project \"{menv}\" build --wheel"
         await run_fn(cmd, menv)
         src = menv / "dist"
         env_whl = _latest_glob_match(src, "agi_env*.whl")
         if env_whl is None:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_env}\""
+        cmd = f"{uv_worker} {offline_flag}pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_env}\""
         await run_fn(cmd, wenv_abs)
 
         menv = env.agi_node
-        cmd = f"{uv} --project \"{menv}\" build --wheel"
+        cmd = f"{uv} {offline_flag}--project \"{menv}\" build --wheel"
         await run_fn(cmd, menv)
         src = menv / "dist"
         whl = _latest_glob_match(src, "agi_node*.whl")
@@ -534,7 +556,7 @@ async def deploy_local_worker(
             raise RuntimeError(cmd)
         shutil.copy2(whl, wenv_abs)
 
-        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_node}\""
+        cmd = f"{uv_worker} {offline_flag}pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_node}\""
         await run_fn(cmd, wenv_abs)
 
     editable_flags = "--no-deps " if env.is_source_env else ""
