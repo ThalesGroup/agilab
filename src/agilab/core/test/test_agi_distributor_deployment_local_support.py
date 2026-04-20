@@ -193,6 +193,30 @@ def test_read_agilab_repo_root_normalizes_missing_marker(monkeypatch):
     assert deployment_local_support._read_agilab_repo_root() is None
 
 
+def test_local_worker_post_install_env_prefix_disables_cluster_only_for_non_dask():
+    assert (
+        deployment_local_support._local_worker_post_install_env_prefix(
+            SimpleNamespace(_mode=0, DASK_MODE=4),
+            os_name="posix",
+        )
+        == "AGI_CLUSTER_ENABLED=0 "
+    )
+    assert (
+        deployment_local_support._local_worker_post_install_env_prefix(
+            SimpleNamespace(_mode=4, DASK_MODE=4),
+            os_name="posix",
+        )
+        == ""
+    )
+    assert (
+        deployment_local_support._local_worker_post_install_env_prefix(
+            SimpleNamespace(_mode=0, DASK_MODE=4),
+            os_name="nt",
+        )
+        == 'set "AGI_CLUSTER_ENABLED=0" && '
+    )
+
+
 def test_infer_repo_root_from_runtime_returns_none_for_short_path():
     assert deployment_local_support._infer_repo_root_from_runtime("too-short.py") is None
 
@@ -551,6 +575,8 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     agi_cls = SimpleNamespace(
         env=env,
         _run_type="sync",
+        _mode=0,
+        DASK_MODE=4,
         _rapids_enabled=False,
         _install_done_local=False,
         _hardware_supports_rapids=lambda: False,
@@ -572,6 +598,7 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     assert agi_cls._install_done_local is True
     assert any(" add agi-env" in cmd for cmd, _ in commands)
     assert any(" add agi-node" in cmd for cmd, _ in commands)
+    assert any("AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd for cmd, _ in commands)
     assert any("threaded" in cmd for cmd, _ in commands)
 
 
@@ -641,6 +668,8 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
     agi_cls = SimpleNamespace(
         env=env,
         _run_type="sync --dev",
+        _mode=4,
+        DASK_MODE=4,
         _rapids_enabled=True,
         _install_done_local=False,
         _hardware_supports_rapids=lambda: True,
@@ -664,6 +693,7 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
     assert ("127.0.0.1", "hw_rapids_capable") in env_vars
     assert ssh_calls and any("demo.post_install" in cmd for cmd in ssh_calls)
     assert any("demo.post_install" in cmd for cmd, _ in commands)
+    assert not any("AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd for cmd, _ in commands)
     assert any(
         "uv sync --config-file uv_config.toml --project" in cmd and str(app_path) in cmd
         for cmd, _ in commands
