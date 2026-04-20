@@ -84,8 +84,36 @@ from importlib.metadata import PackageNotFoundError, version as pkg_version
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
 
-_node_src = str(Path(sys.prefix).parents[1] / "agi-node/src")
-if _node_src not in sys.path:
+def _resolve_node_src(
+    sys_prefix: str | os.PathLike[str] | None = None,
+    source_file: str | os.PathLike[str] | None = None,
+) -> str | None:
+    """Return the best ``agi-node/src`` path for the current runtime layout."""
+
+    candidates: list[Path] = []
+    prefix_root = Path(sys_prefix or sys.prefix)
+    source_root = Path(source_file or __file__).resolve()
+    for root in (prefix_root, *prefix_root.parents, source_root, *source_root.parents):
+        candidates.extend(
+            [
+                root / "agi-node" / "src",
+                root / "src" / "agi-node" / "src",
+                root / "src" / "agilab" / "core" / "agi-node" / "src",
+            ]
+        )
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.is_dir():
+            return str(candidate)
+    return None
+
+
+_node_src = _resolve_node_src()
+if _node_src and _node_src not in sys.path:
     sys.path.append(_node_src)
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
