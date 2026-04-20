@@ -2666,6 +2666,7 @@ def test_universal_offline_controls_blank_inputs_clear_existing_saved_paths(monk
     )
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
     monkeypatch.setattr(pipeline_ai, "_default_ollama_model", lambda *_args, **_kwargs: "fallback-model")
+    monkeypatch.setattr(pipeline_ai, "_normalize_user_path", lambda raw: raw.strip())
 
     env = SimpleNamespace(
         envars={
@@ -2675,8 +2676,8 @@ def test_universal_offline_controls_blank_inputs_clear_existing_saved_paths(monk
     )
     pipeline_ai.universal_offline_controls(env)
 
-    normalized_data = pipeline_ai._normalize_user_path("/tmp/old-data")
-    normalized_db = pipeline_ai._normalize_user_path("/tmp/old-db")
+    normalized_data = "/tmp/old-data"
+    normalized_db = "/tmp/old-db"
     assert fake_st.session_state[pipeline_ai.UOAIC_DATA_STATE_KEY] == normalized_data
     assert fake_st.session_state[pipeline_ai.UOAIC_DB_STATE_KEY] == normalized_db
     assert env.envars[pipeline_ai.UOAIC_DATA_ENV] == normalized_data
