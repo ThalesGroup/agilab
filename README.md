@@ -104,10 +104,17 @@ uv run agilab
 
 [![Open First Run In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb)
 
-Other notebook entry points:
-- [`Benchmark`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb): install AGILAB plus core runtime packages from GitHub `main`, benchmark `mycode_project` across the default AGILAB mode sweep, and render a ranked comparison table
-- [`Data + DAG`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb): advanced source-checkout notebook for a data-worker app and a DAG-style app
-- [`Worker Paths`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb): advanced source-checkout notebook for worker-class and source-path inspection
+Published-package notebooks:
+- [`First Run`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb): install AGILAB from PyPI and run `mycode_project`
+- [`Benchmark`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb): install AGILAB from PyPI, benchmark `mycode_project` across the default mode sweep, and render a ranked comparison table
+- [`Data + DAG`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb): install AGILAB from PyPI and run a data-worker app plus a DAG-style app
+- [`Worker Paths`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb): install AGILAB from PyPI and inspect packaged worker-class paths
+
+Source-checkout notebooks:
+- [`First Run (source)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb): clone the repo, install editable packages, and run `mycode_project`
+- [`Benchmark (source)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb): clone the repo, install editable packages, and benchmark `mycode_project`
+- [`Data + DAG (source)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb): clone the repo, install editable packages, and run a data-worker app plus a DAG-style app
+- [`Worker Paths (source)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb): clone the repo, install editable packages, and inspect worker-class paths directly from the checkout
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
