@@ -331,6 +331,11 @@ async def test_build_lib_local_cython_copies_worker_lib(tmp_path):
     target = env.wenv_abs / ".venv/lib/python3.13/site-packages/demo_cy.so"
     assert target.exists()
     assert any("build_ext" in cmd for cmd, _ in commands)
+    assert any(
+        f'--app-path "{env.active_app}"' in cmd and f'-b "{env.wenv_abs}"' in cmd
+        for cmd, _ in commands
+        if "build_ext" in cmd
+    )
 
 
 @pytest.mark.asyncio
