@@ -296,8 +296,8 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(tmp_pat
         run_fn=_fake_run,
     )
 
-    assert any(f"pip install -e '{env.agi_env}'" in cmd for cmd, _ in commands)
-    assert any(f"pip install -e '{env.agi_node}'" in cmd for cmd, _ in commands)
+    assert any(f"pip install --no-deps -e '{env.agi_env}'" in cmd for cmd, _ in commands)
+    assert any(f"pip install --no-deps -e '{env.agi_node}'" in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio
