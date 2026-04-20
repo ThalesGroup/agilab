@@ -32,14 +32,32 @@ def _usage() -> None:
     print("Usage: python post_install.py <app>")
 
 
+def _packaged_apps_path() -> Path | None:
+    try:
+        import agilab
+    except ImportError:
+        return None
+    return Path(agilab.__file__).resolve().parent / "apps"
+
+
+def _resolve_post_install_manager_app(app_arg: Path) -> tuple[Path | None, str]:
+    if app_arg.name.endswith("_project"):
+        return app_arg.parent, app_arg.name
+    if app_arg.name.endswith("_worker"):
+        project_name = app_arg.name.removesuffix("_worker") + "_project"
+        apps_path = _packaged_apps_path()
+        return apps_path, project_name
+    return app_arg.parent, app_arg.name
+
+
 def _build_env(app_arg: Path) -> AgiEnv:
     """Instantiate :class:`AgiEnv` for the given app path.
 
     install_type is deprecated; heuristics inside AgiEnv determine flags
     like is_worker_env and is_source_env based on the provided paths.
     """
-
-    return AgiEnv(apps_path=app_arg.parent, active_app=app_arg.name)
+    apps_path, app_name = _resolve_post_install_manager_app(app_arg)
+    return AgiEnv(apps_path=apps_path, app=app_name)
 
 def _iter_data_files(folder: Path) -> list[Path]:
     patterns = ("*.csv", "*.parquet", "*.pq", "*.parq")

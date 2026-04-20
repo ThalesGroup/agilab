@@ -20,6 +20,32 @@ def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
     return sorted(root.glob(pattern), key=lambda candidate: candidate.name)
 
 
+def _manager_apps_path(env: Any) -> Path | None:
+    apps_path = getattr(env, "apps_path", None)
+    if isinstance(apps_path, Path):
+        return apps_path
+    active_app = getattr(env, "active_app", None)
+    if isinstance(active_app, Path):
+        return active_app.parent
+    return None
+
+
+def _manager_app_name(env: Any) -> str:
+    app_name = getattr(env, "app", None)
+    if isinstance(app_name, str) and app_name:
+        return app_name
+    active_app = getattr(env, "active_app", None)
+    if isinstance(active_app, Path):
+        return active_app.name
+    target = getattr(env, "target", None)
+    if isinstance(target, str) and target:
+        return f"{target}_project"
+    target_worker = getattr(env, "target_worker", None)
+    if isinstance(target_worker, str) and target_worker.endswith("_worker"):
+        return target_worker.removesuffix("_worker") + "_project"
+    return "flight_project"
+
+
 async def _maybe_await(result: Any) -> Any:
     if inspect.isawaitable(result):
         return await result
@@ -77,14 +103,23 @@ async def run_local(
         uv_worker = getattr(env, "uv_worker", env.uv)
         pyvers_worker = getattr(env, "pyvers_worker", None)
         python_selector = f" --python {pyvers_worker}" if pyvers_worker else ""
+        manager_apps_path = _manager_apps_path(env)
+        manager_app = _manager_app_name(env)
+        manager_apps_expr = (
+            f"Path({repr(str(manager_apps_path))})" if manager_apps_path is not None else "None"
+        )
+        manager_app_expr = repr(manager_app)
         cmd = (
             f"{uv_worker} run --preview-features python-upgrade --no-sync --project {env.wenv_abs}"
             f"{python_selector} python -c \""
+            f"from pathlib import Path\n"
+            f"from agi_env import AgiEnv\n"
             f"from agi_node.agi_dispatcher import  BaseWorker\n"
             f"import asyncio\n"
             f"async def main():\n"
-            f"  BaseWorker._new(app='{env.target_worker}', mode={agi_cls._mode}, verbose={env.verbose}, args={agi_cls._args})\n"
-            f"  res = await BaseWorker._run(mode={agi_cls._mode}, workers={agi_cls._workers}, args={agi_cls._args})\n"
+            f"  env = AgiEnv(apps_path={manager_apps_expr}, app={manager_app_expr}, verbose={env.verbose})\n"
+            f"  BaseWorker._new(env=env, mode={agi_cls._mode}, verbose={env.verbose}, args={agi_cls._args})\n"
+            f"  res = await BaseWorker._run(env=env, mode={agi_cls._mode}, workers={agi_cls._workers}, args={agi_cls._args})\n"
             f"  print(res)\n"
             f"if __name__ == '__main__':\n"
             f"  asyncio.run(main())\""
