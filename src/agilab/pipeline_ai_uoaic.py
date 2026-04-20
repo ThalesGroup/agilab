@@ -406,7 +406,8 @@ def render_universal_offline_controls(
         value=data_default,
         help="Path containing the PDF documents to index for the Universal Offline AI Chatbot.",
     ).strip()
-    if not data_input:
+    data_input_blank = not data_input
+    if data_input_blank:
         data_input = data_default
     if data_input:
         normalized_data = deps.normalize_user_path_fn(data_input)
@@ -414,7 +415,7 @@ def render_universal_offline_controls(
             changed = normalized_data != deps.session_state.get(UOAIC_DATA_STATE_KEY)
             deps.session_state[UOAIC_DATA_STATE_KEY] = normalized_data
             env.envars[UOAIC_DATA_ENV] = normalized_data
-            if changed:
+            if changed or data_input_blank:
                 deps.session_state.pop(UOAIC_RUNTIME_KEY, None)
         else:
             deps.sidebar.warning("Provide a valid data directory for the Universal Offline AI Chatbot.")
@@ -440,7 +441,8 @@ def render_universal_offline_controls(
         value=db_default,
         help="Location for the FAISS vector store (defaults to `<data>/vectorstore/db_faiss`).",
     ).strip()
-    if not db_input:
+    db_input_blank = not db_input
+    if db_input_blank:
         db_input = db_default
     if db_input:
         normalized_db = deps.normalize_user_path_fn(db_input)
@@ -448,7 +450,7 @@ def render_universal_offline_controls(
             changed = normalized_db != deps.session_state.get(UOAIC_DB_STATE_KEY)
             deps.session_state[UOAIC_DB_STATE_KEY] = normalized_db
             env.envars[UOAIC_DB_ENV] = normalized_db
-            if changed:
+            if changed or db_input_blank:
                 deps.session_state.pop(UOAIC_RUNTIME_KEY, None)
         else:
             deps.sidebar.warning("Provide a valid directory for the Universal Offline vector store.")
