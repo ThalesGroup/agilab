@@ -74,8 +74,12 @@ async def run_local(
             args=agi_cls._args,
         )
     else:
+        uv_worker = getattr(env, "uv_worker", env.uv)
+        pyvers_worker = getattr(env, "pyvers_worker", None)
+        python_selector = f" --python {pyvers_worker}" if pyvers_worker else ""
         cmd = (
-            f"{env.uv} run --preview-features python-upgrade --no-sync --project {env.wenv_abs} python -c \""
+            f"{uv_worker} run --preview-features python-upgrade --no-sync --project {env.wenv_abs}"
+            f"{python_selector} python -c \""
             f"from agi_node.agi_dispatcher import  BaseWorker\n"
             f"import asyncio\n"
             f"async def main():\n"
