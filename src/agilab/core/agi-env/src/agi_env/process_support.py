@@ -9,8 +9,13 @@ from __future__ import annotations
 import os
 import re
 import sys
-from pathlib import Path, PurePosixPath, PureWindowsPath, UnsupportedOperation
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Iterable, Mapping, MutableMapping, Sequence
+
+try:
+    from pathlib import UnsupportedOperation
+except ImportError:
+    from io import UnsupportedOperation
 
 
 LEVEL_RES = [

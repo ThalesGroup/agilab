@@ -1,4 +1,5 @@
-from pathlib import Path, UnsupportedOperation
+from io import UnsupportedOperation
+from pathlib import Path
 from unittest import mock
 
 import pytest
