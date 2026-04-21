@@ -40,11 +40,12 @@ try:
         build_distribution_snippet,
         build_install_snippet,
         build_run_snippet,
-        compute_benchmark_run_mode,
         compute_run_mode,
         describe_run_mode,
+        merge_app_settings_sources,
         optional_python_expr,
         optional_string_expr,
+        resolve_requested_run_mode,
         resolve_project_change_args_override,
         filter_noise_lines,
         filter_warning_messages,
@@ -69,14 +70,15 @@ except ModuleNotFoundError:
     build_distribution_snippet = _orchestrate_page_support_module.build_distribution_snippet
     build_install_snippet = _orchestrate_page_support_module.build_install_snippet
     build_run_snippet = _orchestrate_page_support_module.build_run_snippet
-    compute_benchmark_run_mode = _orchestrate_page_support_module.compute_benchmark_run_mode
     compute_run_mode = _orchestrate_page_support_module.compute_run_mode
     describe_run_mode = _orchestrate_page_support_module.describe_run_mode
     filter_noise_lines = _orchestrate_page_support_module.filter_noise_lines
     filter_warning_messages = _orchestrate_page_support_module.filter_warning_messages
     format_log_block = _orchestrate_page_support_module.format_log_block
+    merge_app_settings_sources = _orchestrate_page_support_module.merge_app_settings_sources
     optional_python_expr = _orchestrate_page_support_module.optional_python_expr
     optional_string_expr = _orchestrate_page_support_module.optional_string_expr
+    resolve_requested_run_mode = _orchestrate_page_support_module.resolve_requested_run_mode
     resolve_project_change_args_override = _orchestrate_page_support_module.resolve_project_change_args_override
     reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
     is_dask_shutdown_noise = _orchestrate_page_support_module.is_dask_shutdown_noise
@@ -431,27 +433,7 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
 
     file_settings = load_toml_file(env.app_settings_file)
     session_settings = st.session_state.get("app_settings")
-    app_settings = {}
-
-    if isinstance(file_settings, dict):
-        app_settings.update(file_settings)
-    if isinstance(session_settings, dict):
-        for key, value in session_settings.items():
-            if key == "args" and isinstance(value, dict):
-                base = app_settings.get(key, {})
-                if isinstance(base, dict):
-                    merged = {**base, **value}
-                else:
-                    merged = value
-                app_settings[key] = merged
-            elif key == "cluster":
-                # Cluster settings persist immediately in the generic UI, so
-                # the file-backed state should win on rerun. This avoids stale
-                # session copies re-enabling cluster mode after the toggle is
-                # switched off.
-                app_settings.setdefault("cluster", {})
-            else:
-                app_settings[key] = value
+    app_settings = merge_app_settings_sources(file_settings, session_settings)
 
     if env.app == "flight_project":
         try:
@@ -1038,10 +1020,11 @@ async def _render_run_panels(
                 benchmark_enabled = False
                 st.warning("Benchmark requires Pool and Cython. Enable Cluster as well to include Dask modes.")
 
-            if benchmark_enabled:
-                run_mode = compute_benchmark_run_mode(cluster_params, cluster_enabled)
-            else:
-                run_mode = compute_run_mode(cluster_params, cluster_enabled)
+            run_mode = resolve_requested_run_mode(
+                cluster_params,
+                cluster_enabled=cluster_enabled,
+                benchmark_enabled=benchmark_enabled,
+            )
 
             info_label = describe_run_mode(run_mode, benchmark_enabled)
 
