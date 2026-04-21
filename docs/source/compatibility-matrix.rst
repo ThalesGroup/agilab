@@ -42,9 +42,9 @@ Current public matrix
      - Not a remote cluster proof
    * - AGILAB demo by request
      - documented
-     - :doc:`demos` plus ``focus@thalesgroup.com``
-     - Guided AGILAB demo access arranged by contact on the public built-in app path
-     - Not a self-serve public URL; availability depends on manual scheduling; not a remote cluster proof
+     - :doc:`demos` plus GitHub issue request
+     - Guided AGILAB demo access arranged by request on the public built-in app path
+     - Not a self-serve public URL; availability depends on manual triage and scheduling; not a remote cluster proof
    * - Service-mode operator surface
      - validated
      - ORCHESTRATE service controls and health gate

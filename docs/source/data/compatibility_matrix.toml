@@ -32,11 +32,11 @@ id = "agilab-demo-by-request"
 label = "AGILAB demo by request"
 status = "documented"
 surface = "guided demo access"
-primary_proof = "demos.rst plus focus@thalesgroup.com"
+primary_proof = "demos.rst plus GitHub issue request"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Guided AGILAB demo access arranged by contact on the public built-in app path"
-limits = ["Not a self-serve public URL", "Availability depends on manual scheduling", "Not a remote cluster proof"]
+scope = "Guided AGILAB demo access arranged by request on the public built-in app path"
+limits = ["Not a self-serve public URL", "Availability depends on manual triage and scheduling", "Not a remote cluster proof"]
 
 [[entries]]
 id = "service-mode-operator-surface"
