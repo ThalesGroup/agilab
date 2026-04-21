@@ -409,19 +409,20 @@ def test_execute_page_cluster_settings(mock_ui_env):
 
     enabled_toggle_key = f"cluster_enabled__flight_project"
     scheduler_key = f"cluster_scheduler__flight_project"
+    pool_key = "cluster_pool__flight_project"
     # Drive the cluster state directly through session_state rather than
     # AppTest widget replay. This keeps the regression stable even when
     # unrelated sidebar widgets are conditionally omitted in test mode.
     at.session_state[enabled_toggle_key] = True
     at.session_state[scheduler_key] = "127.0.0.1:8786"
-    at.session_state["cluster_pool"] = True
+    at.session_state[pool_key] = True
     at.run()
     
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     enabled_state = at.session_state[enabled_toggle_key] if enabled_toggle_key in at.session_state else None
-    pool_state = at.session_state["cluster_pool"] if "cluster_pool" in at.session_state else None
+    pool_state = at.session_state[pool_key] if pool_key in at.session_state else None
     assert cluster_state.get("cluster_enabled", enabled_state) is True
     assert cluster_state.get("pool", pool_state) is True
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
@@ -676,19 +677,20 @@ def test_execute_page_cython_toggle(mock_ui_env):
     at.run()
     assert not at.exception
 
-    at.session_state["cluster_cython"] = True
+    cython_key = "cluster_cython__flight_project"
+    at.session_state[cython_key] = True
     at.run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
-    assert cluster_state.get("cython", at.session_state["cluster_cython"]) is True
+    assert cluster_state.get("cython", at.session_state[cython_key]) is True
 
-    at.session_state["cluster_cython"] = False
+    at.session_state[cython_key] = False
     at.run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
-    assert cluster_state.get("cython", at.session_state["cluster_cython"]) is False
+    assert cluster_state.get("cython", at.session_state[cython_key]) is False
 
 
 def test_execute_page_workers_data_path(mock_ui_env):

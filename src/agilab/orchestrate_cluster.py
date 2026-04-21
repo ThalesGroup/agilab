@@ -44,6 +44,64 @@ def compute_cluster_mode(cluster_params: dict[str, Any], cluster_enabled: bool) 
     )
 
 
+def cluster_widget_keys(app_state_name: str) -> dict[str, str]:
+    return {
+        "cython": f"cluster_cython__{app_state_name}",
+        "pool": f"cluster_pool__{app_state_name}",
+        "rapids": f"cluster_rapids__{app_state_name}",
+        "cluster_enabled": f"cluster_enabled__{app_state_name}",
+        "scheduler": f"cluster_scheduler__{app_state_name}",
+        "user": f"cluster_user__{app_state_name}",
+        "use_key": f"cluster_use_key__{app_state_name}",
+        "ssh_key_path": f"cluster_ssh_key__{app_state_name}",
+        "password": f"cluster_password__{app_state_name}",
+        "workers_data_path": f"cluster_workers_data_path__{app_state_name}",
+        "workers": f"cluster_workers__{app_state_name}",
+    }
+
+
+def clear_cluster_widget_state(session_state, app_state_name: str) -> None:
+    for widget_key in cluster_widget_keys(app_state_name).values():
+        session_state.pop(widget_key, None)
+
+
+def hydrate_cluster_widget_state(
+    session_state,
+    app_state_name: str,
+    cluster_params: dict[str, Any],
+    *,
+    is_managed_pc: bool,
+) -> None:
+    widget_keys = cluster_widget_keys(app_state_name)
+    session_state[widget_keys["cluster_enabled"]] = bool(cluster_params.get("cluster_enabled", False))
+    session_state[widget_keys["cython"]] = bool(cluster_params.get("cython", False))
+    session_state[widget_keys["pool"]] = bool(cluster_params.get("pool", False))
+    if is_managed_pc:
+        session_state[widget_keys["rapids"]] = False
+    else:
+        session_state[widget_keys["rapids"]] = bool(cluster_params.get("rapids", False))
+
+    session_state[widget_keys["scheduler"]] = str(cluster_params.get("scheduler", "") or "")
+    session_state[widget_keys["user"]] = str(cluster_params.get("user", "") or "")
+    session_state[widget_keys["ssh_key_path"]] = str(cluster_params.get("ssh_key_path", "") or "")
+    session_state[widget_keys["workers_data_path"]] = str(cluster_params.get("workers_data_path", "") or "")
+
+    workers_value = cluster_params.get("workers", {})
+    if isinstance(workers_value, dict):
+        session_state[widget_keys["workers"]] = json.dumps(workers_value, indent=2)
+    elif workers_value in (None, ""):
+        session_state[widget_keys["workers"]] = ""
+    else:
+        session_state[widget_keys["workers"]] = str(workers_value)
+
+    auth_method = cluster_params.get("auth_method")
+    use_key = bool(cluster_params.get("ssh_key_path"))
+    if isinstance(auth_method, str):
+        use_key = auth_method.lower() == "ssh_key"
+    session_state[widget_keys["use_key"]] = use_key
+    session_state.pop(widget_keys["password"], None)
+
+
 def persist_env_var_if_changed(
     *,
     key: str,
@@ -99,6 +157,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         st.session_state["app_settings"] = app_settings
 
     cluster_params = app_settings.setdefault("cluster", {})
+    app_state_name = Path(str(env.app)).name if env.app else ""
+    widget_keys = cluster_widget_keys(app_state_name)
 
     boolean_params = ["cython", "pool"]
     if env.is_managed_pc:
@@ -111,13 +171,12 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         updated_value = cols_other[idx].checkbox(
             param.replace("_", " ").capitalize(),
             value=current_value,
-            key=f"cluster_{param}",
+            key=widget_keys[param],
             help=f"Enable or disable {param}.",
         )
         cluster_params[param] = updated_value
 
-    app_state_name = Path(str(env.app)).name if env.app else ""
-    cluster_enabled_key = f"cluster_enabled__{app_state_name}"
+    cluster_enabled_key = widget_keys["cluster_enabled"]
     if cluster_enabled_key not in st.session_state:
         st.session_state[cluster_enabled_key] = bool(cluster_params.get("cluster_enabled", False))
     cluster_enabled = st.toggle(
@@ -130,16 +189,16 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     if cluster_enabled:
         st.markdown(f"**agi_share_path:** {_describe_share_path(env)}")
 
-        scheduler_widget_key = f"cluster_scheduler__{app_state_name}"
+        scheduler_widget_key = widget_keys["scheduler"]
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
-        user_widget_key = f"cluster_user__{app_state_name}"
+        user_widget_key = widget_keys["user"]
         stored_user = cluster_params.get("user")
         if stored_user in (None, ""):
             stored_user = env.user or ""
         if user_widget_key not in st.session_state:
             st.session_state[user_widget_key] = stored_user
-        auth_toggle_key = f"cluster_use_key__{app_state_name}"
+        auth_toggle_key = widget_keys["use_key"]
         auth_method = cluster_params.get("auth_method")
         default_use_key = bool(cluster_params.get("ssh_key_path"))
         if isinstance(auth_method, str):
@@ -188,7 +247,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         cluster_params["auth_method"] = "ssh_key" if use_ssh_key else "password"
 
         if use_ssh_key:
-            ssh_key_widget_key = f"cluster_ssh_key__{app_state_name}"
+            ssh_key_widget_key = widget_keys["ssh_key_path"]
             stored_key = cluster_params.get("ssh_key_path")
             if stored_key in (None, ""):
                 stored_key = env.ssh_key_path or ""
@@ -205,7 +264,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             if not sanitized_key and stored_key:
                 sanitized_key = str(stored_key).strip()
         else:
-            password_widget_key = f"cluster_password__{app_state_name}"
+            password_widget_key = widget_keys["password"]
             # Never read passwords from persisted cluster_params; only from
             # the transient env object so credentials don't leak into
             # serializable session state dicts.
@@ -277,7 +336,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             if scheduler:
                 cluster_params["scheduler"] = scheduler
 
-        workers_data_path_widget_key = f"cluster_workers_data_path__{app_state_name}"
+        workers_data_path_widget_key = widget_keys["workers_data_path"]
         if workers_data_path_widget_key not in st.session_state:
             st.session_state[workers_data_path_widget_key] = cluster_params.get("workers_data_path", "")
 
@@ -290,7 +349,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         if workers_data_path_input:
             cluster_params["workers_data_path"] = workers_data_path_input
 
-        workers_widget_key = f"cluster_workers__{app_state_name}"
+        workers_widget_key = widget_keys["workers"]
         workers_dict = cluster_params.get("workers", {})
         if workers_widget_key not in st.session_state:
             st.session_state[workers_widget_key] = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"

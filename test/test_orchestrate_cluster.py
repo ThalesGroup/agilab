@@ -133,6 +133,66 @@ def test_compute_benchmark_run_mode_preserves_capability_bits():
     ) is None
 
 
+def test_resolve_project_change_args_override_only_preserves_matching_ui_args():
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="flight_project",
+        previous_project="flight_project",
+        app_settings_snapshot={"args": {"foo": 1}},
+    ) == {"foo": 1}
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="other_project",
+        previous_project="flight_project",
+        app_settings_snapshot={"args": {"foo": 1}},
+    ) is None
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=False,
+        args_project="flight_project",
+        previous_project="flight_project",
+        app_settings_snapshot={"args": {"foo": 1}},
+    ) is None
+
+
+def test_hydrate_and_clear_cluster_widget_state_are_project_scoped():
+    session_state = _State()
+
+    orchestrate_cluster.hydrate_cluster_widget_state(
+        session_state,
+        "demo_project",
+        {
+            "cluster_enabled": True,
+            "cython": True,
+            "pool": False,
+            "rapids": True,
+            "scheduler": "127.0.0.1:8786",
+            "user": "agi",
+            "auth_method": "ssh_key",
+            "ssh_key_path": "~/.ssh/id_demo",
+            "workers_data_path": "/cluster/data",
+            "workers": {"127.0.0.1": 2},
+        },
+        is_managed_pc=False,
+    )
+
+    assert session_state["cluster_enabled__demo_project"] is True
+    assert session_state["cluster_cython__demo_project"] is True
+    assert session_state["cluster_pool__demo_project"] is False
+    assert session_state["cluster_rapids__demo_project"] is True
+    assert session_state["cluster_scheduler__demo_project"] == "127.0.0.1:8786"
+    assert session_state["cluster_workers__demo_project"] == '{\n  "127.0.0.1": 2\n}'
+    assert session_state["cluster_use_key__demo_project"] is True
+
+    orchestrate_cluster.clear_cluster_widget_state(session_state, "demo_project")
+
+    assert "cluster_enabled__demo_project" not in session_state
+    assert "cluster_cython__demo_project" not in session_state
+    assert "cluster_pool__demo_project" not in session_state
+    assert "cluster_rapids__demo_project" not in session_state
+    assert "cluster_scheduler__demo_project" not in session_state
+    assert "cluster_workers__demo_project" not in session_state
+
+
 def test_persist_env_var_if_changed_ignores_same_value():
     calls: list[tuple[str, str]] = []
 
@@ -205,9 +265,9 @@ def test_cluster_credentials_value_formats_password_and_key_modes():
 def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={
-            "cluster_cython": True,
-            "cluster_pool": True,
-            "cluster_rapids": True,
+            "cluster_cython__demo_project": True,
+            "cluster_pool__demo_project": True,
+            "cluster_rapids__demo_project": True,
             "cluster_enabled__demo_project": False,
         },
         session_state={"benchmark": False},
@@ -257,8 +317,8 @@ def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeyp
     fake_st = _FakeStreamlit(
         widget_values={
             "cluster_enabled__demo_project": True,
-            "cluster_cython": True,
-            "cluster_pool": False,
+            "cluster_cython__demo_project": True,
+            "cluster_pool__demo_project": False,
             "cluster_scheduler__demo_project": "192.168.1.10",
             "cluster_workers_data_path__demo_project": "/cluster/data",
             "cluster_workers__demo_project": '{"192.168.1.11": 2}',
@@ -316,9 +376,9 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
     fake_st = _FakeStreamlit(
         widget_values={
             "cluster_enabled__demo_project": True,
-            "cluster_cython": False,
-            "cluster_pool": False,
-            "cluster_rapids": False,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
             "cluster_use_key__demo_project": False,
             "cluster_user__demo_project": "",
             "cluster_password__demo_project": "secret",
@@ -372,9 +432,9 @@ def test_render_cluster_settings_ui_password_auth_uses_stored_user_for_credentia
     fake_st = _FakeStreamlit(
         widget_values={
             "cluster_enabled__demo_project": True,
-            "cluster_cython": False,
-            "cluster_pool": False,
-            "cluster_rapids": False,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
             "cluster_use_key__demo_project": False,
             "cluster_user__demo_project": "   ",
             "cluster_password__demo_project": "secret",
@@ -419,9 +479,9 @@ def test_render_cluster_settings_ui_ssh_key_mode_uses_env_default_key_when_input
     fake_st = _FakeStreamlit(
         widget_values={
             "cluster_enabled__demo_project": True,
-            "cluster_cython": False,
-            "cluster_pool": False,
-            "cluster_rapids": False,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
             "cluster_use_key__demo_project": True,
             "cluster_ssh_key__demo_project": "   ",
         },
