@@ -427,6 +427,13 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
 
 
+def test_execute_page_benchmark_uses_shared_mode_helper():
+    source = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py").read_text(encoding="utf-8")
+
+    assert "compute_benchmark_run_mode(cluster_params, cluster_enabled)" in source
+    assert "else [0, 1, 2, 3]" not in source
+
+
 def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env):
     at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
 

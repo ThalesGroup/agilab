@@ -228,8 +228,23 @@ def compute_run_mode(cluster_params: Mapping[str, Any], cluster_enabled: bool) -
     )
 
 
-def describe_run_mode(run_mode: int | None, benchmark_enabled: bool) -> str:
+def compute_benchmark_run_mode(
+    cluster_params: Mapping[str, Any],
+    cluster_enabled: bool,
+) -> list[int] | None:
+    if cluster_enabled:
+        return None
+
+    # Benchmark local variants by sweeping the pool/cython bits while preserving
+    # any higher-order capability flags such as RAPIDS.
+    preserved_mode_bits = compute_run_mode(cluster_params, False) & ~0b11
+    return [preserved_mode_bits | variant for variant in range(4)]
+
+
+def describe_run_mode(run_mode: int | list[int] | None, benchmark_enabled: bool) -> str:
     if benchmark_enabled:
+        if isinstance(run_mode, list) and run_mode:
+            return f"Run mode benchmark (local modes {run_mode[0]}-{run_mode[-1]})"
         return "Run mode benchmark (all modes)"
     if run_mode is None or run_mode < 0 or run_mode >= len(RUN_MODE_LABELS):
         return "Run mode unknown"

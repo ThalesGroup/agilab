@@ -40,6 +40,7 @@ try:
         build_distribution_snippet,
         build_install_snippet,
         build_run_snippet,
+        compute_benchmark_run_mode,
         compute_run_mode,
         describe_run_mode,
         optional_python_expr,
@@ -67,6 +68,7 @@ except ModuleNotFoundError:
     build_distribution_snippet = _orchestrate_page_support_module.build_distribution_snippet
     build_install_snippet = _orchestrate_page_support_module.build_install_snippet
     build_run_snippet = _orchestrate_page_support_module.build_run_snippet
+    compute_benchmark_run_mode = _orchestrate_page_support_module.compute_benchmark_run_mode
     compute_run_mode = _orchestrate_page_support_module.compute_run_mode
     describe_run_mode = _orchestrate_page_support_module.describe_run_mode
     filter_noise_lines = _orchestrate_page_support_module.filter_noise_lines
@@ -1028,18 +1030,11 @@ async def _render_run_panels(
                 st.warning("Benchmark requires Pool and Cython. Enable Cluster as well to include Dask modes.")
 
             if benchmark_enabled:
-                run_mode = None if cluster_enabled else [0, 1, 2, 3]
+                run_mode = compute_benchmark_run_mode(cluster_params, cluster_enabled)
             else:
                 run_mode = compute_run_mode(cluster_params, cluster_enabled)
 
-            if benchmark_enabled:
-                info_label = (
-                    "Run mode benchmark (all modes)"
-                    if cluster_enabled
-                    else "Run mode benchmark (local modes 0-3)"
-                )
-            else:
-                info_label = describe_run_mode(run_mode, benchmark_enabled)
+            info_label = describe_run_mode(run_mode, benchmark_enabled)
 
             st.session_state["mode"] = run_mode
             st.info(info_label)
