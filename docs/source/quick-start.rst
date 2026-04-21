@@ -94,10 +94,10 @@ Use these only after the local ``flight_project`` proof works once.
 **AGILAB demo**:
 
 .. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
-   :target: https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project
+   :target: mailto:focus@thalesgroup.com?subject=AGILAB%20demo%20request
    :alt: AGILAB demo
 
-Hosted web UI demo on the built-in ``flight_project``.
+Request a guided demo at ``focus@thalesgroup.com``.
 
 **Published package route** (fastest install, less representative of the full product path)::
 

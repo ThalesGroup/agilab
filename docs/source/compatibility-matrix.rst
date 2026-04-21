@@ -40,11 +40,11 @@ Current public matrix
      - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
        with fresh output under ``~/log/execute/flight/``
      - Not a remote cluster proof
-   * - Hosted AGILAB demo
+   * - AGILAB demo by request
      - documented
-     - :doc:`demos` plus the public hosted demo link
-     - Public hosted single-machine web UI demo on the public built-in app path
-     - Demo environment only; hosted availability may vary; not a remote cluster proof
+     - :doc:`demos` plus ``focus@thalesgroup.com``
+     - Guided AGILAB demo access arranged by contact on the public built-in app path
+     - Not a self-serve public URL; availability depends on manual scheduling; not a remote cluster proof
    * - Service-mode operator surface
      - validated
      - ORCHESTRATE service controls and health gate
