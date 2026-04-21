@@ -5,7 +5,6 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
-import agi_env.pagelib as pagelib
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -1061,7 +1060,7 @@ def test_view_maps_network_page_reports_dataframe_load_contract_failures(
             return ["bad-payload"]
         raise ValueError("broken dataset")
 
-    monkeypatch.setattr(pagelib, "load_df", _fake_load_df)
+    monkeypatch.setattr("agi_env.pagelib.load_df", _fake_load_df)
 
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
 
@@ -1104,7 +1103,10 @@ def test_view_maps_network_page_reports_concat_failure(
         pyproject_name="demo-network-concat-failure-project",
     )
 
-    monkeypatch.setattr(pagelib, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        "agi_env.pagelib.load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
     monkeypatch.setattr(pd, "concat", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("concat boom")))
 
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
@@ -1188,8 +1190,7 @@ def test_view_maps_network_page_detects_datetime_and_metric_payload_columns(
         ]
     )
     monkeypatch.setattr(
-        pagelib,
-        "load_df",
+        "agi_env.pagelib.load_df",
         lambda path, with_index=True, cache_buster=None: metric_df.copy(),
     )
 

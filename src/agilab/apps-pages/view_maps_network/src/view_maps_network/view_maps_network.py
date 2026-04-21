@@ -86,7 +86,8 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_env.pagelib import find_files, load_df, render_logo
+import agi_env.pagelib as pagelib
+from agi_env.pagelib import find_files, render_logo
 
 
 def _resolve_active_app() -> Path:
@@ -3499,7 +3500,7 @@ def page():
             except Exception:  # pragma: no cover - best-effort cache buster only
                 pass
             try:
-                loaded = load_df(abs_path, with_index=True, cache_buster=cache_buster)
+                loaded = pagelib.load_df(abs_path, with_index=True, cache_buster=cache_buster)
             except Exception as exc:
                 load_errors.append(f"{rel}: {exc}")
                 continue
