@@ -15,6 +15,15 @@
 pip install agi-core
 ```
 
+## Notebook quick start
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb)
+
+Use the source-checkout Colab notebook for the most reliable first-run path and
+the latest fixes from `main`. For the full notebook matrix, see the AGILAB
+Notebook Quick Start page:
+https://thalesgroup.github.io/agilab/notebook-quickstart.html
+
 ## Why install this package
 
 - Get the three AGILAB core libraries as a single dependency set.
