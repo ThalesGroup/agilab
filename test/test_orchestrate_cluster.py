@@ -28,6 +28,7 @@ def _import_agilab_module(module_name: str):
 
 
 orchestrate_cluster = _import_agilab_module("agilab.orchestrate_cluster")
+orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_support")
 
 
 class _State(dict):
@@ -115,6 +116,21 @@ def test_compute_cluster_mode_uses_expected_bitmask():
     )
 
     assert result == 15
+
+
+def test_compute_benchmark_run_mode_preserves_capability_bits():
+    assert orchestrate_page_support.compute_benchmark_run_mode(
+        {"pool": True, "cython": True, "rapids": False},
+        cluster_enabled=False,
+    ) == [0, 1, 2, 3]
+    assert orchestrate_page_support.compute_benchmark_run_mode(
+        {"pool": True, "cython": True, "rapids": True},
+        cluster_enabled=False,
+    ) == [8, 9, 10, 11]
+    assert orchestrate_page_support.compute_benchmark_run_mode(
+        {"pool": True, "cython": True, "rapids": True},
+        cluster_enabled=True,
+    ) is None
 
 
 def test_persist_env_var_if_changed_ignores_same_value():
