@@ -43,8 +43,9 @@ Recommended notebook
    :alt: Open In Kaggle
 
 - `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
-  clones the repository, installs editable AGILAB and core packages, and runs
-  ``mycode_project``.
+  clones the repository, prepares an isolated runtime venv under
+  ``/content``, and runs ``mycode_project`` without mutating the base Colab
+  kernel packages.
 - `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
   clones the repository inside Kaggle, prepares an isolated runtime venv under
   ``/kaggle/working``, and runs ``mycode_project`` without mutating the base
@@ -55,9 +56,10 @@ Other notebook entry points
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
-  is a source-checkout notebook that clones the repository, installs editable
-  AGILAB and core packages, benchmarks ``mycode_project`` across the default
-  AGILAB mode sweep, and renders a ranked comparison table.
+  is a source-checkout notebook that clones the repository, prepares an
+  isolated runtime venv under ``/content``, benchmarks ``mycode_project``
+  across the default AGILAB mode sweep, and renders a ranked comparison table
+  without mutating the base Colab kernel packages.
 - `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
   is an advanced source-checkout notebook for a data-worker app and a
   DAG-style app.
@@ -72,11 +74,15 @@ Use these only when you explicitly want the current PyPI release instead of
 GitHub ``main``.
 
 - `First Run (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
+  prepares an isolated runtime venv under ``/content`` and keeps the base
+  Colab kernel packages unchanged.
 - `First Run (PyPI, Kaggle) <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb>`_
   prepares an isolated runtime venv under ``/kaggle/working`` and keeps the
   base Kaggle kernel packages unchanged.
   Kaggle note: enable Internet in the notebook settings for the first install.
 - `Benchmark (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
+  prepares an isolated runtime venv under ``/content`` and keeps the base
+  Colab kernel packages unchanged.
 - `Data + DAG (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb>`_
 - `Worker Paths (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb>`_
 
