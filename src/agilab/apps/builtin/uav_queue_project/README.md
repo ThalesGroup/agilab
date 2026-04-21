@@ -7,6 +7,14 @@ It is intentionally small and Python-native. The current worker uses a
 UavNetSim-inspired SimPy model so the AGILAB workflow is immediately usable
 without introducing a heavier external simulator toolchain.
 
+Origin note:
+
+- this built-in example is conceptually inspired by the SimPy buffer-based
+  queueing pattern described in
+  [`UavNetSim`](https://github.com/Zihao-Felix-Zhou/UavNetSim)
+  (MIT-licensed)
+- it does not vendor or claim to adapt UavNetSim source code directly
+
 What it demonstrates:
 
 - a seeded UAV scenario file becomes a reproducible AGILAB project
