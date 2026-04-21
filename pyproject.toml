@@ -44,7 +44,7 @@ Source = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
-Changelog = "https://github.com/ThalesGroup/agilab/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [project.scripts]
 agilab = "agilab.lab_run:main"
