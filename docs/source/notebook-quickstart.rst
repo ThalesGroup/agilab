@@ -1,5 +1,5 @@
-Notebook Quick Start
-====================
+agi-core Demo
+=============
 
 This is the thinnest AGILab onboarding path for Python users who prefer a
 notebook over the web UI. It uses ``agi-core`` directly through

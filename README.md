@@ -12,6 +12,10 @@ AGILAB is an open-source platform for reproducible AI and ML workflows.
 
 The core idea is simple: keep one app on one control path from setup to visible evidence instead of splitting the workflow across ad hoc scripts, environments, and analysis glue.
 
+## Try It Before Installing
+
+- [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
+
 ## Start Here
 
 If this is your first visit, use one path only:
@@ -45,10 +49,6 @@ If that first proof fails, use:
 
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
 
-## Try It Before Installing
-
-- [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
-
 ## Other Ways To Try AGILAB
 
 Published package:
@@ -63,8 +63,8 @@ uv run agilab
 
 Notebook-first and hosted UI paths:
 
-- [Notebook quick start](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
-- [Lightning Studio UI demo](https://thalesgroup.github.io/agilab/quick-start.html#lightning-studio-ui-demo)
+- [agi-core demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
+- [AGILAB demo](https://thalesgroup.github.io/agilab/quick-start.html#lightning-studio-ui-demo)
 
 ## Why Use It
 
