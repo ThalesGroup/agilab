@@ -14,8 +14,8 @@ Public demo entry points
 
 - :doc:`notebook-quickstart` for the ``agi-core demo`` notebook path when you
   want a code-first public demo in Colab or Kaggle.
-- :doc:`quick-start` for the ``AGILAB demo on Lightning`` path when you
-  want a browser-hosted Streamlit demo.
+- `AGILAB demo <https://8501-01kpqpf1ms0g0911s44xs6jg61.cloudspaces.litng.ai/>`_
+  for the public hosted web UI demo.
 
 What to use first
 -----------------
@@ -23,8 +23,7 @@ What to use first
 - Safest truthful first proof: :doc:`quick-start` with the built-in
   ``flight_project`` local path.
 - Lightest browser-first path: :doc:`notebook-quickstart`.
-- Hosted AGILAB demo path: run the :doc:`quick-start` ``AGILAB demo on
-  Lightning`` launcher in Lightning Studio.
+- Hosted AGILAB demo path: open the public demo link directly.
 - Local no-account evaluation path: use :doc:`notebook-quickstart` or the
   standard local first proof from :doc:`quick-start`.
 
