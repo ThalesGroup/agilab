@@ -104,7 +104,7 @@ must stay honest.
 The first two projects are public built-ins in `agilab`.
 
 The RL proof comes from the sibling apps repo via
-[`sb3_trainer_project`](/Users/agi/PycharmProjects/thales_agilab/apps/sb3_trainer_project).
+`../thales_agilab/apps/sb3_trainer_project`.
 Do not imply that all three acts come from the same built-in public app set.
 
 ### Why this trio
