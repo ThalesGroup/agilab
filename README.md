@@ -14,7 +14,7 @@ The core idea is simple: keep one app on one control path from setup to visible 
 
 ## Try It Before Installing
 
-- [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
+- [Public demo entry points](https://thalesgroup.github.io/agilab/demos.html)
 
 ## Start Here
 

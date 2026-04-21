@@ -40,13 +40,11 @@ Current public matrix
      - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
        with fresh output under ``~/log/execute/flight/``
      - Not a remote cluster proof
-   * - Public full-tour demo
+   * - Hosted AGILAB demo
      - documented
-     - :doc:`demos` and ``uav_relay_queue_project`` public assets
-     - ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`` as the main public
-       tour, ending on queue and topology evidence
-     - Not the validated newcomer proof; no separate workflow-backed
-       certification yet
+     - :doc:`demos` and the Lightning Studio demo path
+     - Hosted single-machine web UI demo on the public built-in app path
+     - Lightning account required; demo environment only; not a remote cluster proof
    * - Service-mode operator surface
      - validated
      - ORCHESTRATE service controls and health gate

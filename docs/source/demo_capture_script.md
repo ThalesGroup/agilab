@@ -1,4 +1,4 @@
-# AGILAB Video Tutorial And Slideshow Guide
+# AGILAB Video Tutorial Guide
 
 Use this guide when you want to produce a short AGILAB tutorial package instead of
 an isolated video file.
@@ -7,7 +7,7 @@ The package has three complementary assets:
 
 - a short live tutorial video or GIF
 - a self-generated explainer MP4/GIF/poster
-- a static slideshow/visual kit for README, docs, and launch posts
+- a static SVG/social kit for README, docs, and launch posts
 
 ## Recommended tutorial package
 
@@ -18,13 +18,13 @@ Keep one app per video, but support two stable narrative packs:
   - best for newcomer onboarding and first local proof
 - `UAV Relay Queue` (`uav_relay_queue_project`)
   - strongest public `PIPELINE` + `ANALYSIS` story
-  - best for the README/slideshow/full-tour demo assets
+  - best for the main full-tour demo assets
 
 Default recommendation:
 
 - use `flight_project` for newcomer onboarding clips and first-proof demos
-- use `UAV Relay Queue` (`uav_relay_queue_project`) for the main README/slideshow
-  and full-tour product demo when you want a truthful
+- use `UAV Relay Queue` (`uav_relay_queue_project`) for the main full-tour
+  product demo when you want a truthful
   `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` story
 
 Stable visual assets already tracked in the repo:
@@ -42,13 +42,6 @@ Keep two stable public messages instead of forcing one app to carry both roles:
 - `UAV Relay Queue`: `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`, ending on
   queue evidence
 
-Public slideshow assets:
-
-- `docs/source/AGILAB_Flight_First_Proof_Slides.pptx`
-- `docs/source/AGILAB_UAV_Full_Tour_Slides.pptx`
-- rebuild with:
-  `uv --preview-features extra-build-dependencies run --with python-pptx python tools/build_demo_slides.py`
-
 ## Which format to use
 
 Use a live tutorial when you want to show the real UI flow:
@@ -64,10 +57,11 @@ Use the self-generated explainer when you want a lightweight shareable asset:
 - README/social embeds
 - quick product intros
 
-Use the slideshow/static kit when you need a narrated talk track without video:
+Use the static SVG/social kit when you need a lightweight companion asset
+around the video:
 
-- one presenter slide
 - one README figure
+- one social/static card
 - one poster frame
 
 ## Fastest live workflow
@@ -353,9 +347,6 @@ Suggested click path:
 8. `ANALYSIS`
 9. final pause on a visible result
 
-If you need a static deck with the same message, keep the slideshow sequence
-below unchanged and use the 3-minute talk track above as the narration layer.
-
 ### UAV queue 45-second version
 
 Use this as the default full-tour product clip.
@@ -439,27 +430,6 @@ Suggested click path:
 10. `view_uav_relay_queue_analysis`
 11. optional final pause on `view_maps_network`
 
-## Slideshow structure
-
-If you want a static slideshow instead of a video, use this sequence:
-
-1. `AGILAB 3-minute tour`
-   - `docs/source/diagrams/agilab_readme_tour.svg`
-2. `One app, one path`
-   - `docs/source/diagrams/agilab_social_card.svg`
-3. `Explainer poster` (optional, regenerate locally if needed)
-4. Optional closing frame
-   - a screenshot from `ANALYSIS`
-
-The slideshow should tell the same story as the full-tour video, not introduce
-extra claims.
-
-For the `UAV Relay Queue` video (`uav_relay_queue_project` install id), reuse the same
-opening AGILAB figure, but end the static sequence on screenshots from:
-
-- `view_uav_relay_queue_analysis`
-- optionally `view_maps_network`
-
 ## Recording and visual rules
 
 - Record at `1440p` or `1080p`, then crop tightly.
@@ -478,7 +448,7 @@ opening AGILAB figure, but end the static sequence on screenshots from:
   output files in between
 - `UAV Relay Queue` clips show `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
 - the ending frame shows a result, not infrastructure noise
-- the video and slideshow use the same message
+- the video and static assets use the same message
 - the social/static assets do not contradict the live capture
 - the clip stays short enough to rewatch once without fatigue
 
