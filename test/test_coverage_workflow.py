@@ -39,3 +39,9 @@ def test_agi_gui_coverage_includes_notebook_colab_support_helper() -> None:
     run_block = _agi_gui_run_block()
 
     assert "test/test_notebook_colab_support.py" in run_block
+
+
+def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_about_agilab_helpers.py" in run_block
