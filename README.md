@@ -106,6 +106,7 @@ Recommended notebook launchers:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb)
 [![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb)
+[![Run In Lightning Studio](https://img.shields.io/badge/Run%20in-Lightning%20Studio-7928CA)](https://thalesgroup.github.io/agilab/quick-start.html#lightning-studio-ui-demo)
 
 - [`Open First Run In Colab`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb): source-checkout notebook that clones the repo, installs editable AGILAB and core packages, and runs `mycode_project`
 - [`Open First Run In Kaggle`](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb): source-checkout notebook for Kaggle that clones the repo, prepares an isolated runtime venv under `/kaggle/working`, and runs `mycode_project` without mutating the base Kaggle kernel packages
@@ -128,6 +129,26 @@ Use these only when you explicitly want the current PyPI release instead of GitH
 - [`Benchmark (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb)
 - [`Data + DAG (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb)
 - [`Worker Paths (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb)
+
+### Run the UI in Lightning Studio
+
+Use this when you want the AGILAB web UI on a single hosted machine instead of a notebook. The launcher keeps the demo local-only, starts on `flight_project`, and redirects logs, exports, and local share data into `.lightning_studio_runtime/` under the repository root.
+
+```bash
+git clone https://github.com/ThalesGroup/agilab.git
+cd agilab
+uv sync
+uv --preview-features extra-build-dependencies run python tools/lightning_studio_demo.py --port 8501
+```
+
+Then use the Lightning Studio UI to open the web app on port `8501`.
+
+Constraints:
+
+- This is an AGILAB Lite demo path for a single Studio VM, not the full remote-cluster product path.
+- You still need a Lightning account and a Studio session.
+- Lightning documents Studios as a place to clone repos and host AI web apps from the browser:
+  https://lightning.ai/docs/pytorch/latest/clouds/lightning_ai.html
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
