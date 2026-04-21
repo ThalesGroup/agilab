@@ -4,45 +4,19 @@ Newcomer Guide
 If you are new to AGILab, optimize for one outcome only: one successful local
 run of the built-in ``flight_project`` from the web UI.
 
-Do not start with cluster installs, private app repositories, notebook-first
-flows, or packaging work. The first goal is not to explore every mode. The
-first goal is one successful local proof from app selection to visible result.
+This page gives the mental model. :doc:`quick-start` owns the exact commands.
+:doc:`newcomer-troubleshooting` owns the first-failure path.
 
-This page gives the shortest mental model for the framework. For the exact
-installation commands, see :doc:`quick-start`. If the first proof fails, use
-:doc:`newcomer-troubleshooting` before branching into broader troubleshooting.
+The first proof is deliberately narrow:
 
-Shortest first proof
---------------------
+- source checkout
+- local run
+- built-in ``flight_project``
+- ``PROJECT -> ORCHESTRATE -> ANALYSIS``
+- visible result under ``~/log/execute/flight/``
 
-This proof does **not** require ``PIPELINE``. ``PIPELINE`` becomes important
-later, after the first local path is already working.
-
-Do this in order:
-
-1. Install and launch AGILab with the commands from :doc:`quick-start`.
-2. In the web UI, go to ``PROJECT`` and choose
-   ``src/agilab/apps/builtin/flight_project``.
-3. Go to ``ORCHESTRATE`` and click ``INSTALL``, then ``EXECUTE``.
-4. Go to ``ANALYSIS`` and open the default view.
-
-You are done when:
-
-- fresh output exists under ``~/log/execute/flight/``
-- the default ``ANALYSIS`` view opens for ``flight_project``
-
-Only after that should you try notebooks, cluster mode, private apps, or
-packaged install.
-
-What success looks like
------------------------
-
-You are "past the newcomer hurdle" when all of the following are true:
-
-- A local install/run completes without needing SSH or remote workers.
-- AGILab writes logs and generated snippets under ``~/log/execute/<app>/``.
-- You can do that either from the web UI or from a notebook using
-  ``AgiEnv`` and ``AGI.run(...)``.
+That is enough for day 1. Do not widen the problem to notebooks, package mode,
+private apps, or cluster setup until this path works once.
 
 What to ignore on day 1
 -----------------------
@@ -54,26 +28,6 @@ Skip these until the local ``flight_project`` proof works once:
 - notebook-first route
 - private or optional app repositories
 - PyCharm or VS Code convenience flows
-
-The first 10 minutes
---------------------
-
-1. Install or launch AGILab with the commands from :doc:`quick-start`.
-2. Keep the first run local. Skip SSH hosts and cluster settings.
-3. Start with ``src/agilab/apps/builtin/flight_project``. Use
-   ``mycode_project`` only later, when you intentionally want the smallest
-   reference app instead of the clearest product demonstration.
-4. Use the UI in this order:
-   **PROJECT** -> **ORCHESTRATE** -> **ANALYSIS**.
-5. Confirm that ``~/log/execute/flight/`` contains fresh output and the
-   default analysis view opens.
-
-That is enough for day 1. The fuller four-page demo story
-(``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``) is a separate public tour
-based on ``uav_relay_queue_project``, not the newcomer proof.
-
-If that path fails at any point, stop and use :doc:`newcomer-troubleshooting`
-instead of jumping directly into cluster, packaging, or general FAQ material.
 
 The core ideas, in plain language
 ---------------------------------
@@ -103,25 +57,15 @@ Common newcomer traps
 - **Contributors editing generated docs output**:
   edit ``docs/source`` in the docs repository, not ``docs/html``.
 
-Only after the first proof
---------------------------
-
-Branch into these routes only after the local ``flight_project`` path works:
-
-- :doc:`notebook-quickstart` if you prefer to stay in Jupyter
-- published package mode if you want the thinnest install path
-- :doc:`distributed-workers` when you are ready for SSH or multi-node execution
-- developer convenience flows such as PyCharm run configurations or VS Code tasks
-
 Where to go next
 ----------------
 
-- :doc:`quick-start` for the shortest install/run commands.
-- :doc:`newcomer-troubleshooting` for the five most common first-run failures.
-- :doc:`compatibility-matrix` for the current public validated-vs-documented
-  support slices.
-- :doc:`notebook-quickstart` for the code-first notebook route.
-- :doc:`architecture` for the runtime control path.
-- :doc:`execute-help` for the ORCHESTRATE workflow.
-- :doc:`distributed-workers` after the local path works and you are ready for
-  SSH or multi-node execution.
+- :doc:`quick-start` for the exact first-proof commands and the optional
+  alternative routes after that.
+- :doc:`newcomer-troubleshooting` if the local ``flight_project`` proof fails.
+- :doc:`compatibility-matrix` for the current validated versus documented
+  public slices.
+- :doc:`notebook-quickstart` only after you intentionally choose the
+  ``agi-core`` notebook route.
+- :doc:`distributed-workers` only after the local proof works and you are ready
+  for SSH or multi-node execution.

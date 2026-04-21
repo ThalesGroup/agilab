@@ -44,7 +44,7 @@ Current public matrix
      - documented
      - :doc:`demos` and the hosted AGILAB demo path
      - Hosted single-machine web UI demo on the public built-in app path
-     - Demo environment only; self-hosting preferred for public viewers; Lightning operator account required only when using Lightning Studio; not a remote cluster proof
+     - Demo environment only; not a remote cluster proof
    * - Service-mode operator surface
      - validated
      - ORCHESTRATE service controls and health gate
@@ -71,11 +71,8 @@ Use it to answer three concrete questions:
 2. Which routes are currently validated versus only documented?
 3. Which paths still need broader certification or automation work?
 
-Recommended reading order:
-
-- :doc:`newcomer-guide`
-- :doc:`quick-start`
-- :doc:`newcomer-troubleshooting`
+Use :doc:`newcomer-guide` and :doc:`quick-start` for the actual onboarding
+flow. This page is only the support-status map.
 
 What remains roadmap work
 -------------------------
