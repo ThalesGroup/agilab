@@ -69,9 +69,9 @@ flows as equal first-step alternatives on the landing screen.
 Use one primary launch asset across the repo, release notes, and social posts:
 
 - public video: `https://youtu.be/kOMDyvbnC9w`
-- local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](/Users/agi/PycharmProjects/agilab/artifacts/demo_media/flight/agilab_flight.mp4)
-- still fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
-- supporting explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
+- local upload/source reel: [`artifacts/demo_media/flight/agilab_flight.mp4`](../../artifacts/demo_media/flight/agilab_flight.mp4)
+- still fallback: [`docs/source/diagrams/agilab_social_card.svg`](../../docs/source/diagrams/agilab_social_card.svg)
+- supporting explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](../../docs/source/diagrams/agilab_readme_tour.svg)
 
 Do not rotate between unrelated demos for the same launch wave. The first wave should
 anchor on `flight_project` so the landing page, demo, and post copy all point to the same path.

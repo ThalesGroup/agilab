@@ -1,6 +1,6 @@
 # AGILAB Weekly Growth Tracker
 
-Use this file to record the weekly signals defined in [STAR_GROWTH_PLAN.md](/Users/agi/PycharmProjects/agilab/STAR_GROWTH_PLAN.md).
+Use this file to record the weekly signals defined in [STAR_GROWTH_PLAN.md](STAR_GROWTH_PLAN.md).
 
 The goal is not bookkeeping. The goal is to learn which launch actions are improving conversion.
 

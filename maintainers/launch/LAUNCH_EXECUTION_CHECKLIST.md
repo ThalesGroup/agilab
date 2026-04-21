@@ -2,9 +2,9 @@
 
 Use this file to execute the current launch wave defined in:
 
-- [STAR_GROWTH_PLAN.md](/Users/agi/PycharmProjects/agilab/STAR_GROWTH_PLAN.md)
-- [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
-- [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [STAR_GROWTH_PLAN.md](../growth/STAR_GROWTH_PLAN.md)
+- [GITHUB_REPO_POSITIONING.md](../growth/GITHUB_REPO_POSITIONING.md)
+- [LAUNCH_POST_DRAFTS.md](LAUNCH_POST_DRAFTS.md)
 
 This is not a brainstorming document. It is the run list for the current public push.
 
@@ -17,8 +17,8 @@ This is not a brainstorming document. It is the run list for the current public 
 - published public video: `https://youtu.be/kOMDyvbnC9w`
 - local canonical reel: regenerate locally with the command below when needed
 - ML-facing alternative reel: regenerate locally with the command below when needed
-- still fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
-- workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
+- still fallback: [`docs/source/diagrams/agilab_social_card.svg`](../../docs/source/diagrams/agilab_social_card.svg)
+- workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](../../docs/source/diagrams/agilab_readme_tour.svg)
 - reference app: `flight_project`
 
 If the local video asset is missing, regenerate it before launch:
@@ -41,14 +41,14 @@ uv --preview-features extra-build-dependencies run python tools/build_product_de
 
 ### Step 1: repo and docs alignment
 
-- [x] verify [README.md](/Users/agi/PycharmProjects/agilab/README.md)
-- [x] verify [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
-- [x] verify [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [x] verify [README.md](../../README.md)
+- [x] verify [GITHUB_REPO_POSITIONING.md](../growth/GITHUB_REPO_POSITIONING.md)
+- [x] verify [LAUNCH_POST_DRAFTS.md](LAUNCH_POST_DRAFTS.md)
 - [x] verify docs landing page links are still valid
 
 ### Step 2: GitHub launch
 
-- [x] publish the GitHub discussion or release note using [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [x] publish the GitHub discussion or release note using [LAUNCH_POST_DRAFTS.md](LAUNCH_POST_DRAFTS.md)
 - [x] attach or link the canonical demo asset
 - [x] point readers to the README quick start and docs home
 
@@ -58,7 +58,7 @@ Published artifact:
 
 ### Step 3: LinkedIn launch
 
-- [ ] publish the LinkedIn post from [LAUNCH_POST_DRAFTS.md](/Users/agi/PycharmProjects/agilab/LAUNCH_POST_DRAFTS.md)
+- [ ] publish the LinkedIn post from [LAUNCH_POST_DRAFTS.md](LAUNCH_POST_DRAFTS.md)
 - [ ] use the flight demo video for broad product positioning
 - [ ] use the meteo forecast reel when the post must visibly show an ML workflow
 - [ ] if not, use the social card
@@ -76,7 +76,7 @@ Published artifact:
 - [ ] record README / docs traffic if available
 - [x] record whether external questions appeared
 - [x] record whether the first-time visitor path caused confusion
-- [x] update [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+- [x] update [WEEKLY_GROWTH_TRACKER.md](../growth/WEEKLY_GROWTH_TRACKER.md)
 
 Observed on 2026-04-16:
 

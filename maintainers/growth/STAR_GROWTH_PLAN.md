@@ -8,8 +8,8 @@ easy to star, easy to explain, and easy to classify.
 
 Execution companions:
 
-- [LAUNCH_EXECUTION_CHECKLIST.md](/Users/agi/PycharmProjects/agilab/LAUNCH_EXECUTION_CHECKLIST.md)
-- [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+- [LAUNCH_EXECUTION_CHECKLIST.md](../launch/LAUNCH_EXECUTION_CHECKLIST.md)
+- [WEEKLY_GROWTH_TRACKER.md](WEEKLY_GROWTH_TRACKER.md)
 
 ## Reality check
 
