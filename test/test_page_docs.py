@@ -98,6 +98,41 @@ def test_open_local_page_docs_falls_back_to_source_checkout_docs(tmp_path, monke
     assert opened == [f"{local_doc.as_uri()}#cluster"]
 
 
+def test_resolve_local_page_docs_path_returns_none_for_invalid_package_root():
+    env = types.SimpleNamespace(agilab_pck=object())
+
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") is None
+
+
+def test_resolve_local_page_docs_path_skips_duplicate_roots_without_docs(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    package_root = repo_root / "src"
+    module_file = package_root / "agilab" / "page_docs.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("pass\n", encoding="utf-8")
+
+    env = types.SimpleNamespace(agilab_pck=package_root)
+    monkeypatch.setattr(page_docs, "__file__", str(module_file))
+
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") is None
+
+
+def test_resolve_local_page_docs_path_supports_recursive_docs_matches(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    package_root = repo_root / "src"
+    module_file = package_root / "agilab" / "page_docs.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("pass\n", encoding="utf-8")
+    nested_doc = module_file.parent / "docs" / "nested" / "execute-help.html"
+    nested_doc.parent.mkdir(parents=True)
+    nested_doc.write_text("<html>ok</html>", encoding="utf-8")
+
+    env = types.SimpleNamespace(agilab_pck=package_root)
+    monkeypatch.setattr(page_docs, "__file__", str(module_file))
+
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == nested_doc
+
+
 def test_open_local_page_docs_raises_when_no_candidate_exists(monkeypatch):
     monkeypatch.setattr(
         page_docs,
