@@ -44,12 +44,14 @@ Recommended notebook
 
 - `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
   clones the repository, prepares an isolated runtime venv under
-  ``/content``, and runs ``mycode_project`` without mutating the base Colab
-  kernel packages.
+  ``/content``, and runs the built-in MyCode example app
+  (internal id ``mycode_project``) without mutating the base Colab kernel
+  packages.
 - `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
   clones the repository inside Kaggle, prepares an isolated runtime venv under
-  ``/kaggle/working``, and runs ``mycode_project`` without mutating the base
-  Kaggle kernel packages.
+  ``/kaggle/working``, and runs the built-in MyCode example app
+  (internal id ``mycode_project``) without mutating the base Kaggle kernel
+  packages.
   Kaggle note: enable Internet in the notebook settings for the first install.
 
 Other notebook entry points
@@ -57,9 +59,10 @@ Other notebook entry points
 
 - `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
   is a source-checkout notebook that clones the repository, prepares an
-  isolated runtime venv under ``/content``, benchmarks ``mycode_project``
-  across the default AGILAB mode sweep, and renders a ranked comparison table
-  without mutating the base Colab kernel packages.
+  isolated runtime venv under ``/content``, benchmarks the built-in MyCode
+  example app (internal id ``mycode_project``) across the default AGILAB mode
+  sweep, and renders a ranked comparison table without mutating the base Colab
+  kernel packages.
 - `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
   is an advanced source-checkout notebook for a data-worker app and a
   DAG-style app.
@@ -120,7 +123,7 @@ Cell 1: resolve the repository and built-in apps path.
 
    REPO_ROOT = find_repo_root(Path.cwd().resolve())
    APPS_PATH = REPO_ROOT / "src/agilab/apps/builtin"
-   APP = "mycode_project"
+   APP = "mycode_project"  # built-in MyCode example app
 
 Cell 2: build ``AgiEnv`` and run the smallest local ``AGI.run(...)`` shape.
 
@@ -149,7 +152,7 @@ How this maps back to the GUI
 -----------------------------
 
 - Notebook ``AgiEnv(apps_path=..., app="mycode_project")`` corresponds to
-  choosing a project in **PROJECT**.
+  choosing the built-in MyCode example app in **PROJECT**.
 - Notebook ``AGI.run(...)`` corresponds to the generated snippet from
   **ORCHESTRATE**.
 - The output path under ``~/log/execute/mycode`` is the same family of artifacts
@@ -164,7 +167,7 @@ After one successful notebook run, you can keep working in notebooks or move to
 the UI:
 
 1. Open the AGILab web UI.
-2. Select the same ``mycode_project`` app.
+2. Select the same MyCode example app (internal id ``mycode_project``).
 3. Recreate the run in **ORCHESTRATE** if you want to learn the UI vocabulary.
 
 Related pages
