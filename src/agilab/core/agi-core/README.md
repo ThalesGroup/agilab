@@ -25,6 +25,8 @@ path, or the Kaggle variant if you prefer Kaggle notebooks. For the full noteboo
 AGILAB Notebook Quick Start page:
 https://thalesgroup.github.io/agilab/notebook-quickstart.html
 
+Kaggle note: enable Internet in the notebook settings for the first install.
+
 ## Why install this package
 
 - Get the three AGILAB core libraries as a single dependency set.
