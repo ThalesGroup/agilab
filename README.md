@@ -178,9 +178,12 @@ Shareable visual:
 - [Social card SVG](docs/source/diagrams/agilab_social_card.svg)
 
 Video tutorial and slideshow:
+[![Slides](https://img.shields.io/badge/Slides-download-0F766E)](docs/source/AGILAB_Demo_Slideshow.pptx)
 - [45-second workflow intro video](https://youtu.be/kOMDyvbnC9w)
+- [Public slideshow deck](docs/source/AGILAB_Demo_Slideshow.pptx)
 - [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
 - [Video tutorial and slideshow guide](docs/source/demo_capture_script.md)
+- `uv --preview-features extra-build-dependencies run --with python-pptx python tools/build_demo_slides.py`
 - `uv --preview-features extra-build-dependencies run --with imageio --with imageio-ffmpeg python tools/build_demo_explainer.py`
 
 ## Quick links
