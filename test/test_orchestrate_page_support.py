@@ -82,6 +82,60 @@ def test_build_distribution_snippet_omits_blank_args_payload():
     assert ",\n        \n" not in snippet
 
 
+def test_merge_app_settings_sources_merges_args_but_keeps_cluster_file_backed():
+    merged = orchestrate_page_support.merge_app_settings_sources(
+        {
+            "args": {"data_in": "file/input"},
+            "cluster": {"cluster_enabled": False, "pool": False},
+            "verbose": 1,
+        },
+        {
+            "args": {"data_out": "session/output"},
+            "cluster": {"cluster_enabled": True, "pool": True},
+            "verbose": 3,
+        },
+    )
+
+    assert merged == {
+        "args": {"data_in": "file/input", "data_out": "session/output"},
+        "cluster": {"cluster_enabled": False, "pool": False},
+        "verbose": 3,
+    }
+
+
+def test_merge_app_settings_sources_ignores_session_only_cluster_snapshot():
+    merged = orchestrate_page_support.merge_app_settings_sources(
+        {},
+        {
+            "args": {"data_in": "session/input"},
+            "cluster": {"cluster_enabled": True},
+        },
+    )
+
+    assert merged["args"] == {"data_in": "session/input"}
+    assert merged["cluster"] == {}
+
+
+def test_resolve_requested_run_mode_switches_between_single_and_benchmark_modes():
+    cluster_params = {"pool": True, "cython": True, "rapids": True}
+
+    assert orchestrate_page_support.resolve_requested_run_mode(
+        cluster_params,
+        cluster_enabled=False,
+        benchmark_enabled=False,
+    ) == 11
+    assert orchestrate_page_support.resolve_requested_run_mode(
+        cluster_params,
+        cluster_enabled=False,
+        benchmark_enabled=True,
+    ) == [8, 9, 10, 11]
+    assert orchestrate_page_support.resolve_requested_run_mode(
+        cluster_params,
+        cluster_enabled=True,
+        benchmark_enabled=True,
+    ) is None
+
+
 def test_serialize_args_payload_and_optional_exprs_cover_string_and_mapping_cases():
     payload = orchestrate_page_support.serialize_args_payload(
         {"dataset": "flight/source", "limit": 5, "enabled": True}

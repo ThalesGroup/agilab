@@ -153,6 +153,46 @@ def resolve_project_change_args_override(
     return state_args
 
 
+def merge_app_settings_sources(
+    file_settings: Any,
+    session_settings: Any,
+) -> dict[str, Any]:
+    """
+    Merge persisted app settings with the current session snapshot.
+
+    `args` is the only section that should merge file + session state because
+    app forms may stage in-memory edits before persisting them. `cluster`
+    remains file-backed on purpose: the cluster UI writes it immediately to the
+    workspace settings file and widget state is rehydrated separately, which
+    avoids stale session dicts re-enabling cluster mode on rerun.
+    """
+    merged: dict[str, Any] = {}
+
+    if isinstance(file_settings, Mapping):
+        merged.update(file_settings)
+
+    if isinstance(session_settings, Mapping):
+        for key, value in session_settings.items():
+            if key == "args" and isinstance(value, Mapping):
+                base = merged.get(key, {})
+                if isinstance(base, Mapping):
+                    merged[key] = {**base, **value}
+                else:
+                    merged[key] = dict(value)
+            elif key != "cluster":
+                merged[key] = value
+
+    args_value = merged.get("args")
+    if isinstance(args_value, Mapping):
+        merged["args"] = dict(args_value)
+    elif "args" not in merged:
+        merged["args"] = {}
+
+    cluster_value = merged.get("cluster")
+    merged["cluster"] = dict(cluster_value) if isinstance(cluster_value, Mapping) else {}
+    return merged
+
+
 def optional_string_expr(enabled: bool, value: Any) -> str:
     if not enabled or value in (None, ""):
         return "None"
@@ -256,6 +296,17 @@ def compute_benchmark_run_mode(
     # any higher-order capability flags such as RAPIDS.
     preserved_mode_bits = compute_run_mode(cluster_params, False) & ~0b11
     return [preserved_mode_bits | variant for variant in range(4)]
+
+
+def resolve_requested_run_mode(
+    cluster_params: Mapping[str, Any],
+    *,
+    cluster_enabled: bool,
+    benchmark_enabled: bool,
+) -> int | list[int] | None:
+    if benchmark_enabled:
+        return compute_benchmark_run_mode(cluster_params, cluster_enabled)
+    return compute_run_mode(cluster_params, cluster_enabled)
 
 
 def describe_run_mode(run_mode: int | list[int] | None, benchmark_enabled: bool) -> str:

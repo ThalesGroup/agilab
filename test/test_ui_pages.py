@@ -208,6 +208,15 @@ def _seed_env_editor_state(at: AppTest, env: AgiEnv) -> None:
             at.session_state[editor_key] = env_values.get(key, "")
 
 
+def _current_app_state_name(at: AppTest) -> str:
+    try:
+        env = at.session_state["env"]
+    except Exception:
+        return ""
+    app_value = getattr(env, "app", "")
+    return Path(str(app_value)).name if app_value else ""
+
+
 def _all_button_labels(at: AppTest) -> list[str]:
     labels = [button.label for button in at.button]
     try:
@@ -407,13 +416,13 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert not at.exception
     _assert_docs_actions_present(at)
 
-    enabled_toggle_key = f"cluster_enabled__flight_project"
-    scheduler_key = f"cluster_scheduler__flight_project"
-    pool_key = "cluster_pool__flight_project"
-    # Drive the cluster state directly through session_state rather than
-    # AppTest widget replay. This keeps the regression stable even when
-    # unrelated sidebar widgets are conditionally omitted in test mode.
-    at.session_state[enabled_toggle_key] = True
+    app_state_name = _current_app_state_name(at)
+    enabled_toggle_key = f"cluster_enabled__{app_state_name}"
+    scheduler_key = f"cluster_scheduler__{app_state_name}"
+    pool_key = f"cluster_pool__{app_state_name}"
+    at.toggle(key=enabled_toggle_key).set_value(True).run()
+    assert not at.exception
+
     at.session_state[scheduler_key] = "127.0.0.1:8786"
     at.session_state[pool_key] = True
     at.run()
@@ -426,13 +435,6 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert cluster_state.get("cluster_enabled", enabled_state) is True
     assert cluster_state.get("pool", pool_state) is True
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
-
-
-def test_execute_page_benchmark_uses_shared_mode_helper():
-    source = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py").read_text(encoding="utf-8")
-
-    assert "compute_benchmark_run_mode(cluster_params, cluster_enabled)" in source
-    assert "else [0, 1, 2, 3]" not in source
 
 
 def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env):
@@ -448,14 +450,13 @@ def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env
     at.run()
     assert not at.exception
 
-    enabled_key = "cluster_enabled__flight_project"
-    at.session_state[enabled_key] = True
-    at.run()
+    app_state_name = _current_app_state_name(at)
+    enabled_key = f"cluster_enabled__{app_state_name}"
+    at.toggle(key=enabled_key).set_value(True).run()
     assert not at.exception
     assert at.session_state["app_settings"]["cluster"]["cluster_enabled"] is True
 
-    at.session_state[enabled_key] = False
-    at.run()
+    at.toggle(key=enabled_key).set_value(False).run()
     assert not at.exception
 
     cluster_state = at.session_state["app_settings"]["cluster"]
@@ -670,6 +671,8 @@ def test_execute_page_cython_toggle(mock_ui_env):
     """Test toggling the Cython checkbox on the EXECUTE page."""
     at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     _seed_env_editor_state(at, env)
@@ -677,7 +680,8 @@ def test_execute_page_cython_toggle(mock_ui_env):
     at.run()
     assert not at.exception
 
-    cython_key = "cluster_cython__flight_project"
+    app_state_name = _current_app_state_name(at)
+    cython_key = f"cluster_cython__{app_state_name}"
     at.session_state[cython_key] = True
     at.run()
     assert not at.exception
@@ -697,6 +701,8 @@ def test_execute_page_workers_data_path(mock_ui_env):
     """Test setting the workers data path when cluster is enabled."""
     at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     _seed_env_editor_state(at, env)
@@ -705,13 +711,13 @@ def test_execute_page_workers_data_path(mock_ui_env):
     assert not at.exception
 
     # Enable cluster first
-    enabled_key = f"cluster_enabled__flight_project"
-    at.session_state[enabled_key] = True
-    at.run()
+    app_state_name = _current_app_state_name(at)
+    enabled_key = f"cluster_enabled__{app_state_name}"
+    at.toggle(key=enabled_key).set_value(True).run()
     assert not at.exception
 
     # Set workers data path
-    wdp_key = f"cluster_workers_data_path__flight_project"
+    wdp_key = f"cluster_workers_data_path__{app_state_name}"
     at.session_state[wdp_key] = "/data/shared"
     at.run()
     assert not at.exception
@@ -875,11 +881,16 @@ def test_experiment_page_missing_openai_key(mock_ui_env):
 def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
     """Deleting then canceling a step should rerender locally without crashing."""
     export_root = tmp_path / "export"
-    lab_dir = export_root / "flight"
-    lab_dir.mkdir(parents=True, exist_ok=True)
-    steps_file = lab_dir / "lab_steps.toml"
-    steps_file.write_text(
+    flight_lab_dir = export_root / "flight"
+    flight_lab_dir.mkdir(parents=True, exist_ok=True)
+    (flight_lab_dir / "lab_steps.toml").write_text(
         '[[flight]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+    flight_project_lab_dir = export_root / "flight_project"
+    flight_project_lab_dir.mkdir(parents=True, exist_ok=True)
+    (flight_project_lab_dir / "lab_steps.toml").write_text(
+        '[[flight_project]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
 
@@ -889,15 +900,27 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight"
+        env.target = "flight_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
 
+        at.query_params["lab_dir_selectbox"] = "flight_project"
         at.session_state["env"] = env
         at.session_state["flight"] = [0, "", "", "", "", "", 1]
+        at.session_state["flight_project"] = [0, "", "", "", "", "", 1]
+        at.session_state["flight_project__venv_map"] = {}
+        at.session_state["_requested_lab_dir"] = "flight_project"
+        at.session_state["lab_dir_selectbox"] = "flight_project"
+        at.session_state["lab_dir"] = "flight_project"
         at.run()
         assert not at.exception
 
-        safe_prefix = "flight_lab_steps.toml"
+        delete_keys = [
+            button.key
+            for button in at.button
+            if isinstance(button.key, str) and button.key.endswith("_delete_0")
+        ]
+        assert delete_keys
+        safe_prefix = delete_keys[0].removesuffix("_delete_0")
         at.button(key=f"{safe_prefix}_delete_0").click().run()
         assert not at.exception
         assert any(button.key == f"{safe_prefix}_delete_cancel_0" for button in at.button)
