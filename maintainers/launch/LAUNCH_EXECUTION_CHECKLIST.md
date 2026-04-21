@@ -2,8 +2,8 @@
 
 Use this file to execute the current launch wave defined in:
 
-- [STAR_GROWTH_PLAN.md](../growth/STAR_GROWTH_PLAN.md)
-- [GITHUB_REPO_POSITIONING.md](../growth/GITHUB_REPO_POSITIONING.md)
+- the private growth plan
+- the private repo positioning note
 - [LAUNCH_POST_DRAFTS.md](LAUNCH_POST_DRAFTS.md)
 
 This is not a brainstorming document. It is the run list for the current public push.
@@ -42,7 +42,7 @@ uv --preview-features extra-build-dependencies run python tools/build_product_de
 ### Step 1: repo and docs alignment
 
 - [x] verify [README.md](../../README.md)
-- [x] verify [GITHUB_REPO_POSITIONING.md](../growth/GITHUB_REPO_POSITIONING.md)
+- [x] verify the private repo positioning note
 - [x] verify [LAUNCH_POST_DRAFTS.md](LAUNCH_POST_DRAFTS.md)
 - [x] verify docs landing page links are still valid
 
@@ -76,7 +76,7 @@ Published artifact:
 - [ ] record README / docs traffic if available
 - [x] record whether external questions appeared
 - [x] record whether the first-time visitor path caused confusion
-- [x] update [WEEKLY_GROWTH_TRACKER.md](../growth/WEEKLY_GROWTH_TRACKER.md)
+- [x] update the private weekly growth tracker
 
 Observed on 2026-04-16:
 
