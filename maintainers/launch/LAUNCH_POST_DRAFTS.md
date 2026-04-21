@@ -4,10 +4,10 @@ This file is the execution-ready launch package for the current public positioni
 
 Use it with:
 
-- [GITHUB_REPO_POSITIONING.md](/Users/agi/PycharmProjects/agilab/GITHUB_REPO_POSITIONING.md)
-- [STAR_GROWTH_PLAN.md](/Users/agi/PycharmProjects/agilab/STAR_GROWTH_PLAN.md)
-- [LAUNCH_EXECUTION_CHECKLIST.md](/Users/agi/PycharmProjects/agilab/LAUNCH_EXECUTION_CHECKLIST.md)
-- [WEEKLY_GROWTH_TRACKER.md](/Users/agi/PycharmProjects/agilab/WEEKLY_GROWTH_TRACKER.md)
+- [GITHUB_REPO_POSITIONING.md](../growth/GITHUB_REPO_POSITIONING.md)
+- [STAR_GROWTH_PLAN.md](../growth/STAR_GROWTH_PLAN.md)
+- [LAUNCH_EXECUTION_CHECKLIST.md](LAUNCH_EXECUTION_CHECKLIST.md)
+- [WEEKLY_GROWTH_TRACKER.md](../growth/WEEKLY_GROWTH_TRACKER.md)
 
 ## Locked launch theme
 
@@ -27,8 +27,8 @@ Use one primary demo asset for this wave:
 
 - published public video: `https://youtu.be/kOMDyvbnC9w`
 - local canonical reel: regenerate locally when needed with the command below
-- primary still image fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
-- supporting workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_readme_tour.svg)
+- primary still image fallback: [`docs/source/diagrams/agilab_social_card.svg`](../../docs/source/diagrams/agilab_social_card.svg)
+- supporting workflow explainer: [`docs/source/diagrams/agilab_readme_tour.svg`](../../docs/source/diagrams/agilab_readme_tour.svg)
 
 If the local video asset is missing, regenerate it before packaging the post:
 
@@ -335,7 +335,7 @@ https://thalesgroup.github.io/agilab
 
 - first choice: current regenerated `flight` reel
 - public fallback link: `https://youtu.be/kOMDyvbnC9w`
-- fallback: [`docs/source/diagrams/agilab_social_card.svg`](/Users/agi/PycharmProjects/agilab/docs/source/diagrams/agilab_social_card.svg)
+- fallback: [`docs/source/diagrams/agilab_social_card.svg`](../../docs/source/diagrams/agilab_social_card.svg)
 
 ## ML-facing video package
 
