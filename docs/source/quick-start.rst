@@ -101,6 +101,27 @@ Alternative install routes
 
 Use these only if you already know why you want them.
 
+.. _lightning-studio-ui-demo:
+
+**Lightning Studio route** (browser-hosted single-machine UI demo)::
+
+    git clone https://github.com/ThalesGroup/agilab.git
+    cd agilab
+    uv sync
+    uv --preview-features extra-build-dependencies run python tools/lightning_studio_demo.py --port 8501
+
+Then use the Lightning Studio UI to open the web app on port ``8501``.
+
+This route keeps AGILAB in a local-only demo mode, starts on
+``flight_project``, and redirects logs, exports, and local share data into
+``.lightning_studio_runtime/`` under the repository root. It is a useful UI
+demo path, but it is not the full remote-cluster/orchestration product path.
+
+Lightning docs that support this workflow:
+
+- `Run single or multi-node on Lightning Studios <https://lightning.ai/docs/pytorch/latest/clouds/lightning_ai.html>`_
+- `How to Build a Machine Learning Training and Deployment Pipeline <https://lightning.ai/pages/community/tutorial/ml-training-deployment/>`_
+
 **Published package route** (fastest install, less representative of the full product path)::
 
     mkdir ~/agi-workspace && cd ~/agi-workspace
