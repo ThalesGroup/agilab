@@ -9,6 +9,14 @@ The project demonstrates a compact routing-and-queueing simulation:
 - two relay choices with different queue and delay trade-offs
 - exported telemetry that can be inspected in AGILAB analysis pages
 
+Origin note:
+
+- this built-in example is conceptually inspired by the SimPy buffer-based
+  queueing pattern described in
+  [`UavNetSim`](https://github.com/Zihao-Felix-Zhou/UavNetSim)
+  (MIT-licensed)
+- it does not vendor or claim to adapt UavNetSim source code directly
+
 ## What it is good for
 
 - a self-contained AGILAB demo app
