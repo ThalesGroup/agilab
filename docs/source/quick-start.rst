@@ -90,26 +90,30 @@ Use these only after the local ``flight_project`` proof works once.
 .. _hosted-agilab-demo:
 .. _lightning-studio-ui-demo:
 
-**AGILAB demo** (browser-hosted single-machine UI demo)::
+**AGILAB demo** (Lightning Studio hosted single-machine UI demo)::
 
     git clone https://github.com/ThalesGroup/agilab.git
     cd agilab
     uv sync
     uv --preview-features extra-build-dependencies run python tools/lightning_studio_demo.py --port 8501
 
-This launcher keeps AGILAB in local-only demo mode, starts on
-``flight_project``, and writes demo runtime state into
+Run this inside a Lightning Studio terminal, not on your local machine.
+
+This launcher keeps AGILAB in demo-local mode inside the Lightning workspace,
+starts on ``flight_project``, and writes demo runtime state into
 ``.lightning_studio_runtime/`` under the repository root.
 
-Use it in one of two ways:
+This is the Lightning Studio operator path for the hosted AGILAB demo. It is
+not the standard local install or local developer path.
 
-- self-host it on your own Linux VM and expose port ``8501`` behind Caddy or
-  Nginx when viewers should not need any account
-- run the same launcher in Lightning Studio when you want a managed operator
-  environment; in that case only the operator needs a Lightning account
+To use it:
 
-Lightning is optional. It is not required to install, run, or develop with
-AGILAB.
+1. Create a Lightning Studio workspace.
+2. Open a terminal inside the Studio.
+3. Run the command above.
+4. Open the app on port ``8501`` from the Lightning UI.
+
+Only the operator needs the Lightning account and Studio workspace.
 
 **Published package route** (fastest install, less representative of the full product path)::
 
