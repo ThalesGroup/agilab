@@ -16,9 +16,9 @@ Available demo paths
   Use this when you want a code-first demo in Colab or Kaggle without a local
   install on your machine.
 - :doc:`quick-start` for the ``AGILAB demo`` hosted UI path.
-  Use this when you want a browser-hosted Streamlit demo in Lightning Studio.
-  Lightning is optional for AGILAB overall, but this hosted demo path requires
-  a Lightning account and Lightning Studio workspace.
+  Use this when you want a browser-hosted Streamlit demo.
+  Prefer self-hosting if viewers should not need any account.
+  Lightning remains an optional managed operator path for the same launcher.
 
 What to use first
 -----------------
@@ -27,6 +27,7 @@ What to use first
   ``flight_project`` local path.
 - Lightest browser-first path: :doc:`notebook-quickstart`.
 - Hosted UI demo path: :doc:`quick-start` and the ``AGILAB demo`` section.
+  For public viewers without accounts, prefer the self-hosted VM variant.
 
 Core Tour
 ---------

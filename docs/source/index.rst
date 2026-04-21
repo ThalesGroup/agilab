@@ -42,7 +42,6 @@ references, and example projects.
    framework-api
    framework-submodule-contract
    cluster
-   distributed-workers
    modules
    environment
    faq

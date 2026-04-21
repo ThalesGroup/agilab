@@ -101,27 +101,37 @@ Alternative install routes
 
 Use these only if you already know why you want them.
 
+.. _hosted-agilab-demo:
 .. _lightning-studio-ui-demo:
 
-**AGILAB demo** (Lightning Studio, browser-hosted single-machine UI demo; Lightning account required)::
+**AGILAB demo** (browser-hosted single-machine UI demo)::
 
     git clone https://github.com/ThalesGroup/agilab.git
     cd agilab
     uv sync
     uv --preview-features extra-build-dependencies run python tools/lightning_studio_demo.py --port 8501
 
-This route requires a Lightning account and a Lightning Studio workspace.
-
-Lightning is only the hosted background for this optional demo path. It is not
-required to install, run, or develop with AGILAB locally or on your own
-infrastructure.
-
-Then use the Lightning Studio UI to open the web app on port ``8501``.
-
-This route keeps AGILAB in a local-only demo mode, starts on
+This launcher keeps AGILAB in a local-only demo mode, starts on
 ``flight_project``, and redirects logs, exports, and local share data into
 ``.lightning_studio_runtime/`` under the repository root. It is a useful UI
 demo path, but it is not the full remote-cluster/orchestration product path.
+
+For a public browser demo where viewers should not need an account, run this
+launcher on your own Linux VM and expose port ``8501`` through a reverse proxy
+such as Caddy or Nginx.
+
+If you prefer a managed operator environment, the same launcher can also be run
+inside Lightning Studio. In that variant, only the operator needs a Lightning
+account and Lightning Studio workspace.
+
+Lightning is only one optional hosting background for this demo path. It is not
+required to install, run, or develop with AGILAB locally or on your own
+infrastructure.
+
+After launch, either:
+
+- open the public HTTPS endpoint you exposed on your own VM, or
+- use the Lightning Studio UI to open the web app on port ``8501``
 
 Lightning docs that support this workflow:
 
