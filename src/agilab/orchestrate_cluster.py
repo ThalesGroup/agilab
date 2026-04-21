@@ -306,15 +306,9 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
                 cluster_params["workers"] = workers
 
     st.session_state.dask = cluster_enabled
-    benchmark_enabled = st.session_state.get("benchmark", False)
-
-    if benchmark_enabled:
-        st.session_state["mode"] = None
-        st.info("Run mode benchmark (all modes)")
-    else:
-        mode_value = compute_cluster_mode(cluster_params, cluster_enabled)
-        st.session_state["mode"] = mode_value
-        st.info(f"Run mode {RUN_MODE_LABELS[mode_value]}")
+    mode_value = compute_cluster_mode(cluster_params, cluster_enabled)
+    st.session_state["mode"] = mode_value
+    st.info(f"Run mode {RUN_MODE_LABELS[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     st.session_state.app_settings = deps.write_app_settings_toml(

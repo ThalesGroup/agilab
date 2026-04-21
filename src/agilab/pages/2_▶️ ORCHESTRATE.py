@@ -429,13 +429,19 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
         app_settings.update(file_settings)
     if isinstance(session_settings, dict):
         for key, value in session_settings.items():
-            if key in {"args", "cluster"} and isinstance(value, dict):
+            if key == "args" and isinstance(value, dict):
                 base = app_settings.get(key, {})
                 if isinstance(base, dict):
                     merged = {**base, **value}
                 else:
                     merged = value
                 app_settings[key] = merged
+            elif key == "cluster":
+                # Cluster settings persist immediately in the generic UI, so
+                # the file-backed state should win on rerun. This avoids stale
+                # session copies re-enabling cluster mode after the toggle is
+                # switched off.
+                app_settings.setdefault("cluster", {})
             else:
                 app_settings[key] = value
 
@@ -452,6 +458,10 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
         app_settings.setdefault("args", {})
 
     cluster_settings = app_settings.setdefault("cluster", {})
+    app_state_name = Path(str(env.app)).name if env.app else ""
+    cluster_enabled_key = f"cluster_enabled__{app_state_name}"
+    if cluster_enabled_key in st.session_state:
+        cluster_settings["cluster_enabled"] = bool(st.session_state[cluster_enabled_key])
     if args_override is not None:
         app_settings["args"] = args_override
     st.session_state.app_settings = app_settings
@@ -998,7 +1008,7 @@ async def _render_run_panels(
             cluster_params = st.session_state.app_settings["cluster"]
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
 
-            benchmark_prereqs_met = cluster_enabled and all(
+            benchmark_prereqs_met = all(
                 cluster_params.get(flag, False) for flag in ("pool", "cython")
             )
             if not benchmark_prereqs_met and st.session_state.get("benchmark"):
@@ -1015,14 +1025,21 @@ async def _render_run_panels(
                 benchmark_enabled = requested_benchmark
             else:
                 benchmark_enabled = False
-                st.warning("Benchmark requires Cluster, Pool, and Cython to be enabled together.")
+                st.warning("Benchmark requires Pool and Cython. Enable Cluster as well to include Dask modes.")
 
             if benchmark_enabled:
-                run_mode = None
+                run_mode = None if cluster_enabled else [0, 1, 2, 3]
             else:
                 run_mode = compute_run_mode(cluster_params, cluster_enabled)
 
-            info_label = describe_run_mode(run_mode, benchmark_enabled)
+            if benchmark_enabled:
+                info_label = (
+                    "Run mode benchmark (all modes)"
+                    if cluster_enabled
+                    else "Run mode benchmark (local modes 0-3)"
+                )
+            else:
+                info_label = describe_run_mode(run_mode, benchmark_enabled)
 
             st.session_state["mode"] = run_mode
             st.info(info_label)
