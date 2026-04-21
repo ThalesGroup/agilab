@@ -36,7 +36,8 @@ primary_proof = "demos.rst plus the hosted AGILAB demo path"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
 scope = "Hosted single-machine AGILAB web UI demo on the public built-in app path"
-limits = ["Demo environment only", "Self-hosting is preferred for public viewers", "Lightning operator account required only when using Lightning Studio", "Not a remote cluster proof"]
+scope = "Lightning Studio hosted single-machine AGILAB web UI demo on the public built-in app path"
+limits = ["Demo environment only", "Lightning operator account required", "Not a remote cluster proof"]
 
 [[entries]]
 id = "service-mode-operator-surface"

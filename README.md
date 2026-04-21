@@ -83,6 +83,9 @@ If that first proof fails, use:
 - [AGILAB demo](https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo)
 - [Published package route](https://thalesgroup.github.io/agilab/quick-start.html#alternative-install-routes)
 
+The `AGILAB demo` path is the Lightning Studio operator path for a hosted UI
+demo. It is not the normal local install path.
+
 ## Why Use It
 
 - Run the same app through local execution, distributed workers, or service mode.

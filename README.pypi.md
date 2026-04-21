@@ -37,9 +37,8 @@ recommended newcomer first proof.
 - AGILAB demo: https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo
 - Source repository: https://github.com/ThalesGroup/agilab
 
-For public viewers without accounts, self-host the AGILAB demo on your own VM.
-Lightning is only one optional operator-side hosting background for the same
-launcher. It is not required to install, run, or develop with AGILAB.
+The AGILAB demo path is the Lightning Studio operator path for a hosted UI
+demo. It is not the normal local install path.
 
 ## Why Use It
 
