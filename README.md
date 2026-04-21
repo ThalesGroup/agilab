@@ -40,29 +40,29 @@
 
 AGILAB is an open-source platform for reproducible AI and ML workflows.
 
-The core idea is simple: keep one app on one control path from setup to visible evidence instead of splitting the workflow across ad hoc scripts, environments, and analysis glue.
+The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
 
 ## Demo
-
-- [Public demo entry points](https://thalesgroup.github.io/agilab/demos.html)
 
 <p>
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge" alt="agi-core demo" /></a>
   <a href="https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
 </p>
 
-## Start Here
+- `AGILAB demo`: hosted web UI on the built-in `flight_project`
+- `agi-core demo`: notebook-first runtime demo on Kaggle
 
-If this is your first visit, stay on the simplest proof path:
+## First Real Run
+
+If you want the real product path, do this once before trying anything else:
 use a source checkout, launch the web UI, select the built-in
-`flight_project`, run it locally, and confirm you get a visible result in
+`flight_project`, run it locally, and confirm a visible result in
 `ANALYSIS`.
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
 
@@ -77,21 +77,18 @@ You are past the newcomer hurdle when:
 - fresh output exists under `~/log/execute/flight/`
 - the run ends on a visible result in `ANALYSIS`
 
-If that first proof fails, use:
+If that first proof fails, run:
 
-- [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
-
-## Why Use It
-
-- Run the same app through local execution, distributed workers, or service mode.
-- Keep environments, logs, outputs, and analysis tied to the same app context.
-- Make replayable workflow steps explicit instead of burying them in shell history.
+```bash
+uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+```
 
 ## Read Next
 
-- [Documentation](https://thalesgroup.github.io/agilab)
 - [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
-- [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
+- [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
+- [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
+- [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
+- [Documentation](https://thalesgroup.github.io/agilab)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
-- [Published package route](https://thalesgroup.github.io/agilab/quick-start.html#alternative-install-routes)
 - [Developer runbook](AGENTS.md)
