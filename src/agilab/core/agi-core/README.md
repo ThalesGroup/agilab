@@ -15,14 +15,14 @@
 pip install agi-core
 ```
 
-## Notebook quick start
+## agi-core demo
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb)
 [![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
 
 Use the published-package Colab notebook for the package-oriented first-run
 path, or the Kaggle variant if you prefer Kaggle notebooks. The Colab notebook prepares an isolated runtime venv under `/content`, and the Kaggle notebook prepares an isolated runtime venv under `/kaggle/working`, instead of mutating the base notebook kernel packages. For the full notebook matrix, including source-checkout variants, see the
-AGILAB Notebook Quick Start page:
+AGILAB agi-core demo page:
 https://thalesgroup.github.io/agilab/notebook-quickstart.html
 
 Kaggle note: enable Internet in the notebook settings for the first install.

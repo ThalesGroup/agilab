@@ -103,7 +103,7 @@ Use these only if you already know why you want them.
 
 .. _lightning-studio-ui-demo:
 
-**Lightning Studio route** (browser-hosted single-machine UI demo)::
+**AGILAB demo** (Lightning Studio, browser-hosted single-machine UI demo)::
 
     git clone https://github.com/ThalesGroup/agilab.git
     cd agilab
