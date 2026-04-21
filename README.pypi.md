@@ -12,10 +12,13 @@ The core idea is simple: keep one app on one control path from setup to visible
 evidence instead of splitting the workflow across ad hoc scripts,
 environments, and analysis glue.
 
-## Try It Before Installing
+## Demo
 
 - Public demo entry points: https://thalesgroup.github.io/agilab/demos.html
 - Quick start: https://thalesgroup.github.io/agilab/quick-start.html
+
+[![agi-core demo](https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
+[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project)
 
 If this is your first evaluation, the safest truthful first proof is still the
 built-in `flight_project` local path documented in the quick start.
@@ -31,13 +34,6 @@ This is the thinnest packaged entry point. It is useful for public evaluation,
 but it is less representative of the full source-checkout workflow than the
 recommended newcomer first proof.
 
-## Other Ways To Try AGILAB
-
-[![agi-core demo](https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
-[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project)
-
-- Source repository: https://github.com/ThalesGroup/agilab
-
 ## Why Use It
 
 - Run the same app through local execution, distributed workers, or service mode.
@@ -50,4 +46,5 @@ recommended newcomer first proof.
 - Newcomer guide: https://thalesgroup.github.io/agilab/newcomer-guide.html
 - Compatibility matrix: https://thalesgroup.github.io/agilab/compatibility-matrix.html
 - Flight project guide: https://thalesgroup.github.io/agilab/flight-project.html
+- Source repository: https://github.com/ThalesGroup/agilab
 - Issues: https://github.com/ThalesGroup/agilab/issues
