@@ -17,15 +17,13 @@ Choose a demo
    :alt: agi-core demo
 
 .. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
-   :target: https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project
+   :target: mailto:focus@thalesgroup.com?subject=AGILAB%20demo%20request
    :alt: AGILAB demo
 
 What each route is for
 ----------------------
 
-- **AGILAB demo**: hosted web UI on the built-in ``flight_project``. Use this
-  if you want to click through the main AGILAB flow without installing
-  anything locally.
+- **AGILAB demo**: request a guided demo at ``focus@thalesgroup.com``.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
 - **Quick start**: the safest truthful first proof of the full product path.
