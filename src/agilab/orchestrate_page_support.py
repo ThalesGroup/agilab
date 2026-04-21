@@ -136,6 +136,23 @@ def serialize_args_payload(args: Mapping[str, Any]) -> str:
     )
 
 
+def resolve_project_change_args_override(
+    *,
+    is_args_from_ui: bool,
+    args_project: Any,
+    previous_project: Any,
+    app_settings_snapshot: Any,
+) -> dict[str, Any] | None:
+    if not is_args_from_ui or args_project != previous_project:
+        return None
+    if not isinstance(app_settings_snapshot, dict):
+        return None
+    state_args = app_settings_snapshot.get("args")
+    if not isinstance(state_args, dict) or not state_args:
+        return None
+    return state_args
+
+
 def optional_string_expr(enabled: bool, value: Any) -> str:
     if not enabled or value in (None, ""):
         return "None"

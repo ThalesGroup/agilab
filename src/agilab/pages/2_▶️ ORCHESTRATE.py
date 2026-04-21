@@ -45,6 +45,7 @@ try:
         describe_run_mode,
         optional_python_expr,
         optional_string_expr,
+        resolve_project_change_args_override,
         filter_noise_lines,
         filter_warning_messages,
         format_log_block,
@@ -76,6 +77,7 @@ except ModuleNotFoundError:
     format_log_block = _orchestrate_page_support_module.format_log_block
     optional_python_expr = _orchestrate_page_support_module.optional_python_expr
     optional_string_expr = _orchestrate_page_support_module.optional_string_expr
+    resolve_project_change_args_override = _orchestrate_page_support_module.resolve_project_change_args_override
     reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
     is_dask_shutdown_noise = _orchestrate_page_support_module.is_dask_shutdown_noise
     serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
@@ -154,6 +156,8 @@ except ModuleNotFoundError:
 try:
     from agilab.orchestrate_cluster import (
         OrchestrateClusterDeps,
+        clear_cluster_widget_state,
+        hydrate_cluster_widget_state,
         render_cluster_settings_ui,
     )
 except ModuleNotFoundError:
@@ -167,6 +171,8 @@ except ModuleNotFoundError:
     _orchestrate_cluster_module = importlib.util.module_from_spec(_orchestrate_cluster_spec)
     _orchestrate_cluster_spec.loader.exec_module(_orchestrate_cluster_module)
     OrchestrateClusterDeps = _orchestrate_cluster_module.OrchestrateClusterDeps
+    clear_cluster_widget_state = _orchestrate_cluster_module.clear_cluster_widget_state
+    hydrate_cluster_widget_state = _orchestrate_cluster_module.hydrate_cluster_widget_state
     render_cluster_settings_ui = _orchestrate_cluster_module.render_cluster_settings_ui
 
 try:
@@ -461,9 +467,12 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
 
     cluster_settings = app_settings.setdefault("cluster", {})
     app_state_name = Path(str(env.app)).name if env.app else ""
-    cluster_enabled_key = f"cluster_enabled__{app_state_name}"
-    if cluster_enabled_key in st.session_state:
-        cluster_settings["cluster_enabled"] = bool(st.session_state[cluster_enabled_key])
+    hydrate_cluster_widget_state(
+        st.session_state,
+        app_state_name,
+        cluster_settings,
+        is_managed_pc=bool(getattr(env, "is_managed_pc", False)),
+    )
     if args_override is not None:
         app_settings["args"] = args_override
     st.session_state.app_settings = app_settings
@@ -1180,14 +1189,19 @@ async def page() -> None:
         _set_active_app_query_param(env.app)
         store_last_active_app(env.active_app)
         app_settings_snapshot = st.session_state.get("app_settings", {})
+        previous_args_project = st.session_state.get("args_project")
+        args_override = resolve_project_change_args_override(
+            is_args_from_ui=bool(st.session_state.get("is_args_from_ui")),
+            args_project=previous_args_project,
+            previous_project=previous_project,
+            app_settings_snapshot=app_settings_snapshot,
+        )
         # Clear generic & per-project keys to prevent bleed-through
         st.session_state.pop("cluster_enabled", None)
-        st.session_state.pop(f"cluster_enabled__{previous_project}", None)
-        st.session_state.pop(f"cluster_scheduler__{previous_project}", None)
-        st.session_state.pop(f"cluster_workers__{previous_project}", None)
         st.session_state.pop("cluster_scheduler_value", None)  # legacy
         st.session_state.pop(f"deploy_expanded_{previous_project}", None)
         st.session_state.pop(f"optimize_expanded_{previous_project}", None)
+        clear_cluster_widget_state(st.session_state, previous_project)
         st.session_state.pop("app_settings", None)
         st.session_state.pop("args_project", None)
         st.session_state["args_serialized"] = ""
@@ -1198,11 +1212,6 @@ async def page() -> None:
         st.session_state.pop("_service_logs_expanded", None)
         st.session_state.pop("_benchmark_expand", None)
         st.session_state.pop("benchmark", None)
-        args_override = None
-        if st.session_state.get("is_args_from_ui") and st.session_state.get("args_project") == previous_project:
-            state_args = app_settings_snapshot.get("args") if isinstance(app_settings_snapshot, dict) else None
-            if state_args:
-                args_override = state_args
         st.session_state.pop("is_args_from_ui", None)
         _clear_cached_distribution()
         initialize_app_settings(args_override=args_override)
