@@ -28,15 +28,15 @@ scope = "PROJECT -> ORCHESTRATE -> ANALYSIS on a public built-in app, with fresh
 limits = ["Local path only", "Not a remote cluster proof"]
 
 [[entries]]
-id = "public-full-tour-demo"
-label = "Public full-tour demo"
+id = "hosted-agilab-demo"
+label = "Hosted AGILAB demo"
 status = "documented"
-surface = "README, demos page, and public SVG/video assets"
-primary_proof = "demos.rst plus uav_relay_queue_project public tour assets"
+surface = "Lightning Studio hosted web UI"
+primary_proof = "demos.rst plus the Lightning Studio demo path"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS on uav_relay_queue_project, ending on queue and topology evidence"
-limits = ["Not the validated newcomer proof", "No separate workflow-backed certification yet"]
+scope = "Hosted single-machine AGILAB web UI demo on the public built-in app path"
+limits = ["Lightning account required", "Demo environment only", "Not a remote cluster proof"]
 
 [[entries]]
 id = "service-mode-operator-surface"

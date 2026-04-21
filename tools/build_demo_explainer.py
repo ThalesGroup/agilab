@@ -24,7 +24,7 @@ VARIANTS = {
     "flight": {
         "name": "AGILAB FLIGHT DEMO",
         "title": "One control path from idea to results",
-        "subtitle": "Flight project explainer for YouTube and slideshow assets",
+        "subtitle": "Flight project explainer for YouTube and public demo assets",
         "footer": "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS",
         "final_caption": "AGILAB keeps one app on one coherent path from setup to evidence.",
         "stage_captions": [

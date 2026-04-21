@@ -67,8 +67,8 @@ Use this path exactly once before trying anything broader:
    Do not switch to packaged install, notebook-first, or cluster setup before
    this local proof works once from end to end.
 
-   If you want the full public four-page story after that, use the
-   ``uav_relay_queue_project`` demo path documented in :doc:`demos`.
+   If you want alternative public demo entry points after that, use
+   :doc:`demos`.
 
 If the first proof fails
 ^^^^^^^^^^^^^^^^^^^^^^^^
