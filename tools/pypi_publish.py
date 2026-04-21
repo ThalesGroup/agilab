@@ -114,6 +114,12 @@ def parse_args() -> argparse.Namespace:
 
     # Docs
     ap.add_argument("--gen-docs", action="store_true", help="Regenerate docs from the apps repository after publishing")
+    ap.add_argument(
+        "--skip-release-preflight",
+        dest="release_preflight",
+        action="store_false",
+        help="Skip the local release preflight before publishing (not allowed for real PyPI releases).",
+    )
 
     # Preflight
     ap.add_argument("--no-pypirc-check", dest="pypirc_check", action="store_false", help="Skip ~/.pypirc preflight")
@@ -150,6 +156,7 @@ class Cfg:
     pypirc_check: bool
     packages: list[str] | None
     gen_docs: bool
+    release_preflight: bool = True
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -177,6 +184,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         pypirc_check=bool(getattr(args, "pypirc_check", True)),
         packages=list(args.packages) if getattr(args, "packages", None) else None,
         gen_docs=bool(getattr(args, "gen_docs", False)),
+        release_preflight=bool(getattr(args, "release_preflight", True)),
     )
 
 
@@ -384,6 +392,35 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
             + ", ".join(missing)
             + " so the repo state, tag state, and rollback path stay aligned."
         )
+    if not cfg.release_preflight:
+        raise SystemExit(
+            "ERROR: Real PyPI releases must keep the local release preflight enabled. "
+            "Do not use --skip-release-preflight for a real PyPI publish."
+        )
+
+
+def release_preflight_profiles(cfg: Cfg) -> list[str]:
+    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only or not cfg.release_preflight:
+        return []
+    return ["agi-env", "agi-node", "agi-cluster", "agi-gui", "docs", "installer", "shared-core-typing"]
+
+
+def run_release_preflight(cfg: Cfg) -> None:
+    profiles = release_preflight_profiles(cfg)
+    if not profiles:
+        return
+    cmd = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/workflow_parity.py",
+    ]
+    for profile in profiles:
+        cmd.extend(["--profile", profile])
+    print("[preflight] Running required local release preflight: " + ", ".join(profiles))
+    run(cmd, cwd=REPO_ROOT)
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -1224,6 +1261,7 @@ def main():
     if cfg.pypirc_check:
         assert_pypirc_has(cfg.repo)
     require_safe_pypi_release(cfg)
+    run_release_preflight(cfg)
     if cfg.gen_docs:
         docs_repo, source = find_docs_repository()
         if docs_repo:
