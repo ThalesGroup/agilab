@@ -33,3 +33,9 @@ def test_agi_gui_coverage_lists_all_root_view_tests() -> None:
         f"coverage.yml agi-gui job is out of sync with root test_view files; "
         f"missing={missing}, extra={extra}"
     )
+
+
+def test_agi_gui_coverage_includes_notebook_colab_support_helper() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_notebook_colab_support.py" in run_block
