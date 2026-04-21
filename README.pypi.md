@@ -6,83 +6,51 @@
 
 # AGILAB
 
-AGILAB is an open-source platform for reproducible AI/ML workflows that takes you from
-local experimentation to distributed execution and long-lived services.
+AGILAB is an open-source platform for reproducible AI and ML workflows.
 
-It combines:
+The core idea is simple: keep one app on one control path from setup to visible
+evidence instead of splitting the workflow across ad hoc scripts,
+environments, and analysis glue.
 
-- app scaffolding
-- environment isolation
-- workflow orchestration
-- service health gates
-- local and remote worker execution
+## Try It Before Installing
 
-so teams can move from prototype to production-like operation without rebuilding
-their tooling at every stage.
+- Public demo entry points: https://thalesgroup.github.io/agilab/demos.html
+- Quick start: https://thalesgroup.github.io/agilab/quick-start.html
 
-AGILAB is maintained by Thales Group and released under the
-[BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE).
+If this is your first evaluation, the safest truthful first proof is still the
+built-in `flight_project` local path documented in the quick start.
 
-## Creator
-
-AGILAB was created by **Jean-Pierre Morard**.
-
-Jean-Pierre Morard builds engineering tooling for reproducible AI workflows,
-distributed execution, and operational experimentation.
-
-## What AGILAB gives you
-
-- One control path from Streamlit or CLI entrypoints to isolated local and distributed workers.
-- Reproducible execution through managed environments, explicit pipelines, and per-app settings.
-- Persistent service mode through `AGI.serve` with health snapshots and restart policies.
-- Production-style orchestration using `agi-node` and `agi-cluster` for packaging, dispatch, and remote execution.
-- Agent-friendly developer workflow through [`AGENTS.md`](https://github.com/ThalesGroup/agilab/blob/main/AGENTS.md), `.codex/skills`, and Codex helpers.
-
-## Quick links
-
-- Documentation: https://thalesgroup.github.io/agilab
-- Execution Playground guide: https://thalesgroup.github.io/agilab/execution-playground.html
-- Service mode guide: https://thalesgroup.github.io/agilab/service-mode.html
-- Flight project guide: https://thalesgroup.github.io/agilab/flight-project.html
-- Source repository: https://github.com/ThalesGroup/agilab
-- Discussions: https://github.com/ThalesGroup/agilab/discussions
-
-## Overview
-
-![AGILAB runtime stack](https://raw.githubusercontent.com/ThalesGroup/agilab/main/docs/source/Agilab-Overview.svg)
-
-## Installation
+## Install The Published Package
 
 ```bash
 pip install agilab
-agilab --help
+agilab
 ```
 
-From source:
+This is the thinnest packaged entry point. It is useful for public evaluation,
+but it is less representative of the full source-checkout workflow than the
+recommended newcomer first proof.
 
-```bash
-git clone https://github.com/ThalesGroup/agilab.git
-cd agilab
-./install.sh --install-apps --test-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
-```
+## Other Ways To Try AGILAB
 
-## Example
+- agi-core demo: https://thalesgroup.github.io/agilab/notebook-quickstart.html
+- AGILAB demo: https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo
+- Source repository: https://github.com/ThalesGroup/agilab
 
-The built-in Execution Playground compares the same synthetic workload through two
-worker paths:
+For public viewers without accounts, self-host the AGILAB demo on your own VM.
+Lightning is only one optional operator-side hosting background for the same
+launcher. It is not required to install, run, or develop with AGILAB.
 
-- `execution_pandas_project`
-- `execution_polars_project`
+## Why Use It
 
-This makes it possible to compare execution models, not just dataframe libraries.
+- Run the same app through local execution, distributed workers, or service mode.
+- Keep environments, logs, outputs, and analysis tied to the same app context.
+- Make replayable workflow steps explicit instead of burying them in shell history.
 
-Guide:
+## Read Next
 
-- https://thalesgroup.github.io/agilab/execution-playground.html
-
-## Learn more
-
-- Full documentation: https://thalesgroup.github.io/agilab
-- README on GitHub: https://github.com/ThalesGroup/agilab/blob/main/README.md
+- Documentation: https://thalesgroup.github.io/agilab
+- Newcomer guide: https://thalesgroup.github.io/agilab/newcomer-guide.html
+- Compatibility matrix: https://thalesgroup.github.io/agilab/compatibility-matrix.html
+- Flight project guide: https://thalesgroup.github.io/agilab/flight-project.html
 - Issues: https://github.com/ThalesGroup/agilab/issues
