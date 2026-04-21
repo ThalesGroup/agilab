@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -50,6 +51,29 @@ def test_configure_local_notebook_environ_can_clear_source_mode():
     assert "IS_SOURCE_ENV" not in environ
     assert environ["AGI_CLUSTER_ENABLED"] == "0"
     assert "IS_WORKER_ENV" not in environ
+
+
+def test_clear_agilab_core_modules_removes_prefixed_modules_and_invalidates(monkeypatch):
+    cleared = []
+    monkeypatch.setattr(colab_support.importlib, "invalidate_caches", lambda: cleared.append("invalidate"))
+    monkeypatch.setitem(sys.modules, "agi_cluster", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "agi_env", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "agi_env.runtime_bootstrap_support", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "agi_node", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "agi_node.agi_dispatcher", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "other.module", SimpleNamespace())
+
+    colab_support.clear_agilab_core_modules()
+
+    assert "agi_cluster" not in sys.modules
+    assert "agi_cluster.agi_distributor" not in sys.modules
+    assert "agi_env" not in sys.modules
+    assert "agi_env.runtime_bootstrap_support" not in sys.modules
+    assert "agi_node" not in sys.modules
+    assert "agi_node.agi_dispatcher" not in sys.modules
+    assert "other.module" in sys.modules
+    assert cleared == ["invalidate"]
 
 
 def test_prepend_sys_path_entries_deduplicates(monkeypatch, tmp_path: Path):
@@ -122,6 +146,104 @@ def test_installed_apps_path_resolves_from_agilab_module(monkeypatch, tmp_path: 
     monkeypatch.setitem(sys.modules, "agilab", fake_agilab)
 
     assert colab_support.installed_apps_path() == tmp_path / "site-packages" / "agilab" / "apps"
+
+
+def test_bootstrap_installed_colab_uses_explicit_apps_path(monkeypatch, tmp_path: Path):
+    calls: list[object] = []
+    fake_agi = object()
+    fake_env_cls = type("FakeAgiEnv", (), {})
+    fake_builtin_root = tmp_path / "apps" / "builtin"
+    fake_builtin_root.mkdir(parents=True)
+
+    fake_cluster_pkg = SimpleNamespace(__path__=[])
+    fake_distributor = SimpleNamespace(AGI=fake_agi)
+    fake_env_module = SimpleNamespace(AgiEnv=fake_env_cls)
+
+    monkeypatch.setitem(sys.modules, "agi_cluster", fake_cluster_pkg)
+    monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", fake_distributor)
+    monkeypatch.setitem(sys.modules, "agi_env", fake_env_module)
+    monkeypatch.setattr(colab_support, "configure_local_notebook_environ", lambda *args, **kwargs: calls.append(("configure", kwargs)))
+    monkeypatch.setattr(colab_support, "ensure_pathlib_unsupported_operation", lambda: calls.append("pathlib"))
+    monkeypatch.setattr(colab_support, "clear_agilab_core_modules", lambda *args, **kwargs: calls.append(("clear", args, kwargs)))
+
+    ctx = colab_support.bootstrap_installed_colab(tmp_path / "apps")
+
+    assert ctx.repo_root is None
+    assert ctx.apps_path == tmp_path / "apps"
+    assert ctx.builtin_root == fake_builtin_root
+    assert ctx.AGI is fake_agi
+    assert ctx.AgiEnv is fake_env_cls
+    assert calls[0] == ("configure", {"source_env": False})
+    assert "pathlib" in calls
+    assert any(call[0] == "clear" for call in calls if isinstance(call, tuple))
+
+
+def test_bootstrap_colab_core_prepares_paths_and_installs_core_packages(monkeypatch, tmp_path: Path):
+    repo_root = tmp_path / "agilab"
+    core_env = repo_root / "src" / "agilab" / "core" / "agi-env"
+    core_node = repo_root / "src" / "agilab" / "core" / "agi-node"
+    core_cluster = repo_root / "src" / "agilab" / "core" / "agi-cluster"
+    apps_path = repo_root / "src" / "agilab" / "apps"
+    builtin_root = apps_path / "builtin"
+    for path in (
+        core_env / "src",
+        core_node / "src" / "agi_node",
+        core_cluster / "src" / "agi_cluster",
+        builtin_root,
+    ):
+        path.mkdir(parents=True, exist_ok=True)
+
+    fake_agi = object()
+    fake_env_cls = type("FakeAgiEnv", (), {})
+    fake_cluster_pkg = SimpleNamespace(__path__=[])
+    fake_distributor = SimpleNamespace(AGI=fake_agi)
+    fake_env_module = SimpleNamespace(AgiEnv=fake_env_cls)
+    fake_node_module = SimpleNamespace()
+    subprocess_calls: list[list[str]] = []
+
+    monkeypatch.setitem(sys.modules, "agi_cluster", fake_cluster_pkg)
+    monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", fake_distributor)
+    monkeypatch.setitem(sys.modules, "agi_env", fake_env_module)
+    monkeypatch.setitem(sys.modules, "agi_node", fake_node_module)
+    monkeypatch.setattr(colab_support, "configure_local_notebook_environ", lambda *args, **kwargs: None)
+    monkeypatch.setattr(colab_support, "ensure_pathlib_unsupported_operation", lambda: None)
+    monkeypatch.setattr(colab_support, "clear_agilab_core_modules", lambda *args, **kwargs: None)
+    monkeypatch.setattr(colab_support.subprocess, "run", lambda cmd, check=True: subprocess_calls.append(cmd))
+    monkeypatch.setattr(colab_support, "prepend_sys_path_entries", colab_support.prepend_sys_path_entries)
+    monkeypatch.setenv("PYTHONPATH", "existing_path")
+    monkeypatch.setattr(colab_support.sys, "path", [])
+
+    ctx = colab_support.bootstrap_colab_core(repo_root)
+
+    assert ctx.repo_root == repo_root
+    assert ctx.apps_path == apps_path
+    assert ctx.builtin_root == builtin_root
+    assert ctx.AGI is fake_agi
+    assert ctx.AgiEnv is fake_env_cls
+    assert str(repo_root / "src") in colab_support.sys.path
+    assert str(core_node / "src") in os.environ["PYTHONPATH"]
+    assert os.environ["PYTHONPATH"].endswith("existing_path")
+
+    env = SimpleNamespace(active_app=repo_root / "src" / "agilab" / "apps" / "builtin" / "mycode_project")
+    ctx.ensure_env_core_packages(env)
+    ctx.ensure_env_core_packages(env)
+
+    assert len(subprocess_calls) == 1
+    assert subprocess_calls[0] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "pip",
+        "install",
+        "--project",
+        str(env.active_app),
+        "-e",
+        str(core_env),
+        "-e",
+        str(core_node),
+        "-e",
+        str(core_cluster),
+    ]
 
 
 def test_ensure_env_core_packages_uses_resolved_active_app():
