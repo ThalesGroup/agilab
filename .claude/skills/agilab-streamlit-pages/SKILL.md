@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-03-31
+  updated: 2026-04-21
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -29,6 +29,21 @@ Use this skill when editing:
 1. Initialize defaults with `setdefault` at the top of the page.
 2. Render widgets.
 3. Read values from widgets, compute derived state, store under *different* keys.
+
+## Project-Scoped State Models
+
+- If a page can switch between projects/apps in one Streamlit session, any persisted widget state that belongs to a specific project must use project-scoped keys.
+  - Prefer patterns like `f"cluster_pool__{app_name}"`, not `"cluster_pool"`.
+  - Apply the same rule to toggles, text inputs, password/auth fields, scheduler/worker fields, and similar per-project controls.
+- Keep one clear source of truth for persisted settings.
+  - File-backed or workspace-backed `app_settings` should hydrate widget keys on page init and after project switches.
+  - Do not let a stale widget key silently override freshly loaded settings just because it already exists in `st.session_state`.
+- On project change:
+  - compute any preservation/override decision before popping tracking keys from `st.session_state`
+  - then clear the old project's widget keys explicitly
+  - then rehydrate the new project's widget state from persisted settings
+- Treat `app_settings["cluster"]`, `app_settings["args"]`, or equivalent persisted payloads as the serializable config contract.
+  - Widget keys are UI transport, not a second config layer.
 
 ## Derived Preview Metrics
 

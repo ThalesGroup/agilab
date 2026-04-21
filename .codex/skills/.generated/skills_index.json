@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-17T16:41:30Z",
+  "generated_at_utc": "2026-04-21T12:43:44Z",
   "tool": "tools/codex_skills.py",
   "count": 22,
   "skills": [
@@ -55,7 +55,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-03-31",
+      "updated": "2026-04-21",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/About_agilab.py`\n- `src/agilab/pages/*.py`"
     },
@@ -63,7 +63,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-16",
+      "updated": "2026-04-21",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
