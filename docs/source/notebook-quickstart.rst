@@ -48,6 +48,7 @@ Recommended notebook
 - `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
   clones the repository inside Kaggle, installs editable AGILAB and core
   packages, and runs ``mycode_project``.
+  Kaggle note: enable Internet in the notebook settings for the first install.
 
 Other notebook entry points
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -71,6 +72,7 @@ GitHub ``main``.
 
 - `First Run (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
 - `First Run (PyPI, Kaggle) <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb>`_
+  Kaggle note: enable Internet in the notebook settings for the first install.
 - `Benchmark (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
 - `Data + DAG (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb>`_
 - `Worker Paths (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb>`_

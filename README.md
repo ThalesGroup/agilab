@@ -109,6 +109,7 @@ Recommended notebook launchers:
 
 - [`Open First Run In Colab`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb): source-checkout notebook that clones the repo, installs editable AGILAB and core packages, and runs `mycode_project`
 - [`Open First Run In Kaggle`](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb): source-checkout notebook for Kaggle that clones the repo, installs editable AGILAB and core packages, and runs `mycode_project`
+  Kaggle note: enable Internet in the notebook settings for the first install.
 
 Other notebook entry points:
 
@@ -122,6 +123,7 @@ Use these only when you explicitly want the current PyPI release instead of GitH
 
 - [`First Run (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb)
 - [`First Run (PyPI, Kaggle)`](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
+  Kaggle note: enable Internet in the notebook settings for the first install.
 - [`Benchmark (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb)
 - [`Data + DAG (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb)
 - [`Worker Paths (PyPI)`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb)
