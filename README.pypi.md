@@ -33,8 +33,9 @@ recommended newcomer first proof.
 
 ## Other Ways To Try AGILAB
 
-- agi-core demo: https://thalesgroup.github.io/agilab/notebook-quickstart.html
-- AGILAB demo: https://8501-01kpqpf1ms0g0911s44xs6jg61.cloudspaces.litng.ai/
+[![agi-core demo](https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge)](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
+[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project)
+
 - Source repository: https://github.com/ThalesGroup/agilab
 
 ## Why Use It

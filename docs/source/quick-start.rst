@@ -92,9 +92,9 @@ Use these only after the local ``flight_project`` proof works once.
 
 **AGILAB demo**:
 
-`Open the hosted AGILAB demo <https://8501-01kpqpf1ms0g0911s44xs6jg61.cloudspaces.litng.ai/>`_
-
-This is the public hosted AGILAB UI demo. Open it directly in the browser.
+.. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
+   :target: https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project
+   :alt: AGILAB demo
 
 **Published package route** (fastest install, less representative of the full product path)::
 
