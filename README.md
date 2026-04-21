@@ -46,10 +46,10 @@ The core idea is simple: keep one app on one control path from setup to run to v
 
 <p>
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge" alt="agi-core demo" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request&body=Please%20include%3A%0A-%20requested%20Paris%20time%20%28Europe%2FParis%29%3A%20...%0A-%20preferred%20date%3A%20...%0A-%20what%20you%20want%20to%20see%3A%20..."><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
 </p>
 
-- `AGILAB demo`: demo available on request via GitHub issue
+- `AGILAB demo`: request it via GitHub issue and include the requested Paris time
 - `agi-core demo`: notebook-first runtime demo on Kaggle
 
 ## First Real Run
@@ -65,6 +65,15 @@ cd agilab
 ./install.sh --install-apps
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
+
+If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
+installer with the model families you want:
+
+```bash
+./install.sh --install-apps --install-local-models qwen,deepseek
+```
+
+Supported values are `mistral`, `qwen`, and `deepseek`.
 
 Then in the UI:
 

@@ -15,9 +15,9 @@ environments, and notebooks.
 ## Demo
 
 [![agi-core demo](https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
-[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request)
+[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request&body=Please%20include%3A%0A-%20requested%20Paris%20time%20%28Europe%2FParis%29%3A%20...%0A-%20preferred%20date%3A%20...%0A-%20what%20you%20want%20to%20see%3A%20...)
 
-- `AGILAB demo`: demo available on request via GitHub issue
+- `AGILAB demo`: request it via GitHub issue and include the requested Paris time
 - `agi-core demo`: notebook-first runtime demo on Kaggle
 
 If you want the most truthful first proof, use the source-checkout
