@@ -4,14 +4,10 @@ Quick-Start
 If you are new to AGILab, do one thing first: run the built-in
 ``flight_project`` locally from the web UI.
 
-That first proof is:
-
-- source checkout
-- local install
-- web UI
-- ``PROJECT`` -> choose ``flight_project``
-- ``ORCHESTRATE`` -> ``INSTALL`` then ``EXECUTE``
-- ``ANALYSIS`` -> open the default view
+That first proof is simple:
+use a source checkout, install the built-in apps, launch the web UI, choose
+``flight_project`` in ``PROJECT``, run ``INSTALL`` then ``EXECUTE`` in
+``ORCHESTRATE``, and confirm a visible result in ``ANALYSIS``.
 
 If that works once, then branch into notebooks, cluster mode, or package mode.
 If it fails, use :doc:`newcomer-troubleshooting`.

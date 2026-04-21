@@ -49,13 +49,10 @@ The core idea is simple: keep one app on one control path from setup to visible 
 
 ## Start Here
 
-If this is your first visit, use one path only:
-
-- source checkout
-- web UI
-- built-in `flight_project`
-- local run
-- visible result in `ANALYSIS`
+If this is your first visit, stay on the simplest proof path:
+use a source checkout, launch the web UI, select the built-in
+`flight_project`, run it locally, and confirm you get a visible result in
+`ANALYSIS`.
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
