@@ -34,6 +34,10 @@ Colab launch flow
 Recommended notebook
 ^^^^^^^^^^^^^^^^^^^^
 
+.. image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb
+   :alt: Open In Colab
+
 - `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
   clones the repository, installs editable AGILAB and core packages, and runs
   ``mycode_project``.
