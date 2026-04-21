@@ -103,12 +103,18 @@ Use these only if you already know why you want them.
 
 .. _lightning-studio-ui-demo:
 
-**AGILAB demo** (Lightning Studio, browser-hosted single-machine UI demo)::
+**AGILAB demo** (Lightning Studio, browser-hosted single-machine UI demo; Lightning account required)::
 
     git clone https://github.com/ThalesGroup/agilab.git
     cd agilab
     uv sync
     uv --preview-features extra-build-dependencies run python tools/lightning_studio_demo.py --port 8501
+
+This route requires a Lightning account and a Lightning Studio workspace.
+
+Lightning is only the hosted background for this optional demo path. It is not
+required to install, run, or develop with AGILAB locally or on your own
+infrastructure.
 
 Then use the Lightning Studio UI to open the web app on port ``8501``.
 
