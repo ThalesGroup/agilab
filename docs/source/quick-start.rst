@@ -90,7 +90,7 @@ Use these only after the local ``flight_project`` proof works once.
 .. _hosted-agilab-demo:
 .. _lightning-studio-ui-demo:
 
-**AGILAB demo** (Lightning Studio hosted single-machine UI demo)::
+**AGILAB demo on Lightning** (Lightning Studio hosted single-machine UI demo)::
 
     git clone https://github.com/ThalesGroup/agilab.git
     cd agilab

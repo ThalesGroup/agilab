@@ -40,7 +40,7 @@ Current public matrix
      - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
        with fresh output under ``~/log/execute/flight/``
      - Not a remote cluster proof
-   * - Hosted AGILAB demo
+   * - AGILAB demo on Lightning
      - documented
      - :doc:`demos` and the hosted AGILAB demo path
      - Lightning Studio hosted single-machine web UI demo on the public
