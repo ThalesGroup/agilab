@@ -66,6 +66,7 @@ case "$SKIP_OFFLINE_NORMALIZED" in
     1|true|yes|on) SKIP_OFFLINE=1 ;;
     *) SKIP_OFFLINE=0 ;;
 esac
+INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
 
 read_env_var() {
@@ -267,6 +268,139 @@ warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
 }
 
+normalize_local_model_name() {
+    local raw="${1:-}"
+    local normalized
+    normalized="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    case "$normalized" in
+        "" ) return 1 ;;
+        mistral|mistral:instruct) echo "mistral" ;;
+        qwen|qwen2.5|qwen2.5-coder|qwen2.5-coder:latest) echo "qwen" ;;
+        deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
+        * )
+            warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek."
+            return 1
+            ;;
+    esac
+}
+
+normalize_local_models_csv() {
+    local raw="${1:-}"
+    local -a ordered=()
+    local seen=" "
+    local item normalized
+    raw="${raw//;/,}"
+    for item in ${raw//,/ }; do
+        normalized="$(normalize_local_model_name "$item")" || continue
+        if [[ "$seen" != *" ${normalized} "* ]]; then
+            ordered+=("$normalized")
+            seen="${seen}${normalized} "
+        fi
+    done
+    printf '%s' "${ordered[*]}"
+}
+
+remove_local_model_from_list() {
+    local requested="${1:-}"
+    local model_to_remove="${2:-}"
+    local -a filtered=()
+    local model
+    for model in $requested; do
+        [[ "$model" == "$model_to_remove" ]] && continue
+        filtered+=("$model")
+    done
+    printf '%s' "${filtered[*]}"
+}
+
+ollama_tag_for_family() {
+    local family="${1:-}"
+    case "$family" in
+        mistral) echo "mistral:instruct" ;;
+        qwen) echo "qwen2.5-coder:latest" ;;
+        deepseek) echo "deepseek-coder:latest" ;;
+        *)
+            warn "No Ollama tag mapping defined for local model family '${family}'."
+            return 1
+            ;;
+    esac
+}
+
+ensure_ollama_runtime() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if ! command -v ollama >/dev/null 2>&1; then
+            if command -v brew >/dev/null 2>&1; then
+                echo -e "${BLUE}Installing Ollama via Homebrew...${NC}"
+                brew install --cask ollama || warn "Failed to install Ollama via Homebrew. Install it manually from https://ollama.com."
+            else
+                warn "Homebrew not found; install Ollama manually from https://ollama.com."
+                return 1
+            fi
+        fi
+        if command -v brew >/dev/null 2>&1; then
+            brew services start ollama >/dev/null 2>&1 || true
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
+        if ! command -v ollama >/dev/null 2>&1; then
+            echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
+            if curl -fsSL https://ollama.com/install.sh | sh; then
+                echo -e "${GREEN}Ollama installed.${NC}"
+            else
+                warn "Failed to install Ollama via script. Install manually from https://ollama.com."
+                return 1
+            fi
+        fi
+
+        if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+        fi
+        if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+            nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
+            sleep 2
+        fi
+    else
+        warn "Automatic Ollama setup is available for macOS and Linux. Install Ollama and pull the requested models manually."
+        return 1
+    fi
+
+    if ! command -v ollama >/dev/null 2>&1; then
+        warn "Ollama is not available after setup."
+        return 1
+    fi
+    return 0
+}
+
+start_ollama_pull() {
+    local tag="$1"
+    local slug="$2"
+    mkdir -p "$HOME/log"
+    echo -e "${BLUE}Starting model download: ${tag} (running in background)...${NC}"
+    nohup ollama pull "$tag" > "$HOME/log/ollama_pull_${slug}.log" 2>&1 &
+    echo $! > "$HOME/log/ollama_pull_${slug}.pid"
+    echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_${slug}.log${NC}"
+}
+
+setup_requested_local_models() {
+    local requested="${1:-}"
+    local label="${2:-requested local models}"
+    local -a families=()
+    local family tag
+
+    [[ -n "$requested" ]] || return 0
+
+    for family in $requested; do
+        families+=("$family")
+    done
+    [[ ${#families[@]} -gt 0 ]] || return 0
+
+    echo -e "${BLUE}Configuring ${label} via Ollama...${NC}"
+    ensure_ollama_runtime || return 1
+
+    for family in "${families[@]}"; do
+        tag="$(ollama_tag_for_family "$family")" || continue
+        start_ollama_pull "$tag" "$family"
+    done
+}
+
 install_offline_extra() {
     local pyver="${AGI_PYTHON_VERSION:-}"
     local major minor patch
@@ -299,64 +433,12 @@ install_offline_extra() {
     fi
 }
 
-setup_mistral_offline() {
-    echo -e "${BLUE}Configuring local Mistral assistant (Ollama)...${NC}"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        if ! command -v ollama >/dev/null 2>&1; then
-            if command -v brew >/dev/null 2>&1; then
-                echo -e "${BLUE}Installing Ollama via Homebrew...${NC}"
-                brew install --cask ollama || warn "Failed to install Ollama via Homebrew. Install it manually from https://ollama.com."
-            else
-                warn "Homebrew not found; install Ollama manually from https://ollama.com."
-                return
-            fi
-        fi
-
-        # Start Ollama as a launch agent if possible
-        if command -v brew >/dev/null 2>&1; then
-            brew services start ollama >/dev/null 2>&1 || true
-        fi
-
-        mkdir -p "$HOME/log"
-        # Pull the mistral:instruct model in the background (can be large)
-        if command -v ollama >/dev/null 2>&1; then
-            echo -e "${BLUE}Starting model download: mistral:instruct (running in background)...${NC}"
-            nohup ollama pull mistral:instruct > "$HOME/log/ollama_pull_mistral.log" 2>&1 &
-            echo $! > "$HOME/log/ollama_pull_mistral.pid"
-            echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_mistral.log${NC}"
-        fi
-    elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
-        # Linux path: use official installer
-        if ! command -v ollama >/dev/null 2>&1; then
-            echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
-            if curl -fsSL https://ollama.com/install.sh | sh; then
-                echo -e "${GREEN}Ollama installed.${NC}"
-            else
-                warn "Failed to install Ollama via script. Install manually from https://ollama.com."
-                return
-            fi
-        fi
-
-        # Try to start Ollama
-        if command -v systemctl >/dev/null 2>&1; then
-            sudo systemctl enable --now ollama >/dev/null 2>&1 || true
-        fi
-        # Fallback to foreground server in background
-        if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-            nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
-            sleep 2
-        fi
-
-        mkdir -p "$HOME/log"
-        echo -e "${BLUE}Starting model download: mistral:instruct (running in background)...${NC}"
-        nohup ollama pull mistral:instruct > "$HOME/log/ollama_pull_mistral.log" 2>&1 &
-        nohup ollama pull gpt-oss:20b > "$HOME/log/ollama_pull_gpt-oss.log" 2>&1 &
-
-        echo $! > "$HOME/log/ollama_pull_mistral.pid"
-        echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_mistral.log${NC}"
-    else
-        # Unsupported OS automation
-        warn "Automatic Ollama setup is available for macOS and Linux. Install Ollama and pull 'mistral:instruct' manually."
+setup_default_offline_models() {
+    echo -e "${BLUE}Configuring default local offline assistant models (Ollama)...${NC}"
+    ensure_ollama_runtime || return 1
+    start_ollama_pull "mistral:instruct" "mistral"
+    if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
+        start_ollama_pull "gpt-oss:20b" "gpt_oss"
     fi
 }
 
@@ -900,9 +982,13 @@ install_enduser() {
     fi
 
     echo -e "${BLUE}Installing agilab (endusers)...${NC}"
+    local -a enduser_cmd=("./install_enduser.sh" "--source" "$SOURCE")
+    if (( SKIP_OFFLINE )); then
+        enduser_cmd+=("--skip-offline")
+    fi
     if (
         cd "$AGI_INSTALL_PATH/tools" >/dev/null 2>&1 \
-        && ./install_enduser.sh --source "$SOURCE"
+        && "${enduser_cmd[@]}"
     ); then
         echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
     else
@@ -919,6 +1005,7 @@ install_pycharm_script() {
 usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test] [--test-core]"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
+  echo "       [--install-local-models mistral,qwen,deepseek]"
     exit 1
 }
 
@@ -972,12 +1059,21 @@ while [[ "$#" -gt 0 ]]; do
             TEST_CORE_FLAG=1
             shift
             ;;
+        --install-local-models)
+            INSTALL_LOCAL_MODELS="$2"
+            shift 2
+            ;;
+        --install-local-models=*)
+            INSTALL_LOCAL_MODELS="${1#*=}"
+            shift
+            ;;
         --skip-offline)       SKIP_OFFLINE=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
         --help|-h) usage && exit;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
+INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
 export CLUSTER_CREDENTIALS
 export APPS_REPOSITORY
 
@@ -1054,6 +1150,7 @@ configure_streamlit
 FINAL_STATUS=""
 FINAL_OK=1
 run_extras=true
+requested_local_models="$INSTALL_LOCAL_MODELS"
 
 if (( INSTALL_APPS_FLAG )); then
   if ! install_apps; then
@@ -1080,8 +1177,13 @@ if $run_extras; then
   else
     install_offline_extra
     seed_mistral_pdfs
-    setup_mistral_offline
+    setup_default_offline_models
+    requested_local_models="$(remove_local_model_from_list "$requested_local_models" "mistral")"
   fi
+fi
+
+if [[ -n "$requested_local_models" ]]; then
+  setup_requested_local_models "$requested_local_models" "requested local models"
 fi
 
 END_TIME=$(date +%s)

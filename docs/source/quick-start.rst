@@ -28,6 +28,13 @@ Use this path exactly once before trying anything broader.
        cd agilab
        ./install.sh --install-apps
 
+   If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
+   installer with the model families you want::
+
+       ./install.sh --install-apps --install-local-models qwen,deepseek
+
+   Supported values are ``mistral``, ``qwen``, and ``deepseek``.
+
 2. **Optional preflight check**::
 
        uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
@@ -94,10 +101,10 @@ Use these only after the local ``flight_project`` proof works once.
 **AGILAB demo**:
 
 .. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
-   :target: https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request
+   :target: https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request&body=Please%20include%3A%0A-%20requested%20Paris%20time%20%28Europe%2FParis%29%3A%20...%0A-%20preferred%20date%3A%20...%0A-%20what%20you%20want%20to%20see%3A%20...
    :alt: AGILAB demo
 
-Demo available on request via GitHub issue.
+Demo available on request via GitHub issue. Include the requested Paris time.
 
 **Published package route** (fastest install, less representative of the full product path)::
 

@@ -68,6 +68,13 @@ From the AGILab repository root:
    ./install.sh --install-apps
    uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
 
+If you also want local Ollama-backed models available in the same source
+checkout, rerun the installer with the families you want::
+
+   ./install.sh --install-apps --install-local-models qwen,deepseek
+
+Supported values are ``mistral``, ``qwen``, and ``deepseek``.
+
 The notebook file lives in the repository at
 ``examples/notebook_quickstart/agi_core_first_run.ipynb``.
 

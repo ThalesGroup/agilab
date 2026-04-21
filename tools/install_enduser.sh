@@ -44,6 +44,7 @@ REPO_SRC_DIR="${REPO_ROOT}/src/agilab"
 ENV_FILE="$HOME/.agilab/.env"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"  # NEW: Allow forcing rebuild
 SKIP_OFFLINE="${SKIP_OFFLINE:-0}"    # NEW: Skip offline deps for faster installs
+INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
 
 
 if [[ -f "$AGI_PATH_FILE" ]]; then
@@ -54,14 +55,127 @@ else
 fi
 
 usage() {
-  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--skip-offline]"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--skip-offline] [--install-local-models mistral,qwen,deepseek]"
   echo ""
   echo "Options:"
   echo "  --source         Installation source (local, pypi, testpypi)"
   echo "  --version        Specific version to install"
   echo "  --force-rebuild  Force rebuild even if venv exists"
   echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
+  echo "  --install-local-models  Install requested Ollama models (mistral, qwen, deepseek)"
   exit 1
+}
+
+normalize_local_model_name() {
+  local raw="${1:-}"
+  local normalized
+  normalized="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  case "$normalized" in
+    "") return 1 ;;
+    mistral|mistral:instruct) echo "mistral" ;;
+    qwen|qwen2.5|qwen2.5-coder|qwen2.5-coder:latest) echo "qwen" ;;
+    deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
+    *)
+      warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek."
+      return 1
+      ;;
+  esac
+}
+
+normalize_local_models_csv() {
+  local raw="${1:-}"
+  local -a ordered=()
+  local seen=" "
+  local item normalized
+  raw="${raw//;/,}"
+  for item in ${raw//,/ }; do
+    normalized="$(normalize_local_model_name "$item")" || continue
+    if [[ "$seen" != *" ${normalized} "* ]]; then
+      ordered+=("$normalized")
+      seen="${seen}${normalized} "
+    fi
+  done
+  printf '%s' "${ordered[*]}"
+}
+
+ollama_tag_for_family() {
+  local family="${1:-}"
+  case "$family" in
+    mistral) echo "mistral:instruct" ;;
+    qwen) echo "qwen2.5-coder:latest" ;;
+    deepseek) echo "deepseek-coder:latest" ;;
+    *)
+      warn "No Ollama tag mapping defined for local model family '${family}'."
+      return 1
+      ;;
+  esac
+}
+
+ensure_ollama_runtime() {
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    if ! command -v ollama >/dev/null 2>&1; then
+      if command -v brew >/dev/null 2>&1; then
+        echo -e "${BLUE}Installing Ollama via Homebrew...${NC}"
+        brew install --cask ollama || warn "Failed to install Ollama via Homebrew. Install it manually from https://ollama.com."
+      else
+        warn "Homebrew not found; install Ollama manually from https://ollama.com."
+        return 1
+      fi
+    fi
+    if command -v brew >/dev/null 2>&1; then
+      brew services start ollama >/dev/null 2>&1 || true
+    fi
+  elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
+    if ! command -v ollama >/dev/null 2>&1; then
+      echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
+      if curl -fsSL https://ollama.com/install.sh | sh; then
+        echo -e "${GREEN}Ollama installed.${NC}"
+      else
+        warn "Failed to install Ollama via script. Install manually from https://ollama.com."
+        return 1
+      fi
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+      sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+    fi
+    if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+      nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
+      sleep 2
+    fi
+  else
+    warn "Automatic Ollama setup is available for macOS and Linux. Install Ollama and pull the requested models manually."
+    return 1
+  fi
+
+  if ! command -v ollama >/dev/null 2>&1; then
+    warn "Ollama is not available after setup."
+    return 1
+  fi
+  return 0
+}
+
+start_ollama_pull() {
+  local tag="$1"
+  local slug="$2"
+  mkdir -p "$HOME/log"
+  echo -e "${BLUE}Starting model download: ${tag} (running in background)...${NC}"
+  nohup ollama pull "$tag" > "$HOME/log/ollama_pull_${slug}.log" 2>&1 &
+  echo $! > "$HOME/log/ollama_pull_${slug}.pid"
+  echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_${slug}.log${NC}"
+}
+
+install_requested_local_models() {
+  local requested="${1:-}"
+  local family tag
+  [[ -n "$requested" ]] || return 0
+
+  echo -e "${BLUE}Installing requested local Ollama models...${NC}"
+  ensure_ollama_runtime || return 1
+  for family in $requested; do
+    tag="$(ollama_tag_for_family "$family")" || continue
+    start_ollama_pull "$tag" "$family"
+  done
 }
 
 persist_env_var() {
@@ -112,9 +226,12 @@ while [[ $# -gt 0 ]]; do
     --version) VERSION="$2"; VERSION_ARG_SET=1; shift 2 ;;
     --force-rebuild) FORCE_REBUILD=1; shift ;;
     --skip-offline) SKIP_OFFLINE=1; shift ;;
+    --install-local-models) INSTALL_LOCAL_MODELS="$2"; shift 2 ;;
+    --install-local-models=*) INSTALL_LOCAL_MODELS="${1#*=}"; shift ;;
     *) usage ;;
   esac
 done
+INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
 
 if [[ "$SOURCE" == "local" ]]; then
   if [[ -z "${AGI_INSTALL_PATH}" || ! -d "${AGI_INSTALL_PATH}" ]]; then
@@ -456,6 +573,9 @@ PY
 }
 
 install_offline_assistant
+if [[ -n "${INSTALL_LOCAL_MODELS}" ]]; then
+  install_requested_local_models "${INSTALL_LOCAL_MODELS}"
+fi
 popd >/dev/null
 
 # Some uv operations materialize helper folders inside the venv root when
