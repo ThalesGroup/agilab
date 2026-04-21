@@ -145,6 +145,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
             "test/test_orchestrate_page_helpers.py",
             "test/test_orchestrate_services.py",
             "test/test_orchestrate_support.py",
+            "test/test_about_agilab_helpers.py",
             "test/test_notebook_colab_support.py",
             "test/test_page_docs.py",
             "test/test_pipeline_ai.py",
