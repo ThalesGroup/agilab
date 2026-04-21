@@ -12,10 +12,13 @@ second quick-start guide.
 Public demo entry points
 ------------------------
 
-- :doc:`notebook-quickstart` for the ``agi-core demo`` notebook path when you
-  want a code-first public demo in Colab or Kaggle.
-- `AGILAB demo <https://8501-01kpqpf1ms0g0911s44xs6jg61.cloudspaces.litng.ai/>`_
-  for the public hosted web UI demo.
+.. image:: https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge
+   :target: https://thalesgroup.github.io/agilab/notebook-quickstart.html
+   :alt: agi-core demo
+
+.. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
+   :target: https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project
+   :alt: AGILAB demo
 
 What to use first
 -----------------
