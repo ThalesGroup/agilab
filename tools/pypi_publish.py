@@ -195,6 +195,10 @@ ALL_PACKAGE_NAMES = [name for name, *_ in CORE] + [UMBRELLA[0]]
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
 APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
+DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("THALES_AGILAB_REPOSITORY", "DOCS_REPOSITORY")
+DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
+DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
+DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
 
 PYPI_JSON = {
     "testpypi": "https://test.pypi.org/pypi/{name}/json",
@@ -945,19 +949,19 @@ def _is_git_repo(path: pathlib.Path) -> bool:
         return False
 
 
-def _candidate_apps_repo_paths() -> List[Tuple[str, pathlib.Path]]:
+def _candidate_repo_paths(env_keys: tuple[str, ...], default_dirname: str) -> List[Tuple[str, pathlib.Path]]:
     candidates: List[Tuple[str, pathlib.Path]] = []
-    for key in APPS_REPO_ENV_KEYS:
+    for key in env_keys:
         value = os.environ.get(key)
         if value:
             candidates.append((f"env:{key}", pathlib.Path(value).expanduser()))
-    default_path = (REPO_ROOT.parent / DEFAULT_APPS_REPO_DIRNAME).expanduser()
+    default_path = (REPO_ROOT.parent / default_dirname).expanduser()
     candidates.append(("default", default_path))
     return candidates
 
 
 def find_apps_repository() -> Tuple[pathlib.Path | None, str | None]:
-    for source, raw_path in _candidate_apps_repo_paths():
+    for source, raw_path in _candidate_repo_paths(APPS_REPO_ENV_KEYS, DEFAULT_APPS_REPO_DIRNAME):
         try:
             resolved = raw_path.resolve()
         except FileNotFoundError:
@@ -974,33 +978,109 @@ def find_apps_repository() -> Tuple[pathlib.Path | None, str | None]:
     return None, None
 
 
+def find_docs_repository() -> Tuple[pathlib.Path | None, str | None]:
+    for source, raw_path in _candidate_repo_paths(DOCS_REPO_ENV_KEYS, DEFAULT_DOCS_REPO_DIRNAME):
+        try:
+            resolved = raw_path.resolve()
+        except FileNotFoundError:
+            resolved = raw_path
+        if not resolved.exists():
+            if source.startswith("env:"):
+                print(f"[git] docs repository path '{resolved}' from {source.split(':',1)[1]} does not exist; skipping")
+            continue
+        if not _is_git_repo(resolved):
+            if source.startswith("env:"):
+                print(f"[git] docs repository path '{resolved}' from {source.split(':',1)[1]} is not a git repository; skipping")
+            continue
+        return resolved, source
+    return None, None
+
+
+def _git_status_paths(repo: pathlib.Path) -> list[str]:
+    proc = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    paths: list[str] = []
+    for line in proc.stdout.splitlines():
+        if not line:
+            continue
+        path = line[3:]
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        path = path.strip()
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _is_docs_repo_release_path(path: str) -> bool:
+    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in DOCS_REPO_RELEASE_PATH_PREFIXES)
+
+
+def ensure_docs_repo_release_ready(repo: pathlib.Path) -> list[str]:
+    dirty_paths = _git_status_paths(repo)
+    if not dirty_paths:
+        return []
+    blocked = [path for path in dirty_paths if not _is_docs_repo_release_path(path)]
+    if blocked:
+        raise SystemExit(
+            "ERROR: docs repository has unrelated dirty paths outside release-managed docs/source/: "
+            + ", ".join(sorted(blocked))
+        )
+    return dirty_paths
+
+
 def _create_tag_in_repo(repo_path: pathlib.Path, tag_ref: str, release_label: str, remote: str):
     run(["git", "tag", "-a", tag_ref, "-m", f"Release {release_label}"], cwd=repo_path)
     run(["git", "push", remote, tag_ref], cwd=repo_path)
 
 
-def create_and_push_tag(tag: str):
+def create_and_push_tag(tag: str, *, include_apps_repo: bool = True, include_docs_repo: bool = False):
     tag_ref = f"v{tag}"
     _create_tag_in_repo(REPO_ROOT, tag_ref, tag, "origin")
     print(f"[git] created and pushed {tag_ref}")
 
-    apps_repo, source = find_apps_repository()
-    if not apps_repo:
-        print("[git] apps repository not found; skipping secondary tag")
-        return
+    if include_apps_repo:
+        apps_repo, source = find_apps_repository()
+        if not apps_repo:
+            print("[git] apps repository not found; skipping secondary tag")
+        else:
+            apps_remote = os.environ.get(APPS_REPO_REMOTE_ENV, "origin")
+            if _tag_exists(tag_ref, apps_repo):
+                print(f"[git] apps repository '{apps_repo}' already has {tag_ref}; skipping secondary tag push")
+            else:
+                try:
+                    _create_tag_in_repo(apps_repo, tag_ref, tag, apps_remote)
+                except subprocess.CalledProcessError as exc:
+                    raise SystemExit(
+                        f"ERROR: failed to tag apps repository at {apps_repo} ({apps_remote}): {exc}"
+                    ) from exc
+                print(f"[git] created and pushed {tag_ref} in apps repository ({apps_repo})")
 
-    apps_remote = os.environ.get(APPS_REPO_REMOTE_ENV, "origin")
-    if _tag_exists(tag_ref, apps_repo):
-        print(f"[git] apps repository '{apps_repo}' already has {tag_ref}; skipping secondary tag push")
-        return
-
-    try:
-        _create_tag_in_repo(apps_repo, tag_ref, tag, apps_remote)
-    except subprocess.CalledProcessError as exc:
-        raise SystemExit(
-            f"ERROR: failed to tag apps repository at {apps_repo} ({apps_remote}): {exc}"
-        ) from exc
-    print(f"[git] created and pushed {tag_ref} in apps repository ({apps_repo})")
+    if include_docs_repo:
+        docs_repo, source = find_docs_repository()
+        if not docs_repo:
+            print("[git] docs repository not found; skipping docs tag")
+            return
+        if _git_status_paths(docs_repo):
+            raise SystemExit(
+                f"ERROR: docs repository '{docs_repo}' is dirty; commit or clean it before tagging."
+            )
+        docs_remote = os.environ.get(DOCS_REPO_REMOTE_ENV, "origin")
+        if _tag_exists(tag_ref, docs_repo):
+            print(f"[git] docs repository '{docs_repo}' already has {tag_ref}; skipping docs tag push")
+            return
+        try:
+            _create_tag_in_repo(docs_repo, tag_ref, tag, docs_remote)
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit(
+                f"ERROR: failed to tag docs repository at {docs_repo} ({docs_remote}): {exc}"
+            ) from exc
+        print(f"[git] created and pushed {tag_ref} in docs repository ({docs_repo})")
 
 
 def generate_docs_from_apps_repository():
@@ -1015,6 +1095,37 @@ def generate_docs_from_apps_repository():
     ]
     for cmd in commands:
         run(cmd, cwd=apps_repo)
+
+
+def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
+    docs_repo, source = find_docs_repository()
+    if not docs_repo:
+        print("[git] docs repository not found; skipping docs repo commit")
+        return
+
+    dirty_paths = ensure_docs_repo_release_ready(docs_repo)
+    if not dirty_paths:
+        print("[git] no docs repository release changes to commit")
+        return
+
+    unique_paths = sorted(set(dirty_paths))
+    run(["git", "add", "-A", "--", *unique_paths], cwd=docs_repo)
+    diff_status = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=str(docs_repo),
+        check=False,
+    )
+    if diff_status.returncode == 0:
+        print("[git] no staged docs repository changes to commit")
+        return
+
+    run(["git", "commit", "-m", f"docs(release): sync docs for {chosen_version}"], cwd=docs_repo)
+    print(f"[git] committed docs repository changes for {chosen_version}")
+    if push:
+        branch = current_git_branch(docs_repo)
+        remote = os.environ.get(DOCS_REPO_REMOTE_ENV, "origin")
+        run(["git", "push", remote, branch], cwd=docs_repo)
+        print(f"[git] pushed docs repository changes on {branch}")
 
 
 def git_paths_to_commit(include_docs: bool = False) -> list[str]:
@@ -1105,6 +1216,7 @@ def main():
     upload_completed = False
     release_finalized = False
     release_snapshot: Dict[pathlib.Path, bytes | None] | None = None
+    docs_repo_ready = False
 
     print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
           f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
@@ -1112,6 +1224,11 @@ def main():
     if cfg.pypirc_check:
         assert_pypirc_has(cfg.repo)
     require_safe_pypi_release(cfg)
+    if cfg.gen_docs:
+        docs_repo, source = find_docs_repository()
+        if docs_repo:
+            ensure_docs_repo_release_ready(docs_repo)
+            docs_repo_ready = True
 
     # Validate explicit version if provided
     if cfg.version is not None and not re.fullmatch(r"\d+\.\d+\.\d+(?:\.post\d+)?", cfg.version):
@@ -1290,9 +1407,11 @@ def main():
             with defer_sigint("release metadata finalization") as deferred_interrupt:
                 if cfg.git_commit_version:
                     git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
+                    if cfg.gen_docs and docs_repo_ready:
+                        git_commit_docs_repository(chosen, push=True)
                 if cfg.repo == "pypi" and cfg.git_tag:
                     tag = compute_date_tag()  # resolves collisions with existing tags
-                    create_and_push_tag(tag)
+                    create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
             release_finalized = True
             if deferred_interrupt["value"]:
                 raise KeyboardInterrupt("Interrupted after release metadata finalization")

@@ -742,6 +742,83 @@ def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
     ]
 
 
+def test_ensure_docs_repo_release_ready_rejects_unrelated_dirty_paths(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst", "apps/templates"])
+
+    try:
+        module.ensure_docs_repo_release_ready(docs_repo)
+    except SystemExit as exc:
+        assert "apps/templates" in str(exc)
+    else:
+        raise AssertionError("ensure_docs_repo_release_ready() should reject unrelated dirty paths")
+
+
+def test_git_commit_docs_repository_pushes_only_release_managed_docs_paths(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    calls: list[tuple[list[str], Path]] = []
+
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
+    monkeypatch.setattr(
+        module,
+        "ensure_docs_repo_release_ready",
+        lambda _repo: ["docs/source/quick-start.rst", "docs/source/demos.rst"],
+    )
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(["git"], 1),
+    )
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda cmd, cwd=None, env=None, timeout=None: calls.append((cmd, cwd)),
+    )
+
+    module.git_commit_docs_repository("2026.04.21", push=True)
+
+    assert calls == [
+        (["git", "add", "-A", "--", "docs/source/demos.rst", "docs/source/quick-start.rst"], docs_repo),
+        (["git", "commit", "-m", "docs(release): sync docs for 2026.04.21"], docs_repo),
+        (["git", "push", "origin", "main"], docs_repo),
+    ]
+
+
+def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    calls: list[tuple[Path, str, str, str]] = []
+
+    monkeypatch.setattr(module, "find_apps_repository", lambda: (None, None))
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
+    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: [])
+    monkeypatch.setattr(module, "_tag_exists", lambda _tag, repo=None: False)
+    monkeypatch.setattr(
+        module,
+        "_create_tag_in_repo",
+        lambda repo_path, tag_ref, release_label, remote: calls.append((repo_path, tag_ref, release_label, remote)),
+    )
+
+    module.create_and_push_tag("2026.04.21", include_apps_repo=False, include_docs_repo=True)
+
+    assert calls == [
+        (module.REPO_ROOT, "v2026.04.21", "2026.04.21", "origin"),
+        (docs_repo, "v2026.04.21", "2026.04.21", "origin"),
+    ]
+
+
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
