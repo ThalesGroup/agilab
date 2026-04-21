@@ -16,13 +16,6 @@ That first proof is:
 If that works once, then branch into notebooks, cluster mode, or package mode.
 If it fails, use :doc:`newcomer-troubleshooting`.
 
-This first proof is deliberately narrower than the public four-page tour. It
-proves the safest local path first; it does not try to prove ``PIPELINE`` on
-day 1.
-
-For architectural context, see :doc:`architecture` and
-:doc:`agi-core-architecture`.
-
 Prerequisites
 -------------
 
@@ -67,9 +60,6 @@ Use this path exactly once before trying anything broader:
    Do not switch to packaged install, notebook-first, or cluster setup before
    this local proof works once from end to end.
 
-   If you want alternative public demo entry points after that, use
-   :doc:`demos`.
-
 If the first proof fails
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -99,7 +89,7 @@ recommended newcomer proof.
 Alternative install routes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use these only if you already know why you want them.
+Use these only after the local ``flight_project`` proof works once.
 
 .. _hosted-agilab-demo:
 .. _lightning-studio-ui-demo:
@@ -111,32 +101,19 @@ Use these only if you already know why you want them.
     uv sync
     uv --preview-features extra-build-dependencies run python tools/lightning_studio_demo.py --port 8501
 
-This launcher keeps AGILAB in a local-only demo mode, starts on
-``flight_project``, and redirects logs, exports, and local share data into
-``.lightning_studio_runtime/`` under the repository root. It is a useful UI
-demo path, but it is not the full remote-cluster/orchestration product path.
+This launcher keeps AGILAB in local-only demo mode, starts on
+``flight_project``, and writes demo runtime state into
+``.lightning_studio_runtime/`` under the repository root.
 
-For a public browser demo where viewers should not need an account, run this
-launcher on your own Linux VM and expose port ``8501`` through a reverse proxy
-such as Caddy or Nginx.
+Use it in one of two ways:
 
-If you prefer a managed operator environment, the same launcher can also be run
-inside Lightning Studio. In that variant, only the operator needs a Lightning
-account and Lightning Studio workspace.
+- self-host it on your own Linux VM and expose port ``8501`` behind Caddy or
+  Nginx when viewers should not need any account
+- run the same launcher in Lightning Studio when you want a managed operator
+  environment; in that case only the operator needs a Lightning account
 
-Lightning is only one optional hosting background for this demo path. It is not
-required to install, run, or develop with AGILAB locally or on your own
-infrastructure.
-
-After launch, either:
-
-- open the public HTTPS endpoint you exposed on your own VM, or
-- use the Lightning Studio UI to open the web app on port ``8501``
-
-Lightning docs that support this workflow:
-
-- `Run single or multi-node on Lightning Studios <https://lightning.ai/docs/pytorch/latest/clouds/lightning_ai.html>`_
-- `How to Build a Machine Learning Training and Deployment Pipeline <https://lightning.ai/pages/community/tutorial/ml-training-deployment/>`_
+Lightning is optional. It is not required to install, run, or develop with
+AGILAB.
 
 **Published package route** (fastest install, less representative of the full product path)::
 
@@ -163,48 +140,6 @@ initialise the pinned submodule::
 
     git submodule update --init --recursive
 
-Run without PyCharm (CLI wrappers)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you work from a repository checkout and do not use PyCharm, run the
-pre-generated wrappers under ``tools/run_configs`` directly from a shell.
-They mirror the bundled run configurations for built-in/public apps.
-
-List available wrappers::
-
-    find tools/run_configs -type f -name "*.sh" | sort
-
-Examples::
-
-    bash tools/run_configs/agilab/agilab-run-dev.sh
-    bash tools/run_configs/apps/builtin-flight-run.sh
-    bash tools/run_configs/apps/builtin-flight-test-worker.sh
-
-Optional developer workflow
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you work from a repository checkout, PyCharm and Codex CLI can speed up
-iteration, but they are not required to install or run AGILab.
-
-- PyCharm Professional can reuse the bundled run configurations.
-- Codex CLI can follow the repository guidance in ``AGENTS.md`` and
-  ``.codex/skills``.
-- A minimal shell-only workflow remains available through
-  ``tools/run_configs``.
-
-Codex workflow
-^^^^^^^^^^^^^^
-
-From this repository, use the shared workflow helper:
-
-- ``./tools/codex_workflow.sh review`` before larger edits
-- ``./tools/codex_workflow.sh exec "short change request"``
-- ``./tools/codex_workflow.sh apply <task-id>``
-
-The helper resolves ``.external/agilab/tools/codex_workflow.sh`` first, then
-falls back to a sibling ``../agilab`` checkout only if you explicitly use the
-legacy layout.
-
 Cluster installs
 ^^^^^^^^^^^^^^^^
 
@@ -213,33 +148,15 @@ credentials with permission to deploy workers. See :doc:`cluster` for the full
 workflow. ``pycharm/setup_pycharm.py`` mirrors web interface run configurations to
 ``~/log/execute/<app>/AGI_*.py`` so that IDE and CLI stay in sync.
 
-.. note::
-
-   On a virgin workspace you do not need to hand-create
-   ``~/log/execute/<app>`` snippets. The installer dispatcher
-   (``src/agilab/apps/install.py``) calls ``_seed_example_scripts`` before
-   kicking off AGI, copying each ``AGI_*.py`` helper from
-   ``src/agilab/examples/<app>/`` into ``~/log/execute/<app>/`` so the first
-   install has runnable mirrors. After that initial bootstrap, the web interface
-   ORCHESTRATE page re-generates the snippets on demand according to the form
-   inputs you provide, keeping IDE and CLI flows in sync. Field defaults are
-   read from each app's per-user workspace copy
-   ``~/.agilab/apps/<app>/app_settings.toml`` before the form renders. That
-   workspace file is seeded from the versioned ``app_settings.toml`` source file
-   (for example ``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
-   on first use, so update the workspace copy when you need local baselines and
-   update the source seed only when you intend to change the shipped defaults.
-
 Next steps
 ^^^^^^^^^^
 
-- :doc:`architecture` – understand how the web interface, ``agi_core``, ``agi_env`` and
+- :doc:`newcomer-guide` for the mental model and what to ignore on day 1.
+- :doc:`demos` for the public demo entry-point chooser.
+- :doc:`architecture` for how the web UI, ``agi_core``, ``agi_env``, and
   ``agi_cluster`` fit together.
-- :doc:`directory-structure` – explore the repository layout with an annotated
-  tree tracked in the repo and refreshed when ``docs/source/directory-structure.txt`` is updated.
-- :doc:`agilab-help` – learn how core pages and optional page bundles fit
-  together in the UI.
-- :doc:`apps-pages` – learn how page bundles are discovered, enabled, and launched.
+- :doc:`cluster` when you are intentionally moving from local proof to SSH or
+  multi-node execution.
 
 Support
 ^^^^^^^

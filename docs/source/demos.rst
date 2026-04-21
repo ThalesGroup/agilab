@@ -6,19 +6,16 @@ Demos
 
    demo_capture_script
 
-Use this page as the public entry point for runnable AGILAB demos when you do
-not want to start with a local source checkout first.
+Use this page to choose the public AGILAB demo route. It is a router, not a
+second quick-start guide.
 
-Available demo paths
---------------------
+Public demo entry points
+------------------------
 
-- :doc:`notebook-quickstart` for the ``agi-core demo`` notebook path.
-  Use this when you want a code-first demo in Colab or Kaggle without a local
-  install on your machine.
-- :doc:`quick-start` for the ``AGILAB demo`` hosted UI path.
-  Use this when you want a browser-hosted Streamlit demo.
-  Prefer self-hosting if viewers should not need any account.
-  Lightning remains an optional managed operator path for the same launcher.
+- :doc:`notebook-quickstart` for the ``agi-core demo`` notebook path when you
+  want a code-first public demo in Colab or Kaggle.
+- :doc:`quick-start` for the ``AGILAB demo`` hosted UI path when you want a
+  browser-hosted Streamlit demo.
 
 What to use first
 -----------------
@@ -26,8 +23,9 @@ What to use first
 - Safest truthful first proof: :doc:`quick-start` with the built-in
   ``flight_project`` local path.
 - Lightest browser-first path: :doc:`notebook-quickstart`.
-- Hosted UI demo path: :doc:`quick-start` and the ``AGILAB demo`` section.
-  For public viewers without accounts, prefer the self-hosted VM variant.
+- Account-free hosted UI path for viewers: self-host the
+  :doc:`quick-start` ``AGILAB demo`` launcher on your own VM.
+- Managed operator variant: run the same launcher in Lightning Studio.
 
 Core Tour
 ---------
@@ -47,6 +45,5 @@ See Also
 
 - :doc:`quick-start`
 - :doc:`notebook-quickstart`
-- :doc:`agilab-help` for the core page tour
-- :doc:`apps-pages` for the page bundles used from ``ANALYSIS``
-- `Video tutorial guide in the repository <https://github.com/ThalesGroup/agilab/blob/main/docs/source/demo_capture_script.md>`_
+- :doc:`newcomer-guide`
+- :doc:`compatibility-matrix`

@@ -51,24 +51,9 @@ If that first proof fails, use:
 
 ## Other Ways To Try AGILAB
 
-Published package:
-
-```bash
-mkdir ~/agi-workspace && cd ~/agi-workspace
-uv venv
-source .venv/bin/activate
-uv pip install agilab
-uv run agilab
-```
-
-Notebook-first and hosted UI paths:
-
 - [agi-core demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [AGILAB demo](https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo)
-
-For public viewers without accounts, self-host the AGILAB demo on your own VM.
-Lightning is only one optional operator-side hosting background for the same
-launcher. You do not need Lightning to install, run, or develop with AGILAB.
+- [Published package route](https://thalesgroup.github.io/agilab/quick-start.html#alternative-install-routes)
 
 ## Why Use It
 
