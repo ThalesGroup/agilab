@@ -189,7 +189,6 @@ def _try_add(ext_mod: str):
 # Optional extensions
 for ext in [
     "myst_parser",
-    "sphinxcontrib.plantuml",
     "sphinx_autodoc_typehints",
     "sphinx.ext.coverage",
     "sphinx.ext.inheritance_diagram",
@@ -204,7 +203,7 @@ for ext in [
 # Exclude patterns
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 suppress_warnings = [
-    # `sphinxcontrib.plantuml` and `sphinx_pyreverse` both register `uml`.
+    # Some optional diagram extensions register overlapping directives.
     "app.add_directive",
 ]
 
@@ -260,11 +259,6 @@ else:
 # -- Templates Path ----------------------------------------------------------
 
 templates_path = ["_templates"]
-
-# -- PlantUML Configuration --------------------------------------------------
-
-plantuml = "plantuml"  # Ensure PlantUML is in PATH or provide the full path
-plantuml_output_format = "png"
 
 # -- Autodoc Configuration ---------------------------------------------------
 

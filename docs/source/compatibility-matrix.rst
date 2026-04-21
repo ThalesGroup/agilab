@@ -42,9 +42,9 @@ Current public matrix
      - Not a remote cluster proof
    * - Hosted AGILAB demo
      - documented
-     - :doc:`demos` and the Lightning Studio demo path
+     - :doc:`demos` and the hosted AGILAB demo path
      - Hosted single-machine web UI demo on the public built-in app path
-     - Lightning account required; demo environment only; not a remote cluster proof
+     - Demo environment only; self-hosting preferred for public viewers; Lightning operator account required only when using Lightning Studio; not a remote cluster proof
    * - Service-mode operator surface
      - validated
      - ORCHESTRATE service controls and health gate

@@ -64,10 +64,11 @@ uv run agilab
 Notebook-first and hosted UI paths:
 
 - [agi-core demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
-- [AGILAB demo (Lightning account required)](https://thalesgroup.github.io/agilab/quick-start.html#lightning-studio-ui-demo)
+- [AGILAB demo](https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo)
 
-The AGILAB demo uses Lightning only as an optional hosted background for that
-demo path. You do not need Lightning to install, run, or develop with AGILAB.
+For public viewers without accounts, self-host the AGILAB demo on your own VM.
+Lightning is only one optional operator-side hosting background for the same
+launcher. You do not need Lightning to install, run, or develop with AGILAB.
 
 ## Why Use It
 
