@@ -4,10 +4,10 @@ This file is the execution-ready launch package for the current public positioni
 
 Use it with:
 
-- [GITHUB_REPO_POSITIONING.md](../growth/GITHUB_REPO_POSITIONING.md)
-- [STAR_GROWTH_PLAN.md](../growth/STAR_GROWTH_PLAN.md)
+- the private repo positioning note
+- the private growth plan
 - [LAUNCH_EXECUTION_CHECKLIST.md](LAUNCH_EXECUTION_CHECKLIST.md)
-- [WEEKLY_GROWTH_TRACKER.md](../growth/WEEKLY_GROWTH_TRACKER.md)
+- the private weekly growth tracker
 
 ## Locked launch theme
 
