@@ -348,8 +348,8 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
     assert env.ssh_key_path is None
     assert ("CLUSTER_CREDENTIALS", "") in env_calls
     assert ("AGI_SSH_KEY_PATH", "") in env_calls
-    assert fake_st.session_state["mode"] is None
-    assert fake_st.infos[-1] == "Run mode benchmark (all modes)"
+    assert fake_st.session_state["mode"] == 4
+    assert fake_st.infos[-1] == "Run mode 4: dask"
 
 
 def test_render_cluster_settings_ui_password_auth_uses_stored_user_for_credentials(monkeypatch, tmp_path):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
+import tomllib
 import types
 from types import SimpleNamespace
 import pytest
@@ -424,6 +425,36 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert cluster_state.get("cluster_enabled", enabled_state) is True
     assert cluster_state.get("pool", pool_state) is True
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
+
+
+def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env):
+    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    _seed_env_editor_state(at, env)
+
+    at.run()
+    assert not at.exception
+
+    enabled_key = "cluster_enabled__flight_project"
+    at.session_state[enabled_key] = True
+    at.run()
+    assert not at.exception
+    assert at.session_state["app_settings"]["cluster"]["cluster_enabled"] is True
+
+    at.session_state[enabled_key] = False
+    at.run()
+    assert not at.exception
+
+    cluster_state = at.session_state["app_settings"]["cluster"]
+    assert cluster_state["cluster_enabled"] is False
+
+    payload = tomllib.loads(Path(env.app_settings_file).read_text(encoding="utf-8"))
+    assert payload["cluster"]["cluster_enabled"] is False
 
 
 def test_flight_project_app_args_form_render(mock_ui_env):

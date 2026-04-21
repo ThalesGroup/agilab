@@ -198,7 +198,7 @@ def build_run_snippet(
     *,
     env: Any,
     verbose: int,
-    run_mode: int | None,
+    run_mode: int | list[int] | None,
     scheduler: str,
     workers: str,
     args_serialized: str,
