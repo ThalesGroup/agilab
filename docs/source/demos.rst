@@ -6,7 +6,7 @@ Demos
 
    demo_capture_script
 
-Use this page as the public entry point for AGILAB demos you can watch before
+Use this page as the public entry point for AGILAB demos you can review before
 installing anything.
 
 Start Here
@@ -14,16 +14,15 @@ Start Here
 
 If you want a pre-install UI demo, use this page first.
 
-You do not need to install AGILAB to watch these demos.
+You do not need to install AGILAB to open these decks.
 
-If you are new to AGILAB, start with the short `flight_project` first-proof reel:
+If you are new to AGILAB, start with the `flight_project` first-proof deck:
 
-- `AGILAB in 45 Seconds: First proof with flight_project <https://youtu.be/kOMDyvbnC9w>`_
-- `Download the slideshow deck <AGILAB_Demo_Slideshow.pptx>`_
+- :download:`AGILAB first proof slideshow <AGILAB_Flight_First_Proof_Slides.pptx>`
 
-If you want the full four-page tour, use the `UAV Relay Queue` reel:
+If you want the full four-page tour, use the `UAV Relay Queue` deck:
 
-- `How AGILAB makes UAV queue benchmarks reproducible <https://youtu.be/zxWZUyoEb9U>`_
+- :download:`AGILAB full tour slideshow <AGILAB_UAV_Full_Tour_Slides.pptx>`
 
 Which Demo To Watch
 -------------------
@@ -75,5 +74,6 @@ See Also
 
 - :doc:`agilab-help` for the core page tour.
 - :doc:`apps-pages` for the page bundles used from ``ANALYSIS``.
-- :download:`AGILAB demo slideshow <AGILAB_Demo_Slideshow.pptx>`
+- :download:`AGILAB first proof slideshow <AGILAB_Flight_First_Proof_Slides.pptx>`
+- :download:`AGILAB full tour slideshow <AGILAB_UAV_Full_Tour_Slides.pptx>`
 - `Video tutorial and slideshow guide in the repository <https://github.com/ThalesGroup/agilab/blob/main/docs/source/demo_capture_script.md>`_

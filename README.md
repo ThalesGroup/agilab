@@ -177,10 +177,11 @@ Keep the two public paths separate:
 Shareable visual:
 - [Social card SVG](docs/source/diagrams/agilab_social_card.svg)
 
-Video tutorial and slideshow:
-[![Slides](https://img.shields.io/badge/Slides-download-0F766E)](docs/source/AGILAB_Demo_Slideshow.pptx)
-- [45-second workflow intro video](https://youtu.be/kOMDyvbnC9w)
-- [Public slideshow deck](docs/source/AGILAB_Demo_Slideshow.pptx)
+Slideshow decks:
+[![First Proof Slides](https://img.shields.io/badge/Slides-first%20proof-0F766E)](docs/source/AGILAB_Flight_First_Proof_Slides.pptx)
+[![Full Tour Slides](https://img.shields.io/badge/Slides-full%20tour-0F766E)](docs/source/AGILAB_UAV_Full_Tour_Slides.pptx)
+- [First proof slideshow deck](docs/source/AGILAB_Flight_First_Proof_Slides.pptx)
+- [Full tour slideshow deck](docs/source/AGILAB_UAV_Full_Tour_Slides.pptx)
 - [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
 - [Video tutorial and slideshow guide](docs/source/demo_capture_script.md)
 - `uv --preview-features extra-build-dependencies run --with python-pptx python tools/build_demo_slides.py`
