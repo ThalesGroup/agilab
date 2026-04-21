@@ -48,8 +48,6 @@ If that first proof fails, use:
 ## Try It Before Installing
 
 - [Public demos page](https://thalesgroup.github.io/agilab/demos.html)
-- [First proof slideshow deck](docs/source/AGILAB_Flight_First_Proof_Slides.pptx)
-- [Full tour slideshow deck](docs/source/AGILAB_UAV_Full_Tour_Slides.pptx)
 
 ## Other Ways To Try AGILAB
 
@@ -80,11 +78,4 @@ Notebook-first and hosted UI paths:
 - [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
 - [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
-- [Demo capture and slideshow guide](docs/source/demo_capture_script.md)
 - [Developer runbook](AGENTS.md)
-
-## Rebuild Public Decks
-
-```bash
-uv --preview-features extra-build-dependencies run --with python-pptx python tools/build_demo_slides.py
-```
