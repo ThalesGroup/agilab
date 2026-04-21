@@ -42,9 +42,10 @@ Keep two stable public messages instead of forcing one app to carry both roles:
 - `UAV Relay Queue`: `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`, ending on
   queue evidence
 
-Public slideshow asset:
+Public slideshow assets:
 
-- `docs/source/AGILAB_Demo_Slideshow.pptx`
+- `docs/source/AGILAB_Flight_First_Proof_Slides.pptx`
+- `docs/source/AGILAB_UAV_Full_Tour_Slides.pptx`
 - rebuild with:
   `uv --preview-features extra-build-dependencies run --with python-pptx python tools/build_demo_slides.py`
 
