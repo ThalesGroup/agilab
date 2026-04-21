@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-16
+  updated: 2026-04-21
 ---
 
 # Testing Skill (AGILAB)
@@ -48,6 +48,10 @@ Use this skill when validating changes.
 - App settings split:
   - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
   - Tests should target the right layer and avoid asserting that runtime writes back into source files.
+- Streamlit per-project state:
+  - When a page reuses one Streamlit session across multiple projects/apps, keep at least one regression for project-switch rehydration.
+  - Assert that per-project widget keys are namespaced by project/app instead of using global keys like `"cluster_pool"` or `"cluster_cython"`.
+  - If a bug involves preserving UI state across project changes, test the preservation decision separately from the AppTest when possible, so ordering bugs around `pop(...)` or reruns stay easy to diagnose.
 - Installer regressions:
   - For install failures, reproduce both:
     - plain shell: `uv sync --project <app>`
@@ -97,6 +101,9 @@ Use this skill when validating changes.
 - When a custom form shows a derived metric and the runtime also writes that metric into a summary/report, prefer testing the shared backend helper first.
 - Add a targeted regression for the generated artifact fields as well, so the persisted report stays aligned with the preview contract.
 - Only add a full Streamlit `AppTest` when the bug is in widget wiring or session-state behavior. If the logic lives in a backend helper, test that helper directly and keep the UI test surface small.
+- For mixed state-model bugs, prefer both:
+  - one helper/unit regression for the source-of-truth or preservation logic
+  - one narrow AppTest that proves the page still hydrates and persists the expected project-specific state
 - Good alignment checks include:
   - preview helper returns the expected metric/range
   - generated summary contains the same field names
