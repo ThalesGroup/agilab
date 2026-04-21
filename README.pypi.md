@@ -34,10 +34,10 @@ recommended newcomer first proof.
 ## Other Ways To Try AGILAB
 
 - agi-core demo: https://thalesgroup.github.io/agilab/notebook-quickstart.html
-- AGILAB demo: https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo
+- AGILAB demo on Lightning: https://thalesgroup.github.io/agilab/quick-start.html#hosted-agilab-demo
 - Source repository: https://github.com/ThalesGroup/agilab
 
-The AGILAB demo path is the Lightning Studio operator path for a hosted UI
+The AGILAB demo on Lightning path is the Lightning Studio operator path for a hosted UI
 demo. It is not the normal local install path.
 
 ## Why Use It

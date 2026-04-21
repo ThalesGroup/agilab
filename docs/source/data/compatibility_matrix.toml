@@ -29,13 +29,12 @@ limits = ["Local path only", "Not a remote cluster proof"]
 
 [[entries]]
 id = "hosted-agilab-demo"
-label = "Hosted AGILAB demo"
+label = "AGILAB demo on Lightning"
 status = "documented"
 surface = "owner-hosted single-machine web UI"
 primary_proof = "demos.rst plus the hosted AGILAB demo path"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Hosted single-machine AGILAB web UI demo on the public built-in app path"
 scope = "Lightning Studio hosted single-machine AGILAB web UI demo on the public built-in app path"
 limits = ["Demo environment only", "Lightning operator account required", "Not a remote cluster proof"]
 
