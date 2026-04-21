@@ -166,6 +166,80 @@ def test_require_safe_pypi_release_rejects_missing_repo_sync_flags() -> None:
         raise AssertionError("require_safe_pypi_release() should reject unsafe real PyPI publish settings")
 
 
+def test_require_safe_pypi_release_rejects_skipping_release_preflight() -> None:
+    module = _load_pypi_publish()
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version=None,
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agilab"],
+        gen_docs=False,
+        release_preflight=False,
+    )
+
+    try:
+        module.require_safe_pypi_release(cfg)
+    except SystemExit as exc:
+        assert "--skip-release-preflight" in str(exc)
+    else:
+        raise AssertionError("require_safe_pypi_release() should reject skipping real release preflight")
+
+
+def test_release_preflight_profiles_only_for_real_pypi() -> None:
+    module = _load_pypi_publish()
+
+    assert module.release_preflight_profiles(module.Cfg(repo="testpypi", dist="both", skip_existing=True, retries=1, dry_run=False, verbose=False, version=None, purge_before=False, purge_after=False, cleanup_only=False, clean_days=None, clean_delete_project=False, cleanup_user=None, cleanup_pass=None, cleanup_timeout=0, skip_cleanup=True, yank_previous=False, git_tag=False, git_commit_version=False, git_reset_on_failure=False, pypirc_check=False, packages=None, gen_docs=False)) == []
+
+    profiles = module.release_preflight_profiles(
+        module.Cfg(
+            repo="pypi",
+            dist="both",
+            skip_existing=True,
+            retries=1,
+            dry_run=False,
+            verbose=False,
+            version=None,
+            purge_before=False,
+            purge_after=False,
+            cleanup_only=False,
+            clean_days=None,
+            clean_delete_project=False,
+            cleanup_user=None,
+            cleanup_pass=None,
+            cleanup_timeout=0,
+            skip_cleanup=True,
+            yank_previous=False,
+            git_tag=True,
+            git_commit_version=True,
+            git_reset_on_failure=True,
+            pypirc_check=False,
+            packages=["agilab"],
+            gen_docs=False,
+        )
+    )
+
+    assert profiles == ["agi-env", "agi-node", "agi-cluster", "agi-gui", "docs", "installer", "shared-core-typing"]
+
+
 def test_compute_date_tag_without_collision(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -431,6 +505,77 @@ def test_main_updates_badges_before_build(tmp_path, monkeypatch) -> None:
     module.main()
 
     assert order[:2] == ["badge", "build"]
+
+
+def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-env"',
+                'version = "2026.03.16"',
+                'dependencies = []',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    order: list[str] = []
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: order.append("badge"))
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: order.append("build"))
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+
+    module.main()
+
+    assert order[:3] == ["preflight", "badge", "build"]
 
 
 def test_main_dry_run_restores_release_files(tmp_path, monkeypatch) -> None:
@@ -710,13 +855,14 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
 
     module.main()
 
-    assert order == ["commit", "tag"]
+    assert order == ["preflight", "commit", "tag"]
 
 
 def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:

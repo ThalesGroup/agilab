@@ -19,14 +19,35 @@ def _load_module():
     return module
 
 
-def test_profile_commands_cover_expected_gui_and_docs_contracts() -> None:
+def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     module = _load_module()
     args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
 
     profiles = module._profile_commands(args)
+    agi_env = profiles["agi-env"][0]
+    agi_node = profiles["agi-node"][0]
+    agi_cluster = profiles["agi-cluster"][0]
     agi_gui = profiles["agi-gui"][0]
     docs = profiles["docs"][0]
     strict_typing = profiles["shared-core-typing"][0]
+
+    assert agi_env.timeout_seconds == 20 * 60
+    assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
+    assert "--cov=agi_env" in agi_env.argv
+    assert "coverage-agi-env.xml" in " ".join(agi_env.argv)
+    assert agi_env.argv[-1] == "src/agilab/core/agi-env/test"
+
+    assert agi_node.timeout_seconds == 20 * 60
+    assert agi_node.env["COVERAGE_FILE"] == ".coverage.agi-node"
+    assert "--cov=agi_node" in agi_node.argv
+    assert "coverage-agi-node.xml" in " ".join(agi_node.argv)
+    assert agi_node.argv[-1] == "src/agilab/core/test"
+
+    assert agi_cluster.timeout_seconds == 20 * 60
+    assert agi_cluster.env["COVERAGE_FILE"] == ".coverage.agi-cluster"
+    assert "--cov=agi_cluster" in agi_cluster.argv
+    assert "coverage-agi-cluster.xml" in " ".join(agi_cluster.argv)
+    assert agi_cluster.argv[-1] == "src/agilab/core/test"
 
     assert agi_gui.timeout_seconds == 12 * 60
     assert agi_gui.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"

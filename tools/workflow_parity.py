@@ -69,7 +69,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--profile",
         action="append",
-        choices=["agi-gui", "docs", "badges", "skills", "installer", "shared-core-typing"],
+        choices=[
+            "agi-env",
+            "agi-node",
+            "agi-cluster",
+            "agi-gui",
+            "docs",
+            "badges",
+            "skills",
+            "installer",
+            "shared-core-typing",
+        ],
         help="Parity profile to run. May be passed multiple times.",
     )
     parser.add_argument(
@@ -115,6 +125,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _profile_descriptions() -> dict[str, str]:
     return {
+        "agi-env": "Run the local equivalent of the agi-env coverage workflow job.",
+        "agi-node": "Run the local equivalent of the agi-node coverage workflow job.",
+        "agi-cluster": "Run the local equivalent of the agi-cluster coverage workflow job.",
         "agi-gui": "Run the local equivalent of the agi-gui coverage workflow job.",
         "docs": "Run the local equivalent of the docs-publish Sphinx build.",
         "badges": "Refresh component coverage badges from local coverage XML files.",
@@ -126,6 +139,9 @@ def _profile_descriptions() -> dict[str, str]:
 
 def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
     return {
+        "agi-env": _agi_env_profile(),
+        "agi-node": _agi_node_profile(),
+        "agi-cluster": _agi_cluster_profile(),
         "agi-gui": _agi_gui_profile(),
         "docs": _docs_profile(),
         "badges": _badges_profile(args.components),
@@ -196,6 +212,136 @@ def _agi_gui_profile() -> list[CommandSpec]:
             timeout_seconds=12 * 60,
             ensure_dirs=["test-results"],
             remove_paths=[".coverage.agi-gui", "coverage-agi-gui.xml"],
+        )
+    ]
+
+
+def _agi_env_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-env coverage",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--no-project",
+                "--with-editable",
+                "./src/agilab/core/agi-env",
+                "--with-editable",
+                "./src/agilab/core/agi-node",
+                "--with",
+                "sqlalchemy",
+                "--with",
+                "pytest",
+                "--with",
+                "pytest-cov",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "--maxfail=1",
+                "--disable-warnings",
+                "-o",
+                "addopts=",
+                "--cov=agi_env",
+                "--cov-config=.coveragerc.agi-env",
+                "--cov-report=xml:coverage-agi-env.xml",
+                "src/agilab/core/agi-env/test",
+            ],
+            env={"COVERAGE_FILE": ".coverage.agi-env"},
+            timeout_seconds=20 * 60,
+            remove_paths=[".coverage.agi-env", "coverage-agi-env.xml"],
+        )
+    ]
+
+
+def _agi_node_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-node coverage",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--no-project",
+                "--with-editable",
+                "./src/agilab/core/agi-env",
+                "--with-editable",
+                "./src/agilab/core/agi-node",
+                "--with-editable",
+                "./src/agilab/core/agi-cluster",
+                "--with-editable",
+                "./src/agilab/core/agi-core",
+                "--with",
+                "sqlalchemy",
+                "--with",
+                "pytest",
+                "--with",
+                "pytest-asyncio",
+                "--with",
+                "pytest-cov",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "--maxfail=1",
+                "--disable-warnings",
+                "-o",
+                "addopts=",
+                "--cov=agi_node",
+                "--cov-report=xml:coverage-agi-node.xml",
+                "src/agilab/core/test",
+            ],
+            env={"COVERAGE_FILE": ".coverage.agi-node"},
+            timeout_seconds=20 * 60,
+            remove_paths=[".coverage.agi-node", "coverage-agi-node.xml"],
+        )
+    ]
+
+
+def _agi_cluster_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-cluster coverage",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--no-project",
+                "--with-editable",
+                "./src/agilab/core/agi-env",
+                "--with-editable",
+                "./src/agilab/core/agi-node",
+                "--with-editable",
+                "./src/agilab/core/agi-cluster",
+                "--with-editable",
+                "./src/agilab/core/agi-core",
+                "--with",
+                "sqlalchemy",
+                "--with",
+                "pytest",
+                "--with",
+                "pytest-asyncio",
+                "--with",
+                "pytest-cov",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "--maxfail=1",
+                "--disable-warnings",
+                "-o",
+                "addopts=",
+                "--cov=agi_cluster",
+                "--cov-report=xml:coverage-agi-cluster.xml",
+                "src/agilab/core/test",
+            ],
+            env={"COVERAGE_FILE": ".coverage.agi-cluster"},
+            timeout_seconds=20 * 60,
+            remove_paths=[".coverage.agi-cluster", "coverage-agi-cluster.xml"],
         )
     ]
 
