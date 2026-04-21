@@ -8,12 +8,8 @@ This page gives the mental model. :doc:`quick-start` owns the exact commands.
 :doc:`newcomer-troubleshooting` owns the first-failure path.
 
 The first proof is deliberately narrow:
-
-- source checkout
-- local run
-- built-in ``flight_project``
-- ``PROJECT -> ORCHESTRATE -> ANALYSIS``
-- visible result under ``~/log/execute/flight/``
+use a source checkout, run the built-in ``flight_project`` locally from the
+web UI, and confirm a visible result under ``~/log/execute/flight/``.
 
 That is enough for day 1. Do not widen the problem to notebooks, package mode,
 private apps, or cluster setup until this path works once.
