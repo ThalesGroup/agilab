@@ -34,7 +34,7 @@ Use this path exactly once before trying anything broader:
 
        git clone https://github.com/ThalesGroup/agilab.git
        cd agilab
-       ./install.sh --install-apps --test-apps
+       ./install.sh --install-apps
 
 2. **Launch the web interface**::
 
@@ -127,7 +127,7 @@ AGILAB.
 
     git clone https://github.com/ThalesGroup/agilab.git
     cd agilab
-    ./install.sh --install-apps --test-apps
+    ./install.sh --install-apps
     uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
 
 Private apps or framework contributor setup

@@ -43,8 +43,8 @@ Then rerun the newcomer proof::
 
     uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 
-Failure 2: ``./install.sh --install-apps --test-apps`` fails
--------------------------------------------------------------
+Failure 2: ``./install.sh --install-apps`` fails
+------------------------------------------------
 
 Symptom:
 
@@ -54,7 +54,7 @@ Symptom:
 
 Recovery::
 
-    ./install.sh --install-apps --test-apps
+    ./install.sh --install-apps
 
 If you need to inspect the latest installer log quickly::
 
@@ -85,7 +85,7 @@ If it is missing, you are likely not in the AGILAB source checkout you think
 you are, or the install did not finish cleanly. Return to the repo root and
 rerun::
 
-    ./install.sh --install-apps --test-apps
+    ./install.sh --install-apps
 
 Then rerun::
 
@@ -114,7 +114,7 @@ Then verify the built-in app can be resolved by path::
 
 If the failure mentions package import or missing environment setup, rerun::
 
-    ./install.sh --install-apps --test-apps
+    ./install.sh --install-apps
 
 Failure 5: no fresh output appears under ``~/log/execute/flight/``
 ------------------------------------------------------------------

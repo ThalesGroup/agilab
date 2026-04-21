@@ -95,7 +95,7 @@ From the AGILab repository root:
 
    git clone https://github.com/ThalesGroup/agilab.git
    cd agilab
-   ./install.sh --install-apps --test-apps
+   ./install.sh --install-apps
    uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
 
 The notebook file lives in the repository at

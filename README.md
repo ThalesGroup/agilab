@@ -60,7 +60,7 @@ If this is your first visit, use one path only:
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
-./install.sh --install-apps --test-apps
+./install.sh --install-apps
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
