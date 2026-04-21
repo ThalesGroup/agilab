@@ -1,16 +1,12 @@
 Quick-Start
 ===========
 
-If you are new to AGILab, do one thing first: run the built-in
-``flight_project`` locally from the web UI.
+If you are new to AGILab, this page owns one thing only: the exact commands for
+the recommended first proof.
 
-That first proof is simple:
-use a source checkout, install the built-in apps, launch the web UI, choose
-``flight_project`` in ``PROJECT``, run ``INSTALL`` then ``EXECUTE`` in
-``ORCHESTRATE``, and confirm a visible result in ``ANALYSIS``.
-
-If that works once, then branch into notebooks, cluster mode, or package mode.
-If it fails, use :doc:`newcomer-troubleshooting`.
+That first proof is the built-in ``flight_project`` run locally from the web
+UI. If it works once from end to end, then branch into notebooks, package mode,
+or cluster mode. If it fails, use :doc:`newcomer-troubleshooting`.
 
 Prerequisites
 -------------
@@ -24,7 +20,7 @@ Prerequisites
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use this path exactly once before trying anything broader:
+Use this path exactly once before trying anything broader.
 
 1. **Clone the repository and install the built-in apps**::
 
@@ -32,11 +28,18 @@ Use this path exactly once before trying anything broader:
        cd agilab
        ./install.sh --install-apps
 
-2. **Launch the web interface**::
+2. **Optional preflight check**::
+
+       uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+
+   Use this before launching the UI when you want an explicit source-checkout
+   readiness check.
+
+3. **Launch the web interface**::
 
        uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 
-3. **Keep the first run local and use the built-in flight demo**
+4. **Keep the first run local and use the built-in flight demo**
 
    In the UI, use:
 
@@ -44,14 +47,14 @@ Use this path exactly once before trying anything broader:
    - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
    - ``ANALYSIS`` -> open the default built-in view
 
-4. **Check the first proof outcome**
+5. **Check the first proof outcome**
 
    You are past the newcomer hurdle when both are true:
 
    - fresh output exists under ``~/log/execute/flight/``
    - you can open the default ``ANALYSIS`` view for ``flight_project``
 
-5. **Only after that, branch into alternative paths**
+6. **Only after that, branch into alternative paths**
 
    Do not switch to packaged install, notebook-first, or cluster setup before
    this local proof works once from end to end.
@@ -59,17 +62,15 @@ Use this path exactly once before trying anything broader:
 If the first proof fails
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Do not broaden the problem immediately. Stay on the built-in local path and run
-the explicit newcomer proof first::
+Do not broaden the problem immediately. Stay on the built-in local path.
+Use :doc:`newcomer-troubleshooting` first.
 
-    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
-
-If you also want the built-in app installer and seeded helper scripts checked in
-the same run::
+If you want the preflight to also check the built-in installer and seeded helper
+scripts::
 
     uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install
 
-Then use :doc:`newcomer-troubleshooting` for the five common first-run failures:
+The troubleshooting page covers the common first-run failures:
 
 - missing ``uv``
 - installer failure
@@ -96,6 +97,8 @@ Use these only after the local ``flight_project`` proof works once.
    :target: https://8501-01kpr4g5725r9x13f4ygtvyd52.cloudspaces.litng.ai/?active_app=flight_project
    :alt: AGILAB demo
 
+Hosted web UI demo on the built-in ``flight_project``.
+
 **Published package route** (fastest install, less representative of the full product path)::
 
     mkdir ~/agi-workspace && cd ~/agi-workspace
@@ -104,12 +107,10 @@ Use these only after the local ``flight_project`` proof works once.
     uv pip install agilab
     uv run agilab
 
-**Notebook-first route** (best if you intentionally want ``agi-core`` before the UI)::
+**agi-core demo**:
 
-    git clone https://github.com/ThalesGroup/agilab.git
-    cd agilab
-    ./install.sh --install-apps
-    uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
+- Use :doc:`notebook-quickstart` when you intentionally want the notebook-first
+  runtime path before the web UI.
 
 Private apps or framework contributor setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -132,11 +133,11 @@ workflow. ``pycharm/setup_pycharm.py`` mirrors web interface run configurations 
 Next steps
 ^^^^^^^^^^
 
-- :doc:`newcomer-guide` for the mental model and what to ignore on day 1.
-- :doc:`demos` for the public demo entry-point chooser.
-- :doc:`architecture` for how the web UI, ``agi_core``, ``agi_env``, and
-  ``agi_cluster`` fit together.
-- :doc:`cluster` when you are intentionally moving from local proof to SSH or
+- :doc:`demos` if you want browser-first entry points instead of the local
+  first proof.
+- :doc:`notebook-quickstart` if you intentionally want the ``agi-core``
+  notebook path.
+- :doc:`cluster` only after the local proof works and you are ready for SSH or
   multi-node execution.
 
 Support

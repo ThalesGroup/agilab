@@ -1,38 +1,14 @@
 agi-core Demo
 =============
 
-This is the thinnest AGILab onboarding path for Python users who prefer a
-notebook over the web UI. It uses ``agi-core`` directly through
-``AgiEnv`` and ``AGI.run(...)`` and keeps the first run local.
+Use this page only when you intentionally want the notebook path first.
 
-Use this page when you want a first successful run with less UI surface area
-and want to stay in a notebook while learning the runtime. It is a supported
-local-first onboarding path for newcomers who prefer code over UI.
+If you want the main AGILAB product path first, use :doc:`quick-start` and run
+the built-in ``flight_project`` from the web UI. This notebook path is for
+Python users who prefer ``AgiEnv`` and ``AGI.run(...)`` before the UI.
 
-When this path helps
---------------------
-
-- You already work comfortably in Jupyter.
-- You want to understand the runtime from code first.
-- You want a smaller mental model before learning PROJECT, ORCHESTRATE,
-  PIPELINE, and ANALYSIS.
-
-What this path does not cover
------------------------------
-
-- App selection through the AGILab sidebar.
-- Generated snippets from ORCHESTRATE.
-- Pipeline editing in the UI.
-- Cluster or service-mode operations.
-
-You can stay in notebook mode for your first local runs. Move to the web UI
-later when you want the higher-level AGILAB workflow around the same API.
-
-Colab launch flow
------------------
-
-Recommended notebook
-^^^^^^^^^^^^^^^^^^^^
+Recommended notebook launchers
+------------------------------
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
    :target: https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb
@@ -42,36 +18,30 @@ Recommended notebook
    :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb
    :alt: Open In Kaggle
 
-- `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
-  clones the repository, prepares an isolated runtime venv under
-  ``/content``, and runs the built-in MyCode example app
-  (internal id ``mycode_project``) without mutating the base Colab kernel
-  packages.
-- `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
-  clones the repository inside Kaggle, prepares an isolated runtime venv under
-  ``/kaggle/working``, and runs the built-in MyCode example app
-  (internal id ``mycode_project``) without mutating the base Kaggle kernel
-  packages.
-  Kaggle note: enable Internet in the notebook settings for the first install.
+- Colab source route:
+  `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
+- Kaggle source route:
+  `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
+
+Both launchers clone the repository, prepare an isolated runtime venv, and run
+the built-in MyCode example app (internal id ``mycode_project``) without
+mutating the base notebook kernel packages.
+
+Kaggle note: enable Internet in the notebook settings for the first install.
 
 Other notebook entry points
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------
 
 - `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
-  is a source-checkout notebook that clones the repository, prepares an
-  isolated runtime venv under ``/content``, benchmarks the built-in MyCode
-  example app (internal id ``mycode_project``) across the default AGILAB mode
-  sweep, and renders a ranked comparison table without mutating the base Colab
-  kernel packages.
+  benchmarks the built-in MyCode example app across the default AGILAB mode
+  sweep and renders a ranked comparison table.
 - `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
-  is an advanced source-checkout notebook for a data-worker app and a
-  DAG-style app.
+  is the advanced source notebook for a data-worker app and a DAG-style app.
 - `Worker Paths <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb>`_
-  is an advanced source-checkout notebook for worker-class and source-path
-  inspection.
+  is the advanced source notebook for worker-class and source-path inspection.
 
 Published-package variants
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 Use these only when you explicitly want the current PyPI release instead of
 GitHub ``main``.
@@ -148,8 +118,8 @@ Cell 3: inspect the run artifacts.
    log_root = Path.home() / "log" / "execute" / "mycode"
    print(log_root)
 
-How this maps back to the GUI
------------------------------
+How this maps back to the web UI
+--------------------------------
 
 - Notebook ``AgiEnv(apps_path=..., app="mycode_project")`` corresponds to
   choosing the built-in MyCode example app in **PROJECT**.
@@ -160,20 +130,10 @@ How this maps back to the GUI
 - You only need to move to **PIPELINE** when you want saved, repeatable steps
   instead of ad hoc cells.
 
-Optional next step
-------------------
-
-After one successful notebook run, you can keep working in notebooks or move to
-the UI:
-
-1. Open the AGILab web UI.
-2. Select the same MyCode example app (internal id ``mycode_project``).
-3. Recreate the run in **ORCHESTRATE** if you want to learn the UI vocabulary.
-
 Related pages
 -------------
 
+- :doc:`quick-start` for the main AGILAB onboarding path.
 - :doc:`newcomer-guide` for the overall onboarding strategy.
-- :doc:`quick-start` for the standard package and source install paths.
 - :doc:`distributed-workers` once the local path works and you want to add
   scheduler and worker hosts.

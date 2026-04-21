@@ -4,8 +4,8 @@ Newcomer Guide
 If you are new to AGILab, optimize for one outcome only: one successful local
 run of the built-in ``flight_project`` from the web UI.
 
-This page gives the mental model. :doc:`quick-start` owns the exact commands.
-:doc:`newcomer-troubleshooting` owns the first-failure path.
+This page gives the mental model only. :doc:`quick-start` owns the exact
+commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
 
 The first proof is deliberately narrow:
 use a source checkout, run the built-in ``flight_project`` locally from the
@@ -23,19 +23,15 @@ Skip these until the local ``flight_project`` proof works once:
 - published-package mode
 - notebook-first route
 - private or optional app repositories
-- PyCharm or VS Code convenience flows
+- IDE convenience flows
 
-The core ideas, in plain language
----------------------------------
+The four words you need
+-----------------------
 
-- **App / project**: a runnable AGILab workload with settings, manifests, and
-  worker code.
-- **ORCHESTRATE**: the page that turns settings into install, distribute, and
-  run actions.
-- **PIPELINE**: the place to save and replay generated steps instead of
-  retyping code snippets.
-- **ANALYSIS**: Streamlit pages for post-run inspection.
-- **Worker**: the isolated runtime that actually executes the workload.
+- **PROJECT**: where you choose the app you want to run.
+- **ORCHESTRATE**: where you install and execute it.
+- **ANALYSIS**: where you look at the result.
+- **Worker**: the isolated runtime that actually executes the app.
 
 Common newcomer traps
 ---------------------
@@ -50,18 +46,14 @@ Common newcomer traps
 - **Running ``uvx agilab`` from the source tree**:
   from a repository checkout, use the source commands documented in
   :doc:`quick-start` so you do not accidentally run the published wheel.
-- **Contributors editing generated docs output**:
-  edit ``docs/source`` in the docs repository, not ``docs/html``.
 
 Where to go next
 ----------------
 
-- :doc:`quick-start` for the exact first-proof commands and the optional
-  alternative routes after that.
+- :doc:`quick-start` for the exact first-proof commands.
 - :doc:`newcomer-troubleshooting` if the local ``flight_project`` proof fails.
-- :doc:`compatibility-matrix` for the current validated versus documented
-  public slices.
-- :doc:`notebook-quickstart` only after you intentionally choose the
-  ``agi-core`` notebook route.
+- :doc:`demos` if you want the public demo chooser instead of a local install.
+- :doc:`notebook-quickstart` only if you intentionally choose the
+  ``agi-core`` notebook path.
 - :doc:`distributed-workers` only after the local proof works and you are ready
   for SSH or multi-node execution.
