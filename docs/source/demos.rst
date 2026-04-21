@@ -19,6 +19,7 @@ You do not need to install AGILAB to watch these demos.
 If you are new to AGILAB, start with the short `flight_project` first-proof reel:
 
 - `AGILAB in 45 Seconds: First proof with flight_project <https://youtu.be/kOMDyvbnC9w>`_
+- `Download the slideshow deck <AGILAB_Demo_Slideshow.pptx>`_
 
 If you want the full four-page tour, use the `UAV Relay Queue` reel:
 
@@ -74,4 +75,5 @@ See Also
 
 - :doc:`agilab-help` for the core page tour.
 - :doc:`apps-pages` for the page bundles used from ``ANALYSIS``.
+- :download:`AGILAB demo slideshow <AGILAB_Demo_Slideshow.pptx>`
 - `Video tutorial and slideshow guide in the repository <https://github.com/ThalesGroup/agilab/blob/main/docs/source/demo_capture_script.md>`_
