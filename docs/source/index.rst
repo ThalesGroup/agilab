@@ -29,6 +29,7 @@ references, and example projects.
    introduction
    features
    notebook-quickstart
+   notebook-advanced
    agilab
 
 .. toctree::
