@@ -15,9 +15,9 @@ environments, and notebooks.
 ## Demo
 
 [![agi-core demo](https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
-[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](mailto:focus@thalesgroup.com?subject=AGILAB%20demo%20request)
+[![AGILAB demo](https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge)](https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request)
 
-- `AGILAB demo`: request a guided demo at `focus@thalesgroup.com`
+- `AGILAB demo`: demo available on request via GitHub issue
 - `agi-core demo`: notebook-first runtime demo on Kaggle
 
 If you want the most truthful first proof, use the source-checkout

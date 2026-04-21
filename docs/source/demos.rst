@@ -17,13 +17,13 @@ Choose a demo
    :alt: agi-core demo
 
 .. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
-   :target: mailto:focus@thalesgroup.com?subject=AGILAB%20demo%20request
+   :target: https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request
    :alt: AGILAB demo
 
 What each route is for
 ----------------------
 
-- **AGILAB demo**: request a guided demo at ``focus@thalesgroup.com``.
+- **AGILAB demo**: demo available on request via GitHub issue.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
 - **Quick start**: the safest truthful first proof of the full product path.

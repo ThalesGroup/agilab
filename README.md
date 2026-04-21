@@ -46,10 +46,10 @@ The core idea is simple: keep one app on one control path from setup to run to v
 
 <p>
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge" alt="agi-core demo" /></a>
-  <a href="mailto:focus@thalesgroup.com?subject=AGILAB%20demo%20request"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
 </p>
 
-- `AGILAB demo`: request a guided demo at `focus@thalesgroup.com`
+- `AGILAB demo`: demo available on request via GitHub issue
 - `agi-core demo`: notebook-first runtime demo on Kaggle
 
 ## First Real Run
