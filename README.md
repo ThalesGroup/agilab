@@ -104,6 +104,8 @@ uv run agilab
 
 Recommended Colab entry point:
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb)
+
 - [`Open First Run In Colab`](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb): source-checkout notebook that clones the repo, installs editable AGILAB and core packages, and runs `mycode_project`
 
 Other notebook entry points:
