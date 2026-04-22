@@ -919,6 +919,32 @@ def test_ensure_docs_repo_release_ready_rejects_unrelated_dirty_paths(tmp_path, 
         raise AssertionError("ensure_docs_repo_release_ready() should reject unrelated dirty paths")
 
 
+def test_generate_docs_in_docs_repository_runs_in_docs_repo(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    calls: list[tuple[list[str], Path | None]] = []
+
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "env:DOCS_REPOSITORY"))
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda cmd, cwd=None, env=None, timeout=None: calls.append((cmd, cwd)),
+    )
+
+    module.generate_docs_in_docs_repository()
+
+    assert calls == [
+        (["uv", "sync", "--dev", "--group", "sphinx"], docs_repo),
+        (
+            ["uv", "run", "python", "docs/gen-docs.py", "--agilab-repository", str(module.REPO_ROOT)],
+            docs_repo,
+        ),
+    ]
+
+
 def test_git_commit_docs_repository_pushes_only_release_managed_docs_paths(monkeypatch, tmp_path) -> None:
     module = _load_pypi_publish()
 
@@ -978,6 +1004,76 @@ def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_
         (module.REPO_ROOT, "v2026.04.21", "2026.04.21", "origin"),
         (docs_repo, "v2026.04.21", "2026.04.21", "origin"),
     ]
+
+
+def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.04.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=True,
+    )
+
+    order: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "env:DOCS_REPOSITORY"))
+    monkeypatch.setattr(module, "ensure_docs_repo_release_ready", lambda _repo: [])
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
+    monkeypatch.setattr(module, "generate_docs_in_docs_repository", lambda: order.append("gen-docs"))
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
+    monkeypatch.setattr(module, "git_commit_docs_repository", lambda *_args, **_kwargs: order.append("commit-docs"))
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.04.23")
+    monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+
+    module.main()
+
+    assert order == ["preflight", "gen-docs", "commit", "commit-docs", "tag"]
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:

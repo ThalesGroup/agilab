@@ -1124,18 +1124,18 @@ def create_and_push_tag(tag: str, *, include_apps_repo: bool = True, include_doc
         print(f"[git] created and pushed {tag_ref} in docs repository ({docs_repo})")
 
 
-def generate_docs_from_apps_repository():
-    apps_repo, source = find_apps_repository()
-    if not apps_repo:
-        print("[docs] apps repository not found; skipping --gen-docs")
+def generate_docs_in_docs_repository():
+    docs_repo, source = find_docs_repository()
+    if not docs_repo:
+        print("[docs] docs repository not found; skipping --gen-docs")
         return
-    print(f"[docs] generating docs in {apps_repo} (source={source})")
+    print(f"[docs] generating docs in {docs_repo} (source={source})")
     commands = [
         ["uv", "sync", "--dev", "--group", "sphinx"],
         ["uv", "run", "python", "docs/gen-docs.py", "--agilab-repository", str(REPO_ROOT)],
     ]
     for cmd in commands:
-        run(cmd, cwd=apps_repo)
+        run(cmd, cwd=docs_repo)
 
 
 def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
@@ -1444,6 +1444,12 @@ def main():
         if cfg.purge_after:
             cleanup_leave_latest(cfg, version_targets)
 
+        if cfg.gen_docs:
+            if cfg.dry_run:
+                print("[docs] --gen-docs requested; skipping because this is a dry-run")
+            else:
+                generate_docs_in_docs_repository()
+
         # Git tag/commit (optional)
         if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
             with defer_sigint("release metadata finalization") as deferred_interrupt:
@@ -1459,13 +1465,6 @@ def main():
                 raise KeyboardInterrupt("Interrupted after release metadata finalization")
         else:
             release_finalized = upload_completed
-
-        if cfg.gen_docs:
-            if cfg.dry_run:
-                print("[docs] --gen-docs requested; skipping because this is a dry-run")
-            else:
-                generate_docs_from_apps_repository()
-                release_finalized = True
 
     finally:
         if removed_symlinks:
