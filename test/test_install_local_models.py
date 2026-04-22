@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -9,9 +10,18 @@ INSTALL_SH = REPO_ROOT / "install.sh"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
 
 
-def _extract_function(script_text: str, function_name: str, next_function_name: str) -> str:
+_FUNCTION_DEF_RE = re.compile(r"(?m)^[A-Za-z0-9_]+\(\) \{")
+
+
+def _extract_function(script_text: str, function_name: str, next_function_name: str = "") -> str:
     start = script_text.index(f"{function_name}() {{")
-    end = script_text.index(f"\n{next_function_name}()", start)
+    end = -1
+    if next_function_name:
+        end = script_text.find(f"\n{next_function_name}()", start)
+    if end == -1:
+        search_start = start + len(f"{function_name}() {{")
+        next_match = _FUNCTION_DEF_RE.search(script_text, pos=search_start)
+        end = next_match.start() if next_match else len(script_text)
     return script_text[start:end]
 
 
@@ -23,7 +33,10 @@ def _run_shell_function(
     argument: str,
 ) -> str:
     script_text = script_path.read_text(encoding="utf-8")
-    function_body = _extract_function(script_text, function_name, next_function_name)
+    function_chunks = [_extract_function(script_text, function_name, next_function_name)]
+    if invoked_function_name != function_name:
+        function_chunks.append(_extract_function(script_text, invoked_function_name))
+    function_body = "\n".join(function_chunks)
     bash_script = f"""#!/usr/bin/env bash
 set -euo pipefail
 warn() {{
