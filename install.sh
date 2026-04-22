@@ -54,6 +54,7 @@ SOURCE="local"
 INSTALL_APPS_FLAG=0
 TEST_APPS_FLAG=0
 TEST_CORE_FLAG=0
+TEST_ROOT_FLAG=0
 APPS_REPOSITORY=""
 CUSTOM_INSTALL_APPS=""
 INSTALL_ALL_SENTINEL="__AGILAB_ALL_APPS__"
@@ -830,6 +831,30 @@ maybe_run_core_tests() {
     fi
 }
 
+run_root_tests() {
+    local repo_root="$AGI_INSTALL_PATH"
+
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}RUNNING ROOT AGILAB TEST SUITE${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    pushd "$repo_root" > /dev/null
+    if ! $UV run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
+        echo -e "${RED}Agilab unit tests failed. Aborting install.${NC}"
+        popd > /dev/null
+        exit 1
+    fi
+    popd > /dev/null
+}
+
+maybe_run_root_tests() {
+    if (( TEST_ROOT_FLAG )); then
+        run_root_tests
+    else
+        echo -e "${BLUE}Skipping root AGILAB test suite by default (use --test-root to enable).${NC}"
+    fi
+}
+
 run_repository_tests_with_coverage() {
     local repo_root="$AGI_INSTALL_PATH"
     local coverage_status=0
@@ -927,6 +952,14 @@ run_repository_tests_with_coverage() {
     return $coverage_status
 }
 
+maybe_run_repository_tests_with_coverage() {
+    if (( TEST_APPS_FLAG )); then
+        run_repository_tests_with_coverage || warn "Repository coverage run encountered issues; review the log output."
+    else
+        echo -e "${BLUE}Skipping app/apps-pages repository coverage by default (use --test-apps to enable).${NC}"
+    fi
+}
+
 install_apps() {
   dir="$AGI_INSTALL_PATH/src/agilab"
   local rc=0
@@ -1003,7 +1036,7 @@ install_pycharm_script() {
 }
 
 usage() {
-  echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-apps|--apps-test] [--test-core]"
+  echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
   echo "       [--install-local-models mistral,qwen,deepseek]"
     exit 1
@@ -1053,6 +1086,10 @@ while [[ "$#" -gt 0 ]]; do
         --test-apps|--apps-test)
             TEST_APPS_FLAG=1
             INSTALL_APPS_FLAG=1
+            shift
+            ;;
+        --test-root)
+            TEST_ROOT_FLAG=1
             shift
             ;;
         --test-core)
@@ -1136,13 +1173,7 @@ $UV pip install -e src/agilab/core/agi-core
 $UV pip install -e .
 popd > /dev/null
 
-# run root-level tests once agilab is installed
-pushd "$AGI_INSTALL_PATH" > /dev/null
-if ! $UV run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
-    echo -e "${RED}Agilab unit tests failed. Aborting install.${NC}"
-    exit 1
-fi
-popd > /dev/null
+maybe_run_root_tests
 
 write_env_values
 configure_streamlit
@@ -1159,7 +1190,7 @@ if (( INSTALL_APPS_FLAG )); then
     FINAL_OK=0
     run_extras=false
   else
-    run_repository_tests_with_coverage || warn "Repository coverage run encountered issues; review the log output."
+    maybe_run_repository_tests_with_coverage
     FINAL_STATUS="Installation complete."
   fi
 else
