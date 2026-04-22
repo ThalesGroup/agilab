@@ -47,6 +47,11 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
     monkeypatch.delenv("APPS_REPOSITORY", raising=False)
     monkeypatch.delenv("AGILAB_APPS_REPOSITORY", raising=False)
     monkeypatch.delenv("APP_DEFAULT", raising=False)
+    # Root tests must not inherit developer-shell secrets. Individual tests that
+    # need these values should opt in explicitly with monkeypatch/setenv.
+    monkeypatch.delenv("CLUSTER_CREDENTIALS", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
 
     share_dir = fake_home / ".local" / "share" / "agilab"
     share_dir.mkdir(parents=True, exist_ok=True)
