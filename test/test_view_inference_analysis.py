@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -185,6 +186,142 @@ def test_view_inference_analysis_preserves_explicit_empty_selection() -> None:
     assert module._coerce_selection([], options, fallback=["run_a"]) == []
     assert module._coerce_selection(None, options, fallback=["run_a"]) == ["run_a"]
     assert module._coerce_selection(["missing"], options, fallback=["run_a"]) == ["run_a"]
+
+
+def test_view_inference_analysis_loads_page_defaults_from_app_settings(tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        f"""
+[pages.{module.PAGE_KEY}]
+base_choice = "AGI_SHARE_DIR"
+selected_files = ["allocations/run_a.csv"]
+""",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(app_settings_file=str(settings_path))
+
+    payload = module._load_app_settings(env)
+    defaults = module._get_page_defaults(env)
+
+    assert payload["pages"][module.PAGE_KEY]["base_choice"] == "AGI_SHARE_DIR"
+    assert defaults == {
+        "base_choice": "AGI_SHARE_DIR",
+        "selected_files": ["allocations/run_a.csv"],
+    }
+
+    env.app_settings_file = str(tmp_path / "missing.toml")
+    assert module._load_app_settings(env) == {}
+    assert module._get_page_defaults(env) == {}
+
+    invalid_path = tmp_path / "invalid.toml"
+    invalid_path.write_text("pages = [", encoding="utf-8")
+    env.app_settings_file = str(invalid_path)
+    assert module._load_app_settings(env) == {}
+
+
+def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths(tmp_path: Path) -> None:
+    module = _load_module()
+    share_root = tmp_path / "share"
+    export_root = tmp_path / "export"
+    custom_root = tmp_path / "custom"
+    env = SimpleNamespace(
+        target="flight",
+        AGILAB_EXPORT_ABS=str(export_root),
+        share_root_path=lambda: str(share_root),
+    )
+
+    assert module._coerce_str_list(" run_a,run_b;\nrun_b\n\n run_c ") == ["run_a", "run_b", "run_c"]
+    assert module._coerce_str_list(("run_a", "run_b", "run_a")) == ["run_a", "run_b"]
+    assert module._coerce_str_list(42) == ["42"]
+    assert module._default_dataset_subpath(env, tmp_path / "demo_project") == "flight/pipeline"
+
+    env.target = ""
+    assert module._default_dataset_subpath(env, tmp_path / "demo_project") == "demo/pipeline"
+    assert module._resolve_base_path(env, "AGI_SHARE_DIR", "") == share_root
+    assert module._resolve_base_path(env, "AGILAB_EXPORT", "") == export_root
+    assert export_root.exists()
+    assert module._resolve_base_path(env, "custom", str(custom_root)) == custom_root
+    assert module._resolve_base_path(env, "custom", "   ") is None
+    assert module._resolve_dataset_root(None, "demo/pipeline") is None
+    assert module._resolve_dataset_root(share_root, "demo/pipeline") == share_root / "demo" / "pipeline"
+    assert module._resolve_dataset_root(share_root, "") == share_root
+
+
+def test_view_inference_analysis_discovers_visible_allocation_files_and_labels_runs(tmp_path: Path) -> None:
+    module = _load_module()
+    root = tmp_path / "dataset"
+    root.mkdir()
+    (root / "allocations_root.csv").write_text("time_index,latency\n0,10\n", encoding="utf-8")
+    (root / "nested").mkdir()
+    (root / "nested" / "allocations_main.parquet").write_text("placeholder", encoding="utf-8")
+    (root / ".hidden").mkdir()
+    (root / ".hidden" / "allocations_secret.csv").write_text("time_index,latency\n0,20\n", encoding="utf-8")
+
+    discovered = module._discover_allocation_files(
+        root,
+        ["**/allocations*.csv", "**/allocations*.parquet"],
+    )
+
+    assert [path.relative_to(root).as_posix() for path in discovered] == [
+        "allocations_root.csv",
+        "nested/allocations_main.parquet",
+    ]
+    assert module._is_hidden_relative(Path(".hidden/allocations_secret.csv")) is True
+    assert module._relative_path_label(root / "nested" / "allocations_main.parquet", root) == (
+        "nested/allocations_main.parquet"
+    )
+    assert module._run_label(root / "nested" / "allocations_main.parquet", root) == "nested"
+    assert module._matches_any_pattern("nested/allocations_main.parquet", ["**/allocations*.parquet"]) is True
+    assert module._matches_any_pattern("allocations_root.csv", ["allocations*.csv"]) is True
+    assert module._matches_any_pattern("nested/ignored.txt", ["**/allocations*.csv"]) is False
+
+
+def test_view_inference_analysis_parses_structured_cells_and_coerces_time_index() -> None:
+    module = _load_module()
+
+    assert module._parse_structured_value('{"source": 1}') == {"source": 1}
+    assert module._parse_structured_value("[1, 2, 3]") == [1, 2, 3]
+    assert module._parse_structured_value("not structured") == "not structured"
+    assert module._parse_allocations_cell('{"source": 1, "destination": 2}') == [
+        {"source": 1, "destination": 2}
+    ]
+    assert module._parse_allocations_cell('[{"source": 1}, "bad", {"destination": 2}]') == [
+        {"source": 1},
+        {"destination": 2},
+    ]
+    assert module._parse_allocations_cell("bad") == []
+    assert module._is_scalar_like(None) is True
+    assert module._is_scalar_like("42") is True
+    assert module._is_scalar_like("[1, 2]") is False
+
+    aliased = pd.DataFrame(
+        {
+            "SRC": [1, 3],
+            "To": [2, 4],
+            "delivered_mbps": [0.5, 0.7],
+            "latency_ms": [12.0, 14.0],
+            "selected_path": ["[1, 2]", "[3, 4]"],
+            "path_capacity": [0.8, 0.9],
+            "step": [2, "bad"],
+            "time_s": [0.5, 1.5],
+        }
+    )
+
+    normalized = module._coerce_time_index(module._apply_column_aliases(aliased.copy()))
+
+    assert module._pick_ci_column(aliased, ("source", "src", "from")) == "SRC"
+    assert normalized["source"].tolist() == [1, 3]
+    assert normalized["destination"].tolist() == [2, 4]
+    assert normalized["delivered_bandwidth"].tolist() == pytest.approx([0.5, 0.7])
+    assert normalized["latency"].tolist() == pytest.approx([12.0, 14.0])
+    assert normalized["path"].tolist() == ["[1, 2]", "[3, 4]"]
+    assert normalized["capacity_mbps"].tolist() == pytest.approx([0.8, 0.9])
+    assert normalized["time_index"].tolist() == [2, 1]
+    assert normalized["t_now_s"].tolist() == pytest.approx([0.5, 1.5])
+
+    fallback = module._coerce_time_index(pd.DataFrame({"latency": [10.0, 20.0]}))
+    assert fallback["time_index"].tolist() == [0, 1]
 
 
 def test_view_inference_analysis_aligns_heatmap_frames_to_shared_axes() -> None:
