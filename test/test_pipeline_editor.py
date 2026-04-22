@@ -37,6 +37,10 @@ def _load_pipeline_editor_with_missing(*missing_modules: str):
 
 
 pipeline_editor = _load_module("agilab.pipeline_editor", "src/agilab/pipeline_editor.py")
+notebook_export_support = _load_module(
+    "agilab.notebook_export_support",
+    "src/agilab/notebook_export_support.py",
+)
 
 
 class _State(dict):
@@ -1088,6 +1092,96 @@ def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
     assert [cell["source"] for cell in notebook["cells"]] == [["print('raw')\n"], ["print('dict')\n"]]
+
+
+def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp_path):
+    pages_root = tmp_path / "apps-pages"
+    page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+
+    source_app = tmp_path / "apps" / "demo_project"
+    source_settings = source_app / "src" / "app_settings.toml"
+    source_settings.parent.mkdir(parents=True, exist_ok=True)
+    source_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    workspace_settings = tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app=source_app,
+        app_settings_file=workspace_settings,
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: source_settings,
+        read_agilab_path=lambda: tmp_path,
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("demo_project"),
+        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        project_name="demo_project",
+    )
+
+    assert context.project_name == "demo_project"
+    assert context.active_app == str(source_app)
+    assert context.app_settings_file == str(workspace_settings)
+    assert tuple(page.module for page in context.related_pages) == ("view_demo",)
+    assert context.related_pages[0].script_path == str(page_script.resolve())
+
+
+def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_analysis_helpers(tmp_path):
+    toml_path = tmp_path / "lab_steps.toml"
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(tmp_path),
+        active_app=str(tmp_path / "apps" / "demo_project"),
+        app_settings_file=str(tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"),
+        pages_root=str(tmp_path / "apps-pages"),
+        repo_root=str(tmp_path),
+        related_pages=(
+            notebook_export_support.RelatedPageExport(
+                module="view_demo",
+                script_path=str(tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "view_demo.py"),
+            ),
+        ),
+    )
+
+    pipeline_editor.toml_to_notebook(
+        {
+            "demo_project": [
+                {
+                    "D": "Prepare data",
+                    "Q": "load and clean",
+                    "M": "gpt-demo",
+                    "C": "print('step-0')\n",
+                    "E": str(tmp_path / "venv-demo"),
+                    "R": "agi.run",
+                }
+            ]
+        },
+        toml_path,
+        export_context=context,
+    )
+
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    metadata = notebook["metadata"]["agilab"]
+    helper_source = "".join(notebook["cells"][1]["source"])
+    analysis_source = "".join(notebook["cells"][-1]["source"])
+
+    assert metadata["export_mode"] == "supervisor"
+    assert metadata["project_name"] == "demo_project"
+    assert metadata["steps"][0]["runtime"] == "agi.run"
+    assert metadata["steps"][0]["env"] == str(tmp_path / "venv-demo")
+    assert metadata["related_pages"][0]["module"] == "view_demo"
+    assert "run_agilab_step" in helper_source
+    assert "run_agilab_pipeline" in helper_source
+    assert "analysis_launch_command" in helper_source
+    assert "view_demo" in analysis_source
+    assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
 
 
 def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_path):

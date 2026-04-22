@@ -69,6 +69,27 @@ except ModuleNotFoundError:
     _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
     _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
 
+try:
+    from agilab.notebook_export_support import (
+        build_notebook_document,
+        build_notebook_export_context,
+    )
+except ModuleNotFoundError:
+    _notebook_export_support_path = Path(__file__).resolve().parent / "notebook_export_support.py"
+    import importlib.util
+    _notebook_export_support_spec = importlib.util.spec_from_file_location(
+        "agilab_notebook_export_support_fallback",
+        _notebook_export_support_path,
+    )
+    if _notebook_export_support_spec is None or _notebook_export_support_spec.loader is None:
+        raise
+    _notebook_export_support_module = importlib.util.module_from_spec(_notebook_export_support_spec)
+    import sys
+    sys.modules["agilab_notebook_export_support_fallback"] = _notebook_export_support_module
+    _notebook_export_support_spec.loader.exec_module(_notebook_export_support_module)
+    build_notebook_document = _notebook_export_support_module.build_notebook_document
+    build_notebook_export_context = _notebook_export_support_module.build_notebook_export_context
+
 logger = logging.getLogger(__name__)
 
 
@@ -500,28 +521,13 @@ def _restore_pipeline_snapshot(
         return str(exc)
 
 
-def toml_to_notebook(toml_data: Dict[str, Any], toml_path: Path) -> None:
+def toml_to_notebook(
+    toml_data: Dict[str, Any],
+    toml_path: Path,
+    export_context: Any | None = None,
+) -> None:
     """Convert TOML steps data to a Jupyter notebook file."""
-    notebook_data = {"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
-    for module, steps in toml_data.items():
-        if module == "__meta__" or not isinstance(steps, list):
-            continue
-        for step in steps:
-            code_text = ""
-            if isinstance(step, dict):
-                code_text = str(step.get("C", "") or "")
-            elif isinstance(step, str):
-                code_text = step
-            if not code_text:
-                continue
-            code_cell = {
-                "cell_type": "code",
-                "execution_count": None,
-                "metadata": {},
-                "outputs": [],
-                "source": code_text.splitlines(keepends=True),
-            }
-            notebook_data["cells"].append(code_cell)
+    notebook_data = build_notebook_document(toml_data, toml_path, export_context=export_context)
     notebook_path = toml_path.with_suffix(".ipynb")
     try:
         with open(notebook_path, "w", encoding="utf-8") as nb_file:
@@ -750,7 +756,10 @@ def notebook_to_toml(
     return cell_count
 
 
-def refresh_notebook_export(steps_file: Path) -> Path | None:
+def refresh_notebook_export(
+    steps_file: Path,
+    export_context: Any | None = None,
+) -> Path | None:
     """Rebuild the notebook export for a given steps file and return its path."""
     if not steps_file.exists():
         return None
@@ -764,7 +773,7 @@ def refresh_notebook_export(steps_file: Path) -> Path | None:
         )
         logger.error("Unable to load steps file %s for notebook export: %s", steps_file, exc)
         return None
-    toml_to_notebook(steps, steps_file)
+    toml_to_notebook(steps, steps_file, export_context=export_context)
     return steps_file.with_suffix(".ipynb")
 
 
