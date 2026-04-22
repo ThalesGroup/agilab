@@ -348,6 +348,7 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     # However AppTest runs the whole script. In AppTest, expander contents are accessible
     assert "env_editor_new_key" in [ti.key for ti in at.text_input]
     assert "env_editor_new_value" in [ti.key for ti in at.text_input]
+    assert at.text_input(key="env_editor_val_CLUSTER_CREDENTIALS").value == ""
     _assert_docs_actions_present(at)
     
     # Set values in the text inputs

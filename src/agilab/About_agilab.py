@@ -761,10 +761,17 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     existing_entries = [entry for entry in entries if entry["type"] == "entry"]
 
     # Build a last-wins value map so that the form shows the most recent value
-    # for each key (AgiEnv.set_env_var appends updates at the end of the file).
+    # for each *active* key (AgiEnv.set_env_var appends updates at the end of the file).
+    # Commented template/example lines are documentation, not live current values.
     last_value_map: Dict[str, str] = {}
+    commented_default_map: Dict[str, str] = {}
     for entry in existing_entries:
-        last_value_map[entry["key"]] = entry["value"].strip()
+        key = entry["key"]
+        value = entry["value"].strip()
+        if entry.get("commented"):
+            commented_default_map[key] = value
+            continue
+        last_value_map[key] = value
     existing_values = dict(last_value_map)
 
     # Only show keys defined in the template .env (the canonical user-facing
@@ -800,6 +807,10 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
         updated_values: Dict[str, str] = {}
         for key in unique_keys:
             default_value = last_value_map.get(key, template_defaults.get(key, ""))
+            if key == CLUSTER_CREDENTIALS_KEY and key not in last_value_map:
+                # Treat the commented template credential as documentation, not a
+                # live default value that would be re-saved into the user's env.
+                default_value = ""
             if key == CLUSTER_CREDENTIALS_KEY and default_value == KEYRING_SENTINEL:
                 default_value = (
                     str(getattr(env, "CLUSTER_CREDENTIALS", "") or "")
@@ -821,7 +832,11 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     if submitted:
         cleaned_updates: Dict[str, str] = {}
         for key in unique_keys:
-            cleaned_updates[key] = st.session_state.get(f"env_editor_val_{key}", "").strip()
+            submitted_value = st.session_state.get(f"env_editor_val_{key}", "").strip()
+            untouched_template_default = commented_default_map.get(key, template_defaults.get(key, ""))
+            if key not in last_value_map and submitted_value == untouched_template_default:
+                continue
+            cleaned_updates[key] = submitted_value
 
         new_entry_data = None
         new_key_clean = new_key.strip()
