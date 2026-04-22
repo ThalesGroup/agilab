@@ -1,0 +1,26 @@
+[notebook_export]
+
+[[notebook_export.related_pages]]
+module = "view_uav_queue_analysis"
+label = "UAV Queue Analysis"
+description = "Inspect queue buildup, drops, per-packet events, node positions, and route usage for the lightweight UAV queue demo."
+artifacts = [
+  "*_summary_metrics.json",
+  "*_queue_timeseries.csv",
+  "*_packet_events.csv",
+  "*_node_positions.csv",
+  "*_routing_summary.csv",
+]
+launch_note = "Open this first for the domain-specific queue view over the current run directory."
+
+[[notebook_export.related_pages]]
+module = "view_maps_network"
+label = "Maps Network"
+description = "Reuse the same UAV queue run as a generic topology, allocation, and trajectory map."
+artifacts = [
+  "pipeline/topology.gml",
+  "pipeline/allocations_steps.csv",
+  "*_trajectory_summary.json",
+  "*_trajectory*.csv",
+]
+launch_note = "Use this when you want the generic network and trajectory surface instead of the dedicated queue page."

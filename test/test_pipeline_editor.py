@@ -1104,6 +1104,20 @@ def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp
     source_settings = source_app / "src" / "app_settings.toml"
     source_settings.parent.mkdir(parents=True, exist_ok=True)
     source_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+    (source_app / "notebook_export.toml").write_text(
+        """
+[notebook_export]
+
+[[notebook_export.related_pages]]
+module = "view_demo"
+label = "Demo Analysis"
+description = "Inspect demo artifacts."
+artifacts = ["demo.json", "demo.csv"]
+launch_note = "Open this after the run."
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
 
     workspace_settings = tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"
     workspace_settings.parent.mkdir(parents=True, exist_ok=True)
@@ -1129,7 +1143,65 @@ def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp
     assert context.active_app == str(source_app)
     assert context.app_settings_file == str(workspace_settings)
     assert tuple(page.module for page in context.related_pages) == ("view_demo",)
+    assert context.related_pages[0].label == "Demo Analysis"
+    assert context.related_pages[0].description == "Inspect demo artifacts."
+    assert context.related_pages[0].artifacts == ("demo.json", "demo.csv")
+    assert context.related_pages[0].launch_note == "Open this after the run."
     assert context.related_pages[0].script_path == str(page_script.resolve())
+
+
+@pytest.mark.parametrize(
+    ("app_name", "expected_modules", "expected_label"),
+    [
+        (
+            "uav_queue_project",
+            ("view_uav_queue_analysis", "view_maps_network"),
+            "UAV Queue Analysis",
+        ),
+        (
+            "uav_relay_queue_project",
+            ("view_uav_relay_queue_analysis", "view_maps_network"),
+            "UAV Relay Queue Analysis",
+        ),
+    ],
+)
+def test_build_notebook_export_context_enriches_builtin_uav_pages_from_manifest(
+    tmp_path,
+    app_name,
+    expected_modules,
+    expected_label,
+):
+    repo_root = Path(__file__).resolve().parents[1]
+    source_app = repo_root / "src" / "agilab" / "apps" / "builtin" / app_name
+    source_settings = source_app / "src" / "app_settings.toml"
+    workspace_settings = tmp_path / ".agilab" / "apps" / app_name / "app_settings.toml"
+    pages_root = repo_root / "src" / "agilab" / "apps-pages"
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app=source_app,
+        app_settings_file=workspace_settings,
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: source_settings,
+        read_agilab_path=lambda: repo_root,
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path(app_name),
+        tmp_path / "export" / app_name / "lab_steps.toml",
+        project_name=app_name,
+    )
+
+    assert tuple(page.module for page in context.related_pages) == expected_modules
+    assert context.related_pages[0].label == expected_label
+    assert context.related_pages[0].description
+    assert context.related_pages[0].artifacts
+    assert context.related_pages[0].launch_note
+    assert context.related_pages[0].script_path.endswith(f"{expected_modules[0]}.py")
+    assert context.related_pages[1].label == "Maps Network"
+    assert "pipeline/topology.gml" in context.related_pages[1].artifacts
+    assert context.related_pages[1].script_path.endswith("view_maps_network.py")
 
 
 def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_analysis_helpers(tmp_path):
@@ -1145,6 +1217,10 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
         related_pages=(
             notebook_export_support.RelatedPageExport(
                 module="view_demo",
+                label="Demo Analysis",
+                description="Inspect demo artifacts.",
+                artifacts=("demo.json", "demo.csv"),
+                launch_note="Open this after the run.",
                 script_path=str(tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "view_demo.py"),
             ),
         ),
@@ -1170,6 +1246,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
+    page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
 
     assert metadata["export_mode"] == "supervisor"
@@ -1177,9 +1254,14 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert metadata["steps"][0]["runtime"] == "agi.run"
     assert metadata["steps"][0]["env"] == str(tmp_path / "venv-demo")
     assert metadata["related_pages"][0]["module"] == "view_demo"
+    assert metadata["related_pages"][0]["label"] == "Demo Analysis"
+    assert metadata["related_pages"][0]["artifacts"] == ["demo.json", "demo.csv"]
     assert "run_agilab_step" in helper_source
     assert "run_agilab_pipeline" in helper_source
     assert "analysis_launch_command" in helper_source
+    assert "Demo Analysis" in page_markdown
+    assert "`demo.json`" in page_markdown
+    assert "Open this after the run." in page_markdown
     assert "view_demo" in analysis_source
     assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
 
