@@ -113,7 +113,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--git-reset-on-failure", action="store_true", help="On failure, git checkout -- pyproject files")
 
     # Docs
-    ap.add_argument("--gen-docs", action="store_true", help="Regenerate docs from the apps repository after publishing")
+    ap.add_argument(
+        "--gen-docs",
+        action="store_true",
+        help="Regenerate docs and sync the docs repository after publishing",
+    )
     ap.add_argument(
         "--skip-release-preflight",
         dest="release_preflight",
@@ -203,7 +207,9 @@ ALL_PACKAGE_NAMES = [name for name, *_ in CORE] + [UMBRELLA[0]]
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
 APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
-DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("THALES_AGILAB_REPOSITORY", "DOCS_REPOSITORY")
+# Prefer the generic env name in docs/examples while keeping the historical
+# repo-specific alias for compatibility with existing local automation.
+DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("DOCS_REPOSITORY", "THALES_AGILAB_REPOSITORY")
 DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
 DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
