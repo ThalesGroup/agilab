@@ -207,9 +207,7 @@ ALL_PACKAGE_NAMES = [name for name, *_ in CORE] + [UMBRELLA[0]]
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
 APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
-# Prefer the generic env name in docs/examples while keeping the historical
-# repo-specific alias for compatibility with existing local automation.
-DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("DOCS_REPOSITORY", "THALES_AGILAB_REPOSITORY")
+DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("DOCS_REPOSITORY",)
 DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
 DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
