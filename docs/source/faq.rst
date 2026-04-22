@@ -43,8 +43,19 @@ So if a worker starts its own inner Dask client or scheduler:
 - the inner Dask graph is not exposed as AGILAB-managed tasks
 - AGILAB health, capacity, and service telemetry stay at the outer worker level
 
+This boundary also has advantages:
+
+- the same worker API stays usable in local, pool, and Dask-backed modes
+- app workers are less coupled to Dask internals
+- AGILAB can package, deploy, and supervise one worker runtime unit at a time
+
 This is why nested Dask inside a worker can run technically, but it is not the
 same as AGILAB distributing that inner work itself.
+
+The tradeoff is clear:
+
+- simpler outer orchestration and more portable worker code
+- but no first-class observability or scheduling control for the inner Dask graph
 
 If you need AGILAB and the outer Dask dashboard to see the parallel work, move
 that work into the AGILAB work plan so it becomes outer worker tasks instead of

@@ -104,6 +104,14 @@ Layers at a glance
       such as ``mycode_project``, ``flight_project``, and the lightweight
       ``UAV Relay Queue`` demo (install id ``uav_relay_queue_project``); additional
       templates can follow the same contract.
+    - AGILAB is intentionally a **two-runtime system**:
+
+      - the manager/runtime side resolves settings, UI state, snippets, and orchestration
+      - the worker/runtime side runs the packaged worker code from ``~/wenv/<app>_worker``
+
+      This split is why manager imports and worker imports are different
+      contracts. A dependency or path can be valid on the manager side and
+      still be missing or packaged differently on the worker side.
 
 **Execution back-plane**
     - :doc:`agi-distributor` contains the Dask-based scheduler, worker templates and
@@ -114,6 +122,10 @@ Layers at a glance
     - AGILAB submits one coarse AGILAB task per worker to the outer Dask
       scheduler. The code that runs inside ``BaseWorker.works(...)`` is
       intentionally opaque to that outer scheduler.
+    - This boundary is deliberate. It keeps the worker contract stable across
+      plain local, pool-based, and Dask-based execution modes, reduces coupling
+      between app code and Dask internals, and keeps packaging/deployment at
+      one worker-runtime granularity.
     - This means nested execution inside a worker is not first-class AGILAB
       telemetry. If a worker starts its own inner Dask client or scheduler, the
       outer Dask/Bokeh dashboard only sees the outer AGILAB worker future, not
@@ -135,6 +147,8 @@ Runtime flow
 3. ``AGI.run`` (or ``AGI.get_distrib`` / ``AGI.install``) selects the dispatcher
    mode, builds or reuses the worker wheel, and starts a scheduler locally or on
    the configured SSH hosts.
+   The manager/runtime process does not execute the worker logic directly; it
+   prepares and dispatches the worker/runtime package.
 4. :doc:`agi-distributor` spins up workers, streams ``WorkDispatcher`` plans derived
    from the app manager, and feeds telemetry back into the capacity predictor.
 5. Results land in ``~/agi-space`` (for end users) or the repo ``data``/``export``
