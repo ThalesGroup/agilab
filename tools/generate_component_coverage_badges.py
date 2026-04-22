@@ -22,20 +22,12 @@ COMPONENTS = {
         "xml": REPO_ROOT / "coverage-agi-node.xml",
         "prefix": "src/agilab/core/agi-node/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-node.svg",
-        "fallback_xmls": (
-            REPO_ROOT / "coverage-agi-core.xml",
-            REPO_ROOT / "coverage-agilab.xml",
-        ),
     },
     "agi-cluster": {
         "label": "agi-cluster coverage",
         "xml": REPO_ROOT / "coverage-agi-cluster.xml",
         "prefix": "src/agilab/core/agi-cluster/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-cluster.svg",
-        "fallback_xmls": (
-            REPO_ROOT / "coverage-agi-core.xml",
-            REPO_ROOT / "coverage-agilab.xml",
-        ),
     },
     "agi-gui": {
         "label": "agi-gui coverage",
