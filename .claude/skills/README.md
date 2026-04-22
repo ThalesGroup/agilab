@@ -23,6 +23,7 @@ canonical source can serve both agents.
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
+- `agilab-huggingface-spaces`: Package and publish a lightweight public AGILAB demo to Hugging Face Spaces.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
 - `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.
