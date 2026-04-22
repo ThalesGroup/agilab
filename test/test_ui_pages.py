@@ -314,6 +314,9 @@ def load_args_from_toml(path):
             "AGILAB_PAGES_ABS": str(pages_dir),
             "OPENAI_API_KEY": "dummy",
             "IS_SOURCE_ENV": "1",
+            # Keep Streamlit AppTest runs off the macOS keychain so they never
+            # block on an interactive credential prompt during local/CI preflight.
+            "PYTHON_KEYRING_BACKEND": "keyring.backends.fail.Keyring",
         }):
             yield {
                 "apps_dir": apps_dir,
