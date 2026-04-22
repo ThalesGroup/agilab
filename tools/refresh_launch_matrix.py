@@ -36,7 +36,8 @@ def tracked_runconfigs(repo_root: Path, rc_dir: Path) -> list[Path]:
     paths = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
     if not paths:
         return sorted(rc_dir.glob("*.xml"), key=lambda p: p.name.lower())
-    return [repo_root / p for p in sorted(paths)]
+    existing = [repo_root / p for p in sorted(paths) if (repo_root / p).exists()]
+    return existing or sorted(rc_dir.glob("*.xml"), key=lambda p: p.name.lower())
 
 
 def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, str, str]]:
@@ -46,7 +47,7 @@ def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, 
     for f in files:
         try:
             tree = ET.parse(f)
-        except ET.ParseError:
+        except (ET.ParseError, FileNotFoundError):
             continue
         root = tree.getroot()
         cfg = root.find('.//configuration')
