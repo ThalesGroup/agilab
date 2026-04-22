@@ -209,6 +209,17 @@ def _is_repo_app(app_root: Path) -> bool:
         return False
 
 
+def _checkout_core_project_paths() -> dict[str, Path]:
+    src_root = REPO_ROOT / "src" / "agilab"
+    return {
+        "agi-env": src_root / "core" / "agi-env",
+        "agi-node": src_root / "core" / "agi-node",
+        "agi-core": src_root / "core" / "agi-core",
+        "agi-cluster": src_root / "core" / "agi-cluster",
+        "agilab": REPO_ROOT,
+    }
+
+
 def analyze_contract(
     *,
     app_path: str | Path,
@@ -327,6 +338,7 @@ def analyze_contract(
             )
 
     findings.extend(_compare_source_manifests(manager_snapshot, worker_source_snapshot))
+    findings.extend(_compare_manager_manifest(manager_snapshot))
     findings.extend(_compare_worker_copy(manager_snapshot, worker_source_snapshot, worker_copy_snapshot, _is_repo_app(app_root)))
 
     recursion_depth = os.environ.get("UV_RUN_RECURSION_DEPTH", "").strip()
@@ -384,6 +396,47 @@ def _compare_source_manifests(
                 details=worker_only,
             )
         )
+    return findings
+
+
+def _compare_manager_manifest(manager_snapshot: ManifestSnapshot | None) -> list[Finding]:
+    if manager_snapshot is None:
+        return []
+
+    findings: list[Finding] = []
+    checkout_core_paths = _checkout_core_project_paths()
+    missing_resolution: list[str] = []
+
+    for core_name in ("agi-env", "agi-node"):
+        if core_name not in manager_snapshot.dependencies:
+            continue
+        raw_path = manager_snapshot.uv_sources.get(core_name)
+        if raw_path:
+            resolved = _resolve_uv_source_path(Path(manager_snapshot.path), raw_path)
+            if not resolved.exists():
+                missing_resolution.append(f"{core_name}: {raw_path}")
+            continue
+
+        checkout_path = checkout_core_paths.get(core_name)
+        if checkout_path is None or not checkout_path.exists():
+            missing_resolution.append(
+                f"{core_name}: missing manager uv source and missing checkout path {checkout_path}"
+            )
+
+    if missing_resolution:
+        findings.append(
+            Finding(
+                key="missing-manager-core-resolution-paths",
+                severity="error",
+                category=SHARED_CORE_STATUS,
+                summary=(
+                    "Manager manifest depends on local AGILAB core packages, but no manager-side "
+                    "local resolution path is available for the offline installer overlay."
+                ),
+                details=missing_resolution,
+            )
+        )
+
     return findings
 
 

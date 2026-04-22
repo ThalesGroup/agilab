@@ -214,6 +214,93 @@ dependencies = ["agi-env", "agi-node", "numpy>=1.26"]
     assert "agi-node: missing [tool.uv.sources].agi-node.path" in finding.details
 
 
+def test_analyze_contract_flags_missing_manager_core_resolution_paths(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    repo_root = tmp_path / "repo"
+    app_root = tmp_path / "external_apps" / "demo_project"
+    worker_source = app_root / "src" / "demo_worker" / "pyproject.toml"
+    worker_copy = tmp_path / "wenv" / "demo_worker" / "pyproject.toml"
+
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root.resolve(strict=False))
+
+    _write_manifest(
+        app_root / "pyproject.toml",
+        """
+[project]
+name = "demo_project"
+dependencies = ["agi-env", "agi-node", "numpy>=1.26"]
+""",
+    )
+    _write_manifest(
+        worker_source,
+        """
+[project]
+name = "demo_worker"
+dependencies = ["numpy>=1.26"]
+""",
+    )
+    _write_manifest(
+        worker_copy,
+        """
+[project]
+name = "demo_worker"
+dependencies = ["numpy>=1.26"]
+""",
+    )
+
+    report = module.analyze_contract(app_path=app_root, worker_copy=worker_copy)
+
+    assert report.status == module.SHARED_CORE_STATUS
+    finding = next(finding for finding in report.findings if finding.key == "missing-manager-core-resolution-paths")
+    assert any(detail.startswith("agi-env: missing manager uv source") for detail in finding.details)
+    assert any(detail.startswith("agi-node: missing manager uv source") for detail in finding.details)
+
+
+def test_analyze_contract_accepts_manager_core_resolution_from_checkout(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    repo_root = tmp_path / "repo"
+    app_root = tmp_path / "external_apps" / "demo_project"
+    worker_source = app_root / "src" / "demo_worker" / "pyproject.toml"
+    worker_copy = tmp_path / "wenv" / "demo_worker" / "pyproject.toml"
+
+    for core_name in ("agi-env", "agi-node"):
+        core_path = repo_root / "src" / "agilab" / "core" / core_name
+        core_path.mkdir(parents=True, exist_ok=True)
+        _write_manifest(core_path / "pyproject.toml", f"[project]\nname = \"{core_name}\"\n")
+
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root.resolve(strict=False))
+
+    _write_manifest(
+        app_root / "pyproject.toml",
+        """
+[project]
+name = "demo_project"
+dependencies = ["agi-env", "agi-node", "numpy>=1.26"]
+""",
+    )
+    _write_manifest(
+        worker_source,
+        """
+[project]
+name = "demo_worker"
+dependencies = ["numpy>=1.26"]
+""",
+    )
+    _write_manifest(
+        worker_copy,
+        """
+[project]
+name = "demo_worker"
+dependencies = ["numpy>=1.26"]
+""",
+    )
+
+    report = module.analyze_contract(app_path=app_root, worker_copy=worker_copy)
+
+    assert report.status == module.SAFE_STATUS
+    assert not any(finding.key == "missing-manager-core-resolution-paths" for finding in report.findings)
+
+
 def test_main_json_output_and_exit_code_for_shared_core_issue(tmp_path, capsys) -> None:
     module = _load_module()
     app_root = tmp_path / "demo_project"
