@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--combined-xml",
         default=str(REPO_ROOT / "coverage-agilab.combined.xml"),
-        help="Fallback Cobertura XML used when a component-specific report is missing.",
+        help="Optional Cobertura XML used only by components that explicitly opt into combined fallback.",
     )
     parser.add_argument(
         "--components",
@@ -183,7 +183,7 @@ def resolve_component_counts(name: str, combined_xml: Path) -> tuple[int, int] |
     for candidate in config.get("fallback_xmls", ()):
         if isinstance(candidate, Path):
             fallback_paths.append(candidate)
-    if combined_xml not in fallback_paths:
+    if config.get("allow_combined_fallback") and combined_xml not in fallback_paths:
         fallback_paths.append(combined_xml)
 
     for fallback_path in fallback_paths:
