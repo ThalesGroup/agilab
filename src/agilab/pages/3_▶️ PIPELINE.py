@@ -166,6 +166,7 @@ try:
         _capture_pipeline_snapshot,
         _force_persist_step,
         _restore_pipeline_snapshot,
+        build_notebook_export_context,
         get_steps_list,
         on_import_notebook,
         refresh_notebook_export,
@@ -183,6 +184,7 @@ except ModuleNotFoundError:
     _capture_pipeline_snapshot = _pipeline_editor_module._capture_pipeline_snapshot
     _force_persist_step = _pipeline_editor_module._force_persist_step
     _restore_pipeline_snapshot = _pipeline_editor_module._restore_pipeline_snapshot
+    build_notebook_export_context = _pipeline_editor_module.build_notebook_export_context
     get_steps_list = _pipeline_editor_module.get_steps_list
     on_import_notebook = _pipeline_editor_module.on_import_notebook
     refresh_notebook_export = _pipeline_editor_module.refresh_notebook_export
@@ -1368,7 +1370,13 @@ def sidebar_controls() -> None:
         args=(key, module_path, steps_file, index_page_str),
     )
 
-    notebook_path = refresh_notebook_export(steps_file)
+    export_context = build_notebook_export_context(
+        env,
+        module_path,
+        steps_file,
+        project_name=lab_choice,
+    )
+    notebook_path = refresh_notebook_export(steps_file, export_context=export_context)
     if notebook_path and notebook_path.exists():
         _render_notebook_download_button(notebook_path, index_page_str + "export_notebook")
 
