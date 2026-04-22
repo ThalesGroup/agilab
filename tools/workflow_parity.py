@@ -71,6 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         choices=[
             "agi-env",
+            "agi-core-combined",
             "agi-node",
             "agi-cluster",
             "agi-gui",
@@ -126,6 +127,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def _profile_descriptions() -> dict[str, str]:
     return {
         "agi-env": "Run the local equivalent of the agi-env coverage workflow job.",
+        "agi-core-combined": "Run the shared core test suite once and emit both agi-node and agi-cluster coverage XML files.",
         "agi-node": "Run the local equivalent of the agi-node coverage workflow job.",
         "agi-cluster": "Run the local equivalent of the agi-cluster coverage workflow job.",
         "agi-gui": "Run the local equivalent of the agi-gui coverage workflow job.",
@@ -140,6 +142,7 @@ def _profile_descriptions() -> dict[str, str]:
 def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
     return {
         "agi-env": _agi_env_profile(),
+        "agi-core-combined": _agi_core_combined_profile(),
         "agi-node": _agi_node_profile(),
         "agi-cluster": _agi_cluster_profile(),
         "agi-gui": _agi_gui_profile(),
@@ -298,6 +301,83 @@ def _agi_node_profile() -> list[CommandSpec]:
             timeout_seconds=20 * 60,
             remove_paths=[".coverage.agi-node", "coverage-agi-node.xml"],
         )
+    ]
+
+
+def _agi_core_combined_profile() -> list[CommandSpec]:
+    base_argv = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--no-project",
+        "--with-editable",
+        "./src/agilab/core/agi-env",
+        "--with-editable",
+        "./src/agilab/core/agi-node",
+        "--with-editable",
+        "./src/agilab/core/agi-cluster",
+        "--with-editable",
+        "./src/agilab/core/agi-core",
+        "--with",
+        "sqlalchemy",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-asyncio",
+        "--with",
+        "coverage",
+        "python",
+        "-m",
+        "coverage",
+    ]
+    return [
+        CommandSpec(
+            label="agi-node+agi-cluster combined coverage run",
+            argv=[
+                *base_argv,
+                "run",
+                "--data-file=.coverage.agi-core-combined",
+                "-m",
+                "pytest",
+                "-q",
+                "--maxfail=1",
+                "--disable-warnings",
+                "-o",
+                "addopts=",
+                "src/agilab/core/test",
+            ],
+            timeout_seconds=20 * 60,
+            remove_paths=[
+                ".coverage.agi-core-combined",
+                "coverage-agi-node.xml",
+                "coverage-agi-cluster.xml",
+            ],
+        ),
+        CommandSpec(
+            label="agi-node combined coverage xml",
+            argv=[
+                *base_argv,
+                "xml",
+                "--data-file=.coverage.agi-core-combined",
+                "-o",
+                "coverage-agi-node.xml",
+                "--include=*/agi_node/*",
+            ],
+            timeout_seconds=5 * 60,
+        ),
+        CommandSpec(
+            label="agi-cluster combined coverage xml",
+            argv=[
+                *base_argv,
+                "xml",
+                "--data-file=.coverage.agi-core-combined",
+                "-o",
+                "coverage-agi-cluster.xml",
+                "--include=*/agi_cluster/*",
+            ],
+            timeout_seconds=5 * 60,
+        ),
     ]
 
 
@@ -494,7 +574,7 @@ def _shared_core_typing_profile() -> list[CommandSpec]:
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
-    return list(_profile_descriptions())
+    return [name for name in _profile_descriptions() if name != "agi-core-combined"]
 
 
 def _prepare_command(spec: CommandSpec) -> None:
