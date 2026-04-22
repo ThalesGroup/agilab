@@ -1,6 +1,6 @@
 [project]
 name = "uav_queue_project"
-version = "2026.4.23"
+version = "2026.4.25"
 description = "Built-in AGILAB lightweight UAV relay queue example"
 requires-python = ">=3.13"
 dependencies = [
