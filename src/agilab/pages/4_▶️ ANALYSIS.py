@@ -34,16 +34,22 @@ import streamlit.components.v1 as components
 import logging
 import subprocess
 
-try:
-    from agilab.page_docs import render_page_docs_access
-except ModuleNotFoundError:
-    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
-    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
-    if _page_docs_spec is None or _page_docs_spec.loader is None:
-        raise
-    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
-    _page_docs_spec.loader.exec_module(_page_docs_module)
-    render_page_docs_access = _page_docs_module.render_page_docs_access
+_import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
+
+import_agilab_symbols(
+    globals(),
+    "agilab.page_docs",
+    ["render_page_docs_access"],
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)

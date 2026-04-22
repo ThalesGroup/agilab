@@ -28,13 +28,26 @@ def _load_module(module_name: str, relative_path: str):
 
 def _load_module_with_missing(module_name: str, relative_path: str, *missing_modules: str):
     original_import = __import__
+    original_import_module = importlib.import_module
 
     def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name in missing_modules:
-            raise ModuleNotFoundError(name)
+            exc = ModuleNotFoundError(name)
+            exc.name = name
+            raise exc
         return original_import(name, globals, locals, fromlist, level)
 
-    with patch("builtins.__import__", _patched_import):
+    def _patched_import_module(name, package=None):
+        if name in missing_modules:
+            exc = ModuleNotFoundError(name)
+            exc.name = name
+            raise exc
+        return original_import_module(name, package)
+
+    with (
+        patch("builtins.__import__", _patched_import),
+        patch("importlib.import_module", _patched_import_module),
+    ):
         return _load_module(module_name, relative_path)
 
 

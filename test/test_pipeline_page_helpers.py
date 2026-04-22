@@ -1,15 +1,58 @@
 from __future__ import annotations
 
 import importlib.util
+from importlib.machinery import ModuleSpec
 from pathlib import Path
+import sys
+import types
 from types import SimpleNamespace
 
+import pytest
 from streamlit.errors import StreamlitAPIException
 
 
+def _prime_current_agilab_package() -> None:
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [package_root_str]
+    pkg.__file__ = str(package_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec = ModuleSpec("agilab", loader=None, is_package=True)
+    spec.submodule_search_locations = [package_root_str]
+    pkg.__spec__ = spec
+    sys.modules["agilab"] = pkg
+
+
 def _load_pipeline_module():
+    _prime_current_agilab_package()
     module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_helper_tests", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root: Path):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [str(stale_root)]
+    pkg.__file__ = str(stale_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec = ModuleSpec("agilab", loader=None, is_package=True)
+    spec.submodule_search_locations = [str(stale_root)]
+    pkg.__spec__ = spec
+    monkeypatch.setitem(sys.modules, "agilab", pkg)
+    module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
+    spec = importlib.util.spec_from_file_location("agilab_pipeline_page_mixed_checkout_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -148,7 +191,7 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
 def test_load_about_page_module_uses_imported_module(monkeypatch):
     module = _load_pipeline_module()
     imported = SimpleNamespace(main=lambda: None)
-    monkeypatch.setattr(module.importlib, "import_module", lambda name: imported if name == "agilab.About_agilab" else None)
+    monkeypatch.setattr(module, "load_local_module", lambda *_args, **_kwargs: imported)
 
     result = module._load_about_page_module()
 
@@ -157,27 +200,9 @@ def test_load_about_page_module_uses_imported_module(monkeypatch):
 
 def test_load_about_page_module_falls_back_to_file_loader(monkeypatch):
     module = _load_pipeline_module()
-    imported_errors = []
     fallback_module = SimpleNamespace(main=lambda: None)
 
-    def _raise_missing(_name):
-        raise ModuleNotFoundError("missing")
-
-    class _Loader:
-        def exec_module(self, target):
-            target.main = fallback_module.main
-
-    monkeypatch.setattr(module.importlib, "import_module", _raise_missing)
-    monkeypatch.setattr(
-        module.importlib.util,
-        "spec_from_file_location",
-        lambda *_args, **_kwargs: SimpleNamespace(loader=_Loader()),
-    )
-    monkeypatch.setattr(
-        module.importlib.util,
-        "module_from_spec",
-        lambda _spec: SimpleNamespace(),
-    )
+    monkeypatch.setattr(module, "load_local_module", lambda *_args, **_kwargs: fallback_module)
 
     result = module._load_about_page_module()
 
@@ -187,11 +212,10 @@ def test_load_about_page_module_falls_back_to_file_loader(monkeypatch):
 def test_load_about_page_module_raises_last_import_error_when_no_fallback(monkeypatch):
     module = _load_pipeline_module()
 
-    def _raise_missing(_name):
+    def _raise_missing(*_args, **_kwargs):
         raise ModuleNotFoundError("missing about page")
 
-    monkeypatch.setattr(module.importlib, "import_module", _raise_missing)
-    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "load_local_module", _raise_missing)
 
     try:
         module._load_about_page_module()
@@ -199,3 +223,11 @@ def test_load_about_page_module_raises_last_import_error_when_no_fallback(monkey
         assert "missing about page" in str(exc)
     else:
         raise AssertionError("Expected ModuleNotFoundError")
+
+
+def test_pipeline_page_raises_mixed_checkout_error(monkeypatch, tmp_path):
+    stale_root = tmp_path / "stale" / "agilab"
+    stale_root.mkdir(parents=True)
+
+    with pytest.raises(ImportError, match="Mixed AGILAB checkout detected"):
+        _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root)

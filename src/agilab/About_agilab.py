@@ -18,27 +18,33 @@ logger = AgiLogger.get_logger(__name__)
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
 import streamlit as st
-try:
-    from agilab.env_file_utils import load_env_file_map as _load_env_file_map
-except ModuleNotFoundError:
-    _env_file_utils_path = Path(__file__).resolve().parent / "env_file_utils.py"
-    _env_file_utils_spec = importlib.util.spec_from_file_location("agilab_env_file_utils_fallback", _env_file_utils_path)
-    if _env_file_utils_spec is None or _env_file_utils_spec.loader is None:
-        raise
-    _env_file_utils_module = importlib.util.module_from_spec(_env_file_utils_spec)
-    _env_file_utils_spec.loader.exec_module(_env_file_utils_module)
-    _load_env_file_map = _env_file_utils_module.load_env_file_map
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+assert_agilab_checkout_alignment = _import_guard_module.assert_agilab_checkout_alignment
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-try:
-    from agilab.page_docs import render_page_docs_access
-except ModuleNotFoundError:
-    _page_docs_path = Path(__file__).resolve().parent / "page_docs.py"
-    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
-    if _page_docs_spec is None or _page_docs_spec.loader is None:
-        raise
-    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
-    _page_docs_spec.loader.exec_module(_page_docs_module)
-    render_page_docs_access = _page_docs_module.render_page_docs_access
+assert_agilab_checkout_alignment(__file__)
+
+import_agilab_symbols(
+    globals(),
+    "agilab.env_file_utils",
+    {"load_env_file_map": "_load_env_file_map"},
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "env_file_utils.py",
+    fallback_name="agilab_env_file_utils_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.page_docs",
+    ["render_page_docs_access"],
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
 
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:

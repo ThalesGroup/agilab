@@ -54,13 +54,24 @@ def _load_module_with_import_failures(module_name: str, relative_path: str, monk
             pkg.__path__ = [package_root_str, *package_path]
 
     real_import = builtins.__import__
+    real_import_module = importlib.import_module
 
     def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name in names_to_fail:
-            raise ModuleNotFoundError(f"forced missing {name}")
+            exc = ModuleNotFoundError(f"forced missing {name}")
+            exc.name = name
+            raise exc
         return real_import(name, globals, locals, fromlist, level)
 
+    def _fake_import_module(name, package=None):
+        if name in names_to_fail:
+            exc = ModuleNotFoundError(f"forced missing {name}")
+            exc.name = name
+            raise exc
+        return real_import_module(name, package)
+
     monkeypatch.setattr(builtins, "__import__", _fake_import)
+    monkeypatch.setattr(importlib, "import_module", _fake_import_module)
     module_path = Path(relative_path)
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     assert spec is not None and spec.loader is not None

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+from importlib.machinery import ModuleSpec
 import json
 from pathlib import Path
 import sys
+import types
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -23,19 +25,70 @@ def _load_module(module_name: str, relative_path: str):
     return module
 
 
+def _prime_current_agilab_package() -> None:
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [package_root_str]
+    pkg.__file__ = str(package_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec = ModuleSpec("agilab", loader=None, is_package=True)
+    spec.submodule_search_locations = [package_root_str]
+    pkg.__spec__ = spec
+    sys.modules["agilab"] = pkg
+
+
 def _load_pipeline_editor_with_missing(*missing_modules: str):
+    _prime_current_agilab_package()
     module_name = f"agilab.pipeline_editor_fallback_{len(missing_modules)}_{abs(hash(missing_modules))}"
+    for name in missing_modules:
+        sys.modules.pop(name, None)
     original_import = __import__
+    original_import_module = importlib.import_module
 
     def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name in missing_modules:
-            raise ModuleNotFoundError(name)
+            exc = ModuleNotFoundError(name)
+            exc.name = name
+            raise exc
         return original_import(name, globals, locals, fromlist, level)
 
-    with patch("builtins.__import__", _patched_import):
+    def _patched_import_module(name, package=None):
+        if name in missing_modules:
+            exc = ModuleNotFoundError(name)
+            exc.name = name
+            raise exc
+        return original_import_module(name, package)
+
+    with (
+        patch("builtins.__import__", _patched_import),
+        patch("importlib.import_module", _patched_import_module),
+    ):
         return _load_module(module_name, "src/agilab/pipeline_editor.py")
 
 
+def _load_pipeline_editor_with_mixed_checkout(monkeypatch, stale_root: Path):
+    module_name = "agilab.pipeline_editor_mixed_checkout"
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [str(stale_root)]
+    pkg.__file__ = str(stale_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec = ModuleSpec("agilab", loader=None, is_package=True)
+    spec.submodule_search_locations = [str(stale_root)]
+    pkg.__spec__ = spec
+    monkeypatch.setitem(sys.modules, "agilab", pkg)
+    return _load_module(module_name, "src/agilab/pipeline_editor.py")
+
+
+_prime_current_agilab_package()
 pipeline_editor = _load_module("agilab.pipeline_editor", "src/agilab/pipeline_editor.py")
 notebook_export_support = _load_module(
     "agilab.notebook_export_support",
@@ -444,6 +497,14 @@ def test_pipeline_editor_import_falls_back_when_code_editor_support_is_unavailab
     assert callable(fallback.normalize_custom_buttons)
     with pytest.raises(TypeError, match="custom_buttons payload"):
         fallback.normalize_custom_buttons({"buttons": "invalid"})
+
+
+def test_pipeline_editor_raises_mixed_checkout_error(monkeypatch, tmp_path):
+    stale_root = tmp_path / "stale" / "agilab"
+    stale_root.mkdir(parents=True)
+
+    with pytest.raises(ImportError, match="Mixed AGILAB checkout detected"):
+        _load_pipeline_editor_with_mixed_checkout(monkeypatch, stale_root)
 
 
 def test_pipeline_editor_import_fallback_raises_when_local_specs_are_missing(monkeypatch):

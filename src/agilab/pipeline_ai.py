@@ -20,220 +20,133 @@ from agi_env import AgiEnv, normalize_path
 from agi_env.defaults import get_default_openai_model
 from agi_env.pagelib import activate_gpt_oss
 
-try:
-    from agilab.env_file_utils import load_env_file_map as _load_env_file_map
-except ModuleNotFoundError:
-    _env_file_utils_path = Path(__file__).resolve().parent / "env_file_utils.py"
-    _env_file_utils_spec = importlib.util.spec_from_file_location("agilab_env_file_utils_fallback", _env_file_utils_path)
-    if _env_file_utils_spec is None or _env_file_utils_spec.loader is None:
-        raise
-    _env_file_utils_module = importlib.util.module_from_spec(_env_file_utils_spec)
-    _env_file_utils_spec.loader.exec_module(_env_file_utils_module)
-    _load_env_file_map = _env_file_utils_module.load_env_file_map
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-try:
-    from agilab.pipeline_openai import (
-        ensure_cached_api_key,
-        is_placeholder_api_key,
-        make_openai_client_and_model,
-        prompt_for_openai_api_key,
-    )
-except ModuleNotFoundError:
-    _pipeline_openai_path = Path(__file__).resolve().parent / "pipeline_openai.py"
-    _pipeline_openai_spec = importlib.util.spec_from_file_location("agilab_pipeline_openai_fallback", _pipeline_openai_path)
-    if _pipeline_openai_spec is None or _pipeline_openai_spec.loader is None:
-        raise
-    _pipeline_openai_module = importlib.util.module_from_spec(_pipeline_openai_spec)
-    _pipeline_openai_spec.loader.exec_module(_pipeline_openai_module)
-    ensure_cached_api_key = _pipeline_openai_module.ensure_cached_api_key
-    is_placeholder_api_key = _pipeline_openai_module.is_placeholder_api_key
-    make_openai_client_and_model = _pipeline_openai_module.make_openai_client_and_model
-    prompt_for_openai_api_key = _pipeline_openai_module.prompt_for_openai_api_key
-
-try:
-    from agilab.pipeline_steps import pipeline_export_root as _pipeline_export_root
-except ModuleNotFoundError:
-    _pipeline_steps_path = Path(__file__).resolve().parent / "pipeline_steps.py"
-    _pipeline_steps_spec = importlib.util.spec_from_file_location("agilab_pipeline_steps_fallback", _pipeline_steps_path)
-    if _pipeline_steps_spec is None or _pipeline_steps_spec.loader is None:
-        raise
-    _pipeline_steps_module = importlib.util.module_from_spec(_pipeline_steps_spec)
-    _pipeline_steps_spec.loader.exec_module(_pipeline_steps_module)
-    _pipeline_export_root = _pipeline_steps_module.pipeline_export_root
-
-try:
-    from agilab.pipeline_ai_support import (
-        CODE_STRICT_INSTRUCTIONS,
-        DEFAULT_GPT_OSS_ENDPOINT,
-        OLLAMA_DEEPSEEK_PROVIDER,
-        OLLAMA_QWEN_PROVIDER,
-        _API_KEY_PATTERNS,
-        normalize_user_path as _normalize_user_path,
-        _OLLAMA_CODE_MODEL_RE,
-        _BLOCKED_BUILTINS,
-        _BLOCKED_DUNDER_ATTRS,
-        _BLOCKED_MODULES,
-        _SAFE_BUILTINS,
-        _UnsafeCodeError,
-        extract_code,
-        _build_autofix_prompt,
-        _exec_code_on_df,
-        _validate_code_safety,
-        format_uoaic_question as _format_uoaic_question_impl,
-        format_for_responses as _format_for_responses,
-        _ollama_available_models as _ollama_available_models_impl,
-        _ollama_generate as _ollama_generate_impl,
-        normalize_gpt_oss_endpoint as _normalize_gpt_oss_endpoint,
-        normalize_identifier as _normalize_identifier,
-        normalize_ollama_endpoint as _normalize_ollama_endpoint,
-        prompt_to_gpt_oss_messages as _prompt_to_gpt_oss_messages,
-        prompt_to_plaintext as _prompt_to_plaintext,
-        redact_sensitive as _redact_sensitive,
-        response_to_text as _response_to_text,
-        synthesize_stub_response as _synthesize_stub_response,
-    )
-except ModuleNotFoundError:
-    _pipeline_ai_support_path = Path(__file__).resolve().parent / "pipeline_ai_support.py"
-    _pipeline_ai_support_spec = importlib.util.spec_from_file_location(
-        "agilab_pipeline_ai_support_fallback",
-        _pipeline_ai_support_path,
-    )
-    if _pipeline_ai_support_spec is None or _pipeline_ai_support_spec.loader is None:
-        raise
-    _pipeline_ai_support_module = importlib.util.module_from_spec(_pipeline_ai_support_spec)
-    _pipeline_ai_support_spec.loader.exec_module(_pipeline_ai_support_module)
-    CODE_STRICT_INSTRUCTIONS = _pipeline_ai_support_module.CODE_STRICT_INSTRUCTIONS
-    DEFAULT_GPT_OSS_ENDPOINT = _pipeline_ai_support_module.DEFAULT_GPT_OSS_ENDPOINT
-    OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
-    OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
-    _API_KEY_PATTERNS = _pipeline_ai_support_module._API_KEY_PATTERNS
-    _normalize_user_path = _pipeline_ai_support_module.normalize_user_path
-    _OLLAMA_CODE_MODEL_RE = _pipeline_ai_support_module._OLLAMA_CODE_MODEL_RE
-    _BLOCKED_BUILTINS = _pipeline_ai_support_module._BLOCKED_BUILTINS
-    _BLOCKED_DUNDER_ATTRS = _pipeline_ai_support_module._BLOCKED_DUNDER_ATTRS
-    _BLOCKED_MODULES = _pipeline_ai_support_module._BLOCKED_MODULES
-    _SAFE_BUILTINS = _pipeline_ai_support_module._SAFE_BUILTINS
-    _UnsafeCodeError = _pipeline_ai_support_module._UnsafeCodeError
-    extract_code = _pipeline_ai_support_module.extract_code
-    _build_autofix_prompt = _pipeline_ai_support_module._build_autofix_prompt
-    _exec_code_on_df = _pipeline_ai_support_module._exec_code_on_df
-    _validate_code_safety = _pipeline_ai_support_module._validate_code_safety
-    _format_uoaic_question_impl = _pipeline_ai_support_module.format_uoaic_question
-    _format_for_responses = _pipeline_ai_support_module.format_for_responses
-    _ollama_available_models_impl = _pipeline_ai_support_module._ollama_available_models
-    _ollama_generate_impl = _pipeline_ai_support_module._ollama_generate
-    _normalize_gpt_oss_endpoint = _pipeline_ai_support_module.normalize_gpt_oss_endpoint
-    _normalize_identifier = _pipeline_ai_support_module.normalize_identifier
-    _normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
-    _prompt_to_gpt_oss_messages = _pipeline_ai_support_module.prompt_to_gpt_oss_messages
-    _prompt_to_plaintext = _pipeline_ai_support_module.prompt_to_plaintext
-    _redact_sensitive = _pipeline_ai_support_module.redact_sensitive
-    _response_to_text = _pipeline_ai_support_module.response_to_text
-    _synthesize_stub_response = _pipeline_ai_support_module.synthesize_stub_response
-
-try:
-    from agilab.pipeline_ai_uoaic import (
-        UOAIC_AUTOFIX_ENV,
-        UOAIC_AUTOFIX_MAX_ENV,
-        UOAIC_AUTOFIX_MAX_STATE_KEY,
-        UOAIC_AUTOFIX_STATE_KEY,
-        UOAIC_DATA_ENV,
-        UOAIC_DATA_STATE_KEY,
-        UOAIC_DB_ENV,
-        UOAIC_DB_STATE_KEY,
-        UOAIC_MODE_ENV,
-        UOAIC_MODE_OLLAMA,
-        UOAIC_MODE_RAG,
-        UOAIC_MODE_STATE_KEY,
-        UOAIC_MODEL_ENV,
-        UOAIC_NUM_CTX_ENV,
-        UOAIC_NUM_PREDICT_ENV,
-        UOAIC_OLLAMA_ENDPOINT_ENV,
-        DEFAULT_UOAIC_BASE,
-        UOAIC_PROVIDER,
-        UOAIC_DEFAULT_DB_DIRNAME,
-        UOAIC_REBUILD_FLAG_KEY,
-        UOAIC_RUNTIME_KEY,
-        UOAIC_SEED_ENV,
-        UOAIC_TEMPERATURE_ENV,
-        UOAIC_TOP_P_ENV,
-        UoaicControlDeps,
-        UoaicRuntimeDeps,
-        _normalize_user_path,
-        chat_universal_offline as _chat_universal_offline_impl,
-        ensure_uoaic_runtime as _ensure_uoaic_runtime_impl,
-        load_uoaic_modules as _load_uoaic_modules_impl,
-        render_universal_offline_controls as _render_universal_offline_controls_impl,
-        resolve_uoaic_path as _resolve_uoaic_path_impl,
-    )
-except ModuleNotFoundError:
-    _pipeline_ai_uoaic_path = Path(__file__).resolve().parent / "pipeline_ai_uoaic.py"
-    _pipeline_ai_uoaic_spec = importlib.util.spec_from_file_location(
-        "agilab_pipeline_ai_uoaic_fallback",
-        _pipeline_ai_uoaic_path,
-    )
-    if _pipeline_ai_uoaic_spec is None or _pipeline_ai_uoaic_spec.loader is None:
-        raise
-    _pipeline_ai_uoaic_module = importlib.util.module_from_spec(_pipeline_ai_uoaic_spec)
-    _pipeline_ai_uoaic_spec_modules = _pipeline_ai_uoaic_spec.name
-    if _pipeline_ai_uoaic_spec_modules is not None:
-        import sys
-
-        sys.modules.setdefault(_pipeline_ai_uoaic_spec_modules, _pipeline_ai_uoaic_module)
-    _pipeline_ai_uoaic_spec.loader.exec_module(_pipeline_ai_uoaic_module)
-    UOAIC_AUTOFIX_ENV = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_ENV
-    UOAIC_AUTOFIX_MAX_ENV = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_MAX_ENV
-    UOAIC_AUTOFIX_MAX_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_MAX_STATE_KEY
-    UOAIC_AUTOFIX_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_AUTOFIX_STATE_KEY
-    UOAIC_DATA_ENV = _pipeline_ai_uoaic_module.UOAIC_DATA_ENV
-    UOAIC_DATA_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_DATA_STATE_KEY
-    UOAIC_DB_ENV = _pipeline_ai_uoaic_module.UOAIC_DB_ENV
-    UOAIC_DB_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_DB_STATE_KEY
-    UOAIC_MODE_ENV = _pipeline_ai_uoaic_module.UOAIC_MODE_ENV
-    UOAIC_MODE_OLLAMA = _pipeline_ai_uoaic_module.UOAIC_MODE_OLLAMA
-    UOAIC_MODE_RAG = _pipeline_ai_uoaic_module.UOAIC_MODE_RAG
-    UOAIC_MODE_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_MODE_STATE_KEY
-    UOAIC_MODEL_ENV = _pipeline_ai_uoaic_module.UOAIC_MODEL_ENV
-    UOAIC_NUM_CTX_ENV = _pipeline_ai_uoaic_module.UOAIC_NUM_CTX_ENV
-    UOAIC_NUM_PREDICT_ENV = _pipeline_ai_uoaic_module.UOAIC_NUM_PREDICT_ENV
-    UOAIC_OLLAMA_ENDPOINT_ENV = _pipeline_ai_uoaic_module.UOAIC_OLLAMA_ENDPOINT_ENV
-    DEFAULT_UOAIC_BASE = _pipeline_ai_uoaic_module.DEFAULT_UOAIC_BASE
-    UOAIC_PROVIDER = _pipeline_ai_uoaic_module.UOAIC_PROVIDER
-    UOAIC_DEFAULT_DB_DIRNAME = _pipeline_ai_uoaic_module.UOAIC_DEFAULT_DB_DIRNAME
-    UOAIC_REBUILD_FLAG_KEY = _pipeline_ai_uoaic_module.UOAIC_REBUILD_FLAG_KEY
-    UOAIC_RUNTIME_KEY = _pipeline_ai_uoaic_module.UOAIC_RUNTIME_KEY
-    UOAIC_SEED_ENV = _pipeline_ai_uoaic_module.UOAIC_SEED_ENV
-    UOAIC_TEMPERATURE_ENV = _pipeline_ai_uoaic_module.UOAIC_TEMPERATURE_ENV
-    UOAIC_TOP_P_ENV = _pipeline_ai_uoaic_module.UOAIC_TOP_P_ENV
-    UoaicControlDeps = _pipeline_ai_uoaic_module.UoaicControlDeps
-    UoaicRuntimeDeps = _pipeline_ai_uoaic_module.UoaicRuntimeDeps
-    _normalize_user_path = _pipeline_ai_uoaic_module._normalize_user_path
-    _chat_universal_offline_impl = _pipeline_ai_uoaic_module.chat_universal_offline
-    _ensure_uoaic_runtime_impl = _pipeline_ai_uoaic_module.ensure_uoaic_runtime
-    _load_uoaic_modules_impl = _pipeline_ai_uoaic_module.load_uoaic_modules
-    _render_universal_offline_controls_impl = _pipeline_ai_uoaic_module.render_universal_offline_controls
-    _resolve_uoaic_path_impl = _pipeline_ai_uoaic_module.resolve_uoaic_path
-
-try:
-    from agilab.pipeline_ai_controls import (
-        PipelineAiControlDeps,
-        configure_assistant_engine as _configure_assistant_engine_impl,
-        gpt_oss_controls as _gpt_oss_controls_impl,
-    )
-except ModuleNotFoundError:
-    _pipeline_ai_controls_path = Path(__file__).resolve().parent / "pipeline_ai_controls.py"
-    _pipeline_ai_controls_spec = importlib.util.spec_from_file_location(
-        "agilab_pipeline_ai_controls_fallback",
-        _pipeline_ai_controls_path,
-    )
-    if _pipeline_ai_controls_spec is None or _pipeline_ai_controls_spec.loader is None:
-        raise
-    _pipeline_ai_controls_module = importlib.util.module_from_spec(_pipeline_ai_controls_spec)
-    sys.modules[_pipeline_ai_controls_spec.name] = _pipeline_ai_controls_module
-    _pipeline_ai_controls_spec.loader.exec_module(_pipeline_ai_controls_module)
-    PipelineAiControlDeps = _pipeline_ai_controls_module.PipelineAiControlDeps
-    _configure_assistant_engine_impl = _pipeline_ai_controls_module.configure_assistant_engine
-    _gpt_oss_controls_impl = _pipeline_ai_controls_module.gpt_oss_controls
+import_agilab_symbols(
+    globals(),
+    "agilab.env_file_utils",
+    {"load_env_file_map": "_load_env_file_map"},
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "env_file_utils.py",
+    fallback_name="agilab_env_file_utils_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_openai",
+    {
+        "ensure_cached_api_key": "ensure_cached_api_key",
+        "is_placeholder_api_key": "is_placeholder_api_key",
+        "make_openai_client_and_model": "make_openai_client_and_model",
+        "prompt_for_openai_api_key": "prompt_for_openai_api_key",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_openai.py",
+    fallback_name="agilab_pipeline_openai_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_steps",
+    {"pipeline_export_root": "_pipeline_export_root"},
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
+    fallback_name="agilab_pipeline_steps_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_ai_support",
+    {
+        "CODE_STRICT_INSTRUCTIONS": "CODE_STRICT_INSTRUCTIONS",
+        "DEFAULT_GPT_OSS_ENDPOINT": "DEFAULT_GPT_OSS_ENDPOINT",
+        "OLLAMA_DEEPSEEK_PROVIDER": "OLLAMA_DEEPSEEK_PROVIDER",
+        "OLLAMA_QWEN_PROVIDER": "OLLAMA_QWEN_PROVIDER",
+        "_API_KEY_PATTERNS": "_API_KEY_PATTERNS",
+        "normalize_user_path": "_normalize_user_path",
+        "_OLLAMA_CODE_MODEL_RE": "_OLLAMA_CODE_MODEL_RE",
+        "_BLOCKED_BUILTINS": "_BLOCKED_BUILTINS",
+        "_BLOCKED_DUNDER_ATTRS": "_BLOCKED_DUNDER_ATTRS",
+        "_BLOCKED_MODULES": "_BLOCKED_MODULES",
+        "_SAFE_BUILTINS": "_SAFE_BUILTINS",
+        "_UnsafeCodeError": "_UnsafeCodeError",
+        "extract_code": "extract_code",
+        "_build_autofix_prompt": "_build_autofix_prompt",
+        "_exec_code_on_df": "_exec_code_on_df",
+        "_validate_code_safety": "_validate_code_safety",
+        "format_uoaic_question": "_format_uoaic_question_impl",
+        "format_for_responses": "_format_for_responses",
+        "_ollama_available_models": "_ollama_available_models_impl",
+        "_ollama_generate": "_ollama_generate_impl",
+        "normalize_gpt_oss_endpoint": "_normalize_gpt_oss_endpoint",
+        "normalize_identifier": "_normalize_identifier",
+        "normalize_ollama_endpoint": "_normalize_ollama_endpoint",
+        "prompt_to_gpt_oss_messages": "_prompt_to_gpt_oss_messages",
+        "prompt_to_plaintext": "_prompt_to_plaintext",
+        "redact_sensitive": "_redact_sensitive",
+        "response_to_text": "_response_to_text",
+        "synthesize_stub_response": "_synthesize_stub_response",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_ai_support.py",
+    fallback_name="agilab_pipeline_ai_support_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_ai_uoaic",
+    {
+        "UOAIC_AUTOFIX_ENV": "UOAIC_AUTOFIX_ENV",
+        "UOAIC_AUTOFIX_MAX_ENV": "UOAIC_AUTOFIX_MAX_ENV",
+        "UOAIC_AUTOFIX_MAX_STATE_KEY": "UOAIC_AUTOFIX_MAX_STATE_KEY",
+        "UOAIC_AUTOFIX_STATE_KEY": "UOAIC_AUTOFIX_STATE_KEY",
+        "UOAIC_DATA_ENV": "UOAIC_DATA_ENV",
+        "UOAIC_DATA_STATE_KEY": "UOAIC_DATA_STATE_KEY",
+        "UOAIC_DB_ENV": "UOAIC_DB_ENV",
+        "UOAIC_DB_STATE_KEY": "UOAIC_DB_STATE_KEY",
+        "UOAIC_MODE_ENV": "UOAIC_MODE_ENV",
+        "UOAIC_MODE_OLLAMA": "UOAIC_MODE_OLLAMA",
+        "UOAIC_MODE_RAG": "UOAIC_MODE_RAG",
+        "UOAIC_MODE_STATE_KEY": "UOAIC_MODE_STATE_KEY",
+        "UOAIC_MODEL_ENV": "UOAIC_MODEL_ENV",
+        "UOAIC_NUM_CTX_ENV": "UOAIC_NUM_CTX_ENV",
+        "UOAIC_NUM_PREDICT_ENV": "UOAIC_NUM_PREDICT_ENV",
+        "UOAIC_OLLAMA_ENDPOINT_ENV": "UOAIC_OLLAMA_ENDPOINT_ENV",
+        "DEFAULT_UOAIC_BASE": "DEFAULT_UOAIC_BASE",
+        "UOAIC_PROVIDER": "UOAIC_PROVIDER",
+        "UOAIC_DEFAULT_DB_DIRNAME": "UOAIC_DEFAULT_DB_DIRNAME",
+        "UOAIC_REBUILD_FLAG_KEY": "UOAIC_REBUILD_FLAG_KEY",
+        "UOAIC_RUNTIME_KEY": "UOAIC_RUNTIME_KEY",
+        "UOAIC_SEED_ENV": "UOAIC_SEED_ENV",
+        "UOAIC_TEMPERATURE_ENV": "UOAIC_TEMPERATURE_ENV",
+        "UOAIC_TOP_P_ENV": "UOAIC_TOP_P_ENV",
+        "UoaicControlDeps": "UoaicControlDeps",
+        "UoaicRuntimeDeps": "UoaicRuntimeDeps",
+        "_normalize_user_path": "_normalize_user_path",
+        "chat_universal_offline": "_chat_universal_offline_impl",
+        "ensure_uoaic_runtime": "_ensure_uoaic_runtime_impl",
+        "load_uoaic_modules": "_load_uoaic_modules_impl",
+        "render_universal_offline_controls": "_render_universal_offline_controls_impl",
+        "resolve_uoaic_path": "_resolve_uoaic_path_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_ai_uoaic.py",
+    fallback_name="agilab_pipeline_ai_uoaic_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_ai_controls",
+    {
+        "PipelineAiControlDeps": "PipelineAiControlDeps",
+        "configure_assistant_engine": "_configure_assistant_engine_impl",
+        "gpt_oss_controls": "_gpt_oss_controls_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_ai_controls.py",
+    fallback_name="agilab_pipeline_ai_controls_fallback",
+)
 
 logger = logging.getLogger(__name__)
 JumpToMain = RuntimeError

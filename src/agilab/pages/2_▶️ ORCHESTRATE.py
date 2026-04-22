@@ -25,249 +25,154 @@ import pandas as pd
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
-try:
-    from agilab.page_docs import render_page_docs_access
-except ModuleNotFoundError:
-    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
-    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
-    if _page_docs_spec is None or _page_docs_spec.loader is None:
-        raise
-    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
-    _page_docs_spec.loader.exec_module(_page_docs_module)
-    render_page_docs_access = _page_docs_module.render_page_docs_access
-try:
-    from agilab.orchestrate_page_support import (
-        build_distribution_snippet,
-        build_install_snippet,
-        build_run_snippet,
-        compute_run_mode,
-        describe_run_mode,
-        merge_app_settings_sources,
-        optional_python_expr,
-        optional_string_expr,
-        resolve_requested_run_mode,
-        resolve_project_change_args_override,
-        filter_noise_lines,
-        filter_warning_messages,
-        format_log_block,
-        reassign_distribution_plan,
-        is_dask_shutdown_noise,
-        serialize_args_payload,
-        strip_ansi,
-        update_distribution_payload,
-        workplan_selection_key,
-    )
-except ModuleNotFoundError:
-    _orchestrate_page_support_path = Path(__file__).resolve().parents[1] / "orchestrate_page_support.py"
-    _orchestrate_page_support_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_page_support_fallback",
-        _orchestrate_page_support_path,
-    )
-    if _orchestrate_page_support_spec is None or _orchestrate_page_support_spec.loader is None:
-        raise
-    _orchestrate_page_support_module = importlib.util.module_from_spec(_orchestrate_page_support_spec)
-    _orchestrate_page_support_spec.loader.exec_module(_orchestrate_page_support_module)
-    build_distribution_snippet = _orchestrate_page_support_module.build_distribution_snippet
-    build_install_snippet = _orchestrate_page_support_module.build_install_snippet
-    build_run_snippet = _orchestrate_page_support_module.build_run_snippet
-    compute_run_mode = _orchestrate_page_support_module.compute_run_mode
-    describe_run_mode = _orchestrate_page_support_module.describe_run_mode
-    filter_noise_lines = _orchestrate_page_support_module.filter_noise_lines
-    filter_warning_messages = _orchestrate_page_support_module.filter_warning_messages
-    format_log_block = _orchestrate_page_support_module.format_log_block
-    merge_app_settings_sources = _orchestrate_page_support_module.merge_app_settings_sources
-    optional_python_expr = _orchestrate_page_support_module.optional_python_expr
-    optional_string_expr = _orchestrate_page_support_module.optional_string_expr
-    resolve_requested_run_mode = _orchestrate_page_support_module.resolve_requested_run_mode
-    resolve_project_change_args_override = _orchestrate_page_support_module.resolve_project_change_args_override
-    reassign_distribution_plan = _orchestrate_page_support_module.reassign_distribution_plan
-    is_dask_shutdown_noise = _orchestrate_page_support_module.is_dask_shutdown_noise
-    serialize_args_payload = _orchestrate_page_support_module.serialize_args_payload
-    strip_ansi = _orchestrate_page_support_module.strip_ansi
-    update_distribution_payload = _orchestrate_page_support_module.update_distribution_payload
-    workplan_selection_key = _orchestrate_page_support_module.workplan_selection_key
-try:
-    from agilab.orchestrate_page_helpers import (
-        app_install_status as _orchestrate_app_install_status,
-        init_session_state as _orchestrate_init_session_state,
-        clear_log as _orchestrate_clear_log,
-        rerun_fragment_or_app as _orchestrate_rerun_fragment_or_app,
-        update_delete_confirm_state as _orchestrate_update_delete_confirm_state,
-        update_log as _orchestrate_update_log,
-        reset_traceback_skip as _orchestrate_reset_traceback_skip,
-        append_log_lines as _orchestrate_append_log_lines,
-        log_indicates_install_failure as _orchestrate_log_indicates_install_failure,
-        looks_like_shared_path as _orchestrate_looks_like_shared_path,
-        set_active_app_query_param as _orchestrate_set_active_app_query_param,
-        clear_cached_distribution as _orchestrate_clear_cached_distribution,
-        clear_mount_table_cache as _orchestrate_clear_mount_table_cache,
-        resolve_share_candidate as _orchestrate_resolve_share_candidate,
-        benchmark_display_date as _orchestrate_benchmark_display_date,
-        display_log as _orchestrate_display_log,
-        safe_eval as _orchestrate_safe_eval,
-        parse_and_validate_scheduler as _orchestrate_parse_and_validate_scheduler,
-        parse_and_validate_workers as _orchestrate_parse_and_validate_workers,
-        toggle_select_all as _orchestrate_toggle_select_all,
-        update_select_all as _orchestrate_update_select_all,
-        capture_dataframe_preview_state as _orchestrate_capture_dataframe_preview_state,
-        restore_dataframe_preview_state as _orchestrate_restore_dataframe_preview_state,
-        is_app_installed as _orchestrate_is_app_installed,
-        LOG_DISPLAY_MAX_LINES,
-        LIVE_LOG_MIN_HEIGHT,
-        INSTALL_LOG_HEIGHT,
-        _TRACEBACK_SKIP,
-    )
-except ModuleNotFoundError:
-    _orchestrate_page_helpers_path = Path(__file__).resolve().parents[1] / "orchestrate_page_helpers.py"
-    _orchestrate_page_helpers_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_page_helpers_fallback",
-        _orchestrate_page_helpers_path,
-    )
-    if _orchestrate_page_helpers_spec is None or _orchestrate_page_helpers_spec.loader is None:
-        raise
-    _orchestrate_page_helpers_module = importlib.util.module_from_spec(_orchestrate_page_helpers_spec)
-    _orchestrate_page_helpers_spec.loader.exec_module(_orchestrate_page_helpers_module)
-    _orchestrate_app_install_status = _orchestrate_page_helpers_module.app_install_status
-    _orchestrate_init_session_state = _orchestrate_page_helpers_module.init_session_state
-    _orchestrate_clear_log = _orchestrate_page_helpers_module.clear_log
-    _orchestrate_rerun_fragment_or_app = _orchestrate_page_helpers_module.rerun_fragment_or_app
-    _orchestrate_update_delete_confirm_state = _orchestrate_page_helpers_module.update_delete_confirm_state
-    _orchestrate_update_log = _orchestrate_page_helpers_module.update_log
-    _orchestrate_reset_traceback_skip = _orchestrate_page_helpers_module.reset_traceback_skip
-    _orchestrate_append_log_lines = _orchestrate_page_helpers_module.append_log_lines
-    _orchestrate_log_indicates_install_failure = _orchestrate_page_helpers_module.log_indicates_install_failure
-    _orchestrate_looks_like_shared_path = _orchestrate_page_helpers_module.looks_like_shared_path
-    _orchestrate_set_active_app_query_param = _orchestrate_page_helpers_module.set_active_app_query_param
-    _orchestrate_clear_cached_distribution = _orchestrate_page_helpers_module.clear_cached_distribution
-    _orchestrate_clear_mount_table_cache = _orchestrate_page_helpers_module.clear_mount_table_cache
-    _orchestrate_resolve_share_candidate = _orchestrate_page_helpers_module.resolve_share_candidate
-    _orchestrate_benchmark_display_date = _orchestrate_page_helpers_module.benchmark_display_date
-    _orchestrate_display_log = _orchestrate_page_helpers_module.display_log
-    _orchestrate_safe_eval = _orchestrate_page_helpers_module.safe_eval
-    _orchestrate_parse_and_validate_scheduler = _orchestrate_page_helpers_module.parse_and_validate_scheduler
-    _orchestrate_parse_and_validate_workers = _orchestrate_page_helpers_module.parse_and_validate_workers
-    _orchestrate_toggle_select_all = _orchestrate_page_helpers_module.toggle_select_all
-    _orchestrate_update_select_all = _orchestrate_page_helpers_module.update_select_all
-    _orchestrate_capture_dataframe_preview_state = _orchestrate_page_helpers_module.capture_dataframe_preview_state
-    _orchestrate_restore_dataframe_preview_state = _orchestrate_page_helpers_module.restore_dataframe_preview_state
-    _orchestrate_is_app_installed = _orchestrate_page_helpers_module.is_app_installed
-    LOG_DISPLAY_MAX_LINES = _orchestrate_page_helpers_module.LOG_DISPLAY_MAX_LINES
-    LIVE_LOG_MIN_HEIGHT = _orchestrate_page_helpers_module.LIVE_LOG_MIN_HEIGHT
-    INSTALL_LOG_HEIGHT = _orchestrate_page_helpers_module.INSTALL_LOG_HEIGHT
-    _TRACEBACK_SKIP = _orchestrate_page_helpers_module._TRACEBACK_SKIP
-try:
-    from agilab.orchestrate_cluster import (
-        OrchestrateClusterDeps,
-        clear_cluster_widget_state,
-        hydrate_cluster_widget_state,
-        render_cluster_settings_ui,
-    )
-except ModuleNotFoundError:
-    _orchestrate_cluster_path = Path(__file__).resolve().parents[1] / "orchestrate_cluster.py"
-    _orchestrate_cluster_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_cluster_fallback",
-        _orchestrate_cluster_path,
-    )
-    if _orchestrate_cluster_spec is None or _orchestrate_cluster_spec.loader is None:
-        raise
-    _orchestrate_cluster_module = importlib.util.module_from_spec(_orchestrate_cluster_spec)
-    _orchestrate_cluster_spec.loader.exec_module(_orchestrate_cluster_module)
-    OrchestrateClusterDeps = _orchestrate_cluster_module.OrchestrateClusterDeps
-    clear_cluster_widget_state = _orchestrate_cluster_module.clear_cluster_widget_state
-    hydrate_cluster_widget_state = _orchestrate_cluster_module.hydrate_cluster_widget_state
-    render_cluster_settings_ui = _orchestrate_cluster_module.render_cluster_settings_ui
+_import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-try:
-    from agilab.orchestrate_distribution import (
-        show_graph,
-        show_tree,
-        workload_barchart,
-    )
-except ModuleNotFoundError:
-    _orchestrate_distribution_path = Path(__file__).resolve().parents[1] / "orchestrate_distribution.py"
-    _orchestrate_distribution_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_distribution_fallback",
-        _orchestrate_distribution_path,
-    )
-    if _orchestrate_distribution_spec is None or _orchestrate_distribution_spec.loader is None:
-        raise
-    _orchestrate_distribution_module = importlib.util.module_from_spec(_orchestrate_distribution_spec)
-    _orchestrate_distribution_spec.loader.exec_module(_orchestrate_distribution_module)
-    show_graph = _orchestrate_distribution_module.show_graph
-    show_tree = _orchestrate_distribution_module.show_tree
-    workload_barchart = _orchestrate_distribution_module.workload_barchart
-
-try:
-    from agilab.orchestrate_services import (
-        OrchestrateServiceDeps,
-        render_service_panel,
-    )
-except ModuleNotFoundError:
-    _orchestrate_services_path = Path(__file__).resolve().parents[1] / "orchestrate_services.py"
-    _orchestrate_services_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_services_fallback",
-        _orchestrate_services_path,
-    )
-    if _orchestrate_services_spec is None or _orchestrate_services_spec.loader is None:
-        raise
-    _orchestrate_services_module = importlib.util.module_from_spec(_orchestrate_services_spec)
-    _orchestrate_services_spec.loader.exec_module(_orchestrate_services_module)
-    OrchestrateServiceDeps = _orchestrate_services_module.OrchestrateServiceDeps
-    render_service_panel = _orchestrate_services_module.render_service_panel
-
-try:
-    from agilab.orchestrate_execute import (
-        OrchestrateExecuteDeps,
-        render_execute_section,
-    )
-except ModuleNotFoundError:
-    _orchestrate_execute_path = Path(__file__).resolve().parents[1] / "orchestrate_execute.py"
-    _orchestrate_execute_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_execute_fallback",
-        _orchestrate_execute_path,
-    )
-    if _orchestrate_execute_spec is None or _orchestrate_execute_spec.loader is None:
-        raise
-    _orchestrate_execute_module = importlib.util.module_from_spec(_orchestrate_execute_spec)
-    _orchestrate_execute_spec.loader.exec_module(_orchestrate_execute_module)
-    OrchestrateExecuteDeps = _orchestrate_execute_module.OrchestrateExecuteDeps
-    render_execute_section = _orchestrate_execute_module.render_execute_section
-
-try:
-    from agilab.orchestrate_support import (
-        coerce_bool_setting as _coerce_bool_setting,
-        coerce_float_setting as _coerce_float_setting,
-        coerce_int_setting as _coerce_int_setting,
-        evaluate_service_health_gate as _evaluate_service_health_gate,
-        extract_result_dict_from_output as _extract_result_dict_from_output,
-        fstype_for_path as _fstype_for_path,
-        macos_autofs_hint as _macos_autofs_hint,
-        mount_table as _mount_table,
-        parse_benchmark,
-        sanitize_for_toml as _sanitize_for_toml,
-        write_app_settings_toml as _write_app_settings_toml,
-    )
-except ModuleNotFoundError:
-    _orchestrate_support_path = Path(__file__).resolve().parents[1] / "orchestrate_support.py"
-    _orchestrate_support_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_support_fallback",
-        _orchestrate_support_path,
-    )
-    if _orchestrate_support_spec is None or _orchestrate_support_spec.loader is None:
-        raise
-    _orchestrate_support_module = importlib.util.module_from_spec(_orchestrate_support_spec)
-    _orchestrate_support_spec.loader.exec_module(_orchestrate_support_module)
-    _coerce_bool_setting = _orchestrate_support_module.coerce_bool_setting
-    _coerce_float_setting = _orchestrate_support_module.coerce_float_setting
-    _coerce_int_setting = _orchestrate_support_module.coerce_int_setting
-    _evaluate_service_health_gate = _orchestrate_support_module.evaluate_service_health_gate
-    _extract_result_dict_from_output = _orchestrate_support_module.extract_result_dict_from_output
-    _fstype_for_path = _orchestrate_support_module.fstype_for_path
-    _macos_autofs_hint = _orchestrate_support_module.macos_autofs_hint
-    _mount_table = _orchestrate_support_module.mount_table
-    parse_benchmark = _orchestrate_support_module.parse_benchmark
-    _sanitize_for_toml = _orchestrate_support_module.sanitize_for_toml
-    _write_app_settings_toml = _orchestrate_support_module.write_app_settings_toml
+import_agilab_symbols(
+    globals(),
+    "agilab.page_docs",
+    ["render_page_docs_access"],
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_page_support",
+    {
+        "build_distribution_snippet": "build_distribution_snippet",
+        "build_install_snippet": "build_install_snippet",
+        "build_run_snippet": "build_run_snippet",
+        "compute_run_mode": "compute_run_mode",
+        "describe_run_mode": "describe_run_mode",
+        "merge_app_settings_sources": "merge_app_settings_sources",
+        "optional_python_expr": "optional_python_expr",
+        "optional_string_expr": "optional_string_expr",
+        "resolve_requested_run_mode": "resolve_requested_run_mode",
+        "resolve_project_change_args_override": "resolve_project_change_args_override",
+        "filter_noise_lines": "filter_noise_lines",
+        "filter_warning_messages": "filter_warning_messages",
+        "format_log_block": "format_log_block",
+        "reassign_distribution_plan": "reassign_distribution_plan",
+        "is_dask_shutdown_noise": "is_dask_shutdown_noise",
+        "serialize_args_payload": "serialize_args_payload",
+        "strip_ansi": "strip_ansi",
+        "update_distribution_payload": "update_distribution_payload",
+        "workplan_selection_key": "workplan_selection_key",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_page_support.py",
+    fallback_name="agilab_orchestrate_page_support_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_page_helpers",
+    {
+        "app_install_status": "_orchestrate_app_install_status",
+        "init_session_state": "_orchestrate_init_session_state",
+        "clear_log": "_orchestrate_clear_log",
+        "rerun_fragment_or_app": "_orchestrate_rerun_fragment_or_app",
+        "update_delete_confirm_state": "_orchestrate_update_delete_confirm_state",
+        "update_log": "_orchestrate_update_log",
+        "reset_traceback_skip": "_orchestrate_reset_traceback_skip",
+        "append_log_lines": "_orchestrate_append_log_lines",
+        "log_indicates_install_failure": "_orchestrate_log_indicates_install_failure",
+        "looks_like_shared_path": "_orchestrate_looks_like_shared_path",
+        "set_active_app_query_param": "_orchestrate_set_active_app_query_param",
+        "clear_cached_distribution": "_orchestrate_clear_cached_distribution",
+        "clear_mount_table_cache": "_orchestrate_clear_mount_table_cache",
+        "resolve_share_candidate": "_orchestrate_resolve_share_candidate",
+        "benchmark_display_date": "_orchestrate_benchmark_display_date",
+        "display_log": "_orchestrate_display_log",
+        "safe_eval": "_orchestrate_safe_eval",
+        "parse_and_validate_scheduler": "_orchestrate_parse_and_validate_scheduler",
+        "parse_and_validate_workers": "_orchestrate_parse_and_validate_workers",
+        "toggle_select_all": "_orchestrate_toggle_select_all",
+        "update_select_all": "_orchestrate_update_select_all",
+        "capture_dataframe_preview_state": "_orchestrate_capture_dataframe_preview_state",
+        "restore_dataframe_preview_state": "_orchestrate_restore_dataframe_preview_state",
+        "is_app_installed": "_orchestrate_is_app_installed",
+        "LOG_DISPLAY_MAX_LINES": "LOG_DISPLAY_MAX_LINES",
+        "LIVE_LOG_MIN_HEIGHT": "LIVE_LOG_MIN_HEIGHT",
+        "INSTALL_LOG_HEIGHT": "INSTALL_LOG_HEIGHT",
+        "_TRACEBACK_SKIP": "_TRACEBACK_SKIP",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_page_helpers.py",
+    fallback_name="agilab_orchestrate_page_helpers_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_cluster",
+    {
+        "OrchestrateClusterDeps": "OrchestrateClusterDeps",
+        "clear_cluster_widget_state": "clear_cluster_widget_state",
+        "hydrate_cluster_widget_state": "hydrate_cluster_widget_state",
+        "render_cluster_settings_ui": "render_cluster_settings_ui",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_cluster.py",
+    fallback_name="agilab_orchestrate_cluster_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_distribution",
+    {
+        "show_graph": "show_graph",
+        "show_tree": "show_tree",
+        "workload_barchart": "workload_barchart",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_distribution.py",
+    fallback_name="agilab_orchestrate_distribution_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_services",
+    {
+        "OrchestrateServiceDeps": "OrchestrateServiceDeps",
+        "render_service_panel": "render_service_panel",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_services.py",
+    fallback_name="agilab_orchestrate_services_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_execute",
+    {
+        "OrchestrateExecuteDeps": "OrchestrateExecuteDeps",
+        "render_execute_section": "render_execute_section",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_execute.py",
+    fallback_name="agilab_orchestrate_execute_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_support",
+    {
+        "coerce_bool_setting": "_coerce_bool_setting",
+        "coerce_float_setting": "_coerce_float_setting",
+        "coerce_int_setting": "_coerce_int_setting",
+        "evaluate_service_health_gate": "_evaluate_service_health_gate",
+        "extract_result_dict_from_output": "_extract_result_dict_from_output",
+        "fstype_for_path": "_fstype_for_path",
+        "macos_autofs_hint": "_macos_autofs_hint",
+        "mount_table": "_mount_table",
+        "parse_benchmark": "parse_benchmark",
+        "sanitize_for_toml": "_sanitize_for_toml",
+        "write_app_settings_toml": "_write_app_settings_toml",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_support.py",
+    fallback_name="agilab_orchestrate_support_fallback",
+)
 # Project Libraries:
 from agi_env.pagelib import (
     background_services_enabled, get_about_content, render_logo, activate_mlflow, init_custom_ui, select_project,
