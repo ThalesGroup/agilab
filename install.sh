@@ -489,6 +489,31 @@ refresh_launch_matrix() {
     popd > /dev/null || true
 }
 
+restore_deleted_runconfig_assets() {
+    local repo_root="$AGI_INSTALL_PATH"
+    if ! git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local -a deleted_paths=()
+    while IFS= read -r path; do
+        [[ -n "$path" ]] && deleted_paths+=("$path")
+    done < <(
+        git -C "$repo_root" ls-files --deleted -- .idea/runConfigurations tools/run_configs 2>/dev/null
+    )
+
+    if (( ${#deleted_paths[@]} == 0 )); then
+        return 0
+    fi
+
+    echo -e "${YELLOW}Restoring deleted tracked run-config assets...${NC}"
+    if git -C "$repo_root" restore --source=HEAD -- "${deleted_paths[@]}"; then
+        echo -e "${GREEN}Restored ${#deleted_paths[@]} run-config assets from Git.${NC}"
+    else
+        warn "Failed to restore deleted run-config assets; continuing without self-heal."
+    fi
+}
+
 check_internet() {
     echo -e "${BLUE}Checking internet connectivity...${NC}"
     if curl -Is --connect-timeout 3 https://www.google.com &>/dev/null; then
@@ -1198,6 +1223,7 @@ else
   FINAL_STATUS="Installation complete (apps skipped)."
 fi
 
+restore_deleted_runconfig_assets
 install_pycharm_script
 refresh_launch_matrix
 install_enduser
