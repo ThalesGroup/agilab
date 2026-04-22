@@ -150,3 +150,10 @@ def test_compute_aggregate_percent_uses_component_fallback_counts(tmp_path: Path
     finally:
         for key, value in originals.items():
             module.COMPONENTS[key] = value
+
+
+def test_node_and_cluster_default_to_explicit_component_or_combined_reports_only() -> None:
+    module = _load_module()
+
+    assert "fallback_xmls" not in module.COMPONENTS["agi-node"]
+    assert "fallback_xmls" not in module.COMPONENTS["agi-cluster"]
