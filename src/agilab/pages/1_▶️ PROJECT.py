@@ -21,20 +21,27 @@ from pathlib import Path
 import ast
 import re
 import importlib
+import importlib.util
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 import streamlit as st
-try:
-    from agilab.page_docs import render_page_docs_access
-except ModuleNotFoundError:
-    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
-    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
-    if _page_docs_spec is None or _page_docs_spec.loader is None:
-        raise
-    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
-    _page_docs_spec.loader.exec_module(_page_docs_module)
-    render_page_docs_access = _page_docs_module.render_page_docs_access
+_import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
+
+import_agilab_symbols(
+    globals(),
+    "agilab.page_docs",
+    ["render_page_docs_access"],
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
     background_services_enabled,
@@ -53,19 +60,14 @@ from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv, normalize_path
 
-try:
-    from agilab.code_editor_support import normalize_custom_buttons
-except ModuleNotFoundError:
-    _code_editor_support_path = Path(__file__).resolve().parents[1] / "code_editor_support.py"
-    _code_editor_support_spec = importlib.util.spec_from_file_location(
-        "agilab_code_editor_support_fallback",
-        _code_editor_support_path,
-    )
-    if _code_editor_support_spec is None or _code_editor_support_spec.loader is None:
-        raise
-    _code_editor_support_module = importlib.util.module_from_spec(_code_editor_support_spec)
-    _code_editor_support_spec.loader.exec_module(_code_editor_support_module)
-    normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+import_agilab_symbols(
+    globals(),
+    "agilab.code_editor_support",
+    ["normalize_custom_buttons"],
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "code_editor_support.py",
+    fallback_name="agilab_code_editor_support_fallback",
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 

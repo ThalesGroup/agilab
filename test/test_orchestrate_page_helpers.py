@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import importlib
 import importlib.util
+from importlib.machinery import ModuleSpec
 import os
 import sys
 import tempfile
@@ -32,20 +33,37 @@ def _import_agilab_module(module_name: str):
     package_root_str = str(package_root)
     if src_root_str not in sys.path:
         sys.path.insert(0, src_root_str)
-    pkg = sys.modules.get("agilab")
-    if pkg is None or not hasattr(pkg, "__path__"):
-        pkg = types.ModuleType("agilab")
-        pkg.__path__ = [package_root_str]
-        sys.modules["agilab"] = pkg
-    else:
-        package_path = list(pkg.__path__)
-        if package_root_str not in package_path:
-            pkg.__path__ = [package_root_str, *package_path]
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [package_root_str]
+    pkg.__file__ = str(package_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec = ModuleSpec("agilab", loader=None, is_package=True)
+    spec.submodule_search_locations = [package_root_str]
+    pkg.__spec__ = spec
+    sys.modules["agilab"] = pkg
     importlib.invalidate_caches()
     return importlib.import_module(module_name)
 
 
+def _prime_current_agilab_package() -> None:
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [package_root_str]
+    pkg.__file__ = str(package_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec = ModuleSpec("agilab", loader=None, is_package=True)
+    spec.submodule_search_locations = [package_root_str]
+    pkg.__spec__ = spec
+    sys.modules["agilab"] = pkg
+
+
 def _load_orchestrate_page_helpers_module():
+    _prime_current_agilab_package()
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_tests", module_path)
     assert spec is not None and spec.loader is not None
@@ -71,14 +89,28 @@ def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, name
         if package_root_str not in package_path:
             pkg.__path__ = [package_root_str, *package_path]
 
+    for name in names_to_fail:
+        sys.modules.pop(name, None)
+
     real_import = builtins.__import__
+    real_import_module = importlib.import_module
 
     def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name in names_to_fail:
-            raise ModuleNotFoundError(f"forced missing {name}")
+            exc = ModuleNotFoundError(f"forced missing {name}")
+            exc.name = name
+            raise exc
         return real_import(name, globals, locals, fromlist, level)
 
+    def _fake_import_module(name, package=None):
+        if name in names_to_fail:
+            exc = ModuleNotFoundError(f"forced missing {name}")
+            exc.name = name
+            raise exc
+        return real_import_module(name, package)
+
     monkeypatch.setattr(builtins, "__import__", _fake_import)
+    monkeypatch.setattr(importlib, "import_module", _fake_import_module)
 
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_fallback_tests", module_path)
@@ -89,8 +121,31 @@ def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, name
 
 
 def _load_orchestrate_module():
+    _prime_current_agilab_package()
     module_path = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_tests", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_orchestrate_module_with_mixed_checkout(monkeypatch, stale_root: Path):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = types.ModuleType("agilab")
+    pkg.__path__ = [str(stale_root)]
+    pkg.__file__ = str(stale_root / "__init__.py")
+    pkg.__package__ = "agilab"
+    spec_pkg = ModuleSpec("agilab", loader=None, is_package=True)
+    spec_pkg.submodule_search_locations = [str(stale_root)]
+    pkg.__spec__ = spec_pkg
+    monkeypatch.setitem(sys.modules, "agilab", pkg)
+
+    module_path = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_importerror_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -128,6 +183,14 @@ def test_page_helpers_fallback_loader_handles_missing_support_imports(monkeypatc
     assert resolved.name == "clustershare"
     assert str(resolved).endswith("/home/agi/clustershare")
     assert module.looks_like_shared_path(Path("/mnt/share"), Path("/repo")) is True
+
+
+def test_orchestrate_page_raises_mixed_checkout_error(monkeypatch, tmp_path):
+    stale_root = tmp_path / "stale" / "agilab"
+    stale_root.mkdir(parents=True)
+
+    with pytest.raises(ImportError, match="Mixed AGILAB checkout detected"):
+        _load_orchestrate_module_with_mixed_checkout(monkeypatch, stale_root)
 
 
 def test_page_helpers_delegate_scheduler_worker_and_safe_eval(monkeypatch):
@@ -292,17 +355,18 @@ def test_page_helpers_looks_like_shared_path_delegates_project_root(monkeypatch,
     assert captured["value"] == (candidate, project_root)
 
 
-def test_page_helpers_import_fallback_raises_when_local_specs_are_missing(monkeypatch):
+def test_page_helpers_import_fallback_raises_when_local_specs_are_missing():
     original_spec = importlib.util.spec_from_file_location
 
-    def _page_support_missing(name, location, *args, **kwargs):
-        if name == "agilab_orchestrate_page_support_fallback":
-            return None
-        return original_spec(name, location, *args, **kwargs)
+    with pytest.MonkeyPatch.context() as mp:
+        def _page_support_missing(name, location, *args, **kwargs):
+            if name == "agilab_orchestrate_page_support_fallback":
+                return None
+            return original_spec(name, location, *args, **kwargs)
 
-    monkeypatch.setattr(importlib.util, "spec_from_file_location", _page_support_missing)
-    with pytest.raises(ModuleNotFoundError, match="orchestrate_page_support"):
-        _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, {"agilab.orchestrate_page_support"})
+        mp.setattr(importlib.util, "spec_from_file_location", _page_support_missing)
+        with pytest.raises(ModuleNotFoundError, match="orchestrate_page_support"):
+            _load_orchestrate_page_helpers_module_with_import_failures(mp, {"agilab.orchestrate_page_support"})
 
     with pytest.MonkeyPatch.context() as mp:
         def _support_missing(name, location, *args, **kwargs):

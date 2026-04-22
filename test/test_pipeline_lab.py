@@ -127,13 +127,26 @@ class _FakeStreamlit:
 def _load_pipeline_lab_with_missing(*missing_modules: str):
     module_name = f"agilab.pipeline_lab_fallback_{len(missing_modules)}_{abs(hash(missing_modules))}"
     original_import = __import__
+    original_import_module = importlib.import_module
 
     def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name in missing_modules:
-            raise ModuleNotFoundError(name)
+            exc = ModuleNotFoundError(name)
+            exc.name = name
+            raise exc
         return original_import(name, globals, locals, fromlist, level)
 
-    with patch("builtins.__import__", _patched_import):
+    def _patched_import_module(name, package=None):
+        if name in missing_modules:
+            exc = ModuleNotFoundError(name)
+            exc.name = name
+            raise exc
+        return original_import_module(name, package)
+
+    with (
+        patch("builtins.__import__", _patched_import),
+        patch("importlib.import_module", _patched_import_module),
+    ):
         return _load_module(module_name, "src/agilab/pipeline_lab.py")
 
 

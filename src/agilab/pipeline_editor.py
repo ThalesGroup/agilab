@@ -14,81 +14,60 @@ from code_editor import code_editor
 
 from agi_env.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
 
-try:
-    from agilab.code_editor_support import normalize_custom_buttons
-except ModuleNotFoundError:
-    _code_editor_support_path = Path(__file__).resolve().parent / "code_editor_support.py"
-    import importlib.util
-    _code_editor_support_spec = importlib.util.spec_from_file_location(
-        "agilab_code_editor_support_fallback",
-        _code_editor_support_path,
-    )
-    if _code_editor_support_spec is None or _code_editor_support_spec.loader is None:
-        raise
-    _code_editor_support_module = importlib.util.module_from_spec(_code_editor_support_spec)
-    _code_editor_support_spec.loader.exec_module(_code_editor_support_module)
-    normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+import importlib.util
 
-try:
-    from agilab.pipeline_runtime import is_valid_runtime_root as _is_valid_runtime_root
-except ModuleNotFoundError:
-    _pipeline_runtime_path = Path(__file__).resolve().parent / "pipeline_runtime.py"
-    import importlib.util
-    _pipeline_runtime_spec = importlib.util.spec_from_file_location("agilab_pipeline_runtime_fallback", _pipeline_runtime_path)
-    if _pipeline_runtime_spec is None or _pipeline_runtime_spec.loader is None:
-        raise
-    _pipeline_runtime_module = importlib.util.module_from_spec(_pipeline_runtime_spec)
-    _pipeline_runtime_spec.loader.exec_module(_pipeline_runtime_module)
-    _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-try:
-    from agilab.pipeline_steps import (
-        bump_history_revision as _bump_history_revision,
-        ensure_primary_module_key as _ensure_primary_module_key,
-        is_displayable_step as _is_displayable_step,
-        looks_like_step as _looks_like_step,
-        module_keys as _module_keys,
-        normalize_runtime_path,
-        persist_sequence_preferences as _persist_sequence_preferences,
-        prune_invalid_entries as _prune_invalid_entries,
-    )
-except ModuleNotFoundError:
-    _pipeline_steps_path = Path(__file__).resolve().parent / "pipeline_steps.py"
-    import importlib.util
-    _pipeline_steps_spec = importlib.util.spec_from_file_location("agilab_pipeline_steps_fallback", _pipeline_steps_path)
-    if _pipeline_steps_spec is None or _pipeline_steps_spec.loader is None:
-        raise
-    _pipeline_steps_module = importlib.util.module_from_spec(_pipeline_steps_spec)
-    _pipeline_steps_spec.loader.exec_module(_pipeline_steps_module)
-    _bump_history_revision = _pipeline_steps_module.bump_history_revision
-    _ensure_primary_module_key = _pipeline_steps_module.ensure_primary_module_key
-    _is_displayable_step = _pipeline_steps_module.is_displayable_step
-    _looks_like_step = _pipeline_steps_module.looks_like_step
-    _module_keys = _pipeline_steps_module.module_keys
-    normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
-    _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
-    _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
-
-try:
-    from agilab.notebook_export_support import (
-        build_notebook_document,
-        build_notebook_export_context,
-    )
-except ModuleNotFoundError:
-    _notebook_export_support_path = Path(__file__).resolve().parent / "notebook_export_support.py"
-    import importlib.util
-    _notebook_export_support_spec = importlib.util.spec_from_file_location(
-        "agilab_notebook_export_support_fallback",
-        _notebook_export_support_path,
-    )
-    if _notebook_export_support_spec is None or _notebook_export_support_spec.loader is None:
-        raise
-    _notebook_export_support_module = importlib.util.module_from_spec(_notebook_export_support_spec)
-    import sys
-    sys.modules["agilab_notebook_export_support_fallback"] = _notebook_export_support_module
-    _notebook_export_support_spec.loader.exec_module(_notebook_export_support_module)
-    build_notebook_document = _notebook_export_support_module.build_notebook_document
-    build_notebook_export_context = _notebook_export_support_module.build_notebook_export_context
+import_agilab_symbols(
+    globals(),
+    "agilab.code_editor_support",
+    {"normalize_custom_buttons": "normalize_custom_buttons"},
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "code_editor_support.py",
+    fallback_name="agilab_code_editor_support_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_runtime",
+    {"is_valid_runtime_root": "_is_valid_runtime_root"},
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_runtime.py",
+    fallback_name="agilab_pipeline_runtime_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_steps",
+    {
+        "bump_history_revision": "_bump_history_revision",
+        "ensure_primary_module_key": "_ensure_primary_module_key",
+        "is_displayable_step": "_is_displayable_step",
+        "looks_like_step": "_looks_like_step",
+        "module_keys": "_module_keys",
+        "normalize_runtime_path": "normalize_runtime_path",
+        "persist_sequence_preferences": "_persist_sequence_preferences",
+        "prune_invalid_entries": "_prune_invalid_entries",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
+    fallback_name="agilab_pipeline_steps_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.notebook_export_support",
+    {
+        "build_notebook_document": "build_notebook_document",
+        "build_notebook_export_context": "build_notebook_export_context",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "notebook_export_support.py",
+    fallback_name="agilab_notebook_export_support_fallback",
+)
 
 logger = logging.getLogger(__name__)
 

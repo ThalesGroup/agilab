@@ -21,16 +21,23 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
-try:
-    from agilab.page_docs import render_page_docs_access
-except ModuleNotFoundError:
-    _page_docs_path = Path(__file__).resolve().parents[1] / "page_docs.py"
-    _page_docs_spec = importlib.util.spec_from_file_location("agilab_page_docs_fallback", _page_docs_path)
-    if _page_docs_spec is None or _page_docs_spec.loader is None:
-        raise
-    _page_docs_module = importlib.util.module_from_spec(_page_docs_spec)
-    _page_docs_spec.loader.exec_module(_page_docs_module)
-    render_page_docs_access = _page_docs_module.render_page_docs_access
+_import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
+load_local_module = _import_guard_module.load_local_module
+
+import_agilab_symbols(
+    globals(),
+    "agilab.page_docs",
+    ["render_page_docs_access"],
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
 from agi_env.pagelib import (
     activate_mlflow,
     background_services_enabled,
@@ -49,218 +56,142 @@ from agi_env.pagelib import (
     inject_theme,
 )
 from agi_env import AgiEnv, normalize_path
-try:
-    from agilab.pipeline_views import load_pipeline_conceptual_dot, render_pipeline_view
-except ModuleNotFoundError:
-    _pipeline_views_path = Path(__file__).resolve().parents[1] / "pipeline_views.py"
-    _pipeline_views_spec = importlib.util.spec_from_file_location("agilab_pipeline_views_fallback", _pipeline_views_path)
-    if _pipeline_views_spec is None or _pipeline_views_spec.loader is None:
-        raise
-    _pipeline_views_module = importlib.util.module_from_spec(_pipeline_views_spec)
-    _pipeline_views_spec.loader.exec_module(_pipeline_views_module)
-    load_pipeline_conceptual_dot = _pipeline_views_module.load_pipeline_conceptual_dot
-    render_pipeline_view = _pipeline_views_module.render_pipeline_view
-try:
-    from agilab.pipeline_steps import (
-        ORCHESTRATE_LOCKED_SOURCE_KEY,
-        ORCHESTRATE_LOCKED_STEP_KEY,
-        bump_history_revision as _bump_history_revision,
-        ensure_primary_module_key as _ensure_primary_module_key,
-        get_available_virtualenvs,
-        is_displayable_step as _is_displayable_step,
-        is_orchestrate_locked_step as _is_orchestrate_locked_step,
-        is_runnable_step as _is_runnable_step,
-        load_sequence_preferences as _load_sequence_preferences,
-        looks_like_step as _looks_like_step,
-        module_keys as _module_keys,
-        normalize_runtime_path,
-        orchestrate_snippet_source as _orchestrate_snippet_source,
-        persist_sequence_preferences as _persist_sequence_preferences,
-        pipeline_export_root as _pipeline_export_root,
-        prune_invalid_entries as _prune_invalid_entries,
-        snippet_source_guidance as _snippet_source_guidance,
-        step_button_label as _step_button_label,
-        step_label_for_multiselect as _step_label_for_multiselect,
-        step_summary as _step_summary,
-    )
-except ModuleNotFoundError:
-    _pipeline_steps_path = Path(__file__).resolve().parents[1] / "pipeline_steps.py"
-    _pipeline_steps_spec = importlib.util.spec_from_file_location("agilab_pipeline_steps_fallback", _pipeline_steps_path)
-    if _pipeline_steps_spec is None or _pipeline_steps_spec.loader is None:
-        raise
-    _pipeline_steps_module = importlib.util.module_from_spec(_pipeline_steps_spec)
-    _pipeline_steps_spec.loader.exec_module(_pipeline_steps_module)
-    ORCHESTRATE_LOCKED_SOURCE_KEY = _pipeline_steps_module.ORCHESTRATE_LOCKED_SOURCE_KEY
-    ORCHESTRATE_LOCKED_STEP_KEY = _pipeline_steps_module.ORCHESTRATE_LOCKED_STEP_KEY
-    _bump_history_revision = _pipeline_steps_module.bump_history_revision
-    _ensure_primary_module_key = _pipeline_steps_module.ensure_primary_module_key
-    get_available_virtualenvs = _pipeline_steps_module.get_available_virtualenvs
-    _is_displayable_step = _pipeline_steps_module.is_displayable_step
-    _is_orchestrate_locked_step = _pipeline_steps_module.is_orchestrate_locked_step
-    _is_runnable_step = _pipeline_steps_module.is_runnable_step
-    _load_sequence_preferences = _pipeline_steps_module.load_sequence_preferences
-    _looks_like_step = _pipeline_steps_module.looks_like_step
-    _module_keys = _pipeline_steps_module.module_keys
-    normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
-    _orchestrate_snippet_source = _pipeline_steps_module.orchestrate_snippet_source
-    _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
-    _pipeline_export_root = _pipeline_steps_module.pipeline_export_root
-    _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
-    _snippet_source_guidance = _pipeline_steps_module.snippet_source_guidance
-    _step_button_label = _pipeline_steps_module.step_button_label
-    _step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
-    _step_summary = _pipeline_steps_module.step_summary
-try:
-    from agilab.pipeline_ai import (
-        CODE_STRICT_INSTRUCTIONS,
-        UOAIC_AUTOFIX_ENV,
-        UOAIC_AUTOFIX_MAX_ENV,
-        UOAIC_AUTOFIX_MAX_STATE_KEY,
-        UOAIC_AUTOFIX_STATE_KEY,
-        UOAIC_DATA_ENV,
-        UOAIC_DB_ENV,
-        UOAIC_MODE_ENV,
-        UOAIC_MODE_OLLAMA,
-        UOAIC_MODE_RAG,
-        UOAIC_MODE_STATE_KEY,
-        UOAIC_PROVIDER,
-        UOAIC_REBUILD_FLAG_KEY,
-        UOAIC_RUNTIME_KEY,
-        ask_gpt,
-        configure_assistant_engine,
-        extract_code,
-        gpt_oss_controls,
-        universal_offline_controls,
-        _maybe_autofix_generated_code,
-    )
-    import agilab.pipeline_ai as _pipeline_ai_module
-except ModuleNotFoundError:
-    _pipeline_ai_path = Path(__file__).resolve().parents[1] / "pipeline_ai.py"
-    _pipeline_ai_spec = importlib.util.spec_from_file_location("agilab_pipeline_ai_fallback", _pipeline_ai_path)
-    if _pipeline_ai_spec is None or _pipeline_ai_spec.loader is None:
-        raise
-    _pipeline_ai_module = importlib.util.module_from_spec(_pipeline_ai_spec)
-    _pipeline_ai_spec.loader.exec_module(_pipeline_ai_module)
-    CODE_STRICT_INSTRUCTIONS = _pipeline_ai_module.CODE_STRICT_INSTRUCTIONS
-    UOAIC_AUTOFIX_ENV = _pipeline_ai_module.UOAIC_AUTOFIX_ENV
-    UOAIC_AUTOFIX_MAX_ENV = _pipeline_ai_module.UOAIC_AUTOFIX_MAX_ENV
-    UOAIC_AUTOFIX_MAX_STATE_KEY = _pipeline_ai_module.UOAIC_AUTOFIX_MAX_STATE_KEY
-    UOAIC_AUTOFIX_STATE_KEY = _pipeline_ai_module.UOAIC_AUTOFIX_STATE_KEY
-    UOAIC_DATA_ENV = _pipeline_ai_module.UOAIC_DATA_ENV
-    UOAIC_DB_ENV = _pipeline_ai_module.UOAIC_DB_ENV
-    UOAIC_MODE_ENV = _pipeline_ai_module.UOAIC_MODE_ENV
-    UOAIC_MODE_OLLAMA = _pipeline_ai_module.UOAIC_MODE_OLLAMA
-    UOAIC_MODE_RAG = _pipeline_ai_module.UOAIC_MODE_RAG
-    UOAIC_MODE_STATE_KEY = _pipeline_ai_module.UOAIC_MODE_STATE_KEY
-    UOAIC_PROVIDER = _pipeline_ai_module.UOAIC_PROVIDER
-    UOAIC_REBUILD_FLAG_KEY = _pipeline_ai_module.UOAIC_REBUILD_FLAG_KEY
-    UOAIC_RUNTIME_KEY = _pipeline_ai_module.UOAIC_RUNTIME_KEY
-    ask_gpt = _pipeline_ai_module.ask_gpt
-    configure_assistant_engine = _pipeline_ai_module.configure_assistant_engine
-    extract_code = _pipeline_ai_module.extract_code
-    gpt_oss_controls = _pipeline_ai_module.gpt_oss_controls
-    universal_offline_controls = _pipeline_ai_module.universal_offline_controls
-    _maybe_autofix_generated_code = _pipeline_ai_module._maybe_autofix_generated_code
-try:
-    from agilab.pipeline_editor import (
-        _capture_pipeline_snapshot,
-        _force_persist_step,
-        _restore_pipeline_snapshot,
-        build_notebook_export_context,
-        get_steps_list,
-        on_import_notebook,
-        refresh_notebook_export,
-        remove_step,
-        save_step,
-        toml_to_notebook,
-    )
-except ModuleNotFoundError:
-    _pipeline_editor_path = Path(__file__).resolve().parents[1] / "pipeline_editor.py"
-    _pipeline_editor_spec = importlib.util.spec_from_file_location("agilab_pipeline_editor_fallback", _pipeline_editor_path)
-    if _pipeline_editor_spec is None or _pipeline_editor_spec.loader is None:
-        raise
-    _pipeline_editor_module = importlib.util.module_from_spec(_pipeline_editor_spec)
-    _pipeline_editor_spec.loader.exec_module(_pipeline_editor_module)
-    _capture_pipeline_snapshot = _pipeline_editor_module._capture_pipeline_snapshot
-    _force_persist_step = _pipeline_editor_module._force_persist_step
-    _restore_pipeline_snapshot = _pipeline_editor_module._restore_pipeline_snapshot
-    build_notebook_export_context = _pipeline_editor_module.build_notebook_export_context
-    get_steps_list = _pipeline_editor_module.get_steps_list
-    on_import_notebook = _pipeline_editor_module.on_import_notebook
-    refresh_notebook_export = _pipeline_editor_module.refresh_notebook_export
-    remove_step = _pipeline_editor_module.remove_step
-    save_step = _pipeline_editor_module.save_step
-    toml_to_notebook = _pipeline_editor_module.toml_to_notebook
-try:
-    from agilab.pipeline_lab import PipelineLabDeps, display_lab_tab
-except ModuleNotFoundError:
-    _pipeline_lab_path = Path(__file__).resolve().parents[1] / "pipeline_lab.py"
-    _pipeline_lab_spec = importlib.util.spec_from_file_location("agilab_pipeline_lab_fallback", _pipeline_lab_path)
-    if _pipeline_lab_spec is None or _pipeline_lab_spec.loader is None:
-        raise
-    _pipeline_lab_module = importlib.util.module_from_spec(_pipeline_lab_spec)
-    _pipeline_lab_spec.loader.exec_module(_pipeline_lab_module)
-    PipelineLabDeps = _pipeline_lab_module.PipelineLabDeps
-    display_lab_tab = _pipeline_lab_module.display_lab_tab
-
-try:
-    from agilab.pipeline_runtime import (
-        build_mlflow_process_env,
-        label_for_step_runtime as _label_for_step_runtime,
-        log_mlflow_artifacts,
-        mlflow_tracking_uri,
-        ensure_safe_service_template as _ensure_safe_service_template,
-        is_valid_runtime_root as _is_valid_runtime_root,
-        python_for_step as _python_for_step,
-        python_for_venv as _python_for_venv,
-        run_locked_step as _run_locked_step,
-        start_mlflow_run,
-        stream_run_command as _stream_run_command,
-        to_bool_flag as _to_bool_flag,
-        wrap_code_with_mlflow_resume,
-    )
-except ModuleNotFoundError:
-    _pipeline_runtime_path = Path(__file__).resolve().parents[1] / "pipeline_runtime.py"
-    _pipeline_runtime_spec = importlib.util.spec_from_file_location("agilab_pipeline_runtime_fallback", _pipeline_runtime_path)
-    if _pipeline_runtime_spec is None or _pipeline_runtime_spec.loader is None:
-        raise
-    _pipeline_runtime_module = importlib.util.module_from_spec(_pipeline_runtime_spec)
-    _pipeline_runtime_spec.loader.exec_module(_pipeline_runtime_module)
-    _ensure_safe_service_template = _pipeline_runtime_module.ensure_safe_service_template
-    build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
-    _label_for_step_runtime = _pipeline_runtime_module.label_for_step_runtime
-    log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
-    mlflow_tracking_uri = _pipeline_runtime_module.mlflow_tracking_uri
-    _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
-    _python_for_step = _pipeline_runtime_module.python_for_step
-    _python_for_venv = _pipeline_runtime_module.python_for_venv
-    _run_locked_step = _pipeline_runtime_module.run_locked_step
-    start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
-    _stream_run_command = _pipeline_runtime_module.stream_run_command
-    _to_bool_flag = _pipeline_runtime_module.to_bool_flag
-    wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
-try:
-    from agilab.pipeline_sidebar import (
-        available_lab_modules as _available_lab_modules,
-        load_last_active_app_name as _load_last_active_app_name,
-        normalize_lab_choice as _normalize_lab_choice,
-        on_lab_change,
-        open_notebook_in_browser,
-        resolve_lab_export_dir as _resolve_lab_export_dir,
-    )
-except ModuleNotFoundError:
-    _pipeline_sidebar_path = Path(__file__).resolve().parents[1] / "pipeline_sidebar.py"
-    _pipeline_sidebar_spec = importlib.util.spec_from_file_location("agilab_pipeline_sidebar_fallback", _pipeline_sidebar_path)
-    if _pipeline_sidebar_spec is None or _pipeline_sidebar_spec.loader is None:
-        raise
-    _pipeline_sidebar_module = importlib.util.module_from_spec(_pipeline_sidebar_spec)
-    _pipeline_sidebar_spec.loader.exec_module(_pipeline_sidebar_module)
-    _available_lab_modules = _pipeline_sidebar_module.available_lab_modules
-    _load_last_active_app_name = _pipeline_sidebar_module.load_last_active_app_name
-    _normalize_lab_choice = _pipeline_sidebar_module.normalize_lab_choice
-    on_lab_change = _pipeline_sidebar_module.on_lab_change
-    open_notebook_in_browser = _pipeline_sidebar_module.open_notebook_in_browser
-    _resolve_lab_export_dir = _pipeline_sidebar_module.resolve_lab_export_dir
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_views",
+    {
+        "load_pipeline_conceptual_dot": "load_pipeline_conceptual_dot",
+        "render_pipeline_view": "render_pipeline_view",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_views.py",
+    fallback_name="agilab_pipeline_views_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_steps",
+    {
+        "ORCHESTRATE_LOCKED_SOURCE_KEY": "ORCHESTRATE_LOCKED_SOURCE_KEY",
+        "ORCHESTRATE_LOCKED_STEP_KEY": "ORCHESTRATE_LOCKED_STEP_KEY",
+        "bump_history_revision": "_bump_history_revision",
+        "ensure_primary_module_key": "_ensure_primary_module_key",
+        "get_available_virtualenvs": "get_available_virtualenvs",
+        "is_displayable_step": "_is_displayable_step",
+        "is_orchestrate_locked_step": "_is_orchestrate_locked_step",
+        "is_runnable_step": "_is_runnable_step",
+        "load_sequence_preferences": "_load_sequence_preferences",
+        "looks_like_step": "_looks_like_step",
+        "module_keys": "_module_keys",
+        "normalize_runtime_path": "normalize_runtime_path",
+        "orchestrate_snippet_source": "_orchestrate_snippet_source",
+        "persist_sequence_preferences": "_persist_sequence_preferences",
+        "pipeline_export_root": "_pipeline_export_root",
+        "prune_invalid_entries": "_prune_invalid_entries",
+        "snippet_source_guidance": "_snippet_source_guidance",
+        "step_button_label": "_step_button_label",
+        "step_label_for_multiselect": "_step_label_for_multiselect",
+        "step_summary": "_step_summary",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_steps.py",
+    fallback_name="agilab_pipeline_steps_fallback",
+)
+_pipeline_ai_module = import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_ai",
+    {
+        "CODE_STRICT_INSTRUCTIONS": "CODE_STRICT_INSTRUCTIONS",
+        "UOAIC_AUTOFIX_ENV": "UOAIC_AUTOFIX_ENV",
+        "UOAIC_AUTOFIX_MAX_ENV": "UOAIC_AUTOFIX_MAX_ENV",
+        "UOAIC_AUTOFIX_MAX_STATE_KEY": "UOAIC_AUTOFIX_MAX_STATE_KEY",
+        "UOAIC_AUTOFIX_STATE_KEY": "UOAIC_AUTOFIX_STATE_KEY",
+        "UOAIC_DATA_ENV": "UOAIC_DATA_ENV",
+        "UOAIC_DB_ENV": "UOAIC_DB_ENV",
+        "UOAIC_MODE_ENV": "UOAIC_MODE_ENV",
+        "UOAIC_MODE_OLLAMA": "UOAIC_MODE_OLLAMA",
+        "UOAIC_MODE_RAG": "UOAIC_MODE_RAG",
+        "UOAIC_MODE_STATE_KEY": "UOAIC_MODE_STATE_KEY",
+        "UOAIC_PROVIDER": "UOAIC_PROVIDER",
+        "UOAIC_REBUILD_FLAG_KEY": "UOAIC_REBUILD_FLAG_KEY",
+        "UOAIC_RUNTIME_KEY": "UOAIC_RUNTIME_KEY",
+        "ask_gpt": "ask_gpt",
+        "configure_assistant_engine": "configure_assistant_engine",
+        "extract_code": "extract_code",
+        "gpt_oss_controls": "gpt_oss_controls",
+        "universal_offline_controls": "universal_offline_controls",
+        "_maybe_autofix_generated_code": "_maybe_autofix_generated_code",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_ai.py",
+    fallback_name="agilab_pipeline_ai_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_editor",
+    {
+        "_capture_pipeline_snapshot": "_capture_pipeline_snapshot",
+        "_force_persist_step": "_force_persist_step",
+        "_restore_pipeline_snapshot": "_restore_pipeline_snapshot",
+        "build_notebook_export_context": "build_notebook_export_context",
+        "get_steps_list": "get_steps_list",
+        "on_import_notebook": "on_import_notebook",
+        "refresh_notebook_export": "refresh_notebook_export",
+        "remove_step": "remove_step",
+        "save_step": "save_step",
+        "toml_to_notebook": "toml_to_notebook",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_editor.py",
+    fallback_name="agilab_pipeline_editor_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_lab",
+    {
+        "PipelineLabDeps": "PipelineLabDeps",
+        "display_lab_tab": "display_lab_tab",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_lab.py",
+    fallback_name="agilab_pipeline_lab_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_runtime",
+    {
+        "build_mlflow_process_env": "build_mlflow_process_env",
+        "label_for_step_runtime": "_label_for_step_runtime",
+        "log_mlflow_artifacts": "log_mlflow_artifacts",
+        "mlflow_tracking_uri": "mlflow_tracking_uri",
+        "ensure_safe_service_template": "_ensure_safe_service_template",
+        "is_valid_runtime_root": "_is_valid_runtime_root",
+        "python_for_step": "_python_for_step",
+        "python_for_venv": "_python_for_venv",
+        "run_locked_step": "_run_locked_step",
+        "start_mlflow_run": "start_mlflow_run",
+        "stream_run_command": "_stream_run_command",
+        "to_bool_flag": "_to_bool_flag",
+        "wrap_code_with_mlflow_resume": "wrap_code_with_mlflow_resume",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_runtime.py",
+    fallback_name="agilab_pipeline_runtime_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_sidebar",
+    {
+        "available_lab_modules": "_available_lab_modules",
+        "load_last_active_app_name": "_load_last_active_app_name",
+        "normalize_lab_choice": "_normalize_lab_choice",
+        "on_lab_change": "on_lab_change",
+        "open_notebook_in_browser": "open_notebook_in_browser",
+        "resolve_lab_export_dir": "_resolve_lab_export_dir",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_sidebar.py",
+    fallback_name="agilab_pipeline_sidebar_fallback",
+)
 
 # Constants
 STEPS_FILE_NAME = "lab_steps.toml"
@@ -1428,27 +1359,14 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
 
 def _load_about_page_module():
     """Load the About page module using import fallback for source and packaged layouts."""
-    last_exc: Optional[Exception] = None
-    for module_name in ("agilab.About_agilab", "About_agilab"):
-        try:
-            page_module = importlib.import_module(module_name)
-            if hasattr(page_module, "main"):
-                return page_module
-        except ModuleNotFoundError as exc:
-            last_exc = exc
-
     about_path = Path(__file__).resolve().parents[1] / "About_agilab.py"
-    spec = importlib.util.spec_from_file_location("agilab_about_fallback", about_path)
-    if spec is None or spec.loader is None:
-        if last_exc is not None:
-            raise last_exc
-        raise ModuleNotFoundError("Unable to import About_agilab page module.")
-
-    page_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(page_module)
+    page_module = load_local_module(
+        "agilab.About_agilab",
+        current_file=__file__,
+        fallback_path=about_path,
+        fallback_name="agilab_about_fallback",
+    )
     if not hasattr(page_module, "main"):
-        if last_exc is not None:
-            raise last_exc
         raise ModuleNotFoundError("Unable to import About_agilab page module.")
     return page_module
 

@@ -38,65 +38,30 @@ _MLFLOW_EXPORTS = (
     "wrap_code_with_mlflow_resume",
 )
 
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-def _load_fallback(module_filename: str, module_name: str):
-    module_path = Path(__file__).resolve().parent / module_filename
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load {module_filename}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-try:
-    from agilab.pipeline_runtime_execution_support import (
-        ensure_safe_service_template,
-        is_valid_runtime_root,
-        label_for_step_runtime,
-        python_for_step,
-        python_for_venv,
-        run_locked_step,
-        safe_service_start_template,
-        stream_run_command,
-        to_bool_flag,
-        uses_controller_python,
-    )
-    from agilab.pipeline_runtime_mlflow_support import (
-        build_mlflow_process_env,
-        ensure_default_mlflow_experiment,
-        ensure_mlflow_backend_ready,
-        ensure_mlflow_sqlite_schema_current,
-        get_mlflow_module,
-        legacy_mlflow_filestore_present,
-        log_mlflow_artifacts,
-        mlflow_tracking_uri,
-        repair_mlflow_default_experiment_db,
-        reset_mlflow_sqlite_backend,
-        resolve_mlflow_artifact_dir,
-        resolve_mlflow_backend_db,
-        resolve_mlflow_tracking_dir,
-        sqlite_identifier,
-        sqlite_uri_for_path,
-        start_mlflow_run,
-        temporary_env_overrides,
-        truncate_mlflow_text,
-        wrap_code_with_mlflow_resume,
-    )
-except ModuleNotFoundError:
-    _execution_module = _load_fallback(
-        "pipeline_runtime_execution_support.py",
-        "agilab_pipeline_runtime_execution_support_fallback",
-    )
-    _mlflow_module = _load_fallback(
-        "pipeline_runtime_mlflow_support.py",
-        "agilab_pipeline_runtime_mlflow_support_fallback",
-    )
-
-    for _name in _EXECUTION_EXPORTS:
-        globals()[_name] = getattr(_execution_module, _name)
-    for _name in _MLFLOW_EXPORTS:
-        globals()[_name] = getattr(_mlflow_module, _name)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_runtime_execution_support",
+    _EXECUTION_EXPORTS,
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_runtime_execution_support.py",
+    fallback_name="agilab_pipeline_runtime_execution_support_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pipeline_runtime_mlflow_support",
+    _MLFLOW_EXPORTS,
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_runtime_mlflow_support.py",
+    fallback_name="agilab_pipeline_runtime_mlflow_support_fallback",
+)
 
 
 __all__ = [

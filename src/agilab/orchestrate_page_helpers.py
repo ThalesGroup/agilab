@@ -10,85 +10,59 @@ LIVE_LOG_MIN_HEIGHT = 160
 INSTALL_LOG_HEIGHT = 320
 _TRACEBACK_SKIP = {"active": False}
 
-try:
-    from agilab.orchestrate_page_support import (
-        append_log_lines as _append_log_lines_impl,
-        display_log as _display_log_impl,
-        init_session_state as _init_session_state_impl,
-        clear_log as _clear_log_impl,
-        resolve_share_candidate as _resolve_share_candidate_impl,
-        clear_cached_distribution as _clear_cached_distribution_impl,
-        clear_mount_table_cache as _clear_mount_table_cache_impl,
-        update_delete_confirm_state as _update_delete_confirm_state_impl,
-        log_indicates_install_failure as _log_indicates_install_failure_impl,
-        capture_dataframe_preview_state as _capture_dataframe_preview_state_impl,
-        restore_dataframe_preview_state as _restore_dataframe_preview_state_impl,
-        toggle_select_all as _toggle_select_all_impl,
-        update_select_all as _update_select_all_impl,
-        update_log as _update_log_impl,
-        filter_noise_lines,
-        filter_warning_messages,
-        format_log_block,
-        is_dask_shutdown_noise,
-        strip_ansi,
-        workplan_selection_key,
-        app_install_status as _app_install_status_impl,
-        is_app_installed as _is_app_installed_impl,
-    )
-except ModuleNotFoundError:
-    _page_support_path = Path(__file__).resolve().parent / "orchestrate_page_support.py"
-    _page_support_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_page_support_fallback",
-        _page_support_path,
-    )
-    if _page_support_spec is None or _page_support_spec.loader is None:
-        raise
-    _page_support_module = importlib.util.module_from_spec(_page_support_spec)
-    _page_support_spec.loader.exec_module(_page_support_module)
-    _append_log_lines_impl = _page_support_module.append_log_lines
-    _display_log_impl = _page_support_module.display_log
-    _init_session_state_impl = _page_support_module.init_session_state
-    _clear_log_impl = _page_support_module.clear_log
-    _resolve_share_candidate_impl = _page_support_module.resolve_share_candidate
-    _clear_cached_distribution_impl = _page_support_module.clear_cached_distribution
-    _clear_mount_table_cache_impl = _page_support_module.clear_mount_table_cache
-    _update_delete_confirm_state_impl = _page_support_module.update_delete_confirm_state
-    _log_indicates_install_failure_impl = _page_support_module.log_indicates_install_failure
-    _capture_dataframe_preview_state_impl = _page_support_module.capture_dataframe_preview_state
-    _restore_dataframe_preview_state_impl = _page_support_module.restore_dataframe_preview_state
-    _toggle_select_all_impl = _page_support_module.toggle_select_all
-    _update_select_all_impl = _page_support_module.update_select_all
-    _update_log_impl = _page_support_module.update_log
-    filter_noise_lines = _page_support_module.filter_noise_lines
-    filter_warning_messages = _page_support_module.filter_warning_messages
-    format_log_block = _page_support_module.format_log_block
-    is_dask_shutdown_noise = _page_support_module.is_dask_shutdown_noise
-    workplan_selection_key = _page_support_module.workplan_selection_key
-    strip_ansi = _page_support_module.strip_ansi
-    _app_install_status_impl = _page_support_module.app_install_status
-    _is_app_installed_impl = _page_support_module.is_app_installed
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-try:
-    from agilab.orchestrate_support import (
-        looks_like_shared_path as _looks_like_shared_path_impl,
-        parse_and_validate_scheduler as _parse_and_validate_scheduler_impl,
-        parse_and_validate_workers as _parse_and_validate_workers_impl,
-        safe_eval as _safe_eval_impl,
-    )
-except ModuleNotFoundError:
-    _support_path = Path(__file__).resolve().parent / "orchestrate_support.py"
-    _support_spec = importlib.util.spec_from_file_location(
-        "agilab_orchestrate_support_fallback",
-        _support_path,
-    )
-    if _support_spec is None or _support_spec.loader is None:
-        raise
-    _support_module = importlib.util.module_from_spec(_support_spec)
-    _support_spec.loader.exec_module(_support_module)
-    _looks_like_shared_path_impl = _support_module.looks_like_shared_path
-    _parse_and_validate_scheduler_impl = _support_module.parse_and_validate_scheduler
-    _parse_and_validate_workers_impl = _support_module.parse_and_validate_workers
-    _safe_eval_impl = _support_module.safe_eval
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_page_support",
+    {
+        "append_log_lines": "_append_log_lines_impl",
+        "display_log": "_display_log_impl",
+        "init_session_state": "_init_session_state_impl",
+        "clear_log": "_clear_log_impl",
+        "resolve_share_candidate": "_resolve_share_candidate_impl",
+        "clear_cached_distribution": "_clear_cached_distribution_impl",
+        "clear_mount_table_cache": "_clear_mount_table_cache_impl",
+        "update_delete_confirm_state": "_update_delete_confirm_state_impl",
+        "log_indicates_install_failure": "_log_indicates_install_failure_impl",
+        "capture_dataframe_preview_state": "_capture_dataframe_preview_state_impl",
+        "restore_dataframe_preview_state": "_restore_dataframe_preview_state_impl",
+        "toggle_select_all": "_toggle_select_all_impl",
+        "update_select_all": "_update_select_all_impl",
+        "update_log": "_update_log_impl",
+        "filter_noise_lines": "filter_noise_lines",
+        "filter_warning_messages": "filter_warning_messages",
+        "format_log_block": "format_log_block",
+        "is_dask_shutdown_noise": "is_dask_shutdown_noise",
+        "strip_ansi": "strip_ansi",
+        "workplan_selection_key": "workplan_selection_key",
+        "app_install_status": "_app_install_status_impl",
+        "is_app_installed": "_is_app_installed_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_page_support.py",
+    fallback_name="agilab_orchestrate_page_support_fallback",
+)
+
+import_agilab_symbols(
+    globals(),
+    "agilab.orchestrate_support",
+    {
+        "looks_like_shared_path": "_looks_like_shared_path_impl",
+        "parse_and_validate_scheduler": "_parse_and_validate_scheduler_impl",
+        "parse_and_validate_workers": "_parse_and_validate_workers_impl",
+        "safe_eval": "_safe_eval_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_support.py",
+    fallback_name="agilab_orchestrate_support_fallback",
+)
 
 
 def init_session_state(session_state: MutableMapping[str, Any], defaults: Mapping[str, Any]) -> None:
