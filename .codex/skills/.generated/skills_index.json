@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-21T12:43:44Z",
+  "generated_at_utc": "2026-04-22T13:24:38Z",
   "tool": "tools/codex_skills.py",
-  "count": 22,
+  "count": 23,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -18,6 +18,14 @@
       "updated": "2026-04-08",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
+    },
+    {
+      "name": "agilab-huggingface-spaces",
+      "description": "Package and publish a lightweight public AGILAB demo to Hugging Face Spaces without leaking local-only runtime assumptions.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-22",
+      "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
+      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, packaging, or publishing an AGILAB demo to Hugging Face Spaces.\n## Scope\nThis skill is for a **public lightweight demo surface**, not for shipping the full AGILAB local/distributed shell as-is."
     },
     {
       "name": "agilab-installer",
