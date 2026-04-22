@@ -343,13 +343,15 @@ def analyze_contract(
 
     recursion_depth = os.environ.get("UV_RUN_RECURSION_DEPTH", "").strip()
     if recursion_depth:
-        severity = "warning" if recursion_depth not in {"0", "1"} else "info"
         findings.append(
             Finding(
                 key="uv-run-recursion-depth",
-                severity=severity,
+                severity="info",
                 category=SHARED_CORE_STATUS,
-                summary="UV_RUN_RECURSION_DEPTH is set in the current environment; nested uv commands may leak source-install context.",
+                summary=(
+                    "UV_RUN_RECURSION_DEPTH is set in the current environment; nested uv commands may leak "
+                    "source-install context, but this is environmental context rather than manifest contract drift."
+                ),
                 details=[f"UV_RUN_RECURSION_DEPTH={recursion_depth}"],
             )
         )

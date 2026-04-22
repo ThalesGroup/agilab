@@ -301,6 +301,52 @@ dependencies = ["numpy>=1.26"]
     assert not any(finding.key == "missing-manager-core-resolution-paths" for finding in report.findings)
 
 
+def test_analyze_contract_keeps_recursion_depth_as_info_only(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    app_root = tmp_path / "demo_project"
+    worker_source = app_root / "src" / "demo_worker" / "pyproject.toml"
+    worker_copy = tmp_path / "wenv" / "demo_worker" / "pyproject.toml"
+    local_dep = tmp_path / "deps" / "shared"
+    local_dep.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "3")
+
+    _write_manifest(
+        app_root / "pyproject.toml",
+        """
+[project]
+name = "demo_project"
+dependencies = ["numpy>=1.26"]
+""",
+    )
+    _write_manifest(
+        worker_source,
+        """
+[project]
+name = "demo_worker"
+dependencies = ["numpy>=1.26", "shared"]
+""",
+    )
+    _write_manifest(
+        worker_copy,
+        f"""
+[project]
+name = "demo_worker"
+dependencies = ["numpy>=1.26", "shared"]
+
+[tool.uv.sources]
+shared = {{ path = "{local_dep}" }}
+""",
+    )
+
+    report = module.analyze_contract(app_path=app_root, worker_copy=worker_copy)
+
+    assert report.status == module.SAFE_STATUS
+    finding = next(finding for finding in report.findings if finding.key == "uv-run-recursion-depth")
+    assert finding.severity == "info"
+    assert finding.details == ["UV_RUN_RECURSION_DEPTH=3"]
+
+
 def test_main_json_output_and_exit_code_for_shared_core_issue(tmp_path, capsys) -> None:
     module = _load_module()
     app_root = tmp_path / "demo_project"
