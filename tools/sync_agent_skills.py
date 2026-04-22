@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -33,6 +34,14 @@ def sync_skill(source: Path, destination_root: Path) -> Path:
         ignore=shutil.ignore_patterns(*SKIP_NAMES),
     )
     return destination
+
+
+def refresh_skill_badges(*, python_executable: str = sys.executable, root: Path = ROOT) -> None:
+    subprocess.run(
+        [python_executable, str(root / "tools" / "generate_skill_badges.py")],
+        check=True,
+        cwd=str(root),
+    )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -69,6 +78,8 @@ def main(argv: list[str]) -> int:
     synced: list[Path] = []
     for source in skill_dirs:
         synced.append(sync_skill(source, CODEX_ROOT))
+
+    refresh_skill_badges()
 
     print(f"Synced {len(synced)} skill(s) from {CLAUDE_ROOT} to {CODEX_ROOT}")
     for path in synced:

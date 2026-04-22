@@ -29,17 +29,77 @@ class _FakeContext:
         return False
 
 
+class _FakeStop(RuntimeError):
+    pass
+
+
 class _FakeStreamlit:
-    def __init__(self) -> None:
+    def __init__(self, *, query_params: dict[str, object] | None = None) -> None:
+        self.query_params = query_params or {}
+        self.session_state: dict[str, object] = {}
+        self.sidebar = _FakeContext()
         self.writes: list[object] = []
         self.infos: list[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.headers: list[str] = []
+        self.titles: list[str] = []
+        self.captions: list[str] = []
+        self.dataframes: list[dict[str, object]] = []
         self.plot_calls: list[dict[str, object]] = []
+
+    def set_page_config(self, **_kwargs) -> None:
+        return None
+
+    def title(self, value: str) -> None:
+        self.titles.append(value)
+
+    def caption(self, value: str) -> None:
+        self.captions.append(value)
+
+    def header(self, value: str) -> None:
+        self.headers.append(value)
 
     def write(self, value: object) -> None:
         self.writes.append(value)
 
     def info(self, value: str) -> None:
         self.infos.append(value)
+
+    def error(self, value: str) -> None:
+        self.errors.append(value)
+
+    def warning(self, value: str) -> None:
+        self.warnings.append(value)
+
+    def stop(self) -> None:
+        raise _FakeStop
+
+    def selectbox(self, _label, options, *, key=None, **_kwargs):
+        if key is not None and key not in self.session_state and options:
+            self.session_state[key] = options[0]
+        return self.session_state.get(key, options[0] if options else None)
+
+    def text_input(self, _label, *, key=None, **_kwargs):
+        return self.session_state.get(key, "")
+
+    def text_area(self, _label, *, key=None, **_kwargs):
+        return self.session_state.get(key, "")
+
+    def multiselect(self, _label, *, key=None, **_kwargs):
+        return self.session_state.get(key, [])
+
+    def dataframe(self, data, **kwargs) -> None:
+        self.dataframes.append({"data": data, **kwargs})
+
+    def expander(self, *_args, **_kwargs):
+        return _FakeContext()
+
+    def markdown(self, *_args, **_kwargs) -> None:
+        return None
+
+    def subheader(self, value: str) -> None:
+        self.headers.append(value)
 
     def plotly_chart(self, fig, *, width: str = "stretch", key: str | None = None) -> None:
         self.plot_calls.append({"fig": fig, "width": width, "key": key})
@@ -248,6 +308,49 @@ selected_files = ["allocations/run_a.csv"]
     assert module._load_app_settings(env) == {}
 
 
+def test_view_inference_analysis_resolves_active_app_from_cli_and_query_params(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+
+    cli_streamlit = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", cli_streamlit)
+    monkeypatch.setattr(module.sys, "argv", ["page.py", "--active-app", str(active_app)])
+    assert module._resolve_active_app() == active_app.resolve()
+
+    query_streamlit = _FakeStreamlit(query_params={"project": str(active_app)})
+    monkeypatch.setattr(module, "st", query_streamlit)
+    monkeypatch.setattr(module.sys, "argv", ["page.py"])
+    assert module._resolve_active_app() == active_app.resolve()
+
+
+def test_view_inference_analysis_resolve_active_app_stops_for_missing_inputs(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+
+    no_app_streamlit = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", no_app_streamlit)
+    monkeypatch.setattr(module.sys, "argv", ["page.py"])
+    with pytest.raises(_FakeStop):
+        module._resolve_active_app()
+    assert no_app_streamlit.infos == [
+        "Open this page from AGILAB Analysis so the active project is passed via --active-app."
+    ]
+
+    missing_path = tmp_path / "missing_project"
+    missing_streamlit = _FakeStreamlit(query_params={"active-app": str(missing_path)})
+    monkeypatch.setattr(module, "st", missing_streamlit)
+    monkeypatch.setattr(module.sys, "argv", ["page.py"])
+    with pytest.raises(_FakeStop):
+        module._resolve_active_app()
+    assert missing_streamlit.errors == [f"Provided --active-app path not found: {missing_path.resolve()}"]
+
+
 def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths(tmp_path: Path) -> None:
     module = _load_module()
     share_root = tmp_path / "share"
@@ -274,6 +377,65 @@ def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths
     assert module._resolve_dataset_root(None, "demo/pipeline") is None
     assert module._resolve_dataset_root(share_root, "demo/pipeline") == share_root / "demo" / "pipeline"
     assert module._resolve_dataset_root(share_root, "") == share_root
+
+
+def test_view_inference_analysis_helper_edges_cover_paths_patterns_and_empty_frames(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    root = tmp_path / "dataset"
+    root.mkdir()
+    outside = tmp_path / "outside.csv"
+    outside.write_text("time_index,latency\n0,1\n", encoding="utf-8")
+    (root / "allocations_dir.csv").mkdir()
+    nested = root / "nested"
+    nested.mkdir()
+    (nested / "allocations_real.csv").write_text("time_index,latency\n0,1\n", encoding="utf-8")
+
+    class _BrokenRoot:
+        def exists(self) -> bool:
+            return True
+
+        def glob(self, _pattern: str):
+            raise ValueError("bad glob")
+
+    assert module._coerce_str_list(None) == []
+    assert module._default_dataset_subpath(SimpleNamespace(target=""), tmp_path / "demo") == "pipeline"
+    assert module._relative_path_label(outside, root) == outside.as_posix()
+    assert module._run_label(root / "allocations_steps.json", root) == "allocations_steps.json"
+    assert module._discover_allocation_files(_BrokenRoot(), ["**/allocations*.csv"]) == []
+    assert [path.relative_to(root).as_posix() for path in module._discover_allocation_files(root, ["**/allocations*.csv"])] == [
+        "nested/allocations_real.csv"
+    ]
+    assert module._matches_any_pattern("   ", ["**/*.csv"]) is False
+    assert module._matches_any_pattern("nested/file.csv", ["   ", "["]) is False
+    assert module._parse_structured_value("   ") == "   "
+    assert module._parse_allocations_cell(({"source": 1}, {"destination": 2}, "bad")) == [
+        {"source": 1},
+        {"destination": 2},
+    ]
+    assert module._apply_column_aliases(pd.DataFrame()).empty
+    assert module._normalize_allocations_frame(pd.DataFrame()).empty
+    assert module._coerce_time_index(pd.DataFrame({"step": ["bad", "worse"]}))["time_index"].tolist() == [0, 1]
+
+
+def test_view_inference_analysis_normalizes_nested_allocations_with_row_index_and_time_fallback() -> None:
+    module = _load_module()
+
+    normalized = module._normalize_allocations_frame(
+        pd.DataFrame(
+            {
+                "time_s": [1.5],
+                "allocations": ['[{"source": 1, "destination": 2, "delivered_mbps": 0.7}]'],
+            }
+        )
+    )
+
+    assert normalized["time_index"].tolist() == [0]
+    assert normalized["t_now_s"].tolist() == pytest.approx([1.5])
+    assert normalized["source"].tolist() == [1]
+    assert normalized["destination"].tolist() == [2]
+    assert normalized["delivered_bandwidth"].tolist() == pytest.approx([0.7])
 
 
 def test_view_inference_analysis_discovers_visible_allocation_files_and_labels_runs(tmp_path: Path) -> None:
@@ -446,6 +608,23 @@ def test_view_inference_analysis_discovers_metrics_and_builds_profiles(
     assert module._metric_series(frames["run_a"], "routed").tolist() == pytest.approx([1.0, 0.0, 1.0, 1.0])
 
 
+def test_view_inference_analysis_metric_and_profile_helpers_handle_empty_inputs() -> None:
+    module = _load_module()
+
+    frames = {
+        "empty": pd.DataFrame(),
+        "excluded_only": pd.DataFrame({"time_index": [0], "seed": [1], "reward": ["bad"]}),
+    }
+
+    assert module.discover_metric_columns(frames) == []
+    assert module.build_profile_frame(
+        {"bad": pd.DataFrame({"time_index": ["bad"], "reward": ["nan"]})},
+        "reward",
+        "mean",
+        "time_index",
+    ).empty
+
+
 def test_view_inference_analysis_profile_builder_rejects_unknown_aggregation() -> None:
     module = _load_module()
     frames = {"run_a": pd.DataFrame({"time_index": [0, 1], "reward": [1.0, 2.0]})}
@@ -506,6 +685,39 @@ def test_view_inference_analysis_handles_list_and_path_helper_edges() -> None:
     assert module._path_hop_count("[1, 2, 3, 4]") == 3
     assert module._path_hop_count("[[1, 2], [2, 3], [3, 4]]") == 3
     assert module._path_hop_count("[]") is None
+
+
+def test_view_inference_analysis_distribution_helpers_return_empty_when_inputs_do_not_qualify() -> None:
+    module = _load_module()
+
+    assert module.build_step_kpi_frame(
+        {
+            "missing_axis": pd.DataFrame({"latency": [1.0]}),
+            "nan_axis": pd.DataFrame({"time_index": ["bad"], "bandwidth": [1.0]}),
+        },
+        "time_index",
+    ).empty
+    assert module.build_latency_distribution_frame(
+        {
+            "missing_latency": pd.DataFrame({"delivered_bandwidth": [1.0]}),
+            "unrouted_only": pd.DataFrame({"latency": [5.0], "routed": [0]}),
+        }
+    ).empty
+    assert module.build_hop_count_distribution_frame(
+        {
+            "missing_path": pd.DataFrame({"latency": [1.0]}),
+            "invalid_path": pd.DataFrame({"path": [None], "routed": [1]}),
+        }
+    ).empty
+    assert module.build_latency_percentile_frame(
+        {"missing_latency": pd.DataFrame({"time_index": [0], "routed": [1]})},
+        "time_index",
+    ).empty
+    assert module.attach_latency_p90_frame(
+        pd.DataFrame(),
+        {"missing_latency": pd.DataFrame({"time_index": [0], "routed": [1]})},
+        "time_index",
+    ).empty
 
 
 def test_view_inference_analysis_aligns_heatmap_frames_to_shared_axes() -> None:
@@ -893,6 +1105,7 @@ def test_view_inference_analysis_builds_bearer_mix_for_deduped_routed_and_unrout
         {"time_index": 2.0, "bearer": "not routed", "count": 1},
     ]
     assert module.build_bearer_mix_frame(frame, "missing_axis").empty
+    assert module.build_bearer_mix_frame(pd.DataFrame({"time_index": [None], "bearers": ['["SAT"]']}), "time_index").empty
 
 
 def test_view_inference_analysis_builds_flow_heatmaps_for_served_and_rejected_values() -> None:
@@ -955,6 +1168,18 @@ def test_view_inference_analysis_heatmap_helpers_cover_annotation_and_layout_edg
         module._chunk_labels(["run_a"], max_columns=0)
 
 
+def test_view_inference_analysis_formats_heatmap_text_frame_via_applymap_fallback() -> None:
+    module = _load_module()
+
+    class _LegacyMatrix:
+        def applymap(self, formatter):
+            return pd.DataFrame([[formatter(1.25), formatter(float("nan"))]])
+
+    text = module._format_heatmap_text_frame(_LegacyMatrix())
+
+    assert text.to_dict() == {0: {0: "1.2"}, 1: {0: ""}}
+
+
 def test_view_inference_analysis_collects_empty_bearer_legend_and_builds_empty_html() -> None:
     module = _load_module()
 
@@ -1001,3 +1226,139 @@ def test_view_inference_analysis_render_heatmap_section_renders_charts_and_share
         "detail:served:run_a",
         "detail:served:scale:0",
     ]
+
+
+def test_view_inference_analysis_align_heatmaps_keeps_explicit_empty_matrix_unchanged() -> None:
+    module = _load_module()
+
+    aligned, rows, columns = module.align_heatmap_frames(
+        {
+            "run_a": pd.DataFrame(),
+            "run_b": pd.DataFrame([[10.0]], index=pd.Index([5]), columns=pd.Index([1])),
+        }
+    )
+
+    assert aligned["run_a"].empty
+    assert rows.tolist() == [5]
+    assert columns.tolist() == [1]
+
+
+def test_view_inference_analysis_main_stops_when_dataset_root_is_missing(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: tmp_path / "missing-root")
+
+    with pytest.raises(_FakeStop):
+        module.main()
+
+    assert fake_st.titles == [module.PAGE_TITLE]
+    assert fake_st.headers[0] == "Data source"
+    assert fake_st.infos == [f"Resolved dataset root: `{tmp_path / 'missing-root'}`"]
+    assert fake_st.warnings == [f"Dataset root does not exist yet: {tmp_path / 'missing-root'}"]
+    assert module.ENV_KEY in fake_st.session_state
+
+
+def test_view_inference_analysis_main_handles_no_selection_before_loading_frames(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    allocations = dataset_root / "allocations_steps.json"
+    allocations.write_text("[]", encoding="utf-8")
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [allocations])
+    monkeypatch.setattr(module, "_coerce_selection", lambda saved, options, **_kwargs: [] if saved is not None else [])
+
+    module.main()
+
+    assert fake_st.infos[-1] == "No allocation file selected. Use the sidebar to choose one or more files."
+    assert len(fake_st.dataframes) == 1
+    inventory = fake_st.dataframes[0]["data"]
+    assert inventory["run_label"].tolist() == ["allocations_steps.json"]
+
+
+def test_view_inference_analysis_main_stops_when_selected_files_have_no_numeric_metrics(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+    allocations = dataset_root / "allocations_steps.json"
+    allocations.write_text("[]", encoding="utf-8")
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [allocations])
+    monkeypatch.setattr(
+        module,
+        "_coerce_selection",
+        lambda saved, options, **_kwargs: [options[0]] if options else [],
+    )
+    monkeypatch.setattr(module, "_load_allocations_cached", lambda *_args, **_kwargs: pd.DataFrame({"seed": ["a"]}))
+    monkeypatch.setattr(module, "discover_metric_columns", lambda _frames: [])
+
+    with pytest.raises(_FakeStop):
+        module.main()
+
+    assert fake_st.warnings[-1] == "The selected files loaded successfully, but no numeric metric column was found."
+    assert len(fake_st.dataframes) == 1
