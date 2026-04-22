@@ -30,7 +30,10 @@ Use these tools together:
 - [service_health_check.py](../tools/service_health_check.py) for service mode health gates
 - [smoke_preinit.py](../tools/smoke_preinit.py) for minimal environment smoke checks
 - [tools/run_configs](../tools/run_configs) for terminal-friendly mirrors of the bundled run configurations
+- [agent_workflows.md](../tools/agent_workflows.md) for the repo-supported agent entry points
 - [codex_workflow.md](../tools/codex_workflow.md) if you use Codex CLI as part of the loop
+- [aider_workflow.md](../tools/aider_workflow.md) if you use Aider with local Ollama models
+- [opencode_workflow.md](../tools/opencode_workflow.md) if you use OpenCode with local Ollama models
 
 ## Core Rule
 
@@ -212,6 +215,9 @@ If you stay CLI-first anyway, compensate by:
 ## Related References
 
 - [AGENTS.md](../AGENTS.md)
+- [agent_workflows.md](../tools/agent_workflows.md)
 - [codex_workflow.md](../tools/codex_workflow.md)
+- [aider_workflow.md](../tools/aider_workflow.md)
+- [opencode_workflow.md](../tools/opencode_workflow.md)
 - [quick-start.rst](source/quick-start.rst)
 - [troubleshooting.rst](source/troubleshooting.rst)

@@ -57,6 +57,9 @@ Use this runbook whenever you:
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
+- **CLI agent helpers**: Repo-scoped wrappers and configs exist for Codex, Aider, and
+  OpenCode under `tools/*_workflow.*`, `.aider.conf.yml`, `opencode.json`, and
+  `.opencode/agents/`. Keep them aligned with repo guardrails when workflow policy changes.
 - **Streamlit form state**: In custom `app_args_form.py` pages, initialize editable widgets
   from persisted values (`defaults_model` / stored args). Only derive companion paths such as
   `data_out` from `data_in` when the stored value is actually missing. Do not silently replace
