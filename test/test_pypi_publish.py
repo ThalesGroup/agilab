@@ -269,16 +269,13 @@ def test_compute_date_tag_with_collisions(monkeypatch) -> None:
     assert module.compute_date_tag() == "2026.03.20-3"
 
 
-def test_find_docs_repository_prefers_generic_docs_repository_env_name(tmp_path, monkeypatch) -> None:
+def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     generic_docs_repo = tmp_path / "docs_repo"
-    alias_docs_repo = tmp_path / "thales_alias_repo"
     generic_docs_repo.mkdir()
-    alias_docs_repo.mkdir()
 
     monkeypatch.setenv("DOCS_REPOSITORY", str(generic_docs_repo))
-    monkeypatch.setenv("THALES_AGILAB_REPOSITORY", str(alias_docs_repo))
     monkeypatch.setattr(module, "_is_git_repo", lambda _path: True)
 
     repo, source = module.find_docs_repository()
