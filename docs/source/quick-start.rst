@@ -144,6 +144,8 @@ Next steps
   first proof.
 - :doc:`notebook-quickstart` if you intentionally want the ``agi-core``
   notebook path.
+- :doc:`agent-workflows` if you are working inside the AGILAB repository and
+  want the prepared Codex, Claude, Aider, or OpenCode developer paths.
 - :doc:`cluster` only after the local proof works and you are ready for SSH or
   multi-node execution.
 
