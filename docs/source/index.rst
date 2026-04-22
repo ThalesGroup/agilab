@@ -45,6 +45,7 @@ references, and example projects.
    cluster
    modules
    environment
+   agent-workflows
    faq
    directory-structure
    troubleshooting
