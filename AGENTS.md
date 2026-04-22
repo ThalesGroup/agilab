@@ -107,6 +107,11 @@ Use this runbook whenever you:
   - whether `read_agilab_path()` is empty, causing a source checkout app to be treated like a generated install artifact
   For this bug class, compare the source app manifest with `~/wenv/<app>_worker/pyproject.toml`; if the worker copy gained
   a conflicting exact pin (for example a stray `scipy==...`), treat it as a shared-core install bug first, not an app-only bug.
+- **Diagnostic challenge pattern**: When another agent already produced a diagnosis, do not stop at “confirm or deny”.
+  First assess the quality of the diagnostic, identify any weak assumptions or missing coverage, then explicitly look for
+  a better fix than the obvious one. Keep the plain repro command as the first discriminator, compare app-local and
+  shared-core fixes, and explain why the stronger fix is better. Good one-query wording:
+  `Assess the diagnostic below and find the better fix. Keep the plain repro as the first discriminator. Identify the real root cause, regression chain, weak points in the current diagnosis, the better fix, why it is better than the obvious fix, and the regression plan.`
 - **Dependency removal audit**: When removing a dependency from code, check the impact on the corresponding
   `pyproject.toml` files as part of the same change. Remove stale declarations when they are no longer needed,
   or keep them only when there is a clear runtime, packaging, or optional-feature reason.
