@@ -7,6 +7,15 @@ execution context across multiple requests.
 It is useful after a project already runs correctly in the normal local or
 distributed path. It is not part of the first-proof workflow.
 
+Architecturally, service mode is **queue-backed persistent worker execution**,
+not a live RPC/session bus. AGILAB keeps worker loops alive, writes tasks into
+the service queue, tracks heartbeats and status files, and lets workers pull
+their next unit of work from that queue.
+
+That choice keeps service mode aligned with the normal worker contract, but it
+also means operators should think in queue semantics rather than interactive
+request/response semantics.
+
 When to use it
 --------------
 
@@ -43,6 +52,22 @@ The ORCHESTRATE panel also provides a UI-only export action for operators:
 - ``EXPORT snapshot`` writes ``service_operator_snapshot.json`` under
   ``~/log/execute/<app_target>/`` with the current status, cached worker health,
   and effective SLA thresholds.
+
+What service mode is, and what it is not
+----------------------------------------
+
+Service mode **is**:
+
+- persistent worker loops reused across requests
+- queue-backed execution with heartbeats and status snapshots
+- a good fit for repeated requests on the same already-installed app
+
+Service mode is **not**:
+
+- a generic live RPC fabric
+- a per-request interactive remote session
+- a replacement for making work visible in the normal AGILAB work plan when you
+  need first-class scheduling or telemetry
 
 End-to-end CLI example
 ----------------------
