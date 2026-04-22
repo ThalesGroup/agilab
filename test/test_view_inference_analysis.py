@@ -21,6 +21,34 @@ def _load_module():
     return module
 
 
+class _FakeContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeStreamlit:
+    def __init__(self) -> None:
+        self.writes: list[object] = []
+        self.infos: list[str] = []
+        self.plot_calls: list[dict[str, object]] = []
+
+    def write(self, value: object) -> None:
+        self.writes.append(value)
+
+    def info(self, value: str) -> None:
+        self.infos.append(value)
+
+    def plotly_chart(self, fig, *, width: str = "stretch", key: str | None = None) -> None:
+        self.plot_calls.append({"fig": fig, "width": width, "key": key})
+
+    def columns(self, spec):
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_FakeContext() for _ in range(count)]
+
+
 def test_view_inference_analysis_builds_routed_latency_percentiles() -> None:
     module = _load_module()
 
@@ -841,4 +869,135 @@ def test_view_inference_analysis_handles_nested_path_values_for_hop_count() -> N
     assert records == [
         {"hop_count": 2, "count": 2, "run_label": "edge_mlp", "share_pct": pytest.approx(66.66666666666666)},
         {"hop_count": 3, "count": 1, "run_label": "edge_mlp", "share_pct": pytest.approx(33.33333333333333)},
+    ]
+
+
+def test_view_inference_analysis_builds_bearer_mix_for_deduped_routed_and_unrouted_rows() -> None:
+    module = _load_module()
+
+    frame = pd.DataFrame(
+        {
+            "time_index": [0, 0, 1, 2, None],
+            "bearers": ['["SAT", "SAT", "OPT"]', "[]", None, None, '["IVDL"]'],
+            "routed": [1, 1, 1, 0, 1],
+        }
+    )
+
+    mix_df = module.build_bearer_mix_frame(frame, "time_index")
+
+    assert mix_df.to_dict("records") == [
+        {"time_index": 0.0, "bearer": "OPT", "count": 1},
+        {"time_index": 0.0, "bearer": "SAT", "count": 1},
+        {"time_index": 0.0, "bearer": "routed/no bearer", "count": 1},
+        {"time_index": 1.0, "bearer": "routed/no bearer", "count": 1},
+        {"time_index": 2.0, "bearer": "not routed", "count": 1},
+    ]
+    assert module.build_bearer_mix_frame(frame, "missing_axis").empty
+
+
+def test_view_inference_analysis_builds_flow_heatmaps_for_served_and_rejected_values() -> None:
+    module = _load_module()
+
+    frame = pd.DataFrame(
+        {
+            "source": [1, 1, 2, "bad"],
+            "destination": [10, 10, 20, 30],
+            "bandwidth": [10.0, 5.0, 8.0, 4.0],
+            "delivered_bandwidth": [7.0, 0.0, 8.0, 4.0],
+            "routed": [1, 0, 1, 1],
+        }
+    )
+
+    served = module.build_flow_heatmap_frame(frame, value_kind="served_bandwidth_pct")
+    rejected = module.build_flow_heatmap_frame(frame, value_kind="rejected_ratio_pct")
+
+    assert served.index.tolist() == [10.0, 20.0]
+    assert served.columns.tolist() == [1.0, 2.0]
+    assert served.loc[10.0, 1.0] == pytest.approx((7.0 / 15.0) * 100.0)
+    assert served.loc[20.0, 2.0] == pytest.approx(100.0)
+    assert rejected.loc[10.0, 1.0] == pytest.approx(50.0)
+    assert rejected.loc[20.0, 2.0] == pytest.approx(0.0)
+    assert module.build_flow_heatmap_frame(pd.DataFrame({"latency": [1.0]}), value_kind="served_bandwidth_pct").empty
+    assert module.build_flow_heatmap_frame(
+        pd.DataFrame({"source": ["bad"], "destination": [None]}),
+        value_kind="served_bandwidth_pct",
+    ).empty
+
+    with pytest.raises(ValueError, match="Unsupported heatmap value kind"):
+        module.build_flow_heatmap_frame(frame, value_kind="mystery")
+
+
+def test_view_inference_analysis_heatmap_helpers_cover_annotation_and_layout_edges() -> None:
+    module = _load_module()
+    matrix = pd.DataFrame(
+        [[10.0, 20.0], [30.0, None]],
+        index=pd.Index([5, 6]),
+        columns=pd.Index([1, 2]),
+    )
+
+    fig = module._build_heatmap_figure(
+        matrix,
+        title="Run A",
+        colorbar_title="Served bandwidth (%)",
+        show_annotations=True,
+    )
+    heatmap = fig.data[0]
+
+    assert heatmap.texttemplate == "%{text}"
+    assert heatmap.colorbar.title.text == "Served bandwidth (%)"
+    assert fig.layout.title.text == "Run A"
+    assert fig.layout.height == 400
+    assert module._resolve_heatmap_height(20) == 900
+    assert module._build_heatmap_grid_shapes(0, 2) == []
+    assert len(module._build_heatmap_grid_shapes(2, 3)) == 7
+
+    with pytest.raises(ValueError, match="max_columns must be at least 1"):
+        module._chunk_labels(["run_a"], max_columns=0)
+
+
+def test_view_inference_analysis_collects_empty_bearer_legend_and_builds_empty_html() -> None:
+    module = _load_module()
+
+    assert module._collect_bearer_legend_items({"run_a": pd.DataFrame(), "run_b": pd.DataFrame({"value": [1]})}) == []
+    assert module._build_bearer_legend_html([], {}) == ""
+
+
+def test_view_inference_analysis_render_heatmap_handles_empty_and_non_empty_matrices(monkeypatch) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+
+    module._render_heatmap(pd.DataFrame(), colorbar_title="Value")
+    matrix = pd.DataFrame([[10.0]], index=pd.Index([5]), columns=pd.Index([1]))
+    module._render_heatmap(matrix, title="Run A", colorbar_title="Value", chart_key="heatmap:run_a")
+
+    assert fake_st.infos == ["No data available for this heatmap."]
+    assert [call["key"] for call in fake_st.plot_calls] == ["heatmap:run_a"]
+    assert fake_st.plot_calls[0]["width"] == "stretch"
+
+
+def test_view_inference_analysis_render_heatmap_section_renders_charts_and_shared_scale(monkeypatch) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+
+    matrices = {
+        "run_a": pd.DataFrame([[10.0]], index=pd.Index([5]), columns=pd.Index([1])),
+        "run_b": pd.DataFrame(),
+    }
+
+    module._render_heatmap_section(
+        "Served bandwidth matrix",
+        matrices,
+        colorbar_title="Served bandwidth (%)",
+        zmax=100.0,
+        chart_key_prefix="detail:served",
+        show_annotations=True,
+    )
+
+    assert fake_st.writes == ["Served bandwidth matrix"]
+    assert fake_st.infos == ["No data available for run_b."]
+    assert [call["key"] for call in fake_st.plot_calls] == [
+        "detail:served:run_a",
+        "detail:served:scale:0",
     ]
