@@ -28,6 +28,28 @@ Who manages multithreading when Dask is disabled?
 you explicitly opt into distributed mode; otherwise, the dispatcher handles the orchestration end
 to end.
 
+Can I run Dask again inside one AGILAB worker and still see it in the outer Dask dashboard?
+---------------------------------------------------------------------------------------------
+Not as a supported first-class pattern.
+
+AGILAB uses Dask as the **outer** scheduler boundary. The outer scheduler
+submits one coarse AGILAB task per worker, and that task then runs the worker's
+``works(...)`` method. The code inside ``works(...)`` is opaque to the outer
+AGILAB scheduler.
+
+So if a worker starts its own inner Dask client or scheduler:
+
+- the outer Dask / Bokeh dashboard only sees the outer AGILAB worker future
+- the inner Dask graph is not exposed as AGILAB-managed tasks
+- AGILAB health, capacity, and service telemetry stay at the outer worker level
+
+This is why nested Dask inside a worker can run technically, but it is not the
+same as AGILAB distributing that inner work itself.
+
+If you need AGILAB and the outer Dask dashboard to see the parallel work, move
+that work into the AGILAB work plan so it becomes outer worker tasks instead of
+starting a second scheduler inside one worker.
+
 Regenerating IDE run configurations
 -----------------------------------
 ``pycharm/gen_app_script.py`` is the authoritative generator for JetBrains run configurations.
