@@ -518,9 +518,18 @@ async def deploy_local_worker(
     else:
         env_project = env.agi_env
         node_project = env.agi_node
-        core_project = None
-        cluster_project = None
-        agilab_project = None
+        core_project = getattr(env, "agi_core", None) if env.is_source_env else None
+        cluster_project = getattr(env, "agi_cluster", None) if env.is_source_env else None
+        if env.is_source_env:
+            repo_root = _read_agilab_repo_root()
+            if repo_root is None:
+                repo_root = _infer_repo_root_from_runtime(runtime_file)
+            if repo_root:
+                try:
+                    repo_agilab_root = repo_root.parents[1]
+                except IndexError:
+                    repo_agilab_root = None
+        agilab_project = repo_agilab_root if repo_agilab_root and repo_agilab_root.exists() else None
 
     wenv_abs = env.wenv_abs
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
@@ -555,21 +564,20 @@ async def deploy_local_worker(
             )
 
     manager_core_paths: dict[str, Path] = {}
-    if env.install_type == 0:
-        for package_name, project_path in (
-            ("agi-env", env_project),
-            ("agi-node", node_project),
-            ("agi-core", core_project),
-            ("agi-cluster", cluster_project),
-            ("agilab", agilab_project),
-        ):
-            if isinstance(project_path, Path) and _is_python_project(project_path):
-                manager_core_paths[package_name] = project_path
+    for package_name, project_path in (
+        ("agi-env", env_project),
+        ("agi-node", node_project),
+        ("agi-core", core_project),
+        ("agi-cluster", cluster_project),
+        ("agilab", agilab_project),
+    ):
+        if isinstance(project_path, Path) and _is_python_project(project_path):
+            manager_core_paths[package_name] = project_path
 
     manager_sync_project = app_path
     manager_sync_uses_overlay = False
     manager_overlay_sources: dict[str, str] = {}
-    if offline_flag and (not env.is_source_env) and (not env.is_worker_env):
+    if offline_flag and (not env.is_worker_env):
         manager_overlay_sources = _manager_overlay_core_sources(manager_pyproject, manager_core_paths)
         manager_sync_uses_overlay = bool(manager_overlay_sources)
 
