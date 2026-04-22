@@ -175,6 +175,12 @@ async def test_install_into_project_venv_uses_target_python(tmp_path):
     ]
 
 
+def test_project_venv_python_uses_windows_layout(tmp_path):
+    assert deployment_local_support._project_venv_python(tmp_path, os_name="nt") == (
+        tmp_path / ".venv" / "Scripts" / "python.exe"
+    )
+
+
 def test_resolve_install_spec_prefers_project_path_over_distribution_metadata(tmp_path, monkeypatch):
     project_path = tmp_path / "agi-env"
     project_path.mkdir()
@@ -186,6 +192,27 @@ def test_resolve_install_spec_prefers_project_path_over_distribution_metadata(tm
     )
 
     assert deployment_local_support._resolve_install_spec(project_path, "agi-env") == str(project_path)
+
+
+def test_resolve_install_spec_falls_back_to_distribution_metadata_for_non_project_path(tmp_path, monkeypatch):
+    project_path = tmp_path / "agi-env"
+    project_path.mkdir()
+    monkeypatch.setattr(
+        deployment_local_support,
+        "_resolve_distribution_install_spec",
+        lambda _name: "agi-env==0.0.0",
+    )
+
+    assert deployment_local_support._resolve_install_spec(project_path, "agi-env") == "agi-env==0.0.0"
+
+
+def test_resolve_distribution_install_spec_returns_none_when_distribution_is_missing(monkeypatch):
+    def _missing(_name):
+        raise deployment_local_support.PackageNotFoundError
+
+    monkeypatch.setattr(deployment_local_support, "pkg_distribution", _missing)
+
+    assert deployment_local_support._resolve_distribution_install_spec("agi-env") is None
 
 
 def test_resolve_distribution_install_spec_uses_direct_url_git_revision(monkeypatch):
@@ -209,6 +236,23 @@ def test_resolve_distribution_install_spec_uses_direct_url_git_revision(monkeypa
     )
 
 
+def test_resolve_distribution_install_spec_uses_direct_url_with_subdirectory_without_vcs(monkeypatch):
+    class _Dist:
+        version = "2026.4.20"
+
+        @staticmethod
+        def read_text(name):
+            assert name == "direct_url.json"
+            return '{"url":"https://example.com/agi-env.tar.gz","subdirectory":"src/agi-env"}'
+
+    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+
+    assert (
+        deployment_local_support._resolve_distribution_install_spec("agi-env")
+        == "agi-env @ https://example.com/agi-env.tar.gz#subdirectory=src/agi-env"
+    )
+
+
 def test_resolve_distribution_install_spec_falls_back_to_installed_version(monkeypatch):
     class _Dist:
         version = "2026.4.20"
@@ -216,6 +260,19 @@ def test_resolve_distribution_install_spec_falls_back_to_installed_version(monke
         @staticmethod
         def read_text(_name):
             return None
+
+    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+
+    assert deployment_local_support._resolve_distribution_install_spec("agi-env") == "agi-env==2026.4.20"
+
+
+def test_resolve_distribution_install_spec_ignores_invalid_direct_url_json(monkeypatch):
+    class _Dist:
+        version = "2026.4.20"
+
+        @staticmethod
+        def read_text(_name):
+            return "{invalid-json"
 
     monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
 
@@ -249,6 +306,147 @@ def test_read_agilab_repo_root_normalizes_missing_marker(monkeypatch):
     )
 
     assert deployment_local_support._read_agilab_repo_root() is None
+
+
+def test_parse_dependency_names_skips_non_strings_and_invalid_requirements():
+    assert deployment_local_support._parse_dependency_names(["numpy>=1.26", 3, None, "not["]) == {"numpy"}
+
+
+def test_manager_dependency_names_returns_empty_for_missing_or_invalid_pyproject(tmp_path):
+    missing = tmp_path / "missing.toml"
+    invalid = tmp_path / "invalid.toml"
+    invalid.write_text("[project\nname = 'broken'\n", encoding="utf-8")
+
+    assert deployment_local_support._manager_dependency_names(missing) == set()
+    assert deployment_local_support._manager_dependency_names(invalid) == set()
+
+
+def test_manager_overlay_core_sources_recovers_when_second_parse_fails(tmp_path, monkeypatch):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "demo"
+dependencies = ["agi-env"]
+""".strip(),
+        encoding="utf-8",
+    )
+    agi_env_path = tmp_path / "agi-env"
+    agi_env_path.mkdir()
+
+    real_parse = tomlkit.parse
+    parse_calls = {"count": 0}
+
+    def _parse(text):
+        parse_calls["count"] += 1
+        if parse_calls["count"] == 1:
+            return real_parse(text)
+        raise OSError("cannot reparse")
+
+    monkeypatch.setattr(deployment_local_support.tomlkit, "parse", _parse)
+
+    assert deployment_local_support._manager_overlay_core_sources(
+        pyproject,
+        {"agi-env": agi_env_path},
+    ) == {"agi-env": str(agi_env_path.resolve(strict=False))}
+
+
+def test_manager_overlay_core_sources_preserves_existing_paths_and_adds_missing_ones(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "demo"
+dependencies = ["agi-env", "agi-node"]
+
+[tool.uv.sources]
+agi-env = { path = "../already-local" }
+agi-node = { path = "   " }
+""".strip(),
+        encoding="utf-8",
+    )
+    agi_env_path = tmp_path / "agi-env"
+    agi_node_path = tmp_path / "agi-node"
+    agi_env_path.mkdir()
+    agi_node_path.mkdir()
+
+    assert deployment_local_support._manager_overlay_core_sources(
+        pyproject,
+        {
+            "agi-env": agi_env_path,
+            "agi-node": agi_node_path,
+        },
+    ) == {"agi-node": str(agi_node_path.resolve(strict=False))}
+
+
+def test_write_manager_sync_overlay_bootstraps_missing_tables(tmp_path):
+    source_pyproject = tmp_path / "pyproject.toml"
+    source_pyproject.write_text("", encoding="utf-8")
+    overlay_dir = tmp_path / "overlay"
+
+    deployment_local_support._write_manager_sync_overlay(
+        source_pyproject,
+        overlay_dir,
+        local_core_sources={"agi-env": str((tmp_path / "agi-env").resolve(strict=False))},
+    )
+
+    overlay_doc = tomlkit.parse((overlay_dir / "pyproject.toml").read_text(encoding="utf-8"))
+    assert overlay_doc["tool"]["uv"]["sources"]["agi-env"]["path"] == str(
+        (tmp_path / "agi-env").resolve(strict=False)
+    )
+
+
+def test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries(tmp_path):
+    source_dir = tmp_path / "apps" / "demo"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    abs_dep = tmp_path / "abs-dep"
+    abs_dep.mkdir()
+    source_pyproject = source_dir / "pyproject.toml"
+    source_pyproject.write_text(
+        f"""
+[project]
+name = "demo"
+
+[tool.uv.sources]
+demo = {{ workspace = true }}
+non_dict = "skip-me"
+blank = {{ path = "   " }}
+rel = {{ path = "../shared" }}
+abs = {{ path = "{abs_dep}" }}
+""".strip(),
+        encoding="utf-8",
+    )
+    overlay_dir = tmp_path / "overlay"
+
+    deployment_local_support._write_manager_sync_overlay(
+        source_pyproject,
+        overlay_dir,
+        local_core_sources={},
+    )
+
+    overlay_doc = tomlkit.parse((overlay_dir / "pyproject.toml").read_text(encoding="utf-8"))
+    sources = overlay_doc["tool"]["uv"]["sources"]
+    assert "demo" not in sources
+    assert sources["non_dict"] == "skip-me"
+    assert sources["blank"]["path"] == "   "
+    assert sources["rel"]["path"] == str((source_dir / "../shared").resolve(strict=False))
+    assert sources["abs"]["path"] == str(abs_dep.resolve(strict=False))
+
+
+def test_shell_env_prefix_returns_empty_for_no_overrides():
+    assert deployment_local_support._shell_env_prefix({}) == ""
+
+
+def test_uv_offline_flag_handles_failing_lookup_false_and_nan(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+
+    class _BrokenEnvars:
+        def get(self, _key):
+            raise RuntimeError("boom")
+
+    assert deployment_local_support._uv_offline_flag(_BrokenEnvars()) == ""
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": False}) == "--offline "
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": float("nan")}) == "--offline "
 
 
 def test_local_worker_post_install_env_prefix_disables_cluster_only_for_non_dask():
