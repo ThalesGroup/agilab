@@ -38,10 +38,10 @@ use this order:
      not just one app-local execution view
    - this depends on clearer multi-app orchestration contracts
 8. **Bidirectional notebook interop**
-   - import notebook logic into AGILab pipelines and export a pipeline back to a
-     runnable notebook
-   - exported notebooks should run in an environment that is the union of the
-     pipeline step environments
+   - build on the shipped supervisor-notebook export and analysis-page launcher
+     metadata
+   - add notebook-to-pipeline import maturity and optional single-kernel
+     union-environment notebooks when step environments are compatible
 9. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
@@ -258,14 +258,27 @@ Why it matters:
 
 Purpose:
 
-- let users move in both directions between notebooks and AGILab pipelines
+- complete the bridge between notebooks and AGILab pipelines without hiding
+  per-step runtime constraints
+
+Current shipped baseline:
+
+- `PIPELINE` can already export a supervisor notebook that preserves step
+  provenance, runtime metadata, and per-step execution context
+- exported notebooks can include related analysis-page launcher helpers when an
+  app declares them
+- this is intentionally not the same thing as flattening a multi-venv pipeline
+  into one notebook kernel
 
 Suggested scope:
 
 - import notebook logic into pipeline steps
-- export an AGILab pipeline to a runnable notebook
-- generate a notebook runtime environment that is the union of the pipeline step
-  environments
+- keep the supervisor-notebook export as the default for mixed-runtime or
+  multi-venv pipelines
+- generate an optional union notebook environment only when the pipeline step
+  environments are actually compatible
+- make notebook-native analysis surfaces or Voilà-style packaging possible
+  without duplicating the current apps-pages logic blindly
 - preserve enough provenance so the notebook remains explainable
 
 Why it matters:
