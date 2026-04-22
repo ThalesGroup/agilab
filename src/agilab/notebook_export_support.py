@@ -15,6 +15,10 @@ DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 @dataclass(frozen=True)
 class RelatedPageExport:
     module: str
+    label: str = ""
+    description: str = ""
+    artifacts: tuple[str, ...] = ()
+    launch_note: str = ""
     script_path: str = ""
 
 
@@ -66,6 +70,52 @@ def _load_related_pages_from_settings(settings_path: Path | None) -> tuple[str, 
         if page and page not in normalized:
             normalized.append(page)
     return tuple(normalized)
+
+
+def _candidate_notebook_manifest_paths(app_root: str | Path | None) -> tuple[Path, ...]:
+    if not app_root:
+        return ()
+    try:
+        root = Path(app_root).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return ()
+    return (root / "notebook_export.toml", root / "src" / "notebook_export.toml")
+
+
+def _load_related_page_manifest(
+    app_root: str | Path | None,
+) -> tuple[dict[str, dict[str, Any]], tuple[str, ...]]:
+    for manifest_path in _candidate_notebook_manifest_paths(app_root):
+        if not manifest_path.exists():
+            continue
+        try:
+            with open(manifest_path, "rb") as stream:
+                payload = tomllib.load(stream)
+        except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError):
+            return {}, ()
+        export_cfg = payload.get("notebook_export", {})
+        raw_pages = export_cfg.get("related_pages", [])
+        if not isinstance(raw_pages, list):
+            return {}, ()
+        records: dict[str, dict[str, Any]] = {}
+        order: list[str] = []
+        for raw_page in raw_pages:
+            if not isinstance(raw_page, dict):
+                continue
+            module = str(raw_page.get("module", "") or "").strip()
+            if not module:
+                continue
+            record = {
+                "label": str(raw_page.get("label", "") or ""),
+                "description": str(raw_page.get("description", "") or ""),
+                "artifacts": tuple(str(item) for item in raw_page.get("artifacts", []) if str(item or "").strip()),
+                "launch_note": str(raw_page.get("launch_note", "") or ""),
+            }
+            records[module] = record
+            if module not in order:
+                order.append(module)
+        return records, tuple(order)
+    return {}, ()
 
 
 def _discover_page_script(pages_root: str | Path | None, module_name: str) -> str:
@@ -121,14 +171,21 @@ def build_notebook_export_context(
         except (OSError, RuntimeError, TypeError, ValueError):
             source_settings = None
 
-    related_pages = _load_related_pages_from_settings(settings_file) or _load_related_pages_from_settings(source_settings)
+    active_app = _settings_to_app_root(source_settings) or _normalize_path(getattr(env, "active_app", ""))
+    page_manifest, manifest_order = _load_related_page_manifest(active_app)
+    related_pages = _load_related_pages_from_settings(settings_file) or _load_related_pages_from_settings(source_settings) or manifest_order
     pages_root = _normalize_path(getattr(env, "AGILAB_PAGES_ABS", ""))
     related_page_records = tuple(
-        RelatedPageExport(module=page, script_path=_discover_page_script(pages_root, page))
+        RelatedPageExport(
+            module=page,
+            label=str(page_manifest.get(page, {}).get("label", "") or ""),
+            description=str(page_manifest.get(page, {}).get("description", "") or ""),
+            artifacts=tuple(str(item) for item in page_manifest.get(page, {}).get("artifacts", ())),
+            launch_note=str(page_manifest.get(page, {}).get("launch_note", "") or ""),
+            script_path=_discover_page_script(pages_root, page),
+        )
         for page in related_pages
     )
-
-    active_app = _settings_to_app_root(source_settings) or _normalize_path(getattr(env, "active_app", ""))
     repo_root = ""
     read_agilab_path = getattr(env, "read_agilab_path", None)
     if callable(read_agilab_path):
@@ -446,9 +503,12 @@ def build_notebook_document(
                 _markdown_cell(
                     "\n".join(
                         [
-                            f"### {page.module}",
+                            f"### {page.label or page.module}",
                             "",
+                            *(["- " + page.description] if page.description else []),
+                            *(["- Expected artifacts:"] + [f"  - `{artifact}`" for artifact in page.artifacts] if page.artifacts else []),
                             f"- Script path: `{page.script_path or '(not resolved during export)'}`",
+                            *(["- " + page.launch_note] if page.launch_note else []),
                             "- Run the next cell to print the launch command.",
                         ]
                     )
