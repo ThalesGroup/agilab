@@ -1,0 +1,9 @@
+read:
+  - AGENT_CONVENTIONS.md
+
+alias:
+  - "qwen-local:ollama_chat/qwen2.5-coder:latest"
+  - "deepseek-local:ollama_chat/deepseek-coder:latest"
+  - "mistral-local:ollama_chat/mistral:instruct"
+
+no-auto-commits: true
