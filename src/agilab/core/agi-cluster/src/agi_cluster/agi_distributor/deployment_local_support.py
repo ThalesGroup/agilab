@@ -7,6 +7,7 @@ import stat
 import subprocess
 from importlib.metadata import PackageNotFoundError, distribution as pkg_distribution, version as pkg_version
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Callable, cast
 from urllib.parse import unquote, urlparse
 
@@ -133,12 +134,14 @@ async def _install_into_project_venv(
     *,
     run_fn: Callable[..., Any],
     os_name: str = os.name,
+    editable: bool = False,
 ) -> None:
     venv_python = _project_venv_python(project, os_name=os_name)
     package_spec = str(package_ref)
+    editable_flag = "-e " if editable else ""
     cmd = (
         f'{uv_cmd} pip install --python "{venv_python}" '
-        f'--upgrade --no-deps "{package_spec}"'
+        f'--upgrade --no-deps {editable_flag}"{package_spec}"'
     )
     await run_fn(cmd, project)
 
@@ -176,6 +179,116 @@ def _read_agilab_repo_root() -> Path | None:
     read_agilab_path = cast(Callable[[], Path | None], AgiEnv.read_agilab_path)
     repo_root = read_agilab_path()
     return repo_root if isinstance(repo_root, Path) else None
+
+
+def _parse_dependency_names(entries: Any) -> set[str]:
+    names: set[str] = set()
+    if not isinstance(entries, list):
+        return names
+    for entry in entries:
+        if not isinstance(entry, str):
+            continue
+        try:
+            names.add(Requirement(entry).name.lower())
+        except DEPENDENCY_PARSE_EXCEPTIONS:
+            continue
+    return names
+
+
+def _manager_dependency_names(pyproject_file: Path) -> set[str]:
+    try:
+        data = tomlkit.parse(pyproject_file.read_text())
+    except PYPROJECT_PARSE_EXCEPTIONS:
+        return set()
+    project = data.get("project", {})
+    return _parse_dependency_names(project.get("dependencies"))
+
+
+def _manager_overlay_core_sources(
+    pyproject_file: Path,
+    local_core_paths: dict[str, Path],
+) -> dict[str, str]:
+    dependency_names = _manager_dependency_names(pyproject_file)
+    if not dependency_names:
+        return {}
+
+    try:
+        data = tomlkit.parse(pyproject_file.read_text())
+    except PYPROJECT_PARSE_EXCEPTIONS:
+        data = tomlkit.document()
+
+    uv_sources = data.get("tool", {}).get("uv", {}).get("sources")
+    if not isinstance(uv_sources, dict):
+        uv_sources = {}
+
+    overlay_sources: dict[str, str] = {}
+    for package_name, package_path in sorted(local_core_paths.items()):
+        if package_name not in dependency_names:
+            continue
+        existing = uv_sources.get(package_name)
+        if isinstance(existing, dict):
+            existing_path = existing.get("path")
+            if isinstance(existing_path, str) and existing_path.strip():
+                continue
+        overlay_sources[package_name] = str(package_path.resolve(strict=False))
+    return overlay_sources
+
+
+def _write_manager_sync_overlay(
+    source_pyproject: Path,
+    overlay_dir: Path,
+    *,
+    local_core_sources: dict[str, str],
+) -> Path:
+    doc = tomlkit.parse(source_pyproject.read_text())
+
+    project = doc.get("project")
+    if project is None:
+        project = tomlkit.table()
+    project_name = project.get("name")
+
+    tool = doc.get("tool")
+    if tool is None or not isinstance(tool, tomlkit.items.Table):
+        tool = tomlkit.table()
+    uv = tool.get("uv")
+    if uv is None or not isinstance(uv, tomlkit.items.Table):
+        uv = tomlkit.table()
+    sources = uv.get("sources")
+    if sources is None or not isinstance(sources, tomlkit.items.Table):
+        sources = tomlkit.table()
+
+    if isinstance(project_name, str):
+        existing_self_source = sources.get(project_name)
+        if isinstance(existing_self_source, dict) and existing_self_source.get("workspace") is True:
+            del sources[project_name]
+
+    for source_name in list(sources):
+        meta = sources.get(source_name)
+        if not isinstance(meta, dict):
+            continue
+        path_value = meta.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            continue
+        resolved = Path(path_value).expanduser()
+        if not resolved.is_absolute():
+            resolved = (source_pyproject.parent / resolved).resolve(strict=False)
+        else:
+            resolved = resolved.resolve(strict=False)
+        meta["path"] = str(resolved)
+
+    for package_name, package_path in sorted(local_core_sources.items()):
+        inline = tomlkit.inline_table()
+        inline["path"] = package_path
+        sources[package_name] = inline
+
+    uv["sources"] = sources
+    tool["uv"] = uv
+    doc["tool"] = tool
+
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay_pyproject = overlay_dir / "pyproject.toml"
+    overlay_pyproject.write_text(tomlkit.dumps(doc), encoding="utf-8")
+    return overlay_dir
 
 
 def _shell_env_prefix(env_overrides: dict[str, str], *, os_name: str = os.name) -> str:
@@ -441,18 +554,31 @@ async def deploy_local_worker(
                 filter_to_worker=False,
             )
 
+    manager_core_paths: dict[str, Path] = {}
+    if env.install_type == 0:
+        for package_name, project_path in (
+            ("agi-env", env_project),
+            ("agi-node", node_project),
+            ("agi-core", core_project),
+            ("agi-cluster", cluster_project),
+            ("agilab", agilab_project),
+        ):
+            if isinstance(project_path, Path) and _is_python_project(project_path):
+                manager_core_paths[package_name] = project_path
+
+    manager_sync_project = app_path
+    manager_sync_uses_overlay = False
+    manager_overlay_sources: dict[str, str] = {}
+    if offline_flag and (not env.is_source_env) and (not env.is_worker_env):
+        manager_overlay_sources = _manager_overlay_core_sources(manager_pyproject, manager_core_paths)
+        manager_sync_uses_overlay = bool(manager_overlay_sources)
+
     extra_indexes = ""
     if (not offline_flag) and str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(app_path):
         extra_indexes = (
             "PIP_INDEX_URL=https://test.pypi.org/simple "
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple "
         )
-    if hw_rapids_capable:
-        cmd_manager = (
-            f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml --project '{app_path}'"
-        )
-    else:
-        cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{app_path}'"
 
     _force_remove(app_path / ".venv", env_logger=getattr(env, "logger", None))
     try:
@@ -460,11 +586,46 @@ async def deploy_local_worker(
     except FileNotFoundError:
         pass
 
-    if env.verbose > 0:
-        log.info(f"Installing manager: {cmd_manager}")
-    await run_fn(cmd_manager, app_path)
+    if manager_sync_uses_overlay:
+        with TemporaryDirectory(prefix="agilab-manager-sync-") as staged_root:
+            manager_sync_project = _write_manager_sync_overlay(
+                manager_pyproject,
+                Path(staged_root),
+                local_core_sources=manager_overlay_sources,
+            )
+            if hw_rapids_capable:
+                cmd_manager = (
+                    f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml "
+                    f"--project '{manager_sync_project}' --active --no-install-project"
+                )
+            else:
+                cmd_manager = (
+                    f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{manager_sync_project}' "
+                    f"--active --no-install-project"
+                )
+            if env.verbose > 0:
+                log.info(f"Installing manager via staged overlay: {cmd_manager}")
+            await run_fn(cmd_manager, app_path)
+    else:
+        if hw_rapids_capable:
+            cmd_manager = (
+                f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml --project '{app_path}'"
+            )
+        else:
+            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{app_path}'"
+        if env.verbose > 0:
+            log.info(f"Installing manager: {cmd_manager}")
+        await run_fn(cmd_manager, app_path)
 
     if (not env.is_source_env) and (not env.is_worker_env):
+        if manager_sync_uses_overlay:
+            await _install_into_project_venv(
+                uv,
+                app_path,
+                app_path,
+                run_fn=run_fn,
+                editable=True,
+            )
         install_targets = (
             (agilab_project, "agilab"),
             (env_project, "agi-env"),
