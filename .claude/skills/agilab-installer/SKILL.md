@@ -45,6 +45,24 @@ Use this skill when working on:
 
 ## Debugging Patterns
 
+- **A previous agent already diagnosed the failure**
+  - Do not just confirm the current diagnosis.
+  - Re-run the plain repro first to prove where the bug really begins:
+    - `uv sync --project <app>`
+    - or, for offline manager cases, `uv --offline sync --project <app>`
+  - Then assess the diagnostic itself:
+    - what part is solid
+    - what assumptions are still weak
+    - what coverage gap allowed the bug to survive
+    - whether the proposed fix is only the obvious fix or the better fix
+  - Prefer this one-query pattern when you want the strongest first answer:
+    - `Assess the diagnostic below and find the better fix. Keep the plain repro as the first discriminator. Identify the real root cause, regression chain, weak points in the current diagnosis, the better fix, why it is better than the obvious fix, and the regression plan.`
+  - In AGILAB install bugs, explicitly compare:
+    - app-local workaround
+    - shared-core installer fix
+    - diagnostic/preflight improvements such as `tools/install_contract_check.py`
+  - If the failure starts before worker build or runtime execution, treat that as installer-contract evidence, not app-runtime evidence.
+
 - **“Does not appear to be a Python project”**
   - You are installing a directory without `pyproject.toml`/`setup.py`.
   - Ensure the installer runs `uv pip install -e .` from the repo root.
