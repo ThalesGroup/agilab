@@ -111,6 +111,15 @@ Layers at a glance
       ``~/wenv/<app>_worker`` before run time.
     - Optional cluster helpers (SSH, remote installs, zip staging) live under
       ``src/agilab/core/agi-node/agi_dispatcher`` and are reused by every app.
+    - AGILAB submits one coarse AGILAB task per worker to the outer Dask
+      scheduler. The code that runs inside ``BaseWorker.works(...)`` is
+      intentionally opaque to that outer scheduler.
+    - This means nested execution inside a worker is not first-class AGILAB
+      telemetry. If a worker starts its own inner Dask client or scheduler, the
+      outer Dask/Bokeh dashboard only sees the outer AGILAB worker future, not
+      the inner task graph.
+    - In practice, treat Dask as the cluster back-plane for AGILAB workers, not
+      as the supported inner orchestration engine inside one worker process.
 
 Runtime flow
 ------------
