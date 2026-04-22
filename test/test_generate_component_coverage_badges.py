@@ -157,3 +157,75 @@ def test_node_and_cluster_default_to_explicit_component_or_combined_reports_only
 
     assert "fallback_xmls" not in module.COMPONENTS["agi-node"]
     assert "fallback_xmls" not in module.COMPONENTS["agi-cluster"]
+    assert module.COMPONENTS["agi-node"].get("allow_combined_fallback") is None
+    assert module.COMPONENTS["agi-cluster"].get("allow_combined_fallback") is None
+    assert module.COMPONENTS["agi-env"].get("allow_combined_fallback") is None
+    assert module.COMPONENTS["agi-gui"].get("allow_combined_fallback") is None
+
+
+def test_resolve_component_counts_does_not_use_combined_xml_without_opt_in(tmp_path: Path) -> None:
+    module = _load_module()
+    combined_xml = tmp_path / "coverage-agilab.combined.xml"
+    combined_xml.write_text(
+        """
+<coverage>
+  <packages>
+    <package name="agi-env">
+      <classes>
+        <class filename="src/agilab/core/agi-env/src/agi_env/example.py">
+          <lines>
+            <line number="1" hits="1" />
+            <line number="2" hits="1" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
+""".strip()
+    )
+
+    original = module.COMPONENTS["agi-env"].copy()
+    try:
+        module.COMPONENTS["agi-env"] = {
+            **original,
+            "xml": tmp_path / "missing-env.xml",
+        }
+        assert module.resolve_component_counts("agi-env", combined_xml) is None
+    finally:
+        module.COMPONENTS["agi-env"] = original
+
+
+def test_resolve_component_counts_can_use_combined_xml_when_explicitly_enabled(tmp_path: Path) -> None:
+    module = _load_module()
+    combined_xml = tmp_path / "coverage-agilab.combined.xml"
+    combined_xml.write_text(
+        """
+<coverage>
+  <packages>
+    <package name="agi-gui">
+      <classes>
+        <class filename="src/agilab/example.py">
+          <lines>
+            <line number="1" hits="1" />
+            <line number="2" hits="0" />
+            <line number="3" hits="1" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
+""".strip()
+    )
+
+    original = module.COMPONENTS["agi-gui"].copy()
+    try:
+        module.COMPONENTS["agi-gui"] = {
+            **original,
+            "xml": tmp_path / "missing-gui.xml",
+            "allow_combined_fallback": True,
+        }
+        assert module.resolve_component_counts("agi-gui", combined_xml) == (2, 3)
+    finally:
+        module.COMPONENTS["agi-gui"] = original
