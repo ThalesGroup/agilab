@@ -313,6 +313,9 @@ def load_args_from_toml(path):
             "APPS_PATH": str(apps_dir),
             "AGILAB_PAGES_ABS": str(pages_dir),
             "OPENAI_API_KEY": "dummy",
+            # Prevent developer-shell secrets from leaking into AppTest runs and
+            # triggering keychain storage paths during first-run initialization.
+            "CLUSTER_CREDENTIALS": "",
             "IS_SOURCE_ENV": "1",
             # Keep Streamlit AppTest runs off the macOS keychain so they never
             # block on an interactive credential prompt during local/CI preflight.
