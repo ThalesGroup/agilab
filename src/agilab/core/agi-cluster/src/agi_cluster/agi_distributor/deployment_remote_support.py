@@ -105,6 +105,8 @@ async def deploy_remote_worker(
     await agi_cls.exec_ssh(ip, cmd)
 
     if env.is_source_env:
+        if env_whl is None or node_whl is None:
+            raise RuntimeError("source environment remote deployment requires local agi-env and agi-node wheels")
         env_pck: Union[str, Path] = wenv_rel / "dist" / env_whl.name
         node_pck: Union[str, Path] = wenv_rel / "dist" / node_whl.name
     else:
