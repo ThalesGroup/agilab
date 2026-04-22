@@ -324,6 +324,162 @@ def test_view_inference_analysis_parses_structured_cells_and_coerces_time_index(
     assert fallback["time_index"].tolist() == [0, 1]
 
 
+def test_view_inference_analysis_loads_allocation_files_from_common_formats(tmp_path: Path) -> None:
+    module = _load_module()
+    csv_path = tmp_path / "allocations.csv"
+    csv_path.write_text(
+        "step,source,destination,delivered_mbps,latency_ms,selected_path,path_capacity,time_s\n"
+        "0,1,2,0.5,12.0,\"[1, 2]\",0.8,1.5\n",
+        encoding="utf-8",
+    )
+    jsonl_path = tmp_path / "allocations.jsonl"
+    jsonl_path.write_text(
+        '\n{"step": 1, "source": 2, "destination": 3, "delivered_mbps": 0.7, "latency_ms": 14.0}\n',
+        encoding="utf-8",
+    )
+    json_path = tmp_path / "allocations.json"
+    json_path.write_text(
+        '{"allocations_steps": [{"step": 2, "source": 3, "destination": 4, "delivered_mbps": 0.9, "latency_ms": 16.0}]}',
+        encoding="utf-8",
+    )
+    steps_path = tmp_path / "steps.json"
+    steps_path.write_text(
+        '{"steps": [{"step": 3, "source": 4, "destination": 5, "delivered_mbps": 1.1, "latency_ms": 18.0}]}',
+        encoding="utf-8",
+    )
+    invalid_path = tmp_path / "broken.json"
+    invalid_path.write_text("{broken", encoding="utf-8")
+
+    csv_df = module.load_allocations(csv_path)
+    jsonl_df = module.load_allocations(jsonl_path)
+    json_df = module.load_allocations(json_path)
+    steps_df = module._load_allocations_cached(str(steps_path), steps_path.stat().st_mtime_ns, 1)
+
+    assert csv_df["time_index"].tolist() == [0]
+    assert csv_df["source"].tolist() == [1]
+    assert csv_df["destination"].tolist() == [2]
+    assert csv_df["delivered_bandwidth"].tolist() == pytest.approx([0.5])
+    assert csv_df["latency"].tolist() == pytest.approx([12.0])
+    assert csv_df["path"].tolist() == ["[1, 2]"]
+    assert csv_df["capacity_mbps"].tolist() == pytest.approx([0.8])
+    assert csv_df["t_now_s"].tolist() == pytest.approx([1.5])
+    assert jsonl_df["time_index"].tolist() == [1]
+    assert json_df["time_index"].tolist() == [2]
+    assert steps_df["time_index"].tolist() == [3]
+    assert module.load_allocations(tmp_path / "missing.json").empty
+    assert module.load_allocations(invalid_path).empty
+
+
+@pytest.mark.parametrize(
+    ("aggregation", "expected"),
+    [
+        ("mean", [2.0, 7.0]),
+        ("sum", [4.0, 14.0]),
+        ("median", [2.0, 7.0]),
+        ("min", [1.0, 5.0]),
+        ("max", [3.0, 9.0]),
+        ("std", [pytest.approx(1.41421356237), pytest.approx(2.82842712475)]),
+        ("count", [2.0, 2.0]),
+    ],
+)
+def test_view_inference_analysis_discovers_metrics_and_builds_profiles(
+    aggregation: str,
+    expected: list[object],
+) -> None:
+    module = _load_module()
+    frames = {
+        "run_a": pd.DataFrame(
+            {
+                "time_index": [0, 0, 1, 1],
+                "reward": [1.0, 3.0, 5.0, 9.0],
+                "latency": [10.0, 11.0, 12.0, 13.0],
+                "delivered_bandwidth": [0.2, 0.4, 0.6, 0.8],
+                "routed": [True, False, True, True],
+                "seed": [1, 1, 1, 1],
+            }
+        ),
+        "run_b": pd.DataFrame(
+            {
+                "time_index": [0, 1],
+                "custom_metric": [8.0, 9.0],
+            }
+        ),
+    }
+
+    metrics = module.discover_metric_columns(frames)
+    profile = module.build_profile_frame(frames, "reward", aggregation, "time_index")
+    color_map = module._run_color_map(["run_a", "run_b"])
+
+    assert metrics[:4] == ["delivered_bandwidth", "reward", "latency", "routed"]
+    assert metrics[-1] == "custom_metric"
+    assert profile.index.tolist() == [0, 1]
+    assert profile["run_a"].tolist() == pytest.approx(expected)
+    assert list(color_map) == ["run_a", "run_b"]
+    assert module._metric_series(frames["run_a"], "routed").tolist() == pytest.approx([1.0, 0.0, 1.0, 1.0])
+
+
+def test_view_inference_analysis_profile_builder_rejects_unknown_aggregation() -> None:
+    module = _load_module()
+    frames = {"run_a": pd.DataFrame({"time_index": [0, 1], "reward": [1.0, 2.0]})}
+
+    with pytest.raises(ValueError, match="Unsupported aggregation"):
+        module.build_profile_frame(frames, "reward", "mode", "time_index")
+
+
+def test_view_inference_analysis_builds_inventory_and_path_helpers(tmp_path: Path) -> None:
+    module = _load_module()
+    root = tmp_path / "dataset"
+    root.mkdir()
+    existing_path = root / "run_a" / "allocations.csv"
+    existing_path.parent.mkdir()
+    existing_path.write_text("time_index,latency\n0,1\n1,2\n", encoding="utf-8")
+    missing_path = root / "run_b" / "allocations.csv"
+    frames = {
+        "run_a": pd.DataFrame({"time_index": [0, 1], "latency": [1.0, 2.0]}),
+        "run_b": pd.DataFrame({"latency": [3.0]}),
+    }
+
+    inventory = module.build_inventory_frame(
+        frames,
+        {"run_b": missing_path, "run_a": existing_path},
+        root,
+    )
+
+    assert inventory["run_label"].tolist() == ["run_a", "run_b"]
+    assert inventory["relative_path"].tolist() == ["run_a/allocations.csv", "run_b/allocations.csv"]
+    assert inventory["rows"].tolist() == [2, 1]
+    assert inventory["steps"].tolist() == [2, 0]
+    assert inventory["columns"].tolist() == [2, 1]
+    assert inventory.loc[inventory["run_label"] == "run_a", "modified_utc"].item()
+    assert inventory.loc[inventory["run_label"] == "run_b", "modified_utc"].item() == ""
+
+
+def test_view_inference_analysis_handles_list_and_path_helper_edges() -> None:
+    module = _load_module()
+
+    assert module._parse_list_like("[1, 2, 3]") == [1, 2, 3]
+    assert module._parse_list_like("(1, 2)") == [1, 2]
+    assert module._parse_list_like("scalar") == []
+    assert module._is_missing_value(pd.NA) is True
+    assert module._is_missing_value([1, 2]) is False
+
+    routed = module._routed_flag_series(pd.DataFrame({"routed": [1, None, 2, -1]}))
+    delivered = module._routed_flag_series(pd.DataFrame({"delivered_bandwidth": [0.0, 0.1, None]}))
+    defaulted = module._routed_flag_series(pd.DataFrame({"latency": [1.0, 2.0]}))
+
+    assert routed.tolist() == pytest.approx([1.0, 0.0, 1.0, 0.0])
+    assert delivered.tolist() == pytest.approx([0.0, 1.0, 0.0])
+    assert defaulted.tolist() == pytest.approx([0.0, 0.0])
+
+    assert module._coerce_path_sequence("[1, 2, null, 3]") == [1, 2, 3]
+    assert module._coerce_path_sequence("[[1, 2, 3]]") == [1, 2, 3]
+    assert module._coerce_path_sequence("[[1, 2], [2, 3], null]") == [[1, 2], [2, 3]]
+    assert module._coerce_path_sequence("invalid") == []
+    assert module._path_hop_count("[1, 2, 3, 4]") == 3
+    assert module._path_hop_count("[[1, 2], [2, 3], [3, 4]]") == 3
+    assert module._path_hop_count("[]") is None
+
+
 def test_view_inference_analysis_aligns_heatmap_frames_to_shared_axes() -> None:
     module = _load_module()
 
