@@ -25,6 +25,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
 
     profiles = module._profile_commands(args)
     agi_env = profiles["agi-env"][0]
+    agi_core_combined = profiles["agi-core-combined"]
     agi_node = profiles["agi-node"][0]
     agi_cluster = profiles["agi-cluster"][0]
     agi_gui = profiles["agi-gui"][0]
@@ -36,6 +37,25 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "--cov=agi_env" in agi_env.argv
     assert "coverage-agi-env.xml" in " ".join(agi_env.argv)
     assert agi_env.argv[-1] == "src/agilab/core/agi-env/test"
+
+    assert len(agi_core_combined) == 3
+    combined_run = agi_core_combined[0]
+    combined_node_xml = agi_core_combined[1]
+    combined_cluster_xml = agi_core_combined[2]
+    assert combined_run.timeout_seconds == 20 * 60
+    assert combined_run.argv[-1] == "src/agilab/core/test"
+    assert "--data-file=.coverage.agi-core-combined" in combined_run.argv
+    assert "pytest" in combined_run.argv
+    assert combined_node_xml.timeout_seconds == 5 * 60
+    assert "--data-file=.coverage.agi-core-combined" in combined_node_xml.argv
+    assert "-o" in combined_node_xml.argv
+    assert "coverage-agi-node.xml" in combined_node_xml.argv
+    assert "--include=*/agi_node/*" in combined_node_xml.argv
+    assert combined_cluster_xml.timeout_seconds == 5 * 60
+    assert "--data-file=.coverage.agi-core-combined" in combined_cluster_xml.argv
+    assert "-o" in combined_cluster_xml.argv
+    assert "coverage-agi-cluster.xml" in combined_cluster_xml.argv
+    assert "--include=*/agi_cluster/*" in combined_cluster_xml.argv
 
     assert agi_node.timeout_seconds == 20 * 60
     assert agi_node.env["COVERAGE_FILE"] == ".coverage.agi-node"
@@ -59,6 +79,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_view_maps.py" in agi_gui.argv
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
     assert strict_typing.argv[-1] == "tools/shared_core_strict_typing.py"
+
+
+def test_selected_profiles_skips_preflight_only_combined_core_profile_by_default() -> None:
+    module = _load_module()
+    args = SimpleNamespace(profile=None)
+
+    selected = module._selected_profiles(args)
+
+    assert "agi-core-combined" not in selected
+    assert "agi-node" in selected
+    assert "agi-cluster" in selected
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:

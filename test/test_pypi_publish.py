@@ -237,7 +237,7 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
         )
     )
 
-    assert profiles == ["agi-env", "agi-node", "agi-cluster", "agi-gui", "docs", "installer", "shared-core-typing"]
+    assert profiles == ["agi-env", "agi-core-combined", "agi-gui", "docs", "installer", "shared-core-typing"]
 
 
 def test_compute_date_tag_without_collision(monkeypatch) -> None:
