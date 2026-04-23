@@ -458,6 +458,24 @@ class Project:
                 changed = True
         return changed
 
+    def _ensure_source_folders(self, content: ET.Element, dir_path: Path, source_roots: Iterable[str]) -> bool:
+        existing = {
+            (node.get("url"), node.get("isTestSource", "false"))
+            for node in content.findall("sourceFolder")
+        }
+        changed = False
+        for root_name in source_roots:
+            root_path = dir_path / root_name
+            if not root_path.exists():
+                continue
+            url = content_url_for(self.cfg, root_path)
+            key = (url, "false")
+            if key in existing:
+                continue
+            ET.SubElement(content, "sourceFolder", {"url": url, "isTestSource": "false"})
+            changed = True
+        return changed
+
     def ensure_module_excludes(self, iml_path: Path, dir_path: Path) -> None:
         if not iml_path.exists():
             return
@@ -477,11 +495,41 @@ class Project:
             write_xml(tree, iml_path)
             logging.info(f"Updated exclude folders in {iml_path}")
 
-    def write_module_minimal(self, module_name: str, dir_path: Path) -> Path:
+    def ensure_module_source_folders(
+        self,
+        iml_path: Path,
+        dir_path: Path,
+        source_roots: Iterable[str] = ("src",),
+    ) -> None:
+        if not iml_path.exists():
+            return
+
+        tree = read_xml(iml_path)
+        root = tree.getroot()
+
+        comp = root.find("./component[@name='NewModuleRootManager']")
+        if comp is None:
+            comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
+
+        content = comp.find("content")
+        if content is None:
+            content = ET.SubElement(comp, "content", {"url": content_url_for(self.cfg, dir_path)})
+
+        if self._ensure_source_folders(content, dir_path, source_roots):
+            write_xml(tree, iml_path)
+            logging.info(f"Updated source folders in {iml_path}")
+
+    def write_module_minimal(
+        self,
+        module_name: str,
+        dir_path: Path,
+        source_roots: Iterable[str] = (),
+    ) -> Path:
         iml_path = self.cfg.MODULES_DIR / f"{module_name}.iml"
         m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
         comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
         content = ET.SubElement(comp, "content", {"url": content_url_for(self.cfg, dir_path)})
+        self._ensure_source_folders(content, dir_path, source_roots)
         self._ensure_exclude_folders(content)
         ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
         ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
@@ -803,13 +851,14 @@ def main():
             logging.warning(f"No virtual environment found for {core.name}, skipping.")
             continue
 
-        iml = model.write_module_minimal(core.name, core)
+        iml = model.write_module_minimal(core.name, core, source_roots=("src",))
         sdk_name = f"uv ({core.name})"
         jdk_table.add_jdk(sdk_name, core_py)
         model.set_module_sdk(iml, sdk_name)
 
         model.add_module_entry(iml)
         model.ensure_module_excludes(iml, core)
+        model.ensure_module_source_folders(iml, core, source_roots=("src",))
 
         realized_core.append(core.name)
 

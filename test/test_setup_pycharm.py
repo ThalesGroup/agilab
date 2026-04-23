@@ -34,3 +34,23 @@ def test_set_project_sdk_writes_project_root_manager_and_black(tmp_path: Path) -
     black_sdk = black_component.find("./option[@name='sdkName']")
     assert black_sdk is not None
     assert black_sdk.get("value") == "uv (agilab)"
+
+
+def test_write_module_minimal_can_declare_source_root(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+    cfg.create_directories()
+    project = setup_pycharm.Project(cfg)
+
+    module_dir = tmp_path / "src" / "agilab" / "core" / "agi-env"
+    (module_dir / "src").mkdir(parents=True, exist_ok=True)
+
+    iml_path = project.write_module_minimal("agi-env", module_dir, source_roots=("src",))
+
+    tree = ET.parse(iml_path)
+    root = tree.getroot()
+    source_folder = root.find(
+        "./component[@name='NewModuleRootManager']/content/sourceFolder[@url='file://$MODULE_DIR$/../../src/agilab/core/agi-env/src']"
+    )
+
+    assert source_folder is not None
+    assert source_folder.get("isTestSource") == "false"
