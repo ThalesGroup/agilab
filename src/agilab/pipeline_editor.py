@@ -22,54 +22,59 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
-import_agilab_symbols(
-    globals(),
+_code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",
-    {"normalize_custom_buttons": "normalize_custom_buttons"},
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "code_editor_support.py",
     fallback_name="agilab_code_editor_support_fallback",
 )
-import_agilab_symbols(
-    globals(),
+normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+_logging_utils_module = import_agilab_module(
+    "agilab.logging_utils",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "logging_utils.py",
+    fallback_name="agilab_logging_utils_fallback",
+)
+LOG_DETAIL_LIMIT = _logging_utils_module.LOG_DETAIL_LIMIT
+LOG_PATH_LIMIT = _logging_utils_module.LOG_PATH_LIMIT
+bound_log_value = _logging_utils_module.bound_log_value
+
+_pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
-    {"is_valid_runtime_root": "_is_valid_runtime_root"},
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_runtime.py",
     fallback_name="agilab_pipeline_runtime_fallback",
 )
-import_agilab_symbols(
-    globals(),
+_is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
+
+_pipeline_steps_module = import_agilab_module(
     "agilab.pipeline_steps",
-    {
-        "bump_history_revision": "_bump_history_revision",
-        "ensure_primary_module_key": "_ensure_primary_module_key",
-        "is_displayable_step": "_is_displayable_step",
-        "looks_like_step": "_looks_like_step",
-        "module_keys": "_module_keys",
-        "normalize_runtime_path": "normalize_runtime_path",
-        "persist_sequence_preferences": "_persist_sequence_preferences",
-        "prune_invalid_entries": "_prune_invalid_entries",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
     fallback_name="agilab_pipeline_steps_fallback",
 )
-import_agilab_symbols(
-    globals(),
+_bump_history_revision = _pipeline_steps_module.bump_history_revision
+_ensure_primary_module_key = _pipeline_steps_module.ensure_primary_module_key
+_is_displayable_step = _pipeline_steps_module.is_displayable_step
+_looks_like_step = _pipeline_steps_module.looks_like_step
+_module_keys = _pipeline_steps_module.module_keys
+normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
+_persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
+_prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
+
+_notebook_export_support_module = import_agilab_module(
     "agilab.notebook_export_support",
-    {
-        "build_notebook_document": "build_notebook_document",
-        "build_notebook_export_context": "build_notebook_export_context",
-        "pycharm_notebook_mirror_path": "pycharm_notebook_mirror_path",
-        "pycharm_notebook_sitecustomize_text": "pycharm_notebook_sitecustomize_text",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "notebook_export_support.py",
     fallback_name="agilab_notebook_export_support_fallback",
 )
+build_notebook_document = _notebook_export_support_module.build_notebook_document
+build_notebook_export_context = _notebook_export_support_module.build_notebook_export_context
+pycharm_notebook_mirror_path = _notebook_export_support_module.pycharm_notebook_mirror_path
+pycharm_notebook_sitecustomize_text = _notebook_export_support_module.pycharm_notebook_sitecustomize_text
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +247,10 @@ def remove_step(
             tomli_w.dump(serializable_steps, f)
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save steps file: {e}")
-        logger.error(f"Error writing TOML in remove_step: {e}")
+        logger.error(
+            "Error writing TOML in remove_step: %s",
+            bound_log_value(e, LOG_DETAIL_LIMIT),
+        )
 
     _bump_history_revision()
     return nsteps
@@ -498,7 +506,11 @@ def _restore_pipeline_snapshot(
         _bump_history_revision()
         return None
     except (AttributeError, IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        logger.error(f"Undo restore failed for {steps_file}: {exc}")
+        logger.error(
+            "Undo restore failed for %s: %s",
+            bound_log_value(steps_file, LOG_PATH_LIMIT),
+            bound_log_value(exc, LOG_DETAIL_LIMIT),
+        )
         return str(exc)
 
 
@@ -541,7 +553,10 @@ def toml_to_notebook(
         _write_notebook_json(notebook_data, notebook_path)
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save notebook: {e}")
-        logger.error(f"Error saving notebook in toml_to_notebook: {e}")
+        logger.error(
+            "Error saving notebook in toml_to_notebook: %s",
+            bound_log_value(e, LOG_DETAIL_LIMIT),
+        )
         return
 
     pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
@@ -697,7 +712,10 @@ def save_step(
             tomli_w.dump(serializable_steps, f)
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save steps file: {e}")
-        logger.error(f"Error writing TOML in save_step: {e}")
+        logger.error(
+            "Error writing TOML in save_step: %s",
+            bound_log_value(e, LOG_DETAIL_LIMIT),
+        )
         st.session_state["_experiment_last_save_skipped"] = True
         return nsteps, entry
 
@@ -729,7 +747,12 @@ def _force_persist_step(
         with open(steps_file, "wb") as f:
             tomli_w.dump(steps, f)
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
-        logger.error(f"Force persist failed for step {step_idx} -> {steps_file}: {exc}")
+        logger.error(
+            "Force persist failed for step %s -> %s: %s",
+            step_idx,
+            bound_log_value(steps_file, LOG_PATH_LIMIT),
+            bound_log_value(exc, LOG_DETAIL_LIMIT),
+        )
 
 def notebook_to_toml(
     uploaded_file: Any,
@@ -774,7 +797,10 @@ def notebook_to_toml(
             tomli_w.dump(toml_content, toml_file)
     except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
-        logger.error(f"Error writing TOML in notebook_to_toml: {e}")
+        logger.error(
+            "Error writing TOML in notebook_to_toml: %s",
+            bound_log_value(e, LOG_DETAIL_LIMIT),
+        )
     return cell_count
 
 
@@ -866,4 +892,7 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
             _bump_history_revision()
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
             st.error(f"Failed to save steps file from editor: {e}")
-            logger.error(f"Error saving steps file from editor: {e}")
+            logger.error(
+                "Error saving steps file from editor: %s",
+                bound_log_value(e, LOG_DETAIL_LIMIT),
+            )

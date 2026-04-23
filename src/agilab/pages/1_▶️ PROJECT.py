@@ -32,7 +32,7 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
@@ -52,14 +52,13 @@ from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv, normalize_path
 
-import_agilab_symbols(
-    globals(),
+_code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",
-    ["normalize_custom_buttons"],
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "code_editor_support.py",
     fallback_name="agilab_code_editor_support_fallback",
 )
+normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 

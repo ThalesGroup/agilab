@@ -18,38 +18,33 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
-import_agilab_symbols(
-    globals(),
+_pipeline_ai_uoaic_module = import_agilab_module(
     "agilab.pipeline_ai_uoaic",
-    {
-        "UOAIC_MODE_ENV": "UOAIC_MODE_ENV",
-        "UOAIC_MODE_OLLAMA": "UOAIC_MODE_OLLAMA",
-        "UOAIC_MODE_STATE_KEY": "UOAIC_MODE_STATE_KEY",
-        "UOAIC_MODEL_ENV": "UOAIC_MODEL_ENV",
-        "UOAIC_OLLAMA_ENDPOINT_ENV": "UOAIC_OLLAMA_ENDPOINT_ENV",
-        "UOAIC_PROVIDER": "UOAIC_PROVIDER",
-        "UOAIC_RUNTIME_KEY": "UOAIC_RUNTIME_KEY",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_ai_uoaic.py",
     fallback_name="agilab_pipeline_ai_uoaic_fallback",
 )
-import_agilab_symbols(
-    globals(),
+UOAIC_MODE_ENV = _pipeline_ai_uoaic_module.UOAIC_MODE_ENV
+UOAIC_MODE_OLLAMA = _pipeline_ai_uoaic_module.UOAIC_MODE_OLLAMA
+UOAIC_MODE_STATE_KEY = _pipeline_ai_uoaic_module.UOAIC_MODE_STATE_KEY
+UOAIC_MODEL_ENV = _pipeline_ai_uoaic_module.UOAIC_MODEL_ENV
+UOAIC_OLLAMA_ENDPOINT_ENV = _pipeline_ai_uoaic_module.UOAIC_OLLAMA_ENDPOINT_ENV
+UOAIC_PROVIDER = _pipeline_ai_uoaic_module.UOAIC_PROVIDER
+UOAIC_RUNTIME_KEY = _pipeline_ai_uoaic_module.UOAIC_RUNTIME_KEY
+
+_pipeline_ai_support_module = import_agilab_module(
     "agilab.pipeline_ai_support",
-    {
-        "OLLAMA_DEEPSEEK_PROVIDER": "OLLAMA_DEEPSEEK_PROVIDER",
-        "OLLAMA_QWEN_PROVIDER": "OLLAMA_QWEN_PROVIDER",
-        "default_ollama_family_model": "default_ollama_family_model",
-        "normalize_ollama_endpoint": "normalize_ollama_endpoint",
-        "ollama_model_matches_family": "ollama_model_matches_family",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_ai_support.py",
     fallback_name="agilab_pipeline_ai_support_fallback",
 )
+OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
+default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
+normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
+ollama_model_matches_family = _pipeline_ai_support_module.ollama_model_matches_family
 
 
 class PipelineAiControlDeps:

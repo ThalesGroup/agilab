@@ -621,7 +621,11 @@ def test_force_persist_step_swallows_invalid_toml(monkeypatch, tmp_path):
     steps_file.write_text("[[flight_project]\n", encoding="utf-8")
     logged: list[str] = []
 
-    monkeypatch.setattr(pipeline_editor.logger, "error", logged.append)
+    monkeypatch.setattr(
+        pipeline_editor.logger,
+        "error",
+        lambda message, *args: logged.append(message % args if args else message),
+    )
     with patch.object(pipeline_editor, "_module_keys", return_value=["flight_project"]):
         pipeline_editor._force_persist_step(
             module_dir,
@@ -1001,7 +1005,8 @@ def test_force_persist_step_swallows_dump_failures(monkeypatch, tmp_path):
 
     pipeline_editor._force_persist_step(tmp_path / "flight_project", steps_file, 2, {"Q": "late"})
 
-    assert failures == [f"Force persist failed for step 2 -> {steps_file}: dump boom"]
+    expected_path = pipeline_editor.bound_log_value(steps_file, pipeline_editor.LOG_PATH_LIMIT)
+    assert failures == [f"Force persist failed for step 2 -> {expected_path}: dump boom"]
 
 
 def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_path):
