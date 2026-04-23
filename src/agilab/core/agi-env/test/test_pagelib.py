@@ -1385,6 +1385,7 @@ def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch
     sidebar = SimpleNamespace(
         image=lambda *_args, **_kwargs: setattr(sidebar, "image_called", True),
         caption=lambda text: setattr(sidebar, "caption_text", text),
+        markdown=lambda text, unsafe_allow_html=False: setattr(sidebar, "markdown_call", (text, unsafe_allow_html)),
         warning=lambda text: setattr(sidebar, "warning_text", text),
     )
     fake_st = SimpleNamespace(
@@ -1399,10 +1400,33 @@ def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch
 
     assert logo_calls == [(str(logo_path), "large")]
     assert not hasattr(sidebar, "image_called")
-    assert sidebar.caption_text == "v2026.4.2"
+    assert "agilab-sidebar-version" in sidebar.markdown_call[0]
+    assert "v2026.4.2" in sidebar.markdown_call[0]
+    assert sidebar.markdown_call[1] is True
+    assert not hasattr(sidebar, "caption_text")
 
 
 def test_render_logo_falls_back_to_sidebar_image_when_streamlit_logo_is_missing(tmp_path, monkeypatch):
+    logo_path = tmp_path / "agilab_logo.png"
+    logo_path.write_text("png", encoding="utf-8")
+    sidebar = SimpleNamespace(
+        image=lambda path, width: setattr(sidebar, "image_call", (path, width)),
+        caption=lambda text: setattr(sidebar, "caption_text", text),
+        markdown=lambda text, unsafe_allow_html=False: setattr(sidebar, "markdown_call", (text, unsafe_allow_html)),
+        warning=lambda text: setattr(sidebar, "warning_text", text),
+    )
+    fake_st = SimpleNamespace(session_state={"env": SimpleNamespace(st_resources=tmp_path)}, sidebar=sidebar)
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_detect_agilab_version", lambda env: "2026.4.2")
+
+    pagelib.render_logo()
+
+    assert sidebar.image_call == (str(logo_path), 170)
+    assert "v2026.4.2" in sidebar.markdown_call[0]
+    assert sidebar.markdown_call[1] is True
+
+
+def test_render_logo_falls_back_to_caption_when_sidebar_markdown_is_missing(tmp_path, monkeypatch):
     logo_path = tmp_path / "agilab_logo.png"
     logo_path.write_text("png", encoding="utf-8")
     sidebar = SimpleNamespace(
