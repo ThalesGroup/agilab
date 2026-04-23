@@ -1,179 +1,146 @@
 ---
 name: agilab-huggingface-spaces
-description: Package and publish a lightweight public AGILAB demo to Hugging Face Spaces without leaking local-only runtime assumptions.
+description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-22
+  updated: 2026-04-23
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
 
-Use this skill when preparing, packaging, or publishing an AGILAB demo to Hugging Face Spaces.
+Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.
 
-## Scope
+The current source of truth is:
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh`
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/Dockerfile`
 
-This skill is for a **public lightweight demo surface**, not for shipping the full AGILAB local/distributed shell as-is.
+Do not default to a generic “lightweight one-page demo” plan when the repo already defines a concrete Space contract.
 
-Prefer:
-- one built-in app or one apps-pages view
-- tiny bundled data or deterministic sample data generation
-- CPU-safe execution
-- no private repositories
-- no cluster/share assumptions
+## Current Space Contract
 
-Do not treat Spaces as a first target for:
-- ORCHESTRATE cluster workflows
-- multi-node demos
-- demos that require local `~/agi-space`, `~/wenv`, or external mounted shares
-- demos that depend on private Thales repos or non-public datasets
+The official Space is currently:
+- a **Docker Space**
+- named like `<user>/agilab`
+- launched on port `7860`
+- backed by the AGILAB Streamlit interface
+- built from the public `agilab` repo plus the private `thales_agilab/huggingface` packaging bundle
 
-## First Decision: What Exactly Goes To Spaces
+Treat this as the default target unless the user explicitly asks for a different Space shape.
 
-Choose the narrowest truthful demo surface.
+## What the Space Actually Publishes
 
-Good candidates:
-- one `src/agilab/apps-pages/*` view with a built-in app and tiny sample outputs
-- one newcomer-first built-in demo with precomputed artifacts
-- one notebook-derived public mini-demo converted into a simple page
+The current deploy path stages:
+- `README.md` from `thales_agilab/huggingface`
+- `Dockerfile` from `thales_agilab/huggingface`
+- `.dockerignore` from `thales_agilab/huggingface`
+- `docker/install.sh` from the public `agilab` repo
+- `src/` from the public `agilab` repo
+- `pyproject.toml` from the public `agilab` repo
+- `uv_config.toml` from the public `agilab` repo
 
-Avoid “whole product in the browser” as a first Space.
-The correct first release is usually:
-- one page
-- one scenario
-- one clear outcome
+This is not a raw repo push and not a generic Space scaffold. The deploy script assembles a bounded staging directory and uploads that to Hugging Face.
 
-## Space Type Decision
+## Runtime and Product Constraints
 
-### Use a Streamlit Space when:
-- the demo is a single Streamlit app
-- startup is simple
-- runtime can be expressed with normal Python dependencies
-- no custom system packages or process orchestration are required
+Keep the skill aligned with the README contract:
+- the Space exposes the AGILAB Streamlit interface
+- Space mode is single-node only
+- offline/local LLM paths such as Ollama are not available there
+- storage is ephemeral unless a Hugging Face dataset mount is used
 
-### Use a Docker Space when:
-- the demo needs stricter environment control
-- startup requires custom launch steps
-- the AGILAB runtime assumptions do not fit the default Streamlit Space contract cleanly
+Do not promise:
+- multi-node ORCHESTRATE behavior
+- remote-cluster parity
+- local `~/agi-space` or `~/wenv` semantics
+- developer-machine assumptions
 
-Default to **Streamlit Space** only if the demo really is lightweight and standalone.
-Otherwise choose **Docker Space** early instead of fighting the platform.
+## Secrets and Environment Variables
 
-## Required Public Demo Contract
+The current README advertises these Hugging Face secrets:
+- `OPENAI_API_KEY` — optional
+- `CLUSTER_CREDENTIALS` — optional
 
-Before publishing, make sure the demo has:
-- one explicit entrypoint
-- one clear README with what the user is seeing
-- one bounded dependency set
-- one bounded data contract
-- one bounded resource profile
+When updating docs or deploy instructions, keep the wording aligned with the README and do not invent new required secrets unless the Space contract actually changed.
 
-The packaging must state clearly:
-- which app/page is exposed
-- what data is bundled vs generated on startup
-- whether secrets are required
-- whether the demo is CPU-only
-- expected startup latency
-- expected memory footprint
+## Deployment Workflow
 
-## AGILAB-Specific Guardrails
+Use the documented flow:
 
-### Remove local-only assumptions
+1. Install the Hugging Face CLI.
+2. Authenticate with either:
+   - `hf auth login`
+   - or `HF_TOKEN` in the environment
+3. Run the deploy script from the sibling private repo:
 
-The demo must not depend on:
-- `~/agi-space`
-- local `APPS_REPOSITORY`
-- cluster credentials
-- mounted cluster shares
-- source checkout sibling repos
-- developer machine `HOME` state
+```bash
+./huggingface/hf_space_deploy.sh \
+  --agilab-path </path/to/agilab> \
+  --space <user>/agilab \
+  --create
+```
 
-If the page expects AGILAB runtime state, provide a public-safe bootstrap path explicitly.
+For an existing Space:
 
-### Keep the demo app-local when possible
+```bash
+./huggingface/hf_space_deploy.sh \
+  --agilab-path </path/to/agilab> \
+  --space <user>/agilab
+```
 
-Do not patch shared core just to satisfy a Spaces packaging quirk unless the same problem is real for normal AGILAB users too.
+Relevant options from the script:
+- `--agilab-path`
+- `--space`
+- `--private`
+- `--create`
 
-Prefer:
-- a demo wrapper
-- a demo-specific bootstrap helper
-- a small public sample-data path
+Do not replace this with hand-written deployment steps unless the user explicitly wants a new deploy path.
 
-over a broad runtime change.
+## Validation Before Deploy
 
-### Public data only
+Before touching the Space deployment, verify:
 
-Use:
-- bundled tiny public sample files
-- synthetic/generated demo data
-- precomputed public artifacts
+1. The public `agilab` checkout exists and is the intended source tree.
+2. The sibling `thales_agilab/huggingface` bundle exists and matches the intended Space contract.
+3. `hf auth whoami` succeeds, or `HF_TOKEN` is present.
+4. The current README, Dockerfile, and deploy script still agree on:
+   - SDK type
+   - exposed port
+   - secret names
+   - target repo content
+5. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
 
-Do not publish:
-- private customer data
-- large internal datasets
-- anything requiring credentials just to render the first screen
+When feasible, inspect the deploy script rather than paraphrasing it from memory.
 
-## Packaging Checklist
+## When Editing the Space Contract
 
-For every Spaces demo, define:
-- entry script
-- dependency file (`requirements.txt` or Dockerfile path)
-- sample-data location
-- cache directory policy
-- secret/env var list
-- startup command
-- local reproduction command
+If the user asks to change the Space behavior:
+- update the private `thales_agilab/huggingface` bundle first
+- then update public docs and AGILAB links
+- then validate the deploy command path
 
-The Space should be reproducible locally with one command from a clean checkout.
+Do not let the public repo docs claim a Space behavior that the private bundle does not implement.
 
-## Validation Before Publish
+## What Not To Do
 
-Run these checks before pushing a Space-oriented demo:
-
-1. Local clean-home check
-- force a clean `HOME`
-- verify the demo does not read polluted local AGILAB state
-
-2. Standalone launch check
-- run the exact public entrypoint locally
-- confirm no private repo path is required
-
-3. App/page smoke check
-- if Streamlit-based, use the narrowest local smoke or AppTest path available
-- keep the validation focused on the actual public entrypoint
-
-4. Data contract check
-- verify sample data exists or is generated deterministically
-- verify startup does not need heavyweight downloads unless explicitly intended
-
-5. Resource check
-- confirm the demo still works under a constrained CPU-only profile
-
-## Documentation Checklist
-
-For a new Space, keep the public docs aligned:
-- README demo links
-- `docs/source/demos.rst`
-- any newcomer/demo chooser page
-- screenshots or GIFs only if they still match the deployed Space
-
-Do not advertise a Space until:
-- the local repro path works
-- the Space entrypoint is stable
-- the public docs describe the real constraints
+Do not:
+- assume the current official path is a Streamlit Space
+- silently redesign the Space into a different product shape
+- document commands that skip `hf_space_deploy.sh` when the deploy script remains the supported contract
+- describe the Space as a full cluster-capable AGILAB environment
+- leak private repo paths into public user-facing docs unless they are intentionally framed as maintainer-only instructions
 
 ## Recommended Companion Skills
 
 Use with:
-- `agilab-streamlit-pages` when the Space entrypoint is a Streamlit page
-- `agilab-testing` for the narrow smoke and regression slice
-- `agilab-docs` when adding public demo links or updating demo docs
-- `agilab-product-reels` when the Space should align with a public demo video or GIF
+- `agilab-docs` when adding or updating public demo links
+- `agilab-testing` when validating repo-side changes that affect the Space contract
+- `repo-skill-maintenance` when syncing this skill between `.claude/skills` and `.codex/skills`
 
 ## Default Execution Pattern
 
-1. Choose one truthful public demo surface.
-2. Decide Streamlit Space vs Docker Space early.
-3. Strip local/private runtime assumptions.
-4. Package only public-safe assets and dependencies.
-5. Prove the exact public entrypoint locally from a clean environment.
-6. Update docs/demo routing only after the demo is actually reproducible.
+1. Read `thales_agilab/huggingface/README.md`.
+2. Confirm whether the request is about the official AGILAB Docker Space or a different experimental demo.
+3. If it is the official Space, follow the documented Docker + deploy-script contract.
+4. Keep public docs, secrets, and deployment instructions aligned with that contract.
+5. Validate the exact deploy path before advertising or linking the Space.
