@@ -49,6 +49,38 @@ def _python_string(value: Any) -> str:
     return json.dumps(str(value))
 
 
+def _source_core_bootstrap(env: Any) -> str:
+    if not bool(getattr(env, "is_source_env", False)):
+        return ""
+
+    try:
+        repo_root = Path(env.apps_path).expanduser().resolve(strict=False).parents[2]
+    except (OSError, RuntimeError, TypeError, ValueError, IndexError):
+        return ""
+
+    return textwrap.dedent(
+        f"""
+        def _inject_source_core_paths() -> None:
+            repo_root = Path({_python_string(repo_root)})
+            core_root = repo_root / "src" / "agilab" / "core"
+            candidates = [
+                core_root / "agi-env" / "src",
+                core_root / "agi-node" / "src",
+                core_root / "agi-cluster" / "src",
+                core_root / "agi-core" / "src",
+            ]
+            for candidate in reversed(candidates):
+                if not candidate.exists():
+                    continue
+                path_str = str(candidate)
+                if path_str not in sys.path:
+                    sys.path.insert(0, path_str)
+
+        _inject_source_core_paths()
+        """
+    ).strip()
+
+
 def strip_ansi(text: str) -> str:
     if not text:
         return ""
@@ -371,28 +403,36 @@ def _build_agi_snippet(
     arguments: Sequence[str],
 ) -> str:
     indented_arguments = ",\n".join(f"        {argument}" for argument in arguments)
-    return textwrap.dedent(
-        f"""
-        import asyncio
-        from pathlib import Path
-        from agi_cluster.agi_distributor import AGI
-        from agi_env import AgiEnv
-
-        APPS_PATH = {_python_string(env.apps_path)}
-        APP = {_python_string(env.app)}
-
-        async def main():
-            app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(verbose)})
-            res = await AGI.{method}(
-{indented_arguments}
-            )
-            print(res)
-            return res
-
-        if __name__ == "__main__":
-            asyncio.run(main())
-        """
-    ).strip()
+    snippet_lines = [
+        "import asyncio",
+        "import sys",
+        "from pathlib import Path",
+    ]
+    source_core_bootstrap = _source_core_bootstrap(env)
+    if source_core_bootstrap:
+        snippet_lines.extend(["", source_core_bootstrap])
+    snippet_lines.extend(
+        [
+            "",
+            "from agi_cluster.agi_distributor import AGI",
+            "from agi_env import AgiEnv",
+            "",
+            f"APPS_PATH = {_python_string(env.apps_path)}",
+            f"APP = {_python_string(env.app)}",
+            "",
+            "async def main():",
+            f"    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(verbose)})",
+            f"    res = await AGI.{method}(",
+            indented_arguments,
+            "    )",
+            "    print(res)",
+            "    return res",
+            "",
+            'if __name__ == "__main__":',
+            "    asyncio.run(main())",
+        ]
+    )
+    return "\n".join(snippet_lines).strip()
 
 
 def append_log_lines(

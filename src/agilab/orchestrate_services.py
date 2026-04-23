@@ -148,9 +148,40 @@ def build_service_snippet(
     service_cleanup_heartbeat_max_files: int,
     args_serialized: str,
 ) -> str:
+    source_core_bootstrap = ""
+    if bool(getattr(env, "is_source_env", False)):
+        try:
+            repo_root = Path(env.apps_path).expanduser().resolve(strict=False).parents[2]
+        except (OSError, RuntimeError, TypeError, ValueError, IndexError):
+            repo_root = None
+        if repo_root is not None:
+            source_core_bootstrap = textwrap.dedent(
+                f"""
+                def _inject_source_core_paths() -> None:
+                    repo_root = Path({json.dumps(str(repo_root))})
+                    core_root = repo_root / "src" / "agilab" / "core"
+                    candidates = [
+                        core_root / "agi-env" / "src",
+                        core_root / "agi-node" / "src",
+                        core_root / "agi-cluster" / "src",
+                        core_root / "agi-core" / "src",
+                    ]
+                    for candidate in reversed(candidates):
+                        if not candidate.exists():
+                            continue
+                        path_str = str(candidate)
+                        if path_str not in sys.path:
+                            sys.path.insert(0, path_str)
+
+                _inject_source_core_paths()
+                """
+            ).strip()
+
     return textwrap.dedent(f"""
 import asyncio
+import sys
 from pathlib import Path
+{source_core_bootstrap}
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
@@ -663,11 +694,17 @@ async def render_service_panel(
                     deps.append_log_lines(local_log, message)
                     _render_logs()
 
+                runtime_root = (
+                    Path(getattr(env, "agi_cluster"))
+                    if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
+                    and getattr(env, "agi_cluster", None)
+                    else project_path
+                )
                 try:
                     service_stdout, service_stderr = await env.run_agi(
                         cmd_service.replace("asyncio.run(main())", env.snippet_tail),
                         log_callback=_service_log_callback,
-                        venv=project_path,
+                        venv=runtime_root,
                     )
                 except (RuntimeError, OSError, TimeoutError, ValueError, AttributeError, TypeError) as exc:
                     service_error = exc

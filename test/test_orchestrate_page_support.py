@@ -42,7 +42,7 @@ orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_suppor
 
 
 def test_build_install_and_run_snippets_embed_expected_values():
-    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project")
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
 
     install_snippet = orchestrate_page_support.build_install_snippet(
         env=env,
@@ -68,9 +68,49 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert 'foo="bar", n=2' in run_snippet
 
 
+def test_build_agi_snippets_inject_source_core_paths_only_for_source_env():
+    env = SimpleNamespace(
+        apps_path="/repo/src/agilab/apps",
+        app="demo_project",
+        is_source_env=True,
+    )
+
+    run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=1,
+        run_mode=0,
+        scheduler="None",
+        workers="None",
+        args_serialized="",
+    )
+    distrib_snippet = orchestrate_page_support.build_distribution_snippet(
+        env=env,
+        verbose=1,
+        scheduler="None",
+        workers="None",
+        args_serialized="",
+    )
+
+    assert "import sys" in run_snippet
+    assert "def _inject_source_core_paths() -> None:" in run_snippet
+    assert 'repo_root = Path("/repo")' in run_snippet
+    assert 'core_root / "agi-cluster" / "src"' in run_snippet
+    assert "def _inject_source_core_paths() -> None:" in distrib_snippet
+
+    non_source_snippet = orchestrate_page_support.build_run_snippet(
+        env=SimpleNamespace(apps_path="/repo/src/agilab/apps", app="demo_project", is_source_env=False),
+        verbose=1,
+        run_mode=0,
+        scheduler="None",
+        workers="None",
+        args_serialized="",
+    )
+    assert "def _inject_source_core_paths() -> None:" not in non_source_snippet
+
+
 def test_build_distribution_snippet_omits_blank_args_payload():
     snippet = orchestrate_page_support.build_distribution_snippet(
-        env=SimpleNamespace(apps_path="/tmp/apps", app="demo_project"),
+        env=SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False),
         verbose=1,
         scheduler="None",
         workers="None",

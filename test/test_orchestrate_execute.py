@@ -641,6 +641,61 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
 
 
 @pytest.mark.asyncio
+async def test_render_execute_section_source_env_uses_controller_runtime(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    controller_root = tmp_path / "controller"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+    controller_root.mkdir()
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"run_btn": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    captured: dict[str, object] = {}
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        if log_callback:
+            log_callback("source-env line")
+        return "", ""
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+        run_agi=_run_agi,
+        is_source_env=True,
+        is_worker_env=False,
+        agi_cluster=controller_root,
+    )
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    assert Path(captured["venv"]) == controller_root
+
+
+@pytest.mark.asyncio
 async def test_render_execute_section_handles_json_table_and_invalid_json(monkeypatch, tmp_path):
     tabular_json = tmp_path / "table.json"
     tabular_json.write_text(json.dumps({"rows": [{"value": 1}, {"value": 2}]}), encoding="utf-8")
