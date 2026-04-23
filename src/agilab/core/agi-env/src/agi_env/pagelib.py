@@ -429,8 +429,39 @@ def inject_theme(base_path: Path | None = None) -> None:
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
+def _sidebar_version_label(version: str) -> str:
+    normalized = str(version or "").strip()
+    if normalized.lower().startswith("v"):
+        normalized = normalized[1:].strip()
+    if not normalized:
+        return ""
+    return f"AGILAB v{normalized}"
+
+
 def _render_sidebar_version(version: str) -> None:
+    version_label = _sidebar_version_label(version)
+    if not version_label:
+        return
     sidebar = st.sidebar
+    html_fn = getattr(sidebar, "html", None)
+    if callable(html_fn):
+        html_fn(
+            (
+                "<style>"
+                "[data-testid='stSidebarContent'] { padding-bottom: 2.5rem; }"
+                ".agilab-sidebar-version {"
+                "position: fixed;"
+                "left: 1rem;"
+                "bottom: 0.75rem;"
+                "font-size: 0.8rem;"
+                "opacity: 0.72;"
+                "z-index: 999;"
+                "}"
+                "</style>"
+                f"<div class='agilab-sidebar-version'>{version_label}</div>"
+            )
+        )
+        return
     markdown_fn = getattr(sidebar, "markdown", None)
     if callable(markdown_fn):
         markdown_fn(
@@ -446,12 +477,12 @@ def _render_sidebar_version(version: str) -> None:
                 "z-index: 999;"
                 "}"
                 "</style>"
-                f"<div class='agilab-sidebar-version'>v{version}</div>"
+                f"<div class='agilab-sidebar-version'>{version_label}</div>"
             ),
             unsafe_allow_html=True,
         )
         return
-    sidebar.caption(f"v{version}")
+    sidebar.caption(version_label)
 
 
 def render_logo(*_args, **_kwargs):
