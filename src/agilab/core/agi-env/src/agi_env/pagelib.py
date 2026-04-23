@@ -438,49 +438,39 @@ def _sidebar_version_label(version: str) -> str:
     return f"AGILAB v{normalized}"
 
 
+def _sidebar_version_style(version_label: str) -> str:
+    content_literal = json.dumps(version_label)
+    return (
+        "<style>"
+        "[data-testid='stSidebarContent'] { padding-bottom: 2.5rem; }"
+        "[data-testid='stSidebarContent']::after {"
+        f"content: {content_literal};"
+        "position: fixed;"
+        "left: 1rem;"
+        "bottom: 0.75rem;"
+        "font-size: 0.8rem;"
+        "opacity: 0.72;"
+        "z-index: 999;"
+        "pointer-events: none;"
+        "white-space: nowrap;"
+        "}"
+        "</style>"
+    )
+
+
 def _render_sidebar_version(version: str) -> None:
     version_label = _sidebar_version_label(version)
     if not version_label:
         return
+    style_text = _sidebar_version_style(version_label)
     sidebar = st.sidebar
     html_fn = getattr(sidebar, "html", None)
     if callable(html_fn):
-        html_fn(
-            (
-                "<style>"
-                "[data-testid='stSidebarContent'] { padding-bottom: 2.5rem; }"
-                ".agilab-sidebar-version {"
-                "position: fixed;"
-                "left: 1rem;"
-                "bottom: 0.75rem;"
-                "font-size: 0.8rem;"
-                "opacity: 0.72;"
-                "z-index: 999;"
-                "}"
-                "</style>"
-                f"<div class='agilab-sidebar-version'>{version_label}</div>"
-            )
-        )
+        html_fn(style_text)
         return
     markdown_fn = getattr(sidebar, "markdown", None)
     if callable(markdown_fn):
-        markdown_fn(
-            (
-                "<style>"
-                "[data-testid='stSidebarContent'] { padding-bottom: 2.5rem; }"
-                ".agilab-sidebar-version {"
-                "position: fixed;"
-                "left: 1rem;"
-                "bottom: 0.75rem;"
-                "font-size: 0.8rem;"
-                "opacity: 0.72;"
-                "z-index: 999;"
-                "}"
-                "</style>"
-                f"<div class='agilab-sidebar-version'>{version_label}</div>"
-            ),
-            unsafe_allow_html=True,
-        )
+        markdown_fn(style_text, unsafe_allow_html=True)
         return
     sidebar.caption(version_label)
 
