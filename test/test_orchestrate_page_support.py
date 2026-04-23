@@ -68,7 +68,7 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert 'foo="bar", n=2' in run_snippet
 
 
-def test_build_agi_snippets_inject_source_core_paths_only_for_source_env():
+def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
     env = SimpleNamespace(
         apps_path="/repo/src/agilab/apps",
         app="demo_project",
@@ -99,11 +99,10 @@ def test_build_agi_snippets_inject_source_core_paths_only_for_source_env():
         workers_data_path="None",
     )
 
-    assert "import sys" in run_snippet
-    assert "def _inject_source_core_paths() -> None:" in run_snippet
-    assert 'repo_root = Path("/repo")' in run_snippet
-    assert 'core_root / "agi-cluster" / "src"' in run_snippet
-    assert "def _inject_source_core_paths() -> None:" in distrib_snippet
+    assert "import sys" not in run_snippet
+    assert "from pathlib import Path" not in run_snippet
+    assert "def _inject_source_core_paths() -> None:" not in run_snippet
+    assert "def _inject_source_core_paths() -> None:" not in distrib_snippet
     assert "def _inject_source_core_paths() -> None:" not in install_snippet
 
     non_source_snippet = orchestrate_page_support.build_run_snippet(
@@ -114,6 +113,7 @@ def test_build_agi_snippets_inject_source_core_paths_only_for_source_env():
         workers="None",
         args_serialized="",
     )
+    assert "import sys" not in non_source_snippet
     assert "def _inject_source_core_paths() -> None:" not in non_source_snippet
 
 
