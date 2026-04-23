@@ -1725,6 +1725,103 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
     assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
 
 
+def test_notebook_helper_replays_trainer_stack_shorthand_from_app_settings(tmp_path):
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_steps.toml"
+    app_root = tmp_path / "apps" / "demo_project"
+    (app_root / "src").mkdir(parents=True, exist_ok=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    (app_root / "src" / "app_settings.toml").write_text(
+        """
+[args]
+data_in = "seed/in"
+data_out = "seed/out"
+reset_target = false
+
+[[args.args]]
+name = "ppo"
+
+[args.args.args]
+seed = 0
+total_timesteps = 5000
+
+[[args.args]]
+name = "ilp"
+
+[args.args.args]
+beam_width = 3
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(export_dir),
+        active_app=str(app_root),
+        app_settings_file=str(app_root / "src" / "app_settings.toml"),
+        pages_root="",
+        repo_root=str(tmp_path / "repo"),
+        related_pages=(),
+    )
+
+    pipeline_editor.toml_to_notebook(
+        {
+            "demo_project": [
+                {
+                    "D": "Run trainer stack",
+                    "Q": "Select a single trainer.",
+                    "M": "",
+                    "C": (
+                        "APP = 'demo_project'\n"
+                        "trainer = 'ppo'\n"
+                        "data_in = 'demo/in'\n"
+                        "data_out = 'demo/out'\n"
+                        "total_timesteps = 10000\n"
+                    ),
+                    "R": "runpy",
+                }
+            ]
+        },
+        toml_path,
+        export_context=context,
+    )
+
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    helper_source = "".join(notebook["cells"][1]["source"])
+    namespace: dict[str, object] = {}
+    exec(helper_source, namespace)
+
+    captured: dict[str, str] = {}
+
+    class _Result:
+        stdout = ""
+        stderr = ""
+
+        @staticmethod
+        def check_returncode() -> None:
+            return None
+
+    def _fake_run(cmd, **kwargs):
+        captured["script"] = Path(cmd[1]).read_text(encoding="utf-8")
+        return _Result()
+
+    original_run = namespace["subprocess"].run
+    try:
+        namespace["subprocess"].run = _fake_run
+        namespace["run_agilab_step"](0, capture_output=False)
+    finally:
+        namespace["subprocess"].run = original_run
+
+    assert '"trainer"' not in captured["script"]
+    assert (
+        'RUN_ARGS = json.loads(\'{"args": [{"args": {"seed": 0, "total_timesteps": 10000}, '
+        '"name": "ppo"}], "data_in": "demo/in", "data_out": "demo/out", "reset_target": false}\')'
+    ) in captured["script"]
+
+
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
     export_dir = tmp_path / "export" / "uav_graph_routing"
