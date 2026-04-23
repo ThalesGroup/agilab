@@ -869,18 +869,16 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if method not in {{"run", "install"}}:
                 return None
             active_app = resolve_active_app_root(app_name)
-            apps_root = str(Path(active_app).expanduser().parent)
             run_args_literal = json.dumps(assignments, ensure_ascii=False, sort_keys=True)
             return (
                 "import asyncio\\n"
                 "import json\\n"
                 "from agi_cluster.agi_distributor import AGI\\n"
                 "from agi_env import AgiEnv\\n\\n"
-                f"APPS_PATH = {{apps_root!r}}\\n"
-                f"APP = {{app_name!r}}\\n"
+                f"ACTIVE_APP = {{active_app!r}}\\n"
                 f"RUN_ARGS = json.loads({{run_args_literal!r}})\\n\\n"
                 "async def main():\\n"
-                "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\\n"
+                "    app_env = AgiEnv(active_app=ACTIVE_APP, verbose=1)\\n"
                 f"    res = await AGI.{{method}}(app_env, **RUN_ARGS)\\n"
                 "    print(res)\\n"
                 "    return res\\n\\n"

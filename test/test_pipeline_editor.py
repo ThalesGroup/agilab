@@ -1570,8 +1570,9 @@ def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path
         namespace["subprocess"].run = original_run
 
     assert "from agi_cluster.agi_distributor import AGI" in captured["script"]
-    assert "APP = 'demo_project'" in captured["script"]
+    assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
     assert "await AGI.run(app_env, **RUN_ARGS)" in captured["script"]
+    assert "AgiEnv(active_app=ACTIVE_APP, verbose=1)" in captured["script"]
     assert (
         "RUN_ARGS = json.loads('{\"data_in\": \"demo/in\", \"data_out\": \"demo/out\", "
         "\"trainer\": \"ppo\"}')"
@@ -1645,7 +1646,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
     finally:
         namespace["subprocess"].run = original_run
 
-    assert "APPS_PATH = " + repr(str(repo_apps)) in captured["script"]
+    assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
 
 
 def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when_active_app_is_missing(
@@ -1721,7 +1722,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
     finally:
         namespace["subprocess"].run = original_run
 
-    assert "APPS_PATH = " + repr(str(private_repo / "apps")) in captured["script"]
+    assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
 
 
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):
