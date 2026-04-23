@@ -1385,6 +1385,13 @@ def test_sidebar_version_label_normalizes_prefix():
     assert pagelib._sidebar_version_label("") == ""
 
 
+def test_sidebar_version_style_uses_css_content_without_sidebar_block():
+    style = pagelib._sidebar_version_style("AGILAB v2026.4.2")
+    assert "content: \"AGILAB v2026.4.2\";" in style
+    assert "::after" in style
+    assert "agilab-sidebar-version" not in style
+
+
 def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch):
     logo_path = tmp_path / "agilab_logo.png"
     logo_path.write_text("png", encoding="utf-8")
@@ -1408,7 +1415,8 @@ def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch
 
     assert logo_calls == [(str(logo_path), "large")]
     assert not hasattr(sidebar, "image_called")
-    assert "agilab-sidebar-version" in sidebar.html_call
+    assert "::after" in sidebar.html_call
+    assert "content: \"AGILAB v2026.4.2\";" in sidebar.html_call
     assert "AGILAB v2026.4.2" in sidebar.html_call
     assert not hasattr(sidebar, "markdown_call")
     assert not hasattr(sidebar, "caption_text")
