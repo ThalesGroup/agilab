@@ -497,12 +497,18 @@ class Project:
             root =  ET.Element("project", {"version": "4"})
             tree = ET.ElementTree(root)
 
-        prm = root.find("./component[@name='Black']")
-        if prm is None:
-            prm = ET.SubElement(root, "component", {"name": "Black"})
-        option = prm.find("./option[@name='sdkName']")
+        project_root_manager = root.find("./component[@name='ProjectRootManager']")
+        if project_root_manager is None:
+            project_root_manager = ET.SubElement(root, "component", {"name": "ProjectRootManager"})
+        project_root_manager.set("project-jdk-name", sdk_name)
+        project_root_manager.set("project-jdk-type", self.cfg.PROJECT_SDK_TYPE)
+
+        black_component = root.find("./component[@name='Black']")
+        if black_component is None:
+            black_component = ET.SubElement(root, "component", {"name": "Black"})
+        option = black_component.find("./option[@name='sdkName']")
         if option is None:
-            option = ET.SubElement(prm, "option", {"name": "sdkName"})
+            option = ET.SubElement(black_component, "option", {"name": "sdkName"})
         option.set("value", sdk_name)
         write_xml(tree, self.cfg.MISC)
         logging.info(f"Project SDK set to {sdk_name} in {self.cfg.MISC}")
