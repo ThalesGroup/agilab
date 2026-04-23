@@ -458,7 +458,7 @@ def _sidebar_version_style(version_label: str) -> str:
     )
 
 
-def _render_sidebar_version(version: str) -> None:
+def render_sidebar_version(version: str) -> None:
     version_label = _sidebar_version_label(version)
     if not version_label:
         return
@@ -488,7 +488,7 @@ def render_logo(*_args, **_kwargs):
             st.sidebar.image(str(agilab_logo_path), width=170)
         version = _detect_agilab_version(env)
         if version:
-            _render_sidebar_version(version)
+            render_sidebar_version(version)
     else:
         st.sidebar.warning("Logo could not be loaded. Please check the logo path.")
 

@@ -935,25 +935,46 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if method not in {{"run", "install"}}:
                 return None
             active_app = resolve_active_app_root(app_name)
+            explicit_mode = assignments.pop("mode", None) if method == "run" else None
+            run_args = _merge_shorthand_run_args(assignments, active_app)
+            run_mode = 0
+            if method == "run":
+                if explicit_mode not in (None, ""):
+                    run_mode = explicit_mode
+                else:
+                    inherited_mode = run_args.pop("mode", None)
+                    if inherited_mode not in (None, ""):
+                        run_mode = inherited_mode
             run_args_literal = json.dumps(
-                _merge_shorthand_run_args(assignments, active_app),
+                run_args,
                 ensure_ascii=False,
                 sort_keys=True,
             )
-            return (
+            prelude = (
                 "import asyncio\\n"
                 "import json\\n"
                 "from agi_cluster.agi_distributor import AGI\\n"
                 "from agi_env import AgiEnv\\n\\n"
                 f"ACTIVE_APP = {{active_app!r}}\\n"
-                f"RUN_ARGS = json.loads({{run_args_literal!r}})\\n\\n"
-                "async def main():\\n"
-                "    app_env = AgiEnv(active_app=ACTIVE_APP, verbose=1)\\n"
-                f"    res = await AGI.{{method}}(app_env, **RUN_ARGS)\\n"
-                "    print(res)\\n"
-                "    return res\\n\\n"
-                'if __name__ == "__main__":\\n'
-                "    asyncio.run(main())\\n"
+                f"RUN_ARGS = json.loads({{run_args_literal!r}})\\n"
+            )
+            if method == "run":
+                mode_literal = json.dumps(run_mode, ensure_ascii=False)
+                prelude += f"RUN_MODE = json.loads({{mode_literal!r}})\\n"
+            prelude += "\\n"
+            if method == "run":
+                invoke = "    res = await AGI.run(app_env, mode=RUN_MODE, **RUN_ARGS)\\n"
+            else:
+                invoke = "    res = await AGI.install(app_env, **RUN_ARGS)\\n"
+            return (
+                prelude
+                + "async def main():\\n"
+                + "    app_env = AgiEnv(active_app=ACTIVE_APP, verbose=1)\\n"
+                + invoke
+                + "    print(res)\\n"
+                + "    return res\\n\\n"
+                + 'if __name__ == "__main__":\\n'
+                + "    asyncio.run(main())\\n"
             )
 
 

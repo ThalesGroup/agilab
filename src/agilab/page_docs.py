@@ -93,9 +93,11 @@ def render_page_docs_access(
     title: str = "Documentation",
     caption: str | None = None,
     sidebar: bool = True,
+    divider: bool = True,
 ) -> None:
     container = st.sidebar if sidebar else st
-    container.divider()
+    if divider:
+        container.divider()
     container.subheader(title)
     if caption:
         container.caption(caption)

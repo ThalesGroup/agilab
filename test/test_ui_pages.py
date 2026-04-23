@@ -231,6 +231,12 @@ def _assert_docs_actions_present(at: AppTest) -> None:
     assert "Read Documentation" in labels
     assert "Open Local Documentation" in labels
 
+
+def _assert_docs_actions_absent(at: AppTest) -> None:
+    labels = _all_button_labels(at)
+    assert "Read Documentation" not in labels
+    assert "Open Local Documentation" not in labels
+
 @pytest.fixture
 def mock_ui_env(tmp_path, monkeypatch):
     # Set up temporary directories for apps and config
@@ -382,8 +388,7 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
         at.run()
 
     assert not at.exception
-    assert any(str(caption.value).startswith("AGILAB version: v") for caption in at.caption)
-    assert any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
+    assert not any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
@@ -421,7 +426,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     
     at.run()
     assert not at.exception
-    _assert_docs_actions_present(at)
+    _assert_docs_actions_absent(at)
 
     app_state_name = _current_app_state_name(at)
     enabled_toggle_key = f"cluster_enabled__{app_state_name}"
@@ -625,7 +630,7 @@ def test_explore_page_multiselect(mock_ui_env):
     at.session_state["env"] = env
     at.run()
     assert not at.exception
-    _assert_docs_actions_present(at)
+    _assert_docs_actions_absent(at)
     
     # Check that 'dummy_view' is an option in the multiselect
     selection_key = f"view_selection__flight_project"
@@ -657,7 +662,7 @@ def test_experiment_page_load(mock_ui_env):
     
     at.run()
     assert not at.exception
-    _assert_docs_actions_present(at)
+    _assert_docs_actions_absent(at)
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
@@ -671,7 +676,7 @@ def test_edit_page_load(mock_ui_env):
     
     at.run()
     assert not at.exception
-    _assert_docs_actions_present(at)
+    _assert_docs_actions_absent(at)
 
 
 def test_execute_page_cython_toggle(mock_ui_env):

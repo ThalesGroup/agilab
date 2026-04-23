@@ -198,6 +198,40 @@ def test_render_page_docs_access_uses_main_container_and_remote_button(monkeypat
     assert not any(kind == "error" for kind, _ in events)
 
 
+def test_render_page_docs_access_skips_divider_when_disabled(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeContainer:
+        def divider(self):
+            events.append(("divider", ""))
+
+        def subheader(self, title):
+            events.append(("subheader", title))
+
+        def caption(self, text):
+            events.append(("caption", text))
+
+        def button(self, label, **kwargs):
+            events.append(("button", f"{label}:{kwargs['key']}"))
+            return False
+
+        def error(self, message):
+            events.append(("error", message))
+
+    fake_sidebar = FakeContainer()
+    monkeypatch.setattr(page_docs, "st", types.SimpleNamespace(sidebar=fake_sidebar))
+
+    page_docs.render_page_docs_access(
+        object(),
+        html_file="agilab-help.html",
+        key_prefix="about",
+        divider=False,
+    )
+
+    assert ("subheader", "Documentation") in events
+    assert not any(kind == "divider" for kind, _ in events)
+
+
 def test_render_page_docs_access_reports_local_docs_error_in_sidebar(monkeypatch):
     events: list[tuple[str, str]] = []
 

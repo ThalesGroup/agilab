@@ -42,14 +42,6 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-import_agilab_symbols(
-    globals(),
-    "agilab.page_docs",
-    ["render_page_docs_access"],
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
@@ -1053,13 +1045,6 @@ async def main():
 
     # Sidebar header/logo
     render_logo()
-    render_page_docs_access(
-        env,
-        html_file="explore-help.html",
-        key_prefix="analysis",
-        sidebar=True,
-        caption="Open the ANALYSIS guide.",
-    )
 
     # Sidebar: project selection
     projects = env.projects

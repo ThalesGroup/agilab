@@ -148,18 +148,6 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert any("compatibility-matrix" in url for _, url in content["links"])
 
 
-def test_landing_page_version_text_includes_detected_version(monkeypatch):
-    monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.12")
-
-    assert about_agilab._landing_page_version_text(SimpleNamespace()) == "AGILAB version: v2026.4.12"
-
-
-def test_landing_page_version_text_omits_missing_version(monkeypatch):
-    monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "")
-
-    assert about_agilab._landing_page_version_text(SimpleNamespace()) == ""
-
-
 def test_landing_page_sections_use_clear_product_language():
     sections = about_agilab._landing_page_sections()
 

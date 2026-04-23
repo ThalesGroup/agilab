@@ -30,14 +30,6 @@ _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 load_local_module = _import_guard_module.load_local_module
 
-import_agilab_symbols(
-    globals(),
-    "agilab.page_docs",
-    ["render_page_docs_access"],
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
 from agi_env.pagelib import (
     activate_mlflow,
     background_services_enabled,
@@ -1523,13 +1515,6 @@ def main() -> None:
             render_logo()
         else:
             render_logo()
-        render_page_docs_access(
-            env,
-            html_file="experiment-help.html",
-            key_prefix="pipeline",
-            sidebar=True,
-            caption="Open the PIPELINE guide.",
-        )
 
         if background_services_enabled() and not st.session_state.get("server_started", False):
             activate_mlflow(env)
