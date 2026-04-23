@@ -315,7 +315,8 @@ def _uv_offline_flag(envars: Any) -> str:
             return "" if int(raw) == 1 else "--offline "
         except (TypeError, ValueError):
             return "--offline "
-    return "" if str(raw).strip().lower() in {"1", "true", "yes", "on"} else "--offline "
+    normalized = str(raw).strip().strip("\"'").strip().lower()
+    return "" if normalized in {"1", "true", "yes", "on"} else "--offline "
 
 
 def _local_worker_post_install_env_prefix(agi_cls: Any, *, os_name: str = os.name) -> str:
