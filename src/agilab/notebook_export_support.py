@@ -773,12 +773,7 @@ def _step_code_variable_name(step: dict[str, Any]) -> str:
 def _step_source_cell(step: dict[str, Any]) -> str:
     variable_name = _step_code_variable_name(step)
     code_text = str(step.get("code", "") or "").replace('"""', '\\"""')
-    return textwrap.dedent(
-        f'''
-        {variable_name} = """{code_text}"""
-        print({variable_name})
-        '''
-    ).strip() + "\n"
+    return f'{variable_name} = """{code_text}"""\nprint({variable_name})\n'
 
 
 def _step_runner_cell(step: dict[str, Any]) -> str:
