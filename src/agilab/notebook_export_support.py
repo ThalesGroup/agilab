@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import textwrap
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -207,7 +208,12 @@ def build_notebook_export_context(
 
 
 def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
-    notebook_data = {"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
+    notebook_data = {
+        "cells": [],
+        "metadata": _notebook_metadata(),
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
     for module, steps in toml_data.items():
         if module == "__meta__" or not isinstance(steps, list):
             continue
@@ -327,15 +333,17 @@ def _helper_cell(payload: dict[str, Any]) -> str:
 
 
         def _resolve_step_python(step):
+            controller_python = AGILAB_NOTEBOOK_EXPORT.get("controller_python") or sys.executable
             try:
                 from agilab.pipeline_runtime import python_for_step
             except Exception:
-                return sys.executable
+                return controller_python
             return str(
                 python_for_step(
                     step.get("env") or None,
                     engine=step.get("runtime") or None,
                     code=step.get("code") or "",
+                    sys_executable=controller_python,
                 )
             )
 
@@ -423,6 +431,30 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     ).strip() + "\n"
 
 
+def _notebook_metadata(agilab_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "kernelspec": {
+            "display_name": "Python 3",
+            "language": "python",
+            "name": "python3",
+        },
+        "language_info": {
+            "name": "python",
+            "version": sys.version.split()[0],
+        },
+        "pycharm": {
+            "stem_cell": {
+                "cell_type": "raw",
+                "metadata": {"collapsed": False},
+                "source": [],
+            }
+        },
+    }
+    if agilab_payload is not None:
+        metadata["agilab"] = agilab_payload
+    return metadata
+
+
 def build_notebook_document(
     toml_data: Dict[str, Any],
     toml_path: str | Path,
@@ -437,6 +469,7 @@ def build_notebook_document(
         "project_name": export_context.project_name,
         "module_path": export_context.module_path,
         "artifact_dir": export_context.artifact_dir,
+        "controller_python": sys.executable,
         "active_app": export_context.active_app,
         "app_settings_file": export_context.app_settings_file,
         "pages_root": export_context.pages_root,
@@ -518,7 +551,7 @@ def build_notebook_document(
 
     return {
         "cells": cells,
-        "metadata": {"agilab": payload},
+        "metadata": _notebook_metadata(payload),
         "nbformat": 4,
         "nbformat_minor": 5,
     }

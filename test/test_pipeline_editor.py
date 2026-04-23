@@ -1153,6 +1153,9 @@ def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
     assert [cell["source"] for cell in notebook["cells"]] == [["print('raw')\n"], ["print('dict')\n"]]
+    assert notebook["metadata"]["kernelspec"]["name"] == "python3"
+    assert notebook["metadata"]["language_info"]["name"] == "python"
+    assert "pycharm" in notebook["metadata"]
 
 
 def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp_path):
@@ -1312,14 +1315,18 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
 
     assert metadata["export_mode"] == "supervisor"
     assert metadata["project_name"] == "demo_project"
+    assert metadata["controller_python"] == sys.executable
     assert metadata["steps"][0]["runtime"] == "agi.run"
     assert metadata["steps"][0]["env"] == str(tmp_path / "venv-demo")
     assert metadata["related_pages"][0]["module"] == "view_demo"
     assert metadata["related_pages"][0]["label"] == "Demo Analysis"
     assert metadata["related_pages"][0]["artifacts"] == ["demo.json", "demo.csv"]
+    assert notebook["metadata"]["kernelspec"]["name"] == "python3"
+    assert notebook["metadata"]["language_info"]["name"] == "python"
     assert "run_agilab_step" in helper_source
     assert "run_agilab_pipeline" in helper_source
     assert "analysis_launch_command" in helper_source
+    assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
     assert "Open this after the run." in page_markdown
