@@ -1378,7 +1378,31 @@ def test_detect_agilab_version_falls_back_to_installed_metadata(monkeypatch):
     assert version == "9.9.9"
 
 
-def test_render_logo_shows_version_when_logo_exists(tmp_path, monkeypatch):
+def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch):
+    logo_path = tmp_path / "agilab_logo.png"
+    logo_path.write_text("png", encoding="utf-8")
+    logo_calls = []
+    sidebar = SimpleNamespace(
+        image=lambda *_args, **_kwargs: setattr(sidebar, "image_called", True),
+        caption=lambda text: setattr(sidebar, "caption_text", text),
+        warning=lambda text: setattr(sidebar, "warning_text", text),
+    )
+    fake_st = SimpleNamespace(
+        session_state={"env": SimpleNamespace(st_resources=tmp_path)},
+        sidebar=sidebar,
+        logo=lambda path, size="medium", **_kwargs: logo_calls.append((path, size)),
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_detect_agilab_version", lambda env: "2026.4.2")
+
+    pagelib.render_logo()
+
+    assert logo_calls == [(str(logo_path), "large")]
+    assert not hasattr(sidebar, "image_called")
+    assert sidebar.caption_text == "v2026.4.2"
+
+
+def test_render_logo_falls_back_to_sidebar_image_when_streamlit_logo_is_missing(tmp_path, monkeypatch):
     logo_path = tmp_path / "agilab_logo.png"
     logo_path.write_text("png", encoding="utf-8")
     sidebar = SimpleNamespace(
