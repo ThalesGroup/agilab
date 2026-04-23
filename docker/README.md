@@ -1,112 +1,78 @@
-[![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
-[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![PyPI downloads](https://img.shields.io/pypi/dm/agilab)](https://pypi.org/project/agilab/)
-[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
+# AGILAB Docker (scratch)
 
-# AGILAB Docker Deployment
+Experimental, leaner Docker setup for AGILAB. Compared to `docker/Dockerfile` this version:
 
-This directory contains the optional Docker setup for running AGILAB with
-offline LLM capabilities through a multi-container architecture.
+- Uses `ghcr.io/astral-sh/uv:bookworm-slim` as base — uv is pre-installed, no install step needed
+- Drops `libreadline-dev` and `tk-dev` — not needed for headless Streamlit
+- Does not copy `test/`, `tools/`, `docs/` — runtime only
+- Adds `OLLAMA_HOST` env var
+- Uses the mandatory `--preview-features extra-build-dependencies` flag in the launch command
 
-## Architecture
+## Build
 
-The setup consists of two containers:
+From the repo root:
 
-1. **agilab-main**: Main AGILAB application with Streamlit GUI
-2. **agilab-ollama**: Offline LLM service running Ollama with Mistral and GPT-OSS models
-
-## Prerequisites
-
-- Docker Engine 20.10+
-- Docker Compose v2.0+
-- At least 8GB RAM (16GB recommended for LLM models)
-- 20GB free disk space (for models and dependencies)
-
-## Quick Start
-
-### Using Docker Compose (Recommended)
-
-1. **Set environment variables** (optional):
-   ```bash
-   export OPENAI_API_KEY="your-api-key"
-   export CLUSTER_CREDENTIALS="user:password"
-   ```
-
-2. **Start all services**:
-   ```bash
-   docker compose -f docker/docker-compose.yml up -d
-   ```
-
-3. **Access the application**:
-   - AGILAB GUI: http://localhost:8501
-   - Ollama API: http://localhost:11434
-
-4. **Stop services**:
-   ```bash
-   docker compose -f docker/docker-compose.yml down
-   ```
-
-### Manual Build and Run
-
-#### Build the main AGILAB image:
 ```bash
-docker buildx build -f docker/Dockerfile -t agilab .
+docker buildx build -f docker-scratch/Dockerfile -t agilab:scratch .
 ```
 
-#### Build the Ollama LLM image:
+## Run
+
+Standalone (no Ollama):
+
 ```bash
-docker buildx build -f docker/Dockerfile-Ollama -t agilab-ollama .
+docker run -d \
+  --name agilab \
+  -p 8501:8501 \
+  -e OPENAI_API_KEY="your-api-key" \
+  agilab:scratch
 ```
 
-#### Create a network:
+With Ollama (offline LLM):
+
 ```bash
 docker network create agilab-network
-```
 
-#### Run Ollama container:
-```bash
 docker run -d \
   --name agilab-ollama \
   --network agilab-network \
   -p 11434:11434 \
   -v ollama-models:/root/.ollama \
-  agilab-ollama
-```
+  ollama/ollama
 
-#### Run AGILAB container:
-```bash
+# Pull a model once (persisted in the volume)
+docker exec agilab-ollama ollama pull mistral:instruct
+
 docker run -d \
-  --name agilab-main \
+  --name agilab \
   --network agilab-network \
   -p 8501:8501 \
   -e OPENAI_API_KEY="your-api-key" \
   -e OLLAMA_HOST="http://agilab-ollama:11434" \
-  agilab
+  agilab:scratch
 ```
 
-## Configuration
+Access the GUI at http://localhost:8501.
 
-### Environment Variables
+## Environment Variables
 
-#### Main Application (agilab)
-- `OPENAI_API_KEY`: OpenAI API key (default: "dummykey")
-- `CLUSTER_CREDENTIALS`: SSH credentials for cluster access (default: "root:password")
-- `AGI_PYTHON_VERSION`: Python version to use (default: "3.13.9")
-- `AGI_PYTHON_FREE_THREADED`: Enable free-threaded Python (default: "0")
-- `OLLAMA_HOST`: Ollama service URL (default: "http://ollama:11434")
+| Variable | Default | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | `dummykey` | OpenAI API key |
+| `CLUSTER_CREDENTIALS` | `root:password` | SSH credentials for cluster access |
+| `AGI_PYTHON_VERSION` | `3.13.9` | Python version managed by uv |
+| `AGI_PYTHON_FREE_THREADED` | `0` | Enable free-threaded Python build |
+| `OLLAMA_HOST` | `http://ollama:11434` | Ollama service endpoint |
+| `APPS_REPOSITORY` | _(empty)_ | Optional external apps repository path |
 
-#### Ollama Container
-The Ollama container automatically pulls the following models on first startup:
-- `mistral:instruct` (~4GB)
-- `gpt-oss:20b` (~12GB)
+## Differences from `docker/Dockerfile`
 
-**Note**: Initial startup may take 15-30 minutes to download models.
-
-### Volume Mounts
-
-Persistent data is stored in Docker volumes:
-- `agilab-logs`: Application logs
-- `agilab-config`: AGILAB configuration
-- `ollama-models`: Ollama model storage
-- `ollama-logs`: Ollama service logs
+| | `docker/Dockerfile` | `docker-scratch/Dockerfile` |
+|---|---|---|
+| Base image | `ubuntu:24.04` | `ghcr.io/astral-sh/uv:bookworm-slim` |
+| uv install | Manual curl + copy | Pre-installed in base image |
+| `libreadline-dev` | Yes | No |
+| `tk-dev` | Yes | No |
+| `test/` `tools/` `docs/` copied | Yes | No |
+| `OLLAMA_HOST` env | No | Yes |
+| `uv run` flag | Missing `--preview-features` | Correct |
