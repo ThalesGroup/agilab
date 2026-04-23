@@ -25,26 +25,35 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 assert_agilab_checkout_alignment = _import_guard_module.assert_agilab_checkout_alignment
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
 assert_agilab_checkout_alignment(__file__)
 
-import_agilab_symbols(
-    globals(),
+_env_file_utils_module = import_agilab_module(
     "agilab.env_file_utils",
-    {"load_env_file_map": "_load_env_file_map"},
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "env_file_utils.py",
     fallback_name="agilab_env_file_utils_fallback",
 )
-import_agilab_symbols(
-    globals(),
+_load_env_file_map = _env_file_utils_module.load_env_file_map
+
+_page_docs_module = import_agilab_module(
     "agilab.page_docs",
-    ["render_page_docs_access"],
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "page_docs.py",
     fallback_name="agilab_page_docs_fallback",
 )
+render_page_docs_access = _page_docs_module.render_page_docs_access
+
+_logging_utils_module = import_agilab_module(
+    "agilab.logging_utils",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "logging_utils.py",
+    fallback_name="agilab_logging_utils_fallback",
+)
+LOG_DETAIL_LIMIT = _logging_utils_module.LOG_DETAIL_LIMIT
+LOG_PATH_LIMIT = _logging_utils_module.LOG_PATH_LIMIT
+bound_log_value = _logging_utils_module.bound_log_value
 
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
@@ -452,7 +461,7 @@ def _ensure_env_file(path: Path) -> Path:
     try:
         try:
             parent.mkdir(parents=True, exist_ok=False)
-            logger.info(f"mkdir {parent}")
+            logger.info("mkdir %s", bound_log_value(parent, LOG_PATH_LIMIT))
         except FileExistsError:
             pass
         if TEMPLATE_ENV_PATH is not None:
@@ -464,7 +473,11 @@ def _ensure_env_file(path: Path) -> Path:
                 pass
         path.touch(exist_ok=True)
     except OSError as exc:
-        logger.warning(f"Unable to create env file at {path}: {exc}")
+        logger.warning(
+            "Unable to create env file at %s: %s",
+            bound_log_value(path, LOG_PATH_LIMIT),
+            bound_log_value(exc, LOG_DETAIL_LIMIT),
+        )
     return path
 
 def _resolve_share_dir_path(raw_value: str, *, home_path: Path) -> Path:

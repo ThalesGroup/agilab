@@ -157,6 +157,28 @@ def load_local_module(
     return module
 
 
+def import_agilab_module(
+    module_name: str,
+    *,
+    current_file: str | Path,
+    fallback_path: str | Path,
+    fallback_name: str | None = None,
+    package_name: str = "agilab",
+) -> ModuleType:
+    """Load an AGILAB module while preserving mixed-checkout protections.
+
+    Prefer this helper in new code so module dependencies stay explicit at the
+    call site instead of being injected into ``globals()``.
+    """
+    return load_local_module(
+        module_name,
+        current_file=current_file,
+        fallback_path=fallback_path,
+        fallback_name=fallback_name,
+        package_name=package_name,
+    )
+
+
 def import_agilab_symbols(
     target_globals: MutableMapping[str, Any],
     module_name: str,
@@ -166,7 +188,8 @@ def import_agilab_symbols(
     fallback_path: str | Path,
     fallback_name: str | None = None,
 ) -> ModuleType:
-    module = load_local_module(
+    """Compatibility helper for legacy call sites that mutate globals()."""
+    module = import_agilab_module(
         module_name,
         current_file=current_file,
         fallback_path=fallback_path,

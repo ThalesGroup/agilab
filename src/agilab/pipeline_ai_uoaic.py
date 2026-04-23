@@ -15,26 +15,23 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
-import_agilab_symbols(
-    globals(),
+_pipeline_ai_support_module = import_agilab_module(
     "agilab.pipeline_ai_support",
-    {
-        "OLLAMA_DEEPSEEK_PROVIDER": "OLLAMA_DEEPSEEK_PROVIDER",
-        "OLLAMA_QWEN_PROVIDER": "OLLAMA_QWEN_PROVIDER",
-        "_ensure_uoaic_runtime": "_ensure_uoaic_runtime_impl",
-        "default_ollama_family_model": "default_ollama_family_model",
-        "format_uoaic_question": "_format_uoaic_question",
-        "_load_uoaic_modules": "_load_uoaic_modules_impl",
-        "normalize_ollama_endpoint": "_normalize_ollama_endpoint",
-        "normalize_user_path": "_normalize_user_path",
-        "_resolve_uoaic_path": "_resolve_uoaic_path_impl",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_ai_support.py",
     fallback_name="agilab_pipeline_ai_support_fallback",
 )
+OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
+_ensure_uoaic_runtime_impl = _pipeline_ai_support_module._ensure_uoaic_runtime
+default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
+_format_uoaic_question = _pipeline_ai_support_module.format_uoaic_question
+_load_uoaic_modules_impl = _pipeline_ai_support_module._load_uoaic_modules
+_normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
+_normalize_user_path = _pipeline_ai_support_module.normalize_user_path
+_resolve_uoaic_path_impl = _pipeline_ai_support_module._resolve_uoaic_path
 
 
 UOAIC_PROVIDER = "universal-offline-ai-chatbot"

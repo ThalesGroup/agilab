@@ -17,14 +17,14 @@ Choose a demo
    :alt: agi-core demo
 
 .. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
-   :target: https://github.com/ThalesGroup/agilab/issues/new?title=AGILAB%20demo%20request&body=Please%20include%3A%0A-%20requested%20Paris%20time%20%28Europe%2FParis%29%3A%20...%0A-%20preferred%20date%3A%20...%0A-%20what%20you%20want%20to%20see%3A%20...
+   :target: https://jpmorard-agilab.hf.space
    :alt: AGILAB demo
 
 What each route is for
 ----------------------
 
-- **AGILAB demo**: request it via GitHub issue and include the requested Paris
-  time.
+- **AGILAB demo**: self-serve public Hugging Face Spaces route for the AGILAB
+  web UI.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
 - **Quick start**: the safest truthful first proof of the full product path.

@@ -21,46 +21,43 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
-import_agilab_symbols(
-    globals(),
+_pipeline_runtime_support_module = import_agilab_module(
     "agilab.pipeline_runtime_support",
-    {
-        "build_mlflow_process_env": "_build_mlflow_process_env_impl",
-        "ensure_safe_service_template": "_ensure_safe_service_template_impl",
-        "ensure_default_mlflow_experiment": "_ensure_default_mlflow_experiment_impl",
-        "ensure_mlflow_backend_ready": "_ensure_mlflow_backend_ready_impl",
-        "ensure_mlflow_sqlite_schema_current": "_ensure_mlflow_sqlite_schema_current_impl",
-        "get_mlflow_module": "_get_mlflow_module_impl",
-        "is_valid_runtime_root": "_is_valid_runtime_root_impl",
-        "legacy_mlflow_filestore_present": "_legacy_mlflow_filestore_present_impl",
-        "label_for_step_runtime": "_label_for_step_runtime_impl",
-        "log_mlflow_artifacts": "_log_mlflow_artifacts_impl",
-        "mlflow_tracking_uri": "_mlflow_tracking_uri_impl",
-        "python_for_venv": "_python_for_venv_impl",
-        "python_for_step": "_python_for_step_impl",
-        "repair_mlflow_default_experiment_db": "_repair_mlflow_default_experiment_db_impl",
-        "reset_mlflow_sqlite_backend": "_reset_mlflow_sqlite_backend_impl",
-        "run_locked_step": "_run_locked_step_impl",
-        "resolve_mlflow_artifact_dir": "_resolve_mlflow_artifact_dir_impl",
-        "resolve_mlflow_backend_db": "_resolve_mlflow_backend_db_impl",
-        "resolve_mlflow_tracking_dir": "_resolve_mlflow_tracking_dir_impl",
-        "safe_service_start_template": "_safe_service_start_template_impl",
-        "sqlite_identifier": "_sqlite_identifier_impl",
-        "sqlite_uri_for_path": "_sqlite_uri_for_path_impl",
-        "start_mlflow_run": "_start_mlflow_run_impl",
-        "stream_run_command": "_stream_run_command_impl",
-        "temporary_env_overrides": "_temporary_env_overrides_impl",
-        "to_bool_flag": "_to_bool_flag_impl",
-        "truncate_mlflow_text": "_truncate_mlflow_text_impl",
-        "uses_controller_python": "_uses_controller_python_impl",
-        "wrap_code_with_mlflow_resume": "_wrap_code_with_mlflow_resume_impl",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_runtime_support.py",
     fallback_name="agilab_pipeline_runtime_support_fallback",
 )
+_build_mlflow_process_env_impl = _pipeline_runtime_support_module.build_mlflow_process_env
+_ensure_safe_service_template_impl = _pipeline_runtime_support_module.ensure_safe_service_template
+_ensure_default_mlflow_experiment_impl = _pipeline_runtime_support_module.ensure_default_mlflow_experiment
+_ensure_mlflow_backend_ready_impl = _pipeline_runtime_support_module.ensure_mlflow_backend_ready
+_ensure_mlflow_sqlite_schema_current_impl = _pipeline_runtime_support_module.ensure_mlflow_sqlite_schema_current
+_get_mlflow_module_impl = _pipeline_runtime_support_module.get_mlflow_module
+_is_valid_runtime_root_impl = _pipeline_runtime_support_module.is_valid_runtime_root
+_legacy_mlflow_filestore_present_impl = _pipeline_runtime_support_module.legacy_mlflow_filestore_present
+_label_for_step_runtime_impl = _pipeline_runtime_support_module.label_for_step_runtime
+_log_mlflow_artifacts_impl = _pipeline_runtime_support_module.log_mlflow_artifacts
+_mlflow_tracking_uri_impl = _pipeline_runtime_support_module.mlflow_tracking_uri
+_python_for_venv_impl = _pipeline_runtime_support_module.python_for_venv
+_python_for_step_impl = _pipeline_runtime_support_module.python_for_step
+_repair_mlflow_default_experiment_db_impl = _pipeline_runtime_support_module.repair_mlflow_default_experiment_db
+_reset_mlflow_sqlite_backend_impl = _pipeline_runtime_support_module.reset_mlflow_sqlite_backend
+_run_locked_step_impl = _pipeline_runtime_support_module.run_locked_step
+_resolve_mlflow_artifact_dir_impl = _pipeline_runtime_support_module.resolve_mlflow_artifact_dir
+_resolve_mlflow_backend_db_impl = _pipeline_runtime_support_module.resolve_mlflow_backend_db
+_resolve_mlflow_tracking_dir_impl = _pipeline_runtime_support_module.resolve_mlflow_tracking_dir
+_safe_service_start_template_impl = _pipeline_runtime_support_module.safe_service_start_template
+_sqlite_identifier_impl = _pipeline_runtime_support_module.sqlite_identifier
+_sqlite_uri_for_path_impl = _pipeline_runtime_support_module.sqlite_uri_for_path
+_start_mlflow_run_impl = _pipeline_runtime_support_module.start_mlflow_run
+_stream_run_command_impl = _pipeline_runtime_support_module.stream_run_command
+_temporary_env_overrides_impl = _pipeline_runtime_support_module.temporary_env_overrides
+_to_bool_flag_impl = _pipeline_runtime_support_module.to_bool_flag
+_truncate_mlflow_text_impl = _pipeline_runtime_support_module.truncate_mlflow_text
+_uses_controller_python_impl = _pipeline_runtime_support_module.uses_controller_python
+_wrap_code_with_mlflow_resume_impl = _pipeline_runtime_support_module.wrap_code_with_mlflow_resume
 
 MLFLOW_STEP_RUN_ID_ENV = "AGILAB_PIPELINE_MLFLOW_RUN_ID"
 MLFLOW_TEXT_LIMIT = 500

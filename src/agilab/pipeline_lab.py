@@ -26,55 +26,50 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
-import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
 
-import_agilab_symbols(
-    globals(),
+_code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",
-    {"normalize_custom_buttons": "normalize_custom_buttons"},
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "code_editor_support.py",
     fallback_name="agilab_code_editor_support_fallback",
 )
-import_agilab_symbols(
-    globals(),
+normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+_pipeline_steps_module = import_agilab_module(
     "agilab.pipeline_steps",
-    {
-        "ORCHESTRATE_LOCKED_SOURCE_KEY": "ORCHESTRATE_LOCKED_SOURCE_KEY",
-        "ORCHESTRATE_LOCKED_STEP_KEY": "ORCHESTRATE_LOCKED_STEP_KEY",
-        "get_available_virtualenvs": "get_available_virtualenvs",
-        "is_displayable_step": "_is_displayable_step",
-        "is_orchestrate_locked_step": "_is_orchestrate_locked_step",
-        "load_sequence_preferences": "_load_sequence_preferences",
-        "module_keys": "_module_keys",
-        "normalize_imported_orchestrate_snippet": "_normalize_imported_orchestrate_snippet",
-        "normalize_runtime_path": "normalize_runtime_path",
-        "orchestrate_snippet_source": "_orchestrate_snippet_source",
-        "persist_sequence_preferences": "_persist_sequence_preferences",
-        "snippet_source_guidance": "_snippet_source_guidance",
-        "step_label_for_multiselect": "_step_label_for_multiselect",
-        "step_summary": "_step_summary",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
     fallback_name="agilab_pipeline_steps_fallback",
 )
-import_agilab_symbols(
-    globals(),
+ORCHESTRATE_LOCKED_SOURCE_KEY = _pipeline_steps_module.ORCHESTRATE_LOCKED_SOURCE_KEY
+ORCHESTRATE_LOCKED_STEP_KEY = _pipeline_steps_module.ORCHESTRATE_LOCKED_STEP_KEY
+get_available_virtualenvs = _pipeline_steps_module.get_available_virtualenvs
+_is_displayable_step = _pipeline_steps_module.is_displayable_step
+_is_orchestrate_locked_step = _pipeline_steps_module.is_orchestrate_locked_step
+_load_sequence_preferences = _pipeline_steps_module.load_sequence_preferences
+_module_keys = _pipeline_steps_module.module_keys
+_normalize_imported_orchestrate_snippet = _pipeline_steps_module.normalize_imported_orchestrate_snippet
+normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
+_orchestrate_snippet_source = _pipeline_steps_module.orchestrate_snippet_source
+_persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
+_snippet_source_guidance = _pipeline_steps_module.snippet_source_guidance
+_step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
+_step_summary = _pipeline_steps_module.step_summary
+
+_pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
-    {
-        "build_mlflow_process_env": "build_mlflow_process_env",
-        "is_valid_runtime_root": "_is_valid_runtime_root",
-        "label_for_step_runtime": "_label_for_step_runtime",
-        "log_mlflow_artifacts": "log_mlflow_artifacts",
-        "python_for_step": "_python_for_step",
-        "start_mlflow_run": "start_mlflow_run",
-        "wrap_code_with_mlflow_resume": "wrap_code_with_mlflow_resume",
-    },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pipeline_runtime.py",
     fallback_name="agilab_pipeline_runtime_fallback",
 )
+build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
+_is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
+_label_for_step_runtime = _pipeline_runtime_module.label_for_step_runtime
+log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
+_python_for_step = _pipeline_runtime_module.python_for_step
+start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
+wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 
 logger = logging.getLogger(__name__)
 

@@ -38,6 +38,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.logging_utils",
+    {
+        "LOG_DETAIL_LIMIT": "LOG_DETAIL_LIMIT",
+        "bound_log_value": "bound_log_value",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "logging_utils.py",
+    fallback_name="agilab_logging_utils_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_openai",
     {
         "ensure_cached_api_key": "ensure_cached_api_key",
@@ -466,7 +477,10 @@ def chat_online(
         client, model_name, is_azure = make_openai_client_and_model(envars, api_key)
     except (RuntimeError, TypeError, ValueError, AttributeError, ImportError, OSError) as e:
         st.error("Failed to initialise OpenAI/Azure client. Check your SDK install and environment variables.")
-        logger.error(f"Client init error: {_redact_sensitive(str(e))}")
+        logger.error(
+            "Client init error: %s",
+            bound_log_value(_redact_sensitive(str(e)), LOG_DETAIL_LIMIT),
+        )
         raise JumpToMain(e)
 
     # Call – support new and old SDKs
@@ -491,7 +505,10 @@ def chat_online(
                 "The requested model is unavailable. Please select a different model in the LLM provider settings "
                 "or update the model name in the Environment Variables expander (OPENAI_MODEL/AZURE deployment)."
             )
-            logger.info(f"Model not found/unavailable: {msg}")
+            logger.info(
+                "Model not found/unavailable: %s",
+                bound_log_value(msg, LOG_DETAIL_LIMIT),
+            )
         elif status in (401, 403):
             # Most common causes:
             # - Azure key used without proper Azure endpoint/version/deployment
@@ -507,12 +524,15 @@ def chat_online(
             )
         else:
             st.error(f"OpenAI/Azure error: {msg}")
-        logger.error(f"OpenAI error: {msg}")
+        logger.error("OpenAI error: %s", bound_log_value(msg, LOG_DETAIL_LIMIT))
         raise JumpToMain(e)
     except (RuntimeError, TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
         msg = _redact_sensitive(str(e))
         st.error(f"Unexpected client error: {msg}")
-        logger.error(f"General error in chat_online: {msg}")
+        logger.error(
+            "General error in chat_online: %s",
+            bound_log_value(msg, LOG_DETAIL_LIMIT),
+        )
         raise JumpToMain(e)
 
 

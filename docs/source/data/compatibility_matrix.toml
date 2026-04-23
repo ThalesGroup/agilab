@@ -28,15 +28,15 @@ scope = "PROJECT -> ORCHESTRATE -> ANALYSIS on a public built-in app, with fresh
 limits = ["Local path only", "Not a remote cluster proof"]
 
 [[entries]]
-id = "agilab-demo-by-request"
-label = "AGILAB demo by request"
+id = "agilab-hf-demo"
+label = "AGILAB Hugging Face demo"
 status = "documented"
-surface = "guided demo access"
-primary_proof = "demos.rst plus GitHub issue request"
+surface = "public hosted demo"
+primary_proof = "demos.rst plus the public Hugging Face Space"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Guided AGILAB demo access arranged by request on the public built-in app path"
-limits = ["Not a self-serve public URL", "Availability depends on manual triage and scheduling", "Not a remote cluster proof"]
+scope = "Self-serve AGILAB web UI demo hosted on Hugging Face Spaces"
+limits = ["Hosted demo environment", "Not a remote cluster proof", "Availability depends on Hugging Face Spaces uptime"]
 
 [[entries]]
 id = "service-mode-operator-surface"
