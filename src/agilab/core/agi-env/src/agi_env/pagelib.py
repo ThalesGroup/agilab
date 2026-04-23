@@ -436,7 +436,11 @@ def render_logo(*_args, **_kwargs):
 
     agilab_logo_path = env.st_resources / "agilab_logo.png"
     if agilab_logo_path.exists():
-        st.sidebar.image(str(agilab_logo_path), width=170)
+        logo_fn = getattr(st, "logo", None)
+        if callable(logo_fn):
+            logo_fn(str(agilab_logo_path), size="large")
+        else:
+            st.sidebar.image(str(agilab_logo_path), width=170)
         version = _detect_agilab_version(env)
         if version:
             st.sidebar.caption(f"v{version}")
