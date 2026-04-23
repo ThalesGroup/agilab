@@ -16,10 +16,26 @@ PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 PYCHARM_NOTEBOOK_SITECUSTOMIZE = """\
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
 try:
     from debugpy._vendored import vendored as _debugpy_vendored
 except Exception:
     _debugpy_vendored = None
+
+
+def _guard_direct_python_notebook_execution() -> None:
+    argv0 = str(getattr(sys, "argv", [""])[0] or "")
+    if not argv0.lower().endswith(".ipynb"):
+        return
+    notebook_path = Path(argv0)
+    raise SystemExit(
+        "AGILAB exported notebooks are Jupyter notebooks, not Python scripts. "
+        f"Open `{notebook_path}` in PyCharm/Jupyter, or run "
+        f"`uv run jupyter lab {notebook_path}` or "
+        f"`uv run python -m jupyter nbconvert --to notebook --execute --inplace {notebook_path}`."
+    )
 
 
 def _ensure_pydevd_values_policy() -> None:
@@ -48,6 +64,13 @@ def _ensure_pydevd_values_policy() -> None:
             _ValuesPolicy.ON_DEMAND: "__pydevd_value_on_demand",
         }
 
+
+try:
+    _guard_direct_python_notebook_execution()
+except SystemExit:
+    raise
+except Exception:
+    pass
 
 try:
     _ensure_pydevd_values_policy()
