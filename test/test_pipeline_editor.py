@@ -1498,8 +1498,38 @@ def test_pycharm_notebook_sitecustomize_blocks_python_ipynb_execution(tmp_path):
 
     assert result.returncode != 0
     assert "AGILAB exported notebooks are Jupyter notebooks, not Python scripts." in result.stderr
-    assert "uv run jupyter lab" in result.stderr
+    assert "uv run --with jupyterlab jupyter lab" in result.stderr
+    assert "uv run --with nbconvert python -m jupyter nbconvert" in result.stderr
     assert "NameError: name 'null' is not defined" not in result.stderr
+
+
+def test_pycharm_notebook_sitecustomize_uses_repo_project_prefix_for_mirror(tmp_path):
+    repo_root = tmp_path / "repo"
+    shim_dir = repo_root / "exported_notebooks" / "demo_project"
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    (shim_dir / "sitecustomize.py").write_text(
+        notebook_export_support.pycharm_notebook_sitecustomize_text(),
+        encoding="utf-8",
+    )
+    notebook_path = shim_dir / "lab_steps.ipynb"
+    notebook_path.write_text('{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}\n', encoding="utf-8")
+
+    import subprocess
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(shim_dir)
+
+    result = subprocess.run(
+        [sys.executable, str(notebook_path)],
+        cwd=shim_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert f"uv --project {repo_root} run --with jupyterlab jupyter lab" in result.stderr
+    assert f"uv --project {repo_root} run --with nbconvert python -m jupyter nbconvert" in result.stderr
 
 
 def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_path):
