@@ -59,7 +59,7 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_env.pagelib import background_services_enabled, inject_theme
+from agi_env.pagelib import background_services_enabled, inject_theme, render_sidebar_version
 from agi_env.credential_store_support import (
     CLUSTER_CREDENTIALS_KEY,
     KEYRING_SENTINEL,
@@ -98,19 +98,6 @@ def _newcomer_first_proof_content() -> Dict[str, Any]:
             ("Flight project guide", "https://thalesgroup.github.io/agilab/flight-project.html"),
         ],
     }
-
-
-def _landing_page_version_text(env: Any | None) -> str:
-    """Return the AGILAB version line shown on the landing page."""
-    if env is None:
-        return ""
-    try:
-        version = str(detect_agilab_version(env) or "").strip()
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        return ""
-    if not version:
-        return ""
-    return f"AGILAB version: v{version}"
 
 
 def _newcomer_first_proof_project_path(env: Any) -> Path | None:
@@ -945,9 +932,10 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
 
 def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
-    version_text = _landing_page_version_text(env)
-    if version_text:
-        st.sidebar.caption(version_text)
+    try:
+        render_sidebar_version(detect_agilab_version(env))
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)
@@ -988,6 +976,7 @@ def page(env: Any) -> None:
         html_file="agilab-help.html",
         key_prefix="about",
         sidebar=True,
+        divider=False,
     )
 
     current_year = datetime.now().year

@@ -35,14 +35,6 @@ import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
 import_agilab_symbols(
     globals(),
-    "agilab.page_docs",
-    ["render_page_docs_access"],
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
-import_agilab_symbols(
-    globals(),
     "agilab.orchestrate_page_support",
     {
         "build_distribution_snippet": "build_distribution_snippet",
@@ -1034,13 +1026,6 @@ async def page() -> None:
     st.set_page_config(page_title="AGILab ORCHESTRATE", layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
     render_logo()
-    render_page_docs_access(
-        env,
-        html_file="execute-help.html",
-        key_prefix="orchestrate",
-        sidebar=True,
-        caption="Open the ORCHESTRATE guide.",
-    )
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)

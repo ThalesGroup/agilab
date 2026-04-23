@@ -287,6 +287,34 @@ Why it matters:
   workflows
 - gives teams a practical adoption bridge instead of a one-way migration story
 
+## Logging modernization
+
+Purpose:
+
+- improve developer and operator logging without breaking compatibility across
+  Streamlit, workers, subprocesses, and distributed services
+
+Recommended direction:
+
+- keep Python stdlib `logging` plus `AgiLogger` as the canonical runtime logging
+  contract
+- add real child logger support, structured JSON output, and stable context
+  fields such as app id, host, worker, and run id
+- keep the current colorized human console output as the default local
+  developer mode
+- treat `loguru` as an optional choice only for isolated helper scripts or
+  local tools that do not need full stdlib logging interoperability
+- do not plan a repo-wide migration to `loguru` unless stdlib logging becomes a
+  demonstrated blocker for AGILAB runtime requirements
+
+Why it matters:
+
+- AGILAB already spans third-party libraries and multi-process surfaces that
+  integrate naturally with stdlib logging
+- the real missing capability is structured context and better logger
+  hierarchy, not a new logging syntax
+- this keeps the logging contract stable while still making observability
+  stronger
 ## Backend observability and audit architecture
 
 AGILab should keep application-specific interaction inside the product and move

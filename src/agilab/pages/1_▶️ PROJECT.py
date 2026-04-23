@@ -34,14 +34,6 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
-import_agilab_symbols(
-    globals(),
-    "agilab.page_docs",
-    ["render_page_docs_access"],
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
     background_services_enabled,
@@ -1927,14 +1919,6 @@ def page():
 
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
-
-    render_page_docs_access(
-        env,
-        html_file="edit-help.html",
-        key_prefix="project",
-        sidebar=True,
-        caption="Open the PROJECT page guide.",
-    )
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
