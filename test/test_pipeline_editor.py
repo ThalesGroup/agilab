@@ -1373,6 +1373,51 @@ def test_build_notebook_export_context_prefers_valid_apps_repository_root_when_a
     assert tuple(page.module for page in context.related_pages) == ("view_demo",)
 
 
+def test_build_notebook_export_context_normalizes_repo_root_hint_and_prefers_sibling_workspace_apps_dir(
+    tmp_path,
+):
+    workspace_root = tmp_path / "workspace"
+    public_repo = workspace_root / "agilab"
+    (public_repo / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (public_repo / ".idea").mkdir(parents=True, exist_ok=True)
+
+    pages_root = public_repo / "src" / "agilab" / "apps-pages"
+    page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+
+    private_repo = workspace_root / "thales_agilab"
+    source_app = private_repo / "apps" / "demo_project"
+    (source_app / "src").mkdir(parents=True, exist_ok=True)
+    (source_app / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    (source_app / "src" / "app_settings.toml").write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    workspace_settings = tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app="",
+        app_settings_file=workspace_settings,
+        apps_repository_root="",
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: None,
+        read_agilab_path=lambda: public_repo / "src" / "agilab",
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("demo_project"),
+        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        project_name="demo_project",
+    )
+
+    assert context.repo_root == str(public_repo)
+    assert context.active_app == str(source_app)
+    assert tuple(page.module for page in context.related_pages) == ("view_demo",)
+
+
 def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_analysis_helpers(tmp_path):
     repo_root = tmp_path / "repo"
     (repo_root / "src" / "agilab").mkdir(parents=True, exist_ok=True)
@@ -1601,6 +1646,82 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
         namespace["subprocess"].run = original_run
 
     assert "APPS_PATH = " + repr(str(repo_apps)) in captured["script"]
+
+
+def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when_active_app_is_missing(
+    tmp_path,
+):
+    workspace_root = tmp_path / "workspace"
+    public_repo = workspace_root / "agilab"
+    (public_repo / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (public_repo / ".idea").mkdir(parents=True, exist_ok=True)
+    private_repo = workspace_root / "thales_agilab"
+    app_root = private_repo / "apps" / "demo_project"
+    (app_root / "src").mkdir(parents=True, exist_ok=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_steps.toml"
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(export_dir),
+        active_app="",
+        app_settings_file="",
+        pages_root=str(public_repo / "src" / "agilab" / "apps-pages"),
+        repo_root=str(public_repo),
+        related_pages=(),
+    )
+
+    pipeline_editor.toml_to_notebook(
+        {
+            "demo_project": [
+                {
+                    "D": "Run demo app",
+                    "Q": "Generate demo artifacts.",
+                    "M": "",
+                    "C": "APP = 'demo_project'\ntrainer = 'ppo'\n",
+                    "R": "runpy",
+                }
+            ]
+        },
+        toml_path,
+        export_context=context,
+    )
+
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    helper_source = "".join(notebook["cells"][1]["source"])
+    namespace: dict[str, object] = {}
+    exec(helper_source, namespace)
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["active_app"] = ""
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["repo_root"] = str(public_repo / "src" / "agilab")
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["pycharm_mirror_path"] = str(
+        public_repo / "exported_notebooks" / "demo_project" / "lab_steps.ipynb"
+    )
+
+    captured: dict[str, str] = {}
+
+    class _Result:
+        stdout = ""
+        stderr = ""
+
+        @staticmethod
+        def check_returncode() -> None:
+            return None
+
+    def _fake_run(cmd, **kwargs):
+        captured["script"] = Path(cmd[1]).read_text(encoding="utf-8")
+        return _Result()
+
+    original_run = namespace["subprocess"].run
+    try:
+        namespace["subprocess"].run = _fake_run
+        namespace["run_agilab_step"](0, capture_output=False)
+    finally:
+        namespace["subprocess"].run = original_run
+
+    assert "APPS_PATH = " + repr(str(private_repo / "apps")) in captured["script"]
 
 
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):

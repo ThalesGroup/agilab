@@ -176,6 +176,57 @@ def _resolve_pycharm_repo_root(
     return None
 
 
+def _normalize_repo_root_hint(value: str | Path | None) -> str:
+    if not value:
+        return ""
+    try:
+        path = Path(value).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return _normalize_path(value)
+
+    for candidate in (path, *path.parents):
+        if _looks_like_source_checkout(candidate):
+            return str(candidate)
+    return str(path)
+
+
+def _iter_checkout_workspace_apps_dirs(repo_root_hint: str | Path | None) -> Iterable[Path]:
+    repo_root = _normalize_repo_root_hint(repo_root_hint)
+    if not repo_root:
+        return
+    try:
+        checkout_root = Path(repo_root)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return
+    if not _looks_like_source_checkout(checkout_root):
+        return
+
+    seen: set[str] = set()
+
+    def _emit(candidate: Path) -> Iterable[Path]:
+        candidate_text = _normalize_path(candidate)
+        if not candidate_text or candidate_text in seen:
+            return ()
+        seen.add(candidate_text)
+        return (candidate,)
+
+    yield from _emit(checkout_root / "src" / "agilab" / "apps")
+    yield from _emit(checkout_root / "apps")
+
+    workspace_root = checkout_root.parent
+    try:
+        siblings = sorted(
+            candidate
+            for candidate in workspace_root.iterdir()
+            if candidate.is_dir() and candidate != checkout_root
+        )
+    except OSError:
+        siblings = []
+    for sibling in siblings:
+        yield from _emit(sibling / "apps")
+        yield from _emit(sibling / "src" / "agilab" / "apps")
+
+
 def pycharm_notebook_mirror_path(
     toml_path: str | Path,
     *,
@@ -404,7 +455,7 @@ def build_notebook_export_context(
     read_agilab_path = getattr(env, "read_agilab_path", None)
     if callable(read_agilab_path):
         try:
-            repo_root = _normalize_path(read_agilab_path())
+            repo_root = _normalize_repo_root_hint(read_agilab_path())
         except (OSError, RuntimeError, TypeError, ValueError):
             repo_root = ""
     repo_apps_dir = Path(repo_root) / "src" / "agilab" / "apps" if repo_root else None
@@ -421,6 +472,7 @@ def build_notebook_export_context(
                     getattr(env, "builtin_apps_path", None),
                     getattr(env, "apps_repository_root", None),
                     repo_apps_dir,
+                    *_iter_checkout_workspace_apps_dirs(repo_root),
                 ),
             )
         ),
@@ -590,6 +642,40 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 return False
 
 
+        def _looks_like_source_checkout(path_value):
+            try:
+                root = Path(path_value).expanduser()
+            except Exception:
+                return False
+            try:
+                return (root / "src" / "agilab").exists() and ((root / ".git").exists() or (root / ".idea").exists())
+            except OSError:
+                return False
+
+
+        def _candidate_checkout_roots():
+            seen = set()
+
+            def emit(seed):
+                if not seed:
+                    return
+                try:
+                    path = Path(_normalized_path(seed)).expanduser()
+                except Exception:
+                    return
+                for candidate in (path, *path.parents):
+                    candidate_text = _normalized_path(candidate)
+                    if not candidate_text or candidate_text in seen:
+                        continue
+                    if _looks_like_source_checkout(candidate):
+                        seen.add(candidate_text)
+                        yield candidate
+
+            yield from emit(AGILAB_NOTEBOOK_EXPORT.get("repo_root"))
+            yield from emit(AGILAB_NOTEBOOK_EXPORT.get("pycharm_mirror_path"))
+            yield from emit(AGILAB_NOTEBOOK_EXPORT.get("pages_root"))
+
+
         def _candidate_apps_directories():
             seen = set()
 
@@ -599,13 +685,31 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 candidate_text = _normalized_path(candidate)
                 if not candidate_text or candidate_text in seen:
                     return
+                try:
+                    path = Path(candidate_text)
+                except Exception:
+                    return
+                if not path.exists():
+                    return
                 seen.add(candidate_text)
-                yield Path(candidate_text)
+                yield path
 
-            repo_root = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("repo_root"))
-            if repo_root:
-                yield from emit(Path(repo_root) / "src" / "agilab" / "apps")
-                yield from emit(Path(repo_root) / "apps")
+            for repo_root in _candidate_checkout_roots():
+                yield from emit(repo_root / "src" / "agilab" / "apps")
+                yield from emit(repo_root / "apps")
+
+                workspace_root = repo_root.parent
+                try:
+                    siblings = sorted(
+                        candidate
+                        for candidate in workspace_root.iterdir()
+                        if candidate.is_dir() and candidate != repo_root
+                    )
+                except OSError:
+                    siblings = []
+                for sibling in siblings:
+                    yield from emit(sibling / "apps")
+                    yield from emit(sibling / "src" / "agilab" / "apps")
 
             apps_repository = str(os.environ.get("APPS_REPOSITORY") or "").strip()
             if apps_repository:
