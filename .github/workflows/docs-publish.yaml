@@ -47,9 +47,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: |
             uv.lock
-            src/uv.lock
             pyproject.toml
-            src/pyproject.toml
       - name: Verify managed docs/source mirror stamp
         run: |
           set -euo pipefail
