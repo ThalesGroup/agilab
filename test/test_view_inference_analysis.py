@@ -258,6 +258,47 @@ def test_view_inference_analysis_compare_style_schema_produces_latency_p90() -> 
     assert enriched.sort_values("time_index")["p90_routed_latency"].tolist() == pytest.approx([19.0, 39.0])
 
 
+def test_view_inference_analysis_prefers_shared_time_index_for_mixed_time_axes() -> None:
+    module = _load_module()
+
+    frames = {
+        "uav": pd.DataFrame(
+            {
+                "time_index": [0, 1],
+                "t_now_s": [0.5, 1.5],
+                "bandwidth": [1.0, 1.0],
+                "delivered_bandwidth": [0.8, 0.9],
+            }
+        ),
+        "fcas": pd.DataFrame(
+            {
+                "time_index": [0, 1],
+                "bandwidth": [2.0, 2.0],
+                "delivered_bandwidth": [1.5, 1.6],
+            }
+        ),
+    }
+
+    axis = module._choose_time_series_axis(frames)
+    step_kpi_df = module.build_step_kpi_frame(frames, axis)
+
+    assert axis == "time_index"
+    assert module._axis_options_for_frames(frames) == ["time_index"]
+    assert set(step_kpi_df["run_label"]) == {"uav", "fcas"}
+
+
+def test_view_inference_analysis_prefers_seconds_when_all_runs_have_t_now_s() -> None:
+    module = _load_module()
+
+    frames = {
+        "run_a": pd.DataFrame({"time_index": [0], "t_now_s": [0.5], "delivered_bandwidth": [1.0]}),
+        "run_b": pd.DataFrame({"time_index": [0], "t_now_s": [1.0], "delivered_bandwidth": [2.0]}),
+    }
+
+    assert module._choose_time_series_axis(frames) == "t_now_s"
+    assert module._axis_options_for_frames(frames) == ["time_index", "t_now_s"]
+
+
 def test_view_inference_analysis_detects_when_requested_load_varies() -> None:
     module = _load_module()
 

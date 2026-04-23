@@ -609,6 +609,52 @@ def _routed_flag_series(frame: pd.DataFrame) -> pd.Series:
     return (delivered > 0).astype("float64")
 
 
+def _axis_has_numeric_values(frame: pd.DataFrame, axis_column: str) -> bool:
+    if axis_column not in frame.columns:
+        return False
+    return bool(pd.to_numeric(frame[axis_column], errors="coerce").notna().any())
+
+
+def _choose_time_series_axis(frames: dict[str, pd.DataFrame]) -> str:
+    non_empty_frames = [frame for frame in frames.values() if not frame.empty]
+    if not non_empty_frames:
+        return ""
+
+    preferred_axes = ("t_now_s", "time_index")
+    for axis_column in preferred_axes:
+        if all(_axis_has_numeric_values(frame, axis_column) for frame in non_empty_frames):
+            return axis_column
+
+    coverage = {
+        axis_column: sum(_axis_has_numeric_values(frame, axis_column) for frame in non_empty_frames)
+        for axis_column in preferred_axes
+    }
+    covered_axes = [axis_column for axis_column, count in coverage.items() if count > 0]
+    if not covered_axes:
+        return ""
+    return max(covered_axes, key=lambda axis_column: (coverage[axis_column], axis_column == "time_index"))
+
+
+def _axis_options_for_frames(frames: dict[str, pd.DataFrame]) -> list[str]:
+    non_empty_frames = [frame for frame in frames.values() if not frame.empty]
+    if not non_empty_frames:
+        return []
+
+    candidate_axes = ("time_index", "t_now_s")
+    common_axes = [
+        axis_column
+        for axis_column in candidate_axes
+        if all(_axis_has_numeric_values(frame, axis_column) for frame in non_empty_frames)
+    ]
+    if common_axes:
+        return common_axes
+    return [
+        axis_column
+        for axis_column in candidate_axes
+        if any(_axis_has_numeric_values(frame, axis_column) for frame in non_empty_frames)
+    ]
+
+
 def build_step_kpi_frame(
     frames: dict[str, pd.DataFrame],
     axis_column: str,
@@ -1427,7 +1473,7 @@ def main() -> None:
             st.dataframe(build_inventory_frame(frames, selected_paths, dataset_root), width="stretch", hide_index=True)
         st.stop()
 
-    axis_options = [axis for axis in ("time_index", "t_now_s") if any(axis in frame.columns for frame in frames.values())]
+    axis_options = _axis_options_for_frames(frames)
     profile_metric_options = metric_options[:]
     desired_profile_metric = st.session_state.get(PROFILE_METRIC_KEY)
     if desired_profile_metric not in profile_metric_options:
@@ -1448,18 +1494,11 @@ def main() -> None:
     if empty_runs:
         st.warning("Some files were parsed but produced no rows: " + ", ".join(sorted(empty_runs)))
 
-    time_series_axis = "t_now_s" if "t_now_s" in axis_options else ("time_index" if "time_index" in axis_options else "")
+    time_series_axis = _choose_time_series_axis(frames)
     if time_series_axis:
         step_kpi_df = build_step_kpi_frame(frames, time_series_axis)
         if not step_kpi_df.empty:
             step_kpi_df = attach_latency_p90_frame(step_kpi_df, frames, time_series_axis)
-            requested_overlay_by_run = {
-                run_label: _series_varies(
-                    step_kpi_df.loc[step_kpi_df["run_label"] == run_label, "requested_bandwidth"]
-                )
-                for run_label in selected_labels
-            }
-            show_requested_overlay = any(requested_overlay_by_run.values())
             st.subheader("Time-series diagnostics")
             kpi_specs = [
                 ("delivered_bandwidth", "Delivered bandwidth over time", "Delivered bandwidth"),
@@ -1482,11 +1521,44 @@ def main() -> None:
                     horizontal_spacing=0.1,
                     vertical_spacing=0.16,
                 )
+                show_requested_reference = False
                 for spec_index, (column_name, _title, y_axis_title) in enumerate(available_specs):
                     row = (spec_index // cols) + 1
                     col = (spec_index % cols) + 1
                     for run_label in selected_labels:
-                        plot_df = step_kpi_df.loc[step_kpi_df["run_label"] == run_label, [time_series_axis, column_name]].dropna()
+                        if column_name == "delivered_bandwidth":
+                            requested_df = step_kpi_df.loc[
+                                step_kpi_df["run_label"] == run_label,
+                                [time_series_axis, "requested_bandwidth"],
+                            ].dropna()
+                            if not requested_df.empty and requested_df["requested_bandwidth"].abs().sum() > 0:
+                                subplot.add_trace(
+                                    go.Scatter(
+                                        x=requested_df[time_series_axis],
+                                        y=requested_df["requested_bandwidth"],
+                                        mode="lines",
+                                        name=f"{run_label} requested",
+                                        legendgroup=run_label,
+                                        showlegend=False,
+                                        line=dict(
+                                            color=run_color_map[run_label],
+                                            dash="dash",
+                                            width=1,
+                                        ),
+                                        hovertemplate=(
+                                            f"{time_series_axis}: %{{x}}<br>"
+                                            "Requested bandwidth: %{y}<extra>"
+                                            f"{run_label}</extra>"
+                                        ),
+                                    ),
+                                    row=row,
+                                    col=col,
+                                )
+                                show_requested_reference = True
+                        plot_df = step_kpi_df.loc[
+                            step_kpi_df["run_label"] == run_label,
+                            [time_series_axis, column_name],
+                        ].dropna()
                         if plot_df.empty:
                             continue
                         subplot.add_trace(
@@ -1503,33 +1575,6 @@ def main() -> None:
                             row=row,
                             col=col,
                         )
-                        if column_name == "delivered_bandwidth" and requested_overlay_by_run.get(run_label, False):
-                            requested_df = step_kpi_df.loc[
-                                step_kpi_df["run_label"] == run_label,
-                                [time_series_axis, "requested_bandwidth"],
-                            ].dropna()
-                            if not requested_df.empty:
-                                subplot.add_trace(
-                                    go.Scatter(
-                                        x=requested_df[time_series_axis],
-                                        y=requested_df["requested_bandwidth"],
-                                        mode="lines",
-                                        name=run_label,
-                                        legendgroup=run_label,
-                                        showlegend=False,
-                                        hovertemplate=(
-                                            f"{run_label}<br>{time_series_axis}=%{{x}}"
-                                            "<br>requested bandwidth=%{y}<extra></extra>"
-                                        ),
-                                        line=dict(
-                                            color=run_color_map[run_label],
-                                            dash="dash",
-                                            width=2,
-                                        ),
-                                    ),
-                                    row=row,
-                                    col=col,
-                                )
                     subplot.update_xaxes(title_text=time_series_axis, row=row, col=col)
                     subplot.update_yaxes(title_text=y_axis_title, row=row, col=col)
                 subplot.update_layout(
@@ -1537,19 +1582,16 @@ def main() -> None:
                     legend=dict(
                         orientation="h",
                         yanchor="top",
-                        y=-0.16,
-                        xanchor="center",
-                        x=0.5,
-                        title_text="Run",
-                    ),
+	                        y=-0.16,
+	                        xanchor="center",
+	                        x=0.5,
+	                        title_text="",
+	                    ),
                     margin=dict(b=120),
                 )
                 st.plotly_chart(subplot, width="stretch")
-                if show_requested_overlay:
-                    st.caption(
-                        "In the delivered bandwidth panel, dashed traces show requested bandwidth "
-                        "for runs where offered load changes across steps."
-                    )
+                if show_requested_reference:
+                    st.caption("In the delivered bandwidth panel, thin dashed traces show requested bandwidth.")
 
     with st.expander("Advanced: custom metric profile", expanded=False):
         st.caption("Use this when the fixed diagnostics above do not cover the metric you need.")
