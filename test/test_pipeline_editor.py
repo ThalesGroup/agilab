@@ -1407,7 +1407,9 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "_build_shorthand_agi_script" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
-    assert 'STEP_000_CODE = """print(\'step-0\')\n"""' in step_source_cell
+    assert step_source_cell.startswith('STEP_000_CODE = """print(\'step-0\')\n"""')
+    assert "\nprint(STEP_000_CODE)\n" in step_source_cell
+    exec(step_source_cell, {})
     assert "run_agilab_step(0, code_override=STEP_000_CODE)" in step_runner_cell
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
