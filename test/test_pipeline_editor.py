@@ -1384,6 +1384,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
+    step_source_cell = "".join(notebook["cells"][3]["source"])
+    step_runner_cell = "".join(notebook["cells"][4]["source"])
     page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
 
@@ -1402,8 +1404,11 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "run_agilab_pipeline" in helper_source
     assert "analysis_launch_command" in helper_source
     assert "render_analysis_page" in helper_source
+    assert "_build_shorthand_agi_script" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
+    assert 'STEP_000_CODE = """print(\'step-0\')\n"""' in step_source_cell
+    assert "run_agilab_step(0, code_override=STEP_000_CODE)" in step_runner_cell
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
     assert "Open this after the run." in page_markdown
@@ -1412,10 +1417,74 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "render_analysis_page(page)" in analysis_source
     assert "launch_analysis_page(page)" not in analysis_source
     assert "print(analysis_launch_command(page))" not in analysis_source
-    assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
     assert mirror_notebook == notebook
     assert pycharm_sitecustomize.exists()
     assert "ValuesPolicy" in pycharm_sitecustomize.read_text(encoding="utf-8")
+
+
+def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path):
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_steps.toml"
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(export_dir),
+        active_app=str(tmp_path / "apps" / "demo_project"),
+        app_settings_file="",
+        pages_root="",
+        repo_root=str(tmp_path / "repo"),
+        related_pages=(),
+    )
+
+    pipeline_editor.toml_to_notebook(
+        {
+            "demo_project": [
+                {
+                    "D": "Run demo app",
+                    "Q": "Generate demo artifacts.",
+                    "M": "",
+                    "C": "APP = 'demo_project'\ntrainer = 'ppo'\ndata_in = 'demo/in'\ndata_out = 'demo/out'\n",
+                    "R": "runpy",
+                }
+            ]
+        },
+        toml_path,
+        export_context=context,
+    )
+
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    helper_source = "".join(notebook["cells"][1]["source"])
+    namespace: dict[str, object] = {}
+    exec(helper_source, namespace)
+
+    captured: dict[str, str] = {}
+
+    class _Result:
+        stdout = ""
+        stderr = ""
+
+        @staticmethod
+        def check_returncode() -> None:
+            return None
+
+    def _fake_run(cmd, **kwargs):
+        captured["script"] = Path(cmd[1]).read_text(encoding="utf-8")
+        return _Result()
+
+    original_run = namespace["subprocess"].run
+    try:
+        namespace["subprocess"].run = _fake_run
+        namespace["run_agilab_step"](0, capture_output=False)
+    finally:
+        namespace["subprocess"].run = original_run
+
+    assert "from agi_cluster.agi_distributor import AGI" in captured["script"]
+    assert "APP = 'demo_project'" in captured["script"]
+    assert "await AGI.run(app_env, **RUN_ARGS)" in captured["script"]
+    assert "RUN_ARGS = json.loads(" in captured["script"]
+    assert "trainer" in captured["script"]
+    assert "ppo" in captured["script"]
 
 
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):

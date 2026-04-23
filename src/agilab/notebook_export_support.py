@@ -485,6 +485,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
     return textwrap.dedent(
         f"""
         import json
+        import ast
         import importlib
         import importlib.util
         import shlex
@@ -567,25 +568,104 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 from agilab.pipeline_runtime import python_for_step
             except Exception:
                 return controller_python
-            return str(
-                python_for_step(
+            try:
+                resolved = python_for_step(
                     step.get("env") or None,
                     engine=step.get("runtime") or None,
                     code=step.get("code") or "",
                     sys_executable=controller_python,
                 )
+            except TypeError:
+                resolved = python_for_step(
+                    step.get("env") or None,
+                    engine=step.get("runtime") or None,
+                    code=step.get("code") or "",
+                )
+            return str(resolved)
+
+
+        def _step_assignments(code_text):
+            try:
+                tree = ast.parse(code_text or "")
+            except SyntaxError:
+                return {{}}
+            assignments = {{}}
+            for node in tree.body:
+                if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+                    return {{}}
+                try:
+                    value = ast.literal_eval(node.value)
+                except Exception:
+                    return {{}}
+                assignments[node.targets[0].id] = value
+            return assignments
+
+
+        def _step_shorthand_method(step, code_text):
+            runtime = str(step.get("runtime") or "").strip().lower()
+            if runtime.startswith("agi."):
+                return runtime.split(".", 1)[1]
+            lowered = str(code_text or "").lower()
+            if "agi.install(" in lowered:
+                return "install"
+            if "agi.run(" in lowered:
+                return "run"
+            if "APP" in _step_assignments(code_text):
+                return "run"
+            return ""
+
+
+        def _build_shorthand_agi_script(step, code_text):
+            assignments = _step_assignments(code_text)
+            app_name = str(assignments.pop("APP", "") or "").strip()
+            if not app_name:
+                return None
+            method = _step_shorthand_method(step, code_text)
+            if method not in {{"run", "install"}}:
+                return None
+            active_app = str(AGILAB_NOTEBOOK_EXPORT.get("active_app") or "").strip()
+            apps_root = str(Path(active_app).expanduser().parent) if active_app else ""
+            if not apps_root:
+                return None
+            run_args_literal = json.dumps(json.dumps(assignments))
+            return (
+                "import asyncio\\n"
+                "import json\\n"
+                "from agi_cluster.agi_distributor import AGI\\n"
+                "from agi_env import AgiEnv\\n\\n"
+                f"APPS_PATH = {{apps_root!r}}\\n"
+                f"APP = {{app_name!r}}\\n"
+                f"RUN_ARGS = json.loads({{run_args_literal!r}})\\n\\n"
+                "async def main():\\n"
+                "    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)\\n"
+                f"    res = await AGI.{{method}}(app_env, **RUN_ARGS)\\n"
+                "    print(res)\\n"
+                "    return res\\n\\n"
+                'if __name__ == "__main__":\\n'
+                "    asyncio.run(main())\\n"
             )
 
 
-        def run_agilab_step(step_index, *, check=True, capture_output=True):
+        def _step_script_text(step, code_text):
+            shorthand = _build_shorthand_agi_script(step, code_text)
+            if shorthand:
+                return shorthand
+            return code_text or ""
+
+
+        def run_agilab_step(step_index, *, check=True, capture_output=True, code_override=None):
             steps = AGILAB_NOTEBOOK_EXPORT.get("steps", [])
             step = steps[step_index]
             workdir = Path(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir") or ".").expanduser()
             workdir.mkdir(parents=True, exist_ok=True)
-            python_exe = _resolve_step_python(step)
+            code_text = code_override if code_override is not None else (step.get("code") or "")
+            script_text = _step_script_text(step, code_text)
+            step_for_python = dict(step)
+            step_for_python["code"] = code_text
+            python_exe = _resolve_step_python(step_for_python)
             with tempfile.TemporaryDirectory(prefix="agilab_notebook_step_") as tmpdir:
                 script_path = Path(tmpdir) / f"step_{{step_index:03d}}.py"
-                script_path.write_text(step.get("code") or "", encoding="utf-8")
+                script_path.write_text(script_text, encoding="utf-8")
                 result = subprocess.run(
                     [python_exe, str(script_path)],
                     cwd=str(workdir),
@@ -686,6 +766,30 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     ).strip() + "\n"
 
 
+def _step_code_variable_name(step: dict[str, Any]) -> str:
+    return f"STEP_{int(step['index']):03d}_CODE"
+
+
+def _step_source_cell(step: dict[str, Any]) -> str:
+    variable_name = _step_code_variable_name(step)
+    code_text = str(step.get("code", "") or "").replace('"""', '\\"""')
+    return textwrap.dedent(
+        f'''
+        {variable_name} = """{code_text}"""
+        print({variable_name})
+        '''
+    ).strip() + "\n"
+
+
+def _step_runner_cell(step: dict[str, Any]) -> str:
+    variable_name = _step_code_variable_name(step)
+    return textwrap.dedent(
+        f"""
+        run_agilab_step({int(step['index'])}, code_override={variable_name})
+        """
+    ).strip() + "\n"
+
+
 def _notebook_metadata(agilab_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "kernelspec": {
@@ -767,12 +871,14 @@ def build_notebook_document(
                         f"- Runtime: `{step.get('runtime') or 'runpy'}`",
                         f"- Environment root: `{step.get('env') or '(current kernel / controller default)'}`",
                         "",
-                        f"To execute this step with its recorded runtime, run `run_agilab_step({step['index']})`.",
+                        f"- Edit the next cell if you want to override the saved step source.",
+                        f"- The runner cell below it replays the step with its recorded runtime. Running the whole notebook executes those runner cells too.",
                     ]
                 )
             )
         )
-        cells.append(_code_cell(step.get("code", "")))
+        cells.append(_code_cell(_step_source_cell(step)))
+        cells.append(_code_cell(_step_runner_cell(step)))
 
     if export_context.related_pages:
         cells.append(
