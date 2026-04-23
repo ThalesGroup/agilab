@@ -63,6 +63,7 @@ import_agilab_symbols(
     {
         "build_notebook_document": "build_notebook_document",
         "build_notebook_export_context": "build_notebook_export_context",
+        "pycharm_notebook_mirror_path": "pycharm_notebook_mirror_path",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "notebook_export_support.py",
@@ -500,6 +501,26 @@ def _restore_pipeline_snapshot(
         return str(exc)
 
 
+def resolve_pycharm_notebook_path(
+    steps_file: Path,
+    export_context: Any | None = None,
+) -> Path | None:
+    """Return the repo-local PyCharm notebook path when a source checkout is available."""
+    mirror_path = str(pycharm_notebook_mirror_path(steps_file, export_context=export_context) or "").strip()
+    if not mirror_path:
+        return None
+    try:
+        return Path(mirror_path)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _write_notebook_json(notebook_data: Dict[str, Any], notebook_path: Path) -> None:
+    notebook_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(notebook_path, "w", encoding="utf-8") as nb_file:
+        json.dump(notebook_data, nb_file, indent=2)
+
+
 def toml_to_notebook(
     toml_data: Dict[str, Any],
     toml_path: Path,
@@ -509,11 +530,19 @@ def toml_to_notebook(
     notebook_data = build_notebook_document(toml_data, toml_path, export_context=export_context)
     notebook_path = toml_path.with_suffix(".ipynb")
     try:
-        with open(notebook_path, "w", encoding="utf-8") as nb_file:
-            json.dump(notebook_data, nb_file, indent=2)
+        _write_notebook_json(notebook_data, notebook_path)
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save notebook: {e}")
         logger.error(f"Error saving notebook in toml_to_notebook: {e}")
+        return
+
+    pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
+    if pycharm_path is None or pycharm_path == notebook_path:
+        return
+    try:
+        _write_notebook_json(notebook_data, pycharm_path)
+    except (OSError, TypeError, ValueError) as exc:
+        logger.warning("Unable to write PyCharm notebook mirror %s: %s", pycharm_path, exc)
 
 
 def save_query(

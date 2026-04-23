@@ -11,6 +11,7 @@ import tomllib
 
 
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
+PYCHARM_NOTEBOOK_MIRROR_ROOT = ".agilab/notebooks"
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,66 @@ def _normalize_path(value: Any) -> str:
         return str(Path(value).expanduser())
     except (OSError, RuntimeError, TypeError, ValueError):
         return str(value)
+
+
+def _repo_root_candidates(
+    export_context: NotebookExportContext | None,
+    *,
+    current_file: str | Path = __file__,
+) -> tuple[Path, ...]:
+    candidates: list[Path] = []
+    if export_context and export_context.repo_root:
+        try:
+            candidates.append(Path(export_context.repo_root).expanduser().resolve(strict=False))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+    try:
+        local_root = Path(current_file).resolve().parents[2]
+    except (OSError, RuntimeError, TypeError, ValueError, IndexError):
+        local_root = None
+    if local_root is not None and local_root not in candidates:
+        candidates.append(local_root)
+    return tuple(candidates)
+
+
+def _looks_like_source_checkout(root: Path) -> bool:
+    return (root / "src" / "agilab").exists() and ((root / ".git").exists() or (root / ".idea").exists())
+
+
+def _resolve_pycharm_repo_root(
+    export_context: NotebookExportContext | None,
+    *,
+    current_file: str | Path = __file__,
+) -> Path | None:
+    for candidate in _repo_root_candidates(export_context, current_file=current_file):
+        if _looks_like_source_checkout(candidate):
+            return candidate
+    return None
+
+
+def pycharm_notebook_mirror_path(
+    toml_path: str | Path,
+    *,
+    export_context: NotebookExportContext | None = None,
+    current_file: str | Path = __file__,
+) -> str:
+    try:
+        steps_path = Path(toml_path).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return ""
+    notebook_path = steps_path.with_suffix(".ipynb")
+    repo_root = _resolve_pycharm_repo_root(export_context, current_file=current_file)
+    if repo_root is None:
+        return ""
+    if notebook_path.is_relative_to(repo_root):
+        return str(notebook_path)
+
+    artifact_dir = ""
+    if export_context and export_context.artifact_dir:
+        artifact_dir = Path(_normalize_path(export_context.artifact_dir)).name
+    folder_name = artifact_dir or steps_path.parent.name or steps_path.stem
+    mirror_path = repo_root / PYCHARM_NOTEBOOK_MIRROR_ROOT / folder_name / notebook_path.name
+    return str(mirror_path)
 
 
 def _settings_to_app_root(settings_path: Path | None) -> str:
@@ -470,6 +531,7 @@ def build_notebook_document(
         "module_path": export_context.module_path,
         "artifact_dir": export_context.artifact_dir,
         "controller_python": sys.executable,
+        "pycharm_mirror_path": pycharm_notebook_mirror_path(toml_path, export_context=export_context),
         "active_app": export_context.active_app,
         "app_settings_file": export_context.app_settings_file,
         "pages_root": export_context.pages_root,
