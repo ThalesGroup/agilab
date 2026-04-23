@@ -144,16 +144,19 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     download_calls: list[dict[str, object]] = []
     errors: list[str] = []
+    captions: list[str] = []
     fake_sidebar = SimpleNamespace(
         download_button=lambda label, **kwargs: download_calls.append({"label": label, **kwargs}),
         error=lambda message: errors.append(str(message)),
+        caption=lambda message: captions.append(str(message)),
     )
     monkeypatch.setattr(module.st, "sidebar", fake_sidebar)
 
     notebook_path = tmp_path / "lab_steps.ipynb"
     notebook_path.write_bytes(b'{"cells": []}')
+    pycharm_path = tmp_path / ".agilab" / "notebooks" / "demo" / "lab_steps.ipynb"
 
-    module._render_notebook_download_button(notebook_path, "pipeline-export")
+    module._render_notebook_download_button(notebook_path, "pipeline-export", pycharm_path=pycharm_path)
 
     assert download_calls == [
         {
@@ -165,6 +168,7 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
         }
     ]
     assert errors == []
+    assert captions == [f"PyCharm notebook: `{pycharm_path}`"]
 
 
 def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, monkeypatch):
@@ -177,6 +181,7 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     fake_sidebar = SimpleNamespace(
         download_button=_raise_download_error,
         error=lambda message: errors.append(str(message)),
+        caption=lambda _message: None,
     )
     monkeypatch.setattr(module.st, "sidebar", fake_sidebar)
 

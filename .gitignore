@@ -92,3 +92,4 @@ src/agilab/apps/builtin/*
 _fcas_work
 .vscode/
 artifacts/demo_media/
+.agilab/notebooks/

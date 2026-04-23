@@ -136,6 +136,7 @@ import_agilab_symbols(
         "get_steps_list": "get_steps_list",
         "on_import_notebook": "on_import_notebook",
         "refresh_notebook_export": "refresh_notebook_export",
+        "resolve_pycharm_notebook_path": "resolve_pycharm_notebook_path",
         "remove_step": "remove_step",
         "save_step": "save_step",
         "toml_to_notebook": "toml_to_notebook",
@@ -726,7 +727,12 @@ def _ensure_notebook_export(steps_file: Path) -> None:
         logger.warning(f"Skipping notebook generation: {exc}")
 
 
-def _render_notebook_download_button(notebook_path: Path, key: str) -> None:
+def _render_notebook_download_button(
+    notebook_path: Path,
+    key: str,
+    *,
+    pycharm_path: Path | None = None,
+) -> None:
     """Render the notebook download button for an exported notebook."""
     try:
         notebook_data = notebook_path.read_bytes()
@@ -737,6 +743,8 @@ def _render_notebook_download_button(notebook_path: Path, key: str) -> None:
             mime="application/x-ipynb+json",
             key=key,
         )
+        if pycharm_path is not None:
+            st.sidebar.caption(f"PyCharm notebook: `{pycharm_path}`")
     except (OSError, StreamlitAPIException) as exc:
         st.sidebar.error(f"Failed to prepare notebook export: {exc}")
 
@@ -1309,7 +1317,11 @@ def sidebar_controls() -> None:
     )
     notebook_path = refresh_notebook_export(steps_file, export_context=export_context)
     if notebook_path and notebook_path.exists():
-        _render_notebook_download_button(notebook_path, index_page_str + "export_notebook")
+        _render_notebook_download_button(
+            notebook_path,
+            index_page_str + "export_notebook",
+            pycharm_path=resolve_pycharm_notebook_path(steps_file, export_context=export_context),
+        )
 
 
 def mlflow_controls() -> None:

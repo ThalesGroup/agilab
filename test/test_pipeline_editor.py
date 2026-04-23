@@ -88,11 +88,45 @@ def _load_pipeline_editor_with_mixed_checkout(monkeypatch, stale_root: Path):
     return _load_module(module_name, "src/agilab/pipeline_editor.py")
 
 
-_prime_current_agilab_package()
-pipeline_editor = _load_module("agilab.pipeline_editor", "src/agilab/pipeline_editor.py")
-notebook_export_support = _load_module(
-    "agilab.notebook_export_support",
-    "src/agilab/notebook_export_support.py",
+class _LazyModuleProxy:
+    def __init__(self, loader):
+        object.__setattr__(self, "_loader", loader)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = object.__getattribute__(self, "_loader")()
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_loader", "_module"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_loader", "_module"}:
+            object.__delattr__(self, name)
+            return
+        delattr(self._load(), name)
+
+
+pipeline_editor = _LazyModuleProxy(
+    lambda: (
+        _prime_current_agilab_package(),
+        _load_module("agilab.pipeline_editor", "src/agilab/pipeline_editor.py"),
+    )[1]
+)
+notebook_export_support = _LazyModuleProxy(
+    lambda: (
+        _prime_current_agilab_package(),
+        _load_module("agilab.notebook_export_support", "src/agilab/notebook_export_support.py"),
+    )[1]
 )
 
 
@@ -1158,6 +1192,29 @@ def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
     assert "pycharm" in notebook["metadata"]
 
 
+def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_exports(tmp_path):
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (repo_root / ".idea").mkdir(parents=True, exist_ok=True)
+    export_dir = tmp_path / "export" / "uav_graph_routing"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    steps_file = export_dir / "lab_steps.toml"
+
+    context = notebook_export_support.NotebookExportContext(
+        project_name="uav_queue_project",
+        module_path="uav_queue_project",
+        artifact_dir=str(export_dir),
+        repo_root=str(repo_root),
+    )
+
+    mirror_path = notebook_export_support.pycharm_notebook_mirror_path(
+        steps_file,
+        export_context=context,
+    )
+
+    assert mirror_path == str(repo_root / ".agilab" / "notebooks" / "uav_graph_routing" / "lab_steps.ipynb")
+
+
 def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp_path):
     pages_root = tmp_path / "apps-pages"
     page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
@@ -1269,15 +1326,20 @@ def test_build_notebook_export_context_enriches_builtin_uav_pages_from_manifest(
 
 
 def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_analysis_helpers(tmp_path):
-    toml_path = tmp_path / "lab_steps.toml"
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (repo_root / ".idea").mkdir(parents=True, exist_ok=True)
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_steps.toml"
     context = notebook_export_support.NotebookExportContext(
         project_name="demo_project",
         module_path="demo_project",
-        artifact_dir=str(tmp_path),
+        artifact_dir=str(export_dir),
         active_app=str(tmp_path / "apps" / "demo_project"),
         app_settings_file=str(tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"),
         pages_root=str(tmp_path / "apps-pages"),
-        repo_root=str(tmp_path),
+        repo_root=str(repo_root),
         related_pages=(
             notebook_export_support.RelatedPageExport(
                 module="view_demo",
@@ -1308,6 +1370,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     )
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    pycharm_mirror = repo_root / ".agilab" / "notebooks" / "demo_project" / "lab_steps.ipynb"
+    mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
     page_markdown = "".join(notebook["cells"][-2]["source"])
@@ -1316,6 +1380,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert metadata["export_mode"] == "supervisor"
     assert metadata["project_name"] == "demo_project"
     assert metadata["controller_python"] == sys.executable
+    assert metadata["pycharm_mirror_path"] == str(pycharm_mirror)
     assert metadata["steps"][0]["runtime"] == "agi.run"
     assert metadata["steps"][0]["env"] == str(tmp_path / "venv-demo")
     assert metadata["related_pages"][0]["module"] == "view_demo"
@@ -1332,6 +1397,33 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "Open this after the run." in page_markdown
     assert "view_demo" in analysis_source
     assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
+    assert mirror_notebook == notebook
+
+
+def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    export_dir = tmp_path / "export" / "uav_graph_routing"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_steps.toml"
+    mirror_path = repo_root / ".agilab" / "notebooks" / "uav_graph_routing" / "lab_steps.ipynb"
+
+    try:
+        if mirror_path.exists():
+            mirror_path.unlink()
+        pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print('ok')\n"}]}, toml_path)
+        notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+        mirror = json.loads(mirror_path.read_text(encoding="utf-8"))
+        assert mirror == notebook
+    finally:
+        if mirror_path.exists():
+            mirror_path.unlink()
+        mirror_parent = mirror_path.parent
+        while mirror_parent != repo_root and mirror_parent.exists():
+            try:
+                mirror_parent.rmdir()
+            except OSError:
+                break
+            mirror_parent = mirror_parent.parent
 
 
 def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_path):
