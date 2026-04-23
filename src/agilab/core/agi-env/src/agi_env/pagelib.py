@@ -429,6 +429,31 @@ def inject_theme(base_path: Path | None = None) -> None:
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
+def _render_sidebar_version(version: str) -> None:
+    sidebar = st.sidebar
+    markdown_fn = getattr(sidebar, "markdown", None)
+    if callable(markdown_fn):
+        markdown_fn(
+            (
+                "<style>"
+                "[data-testid='stSidebarContent'] { padding-bottom: 2.5rem; }"
+                ".agilab-sidebar-version {"
+                "position: fixed;"
+                "left: 1rem;"
+                "bottom: 0.75rem;"
+                "font-size: 0.8rem;"
+                "opacity: 0.72;"
+                "z-index: 999;"
+                "}"
+                "</style>"
+                f"<div class='agilab-sidebar-version'>v{version}</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        return
+    sidebar.caption(f"v{version}")
+
+
 def render_logo(*_args, **_kwargs):
     env = st.session_state.get("env")
     if env is None:
@@ -443,7 +468,7 @@ def render_logo(*_args, **_kwargs):
             st.sidebar.image(str(agilab_logo_path), width=170)
         version = _detect_agilab_version(env)
         if version:
-            st.sidebar.caption(f"v{version}")
+            _render_sidebar_version(version)
     else:
         st.sidebar.warning("Logo could not be loaded. Please check the logo path.")
 
