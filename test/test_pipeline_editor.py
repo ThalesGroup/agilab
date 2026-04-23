@@ -1212,7 +1212,7 @@ def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_expor
         export_context=context,
     )
 
-    assert mirror_path == str(repo_root / ".agilab" / "notebooks" / "uav_graph_routing" / "lab_steps.ipynb")
+    assert mirror_path == str(repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_steps.ipynb")
 
 
 def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp_path):
@@ -1370,7 +1370,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     )
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
-    pycharm_mirror = repo_root / ".agilab" / "notebooks" / "demo_project" / "lab_steps.ipynb"
+    pycharm_mirror = repo_root / "exported_notebooks" / "demo_project" / "lab_steps.ipynb"
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
@@ -1405,7 +1405,7 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
     export_dir = tmp_path / "export" / "uav_graph_routing"
     export_dir.mkdir(parents=True, exist_ok=True)
     toml_path = export_dir / "lab_steps.toml"
-    mirror_path = repo_root / ".agilab" / "notebooks" / "uav_graph_routing" / "lab_steps.ipynb"
+    mirror_path = repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_steps.ipynb"
 
     try:
         if mirror_path.exists():
