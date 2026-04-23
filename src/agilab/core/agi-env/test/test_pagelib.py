@@ -1378,6 +1378,13 @@ def test_detect_agilab_version_falls_back_to_installed_metadata(monkeypatch):
     assert version == "9.9.9"
 
 
+def test_sidebar_version_label_normalizes_prefix():
+    assert pagelib._sidebar_version_label("2026.4.2") == "AGILAB v2026.4.2"
+    assert pagelib._sidebar_version_label("v2026.4.2") == "AGILAB v2026.4.2"
+    assert pagelib._sidebar_version_label(" V2026.4.2 ") == "AGILAB v2026.4.2"
+    assert pagelib._sidebar_version_label("") == ""
+
+
 def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch):
     logo_path = tmp_path / "agilab_logo.png"
     logo_path.write_text("png", encoding="utf-8")
@@ -1385,6 +1392,7 @@ def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch
     sidebar = SimpleNamespace(
         image=lambda *_args, **_kwargs: setattr(sidebar, "image_called", True),
         caption=lambda text: setattr(sidebar, "caption_text", text),
+        html=lambda text: setattr(sidebar, "html_call", text),
         markdown=lambda text, unsafe_allow_html=False: setattr(sidebar, "markdown_call", (text, unsafe_allow_html)),
         warning=lambda text: setattr(sidebar, "warning_text", text),
     )
@@ -1400,13 +1408,32 @@ def test_render_logo_prefers_streamlit_logo_when_available(tmp_path, monkeypatch
 
     assert logo_calls == [(str(logo_path), "large")]
     assert not hasattr(sidebar, "image_called")
-    assert "agilab-sidebar-version" in sidebar.markdown_call[0]
-    assert "v2026.4.2" in sidebar.markdown_call[0]
-    assert sidebar.markdown_call[1] is True
+    assert "agilab-sidebar-version" in sidebar.html_call
+    assert "AGILAB v2026.4.2" in sidebar.html_call
+    assert not hasattr(sidebar, "markdown_call")
     assert not hasattr(sidebar, "caption_text")
 
 
-def test_render_logo_falls_back_to_sidebar_image_when_streamlit_logo_is_missing(tmp_path, monkeypatch):
+def test_render_logo_uses_sidebar_html_footer_when_available(tmp_path, monkeypatch):
+    logo_path = tmp_path / "agilab_logo.png"
+    logo_path.write_text("png", encoding="utf-8")
+    sidebar = SimpleNamespace(
+        image=lambda path, width: setattr(sidebar, "image_call", (path, width)),
+        caption=lambda text: setattr(sidebar, "caption_text", text),
+        html=lambda text: setattr(sidebar, "html_call", text),
+        warning=lambda text: setattr(sidebar, "warning_text", text),
+    )
+    fake_st = SimpleNamespace(session_state={"env": SimpleNamespace(st_resources=tmp_path)}, sidebar=sidebar)
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_detect_agilab_version", lambda env: "2026.4.2")
+
+    pagelib.render_logo()
+
+    assert sidebar.image_call == (str(logo_path), 170)
+    assert "AGILAB v2026.4.2" in sidebar.html_call
+
+
+def test_render_logo_falls_back_to_sidebar_markdown_when_html_is_missing(tmp_path, monkeypatch):
     logo_path = tmp_path / "agilab_logo.png"
     logo_path.write_text("png", encoding="utf-8")
     sidebar = SimpleNamespace(
@@ -1422,11 +1449,11 @@ def test_render_logo_falls_back_to_sidebar_image_when_streamlit_logo_is_missing(
     pagelib.render_logo()
 
     assert sidebar.image_call == (str(logo_path), 170)
-    assert "v2026.4.2" in sidebar.markdown_call[0]
+    assert "AGILAB v2026.4.2" in sidebar.markdown_call[0]
     assert sidebar.markdown_call[1] is True
 
 
-def test_render_logo_falls_back_to_caption_when_sidebar_markdown_is_missing(tmp_path, monkeypatch):
+def test_render_logo_falls_back_to_caption_when_sidebar_html_and_markdown_are_missing(tmp_path, monkeypatch):
     logo_path = tmp_path / "agilab_logo.png"
     logo_path.write_text("png", encoding="utf-8")
     sidebar = SimpleNamespace(
@@ -1441,7 +1468,7 @@ def test_render_logo_falls_back_to_caption_when_sidebar_markdown_is_missing(tmp_
     pagelib.render_logo()
 
     assert sidebar.image_call == (str(logo_path), 170)
-    assert sidebar.caption_text == "v2026.4.2"
+    assert sidebar.caption_text == "AGILAB v2026.4.2"
 
 
 def test_render_logo_warns_when_logo_is_missing(tmp_path, monkeypatch):
