@@ -214,6 +214,53 @@ def _settings_to_app_root(settings_path: Path | None) -> str:
     return str(parent)
 
 
+def _is_valid_app_root(app_root: str | Path | None) -> bool:
+    if not app_root:
+        return False
+    try:
+        root = Path(app_root).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
+    try:
+        return root.is_dir() and ((root / "pyproject.toml").is_file() or (root / "src" / "app_settings.toml").is_file())
+    except OSError:
+        return False
+
+
+def _iter_valid_app_roots(
+    project_name: str,
+    *,
+    direct_roots: Sequence[str | Path | None],
+    apps_dirs: Sequence[str | Path | None],
+) -> Iterable[str]:
+    seen: set[str] = set()
+
+    def _emit(candidate: str | Path | None) -> Iterable[str]:
+        if not candidate:
+            return ()
+        path_text = _normalize_path(candidate)
+        if not path_text or path_text in seen or not _is_valid_app_root(path_text):
+            return ()
+        seen.add(path_text)
+        return (path_text,)
+
+    for candidate in direct_roots:
+        yield from _emit(candidate)
+
+    project_name = str(project_name or "").strip()
+    if not project_name:
+        return
+
+    for apps_dir in apps_dirs:
+        if not apps_dir:
+            continue
+        apps_root = _normalize_path(apps_dir)
+        if not apps_root:
+            continue
+        yield from _emit(Path(apps_root) / project_name)
+        yield from _emit(Path(apps_root) / "builtin" / project_name)
+
+
 def _load_related_pages_from_settings(settings_path: Path | None) -> tuple[str, ...]:
     if settings_path is None or not settings_path.exists():
         return ()
@@ -353,7 +400,32 @@ def build_notebook_export_context(
         except (OSError, RuntimeError, TypeError, ValueError):
             source_settings = None
 
-    active_app = _settings_to_app_root(source_settings) or _normalize_path(getattr(env, "active_app", ""))
+    repo_root = ""
+    read_agilab_path = getattr(env, "read_agilab_path", None)
+    if callable(read_agilab_path):
+        try:
+            repo_root = _normalize_path(read_agilab_path())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            repo_root = ""
+    repo_apps_dir = Path(repo_root) / "src" / "agilab" / "apps" if repo_root else None
+    active_app = next(
+        iter(
+            _iter_valid_app_roots(
+                module_name,
+                direct_roots=(
+                    _settings_to_app_root(source_settings),
+                    _normalize_path(getattr(env, "active_app", "")),
+                ),
+                apps_dirs=(
+                    getattr(env, "apps_path", None),
+                    getattr(env, "builtin_apps_path", None),
+                    getattr(env, "apps_repository_root", None),
+                    repo_apps_dir,
+                ),
+            )
+        ),
+        "",
+    )
     page_manifest, manifest_order = _load_related_page_manifest(active_app)
     related_pages = _load_related_pages_from_settings(settings_file) or _load_related_pages_from_settings(source_settings) or manifest_order
     pages_root = _normalize_path(getattr(env, "AGILAB_PAGES_ABS", ""))
@@ -370,13 +442,6 @@ def build_notebook_export_context(
         for page in related_pages
         for script_path in (_discover_page_script(pages_root, page),)
     )
-    repo_root = ""
-    read_agilab_path = getattr(env, "read_agilab_path", None)
-    if callable(read_agilab_path):
-        try:
-            repo_root = _normalize_path(read_agilab_path())
-        except (OSError, RuntimeError, TypeError, ValueError):
-            repo_root = ""
 
     return NotebookExportContext(
         project_name=module_name,
@@ -488,6 +553,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         import ast
         import importlib
         import importlib.util
+        import os
         import shlex
         import socket
         import subprocess
@@ -499,12 +565,87 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         AGILAB_NOTEBOOK_EXPORT = json.loads({payload_literal})
 
 
+        def _normalized_path(value):
+            if not value:
+                return ""
+            try:
+                return str(Path(value).expanduser())
+            except Exception:
+                return str(value)
+
+
+        def _is_valid_active_app_root(path_value):
+            if not path_value:
+                return False
+            try:
+                root = Path(path_value).expanduser()
+            except Exception:
+                return False
+            try:
+                return root.is_dir() and (
+                    (root / "pyproject.toml").is_file() or
+                    (root / "src" / "app_settings.toml").is_file()
+                )
+            except OSError:
+                return False
+
+
+        def _candidate_apps_directories():
+            seen = set()
+
+            def emit(candidate):
+                if not candidate:
+                    return
+                candidate_text = _normalized_path(candidate)
+                if not candidate_text or candidate_text in seen:
+                    return
+                seen.add(candidate_text)
+                yield Path(candidate_text)
+
+            repo_root = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("repo_root"))
+            if repo_root:
+                yield from emit(Path(repo_root) / "src" / "agilab" / "apps")
+                yield from emit(Path(repo_root) / "apps")
+
+            apps_repository = str(os.environ.get("APPS_REPOSITORY") or "").strip()
+            if apps_repository:
+                repo_path = Path(apps_repository).expanduser()
+                yield from emit(repo_path)
+                yield from emit(repo_path / "apps")
+                yield from emit(repo_path / "src" / "agilab" / "apps")
+
+
+        def resolve_active_app_root(app_name=None):
+            active_app = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("active_app"))
+            if _is_valid_active_app_root(active_app):
+                AGILAB_NOTEBOOK_EXPORT["active_app"] = active_app
+                return active_app
+
+            project_name = str(app_name or AGILAB_NOTEBOOK_EXPORT.get("project_name") or "").strip()
+            if project_name:
+                for apps_dir in _candidate_apps_directories():
+                    for candidate in (apps_dir / project_name, apps_dir / "builtin" / project_name):
+                        candidate_text = _normalized_path(candidate)
+                        if _is_valid_active_app_root(candidate_text):
+                            AGILAB_NOTEBOOK_EXPORT["active_app"] = candidate_text
+                            return candidate_text
+
+            raise ValueError(
+                "Unable to resolve a valid AGILAB app root for exported notebook "
+                f"project={{project_name or app_name or '<unknown>'}}. "
+                f"Current active_app={{active_app or '<missing>'}}. "
+                "Re-export the notebook from AGILAB with the correct project selected, "
+                "or set APPS_REPOSITORY so the project root can be discovered."
+            )
+
+
         def show_agilab_export_summary():
             related = [page.get("module", "") for page in AGILAB_NOTEBOOK_EXPORT.get("related_pages", [])]
             summary = {{
                 "project_name": AGILAB_NOTEBOOK_EXPORT.get("project_name"),
                 "module_path": AGILAB_NOTEBOOK_EXPORT.get("module_path"),
                 "artifact_dir": AGILAB_NOTEBOOK_EXPORT.get("artifact_dir"),
+                "active_app": AGILAB_NOTEBOOK_EXPORT.get("active_app"),
                 "export_mode": AGILAB_NOTEBOOK_EXPORT.get("export_mode"),
                 "steps": len(AGILAB_NOTEBOOK_EXPORT.get("steps", [])),
                 "related_pages": related,
@@ -623,10 +764,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             method = _step_shorthand_method(step, code_text)
             if method not in {{"run", "install"}}:
                 return None
-            active_app = str(AGILAB_NOTEBOOK_EXPORT.get("active_app") or "").strip()
-            apps_root = str(Path(active_app).expanduser().parent) if active_app else ""
-            if not apps_root:
-                return None
+            active_app = resolve_active_app_root(app_name)
+            apps_root = str(Path(active_app).expanduser().parent)
             run_args_literal = json.dumps(assignments, ensure_ascii=False, sort_keys=True)
             return (
                 "import asyncio\\n"
@@ -693,10 +832,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
 
         def analysis_launch_command(page, *, port=None):
             record = _page_record(page)
-            active_app = AGILAB_NOTEBOOK_EXPORT.get("active_app") or ""
+            active_app = resolve_active_app_root()
             script_path = record.get("script_path") or ""
-            if not active_app:
-                return f"# Missing active_app for analysis page {{page}}"
             if not script_path:
                 return f"# Missing page script for analysis page {{page}}"
             cmd = [
