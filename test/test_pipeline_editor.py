@@ -1484,9 +1484,10 @@ def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path
     assert "from agi_cluster.agi_distributor import AGI" in captured["script"]
     assert "APP = 'demo_project'" in captured["script"]
     assert "await AGI.run(app_env, **RUN_ARGS)" in captured["script"]
-    assert "RUN_ARGS = json.loads(" in captured["script"]
-    assert "trainer" in captured["script"]
-    assert "ppo" in captured["script"]
+    assert (
+        "RUN_ARGS = json.loads('{\"data_in\": \"demo/in\", \"data_out\": \"demo/out\", "
+        "\"trainer\": \"ppo\"}')"
+    ) in captured["script"]
 
 
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):

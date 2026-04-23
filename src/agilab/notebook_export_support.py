@@ -627,7 +627,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             apps_root = str(Path(active_app).expanduser().parent) if active_app else ""
             if not apps_root:
                 return None
-            run_args_literal = json.dumps(json.dumps(assignments))
+            run_args_literal = json.dumps(assignments, ensure_ascii=False, sort_keys=True)
             return (
                 "import asyncio\\n"
                 "import json\\n"
