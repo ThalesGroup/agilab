@@ -28,6 +28,10 @@ Sidebar
   resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
 - ``Import Notebook``: upload an ``.ipynb`` file to seed the conversation when
   working offline.
+- ``Export notebook``: write the current lab as ``lab_steps.ipynb`` so you can
+  run the pipeline outside the AGILAB UI as a runnable supervisor notebook.
+  In a source checkout, AGILAB also writes a project-local PyCharm mirror under
+  ``exported_notebooks/<module>/lab_steps.ipynb``.
 - ``MLflow``: shows whether the local tracking UI is running and exposes an
   ``Open UI`` link. The UI is a tracker view, not another execution button.
 
@@ -79,6 +83,28 @@ must be refreshed deliberately.
 One concrete example is ``sat_trajectory_project``: generated snippets now use
 ``total_satellites_wanted``, so older saved snippets using ``number_of_sat`` or
 ``number_of_tle_satellites`` must be regenerated before they can run.
+
+Notebook export
+~~~~~~~~~~~~~~~
+PIPELINE can export the current lab as a runnable supervisor notebook. This is
+not just a static dump of code cells.
+
+* The notebook is written beside ``lab_steps.toml`` as ``lab_steps.ipynb``.
+* You can open it outside the AGILAB UI in Jupyter-compatible tools such as
+  JupyterLab or PyCharm.
+* The exported notebook keeps the recorded per-step runtime and environment
+  metadata instead of flattening the whole pipeline into one implicit kernel
+  contract.
+* Use the generated helper functions such as ``run_agilab_step(i)`` and
+  ``run_agilab_pipeline()`` to execute the saved steps in their recorded
+  runtime.
+* When the active app declares related analysis pages, the notebook also
+  includes launcher helpers for those pages.
+
+This is the accurate mental model: AGILAB can export a runnable version of your
+pipeline outside the UI, but for mixed-runtime or multi-venv flows it does so as
+a supervisor notebook rather than pretending every step belongs to one notebook
+kernel.
 
 MLflow tracking
 ~~~~~~~~~~~~~~~
