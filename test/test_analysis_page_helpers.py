@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import sys
+import types
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -179,3 +181,50 @@ def test_terminate_process_quietly_ignores_timeout():
 
     assert process.terminated is True
     assert process.wait_calls == 1
+
+
+def test_is_hosted_analysis_runtime_uses_agi_env_envars():
+    module = _load_analysis_module()
+
+    assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={})) is False
+    assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={"SPACE_HOST": "demo.hf.space"})) is True
+    assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={"SPACE_ID": "user/demo"})) is True
+
+
+def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {}
+    fake_streamlit.error = lambda *_args, **_kwargs: None
+    fake_streamlit.info = lambda *_args, **_kwargs: None
+    fake_streamlit.warning = lambda *_args, **_kwargs: None
+    fake_streamlit.caption = lambda *_args, **_kwargs: None
+
+    def _forbidden_set_page_config(*_args, **_kwargs):
+        raise AssertionError("set_page_config should be suppressed during inline render")
+
+    fake_streamlit.set_page_config = _forbidden_set_page_config
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.setattr(module, "st", fake_streamlit)
+
+    active_app = tmp_path / "flight_project"
+    active_app.mkdir()
+    page_path = tmp_path / "demo_view.py"
+    page_path.write_text(
+        """
+import argparse
+import streamlit as st
+
+def main():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--active-app", required=True)
+    args, _ = parser.parse_known_args()
+    st.session_state["inline_active_app"] = args.active_app
+    st.set_page_config(layout="wide")
+""",
+        encoding="utf-8",
+    )
+
+    asyncio.run(module._render_view_page_inline(page_path, str(active_app)))
+
+    assert fake_streamlit.session_state["inline_active_app"] == str(active_app)

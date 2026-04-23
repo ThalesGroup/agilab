@@ -19,6 +19,7 @@ import socket
 import time
 import hashlib
 import re
+import inspect
 from typing import Union
 import asyncio
 import shlex
@@ -907,6 +908,61 @@ def _view_label(option_id: str, builtin_names: set[str]) -> str:
         return option_id
     return f"{path.name} (custom)"
 
+
+def _is_hosted_analysis_runtime(env: AgiEnv) -> bool:
+    """Return True when the current AGILAB runtime is hosted behind a public HF Space."""
+    envars = getattr(env, "envars", {}) or {}
+    space_host = str(envars.get("SPACE_HOST", "") or "").strip()
+    space_id = str(envars.get("SPACE_ID", "") or "").strip()
+    return bool(space_host or space_id)
+
+
+async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
+    """Render an apps-page inline in the current Streamlit process."""
+    resolved_view = Path(view_path).resolve()
+    if not resolved_view.exists():
+        raise FileNotFoundError(f"Analysis view does not exist: {resolved_view}")
+
+    module_name = f"agilab_analysis_inline_{resolved_view.stem}_{_short_page_token(resolved_view)}"
+    module_dir = str(resolved_view.parent)
+    original_argv = list(sys.argv)
+    original_set_page_config = getattr(st, "set_page_config", None)
+    inserted_path = False
+    sys.modules.pop(module_name, None)
+
+    if module_dir not in sys.path:
+        sys.path.insert(0, module_dir)
+        inserted_path = True
+
+    try:
+        st.set_page_config = lambda *args, **kwargs: None
+        sys.argv = [resolved_view.name]
+        if active_app:
+            sys.argv.extend(["--active-app", active_app])
+
+        spec = importlib.util.spec_from_file_location(module_name, resolved_view)
+        if spec is None or spec.loader is None:
+            raise ModuleNotFoundError(f"Unable to load analysis view from {resolved_view}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+
+        entrypoint = getattr(module, "main", None)
+        if callable(entrypoint):
+            result = entrypoint()
+            if inspect.isawaitable(result):
+                await result
+    finally:
+        sys.argv = original_argv
+        if original_set_page_config is not None:
+            st.set_page_config = original_set_page_config
+        if inserted_path:
+            try:
+                sys.path.remove(module_dir)
+            except ValueError:
+                pass
+        sys.modules.pop(module_name, None)
+
 # --- helper: hide the parent (this page's) Streamlit sidebar when embedding a child ---
 def _hide_parent_sidebar():
     st.markdown(
@@ -1304,6 +1360,12 @@ async def render_view_page(view_path: Path):
         active_app_arg = str(env.active_app)
     else:
         active_app_arg = str(active_app_path) if active_app_path else ""
+
+    if _is_hosted_analysis_runtime(env):
+        env.logger.info("Hosted runtime detected; rendering analysis view inline: %s", view_path)
+        await _render_view_page_inline(view_path, active_app_arg)
+        return
+
     port = _port_for(f"{view_key}|{active_app_arg}")
     sidecar_ready = _ensure_sidecar(view_key, view_path, port, active_app_arg)
 
