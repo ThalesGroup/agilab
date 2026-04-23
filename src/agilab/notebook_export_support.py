@@ -17,6 +17,7 @@ PYCHARM_NOTEBOOK_SITECUSTOMIZE = """\
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 import sys
 
 try:
@@ -25,16 +26,44 @@ except Exception:
     _debugpy_vendored = None
 
 
+def _preferred_jupyter_commands(notebook_path: Path) -> tuple[str, str]:
+    try:
+        current_file = Path(__file__).resolve()
+    except Exception:
+        current_file = Path(__file__)
+
+    repo_root = None
+    try:
+        if current_file.parents[1].name == "exported_notebooks":
+            repo_root = current_file.parents[2]
+    except Exception:
+        repo_root = None
+
+    quoted_notebook = shlex.quote(str(notebook_path))
+    if repo_root is None:
+        prefix = "uv run"
+    else:
+        prefix = f"uv --project {shlex.quote(str(repo_root))} run"
+
+    lab_cmd = f"{prefix} --with jupyterlab jupyter lab {quoted_notebook}"
+    execute_cmd = (
+        f"{prefix} --with nbconvert python -m jupyter nbconvert "
+        f"--to notebook --execute --inplace {quoted_notebook}"
+    )
+    return lab_cmd, execute_cmd
+
+
 def _guard_direct_python_notebook_execution() -> None:
     argv0 = str(getattr(sys, "argv", [""])[0] or "")
     if not argv0.lower().endswith(".ipynb"):
         return
     notebook_path = Path(argv0)
+    lab_cmd, execute_cmd = _preferred_jupyter_commands(notebook_path)
     raise SystemExit(
         "AGILAB exported notebooks are Jupyter notebooks, not Python scripts. "
         f"Open `{notebook_path}` in PyCharm/Jupyter, or run "
-        f"`uv run jupyter lab {notebook_path}` or "
-        f"`uv run python -m jupyter nbconvert --to notebook --execute --inplace {notebook_path}`."
+        f"`{lab_cmd}` or "
+        f"`{execute_cmd}`."
     )
 
 

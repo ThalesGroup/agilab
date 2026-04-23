@@ -9,6 +9,8 @@ def test_pipeline_docs_sell_runnable_supervisor_notebook_export() -> None:
     assert "runnable supervisor notebook" in experiment_help
     assert "outside the AGILAB UI" in experiment_help
     assert "exported_notebooks/<module>/lab_steps.ipynb" in experiment_help
+    assert "uv --project /path/to/agilab run --with jupyterlab jupyter lab" in experiment_help
+    assert "uv --project /path/to/agilab run --with nbconvert python -m jupyter nbconvert" in experiment_help
 
 
 def test_agilab_help_mentions_pipeline_notebook_export() -> None:

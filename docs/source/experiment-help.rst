@@ -92,6 +92,20 @@ not just a static dump of code cells.
 * The notebook is written beside ``lab_steps.toml`` as ``lab_steps.ipynb``.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
   JupyterLab or PyCharm.
+* For a source checkout, prefer the mirror under
+  ``exported_notebooks/<module>/lab_steps.ipynb`` and launch it from the AGILAB
+  root project explicitly, for example:
+
+  .. code-block:: bash
+
+     uv --project /path/to/agilab run --with jupyterlab jupyter lab exported_notebooks/<module>/lab_steps.ipynb
+
+  or execute it headlessly with:
+
+  .. code-block:: bash
+
+     uv --project /path/to/agilab run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace exported_notebooks/<module>/lab_steps.ipynb
+
 * The exported notebook keeps the recorded per-step runtime and environment
   metadata instead of flattening the whole pipeline into one implicit kernel
   contract.
