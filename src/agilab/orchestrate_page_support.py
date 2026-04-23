@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import os
-import textwrap
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -47,38 +46,6 @@ _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
 
 def _python_string(value: Any) -> str:
     return json.dumps(str(value))
-
-
-def _source_core_bootstrap(env: Any) -> str:
-    if not bool(getattr(env, "is_source_env", False)):
-        return ""
-
-    try:
-        repo_root = Path(env.apps_path).expanduser().resolve(strict=False).parents[2]
-    except (OSError, RuntimeError, TypeError, ValueError, IndexError):
-        return ""
-
-    return textwrap.dedent(
-        f"""
-        def _inject_source_core_paths() -> None:
-            repo_root = Path({_python_string(repo_root)})
-            core_root = repo_root / "src" / "agilab" / "core"
-            candidates = [
-                core_root / "agi-env" / "src",
-                core_root / "agi-node" / "src",
-                core_root / "agi-cluster" / "src",
-                core_root / "agi-core" / "src",
-            ]
-            for candidate in reversed(candidates):
-                if not candidate.exists():
-                    continue
-                path_str = str(candidate)
-                if path_str not in sys.path:
-                    sys.path.insert(0, path_str)
-
-        _inject_source_core_paths()
-        """
-    ).strip()
 
 
 def strip_ansi(text: str) -> str:
@@ -257,7 +224,6 @@ def build_install_snippet(
             f"workers={workers}",
             f"workers_data_path={workers_data_path}",
         ),
-        include_source_core_bootstrap=False,
     )
 
 
@@ -402,17 +368,11 @@ def _build_agi_snippet(
     verbose: int,
     method: str,
     arguments: Sequence[str],
-    include_source_core_bootstrap: bool = True,
 ) -> str:
     indented_arguments = ",\n".join(f"        {argument}" for argument in arguments)
     snippet_lines = [
         "import asyncio",
-        "import sys",
-        "from pathlib import Path",
     ]
-    source_core_bootstrap = _source_core_bootstrap(env) if include_source_core_bootstrap else ""
-    if source_core_bootstrap:
-        snippet_lines.extend(["", source_core_bootstrap])
     snippet_lines.extend(
         [
             "",

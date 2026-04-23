@@ -166,7 +166,7 @@ def test_build_service_snippet_embeds_core_parameters():
     assert "foo=1, bar=2" in snippet
 
 
-def test_build_service_snippet_injects_source_core_paths_for_source_env():
+def test_build_service_snippet_does_not_inject_source_core_paths_for_source_env():
     snippet = orchestrate_services.build_service_snippet(
         env=SimpleNamespace(apps_path="/repo/src/agilab/apps", app="demo", is_source_env=True),
         verbose=2,
@@ -187,10 +187,9 @@ def test_build_service_snippet_injects_source_core_paths_for_source_env():
         args_serialized="foo=1",
     )
 
-    assert "import sys" in snippet
-    assert "def _inject_source_core_paths() -> None:" in snippet
-    assert 'repo_root = Path("/repo")' in snippet
-    assert 'core_root / "agi-node" / "src"' in snippet
+    assert "import sys" not in snippet
+    assert "from pathlib import Path" not in snippet
+    assert "def _inject_source_core_paths() -> None:" not in snippet
 
 def test_build_service_operator_summary_counts_health_state_and_gate_values():
     summary = orchestrate_services.build_service_operator_summary(
