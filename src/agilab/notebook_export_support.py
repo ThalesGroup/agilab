@@ -611,6 +611,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         import subprocess
         import sys
         import tempfile
+        import tomllib
         import traceback
         from pathlib import Path
 
@@ -743,6 +744,71 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             )
 
 
+        def _load_app_settings_args(active_app):
+            settings_candidates = []
+
+            configured = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("app_settings_file"))
+            if configured:
+                settings_candidates.append(Path(configured))
+
+            try:
+                active_root = Path(active_app).expanduser()
+            except Exception:
+                active_root = None
+            if active_root is not None:
+                settings_candidates.append(active_root / "src" / "app_settings.toml")
+                settings_candidates.append(active_root / "app_settings.toml")
+
+            for candidate in settings_candidates:
+                try:
+                    if not candidate.exists():
+                        continue
+                    with candidate.open("rb") as stream:
+                        payload = tomllib.load(stream)
+                except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError):
+                    continue
+                args_payload = payload.get("args")
+                if isinstance(args_payload, dict):
+                    return json.loads(json.dumps(args_payload, ensure_ascii=False))
+            return {{}}
+
+
+        def _merge_shorthand_run_args(assignments, active_app):
+            flat_assignments = dict(assignments)
+            run_args = _load_app_settings_args(active_app)
+            trainer_name = str(flat_assignments.pop("trainer", "") or "").strip()
+
+            if not run_args:
+                return dict(assignments)
+
+            nested_trainers = run_args.get("args")
+            if trainer_name and isinstance(nested_trainers, list):
+                selected = None
+                for item in nested_trainers:
+                    if isinstance(item, dict) and str(item.get("name", "") or "").strip() == trainer_name:
+                        selected = json.loads(json.dumps(item, ensure_ascii=False))
+                        break
+                if selected is None:
+                    selected = {{"name": trainer_name, "args": {{}}}}
+                selected_args = selected.get("args")
+                if not isinstance(selected_args, dict):
+                    selected_args = {{}}
+
+                for key, value in flat_assignments.items():
+                    if key in run_args and key != "args":
+                        run_args[key] = value
+                    else:
+                        selected_args[key] = value
+
+                selected["args"] = selected_args
+                run_args["args"] = [selected]
+                return run_args
+
+            for key, value in flat_assignments.items():
+                run_args[key] = value
+            return run_args
+
+
         def show_agilab_export_summary():
             related = [page.get("module", "") for page in AGILAB_NOTEBOOK_EXPORT.get("related_pages", [])]
             summary = {{
@@ -869,7 +935,11 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if method not in {{"run", "install"}}:
                 return None
             active_app = resolve_active_app_root(app_name)
-            run_args_literal = json.dumps(assignments, ensure_ascii=False, sort_keys=True)
+            run_args_literal = json.dumps(
+                _merge_shorthand_run_args(assignments, active_app),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
             return (
                 "import asyncio\\n"
                 "import json\\n"
