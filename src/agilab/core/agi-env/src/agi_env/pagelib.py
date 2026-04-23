@@ -463,16 +463,15 @@ def _render_sidebar_version(version: str) -> None:
     if not version_label:
         return
     style_text = _sidebar_version_style(version_label)
-    sidebar = st.sidebar
-    html_fn = getattr(sidebar, "html", None)
+    html_fn = getattr(st, "html", None)
     if callable(html_fn):
         html_fn(style_text)
         return
-    markdown_fn = getattr(sidebar, "markdown", None)
+    markdown_fn = getattr(st, "markdown", None)
     if callable(markdown_fn):
         markdown_fn(style_text, unsafe_allow_html=True)
         return
-    sidebar.caption(version_label)
+    st.sidebar.caption(version_label)
 
 
 def render_logo(*_args, **_kwargs):
