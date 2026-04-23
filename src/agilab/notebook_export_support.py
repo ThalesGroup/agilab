@@ -462,6 +462,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         f"""
         import json
         import shlex
+        import socket
         import subprocess
         import sys
         import tempfile
@@ -563,8 +564,15 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return shlex.join(cmd)
 
 
+        def _find_free_streamlit_port():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(("127.0.0.1", 0))
+                return sock.getsockname()[1]
+
+
         def launch_analysis_page(page, *, port=None, wait=False):
-            cmd = analysis_launch_command(page, port=port)
+            resolved_port = port if port is not None else _find_free_streamlit_port()
+            cmd = analysis_launch_command(page, port=resolved_port)
             print(cmd)
             if cmd.startswith("#"):
                 return cmd
@@ -582,10 +590,7 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     return textwrap.dedent(
         f"""
         page = {page.module!r}
-        print(f"Analysis page: {{page}}")
-        print(analysis_launch_command(page))
-        # Uncomment to launch immediately:
-        # launch_analysis_page(page)
+        launch_analysis_page(page)
         """
     ).strip() + "\n"
 
@@ -702,7 +707,7 @@ def build_notebook_document(
                             *(["- Expected artifacts:"] + [f"  - `{artifact}`" for artifact in page.artifacts] if page.artifacts else []),
                             f"- Script path: `{page.script_path or '(not resolved during export)'}`",
                             *(["- " + page.launch_note] if page.launch_note else []),
-                            "- Run the next cell to print the launch command.",
+                            "- Run the next cell to launch the page. The cell also prints the exact command and chosen port.",
                         ]
                     )
                 )
