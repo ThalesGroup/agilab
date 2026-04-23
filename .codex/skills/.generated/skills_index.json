@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-22T13:24:38Z",
+  "generated_at_utc": "2026-04-23T08:52:27Z",
   "tool": "tools/codex_skills.py",
   "count": 23,
   "skills": [
@@ -21,11 +21,11 @@
     },
     {
       "name": "agilab-huggingface-spaces",
-      "description": "Package and publish a lightweight public AGILAB demo to Hugging Face Spaces without leaking local-only runtime assumptions.",
+      "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-22",
+      "updated": "2026-04-23",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
-      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, packaging, or publishing an AGILAB demo to Hugging Face Spaces.\n## Scope\nThis skill is for a **public lightweight demo surface**, not for shipping the full AGILAB local/distributed shell as-is."
+      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is:\n- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`"
     },
     {
       "name": "agilab-installer",
