@@ -1393,11 +1393,14 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "run_agilab_step" in helper_source
     assert "run_agilab_pipeline" in helper_source
     assert "analysis_launch_command" in helper_source
+    assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
     assert "Open this after the run." in page_markdown
     assert "view_demo" in analysis_source
+    assert "launch_analysis_page(page)" in analysis_source
+    assert "print(analysis_launch_command(page))" not in analysis_source
     assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
     assert mirror_notebook == notebook
     assert pycharm_sitecustomize.exists()
