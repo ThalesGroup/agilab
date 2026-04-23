@@ -449,6 +449,27 @@ def test_uv_offline_flag_handles_failing_lookup_false_and_nan(monkeypatch):
     assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": float("nan")}) == "--offline "
 
 
+def test_uv_offline_flag_accepts_quoted_truthy_env_values(monkeypatch):
+    monkeypatch.setenv("AGI_INTERNET_ON", '"1"')
+
+    assert deployment_local_support._uv_offline_flag({}) == ""
+
+
+def test_uv_offline_flag_accepts_quoted_truthy_envar_values(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'true'"}) == ""
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"yes"'}) == ""
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"on"'}) == ""
+
+
+def test_uv_offline_flag_keeps_quoted_false_values_offline(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"0"'}) == "--offline "
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'false'"}) == "--offline "
+
+
 def test_local_worker_post_install_env_prefix_disables_cluster_only_for_non_dask():
     assert (
         deployment_local_support._local_worker_post_install_env_prefix(
