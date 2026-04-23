@@ -257,6 +257,7 @@ def build_install_snippet(
             f"workers={workers}",
             f"workers_data_path={workers_data_path}",
         ),
+        include_source_core_bootstrap=False,
     )
 
 
@@ -401,6 +402,7 @@ def _build_agi_snippet(
     verbose: int,
     method: str,
     arguments: Sequence[str],
+    include_source_core_bootstrap: bool = True,
 ) -> str:
     indented_arguments = ",\n".join(f"        {argument}" for argument in arguments)
     snippet_lines = [
@@ -408,7 +410,7 @@ def _build_agi_snippet(
         "import sys",
         "from pathlib import Path",
     ]
-    source_core_bootstrap = _source_core_bootstrap(env)
+    source_core_bootstrap = _source_core_bootstrap(env) if include_source_core_bootstrap else ""
     if source_core_bootstrap:
         snippet_lines.extend(["", source_core_bootstrap])
     snippet_lines.extend(
