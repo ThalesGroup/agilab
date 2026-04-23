@@ -64,6 +64,7 @@ import_agilab_symbols(
         "build_notebook_document": "build_notebook_document",
         "build_notebook_export_context": "build_notebook_export_context",
         "pycharm_notebook_mirror_path": "pycharm_notebook_mirror_path",
+        "pycharm_notebook_sitecustomize_text": "pycharm_notebook_sitecustomize_text",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "notebook_export_support.py",
@@ -521,6 +522,13 @@ def _write_notebook_json(notebook_data: Dict[str, Any], notebook_path: Path) -> 
         json.dump(notebook_data, nb_file, indent=2)
 
 
+def _write_pycharm_sitecustomize(notebook_path: Path) -> None:
+    sitecustomize_path = notebook_path.parent / "sitecustomize.py"
+    sitecustomize_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(sitecustomize_path, "w", encoding="utf-8") as stream:
+        stream.write(pycharm_notebook_sitecustomize_text())
+
+
 def toml_to_notebook(
     toml_data: Dict[str, Any],
     toml_path: Path,
@@ -537,12 +545,18 @@ def toml_to_notebook(
         return
 
     pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
-    if pycharm_path is None or pycharm_path == notebook_path:
+    if pycharm_path is None:
         return
+    if pycharm_path != notebook_path:
+        try:
+            _write_notebook_json(notebook_data, pycharm_path)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Unable to write PyCharm notebook mirror %s: %s", pycharm_path, exc)
+            return
     try:
-        _write_notebook_json(notebook_data, pycharm_path)
+        _write_pycharm_sitecustomize(pycharm_path)
     except (OSError, TypeError, ValueError) as exc:
-        logger.warning("Unable to write PyCharm notebook mirror %s: %s", pycharm_path, exc)
+        logger.warning("Unable to write PyCharm notebook sitecustomize for %s: %s", pycharm_path, exc)
 
 
 def save_query(

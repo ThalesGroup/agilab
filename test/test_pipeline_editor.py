@@ -4,6 +4,7 @@ import importlib
 import importlib.util
 from importlib.machinery import ModuleSpec
 import json
+import os
 from pathlib import Path
 import sys
 import types
@@ -1371,6 +1372,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
     pycharm_mirror = repo_root / "exported_notebooks" / "demo_project" / "lab_steps.ipynb"
+    pycharm_sitecustomize = pycharm_mirror.parent / "sitecustomize.py"
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
@@ -1398,6 +1400,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "view_demo" in analysis_source
     assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
     assert mirror_notebook == notebook
+    assert pycharm_sitecustomize.exists()
+    assert "ValuesPolicy" in pycharm_sitecustomize.read_text(encoding="utf-8")
 
 
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):
@@ -1406,17 +1410,24 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
     export_dir.mkdir(parents=True, exist_ok=True)
     toml_path = export_dir / "lab_steps.toml"
     mirror_path = repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_steps.ipynb"
+    sitecustomize_path = mirror_path.parent / "sitecustomize.py"
 
     try:
         if mirror_path.exists():
             mirror_path.unlink()
+        if sitecustomize_path.exists():
+            sitecustomize_path.unlink()
         pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print('ok')\n"}]}, toml_path)
         notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
         mirror = json.loads(mirror_path.read_text(encoding="utf-8"))
         assert mirror == notebook
+        assert sitecustomize_path.exists()
+        assert "debugpy._vendored" in sitecustomize_path.read_text(encoding="utf-8")
     finally:
         if mirror_path.exists():
             mirror_path.unlink()
+        if sitecustomize_path.exists():
+            sitecustomize_path.unlink()
         mirror_parent = mirror_path.parent
         while mirror_parent != repo_root and mirror_parent.exists():
             try:
@@ -1424,6 +1435,42 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
             except OSError:
                 break
             mirror_parent = mirror_parent.parent
+
+
+def test_pycharm_notebook_sitecustomize_patches_debugpy_values_policy(tmp_path):
+    shim_dir = tmp_path / "notebook_dir"
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    (shim_dir / "sitecustomize.py").write_text(
+        notebook_export_support.pycharm_notebook_sitecustomize_text(),
+        encoding="utf-8",
+    )
+
+    import subprocess
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(shim_dir)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from debugpy._vendored import vendored\n"
+                "with vendored('pydevd'):\n"
+                "    import _pydevd_bundle.pydevd_constants as c\n"
+                "    print(hasattr(c, 'ValuesPolicy'))\n"
+                "    print(getattr(getattr(c, 'ValuesPolicy', None), 'ASYNC', 'missing'))\n"
+            ),
+        ],
+        cwd=shim_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    stdout_lines = result.stdout.strip().splitlines()
+    assert stdout_lines == ["True", "1"]
 
 
 def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_path):

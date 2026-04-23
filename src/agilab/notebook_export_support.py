@@ -13,6 +13,48 @@ import tomllib
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 
+PYCHARM_NOTEBOOK_SITECUSTOMIZE = """\
+from __future__ import annotations
+
+try:
+    from debugpy._vendored import vendored as _debugpy_vendored
+except Exception:
+    _debugpy_vendored = None
+
+
+def _ensure_pydevd_values_policy() -> None:
+    if _debugpy_vendored is None:
+        return
+    try:
+        with _debugpy_vendored("pydevd"):
+            import _pydevd_bundle.pydevd_constants as _pydevd_constants
+    except Exception:
+        return
+
+    if hasattr(_pydevd_constants, "ValuesPolicy"):
+        return
+
+    class _ValuesPolicy:
+        SYNC = 0
+        ASYNC = 1
+        ON_DEMAND = 2
+
+    _pydevd_constants.ValuesPolicy = _ValuesPolicy
+    if not hasattr(_pydevd_constants, "LOAD_VALUES_POLICY"):
+        _pydevd_constants.LOAD_VALUES_POLICY = _ValuesPolicy.SYNC
+    if not hasattr(_pydevd_constants, "DEFAULT_VALUES_DICT"):
+        _pydevd_constants.DEFAULT_VALUES_DICT = {
+            _ValuesPolicy.ASYNC: "__pydevd_value_async",
+            _ValuesPolicy.ON_DEMAND: "__pydevd_value_on_demand",
+        }
+
+
+try:
+    _ensure_pydevd_values_policy()
+except Exception:
+    pass
+"""
+
 
 @dataclass(frozen=True)
 class RelatedPageExport:
@@ -104,6 +146,10 @@ def pycharm_notebook_mirror_path(
     folder_name = artifact_dir or steps_path.parent.name or steps_path.stem
     mirror_path = repo_root / PYCHARM_NOTEBOOK_MIRROR_ROOT / folder_name / notebook_path.name
     return str(mirror_path)
+
+
+def pycharm_notebook_sitecustomize_text() -> str:
+    return PYCHARM_NOTEBOOK_SITECUSTOMIZE
 
 
 def _settings_to_app_root(settings_path: Path | None) -> str:
