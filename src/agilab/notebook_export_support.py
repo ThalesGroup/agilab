@@ -116,6 +116,7 @@ class RelatedPageExport:
     artifacts: tuple[str, ...] = ()
     launch_note: str = ""
     script_path: str = ""
+    inline_renderer: str = ""
 
 
 @dataclass(frozen=True)
@@ -270,6 +271,7 @@ def _load_related_page_manifest(
                 "description": str(raw_page.get("description", "") or ""),
                 "artifacts": tuple(str(item) for item in raw_page.get("artifacts", []) if str(item or "").strip()),
                 "launch_note": str(raw_page.get("launch_note", "") or ""),
+                "inline_renderer": str(raw_page.get("inline_renderer", "") or ""),
             }
             records[module] = record
             if module not in order:
@@ -299,6 +301,26 @@ def _discover_page_script(pages_root: str | Path | None, module_name: str) -> st
         if candidate.exists():
             return str(candidate.resolve())
     return ""
+
+
+def _discover_page_inline_renderer(
+    page_manifest: dict[str, dict[str, Any]],
+    page: str,
+    *,
+    script_path: str,
+) -> str:
+    configured = str(page_manifest.get(page, {}).get("inline_renderer", "") or "").strip()
+    if configured:
+        return configured
+    if not script_path:
+        return ""
+    try:
+        candidate = Path(script_path).resolve(strict=False).with_name("notebook_inline.py")
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return ""
+    if not candidate.exists():
+        return ""
+    return f"{candidate}:render_inline"
 
 
 def build_notebook_export_context(
@@ -342,9 +364,11 @@ def build_notebook_export_context(
             description=str(page_manifest.get(page, {}).get("description", "") or ""),
             artifacts=tuple(str(item) for item in page_manifest.get(page, {}).get("artifacts", ())),
             launch_note=str(page_manifest.get(page, {}).get("launch_note", "") or ""),
-            script_path=_discover_page_script(pages_root, page),
+            script_path=script_path,
+            inline_renderer=_discover_page_inline_renderer(page_manifest, page, script_path=script_path),
         )
         for page in related_pages
+        for script_path in (_discover_page_script(pages_root, page),)
     )
     repo_root = ""
     read_agilab_path = getattr(env, "read_agilab_path", None)
@@ -461,11 +485,14 @@ def _helper_cell(payload: dict[str, Any]) -> str:
     return textwrap.dedent(
         f"""
         import json
+        import importlib
+        import importlib.util
         import shlex
         import socket
         import subprocess
         import sys
         import tempfile
+        import traceback
         from pathlib import Path
 
         AGILAB_NOTEBOOK_EXPORT = json.loads({payload_literal})
@@ -490,6 +517,48 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 if record.get("module") == page:
                     return record
             raise KeyError(f"Unknown analysis page: {{page}}")
+
+
+        def _display_inline_result(result):
+            if result is None:
+                return None
+            try:
+                from IPython.display import Markdown, display
+            except Exception:
+                return result
+            if isinstance(result, str):
+                display(Markdown(result))
+                return result
+            if isinstance(result, (list, tuple)):
+                for item in result:
+                    _display_inline_result(item)
+                return result
+            display(result)
+            return result
+
+
+        def _load_inline_renderer(target):
+            target_text = str(target or "").strip()
+            if not target_text:
+                raise ValueError("Inline renderer target is empty.")
+            module_target, _, attr_name = target_text.partition(":")
+            module_target = module_target.strip()
+            attr_name = attr_name or "render_inline"
+            path_target = Path(module_target).expanduser()
+            if path_target.suffix == ".py" or path_target.exists():
+                module_path = path_target.resolve()
+                synthetic_name = f"agilab_notebook_inline_{{module_path.stem}}_{{abs(hash(str(module_path)))}}"
+                spec = importlib.util.spec_from_file_location(synthetic_name, module_path)
+                if spec is None or spec.loader is None:
+                    raise ModuleNotFoundError(f"Unable to load inline renderer module from {{module_path}}")
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+            else:
+                module = importlib.import_module(module_target)
+            renderer = getattr(module, attr_name)
+            if not callable(renderer):
+                raise TypeError(f"Inline renderer {{target_text!r}} is not callable.")
+            return renderer
 
 
         def _resolve_step_python(step):
@@ -581,6 +650,28 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return subprocess.Popen(cmd, shell=True)
 
 
+        def render_analysis_page(page, *, fallback_launch=True, port=None):
+            record = _page_record(page)
+            target = str(record.get("inline_renderer") or "").strip()
+            if target:
+                try:
+                    renderer = _load_inline_renderer(target)
+                    result = renderer(
+                        page=page,
+                        record=record,
+                        export_payload=AGILAB_NOTEBOOK_EXPORT,
+                    )
+                    return _display_inline_result(result)
+                except Exception as exc:
+                    print(f"Inline analysis failed for {{page}}: {{exc}}", file=sys.stderr)
+                    traceback.print_exc()
+                    if not fallback_launch:
+                        raise
+            if fallback_launch:
+                return launch_analysis_page(page, port=port)
+            return None
+
+
         show_agilab_export_summary()
         """
     ).strip() + "\n"
@@ -590,7 +681,7 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     return textwrap.dedent(
         f"""
         page = {page.module!r}
-        launch_analysis_page(page)
+        render_analysis_page(page)
         """
     ).strip() + "\n"
 
@@ -690,8 +781,8 @@ def build_notebook_document(
                     [
                         "## Related analysis pages",
                         "",
-                        "These helper cells generate launcher commands for the pages configured under `[pages].view_module` in the app settings.",
-                        "The pages remain external Streamlit dashboards over the same exported artifacts.",
+                        "These helper cells try notebook-native renderers for the pages configured under `[pages].view_module` in the app settings.",
+                        "If a page does not provide an inline notebook renderer yet, the helper falls back to launching the external Streamlit dashboard over the same exported artifacts.",
                     ]
                 )
             )
@@ -706,8 +797,9 @@ def build_notebook_document(
                             *(["- " + page.description] if page.description else []),
                             *(["- Expected artifacts:"] + [f"  - `{artifact}`" for artifact in page.artifacts] if page.artifacts else []),
                             f"- Script path: `{page.script_path or '(not resolved during export)'}`",
+                            *(["- Inline renderer: `" + page.inline_renderer + "`"] if page.inline_renderer else []),
                             *(["- " + page.launch_note] if page.launch_note else []),
-                            "- Run the next cell to launch the page. The cell also prints the exact command and chosen port.",
+                            "- Run the next cell to render notebook-native output when available, otherwise it launches the page and prints the exact command.",
                         ]
                     )
                 )

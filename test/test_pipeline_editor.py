@@ -1221,6 +1221,10 @@ def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp
     page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
     page_script.parent.mkdir(parents=True, exist_ok=True)
     page_script.write_text("print('page')\n", encoding="utf-8")
+    (page_script.parent / "notebook_inline.py").write_text(
+        "def render_inline(*, page, record, export_payload):\n    return f'inline:{page}'\n",
+        encoding="utf-8",
+    )
 
     source_app = tmp_path / "apps" / "demo_project"
     source_settings = source_app / "src" / "app_settings.toml"
@@ -1270,6 +1274,7 @@ launch_note = "Open this after the run."
     assert context.related_pages[0].artifacts == ("demo.json", "demo.csv")
     assert context.related_pages[0].launch_note == "Open this after the run."
     assert context.related_pages[0].script_path == str(page_script.resolve())
+    assert context.related_pages[0].inline_renderer.endswith("notebook_inline.py:render_inline")
 
 
 @pytest.mark.parametrize(
@@ -1321,9 +1326,11 @@ def test_build_notebook_export_context_enriches_builtin_uav_pages_from_manifest(
     assert context.related_pages[0].artifacts
     assert context.related_pages[0].launch_note
     assert context.related_pages[0].script_path.endswith(f"{expected_modules[0]}.py")
+    assert not context.related_pages[0].inline_renderer
     assert context.related_pages[1].label == "Maps Network"
     assert "pipeline/topology.gml" in context.related_pages[1].artifacts
     assert context.related_pages[1].script_path.endswith("view_maps_network.py")
+    assert context.related_pages[1].inline_renderer.endswith("notebook_inline.py:render_inline")
 
 
 def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_analysis_helpers(tmp_path):
@@ -1349,6 +1356,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
                 artifacts=("demo.json", "demo.csv"),
                 launch_note="Open this after the run.",
                 script_path=str(tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "view_demo.py"),
+                inline_renderer=str(tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "notebook_inline.py:render_inline"),
             ),
         ),
     )
@@ -1393,13 +1401,16 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "run_agilab_step" in helper_source
     assert "run_agilab_pipeline" in helper_source
     assert "analysis_launch_command" in helper_source
+    assert "render_analysis_page" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
     assert "Open this after the run." in page_markdown
+    assert "Inline renderer:" in page_markdown
     assert "view_demo" in analysis_source
-    assert "launch_analysis_page(page)" in analysis_source
+    assert "render_analysis_page(page)" in analysis_source
+    assert "launch_analysis_page(page)" not in analysis_source
     assert "print(analysis_launch_command(page))" not in analysis_source
     assert notebook["cells"][3]["source"] == ["print('step-0')\n"]
     assert mirror_notebook == notebook
