@@ -179,6 +179,12 @@ async def render_execute_section(
 
         async def _run_and_stream():
             nonlocal log_file_path
+            runtime_root = (
+                Path(getattr(env, "agi_cluster"))
+                if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
+                and getattr(env, "agi_cluster", None)
+                else project_path
+            )
             with log_file_path.open("w", encoding="utf-8") as log_file:
                 def _fanout(message: str) -> None:
                     clean = strip_ansi(message or "").rstrip()
@@ -190,7 +196,7 @@ async def render_execute_section(
                 _, stderr_text = await env.run_agi(
                     cmd.replace("asyncio.run(main())", env.snippet_tail),
                     log_callback=_fanout,
-                    venv=project_path,
+                    venv=runtime_root,
                 )
                 return stderr_text
 

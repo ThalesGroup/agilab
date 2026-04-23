@@ -140,7 +140,7 @@ def test_resolve_service_health_defaults_ignores_non_mapping_settings():
 
 def test_build_service_snippet_embeds_core_parameters():
     snippet = orchestrate_services.build_service_snippet(
-        env=SimpleNamespace(apps_path="/tmp/apps", app="demo"),
+        env=SimpleNamespace(apps_path="/tmp/apps", app="demo", is_source_env=False),
         verbose=2,
         service_action="status",
         service_mode=7,
@@ -165,6 +165,32 @@ def test_build_service_snippet_embeds_core_parameters():
     assert "cleanup_failed_max_files=22" in snippet
     assert "foo=1, bar=2" in snippet
 
+
+def test_build_service_snippet_injects_source_core_paths_for_source_env():
+    snippet = orchestrate_services.build_service_snippet(
+        env=SimpleNamespace(apps_path="/repo/src/agilab/apps", app="demo", is_source_env=True),
+        verbose=2,
+        service_action="status",
+        service_mode=7,
+        scheduler="None",
+        workers="None",
+        service_poll_interval=1.5,
+        service_shutdown_on_stop=True,
+        service_stop_timeout=42.0,
+        service_heartbeat_timeout=9.5,
+        service_cleanup_done_ttl_hours=24.0,
+        service_cleanup_failed_ttl_hours=48.0,
+        service_cleanup_heartbeat_ttl_hours=12.0,
+        service_cleanup_done_max_files=11,
+        service_cleanup_failed_max_files=22,
+        service_cleanup_heartbeat_max_files=33,
+        args_serialized="foo=1",
+    )
+
+    assert "import sys" in snippet
+    assert "def _inject_source_core_paths() -> None:" in snippet
+    assert 'repo_root = Path("/repo")' in snippet
+    assert 'core_root / "agi-node" / "src"' in snippet
 
 def test_build_service_operator_summary_counts_health_state_and_gate_values():
     summary = orchestrate_services.build_service_operator_summary(
@@ -448,6 +474,49 @@ def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
     assert fake_st._placeholders[1].last_df is not None
     assert fake_st._placeholders[2].last_info is not None
     assert "Unhealthy workers: `1`" in fake_st._placeholders[2].last_info
+
+
+def test_render_service_panel_source_env_uses_controller_runtime(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_status_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    captured: dict[str, object] = {}
+
+    async def fake_run_agi(*_args, **kwargs):
+        captured["venv"] = kwargs.get("venv")
+        return ("{'status': 'running'}", "")
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+        is_source_env=True,
+        is_worker_env=False,
+        agi_cluster=tmp_path / "controller",
+    )
+    env.agi_cluster.mkdir()
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path / "project",
+            cluster_params={"cluster_enabled": True, "pool": True},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=_deps(),
+        )
+    )
+
+    assert Path(captured["venv"]) == env.agi_cluster
 
 
 def test_render_service_panel_health_gate_skips_non_mapping_worker_health_rows(monkeypatch, tmp_path):

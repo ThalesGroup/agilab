@@ -768,11 +768,17 @@ async def _render_distribution_panel(
                 dist_log: list[str] = []
                 live_log_placeholder = st.empty()
                 _reset_traceback_skip()
+                runtime_root = (
+                    Path(getattr(env, "agi_cluster"))
+                    if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
+                    and getattr(env, "agi_cluster", None)
+                    else project_path
+                )
                 with st.spinner("Building distribution..."):
                     stdout, stderr = await env.run_agi(
                         cmd.replace("asyncio.run(main())", env.snippet_tail),
                         log_callback=lambda message: _append_log_lines(dist_log, message),
-                        venv=project_path,
+                        venv=runtime_root,
                     )
                 if stderr:
                     _append_log_lines(dist_log, stderr)
