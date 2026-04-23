@@ -11,7 +11,7 @@ import tomllib
 
 
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
-PYCHARM_NOTEBOOK_MIRROR_ROOT = ".agilab/notebooks"
+PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 
 
 @dataclass(frozen=True)

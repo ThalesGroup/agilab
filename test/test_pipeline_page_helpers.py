@@ -154,7 +154,7 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
 
     notebook_path = tmp_path / "lab_steps.ipynb"
     notebook_path.write_bytes(b'{"cells": []}')
-    pycharm_path = tmp_path / ".agilab" / "notebooks" / "demo" / "lab_steps.ipynb"
+    pycharm_path = tmp_path / "exported_notebooks" / "demo" / "lab_steps.ipynb"
 
     module._render_notebook_download_button(notebook_path, "pipeline-export", pycharm_path=pycharm_path)
 
