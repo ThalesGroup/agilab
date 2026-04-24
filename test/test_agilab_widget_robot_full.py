@@ -35,6 +35,8 @@ def test_full_public_widget_robot_sweep() -> None:
 
     Run with:
     AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
+
+    Set AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab to run the same robot against the public HF Space.
     """
 
     if os.environ.get("AGILAB_RUN_FULL_UI_ROBOT") != "1":
@@ -46,6 +48,9 @@ def test_full_public_widget_robot_sweep() -> None:
     target_seconds = os.environ.get("AGILAB_WIDGET_ROBOT_TARGET_SECONDS", "1800")
     timeout = os.environ.get("AGILAB_WIDGET_ROBOT_TIMEOUT", "90")
     widget_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_WIDGET_TIMEOUT", "3")
+    url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
+    active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
+    remote_app_root = os.environ.get("AGILAB_WIDGET_ROBOT_REMOTE_APP_ROOT")
 
     command = [
         sys.executable,
@@ -64,6 +69,12 @@ def test_full_public_widget_robot_sweep() -> None:
         "--target-seconds",
         target_seconds,
     ]
+    if url:
+        command.extend(["--url", url])
+    if active_app:
+        command.extend(["--active-app", active_app])
+    if remote_app_root:
+        command.extend(["--remote-app-root", remote_app_root])
     env = os.environ.copy()
     browsers_path = _playwright_browsers_path()
     if browsers_path:

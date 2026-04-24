@@ -13,7 +13,7 @@ import time
 import tomllib
 import urllib.parse
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 
 
@@ -77,6 +77,9 @@ WIDGET_COLLECTOR_JS = r"""
     const container = el.closest("[data-testid]");
     return container ? container.getAttribute("data-testid") : "";
   };
+  const scopeFor = (el) => {
+    return el.closest("[data-testid='stSidebar']") ? "sidebar" : "main";
+  };
   const pathFor = (el) => {
     const parts = [];
     let current = el;
@@ -112,6 +115,7 @@ WIDGET_COLLECTOR_JS = r"""
         type: el.getAttribute("type") || "",
         testid: testIdFor(el),
         path: pathFor(el),
+        scope: scopeFor(el),
       });
     }
   }
@@ -148,6 +152,7 @@ class WidgetProbe:
     status: str
     detail: str
     url: str
+    scope: str = "main"
 
 
 @dataclass(frozen=True)
@@ -164,6 +169,8 @@ class PageSweep:
     url: str
     failures: list[WidgetProbe]
     skips: list[WidgetProbe]
+    main_widget_count: int = 0
+    sidebar_widget_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -180,6 +187,8 @@ class WidgetSweepSummary:
     skipped_count: int
     failed_count: int
     pages: list[PageSweep]
+    main_widget_count: int = 0
+    sidebar_widget_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -316,6 +325,20 @@ def active_app_slug(active_app: str) -> str:
     return Path(decoded).name if "/" in decoded else decoded
 
 
+def normalize_remote_url(url: str) -> str:
+    """Map public HF Space pages to the Streamlit runtime URL."""
+    candidate = url.strip()
+    if not urllib.parse.urlsplit(candidate).scheme:
+        candidate = f"https://{candidate}"
+    parsed = urllib.parse.urlsplit(candidate)
+    path_parts = [urllib.parse.unquote(part) for part in parsed.path.split("/") if part]
+    if parsed.netloc == "huggingface.co" and len(path_parts) >= 3 and path_parts[0] == "spaces":
+        owner = path_parts[1].lower().replace("_", "-")
+        space = path_parts[2].lower().replace("_", "-")
+        return urllib.parse.urlunsplit(("https", f"{owner}-{space}.hf.space", "/", parsed.query, parsed.fragment))
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", parsed.query, parsed.fragment))
+
+
 def app_target_name(app_name: str) -> str:
     if app_name.endswith("_project"):
         return app_name[: -len("_project")]
@@ -340,6 +363,14 @@ def active_app_aliases(active_app: str) -> set[str]:
 
 def active_app_route_matches(url: str, expected_active_app: str) -> bool:
     return routed_active_app_slug(url) in active_app_aliases(expected_active_app)
+
+
+def remote_apps_page_path(route: AppsPageRoute, *, remote_app_root: str = "/app") -> str:
+    try:
+        relative_path = route.path.resolve().relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise ValueError(f"Cannot map apps-page outside repository to remote runtime: {route.path}") from exc
+    return str(PurePosixPath(remote_app_root) / PurePosixPath(*relative_path.parts))
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -618,11 +649,18 @@ def _normalized_label(label: str) -> str:
     return label.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip().lower()
 
 
-def _widget_fingerprint(widget: dict[str, Any]) -> tuple[str, str, str, str]:
-    return (str(widget.get("kind", "")), _normalized_label(str(widget.get("label", ""))), str(widget.get("testid", "")), str(widget.get("path", "")))
+def widget_scope(widget: dict[str, Any] | WidgetProbe) -> str:
+    scope = getattr(widget, "scope", "") if isinstance(widget, WidgetProbe) else str(widget.get("scope", ""))
+    return "sidebar" if scope == "sidebar" else "main"
+
+
+def _widget_fingerprint(widget: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return (widget_scope(widget), str(widget.get("kind", "")), _normalized_label(str(widget.get("label", ""))), str(widget.get("testid", "")), str(widget.get("path", "")))
 
 
 def _same_widget(widget: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    if widget_scope(widget) != widget_scope(candidate):
+        return False
     if str(widget.get("kind", "")) != str(candidate.get("kind", "")):
         return False
     label = _normalized_label(str(widget.get("label", "")))
@@ -778,7 +816,7 @@ def _collect_and_probe_current_view(
     action_button_policy: str,
     upload_file: Path,
     restore_view: Any | None,
-    known: set[tuple[str, str, str, str]],
+    known: set[tuple[str, str, str, str, str]],
 ) -> list[WidgetProbe]:
     page.evaluate(OPEN_EXPANDERS_JS)
     widgets = page.evaluate(WIDGET_COLLECTOR_JS)
@@ -814,7 +852,18 @@ def _collect_and_probe_current_view(
         error = _visible_exception_detail(page)
         if error and status != "failed":
             status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
-        probes.append(WidgetProbe(app_name, page_label(page_name), str(widget.get("kind", "")), str(widget.get("label", "")), status, detail, page.url))
+        probes.append(
+            WidgetProbe(
+                app_name,
+                page_label(page_name),
+                str(widget.get("kind", "")),
+                str(widget.get("label", "")),
+                status,
+                detail,
+                page.url,
+                widget_scope(widget),
+            )
+        )
     return probes
 
 
@@ -827,7 +876,7 @@ def sweep_page(
     app_name: str,
     page_name: str,
     display_page: str | None = None,
-    current_page: Path | None = None,
+    current_page: Path | str | None = None,
     expected_text: Sequence[str] | None = None,
     check_active_app_route: bool = True,
     timeout: float,
@@ -861,7 +910,7 @@ def sweep_page(
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
-            known: set[tuple[str, str, str, str]] = set()
+            known: set[tuple[str, str, str, str, str]] = set()
             probes.extend(
                 _collect_and_probe_current_view(
                     page,
@@ -904,12 +953,16 @@ def sweep_page(
     skipped = [probe for probe in probes if probe.status == "skipped"]
     probed = [probe for probe in probes if probe.status == "probed"]
     interacted = [probe for probe in probes if probe.status == "interacted"]
+    main_widgets = [probe for probe in probes if widget_scope(probe) == "main"]
+    sidebar_widgets = [probe for probe in probes if widget_scope(probe) == "sidebar"]
     return PageSweep(
         app=app_name,
         page=display,
         success=not failed and not skipped,
         duration_seconds=time.perf_counter() - started,
         widget_count=len(probes),
+        main_widget_count=len(main_widgets),
+        sidebar_widget_count=len(sidebar_widgets),
         interacted_count=len(interacted),
         probed_count=len(probed),
         skipped_count=len(skipped),
@@ -1079,6 +1132,98 @@ def sweep_app(
     return results
 
 
+def sweep_remote_app(
+    *,
+    app: Path | str,
+    base_url: str,
+    active_app_query: str,
+    pages: Sequence[str],
+    apps_pages: Sequence[AppsPageRoute],
+    remote_app_root: str,
+    timeout: float,
+    widget_timeout: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    browser_name: str,
+    headless: bool,
+    screenshot_dir: Path | None,
+) -> list[PageSweep]:
+    web_robot = _load_web_robot()
+    app_name = active_app_slug(str(app))
+    base_url = normalize_remote_url(base_url)
+    health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+    if not health.success:
+        return [
+            PageSweep(
+                app_name,
+                "REMOTE_SERVER",
+                False,
+                health.duration_seconds,
+                1,
+                0,
+                0,
+                0,
+                1,
+                health.url or base_url,
+                [WidgetProbe(app_name, "REMOTE_SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
+                [],
+            )
+        ]
+
+    _, _, sync_playwright = web_robot._load_playwright()
+    results: list[PageSweep] = []
+    with sync_playwright() as playwright:
+        browser = getattr(playwright, browser_name).launch(headless=headless)
+        context = browser.new_context(viewport={"width": 1440, "height": 1000})
+        try:
+            page = context.new_page()
+            with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
+                upload_file = Path(tmp_dir) / "upload-fixture.txt"
+                upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
+                for page_name in pages:
+                    results.append(
+                        sweep_page(
+                            page,
+                            web_robot=web_robot,
+                            base_url=base_url,
+                            active_app_query=active_app_query,
+                            app_name=app_name,
+                            page_name=page_name,
+                            timeout=timeout,
+                            widget_timeout=widget_timeout,
+                            interaction_mode=interaction_mode,
+                            action_button_policy=action_button_policy,
+                            upload_file=upload_file,
+                            screenshot_dir=screenshot_dir,
+                        )
+                    )
+                for route in apps_pages:
+                    results.append(
+                        sweep_page(
+                            page,
+                            web_robot=web_robot,
+                            base_url=base_url,
+                            active_app_query=active_app_query,
+                            app_name=app_name,
+                            page_name="ANALYSIS",
+                            display_page=f"REMOTE_APPS_PAGE:{route.name}",
+                            current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
+                            expected_text=(),
+                            check_active_app_route=False,
+                            timeout=timeout,
+                            widget_timeout=widget_timeout,
+                            interaction_mode=interaction_mode,
+                            action_button_policy=action_button_policy,
+                            upload_file=upload_file,
+                            screenshot_dir=screenshot_dir,
+                        )
+                    )
+        finally:
+            context.close()
+            browser.close()
+    return results
+
+
 def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: float) -> WidgetSweepSummary:
     total = sum(page.duration_seconds for page in pages)
     failed_count = sum(page.failed_count for page in pages)
@@ -1092,6 +1237,8 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
         app_count=app_count,
         page_count=len(pages),
         widget_count=sum(page.widget_count for page in pages),
+        main_widget_count=sum(page.main_widget_count for page in pages),
+        sidebar_widget_count=sum(page.sidebar_widget_count for page in pages),
         interacted_count=sum(page.interacted_count for page in pages),
         probed_count=sum(page.probed_count for page in pages),
         skipped_count=skipped_count,
@@ -1102,6 +1249,9 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Exercise visible widgets across AGILAB public built-in apps through a real browser.")
+    parser.add_argument("--url", help="Existing AGILAB URL to test. Hugging Face Space pages are normalized to their hf.space runtime URL.")
+    parser.add_argument("--active-app", help="Override active_app query used with --url. Defaults to each selected app name.")
+    parser.add_argument("--remote-app-root", default="/app", help="Remote checkout root used for current_page paths when --url is set.")
     parser.add_argument("--apps", default="all", help="Comma-separated built-in app names/paths, or 'all'.")
     parser.add_argument("--pages", default="all", help="Comma-separated page routes, or 'all'. HOME maps to the root page.")
     parser.add_argument("--apps-pages", default="configured", help="Apps-pages to test: 'configured' per app, 'all', 'none', or comma-separated names/paths. Default: configured.")
@@ -1123,10 +1273,10 @@ def render_human(summary: WidgetSweepSummary) -> str:
         "AGILAB widget robot",
         f"verdict: {'PASS' if summary.success else 'FAIL'}",
         f"kpi: total={summary.total_duration_seconds:.2f}s target<={summary.target_seconds:.2f}s within_target={'yes' if summary.within_target else 'no'}",
-        f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
+        f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} main={summary.main_widget_count} sidebar={summary.sidebar_widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
     ]
     for page in summary.pages:
-        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} widgets={page.widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
+        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
         for failure in page.failures[:3]:
             lines.append(f"  failure: {failure.kind} {failure.label!r} - {failure.detail}")
         for skip in page.skips[:3]:
@@ -1148,23 +1298,43 @@ def main(argv: Sequence[str] | None = None) -> int:
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
     screenshot_dir = Path(args.screenshot_dir).expanduser().resolve() if args.screenshot_dir else None
     results: list[PageSweep] = []
+    remote_url = normalize_remote_url(args.url) if args.url else None
     for app in apps:
         app_pages = configured_apps_pages_for_app(app) if global_apps_pages is None else global_apps_pages
-        results.extend(
-            sweep_app(
-                app=app,
-                pages=pages,
-                apps_pages=app_pages,
-                timeout=args.timeout,
-                widget_timeout=args.widget_timeout,
-                interaction_mode=args.interaction_mode,
-                action_button_policy=args.action_button_policy,
-                browser_name=args.browser,
-                headless=not args.headful,
-                screenshot_dir=screenshot_dir,
-                seed_demo_artifacts=not args.no_seed_demo_artifacts,
+        if remote_url:
+            results.extend(
+                sweep_remote_app(
+                    app=app,
+                    base_url=remote_url,
+                    active_app_query=args.active_app or active_app_slug(str(app)),
+                    pages=pages,
+                    apps_pages=app_pages,
+                    remote_app_root=args.remote_app_root,
+                    timeout=args.timeout,
+                    widget_timeout=args.widget_timeout,
+                    interaction_mode=args.interaction_mode,
+                    action_button_policy=args.action_button_policy,
+                    browser_name=args.browser,
+                    headless=not args.headful,
+                    screenshot_dir=screenshot_dir,
+                )
             )
-        )
+        else:
+            results.extend(
+                sweep_app(
+                    app=app,
+                    pages=pages,
+                    apps_pages=app_pages,
+                    timeout=args.timeout,
+                    widget_timeout=args.widget_timeout,
+                    interaction_mode=args.interaction_mode,
+                    action_button_policy=args.action_button_policy,
+                    browser_name=args.browser,
+                    headless=not args.headful,
+                    screenshot_dir=screenshot_dir,
+                    seed_demo_artifacts=not args.no_seed_demo_artifacts,
+                )
+            )
     summary = summarize(results, app_count=len(apps), target_seconds=args.target_seconds)
     print(json.dumps(asdict(summary), indent=2) if args.json else render_human(summary))
     return 0 if summary.success else 1
