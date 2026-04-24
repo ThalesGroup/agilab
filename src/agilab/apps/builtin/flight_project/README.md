@@ -5,7 +5,7 @@
 The project focuses on a simple but useful workflow:
 - ingest flight data from files or a Hawk source
 - turn that input into a dataframe dataset under shared storage
-- inspect the result in AGILAB pages such as `view_maps_network`
+- inspect the result in the default AGILAB `view_maps` page
 
 ## What it is good for
 
@@ -35,7 +35,7 @@ analysis pages and downstream pipeline steps.
 1. Select `flight_project` in `PROJECT`.
 2. Configure the input source in `ORCHESTRATE`.
 3. Run the ingestion step.
-4. Explore the resulting dataset in `view_maps_network`.
+4. Explore the resulting dataset in `view_maps`.
 
 ## What this teases in AGILAB
 
