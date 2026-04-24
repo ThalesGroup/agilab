@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import textwrap
 from dataclasses import asdict, dataclass
@@ -12,6 +13,8 @@ import tomllib
 
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
+ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
+APPS_REPOSITORY_ENV_KEYS = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
 
 PYCHARM_NOTEBOOK_SITECUSTOMIZE = """\
 from __future__ import annotations
@@ -129,6 +132,7 @@ class NotebookExportContext:
     pages_root: str = ""
     repo_root: str = ""
     export_mode: str = DEFAULT_NOTEBOOK_EXPORT_MODE
+    allow_workspace_sibling_apps: bool = False
     related_pages: tuple[RelatedPageExport, ...] = ()
 
 
@@ -165,6 +169,33 @@ def _looks_like_source_checkout(root: Path) -> bool:
     return (root / "src" / "agilab").exists() and ((root / ".git").exists() or (root / ".idea").exists())
 
 
+def _truthy_env(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _allow_workspace_sibling_apps() -> bool:
+    return _truthy_env(os.environ.get(ALLOW_WORKSPACE_SIBLING_APPS_ENV))
+
+
+def _project_name_candidates(project_name: str | None) -> tuple[str, ...]:
+    text = str(project_name or "").strip()
+    if not text:
+        return ()
+    candidates: list[str] = []
+
+    def _add(candidate: str) -> None:
+        candidate = str(candidate or "").strip()
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    _add(text)
+    if text.endswith("_project"):
+        _add(text.removesuffix("_project"))
+    else:
+        _add(f"{text}_project")
+    return tuple(candidates)
+
+
 def _resolve_pycharm_repo_root(
     export_context: NotebookExportContext | None,
     *,
@@ -190,7 +221,11 @@ def _normalize_repo_root_hint(value: str | Path | None) -> str:
     return str(path)
 
 
-def _iter_checkout_workspace_apps_dirs(repo_root_hint: str | Path | None) -> Iterable[Path]:
+def _iter_checkout_workspace_apps_dirs(
+    repo_root_hint: str | Path | None,
+    *,
+    allow_siblings: bool = False,
+) -> Iterable[Path]:
     repo_root = _normalize_repo_root_hint(repo_root_hint)
     if not repo_root:
         return
@@ -212,6 +247,9 @@ def _iter_checkout_workspace_apps_dirs(repo_root_hint: str | Path | None) -> Ite
 
     yield from _emit(checkout_root / "src" / "agilab" / "apps")
     yield from _emit(checkout_root / "apps")
+
+    if not allow_siblings:
+        return
 
     workspace_root = checkout_root.parent
     try:
@@ -284,7 +322,7 @@ def _app_root_matches_project(app_root: str | Path | None, project_name: str) ->
     if not app_root:
         return False
     try:
-        return Path(app_root).expanduser().name == project_name
+        return Path(app_root).expanduser().name in _project_name_candidates(project_name)
     except (OSError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -297,6 +335,7 @@ def _iter_valid_app_roots(
 ) -> Iterable[str]:
     seen: set[str] = set()
     project_name = str(project_name or "").strip()
+    project_candidates = _project_name_candidates(project_name)
 
     def _emit(
         candidate: str | Path | None,
@@ -325,8 +364,9 @@ def _iter_valid_app_roots(
         apps_root = _normalize_path(apps_dir)
         if not apps_root:
             continue
-        yield from _emit(Path(apps_root) / project_name)
-        yield from _emit(Path(apps_root) / "builtin" / project_name)
+        for candidate_name in project_candidates:
+            yield from _emit(Path(apps_root) / candidate_name)
+            yield from _emit(Path(apps_root) / "builtin" / candidate_name)
 
 
 def _load_related_pages_from_settings(settings_path: Path | None) -> tuple[str, ...]:
@@ -476,6 +516,7 @@ def build_notebook_export_context(
         except (OSError, RuntimeError, TypeError, ValueError):
             repo_root = ""
     repo_apps_dir = Path(repo_root) / "src" / "agilab" / "apps" if repo_root else None
+    allow_workspace_sibling_apps = _allow_workspace_sibling_apps()
     active_app = next(
         iter(
             _iter_valid_app_roots(
@@ -489,7 +530,10 @@ def build_notebook_export_context(
                     getattr(env, "builtin_apps_path", None),
                     getattr(env, "apps_repository_root", None),
                     repo_apps_dir,
-                    *_iter_checkout_workspace_apps_dirs(repo_root),
+                    *_iter_checkout_workspace_apps_dirs(
+                        repo_root,
+                        allow_siblings=allow_workspace_sibling_apps,
+                    ),
                 ),
             )
         ),
@@ -520,6 +564,7 @@ def build_notebook_export_context(
         app_settings_file=str(settings_file) if settings_file is not None else "",
         pages_root=pages_root,
         repo_root=repo_root,
+        allow_workspace_sibling_apps=allow_workspace_sibling_apps,
         related_pages=related_page_records,
     )
 
@@ -666,9 +711,38 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if not path_value:
                 return False
             try:
-                return Path(path_value).expanduser().name == project_name
+                return Path(path_value).expanduser().name in _project_name_candidates(project_name)
             except Exception:
                 return False
+
+
+        def _project_name_candidates(project_name):
+            text = str(project_name or "").strip()
+            if not text:
+                return []
+            candidates = []
+
+            def add(candidate):
+                candidate = str(candidate or "").strip()
+                if candidate and candidate not in candidates:
+                    candidates.append(candidate)
+
+            add(text)
+            if text.endswith("_project"):
+                add(text.removesuffix("_project"))
+            else:
+                add(f"{{text}}_project")
+            return candidates
+
+
+        def _truthy_env(name):
+            return str(os.environ.get(name) or "").strip().lower() in {{"1", "true", "yes", "y", "on"}}
+
+
+        def _allow_workspace_sibling_apps():
+            return bool(AGILAB_NOTEBOOK_EXPORT.get("allow_workspace_sibling_apps")) or _truthy_env(
+                "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
+            )
 
 
         def _looks_like_source_checkout(path_value):
@@ -727,25 +801,27 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 yield from emit(repo_root / "src" / "agilab" / "apps")
                 yield from emit(repo_root / "apps")
 
-                workspace_root = repo_root.parent
-                try:
-                    siblings = sorted(
-                        candidate
-                        for candidate in workspace_root.iterdir()
-                        if candidate.is_dir() and candidate != repo_root
-                    )
-                except OSError:
-                    siblings = []
-                for sibling in siblings:
-                    yield from emit(sibling / "apps")
-                    yield from emit(sibling / "src" / "agilab" / "apps")
+                if _allow_workspace_sibling_apps():
+                    workspace_root = repo_root.parent
+                    try:
+                        siblings = sorted(
+                            candidate
+                            for candidate in workspace_root.iterdir()
+                            if candidate.is_dir() and candidate != repo_root
+                        )
+                    except OSError:
+                        siblings = []
+                    for sibling in siblings:
+                        yield from emit(sibling / "apps")
+                        yield from emit(sibling / "src" / "agilab" / "apps")
 
-            apps_repository = str(os.environ.get("APPS_REPOSITORY") or "").strip()
-            if apps_repository:
-                repo_path = Path(apps_repository).expanduser()
-                yield from emit(repo_path)
-                yield from emit(repo_path / "apps")
-                yield from emit(repo_path / "src" / "agilab" / "apps")
+            for env_key in ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY"):
+                apps_repository = str(os.environ.get(env_key) or "").strip()
+                if apps_repository:
+                    repo_path = Path(apps_repository).expanduser()
+                    yield from emit(repo_path)
+                    yield from emit(repo_path / "apps")
+                    yield from emit(repo_path / "src" / "agilab" / "apps")
 
 
         def resolve_active_app_root(app_name=None):
@@ -757,18 +833,19 @@ def _helper_cell(payload: dict[str, Any]) -> str:
 
             if project_name:
                 for apps_dir in _candidate_apps_directories():
-                    for candidate in (apps_dir / project_name, apps_dir / "builtin" / project_name):
-                        candidate_text = _normalized_path(candidate)
-                        if _is_valid_active_app_root(candidate_text):
-                            AGILAB_NOTEBOOK_EXPORT["active_app"] = candidate_text
-                            return candidate_text
+                    for project_candidate in _project_name_candidates(project_name):
+                        for candidate in (apps_dir / project_candidate, apps_dir / "builtin" / project_candidate):
+                            candidate_text = _normalized_path(candidate)
+                            if _is_valid_active_app_root(candidate_text):
+                                AGILAB_NOTEBOOK_EXPORT["active_app"] = candidate_text
+                                return candidate_text
 
             raise ValueError(
                 "Unable to resolve a valid AGILAB app root for exported notebook "
                 f"project={{project_name or app_name or '<unknown>'}}. "
                 f"Current active_app={{active_app or '<missing>'}}. "
                 "Re-export the notebook from AGILAB with the correct project selected, "
-                "or set APPS_REPOSITORY so the project root can be discovered."
+                "or set APPS_REPOSITORY / AGILAB_APPS_REPOSITORY so the project root can be discovered."
             )
 
 
@@ -1188,6 +1265,7 @@ def build_notebook_document(
         "pages_root": export_context.pages_root,
         "repo_root": export_context.repo_root,
         "export_mode": export_context.export_mode,
+        "allow_workspace_sibling_apps": export_context.allow_workspace_sibling_apps,
         "related_pages": [asdict(page) for page in export_context.related_pages],
         "steps": step_records,
         "steps_file": str(Path(toml_path)),
