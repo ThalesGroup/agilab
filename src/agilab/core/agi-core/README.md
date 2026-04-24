@@ -17,11 +17,16 @@ pip install agi-core
 
 ## agi-core demo
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb)
-[![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
+<p>
+  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge" alt="AGILAB Space" /></a>
+  <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
+</p>
 
-Use the published-package Colab notebook for the package-oriented first-run
-path, or the Kaggle variant if you prefer Kaggle notebooks. The Colab notebook prepares an isolated runtime venv under `/content`, and the Kaggle notebook prepares an isolated runtime venv under `/kaggle/working`, instead of mutating the base notebook kernel packages. For the full notebook matrix, including source-checkout variants, see the
+Use the public AGILAB Space for the UI-oriented demo path, or the notebook
+badge for the package-oriented `agi-core` first-run path. The Kaggle notebook
+prepares an isolated runtime venv under `/kaggle/working`, instead of mutating
+the base notebook kernel packages. For the full notebook matrix, including
+Colab and source-checkout variants, see the
 AGILAB agi-core demo page:
 https://thalesgroup.github.io/agilab/notebook-quickstart.html
 

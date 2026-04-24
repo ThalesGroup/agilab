@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 README = Path("README.md")
+AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
 CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
     Path("docs/source/demos.rst"),
@@ -51,6 +52,28 @@ def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
         f'<a href="{AGI_CORE_NOTEBOOK_URL}"><img src="{AGI_CORE_NOTEBOOK_BADGE}" '
         'alt="agi-core notebook" /></a>'
     ) in readme
+
+
+def test_agi_core_component_demo_badges_match_root_readme() -> None:
+    readme = README.read_text(encoding="utf-8")
+    component_readme = AGI_CORE_README.read_text(encoding="utf-8")
+    demo_badges = (
+        (
+            f'<a href="{PUBLIC_HF_SPACE_URL}"><img src="{PUBLIC_HF_SPACE_BADGE}" '
+            'alt="AGILAB Space" /></a>'
+        ),
+        (
+            f'<a href="{AGI_CORE_NOTEBOOK_URL}"><img src="{AGI_CORE_NOTEBOOK_BADGE}" '
+            'alt="agi-core notebook" /></a>'
+        ),
+    )
+
+    for badge in demo_badges:
+        assert badge in readme
+        assert badge in component_readme
+
+    assert "colab-badge.svg" not in component_readme
+    assert "open-in-kaggle.svg" not in component_readme
 
 
 def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:

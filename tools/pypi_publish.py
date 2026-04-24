@@ -1088,6 +1088,97 @@ def _is_docs_repo_release_path(path: str) -> bool:
     return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in DOCS_REPO_RELEASE_PATH_PREFIXES)
 
 
+def _git_upstream(repo: pathlib.Path) -> str | None:
+    proc = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        cwd=str(repo),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        return None
+    upstream = proc.stdout.strip()
+    return upstream or None
+
+
+def _git_ahead_behind(repo: pathlib.Path, upstream: str) -> tuple[int, int]:
+    proc = subprocess.run(
+        ["git", "rev-list", "--left-right", "--count", f"{upstream}...HEAD"],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    left_count, right_count = proc.stdout.strip().split()
+    behind = int(left_count)
+    ahead = int(right_count)
+    return ahead, behind
+
+
+def _git_commit_paths(repo: pathlib.Path, revision: str) -> list[str]:
+    proc = subprocess.run(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", revision],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _git_commit_summary(repo: pathlib.Path, revision: str) -> str:
+    proc = subprocess.run(
+        ["git", "show", "-s", "--format=%h %s", revision],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return proc.stdout.strip()
+
+
+def _unpublished_non_release_commits(repo: pathlib.Path, upstream: str) -> list[str]:
+    proc = subprocess.run(
+        ["git", "rev-list", "--reverse", f"{upstream}..HEAD"],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    non_release: list[str] = []
+    for revision in [line.strip() for line in proc.stdout.splitlines() if line.strip()]:
+        paths = _git_commit_paths(repo, revision)
+        if not paths or any(not _is_docs_repo_release_path(path) for path in paths):
+            non_release.append(_git_commit_summary(repo, revision))
+    return non_release
+
+
+def ensure_docs_repo_push_ready(repo: pathlib.Path) -> None:
+    upstream = _git_upstream(repo)
+    if not upstream:
+        raise SystemExit(
+            f"ERROR: docs repository '{repo}' has no upstream branch; "
+            "refusing to push release-managed docs from an ambiguous branch."
+        )
+
+    ahead, behind = _git_ahead_behind(repo, upstream)
+    if behind:
+        raise SystemExit(
+            f"ERROR: docs repository '{repo}' is behind {upstream} by {behind} commit(s). "
+            "Rebase or replay the docs release from an up-to-date clean checkout before publishing."
+        )
+
+    if ahead:
+        non_release = _unpublished_non_release_commits(repo, upstream)
+        if non_release:
+            raise SystemExit(
+                f"ERROR: docs repository '{repo}' has unpublished non-docs commits outside "
+                "release-managed docs/source/; refusing to push the docs release branch: "
+                + ", ".join(non_release)
+            )
+
+
 def ensure_docs_repo_release_ready(repo: pathlib.Path) -> list[str]:
     dirty_paths = _git_status_paths(repo)
     if not dirty_paths:
@@ -1174,6 +1265,9 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
         print("[git] docs repository not found; skipping docs repo commit")
         return
 
+    if push:
+        ensure_docs_repo_push_ready(docs_repo)
+
     dirty_paths = ensure_docs_repo_release_ready(docs_repo)
     if not dirty_paths:
         print("[git] no docs repository release changes to commit")
@@ -1193,6 +1287,7 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
     run(["git", "commit", "-m", f"docs(release): sync docs for {chosen_version}"], cwd=docs_repo)
     print(f"[git] committed docs repository changes for {chosen_version}")
     if push:
+        ensure_docs_repo_push_ready(docs_repo)
         branch = current_git_branch(docs_repo)
         remote = os.environ.get(DOCS_REPO_REMOTE_ENV, "origin")
         run(["git", "push", remote, branch], cwd=docs_repo)
