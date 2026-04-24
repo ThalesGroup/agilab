@@ -51,6 +51,12 @@ AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replace
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
 </p>
 
+The public AGILAB Space opens the lightweight built-in `flight_project` path by
+default. Use it for the first proof that the web UI, execution path, and
+analysis page work. The UAV Relay Queue demo (`uav_relay_queue_project`) is the
+separate advanced RL/full-tour scenario referenced in the docs; it is not the
+default landing app.
+
 ## First Run
 
 Run the installable product path with the built-in `flight_project`:
