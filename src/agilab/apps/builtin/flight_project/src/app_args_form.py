@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,18 @@ def _on_data_source_change() -> None:
     st.session_state[_k("data_in")] = str(payload.get("data_in", "") or "")
     st.session_state[_k("files")] = str(payload.get("files", "") or "")
     st.session_state[_k("data_out")] = ""
+
+
+def _is_huggingface_space(env: Any) -> bool:
+    envars = getattr(env, "envars", None)
+    env_space = None
+    if isinstance(envars, dict):
+        env_space = envars.get("SPACE_ID") or envars.get("SPACE_HOST")
+    return bool(os.environ.get("SPACE_ID") or os.environ.get("SPACE_HOST") or env_space)
+
+
+def _is_default_file_seed(path_value: Any) -> bool:
+    return str(path_value or "").strip().replace("\\", "/").rstrip("/") == "flight/dataset"
 
 
 env = _get_env()
@@ -218,5 +231,11 @@ else:
         resolved_data_in = env.resolve_share_path(validated.data_in)
         resolved_data_out = env.resolve_share_path(validated.data_out)
         if not resolved_data_in.exists():
-            st.warning(f"Input directory does not exist: `{resolved_data_in}`")
+            if _is_huggingface_space(env) and _is_default_file_seed(validated.data_in):
+                st.info(
+                    "The public Hugging Face Space does not bundle the raw Flight dataset. "
+                    "Set a mounted or uploaded data directory before running the Flight step."
+                )
+            else:
+                st.warning(f"Input directory does not exist: `{resolved_data_in}`")
         st.caption(f"Resolved input: `{resolved_data_in}`  •  output: `{resolved_data_out}`")
