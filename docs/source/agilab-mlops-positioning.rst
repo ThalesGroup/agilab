@@ -11,6 +11,52 @@ This page is about positioning, not the detailed feature list or the roadmap.
 - For current shipped capabilities, see :doc:`features`.
 - For planned work, see :doc:`roadmap/agilab-future-work`.
 
+Executive review summary
+------------------------
+
+AGILab is best evaluated as an AI/ML experimentation workbench, not as
+a production MLOps replacement. Its practical value is keeping project
+setup, environment management, execution, and result analysis on one
+coherent path.
+
+For research teams, engineering labs, and prototype-heavy AI workflows,
+AGILab is worth evaluating when fragmented notebooks, scripts,
+environments, and dashboards are slowing iteration. For production model
+serving, enterprise governance and audit, online monitoring, drift
+detection, or large-scale operational deployment, it should still be
+treated as early-stage tooling and paired with a hardened production
+stack.
+
+Best fit and limits
+-------------------
+
+.. list-table:: Best fit and limits
+   :widths: 35 65
+   :header-rows: 1
+
+   * - Use case
+     - Fit
+   * - Industrial AI prototypes
+     - Strong fit when the team needs a reproducible path from setup to
+       execution and analysis.
+   * - Simulation-heavy engineering workflows
+     - Strong fit when experiments need managed environments, worker
+       execution, and operator-facing results.
+   * - Internal AI/ML labs
+     - Strong fit when controlled pilots matter more than hardened
+       production deployment.
+   * - Notebook-to-application workflow consolidation
+     - Strong fit when exploration needs to become a replayable app-shaped
+       workflow.
+   * - Production model serving
+     - Weak fit; use deployment-focused serving infrastructure.
+   * - Enterprise governance and audit
+     - Weak fit; keep compliance, audit, and retraining policy in the
+       production governance stack.
+   * - Large-scale cloud-native MLOps
+     - Weak to moderate fit; AGILab can help before handoff, not replace the
+       full platform.
+
 Research experimentation evidence
 ---------------------------------
 
