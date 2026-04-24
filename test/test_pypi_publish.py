@@ -441,6 +441,16 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
     umbrella_badge = tmp_path / "badges" / "pypi-version-agilab.svg"
     umbrella_badge.parent.mkdir(parents=True)
     umbrella_badge.write_text("badge\n", encoding="utf-8")
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text("# Changelog\n", encoding="utf-8")
+    docs_index = tmp_path / "docs" / "source" / "index.rst"
+    docs_index.parent.mkdir(parents=True)
+    docs_index.write_text("docs\n", encoding="utf-8")
+    docs_stamp = tmp_path / "docs" / ".docs_source_mirror_stamp.json"
+    docs_stamp.write_text("{}\n", encoding="utf-8")
+    public_demo_test = tmp_path / "test" / "test_public_demo_links.py"
+    public_demo_test.parent.mkdir(parents=True)
+    public_demo_test.write_text("tests\n", encoding="utf-8")
 
     builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
     builtin_dir.mkdir(parents=True)
@@ -460,7 +470,78 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "src/agilab/apps/builtin/flight_project/pyproject.toml",
         "README.md",
         "badges/pypi-version-agilab.svg",
+        "CHANGELOG.md",
+        "docs/.docs_source_mirror_stamp.json",
+        "docs/source/index.rst",
+        "test/test_public_demo_links.py",
     ]
+
+
+def test_update_public_release_references_updates_docs_changelog_and_test(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    docs_repo = tmp_path / "thales_agilab"
+    canonical_index = docs_repo / "docs" / "source" / "index.rst"
+    canonical_index.parent.mkdir(parents=True)
+    canonical_index.write_text(
+        "For release-level evidence, inspect the `latest public GitHub release\n"
+        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.01>`__.\n",
+        encoding="utf-8",
+    )
+    public_index = tmp_path / "docs" / "source" / "index.rst"
+    public_index.parent.mkdir(parents=True)
+    public_index.write_text(canonical_index.read_text(encoding="utf-8"), encoding="utf-8")
+    stamp = tmp_path / "docs" / ".docs_source_mirror_stamp.json"
+    stamp.write_text("{}\n", encoding="utf-8")
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text("# Changelog\n\n## [2026.04.01] - 2026-04-01\n\nOld.\n", encoding="utf-8")
+    public_test = tmp_path / "test" / "test_public_demo_links.py"
+    public_test.parent.mkdir(parents=True)
+    public_test.write_text(
+        'RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"\n'
+        'LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.01"\n',
+        encoding="utf-8",
+    )
+
+    def _fake_sync(source: Path) -> None:
+        public_index.write_text((source / "index.rst").read_text(encoding="utf-8"), encoding="utf-8")
+        stamp.write_text('{"target_digest_sha256": "updated"}\n', encoding="utf-8")
+
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
+    monkeypatch.setattr(module, "sync_docs_source_mirror", _fake_sync)
+
+    module.update_public_release_references(
+        "2026.04.24",
+        "2026.4.27",
+        ["agilab", "agi-core", "agi-env"],
+    )
+
+    release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.24"
+    assert release_url in canonical_index.read_text(encoding="utf-8")
+    assert release_url in public_index.read_text(encoding="utf-8")
+    changelog_text = changelog.read_text(encoding="utf-8")
+    assert "## [2026.4.27] - 2026-04-24" in changelog_text
+    assert "Published AGILAB `2026.4.27` to PyPI for `agilab`, `agi-core`, and `agi-env`." in changelog_text
+    assert f"[2026.4.27]: {release_url}" in changelog_text
+    assert 'LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.24"' in public_test.read_text(encoding="utf-8")
+
+
+def test_update_docs_index_release_link_requires_canonical_docs_repo(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    public_index = tmp_path / "docs" / "source" / "index.rst"
+    public_index.parent.mkdir(parents=True)
+    public_index.write_text("latest public GitHub release\n", encoding="utf-8")
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (None, None))
+
+    try:
+        module.update_docs_index_release_link("2026.04.24")
+    except SystemExit as exc:
+        assert "canonical docs repository was not found" in str(exc)
+    else:
+        raise AssertionError("update_docs_index_release_link() should require canonical docs source")
 
 
 def test_main_rejects_invalid_explicit_version(monkeypatch) -> None:
@@ -724,6 +805,7 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
     monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
 
@@ -1075,12 +1157,13 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
     monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
 
     module.main()
 
-    assert order == ["preflight", "commit", "tag", "github-release"]
+    assert order == ["preflight", "release-refs", "commit", "tag", "github-release"]
 
 
 def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
@@ -1339,12 +1422,13 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "git_commit_docs_repository", lambda *_args, **_kwargs: order.append("commit-docs"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.04.23")
+    monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
     monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
 
     module.main()
 
-    assert order == ["preflight", "gen-docs", "commit", "commit-docs", "tag", "github-release"]
+    assert order == ["preflight", "gen-docs", "release-refs", "commit", "commit-docs", "tag", "github-release"]
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
