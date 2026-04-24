@@ -113,6 +113,12 @@ target is 10 minutes end to end:
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 ```
 
+Current adoption evidence: on April 24, 2026, the local source-checkout
+first-proof smoke passed in `5.86s` against the `600s` target. That supports an
+`Ease of adoption` score of `3.5 / 5`: the public demo works, the first routes
+are explicit, and the local proof is measurable. It is not scored higher yet
+because the same measurement still needs a fresh external machine.
+
 ## Read Next
 
 - [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
