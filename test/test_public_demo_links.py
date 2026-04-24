@@ -32,17 +32,16 @@ def test_readme_advertises_public_huggingface_space_page() -> None:
 
     assert PUBLIC_HF_SPACE_URL in readme
     assert "AGILAB Space" in readme
-    assert "uav_relay_queue_project" in readme
 
 
-def test_readme_uses_hf_space_badge_for_primary_link_and_runtime_host_for_robot_command() -> None:
+def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert (
         f'<a href="{PUBLIC_HF_SPACE_URL}"><img src="{PUBLIC_HF_SPACE_BADGE}" '
         'alt="AGILAB Space" /></a>'
     ) in readme
-    assert f"--url {HF_RUNTIME_URL}" in readme
+    assert HF_RUNTIME_URL not in readme
 
 
 def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
@@ -65,7 +64,16 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert f"## [Quick Start]({QUICK_START_URL})" in readme
+    assert readme.count(QUICK_START_URL) == 1
     assert "## Start Here" not in readme
+    assert "## Maintainer Checks" not in readme
+    for maintainer_command in (
+        "tools/hf_space_smoke.py --json",
+        "tools/agilab_web_robot.py",
+        "tools/production_readiness_report.py",
+        "tools/kpi_evidence_bundle.py",
+    ):
+        assert maintainer_command not in readme
     assert "| Need | Start here | Outcome |" not in readme
     assert "Browser preview" not in readme
     assert "Full UI path" not in readme
@@ -111,7 +119,6 @@ def test_readme_captures_production_readiness_evidence() -> None:
     assert "release-decision page" in readme
     assert "security hardening checklist" in normalized
     assert "production model serving" in readme.lower()
-    assert "tools/production_readiness_report.py" in readme
 
 
 def test_readme_captures_overall_public_evaluation_evidence() -> None:
@@ -121,7 +128,6 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
     assert "3.2 / 5" in readme
     assert "3.5 / 5" in readme
     assert "cross-kpi evidence bundle" in readme.lower()
-    assert "tools/kpi_evidence_bundle.py" in readme
 
 
 def test_readme_links_to_mlops_positioning_page() -> None:
