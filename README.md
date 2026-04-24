@@ -80,7 +80,6 @@ Working scores, not production MLOps claims:
 
 ## Read Next
 
-- [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
