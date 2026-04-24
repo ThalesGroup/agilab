@@ -44,6 +44,9 @@ def test_readme_exposes_three_clear_adoption_routes() -> None:
         assert phrase in readme
     assert "Target: pass the first proof in 10 minutes" in readme
     assert "tools/newcomer_first_proof.py --json" in readme
+    assert "Ease of adoption" in readme
+    assert "3.5 / 5" in readme
+    assert "5.86s" in readme
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
@@ -52,3 +55,13 @@ def test_public_docs_expose_three_clear_adoption_routes() -> None:
         for phrase in ("See the UI now", "Prove it locally", "Use the API/notebook"):
             assert phrase in text
         assert "10 minutes" in text
+
+
+def test_newcomer_docs_capture_adoption_evidence() -> None:
+    text = Path("docs/source/newcomer-guide.rst").read_text(encoding="utf-8")
+
+    assert "Adoption evidence" in text
+    assert "Ease of adoption" in text
+    assert "3.5 / 5" in text
+    assert "5.86s" in text
+    assert "600s" in text
