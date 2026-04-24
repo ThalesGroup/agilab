@@ -8,6 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SH = REPO_ROOT / "install.sh"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
+APPS_INSTALL_PY = REPO_ROOT / "src" / "agilab" / "apps" / "install.py"
 
 
 _FUNCTION_DEF_RE = re.compile(r"(?m)^[A-Za-z0-9_]+\(\) \{")
@@ -64,6 +65,39 @@ def test_root_installer_normalizes_requested_local_models_and_deduplicates_alias
     )
 
     assert normalized == "qwen deepseek mistral"
+
+
+def test_root_installer_default_share_dir_is_user_scoped() -> None:
+    script_text = INSTALL_SH.read_text(encoding="utf-8")
+    function_body = "\n".join(
+        [
+            _extract_function(script_text, "default_agi_share_user", "default_agi_share_dir"),
+            _extract_function(script_text, "default_agi_share_dir"),
+        ]
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+{function_body}
+USER='alice@example.com' default_agi_share_dir
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.stdout.strip() == "clustershare/alice_example.com"
+    assert 'AGI_SHARE_DIR="${AGI_SHARE_DIR:-clustershare}"' not in script_text
+
+
+def test_app_installer_uses_same_user_scoped_share_default() -> None:
+    apps_install_text = APPS_INSTALL_PY.read_text(encoding="utf-8")
+    compact_text = re.sub(r"\s+", "", apps_install_text)
+
+    assert "from agi_env.runtime_bootstrap_support import default_cluster_share" in apps_install_text
+    assert "Path(default_cluster_share(environ=os.environ))" in apps_install_text
+    assert 'os.environ.get("AGI_SHARE_DIR",default_cluster_share(environ=os.environ),' in compact_text
 
 
 def test_enduser_installer_normalizes_requested_local_models_and_deduplicates_aliases() -> None:

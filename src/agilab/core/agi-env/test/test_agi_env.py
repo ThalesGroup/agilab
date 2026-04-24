@@ -807,7 +807,7 @@ def test_init_worker_env_flag_requires_app_and_sets_skip_repo_links(tmp_path: Pa
     fake_home.mkdir()
     share_root = fake_home / ".local" / "share" / "agilab"
     share_root.mkdir(parents=True, exist_ok=True)
-    (fake_home / "clustershare").mkdir()
+    (fake_home / "clustershare" / "worker-user").mkdir(parents=True)
     (fake_home / "localshare").mkdir()
     (share_root / ".agilab-path").write_text(str(AgiEnv.locate_agilab_installation(verbose=False)), encoding="utf-8")
     env_dir = fake_home / ".agilab"
@@ -827,13 +827,14 @@ def test_init_installed_env_uses_package_fallbacks_and_explicit_apps_path(tmp_pa
     share_root = fake_home / ".local" / "share" / "agilab"
     share_root.mkdir(parents=True, exist_ok=True)
     (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
-    (fake_home / "clustershare").mkdir()
+    (fake_home / "clustershare" / "worker-user").mkdir(parents=True)
     (fake_home / "localshare").mkdir()
     env_dir = fake_home / ".agilab"
     env_dir.mkdir(parents=True, exist_ok=True)
     (env_dir / ".env").write_text("IS_SOURCE_ENV=no\nIS_WORKER_ENV=0\nAGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+    monkeypatch.setenv("AGILAB_SHARE_USER", "worker-user")
 
     repo_apps = tmp_path / "repo-apps"
     app_root = repo_apps / "demo_project"
@@ -961,13 +962,14 @@ def test_init_worker_install_type_detects_wenv_apps_path(tmp_path: Path, monkeyp
     share_root = fake_home / ".local" / "share" / "agilab"
     share_root.mkdir(parents=True, exist_ok=True)
     (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
-    (fake_home / "clustershare").mkdir()
+    (fake_home / "clustershare" / "worker-user").mkdir(parents=True)
     (fake_home / "localshare").mkdir()
     env_dir = fake_home / ".agilab"
     env_dir.mkdir(parents=True, exist_ok=True)
     (env_dir / ".env").write_text("AGI_CLUSTER_ENABLED=0\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
+    monkeypatch.setenv("AGILAB_SHARE_USER", "worker-user")
 
     site_root = tmp_path / "site-packages"
     _configure_fake_installed_specs(monkeypatch, site_root)

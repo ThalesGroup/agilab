@@ -48,6 +48,7 @@ def _inject_source_core_paths(script_path: str | os.PathLike[str], sys_path: lis
 _inject_source_core_paths(__file__, sys.path)
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
+from agi_env.runtime_bootstrap_support import default_cluster_share
 
 # Take the first argument from the command line as the module name
 if len(sys.argv) > 1:
@@ -157,7 +158,11 @@ def resolve_share_mount() -> Path:
     """Return the absolute path that AGI_SHARE_DIR should resolve to."""
 
     share_dir_raw = os.environ.get("AGI_SHARE_DIR")
-    share_dir = Path(share_dir_raw) if share_dir_raw else Path("clustershare")
+    share_dir = (
+        Path(share_dir_raw)
+        if share_dir_raw
+        else Path(default_cluster_share(environ=os.environ))
+    )
     home_root = Path.home() / "MyApp" if getpass.getuser().startswith("T0") else Path.home()
     share_dir_expanded = share_dir.expanduser()
     if share_dir_expanded.is_absolute():
@@ -275,7 +280,10 @@ async def main():
             )
             if any(token in str(err) for token in share_error_tokens):
                 resolved_share = resolve_share_mount()
-                share_label = os.environ.get("AGI_SHARE_DIR", "clustershare")
+                share_label = os.environ.get(
+                    "AGI_SHARE_DIR",
+                    default_cluster_share(environ=os.environ),
+                )
                 print(
                     "[ERROR] AGI_SHARE_DIR '%s' is not mounted (expected path: %s). "
                     "Mount the share before running install."

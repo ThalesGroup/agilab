@@ -261,7 +261,8 @@ trust first, then restore user-key authentication:
       ssh <remote account>@<worker_ip> hostname
 
 If the worker also lost its AGILAB cluster mount, restore ``~/.agilab/.env`` and
-remount the shared ``clustershare`` path before rerunning cluster installs or pipelines.
+remount the configured user-scoped ``clustershare/<user>`` path before rerunning
+cluster installs or pipelines.
 
 Troubleshooting
 ~~~~~~~~~~~~~~~~~~

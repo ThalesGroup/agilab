@@ -15,8 +15,8 @@ accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
   environment exposes one; otherwise the helper falls back to the current home
   directory. This lets configuration files ship entries such as
   ``<app>/dataset`` while still resolving to the correct worker share
-  (``$HOME/clustershare/<app>/dataset`` on macOS, the mounted share on Linux
-  remotes, and so on).
+  (``$HOME/clustershare/<user>/<app>/dataset`` on macOS when using the
+  default user-scoped share, the mounted share on Linux remotes, and so on).
 - ``Path.resolve(strict=False)`` is applied to keep symlinks or bind mounts
   created by installers while still accepting directories that are created
   later during the run.

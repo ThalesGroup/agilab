@@ -78,6 +78,17 @@ Typical usage::
     bash tools/run_configs/agilab/agilab-run-dev.sh
     bash tools/run_configs/apps/builtin-mycode-run.sh
 
+PyCharm is therefore a contributor convenience, not a runtime requirement. The
+web UI and CLI snippets are the product path; PyCharm mirrors exist so IDE users
+can debug the same commands without inventing a parallel workflow.
+
+Do I need to run tests during install?
+--------------------------------------
+No. The default installer path is intentionally fast and keeps tests opt-in.
+Use ``--test-root``, ``--test-apps``, or ``--test-core`` only when you want the
+installer to perform validation during setup. For a first proof, run the narrow
+``flight_project`` path first and add tests after it works once.
+
 "VIRTUAL_ENV ... does not match the project environment" warning
 ----------------------------------------------------------------
 ``uv`` emits this when you launch a command from an activated shell whose

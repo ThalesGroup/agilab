@@ -91,13 +91,14 @@ E - macOS NFS server checklist:
 Use this quick list when you need a shared dataset folder between Macs (for example, a cluster
 controller exporting ``/Users/<user>/data`` to another workstation). Replace ``<nfs_server_ip>`` with
 your server IP and adjust mount paths as needed. The default ``AGI_SHARE_DIR`` is
-``clustershare`` under ``$HOME``. For cluster-enabled apps, that path must be mounted
+``clustershare/<user>`` under ``$HOME``. For cluster-enabled apps, that path must be mounted
 and writable on every node: ``AgiEnv`` now fails fast instead of silently falling back
 to ``AGI_LOCAL_SHARE`` or ``$HOME/localshare``. Ensure the chosen path exists and is writable.
-In multi-user setups, keep one exported share root per user instead of pointing several
-operators at the same writable cluster-share directory.
-is now managed with a ``nobody:nogroup`` ownership policy so every worker sees identical UID/GID
-mapping—keep that in mind if you point exports somewhere else.
+If you override the default in a multi-user setup, keep one exported share root per user
+instead of pointing several operators at the same writable cluster-share directory.
+The example export below uses a ``nobody:nogroup`` ownership policy so every
+worker sees identical UID/GID mapping; keep that in mind if you point exports
+somewhere else.
 
 **1. Exports and daemon health (server)**
 
@@ -140,6 +141,7 @@ Run this from the second Mac:
 
    sudo mkdir -p "$HOME/clustershare"
    sudo mount -t nfs -o vers=3,tcp,resvport <nfs_server_ip>:/Users/<user>/data "$HOME/clustershare"
+   mkdir -p "$HOME/clustershare/$USER"
 
    mount | grep clustershare
    # Expect one line, e.g.:
@@ -152,10 +154,10 @@ Run this from the second Mac:
 
 .. code-block:: bash
 
-   echo "hello" | sudo tee "$HOME/clustershare/.nfs_test" >/dev/null
-   ls -ln "$HOME/clustershare/.nfs_test"
+   echo "hello" | sudo tee "$HOME/clustershare/$USER/.nfs_test" >/dev/null
+   ls -ln "$HOME/clustershare/$USER/.nfs_test"
    # With -mapall=-2:-2 you should see owner/group 4294967294:4294967294
-   sudo rm "$HOME/clustershare/.nfs_test"
+   sudo rm "$HOME/clustershare/$USER/.nfs_test"
 
 **6. Optional: autofs on the client**
 

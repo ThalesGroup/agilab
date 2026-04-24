@@ -40,8 +40,11 @@ summarises the supported keys.
      - unset
      - API key surfaced to features that rely on OpenAI endpoints.
    * - ``AGI_SHARE_DIR``
-     - ``clustershare`` (resolved under ``$HOME`` if relative).
-     - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. In multi-user environments, each user should point this at their own share root rather than a common team directory, so shared datasets and cluster-visible outputs stay isolated per workspace.
+     - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
+     - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. The implicit default is user-scoped so datasets and cluster-visible outputs stay isolated per workspace. Operators can still override it with an explicit mounted path.
+   * - ``AGILAB_SHARE_USER``
+     - ``USER`` / ``USERNAME`` / ``user``
+     - Optional override for the ``<user>`` segment used by the implicit ``clustershare/<user>`` default. The value is sanitised before it is used in a filesystem path.
    * - ``AGI_LOCAL_SHARE``
      - ``$HOME/localshare``
      - Local datasets/outputs root used when cluster mode is disabled. In cluster mode, AGILab no longer falls back to this path if the shared mount is missing.
@@ -83,7 +86,8 @@ Cluster isolation note
 For cluster-enabled use cases, treat the share directory as part of the user's
 workspace contract, not as a generic team dropbox.
 
-- Each user should have their own ``AGI_SHARE_DIR`` / ``AGI_CLUSTER_SHARE`` root.
+- The default ``AGI_SHARE_DIR`` / ``AGI_CLUSTER_SHARE`` root is user-scoped.
+- If you override it, keep one root per user.
 - Each user should also use their own real worker login account or explicit
   ``user@host`` targets when connecting to the cluster.
 - Do not point multiple users at the same writable cluster-share directory.
