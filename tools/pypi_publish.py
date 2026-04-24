@@ -1092,13 +1092,15 @@ def ensure_docs_repo_release_ready(repo: pathlib.Path) -> list[str]:
     dirty_paths = _git_status_paths(repo)
     if not dirty_paths:
         return []
-    blocked = [path for path in dirty_paths if not _is_docs_repo_release_path(path)]
-    if blocked:
-        raise SystemExit(
-            "ERROR: docs repository has unrelated dirty paths outside release-managed docs/source/: "
-            + ", ".join(sorted(blocked))
+    release_paths = [path for path in dirty_paths if _is_docs_repo_release_path(path)]
+    ignored_paths = [path for path in dirty_paths if not _is_docs_repo_release_path(path)]
+    if ignored_paths:
+        print(
+            "[git] docs repository has unrelated dirty paths outside release-managed docs/source/; "
+            "ignoring them for docs release: "
+            + ", ".join(sorted(ignored_paths))
         )
-    return dirty_paths
+    return release_paths
 
 
 def _create_tag_in_repo(repo_path: pathlib.Path, tag_ref: str, release_label: str, remote: str):
@@ -1133,9 +1135,11 @@ def create_and_push_tag(tag: str, *, include_apps_repo: bool = True, include_doc
         if not docs_repo:
             print("[git] docs repository not found; skipping docs tag")
             return
-        if _git_status_paths(docs_repo):
+        dirty_release_paths = ensure_docs_repo_release_ready(docs_repo)
+        if dirty_release_paths:
             raise SystemExit(
-                f"ERROR: docs repository '{docs_repo}' is dirty; commit or clean it before tagging."
+                f"ERROR: docs repository '{docs_repo}' has uncommitted release-managed docs paths: "
+                + ", ".join(sorted(dirty_release_paths))
             )
         docs_remote = os.environ.get(DOCS_REPO_REMOTE_ENV, "origin")
         if _tag_exists(tag_ref, docs_repo):
