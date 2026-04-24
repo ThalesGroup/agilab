@@ -603,6 +603,9 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
 
 
 def test_flight_app_args_form_import_warns_for_missing_input_and_persists_data_out(monkeypatch, tmp_path):
+    monkeypatch.delenv("SPACE_ID", raising=False)
+    monkeypatch.delenv("SPACE_HOST", raising=False)
+
     _module, _fake_st, calls = _load_flight_form_module(
         monkeypatch,
         tmp_path,
@@ -617,6 +620,25 @@ def test_flight_app_args_form_import_warns_for_missing_input_and_persists_data_o
     assert any("Unable to load Flight args" in message for message in calls["warning"])
     assert any("Input directory does not exist" in message for message in calls["warning"])
     assert calls["success"]
+
+
+def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypatch, tmp_path):
+    monkeypatch.setenv("SPACE_ID", "jpmorard/agilab")
+
+    _module, _fake_st, calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        session_state={
+            "flight_project:app_args_form:data_in": "flight/dataset",
+            "flight_project:app_args_form:data_out": "flight/dataframe",
+        },
+        share_root_error=True,
+        load_error=RuntimeError("broken settings"),
+    )
+
+    assert not any("Input directory does not exist" in message for message in calls["warning"])
+    assert any("public Hugging Face Space" in message for message in calls["info"])
+
 
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
