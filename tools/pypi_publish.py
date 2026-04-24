@@ -457,6 +457,18 @@ def max_base_across_packages(package_names: List[str], repo_target: str) -> str:
     return max(bases, key=safe_ver)
 
 
+def latest_existing_release(package_names: List[str], repo_target: str) -> str | None:
+    latest: str | None = None
+    for name in package_names:
+        releases = {v for v in pypi_releases(name, repo_target) if v and v != "0.0.0.post0"}
+        if not releases:
+            continue
+        candidate = max(releases, key=safe_ver)
+        if latest is None or safe_ver(candidate) > safe_ver(latest):
+            latest = candidate
+    return latest
+
+
 def next_free_post_for_all(package_names: List[str], repo_target: str, base: str) -> str:
     per_pkg = {n: pypi_releases(n, repo_target) for n in package_names}
 
@@ -495,9 +507,23 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
             base = provided_base
             chosen = next_free_post_for_all(core_names, repo_target, base)
     else:
-        base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
+        today_base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
+        latest = latest_existing_release(core_names, repo_target)
+        latest_base = normalize_base(latest) if latest else None
+        base = (
+            latest_base
+            if latest_base is not None and safe_ver(latest_base) > safe_ver(today_base)
+            else today_base
+        )
         # if no releases at all, still .post1 to keep everything uniform
         chosen = next_free_post_for_all(core_names, repo_target, base)
+
+    latest = latest_existing_release(core_names, repo_target)
+    if latest is not None and safe_ver(chosen) < safe_ver(latest):
+        raise SystemExit(
+            f"ERROR: Computed version {chosen} is lower than existing release "
+            f"{latest} on {repo_target}. Choose an explicit --version >= the latest release."
+        )
 
     # report collisions that influenced bump
     for n in core_names:
@@ -1291,14 +1317,7 @@ def main():
     version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
 
     if cfg.version is not None:
-        latest_existing: str | None = None
-        for name in version_targets:
-            releases = {v for v in pypi_releases(name, cfg.repo) if v and v != "0.0.0.post0"}
-            if not releases:
-                continue
-            candidate = max(releases, key=safe_ver)
-            if latest_existing is None or safe_ver(candidate) > safe_ver(latest_existing):
-                latest_existing = candidate
+        latest_existing = latest_existing_release(version_targets, cfg.repo)
         if latest_existing is not None and safe_ver(cfg.version) < safe_ver(latest_existing):
             raise SystemExit(
                 f"ERROR: Explicit --version {cfg.version} is lower than existing release "
@@ -1369,11 +1388,14 @@ def main():
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
             pin_internal_deps(toml, pins)
-            if not cfg.dry_run:
+            if cfg.dry_run:
+                print(f"[build] {name}: (dry-run would build {cfg.dist} artifacts for {chosen})")
+                files = []
+            else:
                 uv_build_project(project, cfg.dist)
-            files = dist_files(project)
-            if files:
-                print(f"[build] {name}: {', '.join(files)}")
+                files = dist_files(project)
+                if files:
+                    print(f"[build] {name}: {', '.join(files)}")
             all_files.extend(files)
 
         # umbrella
@@ -1384,11 +1406,14 @@ def main():
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
             pin_internal_deps(umbrella_toml, pins)
-            if not cfg.dry_run:
+            if cfg.dry_run:
+                print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {chosen})")
+                root_files = []
+            else:
                 uv_build_repo_root(cfg.dist)
-            root_files = dist_files_root()
-            if root_files:
-                print(f"[build] umbrella: {', '.join(root_files)}")
+                root_files = dist_files_root()
+                if root_files:
+                    print(f"[build] umbrella: {', '.join(root_files)}")
             all_files.extend(root_files)
 
         if sync_builtin_versions:

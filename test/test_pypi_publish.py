@@ -240,6 +240,62 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
     assert profiles == ["agi-env", "agi-core-combined", "agi-gui", "docs", "installer", "shared-core-typing"]
 
 
+def test_compute_unified_version_never_drops_below_latest_release(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    class _FixedDatetime:
+        @staticmethod
+        def now(_tz):
+            return datetime(2026, 4, 24, 10, 0, 0, tzinfo=timezone.utc)
+
+    releases = {
+        "agi-env": {"2026.4.25"},
+        "agi-node": {"2026.4.25"},
+        "agilab": {"2026.4.25"},
+    }
+
+    monkeypatch.setattr(module, "datetime", _FixedDatetime)
+    monkeypatch.setattr(
+        module,
+        "pypi_releases",
+        lambda name, _repo: releases.get(name, set()),
+    )
+
+    chosen, collisions = module.compute_unified_version(
+        ["agi-env", "agi-node", "agilab"],
+        "pypi",
+        None,
+    )
+
+    assert chosen == "2026.4.25.post1"
+    assert collisions == {
+        "agi-env": ["2026.4.25"],
+        "agi-node": ["2026.4.25"],
+        "agilab": ["2026.4.25"],
+    }
+
+
+def test_compute_unified_version_rejects_free_explicit_version_below_latest_release(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    releases = {
+        "agi-env": {"2026.4.25"},
+        "agilab": {"2026.4.25"},
+    }
+    monkeypatch.setattr(
+        module,
+        "pypi_releases",
+        lambda name, _repo: releases.get(name, set()),
+    )
+
+    try:
+        module.compute_unified_version(["agi-env", "agilab"], "pypi", "2026.4.24.post1")
+    except SystemExit as exc:
+        assert "Computed version 2026.4.24.post1 is lower than existing release 2026.4.25" in str(exc)
+    else:
+        raise AssertionError("compute_unified_version() should reject computed lower versions")
+
+
 def test_compute_date_tag_without_collision(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -648,6 +704,69 @@ def test_main_dry_run_restores_release_files(tmp_path, monkeypatch) -> None:
     module.main()
 
     assert pyproject.read_text(encoding="utf-8") == original_text
+
+
+def test_main_dry_run_does_not_report_stale_dist_artifacts(tmp_path, monkeypatch, capsys) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir(parents=True)
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+    stale_dist = project_dir / "dist" / "agi_env-2026.03.16-py3-none-any.whl"
+    stale_dist.parent.mkdir()
+    stale_dist.write_text("stale", encoding="utf-8")
+
+    cfg = module.Cfg(
+        repo="testpypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=True,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda _version: None)
+    monkeypatch.setattr(
+        module,
+        "dist_files",
+        lambda _project_dir: (_ for _ in ()).throw(AssertionError("dry-run must not read dist")),
+    )
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+
+    module.main()
+
+    output = capsys.readouterr().out
+    assert str(stale_dist) not in output
+    assert "[build] agi-env: (dry-run would build both artifacts for 2026.03.23)" in output
 
 
 def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -> None:
