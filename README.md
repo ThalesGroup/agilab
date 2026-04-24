@@ -66,9 +66,9 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. Success means fresh output
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 ```
 
-## Evaluation Snapshot
+## CODEX 5.5 Evaluation Snapshot
 
-Working scores, not production MLOps claims:
+CODEX 5.5 working scores, not production MLOps claims:
 
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
