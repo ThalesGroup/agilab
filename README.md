@@ -42,6 +42,8 @@ AGILAB is an open-source platform for reproducible AI and ML workflows.
 
 The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
 
+AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replacement for mature orchestration or production MLOps platforms. Its value is keeping project setup, environment management, execution, and result analysis on one coherent path before hardened assets move to deployment-focused systems.
+
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
 <p>

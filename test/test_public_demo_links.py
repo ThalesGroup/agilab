@@ -128,6 +128,9 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
 
     assert "## CODEX 5.5 Evaluation Snapshot" in readme
     assert "CODEX 5.5 working scores" in readme
+    assert "AI/ML experimentation workbench" in readme
+    assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
+    assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
     assert "3.2 / 5" in readme
     assert "3.5 / 5" in readme
@@ -187,6 +190,20 @@ def test_newcomer_docs_capture_adoption_evidence() -> None:
     assert "3.5 / 5" in text
     assert "5.86s" in text
     assert "600s" in text
+
+
+def test_positioning_docs_capture_executive_review_summary() -> None:
+    text = POSITIONING_DOC.read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    assert "Executive review summary" in text
+    assert "AI/ML experimentation workbench" in text
+    assert "not as a production MLOps replacement" in normalized
+    assert "project setup, environment management, execution, and result analysis" in normalized
+    assert "Industrial AI prototypes" in text
+    assert "Notebook-to-application workflow consolidation" in text
+    assert "Production model serving" in text
+    assert "Enterprise governance and audit" in text
 
 
 def test_positioning_docs_capture_research_experimentation_evidence() -> None:
