@@ -158,6 +158,8 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
             "app_settings": {
                 "view_maps_network": {
                     "dataset_base_choice": "AGI_SHARE_DIR",
+                    "df_file": None,
+                    "df_files": ["export.csv", None],
                 }
             }
         }
@@ -168,6 +170,9 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps_network" in written
     assert 'dataset_base_choice = "AGI_SHARE_DIR"' in written
+    parsed = tomllib.loads(written)
+    assert parsed["view_maps_network"]["df_file"] == ""
+    assert parsed["view_maps_network"]["df_files"] == ["export.csv", ""]
 
 
 def test_view_maps_network_drops_ambiguous_index_levels(monkeypatch, tmp_path: Path) -> None:

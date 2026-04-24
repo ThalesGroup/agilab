@@ -120,6 +120,26 @@ def _ensure_app_settings_loaded(env: AgiEnv) -> None:
     st.session_state["app_settings"] = {}
 
 
+def _sanitize_toml_payload(value: Any) -> Any:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return {
+            str(key): _sanitize_toml_payload(item)
+            for key, item in value.items()
+            if key is not None
+        }
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_toml_payload(item) for item in value]
+    if isinstance(value, set):
+        return [_sanitize_toml_payload(item) for item in sorted(value, key=str)]
+    if isinstance(value, Path):
+        return value.as_posix()
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
 def _persist_app_settings(env: AgiEnv) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
@@ -128,7 +148,7 @@ def _persist_app_settings(env: AgiEnv) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as handle:
-            _dump_toml(settings, handle)
+            _dump_toml(_sanitize_toml_payload(settings), handle)
     except (OSError, RuntimeError) as exc:
         logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
