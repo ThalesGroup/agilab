@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 README = Path("README.md")
+CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
     Path("docs/source/demos.rst"),
     Path("docs/source/quick-start.rst"),
@@ -101,6 +102,22 @@ def test_readme_links_to_mlops_positioning_page() -> None:
 
     assert "MLOps positioning" in readme
     assert "https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html" in readme
+
+
+def test_readme_links_to_public_changelog() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "[Changelog](CHANGELOG.md)" in readme
+
+
+def test_changelog_documents_current_public_release() -> None:
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+
+    assert "## [2026.04.25] - 2026-04-24" in changelog
+    assert "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25" in changelog
+    assert "tools/kpi_evidence_bundle.py" in changelog
+    assert "Hugging Face Space smoke checks" in changelog
+    assert "AGILAB is still alpha-stage public software" in changelog
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
