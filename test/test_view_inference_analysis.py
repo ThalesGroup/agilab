@@ -1403,3 +1403,81 @@ def test_view_inference_analysis_main_stops_when_selected_files_have_no_numeric_
 
     assert fake_st.warnings[-1] == "The selected files loaded successfully, but no numeric metric column was found."
     assert len(fake_st.dataframes) == 1
+
+
+def test_view_inference_analysis_main_renders_time_series_requested_reference(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    dataset_root = tmp_path / "dataset"
+    run_a_path = dataset_root / "run_a" / "allocations_steps.json"
+    run_b_path = dataset_root / "run_b" / "allocations_steps.json"
+    run_a_path.parent.mkdir(parents=True)
+    run_b_path.parent.mkdir(parents=True)
+    run_a_path.write_text("[]", encoding="utf-8")
+    run_b_path.write_text("[]", encoding="utf-8")
+
+    frames_by_path = {
+        run_a_path: pd.DataFrame(
+            {
+                "time_index": [0, 1],
+                "bandwidth": [10.0, 20.0],
+                "delivered_bandwidth": [8.0, 18.0],
+                "latency": [10.0, 20.0],
+                "routed": [1, 1],
+            }
+        ),
+        run_b_path: pd.DataFrame(
+            {
+                "time_index": [0, 1],
+                "bandwidth": [5.0, 5.0],
+                "delivered_bandwidth": [4.0, 4.5],
+                "latency": [30.0, 40.0],
+                "routed": [1, 1],
+            }
+        ),
+    }
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [run_a_path, run_b_path])
+    monkeypatch.setattr(
+        module,
+        "_load_allocations_cached",
+        lambda path, *_args, **_kwargs: frames_by_path[Path(path)],
+    )
+
+    module.main()
+
+    assert "Time-series diagnostics" in fake_st.headers
+    time_series_fig = fake_st.plot_calls[0]["fig"]
+    trace_names = [trace.name for trace in time_series_fig.data]
+    requested_traces = [trace for trace in time_series_fig.data if str(trace.name).endswith(" requested")]
+
+    assert trace_names[:2] == ["run_a requested", "run_a"]
+    assert {trace.name for trace in requested_traces} == {"run_a requested", "run_b requested"}
+    assert all(trace.line.dash == "dash" for trace in requested_traces)
+    assert all(trace.line.width == 1 for trace in requested_traces)
+    assert any(
+        caption == "In the delivered bandwidth panel, thin dashed traces show requested bandwidth."
+        for caption in fake_st.captions
+    )
