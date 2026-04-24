@@ -68,6 +68,8 @@ def test_readme_exposes_three_clear_adoption_routes() -> None:
         assert phrase in readme
     assert "Target: pass the first run in 10 minutes" in readme
     assert "## First Run" in readme
+    assert "Then in the UI:" not in readme
+    assert "PROJECT` -> select" not in readme
     assert "tools/newcomer_first_proof.py --json" in readme
     assert "Ease of adoption" in readme
     assert "3.5 / 5" in readme
