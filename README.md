@@ -68,13 +68,22 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. Success means fresh output
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 ```
 
+This path is intentionally CLI-first. PyCharm run configurations are maintained
+for contributors who want IDE debugging, but they are not required for install,
+execution, or analysis. The same flows are available from the web UI, shell
+commands, and checked-in wrappers under `tools/run_configs/`.
+
+To keep the first install bounded, AGILAB does not run the full test suite by
+default. Add `--test-root`, `--test-apps`, or `--test-core` only when you want
+installer-time validation rather than the fastest first proof.
+
 ## Evaluation Snapshot
 
 CODEX 5.5 working scores, not production MLOps claims:
 
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
-| Ease of adoption | `3.5 / 5` | Hosted Space plus local `flight_project` run: `5.86s` vs `600s`. | Needs fresh external-machine replication. |
+| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, and robot UI smoke: `5.86s` vs `600s`. | Needs fresh external-machine replication. |
 | Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages. | First-class reduce contract is still roadmap. |
 | Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates. | First-proof wizard and external replication remain open. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
