@@ -11,6 +11,59 @@ This page is about positioning, not the detailed feature list or the roadmap.
 - For current shipped capabilities, see :doc:`features`.
 - For planned work, see :doc:`roadmap/agilab-future-work`.
 
+Research experimentation evidence
+---------------------------------
+
+AGILab's research experimentation value is strongest when teams need to turn
+interactive exploration into a replayable, inspectable workflow:
+
+- ``lab_steps.toml`` records experiment steps, prompts, selected model, runtime,
+  and execution metadata
+- supervisor notebook export keeps the saved pipeline runnable outside the UI
+- MLflow tracking records one parent run and nested runs for executed steps
+- the notebook-migration example shows how exploratory notebooks become reusable
+  AGILab projects with stable artifacts and analysis views
+
+That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
+scored higher yet because a generic evidence bundle, first-class reduce
+contract, and broader fresh-machine reproducibility matrix are still roadmap
+work.
+
+Engineering prototyping evidence
+--------------------------------
+
+AGILab's engineering prototyping value is strongest when a team needs to move
+from a working idea to an app-shaped prototype without losing the experiment
+history:
+
+- app templates and isolated app/page environments keep prototypes reproducible
+- ``lab_steps.toml`` and supervisor notebook export preserve the working
+  sequence
+- conceptual ``pipeline_view`` files make the workflow readable outside the code
+- analysis-page templates turn produced artifacts into a reusable operator view
+
+That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
+scored higher yet because the first-proof wizard, generic evidence bundle, and
+first-class reduce contract remain roadmap work.
+
+Strategic potential evidence
+----------------------------
+
+AGILab's strategic potential is strongest where teams need a repeatable bridge
+between research experiments and engineering validation:
+
+- a clear TRL‑3 experimentation focus instead of an overclaimed production MLOps
+  scope
+- a public demo path and a measurable local first-proof path
+- a handoff model for stabilized assets into MLflow, Kubeflow, or internal
+  deployment stacks
+- a roadmap ordered around run evidence, promotion decisions, compatibility
+  automation, and cross-app orchestration
+
+That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
+higher yet because the generic evidence bundle, first-class reduce contract,
+and broader fresh-install validation are still roadmap work.
+
 Where AGILab helps
 ------------------
 
