@@ -19,21 +19,24 @@ COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
-LATEST_RELEASE_URL = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25"
+RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
+LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.25"
 
 
 def test_readme_advertises_public_huggingface_space_page() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert PUBLIC_HF_SPACE_URL in readme
-    assert "AGILAB-demo" in readme
-    assert "self-serve public Hugging Face Spaces demo" in readme
+    assert "AGILAB Space" in readme
+    assert "public streamlit ui" in readme.lower()
+    assert "uav_relay_queue_project" in readme
 
 
-def test_readme_links_to_hf_space_page_not_runtime_host() -> None:
+def test_readme_uses_hf_space_page_for_primary_link_and_runtime_host_for_robot_command() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert HF_RUNTIME_URL not in readme
+    assert f"[AGILAB Space]({PUBLIC_HF_SPACE_URL})" in readme
+    assert f"--url {HF_RUNTIME_URL}" in readme
 
 
 def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:
@@ -46,7 +49,7 @@ def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:
 def test_readme_exposes_three_clear_adoption_routes() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    for phrase in ("See the UI now", "Prove it locally", "Use the API/notebook"):
+    for phrase in ("Browser preview", "Local proof", "API/notebook"):
         assert phrase in readme
     assert "Target: pass the first proof in 10 minutes" in readme
     assert "tools/newcomer_first_proof.py --json" in readme
@@ -84,17 +87,17 @@ def test_readme_captures_production_readiness_evidence() -> None:
     assert "service health gates" in readme
     assert "release-decision page" in readme
     assert "security hardening checklist" in normalized
-    assert "production model serving" in readme
+    assert "production model serving" in readme.lower()
     assert "tools/production_readiness_report.py" in readme
 
 
 def test_readme_captures_overall_public_evaluation_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert "overall public-evaluation evidence" in readme
+    assert "Overall public evaluation" in readme
     assert "3.2 / 5" in readme
     assert "3.5 / 5" in readme
-    assert "cross-KPI evidence bundle" in readme
+    assert "cross-kpi evidence bundle" in readme.lower()
     assert "tools/kpi_evidence_bundle.py" in readme
 
 
@@ -111,11 +114,11 @@ def test_readme_links_to_public_changelog() -> None:
     assert "[Changelog](CHANGELOG.md)" in readme
 
 
-def test_readme_links_to_latest_public_release() -> None:
+def test_readme_links_to_public_releases_page() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert "[Latest release]" in readme
-    assert LATEST_RELEASE_URL in readme
+    assert "[Releases]" in readme
+    assert RELEASES_URL in readme
 
 
 def test_changelog_documents_current_public_release() -> None:
