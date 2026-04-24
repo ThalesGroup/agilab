@@ -36,6 +36,21 @@ web UI, and confirm a visible result under ``~/log/execute/flight/``.
 That is enough for day 1. Do not widen the problem to notebooks, package mode,
 private apps, or cluster setup until this path works once.
 
+Adoption evidence
+-----------------
+
+On April 24, 2026, the source-checkout first-proof smoke passed locally in
+``5.86s`` against the ``600s`` target:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+
+That supports an ``Ease of adoption`` score of ``3.5 / 5``: the public demo
+works, the first routes are explicit, and the local proof is measurable. It is
+not scored higher yet because the same measurement still needs a fresh external
+machine.
+
 What to ignore on day 1
 -----------------------
 
