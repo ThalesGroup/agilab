@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-24T17:55:33Z",
+  "generated_at_utc": "2026-04-24T17:57:58Z",
   "tool": "tools/codex_skills.py",
   "count": 23,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-huggingface-spaces",
       "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-23",
+      "updated": "2026-04-24",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
       "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is:\n- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`"
     },
@@ -63,7 +63,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-21",
+      "updated": "2026-04-24",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/About_agilab.py`\n- `src/agilab/pages/*.py`"
     },
