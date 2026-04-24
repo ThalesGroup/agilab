@@ -119,6 +119,40 @@ Self-serve public AGILAB demo hosted on Hugging Face Spaces.
 - Use :doc:`notebook-quickstart` when you intentionally want the notebook-first
   runtime path before the web UI.
 
+Validation commands
+^^^^^^^^^^^^^^^^^^^
+
+The installer keeps test suites opt-in so the default first proof stays fast.
+Use these commands when you explicitly want validation during install.
+
+For public built-in apps plus installer-managed root, app/page, and core tests::
+
+    ./install.sh --non-interactive --install-apps builtin --test-root --test-apps --test-core
+
+For an external apps repository, including private app repositories available on
+your machine::
+
+    ./install.sh --non-interactive \
+      --apps-repository /path/to/apps-repository \
+      --install-apps all \
+      --test-root \
+      --test-apps \
+      --test-core
+
+``--test-root`` runs the installer-managed AGILAB package tests. For the full
+repository pytest suite from a source checkout, run it separately::
+
+    uv --preview-features extra-build-dependencies run pytest
+
+Fast UI robot contract tests are normal developer tests::
+
+    uv --preview-features extra-build-dependencies run pytest -q test/test_agilab_widget_robot.py test/test_agilab_web_robot.py
+
+The full browser UI robot sweep is intentionally opt-in because it launches
+Streamlit and Playwright::
+
+    AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
+
 Private apps or framework contributor setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
