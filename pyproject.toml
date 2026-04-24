@@ -273,6 +273,7 @@ pythonpath = [
 asyncio_mode = "auto"
 markers = [
   "integration: live/external integration checks (excluded from default CI suite)",
+  "ui_robot: browser-driven AGILAB UI robot checks (opt-in; launches Streamlit/Playwright)",
 ]
 # addopts = "--import-mode=importlib"   # if you had it
 filterwarnings = [
