@@ -1,14 +1,16 @@
 AGILab Documentation
 =====================
 
-If you are new to AGILab, start here:
+If you are new to AGILab, choose one route first:
 
-1. Read :doc:`newcomer-guide`.
-2. Follow :doc:`quick-start`.
-3. If the first proof fails, use :doc:`newcomer-troubleshooting`.
+- **See the UI now**: open :doc:`demos` for the public Hugging Face Space.
+- **Prove it locally**: follow :doc:`quick-start` with the built-in
+  ``flight_project``. Target: pass the first proof in 10 minutes.
+- **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
+  ``AgiEnv`` / ``AGI.run(...)`` surface.
 
-Use the built-in ``flight_project`` first. Keep cluster mode, notebook-first
-flows, and private-app repositories for later.
+If the local first proof fails, use :doc:`newcomer-troubleshooting` before
+branching into cluster mode, private app repositories, or broader workflows.
 
 This documentation then expands into architecture, service mode, API
 references, and example projects.

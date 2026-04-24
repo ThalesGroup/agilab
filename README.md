@@ -42,15 +42,29 @@ AGILAB is an open-source platform for reproducible AI and ML workflows.
 
 The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
 
-## Demo
+## Start Here
+
+| Goal | Route | Use when |
+|---|---|---|
+| See the UI now | [AGILAB demo](https://huggingface.co/spaces/jpmorard/agilab) | You want a browser-only look at the web UI before installing anything. |
+| Prove it locally | [Quick start](https://thalesgroup.github.io/agilab/quick-start.html) | You want the real source-checkout path with the built-in `flight_project`. Target: pass the first proof in 10 minutes. |
+| Use the API/notebook | [agi-core demo](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb) | You want the smaller `AgiEnv` / `AGI.run(...)` surface before the full UI. |
+
+## Public Demos
 
 <p>
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge" alt="agi-core demo" /></a>
-  <a href="https://jpmorard-agilab.hf.space"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
+  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
 </p>
 
 - `AGILAB demo`: self-serve public Hugging Face Spaces demo
 - `agi-core demo`: notebook-first runtime demo on Kaggle
+
+Maintainers can validate the public demo KPI with:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+```
 
 ## First Real Run
 
@@ -90,6 +104,13 @@ If that first proof fails, run:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+```
+
+To track the adoption KPI directly, collect the same proof as JSON. The default
+target is 10 minutes end to end:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 ```
 
 ## Read Next

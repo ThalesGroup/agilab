@@ -17,7 +17,7 @@ Choose a demo
    :alt: agi-core demo
 
 .. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
-   :target: https://jpmorard-agilab.hf.space
+   :target: https://huggingface.co/spaces/jpmorard/agilab
    :alt: AGILAB demo
 
 What each route is for

@@ -18,6 +18,7 @@ from typing import Callable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_project"
+DEFAULT_MAX_SECONDS = 10 * 60
 UV_RUN_PYTHON = (
     "uv",
     "--preview-features",
@@ -78,6 +79,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Emit machine-readable JSON.",
+    )
+    parser.add_argument(
+        "--max-seconds",
+        type=float,
+        default=float(DEFAULT_MAX_SECONDS),
+        help=(
+            "KPI target for total first-proof runtime in seconds "
+            f"(default: {DEFAULT_MAX_SECONDS})."
+        ),
     )
     return parser
 
@@ -267,6 +277,26 @@ def run_proof(
     return results
 
 
+def summarize_kpi(
+    *,
+    command_count: int,
+    results: Sequence[ProofStepResult],
+    max_seconds: float,
+) -> dict[str, object]:
+    total_seconds = sum(result.duration_seconds for result in results)
+    failed_step = next((result.label for result in results if result.returncode != 0), None)
+    success = len(results) == command_count and failed_step is None
+    return {
+        "success": success,
+        "passed_steps": sum(1 for result in results if result.returncode == 0),
+        "expected_steps": command_count,
+        "failed_step": failed_step,
+        "total_duration_seconds": total_seconds,
+        "target_seconds": max_seconds,
+        "within_target": success and total_seconds <= max_seconds,
+    }
+
+
 def render_human(
     *,
     active_app: Path,
@@ -274,6 +304,7 @@ def render_human(
     commands: Sequence[ProofCommand],
     results: Sequence[ProofStepResult] | None = None,
     print_only: bool = False,
+    max_seconds: float = float(DEFAULT_MAX_SECONDS),
 ) -> str:
     lines = [
         "AGILAB newcomer first-proof smoke",
@@ -281,15 +312,23 @@ def render_human(
     ]
     if print_only:
         lines.append("mode: print-only")
+        lines.append(f"kpi target: <= {max_seconds:.2f}s")
         for command in commands:
             lines.append(f"- {command.label}: {command.description}")
             lines.append(f"  $ {' '.join(shlex.quote(part) for part in command.argv)}")
         return "\n".join(lines)
 
     results = list(results or [])
-    success = bool(results) and len(results) == len(commands) and all(result.returncode == 0 for result in results)
+    summary = summarize_kpi(command_count=len(commands), results=results, max_seconds=max_seconds)
+    success = bool(summary["success"])
     verdict = "PASS" if success else "FAIL"
     lines.append(f"verdict: {verdict}")
+    lines.append(
+        "kpi: "
+        f"total={summary['total_duration_seconds']:.2f}s "
+        f"target<={summary['target_seconds']:.2f}s "
+        f"within_target={'yes' if summary['within_target'] else 'no'}"
+    )
     lines.append(
         "scope: preinit import smoke + About/ORCHESTRATE page boot"
         + (" + install/seeding" if with_install else "")
@@ -313,6 +352,8 @@ def render_human(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.max_seconds <= 0:
+        parser.error("--max-seconds must be greater than 0")
 
     active_app = resolve_active_app(args.active_app)
     commands = build_proof_commands(active_app, with_install=args.with_install)
@@ -324,6 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "active_app": str(active_app),
                         "with_install": args.with_install,
+                        "kpi_target_seconds": args.max_seconds,
                         "commands": [
                             {
                                 "label": command.label,
@@ -344,19 +386,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     with_install=args.with_install,
                     commands=commands,
                     print_only=True,
+                    max_seconds=args.max_seconds,
                 )
             )
         return 0
 
     results = run_proof(commands)
-    success = len(results) == len(commands) and all(result.returncode == 0 for result in results)
+    summary = summarize_kpi(command_count=len(commands), results=results, max_seconds=args.max_seconds)
+    success = bool(summary["success"])
     if args.json:
         print(
             json.dumps(
                 {
                     "active_app": str(active_app),
                     "with_install": args.with_install,
-                    "success": success,
+                    **summary,
                     "results": [asdict(result) for result in results],
                 },
                 indent=2,
@@ -369,6 +413,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 with_install=args.with_install,
                 commands=commands,
                 results=results,
+                max_seconds=args.max_seconds,
             )
         )
         for result in results:

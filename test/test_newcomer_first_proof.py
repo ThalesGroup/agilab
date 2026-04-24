@@ -71,6 +71,7 @@ def test_render_human_print_only_lists_commands() -> None:
     )
 
     assert "mode: print-only" in rendered
+    assert "kpi target: <=" in rendered
     assert "preinit smoke" in rendered
     assert "source ui smoke" in rendered
 
@@ -83,8 +84,52 @@ def test_main_print_only_json_emits_selected_commands(capsys) -> None:
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["with_install"] is True
+    assert payload["kpi_target_seconds"] == module.DEFAULT_MAX_SECONDS
     assert payload["commands"][0]["label"] == "preinit smoke"
     assert payload["commands"][-1]["label"] == "seeded script check"
+
+
+def test_summarize_kpi_tracks_duration_target_and_failed_step() -> None:
+    module = _load_module()
+
+    passing = [
+        module.ProofStepResult(
+            label="preinit smoke",
+            description="demo",
+            argv=["python", "-V"],
+            returncode=0,
+            duration_seconds=2.5,
+            stdout="",
+            env={},
+        ),
+        module.ProofStepResult(
+            label="source ui smoke",
+            description="demo",
+            argv=["python", "-V"],
+            returncode=0,
+            duration_seconds=3.0,
+            stdout="",
+            env={},
+        ),
+    ]
+
+    summary = module.summarize_kpi(command_count=2, results=passing, max_seconds=10.0)
+
+    assert summary["success"] is True
+    assert summary["passed_steps"] == 2
+    assert summary["expected_steps"] == 2
+    assert summary["failed_step"] is None
+    assert summary["total_duration_seconds"] == 5.5
+    assert summary["target_seconds"] == 10.0
+    assert summary["within_target"] is True
+
+    failing = [passing[0], passing[1].__class__(**{**passing[1].__dict__, "returncode": 7})]
+
+    failed_summary = module.summarize_kpi(command_count=2, results=failing, max_seconds=10.0)
+
+    assert failed_summary["success"] is False
+    assert failed_summary["failed_step"] == "source ui smoke"
+    assert failed_summary["within_target"] is False
 
 
 def test_run_proof_stops_on_first_failure() -> None:
