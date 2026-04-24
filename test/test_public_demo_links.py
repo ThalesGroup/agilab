@@ -22,6 +22,7 @@ PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=
 AGI_CORE_NOTEBOOK_URL = "https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"
 AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
+QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.25"
 
@@ -31,7 +32,6 @@ def test_readme_advertises_public_huggingface_space_page() -> None:
 
     assert PUBLIC_HF_SPACE_URL in readme
     assert "AGILAB Space" in readme
-    assert "public streamlit ui" in readme.lower()
     assert "uav_relay_queue_project" in readme
 
 
@@ -61,12 +61,17 @@ def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:
         assert HF_RUNTIME_URL not in text
 
 
-def test_readme_exposes_three_clear_adoption_routes() -> None:
+def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    for phrase in ("Browser preview", "Install locally", "API/notebook"):
-        assert phrase in readme
-    assert "Target: pass the first run in 10 minutes" in readme
+    assert f"## [Quick Start]({QUICK_START_URL})" in readme
+    assert "## Start Here" not in readme
+    assert "| Need | Start here | Outcome |" not in readme
+    assert "Browser preview" not in readme
+    assert "Full UI path" not in readme
+    assert "API/notebook" not in readme
+    assert 'alt="AGILAB Space"' in readme
+    assert 'alt="agi-core notebook"' in readme
     assert "## First Run" in readme
     assert "Then in the UI:" not in readme
     assert "PROJECT` -> select" not in readme
