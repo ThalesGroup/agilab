@@ -126,7 +126,8 @@ def test_readme_captures_production_readiness_evidence() -> None:
 def test_readme_captures_overall_public_evaluation_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert "## CODEX 5.5 Evaluation Snapshot" in readme
+    assert "## Evaluation Snapshot" in readme
+    assert "## CODEX 5.5 Evaluation Snapshot" not in readme
     assert "CODEX 5.5 working scores" in readme
     assert "AI/ML experimentation workbench" in readme
     assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
