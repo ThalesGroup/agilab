@@ -84,6 +84,13 @@ def test_readme_captures_production_readiness_evidence() -> None:
     assert "tools/production_readiness_report.py" in readme
 
 
+def test_readme_links_to_mlops_positioning_page() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "MLOps positioning" in readme
+    assert "https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html" in readme
+
+
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
     for path in ADOPTION_DOC_PAGES:
         text = path.read_text(encoding="utf-8")

@@ -156,6 +156,7 @@ uv --preview-features extra-build-dependencies run python tools/production_readi
 - [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
 - [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
+- [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
 - [Developer runbook](AGENTS.md)
