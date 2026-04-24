@@ -7,6 +7,28 @@ run of the built-in ``flight_project`` from the web UI.
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
 
+Choose one route
+----------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Goal
+     - Route
+     - Use when
+   * - See the UI now
+     - :doc:`demos`
+     - You want a browser-only look at the AGILAB web UI before installing
+       anything.
+   * - Prove it locally
+     - :doc:`quick-start`
+     - You want the real source-checkout path with ``flight_project``. Target:
+       pass the first proof in 10 minutes.
+   * - Use the API/notebook
+     - :doc:`notebook-quickstart`
+     - You want the smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the
+       full UI.
+
 The first proof is deliberately narrow:
 use a source checkout, run the built-in ``flight_project`` locally from the
 web UI, and confirm a visible result under ``~/log/execute/flight/``.

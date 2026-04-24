@@ -63,34 +63,18 @@ Minimal notebook cells
 
 Cell 1: select the built-in MyCode example app.
 
-.. code-block:: python
-
-   from pathlib import Path
-   from agi_env import AgiEnv
-
-   APP = "mycode_project"  # built-in MyCode example app
-   app_env = AgiEnv(app=APP, verbose=1)
+.. literalinclude:: snippets/agi_core_mycode_minimal_app_env.py
+   :language: python
 
 Cell 2: run the smallest local ``AGI.run(...)`` shape.
 
-.. code-block:: python
-
-   from agi_cluster.agi_distributor import AGI
-
-   result = await AGI.run(
-       app_env,
-       scheduler="127.0.0.1",
-       workers={"127.0.0.1": 1},
-       mode=0,  # plain local Python execution
-   )
-   result
+.. literalinclude:: snippets/agi_core_mycode_minimal_run.py
+   :language: python
 
 Cell 3: inspect the run artifacts.
 
-.. code-block:: python
-
-   log_root = Path.home() / "log" / "execute" / "mycode"
-   print(log_root)
+.. literalinclude:: snippets/agi_core_mycode_log_root.py
+   :language: python
 
 How this maps back to the web UI
 --------------------------------
