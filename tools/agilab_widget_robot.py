@@ -1,0 +1,1174 @@
+#!/usr/bin/env python3
+"""Exercise AGILAB public UI widgets through a real browser."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import importlib.util
+import json
+import sys
+import tempfile
+import time
+import tomllib
+import urllib.parse
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Sequence
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
+DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
+DEFAULT_APPS_PAGES_ROOT = REPO_ROOT / "src/agilab/apps-pages"
+DEFAULT_PAGES = ("", "PROJECT", "ORCHESTRATE", "PIPELINE", "ANALYSIS")
+DEFAULT_TIMEOUT_SECONDS = 90.0
+DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
+DEFAULT_TARGET_SECONDS = 1800.0
+ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
+PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
+PAGE_EXPECTED_TEXT = {
+    "": ("AGILAB", "Start here"),
+    "PROJECT": ("PROJECT", "Active app", "Project"),
+    "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
+    "PIPELINE": ("PIPELINE", "Pipeline", "Run"),
+    "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
+}
+PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "ORCHESTRATE": 5, "PIPELINE": 3, "ANALYSIS": 3}
+
+WIDGET_COLLECTOR_JS = r"""
+() => {
+  const specs = [
+    ["button", "[data-testid='stButton'] button"],
+    ["form_submit_button", "[data-testid='stFormSubmitButton'] button"],
+    ["download_button", "[data-testid='stDownloadButton'] button"],
+    ["checkbox", "[data-testid='stCheckbox'] input"],
+    ["toggle", "[data-testid='stToggle'] input, [role='switch']"],
+    ["radio", "[data-testid='stRadio'] input"],
+    ["selectbox", "[data-testid='stSelectbox']"],
+    ["multiselect", "[data-testid='stMultiSelect']"],
+    ["text_input", "[data-testid='stTextInput'] input"],
+    ["text_area", "[data-testid='stTextArea'] textarea"],
+    ["number_input", "[data-testid='stNumberInput'] input"],
+    ["slider", "[data-testid='stSlider'] [role='slider'], [role='slider']"],
+    ["file_uploader", "[data-testid='stFileUploader']"],
+    ["data_editor", "[data-testid='stDataFrame'], [data-testid='stDataEditor']"],
+    ["tab", "[role='tab']"],
+    ["expander", "[data-testid='stExpander'] summary, details summary"],
+  ];
+  const visible = (el) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  const labelFor = (el) => {
+    const direct = el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder");
+    if (direct && direct.trim()) return direct.trim();
+    const labelledBy = el.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const label = document.getElementById(labelledBy);
+      if (label && label.innerText.trim()) return label.innerText.trim().replace(/\s+/g, " ").slice(0, 160);
+    }
+    const container = el.closest("[data-testid]");
+    const text = (container || el).innerText || el.value || el.textContent || "";
+    return text.trim().replace(/\s+/g, " ").slice(0, 160);
+  };
+  const testIdFor = (el) => {
+    const container = el.closest("[data-testid]");
+    return container ? container.getAttribute("data-testid") : "";
+  };
+  const pathFor = (el) => {
+    const parts = [];
+    let current = el;
+    while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 6) {
+      const parent = current.parentElement;
+      const tag = current.tagName.toLowerCase();
+      if (!parent) {
+        parts.push(tag);
+        break;
+      }
+      const index = Array.from(parent.children).filter((child) => child.tagName === current.tagName).indexOf(current) + 1;
+      parts.push(`${tag}:nth-of-type(${index})`);
+      current = parent;
+    }
+    return parts.reverse().join(">");
+  };
+  const seen = new Set();
+  const widgets = [];
+  let nextId = 0;
+  for (const [kind, selector] of specs) {
+    for (const el of document.querySelectorAll(selector)) {
+      if (!visible(el) || seen.has(el)) continue;
+      seen.add(el);
+      const id = `agilab-widget-${nextId++}`;
+      el.setAttribute("data-agilab-widget-id", id);
+      widgets.push({
+        id,
+        kind,
+        label: labelFor(el),
+        disabled: Boolean(el.disabled || el.getAttribute("aria-disabled") === "true"),
+        role: el.getAttribute("role") || "",
+        tag: el.tagName.toLowerCase(),
+        type: el.getAttribute("type") || "",
+        testid: testIdFor(el),
+        path: pathFor(el),
+      });
+    }
+  }
+  return widgets;
+}
+"""
+
+OPEN_EXPANDERS_JS = r"""
+() => {
+  let changed = 0;
+  for (const details of document.querySelectorAll("details")) {
+    if (!details.open) {
+      details.open = true;
+      changed += 1;
+    }
+  }
+  return changed;
+}
+"""
+
+
+@dataclass(frozen=True)
+class AppsPageRoute:
+    name: str
+    path: Path
+
+
+@dataclass(frozen=True)
+class WidgetProbe:
+    app: str
+    page: str
+    kind: str
+    label: str
+    status: str
+    detail: str
+    url: str
+
+
+@dataclass(frozen=True)
+class PageSweep:
+    app: str
+    page: str
+    success: bool
+    duration_seconds: float
+    widget_count: int
+    interacted_count: int
+    probed_count: int
+    skipped_count: int
+    failed_count: int
+    url: str
+    failures: list[WidgetProbe]
+    skips: list[WidgetProbe]
+
+
+@dataclass(frozen=True)
+class WidgetSweepSummary:
+    success: bool
+    total_duration_seconds: float
+    target_seconds: float
+    within_target: bool
+    app_count: int
+    page_count: int
+    widget_count: int
+    interacted_count: int
+    probed_count: int
+    skipped_count: int
+    failed_count: int
+    pages: list[PageSweep]
+
+
+@dataclass(frozen=True)
+class SeededRuntime:
+    env: dict[str, str]
+    home_root: Path
+    export_root: Path
+    share_root: Path
+    cluster_share_root: Path
+
+
+def _load_web_robot() -> Any:
+    spec = importlib.util.spec_from_file_location("agilab_web_robot_for_widget_sweep", WEB_ROBOT_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load {WEB_ROBOT_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def public_builtin_apps(apps_root: Path = DEFAULT_APPS_ROOT) -> list[Path]:
+    return sorted(path.resolve() for path in apps_root.glob("*_project") if path.is_dir())
+
+
+def _apps_page_entrypoint(project_dir: Path) -> Path | None:
+    src_dir = project_dir / "src"
+    preferred = sorted(src_dir.glob(f"*/{project_dir.name}.py"))
+    if preferred:
+        return preferred[0].resolve()
+    candidates = sorted(src_dir.glob("*/view_*.py"))
+    return candidates[0].resolve() if candidates else None
+
+
+def public_apps_pages(pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPageRoute]:
+    routes: list[AppsPageRoute] = []
+    for project_dir in sorted(path for path in pages_root.iterdir() if path.is_dir() and not path.name.startswith(".")):
+        if not (project_dir / "pyproject.toml").exists():
+            continue
+        entrypoint = _apps_page_entrypoint(project_dir)
+        if entrypoint is not None:
+            routes.append(AppsPageRoute(project_dir.name, entrypoint))
+    return routes
+
+
+def parse_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def resolve_apps(apps: str, *, apps_root: Path = DEFAULT_APPS_ROOT) -> list[Path | str]:
+    if apps == "all":
+        return public_builtin_apps(apps_root)
+    resolved: list[Path | str] = []
+    for item in parse_csv(apps):
+        candidate = Path(item).expanduser()
+        if candidate.exists():
+            resolved.append(candidate.resolve())
+        elif (apps_root / item).exists():
+            resolved.append((apps_root / item).resolve())
+        else:
+            resolved.append(item)
+    return resolved
+
+
+def resolve_pages(pages: str) -> list[str]:
+    if pages == "none":
+        return []
+    if pages == "all":
+        return list(DEFAULT_PAGES)
+    return ["" if item.upper() == "HOME" else item for item in parse_csv(pages)]
+
+
+def resolve_apps_pages(apps_pages: str, *, pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPageRoute]:
+    if apps_pages == "configured":
+        raise ValueError("'configured' apps-pages are resolved per app")
+    if apps_pages == "none":
+        return []
+    discovered = public_apps_pages(pages_root)
+    if apps_pages == "all":
+        return discovered
+    by_name = {route.name: route for route in discovered}
+    resolved: list[AppsPageRoute] = []
+    for item in parse_csv(apps_pages):
+        candidate = Path(item).expanduser()
+        if candidate.exists():
+            resolved.append(AppsPageRoute(candidate.stem, candidate.resolve()))
+        elif item in by_name:
+            resolved.append(by_name[item])
+        else:
+            project_dir = pages_root / item
+            entrypoint = _apps_page_entrypoint(project_dir) if project_dir.exists() else None
+            if entrypoint is None:
+                raise ValueError(f"Unknown apps-page route: {item}")
+            resolved.append(AppsPageRoute(item, entrypoint))
+    return resolved
+
+
+def configured_apps_pages_for_app(app: Path | str, *, pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPageRoute]:
+    app_path = Path(app)
+    settings_path = app_path / "src" / "app_settings.toml"
+    if not settings_path.exists():
+        return []
+    try:
+        settings = tomllib.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return []
+    pages_config = settings.get("pages")
+    if not isinstance(pages_config, dict):
+        return []
+    names: list[str] = []
+    default_view = pages_config.get("default_view")
+    if isinstance(default_view, str) and default_view:
+        names.append(default_view)
+    view_module = pages_config.get("view_module")
+    if isinstance(view_module, list):
+        names.extend(item for item in view_module if isinstance(item, str) and item)
+    by_name = {route.name: route for route in public_apps_pages(pages_root)}
+    selected: list[AppsPageRoute] = []
+    seen: set[str] = set()
+    for name in names:
+        if name in seen or name not in by_name:
+            continue
+        seen.add(name)
+        selected.append(by_name[name])
+    return selected
+
+
+def page_label(page: str) -> str:
+    return page or "HOME"
+
+
+def active_app_slug(active_app: str) -> str:
+    decoded = urllib.parse.unquote(str(active_app)).rstrip("/")
+    return Path(decoded).name if "/" in decoded else decoded
+
+
+def app_target_name(app_name: str) -> str:
+    if app_name.endswith("_project"):
+        return app_name[: -len("_project")]
+    if app_name.endswith("_worker"):
+        return app_name[: -len("_worker")]
+    return app_name
+
+
+def routed_active_app_slug(url: str) -> str | None:
+    query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query, keep_blank_values=True))
+    active_app = query.get("active_app")
+    return active_app_slug(active_app) if active_app else None
+
+
+def active_app_aliases(active_app: str) -> set[str]:
+    slug = active_app_slug(active_app)
+    aliases = {slug}
+    if slug.endswith("_project"):
+        aliases.add(slug[: -len("_project")])
+    return aliases
+
+
+def active_app_route_matches(url: str, expected_active_app: str) -> bool:
+    return routed_active_app_slug(url) in active_app_aliases(expected_active_app)
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return
+    columns = list(rows[0].keys())
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _seed_track_dataframe(path: Path, *, node_prefix: str = "robot") -> None:
+    rows: list[dict[str, Any]] = []
+    for node_index, (lat0, lon0, alt0) in enumerate([(48.8566, 2.3522, 1100.0), (48.8584, 2.2945, 1200.0)], start=1):
+        for step in range(4):
+            rows.append(
+                {
+                    "flight_id": f"{node_prefix}_{node_index}",
+                    "node_id": f"{node_prefix}_{node_index}",
+                    "time_s": step,
+                    "latitude": lat0 + step * 0.01,
+                    "longitude": lon0 + step * 0.01,
+                    "altitude": alt0 + step * 15.0,
+                    "alt_m": alt0 + step * 15.0,
+                    "role": "relay" if node_index == 2 else "source",
+                }
+            )
+    _write_csv(path, rows)
+
+
+def _seed_flight_artifacts(export_root: Path, share_root: Path) -> None:
+    for base in (share_root, export_root):
+        _seed_track_dataframe(base / "flight" / "dataframe" / "00_robot_flight.csv", node_prefix="flight")
+
+
+def _queue_run_rows(policy: str, *, delivered_offset: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    queue_rows: list[dict[str, Any]] = []
+    for time_s in range(5):
+        queue_rows.extend(
+            [
+                {"time_s": time_s, "relay": "relay_a", "queue_depth_pkts": max(0, 4 - time_s + delivered_offset)},
+                {"time_s": time_s, "relay": "relay_b", "queue_depth_pkts": max(0, 2 + time_s - delivered_offset)},
+            ]
+        )
+    packet_rows = [
+        {
+            "packet_id": f"pkt_{idx}",
+            "origin_kind": "source",
+            "relay": "relay_a" if idx % 2 == 0 else "relay_b",
+            "status": "delivered" if idx < 5 + delivered_offset else "dropped",
+            "e2e_delay_ms": 18.0 + idx * 2.5,
+            "queue_wait_ms": 4.0 + idx,
+        }
+        for idx in range(8)
+    ]
+    node_specs = [
+        ("uav_source", "source", 48.8566, 2.3522, 1200.0),
+        ("relay_a", "relay", 48.8666, 2.3722, 1300.0),
+        ("relay_b", "relay", 48.8466, 2.3322, 1280.0),
+        ("ground_sink", "sink", 48.8500, 2.3000, 40.0),
+    ]
+    position_rows = [
+        {
+            "time_s": time_s,
+            "node": node,
+            "node_id": node,
+            "role": role,
+            "latitude": lat0 + time_s * 0.003,
+            "longitude": lon0 + time_s * 0.004,
+            "alt_m": alt0,
+            "y_m": time_s * (120 if node == "relay_a" else 90),
+        }
+        for time_s in range(5)
+        for node, role, lat0, lon0, alt0 in node_specs
+    ]
+    routing_rows = [
+        {
+            "relay": relay,
+            "routing_policy": policy,
+            "packets_generated": 8,
+            "packets_delivered": delivered,
+            "packets_dropped": 8 - delivered,
+        }
+        for relay, delivered in (("relay_a", 5 + delivered_offset), ("relay_b", 4 + delivered_offset))
+    ]
+    return queue_rows, packet_rows, position_rows, routing_rows
+
+
+def _write_queue_pipeline(run_root: Path, *, scenario: str) -> None:
+    pipeline_dir = run_root / "pipeline"
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    (pipeline_dir / "topology.gml").write_text(
+        """graph [
+  directed 1
+  node [ id 0 label "uav_source" role "source" latitude 48.8566 longitude 2.3522 alt_m 1200.0 ]
+  node [ id 1 label "relay_a" role "relay" latitude 48.8666 longitude 2.3722 alt_m 1300.0 ]
+  node [ id 2 label "relay_b" role "relay" latitude 48.8466 longitude 2.3322 alt_m 1280.0 ]
+  node [ id 3 label "ground_sink" role "sink" latitude 48.8500 longitude 2.3000 alt_m 40.0 ]
+  edge [ source 0 target 1 bearer "ivdl" weight 1.0 ]
+  edge [ source 1 target 3 bearer "satcom" weight 1.2 ]
+  edge [ source 0 target 2 bearer "ivdl" weight 1.1 ]
+  edge [ source 2 target 3 bearer "satcom" weight 1.3 ]
+]
+""",
+        encoding="utf-8",
+    )
+    _write_csv(
+        pipeline_dir / "allocations_steps.csv",
+        [
+            {"time_index": 0, "source": "uav_source", "destination": "ground_sink", "path": '["uav_source", "relay_a", "ground_sink"]', "bearers": '["ivdl", "satcom"]'},
+            {"time_index": 1, "source": "uav_source", "destination": "ground_sink", "path": '["uav_source", "relay_b", "ground_sink"]', "bearers": '["ivdl", "satcom"]'},
+        ],
+    )
+    _write_json(pipeline_dir / "demands.json", [{"source": "uav_source", "destination": "ground_sink", "packet_rate_pps": 14.0}])
+    trajectory_files: list[str] = []
+    for node in ("uav_source", "relay_a", "relay_b", "ground_sink"):
+        file_name = f"{node}_trajectory.csv"
+        trajectory_files.append(file_name)
+        _write_csv(
+            pipeline_dir / file_name,
+            [
+                {
+                    "time_s": step,
+                    "node_id": node,
+                    "latitude": 48.84 + step * 0.005,
+                    "longitude": 2.30 + step * 0.006,
+                    "alt_m": 40.0 if node == "ground_sink" else 1200.0 + step * 10.0,
+                }
+                for step in range(5)
+            ],
+        )
+    _write_json(pipeline_dir / "_trajectory_summary.json", {"scenario": scenario, "planned_trajectories": len(trajectory_files), "trajectory_files": trajectory_files})
+
+
+def _seed_queue_artifacts(export_root: Path, target: str) -> None:
+    _seed_track_dataframe(export_root / "00_robot_tracks.csv", node_prefix=target)
+    analysis_root = export_root / target / "queue_analysis"
+    for stem, policy, delivered_offset in [
+        ("robot_shortest_path_seed2026", "shortest_path", 0),
+        ("robot_queue_aware_seed2026", "queue_aware", 1),
+    ]:
+        run_root = analysis_root / stem
+        queue_rows, packet_rows, position_rows, routing_rows = _queue_run_rows(policy, delivered_offset=delivered_offset)
+        _write_json(
+            run_root / f"{stem}_summary_metrics.json",
+            {
+                "artifact_stem": stem,
+                "scenario": "uav_queue_hotspot",
+                "routing_policy": policy,
+                "bond_mode": "single",
+                "source_rate_pps": 14.0,
+                "random_seed": 2026,
+                "bottleneck_relay": "relay_a",
+                "packets_generated": 8,
+                "pdr": 0.72 + delivered_offset * 0.08,
+                "mean_e2e_delay_ms": 30.0 - delivered_offset * 4.0,
+                "mean_queue_wait_ms": 9.0 - delivered_offset * 2.0,
+                "max_queue_depth_pkts": 6 - delivered_offset,
+                "notes": "Seeded by the AGILAB widget robot for browser UI coverage.",
+            },
+        )
+        _write_csv(run_root / f"{stem}_queue_timeseries.csv", queue_rows)
+        _write_csv(run_root / f"{stem}_packet_events.csv", packet_rows)
+        _write_csv(run_root / f"{stem}_node_positions.csv", position_rows)
+        _write_csv(run_root / f"{stem}_routing_summary.csv", routing_rows)
+        _write_queue_pipeline(run_root, scenario="uav_queue_hotspot")
+
+
+def _seed_forecast_artifacts(export_root: Path) -> None:
+    target_root = export_root / "meteo_forecast" / "forecast_analysis"
+    for name, mae, rmse, mape, notes in [
+        ("baseline", 3.4, 4.2, 7.5, "Baseline notebook export"),
+        ("candidate", 2.9, 3.8, 6.4, "Candidate notebook export"),
+    ]:
+        run_root = target_root / name
+        _write_json(
+            run_root / "forecast_metrics.json",
+            {
+                "scenario": "paris_temperature_forecast",
+                "station": "Paris-Montsouris",
+                "target": "tmax_c",
+                "model_name": "robot_random_forest",
+                "horizon_days": 7,
+                "mae": mae,
+                "rmse": rmse,
+                "mape": mape,
+                "notes": notes,
+            },
+        )
+        _write_csv(run_root / "forecast_predictions.csv", [{"date": f"2026-04-{day:02d}", "y_true": 17.0 + day * 0.2, "y_pred": 16.8 + day * 0.25} for day in range(1, 8)])
+
+
+def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: Path) -> None:
+    target = app_target_name(app_name)
+    if target not in PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS:
+        return
+    export_root.mkdir(parents=True, exist_ok=True)
+    share_root.mkdir(parents=True, exist_ok=True)
+    if target == "flight":
+        _seed_flight_artifacts(export_root, share_root)
+    elif target in {"uav_queue", "uav_relay_queue"}:
+        _seed_queue_artifacts(export_root, target)
+    elif target == "meteo_forecast":
+        _seed_forecast_artifacts(export_root)
+
+
+def build_seeded_server_env(web_robot: Any, *, app_name: str, runtime_root: Path, seed_demo_artifacts: bool) -> SeededRuntime:
+    home_root = runtime_root / "home"
+    export_root = runtime_root / "export"
+    share_root = runtime_root / "localshare"
+    cluster_share_root = runtime_root / "clustershare"
+    for path in (home_root, export_root, share_root, cluster_share_root):
+        path.mkdir(parents=True, exist_ok=True)
+    env = web_robot.build_server_env()
+    env.update(
+        {
+            "HOME": str(home_root),
+            "AGI_EXPORT_DIR": str(export_root),
+            "AGI_LOCAL_SHARE": str(share_root),
+            "AGI_CLUSTER_SHARE": str(cluster_share_root),
+            "AGI_CLUSTER_ENABLED": "0",
+            "IS_SOURCE_ENV": "1",
+        }
+    )
+    if seed_demo_artifacts:
+        seed_public_demo_artifacts(app_name, export_root=export_root, share_root=share_root)
+    return SeededRuntime(env, home_root, export_root, share_root, cluster_share_root)
+
+
+def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:
+    deadline = time.perf_counter() + timeout_ms / 1000.0
+    while time.perf_counter() < deadline:
+        try:
+            text = page.locator("body").inner_text(timeout=1000).lower()
+            spinner_count = page.locator("[data-testid='stSpinner']").count()
+        except Exception:
+            text = ""
+            spinner_count = 0
+        if "initializing environment" not in text and spinner_count == 0:
+            page.wait_for_timeout(250)
+            return
+        page.wait_for_timeout(250)
+
+
+def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> int:
+    minimum = PAGE_MIN_WIDGETS.get(page_name, 1)
+    deadline = time.perf_counter() + timeout_ms / 1000.0
+    last_count = -1
+    stable_seen = 0
+    while time.perf_counter() < deadline:
+        try:
+            page.evaluate(OPEN_EXPANDERS_JS)
+            count = len(page.evaluate(WIDGET_COLLECTOR_JS))
+        except Exception:
+            count = 0
+        if count >= minimum and count == last_count:
+            stable_seen += 1
+            if stable_seen >= 2:
+                return count
+        else:
+            stable_seen = 0
+        last_count = count
+        page.wait_for_timeout(500)
+    return max(last_count, 0)
+
+
+def _normalized_label(label: str) -> str:
+    return label.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip().lower()
+
+
+def _widget_fingerprint(widget: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (str(widget.get("kind", "")), _normalized_label(str(widget.get("label", ""))), str(widget.get("testid", "")), str(widget.get("path", "")))
+
+
+def _same_widget(widget: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    if str(widget.get("kind", "")) != str(candidate.get("kind", "")):
+        return False
+    label = _normalized_label(str(widget.get("label", "")))
+    candidate_label = _normalized_label(str(candidate.get("label", "")))
+    if label and candidate_label and (label == candidate_label or label in candidate_label or candidate_label in label):
+        return True
+    return bool(widget.get("testid") and widget.get("testid") == candidate.get("testid") and widget.get("path") == candidate.get("path"))
+
+
+def _short_detail(detail: str, *, limit: int = 500) -> str:
+    return detail if len(detail) <= limit else detail[: limit - 3] + "..."
+
+
+def _widget_locator(page: Any, widget: dict[str, Any]) -> Any:
+    locator = page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
+    try:
+        if locator.count() > 0:
+            return locator
+    except Exception:
+        return locator
+    refreshed = page.evaluate(WIDGET_COLLECTOR_JS)
+    for candidate in refreshed:
+        if _widget_fingerprint(candidate) == _widget_fingerprint(widget) or _same_widget(widget, candidate):
+            widget["id"] = candidate["id"]
+            return page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
+    return locator
+
+
+def _visible_exception_detail(page: Any) -> str | None:
+    try:
+        exceptions = page.locator("[data-testid='stException']")
+        if exceptions.count() > 0 and exceptions.first.is_visible(timeout=500):
+            return _short_detail(exceptions.first.inner_text(timeout=500) or "Streamlit exception rendered")
+    except Exception:
+        return None
+    return None
+
+
+def _fill_and_restore(locator: Any, value: str, *, timeout_ms: float) -> None:
+    original = locator.input_value(timeout=timeout_ms)
+    locator.fill(f"{original} robot" if original else value, timeout=timeout_ms)
+    locator.fill(original, timeout=timeout_ms)
+
+
+def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:
+    try:
+        locator.click(timeout=timeout_ms)
+    except Exception:
+        locator.click(timeout=timeout_ms, force=True)
+
+
+def _probe_widget(
+    page: Any,
+    widget: dict[str, Any],
+    *,
+    timeout_ms: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    upload_file: Path,
+    restore_view: Any | None,
+) -> tuple[str, str]:
+    if widget.get("disabled"):
+        return "probed", "disabled state verified"
+    locator = _widget_locator(page, widget)
+    kind = str(widget.get("kind", ""))
+    try:
+        locator.scroll_into_view_if_needed(timeout=timeout_ms)
+        if not locator.is_visible(timeout=timeout_ms):
+            return "skipped", "not visible after collection"
+        if not locator.is_enabled(timeout=timeout_ms):
+            return "skipped", "not enabled"
+        locator.bounding_box(timeout=timeout_ms)
+        if interaction_mode == "actionability":
+            if kind in ACTION_BUTTON_KINDS:
+                try:
+                    locator.click(timeout=timeout_ms, trial=True)
+                except Exception:
+                    pass
+            return "probed", f"visible/enabled ok ({kind})"
+        if kind in ACTION_BUTTON_KINDS:
+            if action_button_policy == "click":
+                _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+                page.wait_for_timeout(250)
+                error = _visible_exception_detail(page)
+                if error:
+                    return "failed", f"button click rendered exception: {error}"
+                return "interacted", "clicked action button"
+            try:
+                locator.click(timeout=timeout_ms, trial=True)
+                return "probed", "action button browser-clickable; callback not fired by default"
+            except Exception as exc:
+                return "probed", _short_detail(f"action button visible/enabled; trial click layout-intercepted: {exc}")
+        if kind in {"checkbox", "toggle"}:
+            was_checked = locator.is_checked(timeout=timeout_ms) if kind == "checkbox" else None
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(250)
+            if was_checked is not None:
+                locator = _widget_locator(page, widget)
+                if locator.is_checked(timeout=timeout_ms) != was_checked:
+                    _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            return "interacted", f"clicked and restored {kind}"
+        if kind == "radio":
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(250)
+            if restore_view is not None:
+                restore_view()
+            return "interacted", "clicked radio option and restored page"
+        if kind == "text_input":
+            _fill_and_restore(locator, "agilab-widget-robot", timeout_ms=timeout_ms)
+            return "interacted", "filled and restored text input"
+        if kind == "text_area":
+            _fill_and_restore(locator, "agilab widget robot", timeout_ms=timeout_ms)
+            return "interacted", "filled and restored text area"
+        if kind == "number_input":
+            locator.focus(timeout=timeout_ms)
+            locator.press("ArrowUp", timeout=timeout_ms)
+            locator.press("ArrowDown", timeout=timeout_ms)
+            return "interacted", "exercised number input keyboard controls"
+        if kind == "slider":
+            locator.focus(timeout=timeout_ms)
+            locator.press("ArrowRight", timeout=timeout_ms)
+            locator.press("ArrowLeft", timeout=timeout_ms)
+            return "interacted", "exercised slider keyboard controls"
+        if kind in {"selectbox", "multiselect"}:
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(150)
+            page.keyboard.press("Escape")
+            return "interacted", f"opened and closed {kind}"
+        if kind == "file_uploader":
+            locator.locator("input[type='file']").first.set_input_files(str(upload_file), timeout=timeout_ms)
+            page.wait_for_timeout(250)
+            return "interacted", "uploaded temporary robot fixture"
+        if kind == "data_editor":
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            return "interacted", "focused data editor/dataframe region"
+        if kind in {"tab", "expander"}:
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(250)
+            return "interacted", f"clicked {kind}"
+        locator.click(timeout=timeout_ms, trial=True)
+        return "probed", f"unknown widget kind actionability verified ({kind})"
+    except Exception as exc:
+        return "skipped", _short_detail(f"volatile after collection: {exc}")
+
+
+def _collect_and_probe_current_view(
+    page: Any,
+    *,
+    app_name: str,
+    page_name: str,
+    widget_timeout_ms: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    upload_file: Path,
+    restore_view: Any | None,
+    known: set[tuple[str, str, str, str]],
+) -> list[WidgetProbe]:
+    page.evaluate(OPEN_EXPANDERS_JS)
+    widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+    probes: list[WidgetProbe] = []
+    for widget in widgets:
+        fingerprint = _widget_fingerprint(widget)
+        if fingerprint in known:
+            continue
+        known.add(fingerprint)
+        status, detail = _probe_widget(
+            page,
+            widget,
+            timeout_ms=widget_timeout_ms,
+            interaction_mode=interaction_mode,
+            action_button_policy=action_button_policy,
+            upload_file=upload_file,
+            restore_view=restore_view,
+        )
+        if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
+            try:
+                restore_view()
+                status, detail = _probe_widget(
+                    page,
+                    widget,
+                    timeout_ms=widget_timeout_ms,
+                    interaction_mode=interaction_mode,
+                    action_button_policy=action_button_policy,
+                    upload_file=upload_file,
+                    restore_view=restore_view,
+                )
+            except Exception as exc:
+                status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
+        error = _visible_exception_detail(page)
+        if error and status != "failed":
+            status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
+        probes.append(WidgetProbe(app_name, page_label(page_name), str(widget.get("kind", "")), str(widget.get("label", "")), status, detail, page.url))
+    return probes
+
+
+def sweep_page(
+    page: Any,
+    *,
+    web_robot: Any,
+    base_url: str,
+    active_app_query: str,
+    app_name: str,
+    page_name: str,
+    display_page: str | None = None,
+    current_page: Path | None = None,
+    expected_text: Sequence[str] | None = None,
+    check_active_app_route: bool = True,
+    timeout: float,
+    widget_timeout: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    upload_file: Path,
+    screenshot_dir: Path | None = None,
+) -> PageSweep:
+    started = time.perf_counter()
+    timeout_ms = timeout * 1000.0
+    widget_timeout_ms = widget_timeout * 1000.0
+    target_url = web_robot.build_url(base_url, active_app=active_app_query) if not page_name else web_robot.build_page_url(base_url, page_name, active_app=active_app_query, current_page=str(current_page) if current_page else None)
+    display = display_page or page_label(page_name)
+    expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
+    probes: list[WidgetProbe] = []
+
+    def restore_view() -> None:
+        page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        health = web_robot.assert_page_healthy(page, label=f"{app_name}:{display}:restore", expect_any=expect_any, timeout_ms=timeout_ms, screenshot_dir=screenshot_dir)
+        if not health.success:
+            raise RuntimeError(health.detail)
+        page.wait_for_timeout(1000)
+        wait_for_page_ready(page, timeout_ms=timeout_ms)
+        wait_for_widgets_ready(page, page_name=page_name, timeout_ms=timeout_ms)
+        page.evaluate(OPEN_EXPANDERS_JS)
+
+    try:
+        restore_view()
+        if check_active_app_route and not active_app_route_matches(page.url, active_app_query):
+            detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
+            probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
+        else:
+            known: set[tuple[str, str, str, str]] = set()
+            probes.extend(
+                _collect_and_probe_current_view(
+                    page,
+                    app_name=app_name,
+                    page_name=display,
+                    widget_timeout_ms=widget_timeout_ms,
+                    interaction_mode=interaction_mode,
+                    action_button_policy=action_button_policy,
+                    upload_file=upload_file,
+                    restore_view=restore_view,
+                    known=known,
+                )
+            )
+            tab_count = page.locator("[role='tab']").count()
+            for index in range(tab_count):
+                tab = page.locator("[role='tab']").nth(index)
+                try:
+                    if tab.is_visible(timeout=widget_timeout_ms) and tab.is_enabled(timeout=widget_timeout_ms):
+                        _click_with_force_fallback(tab, timeout_ms=widget_timeout_ms)
+                        page.wait_for_timeout(250)
+                        probes.extend(
+                            _collect_and_probe_current_view(
+                                page,
+                                app_name=app_name,
+                                page_name=display,
+                                widget_timeout_ms=widget_timeout_ms,
+                                interaction_mode=interaction_mode,
+                                action_button_policy=action_button_policy,
+                                upload_file=upload_file,
+                                restore_view=restore_view,
+                                known=known,
+                            )
+                        )
+                except Exception as exc:
+                    probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
+    except Exception as exc:
+        probes.append(WidgetProbe(app_name, display, "page", "", "failed", str(exc), target_url))
+
+    failed = [probe for probe in probes if probe.status == "failed"]
+    skipped = [probe for probe in probes if probe.status == "skipped"]
+    probed = [probe for probe in probes if probe.status == "probed"]
+    interacted = [probe for probe in probes if probe.status == "interacted"]
+    return PageSweep(
+        app=app_name,
+        page=display,
+        success=not failed and not skipped,
+        duration_seconds=time.perf_counter() - started,
+        widget_count=len(probes),
+        interacted_count=len(interacted),
+        probed_count=len(probed),
+        skipped_count=len(skipped),
+        failed_count=len(failed),
+        url=getattr(page, "url", target_url),
+        failures=failed[:20],
+        skips=skipped[:20],
+    )
+
+
+def _project_root_for(path: Path) -> Path:
+    for candidate in [path.parent, *path.parents]:
+        if (candidate / "pyproject.toml").exists():
+            return candidate
+    return path.parent
+
+
+def sweep_direct_apps_page(
+    *,
+    web_robot: Any,
+    app_name: str,
+    active_app: Path | str,
+    route: AppsPageRoute,
+    timeout: float,
+    widget_timeout: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    browser_name: str,
+    headless: bool,
+    screenshot_dir: Path | None,
+    server_env: dict[str, str],
+) -> PageSweep:
+    port = web_robot._free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    command = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        str(_project_root_for(route.path)),
+        "streamlit",
+        "run",
+        str(route.path),
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        str(port),
+        "--server.headless",
+        "true",
+        "--server.runOnSave",
+        "false",
+        "--browser.gatherUsageStats",
+        "false",
+        "--",
+        "--active-app",
+        str(active_app),
+    ]
+    with web_robot.StreamlitServer(command, env=server_env, url=base_url):
+        health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+        if not health.success:
+            return PageSweep(app_name, f"APPS_PAGE:{route.name}", False, health.duration_seconds, 1, 0, 0, 0, 1, health.url or base_url, [WidgetProbe(app_name, f"APPS_PAGE:{route.name}", "streamlit", "", "failed", health.detail, health.url or base_url)], [])
+        _, _, sync_playwright = web_robot._load_playwright()
+        with sync_playwright() as playwright:
+            browser = getattr(playwright, browser_name).launch(headless=headless)
+            context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            try:
+                page = context.new_page()
+                with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
+                    upload_file = Path(tmp_dir) / "upload-fixture.txt"
+                    upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
+                    return sweep_page(
+                        page,
+                        web_robot=web_robot,
+                        base_url=base_url,
+                        active_app_query=str(active_app),
+                        app_name=app_name,
+                        page_name="",
+                        display_page=f"APPS_PAGE:{route.name}",
+                        expected_text=(),
+                        check_active_app_route=False,
+                        timeout=timeout,
+                        widget_timeout=widget_timeout,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        upload_file=upload_file,
+                        screenshot_dir=screenshot_dir,
+                    )
+            finally:
+                context.close()
+                browser.close()
+
+
+def sweep_app(
+    *,
+    app: Path | str,
+    pages: Sequence[str],
+    apps_pages: Sequence[AppsPageRoute],
+    timeout: float,
+    widget_timeout: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    browser_name: str,
+    headless: bool,
+    screenshot_dir: Path | None,
+    seed_demo_artifacts: bool,
+) -> list[PageSweep]:
+    web_robot = _load_web_robot()
+    app_name = active_app_slug(str(app))
+    port = web_robot._free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    local_active_app = web_robot.resolve_local_active_app(str(app), str(web_robot.DEFAULT_APPS_PATH))
+    command = web_robot.build_streamlit_command(active_app=local_active_app, apps_path=web_robot.DEFAULT_APPS_PATH, port=port)
+    results: list[PageSweep] = []
+    with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-runtime-") as runtime_dir:
+        seeded_runtime = build_seeded_server_env(web_robot, app_name=app_name, runtime_root=Path(runtime_dir), seed_demo_artifacts=seed_demo_artifacts)
+        with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url):
+            health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+            if not health.success:
+                return [PageSweep(app_name, "SERVER", False, health.duration_seconds, 1, 0, 0, 0, 1, health.url or base_url, [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)], [])]
+            _, _, sync_playwright = web_robot._load_playwright()
+            with sync_playwright() as playwright:
+                browser = getattr(playwright, browser_name).launch(headless=headless)
+                context = browser.new_context(viewport={"width": 1440, "height": 1000})
+                try:
+                    page = context.new_page()
+                    with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
+                        upload_file = Path(tmp_dir) / "upload-fixture.txt"
+                        upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
+                        for page_name in pages:
+                            results.append(
+                                sweep_page(
+                                    page,
+                                    web_robot=web_robot,
+                                    base_url=base_url,
+                                    active_app_query=str(local_active_app),
+                                    app_name=app_name,
+                                    page_name=page_name,
+                                    timeout=timeout,
+                                    widget_timeout=widget_timeout,
+                                    interaction_mode=interaction_mode,
+                                    action_button_policy=action_button_policy,
+                                    upload_file=upload_file,
+                                    screenshot_dir=screenshot_dir,
+                                )
+                            )
+                finally:
+                    context.close()
+                    browser.close()
+        for route in apps_pages:
+            results.append(
+                sweep_direct_apps_page(
+                    web_robot=web_robot,
+                    app_name=app_name,
+                    active_app=local_active_app,
+                    route=route,
+                    timeout=timeout,
+                    widget_timeout=widget_timeout,
+                    interaction_mode=interaction_mode,
+                    action_button_policy=action_button_policy,
+                    browser_name=browser_name,
+                    headless=headless,
+                    screenshot_dir=screenshot_dir,
+                    server_env=seeded_runtime.env,
+                )
+            )
+    return results
+
+
+def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: float) -> WidgetSweepSummary:
+    total = sum(page.duration_seconds for page in pages)
+    failed_count = sum(page.failed_count for page in pages)
+    skipped_count = sum(page.skipped_count for page in pages)
+    success = bool(pages) and failed_count == 0 and skipped_count == 0
+    return WidgetSweepSummary(
+        success=success,
+        total_duration_seconds=total,
+        target_seconds=target_seconds,
+        within_target=success and total <= target_seconds,
+        app_count=app_count,
+        page_count=len(pages),
+        widget_count=sum(page.widget_count for page in pages),
+        interacted_count=sum(page.interacted_count for page in pages),
+        probed_count=sum(page.probed_count for page in pages),
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        pages=list(pages),
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Exercise visible widgets across AGILAB public built-in apps through a real browser.")
+    parser.add_argument("--apps", default="all", help="Comma-separated built-in app names/paths, or 'all'.")
+    parser.add_argument("--pages", default="all", help="Comma-separated page routes, or 'all'. HOME maps to the root page.")
+    parser.add_argument("--apps-pages", default="configured", help="Apps-pages to test: 'configured' per app, 'all', 'none', or comma-separated names/paths. Default: configured.")
+    parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
+    parser.add_argument("--headful", action="store_true")
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
+    parser.add_argument("--interaction-mode", choices=("actionability", "full"), default="full")
+    parser.add_argument("--action-button-policy", choices=("trial", "click"), default="trial")
+    parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
+    parser.add_argument("--screenshot-dir")
+    parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
+    parser.add_argument("--json", action="store_true")
+    return parser
+
+
+def render_human(summary: WidgetSweepSummary) -> str:
+    lines = [
+        "AGILAB widget robot",
+        f"verdict: {'PASS' if summary.success else 'FAIL'}",
+        f"kpi: total={summary.total_duration_seconds:.2f}s target<={summary.target_seconds:.2f}s within_target={'yes' if summary.within_target else 'no'}",
+        f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
+    ]
+    for page in summary.pages:
+        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} widgets={page.widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
+        for failure in page.failures[:3]:
+            lines.append(f"  failure: {failure.kind} {failure.label!r} - {failure.detail}")
+        for skip in page.skips[:3]:
+            lines.append(f"  skipped: {skip.kind} {skip.label!r} - {skip.detail}")
+    return "\n".join(lines)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.timeout <= 0:
+        parser.error("--timeout must be greater than 0")
+    if args.widget_timeout <= 0:
+        parser.error("--widget-timeout must be greater than 0")
+    if args.interaction_mode == "actionability" and args.action_button_policy == "click":
+        parser.error("--action-button-policy click only applies with --interaction-mode full")
+    apps = resolve_apps(args.apps)
+    pages = resolve_pages(args.pages)
+    global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
+    screenshot_dir = Path(args.screenshot_dir).expanduser().resolve() if args.screenshot_dir else None
+    results: list[PageSweep] = []
+    for app in apps:
+        app_pages = configured_apps_pages_for_app(app) if global_apps_pages is None else global_apps_pages
+        results.extend(
+            sweep_app(
+                app=app,
+                pages=pages,
+                apps_pages=app_pages,
+                timeout=args.timeout,
+                widget_timeout=args.widget_timeout,
+                interaction_mode=args.interaction_mode,
+                action_button_policy=args.action_button_policy,
+                browser_name=args.browser,
+                headless=not args.headful,
+                screenshot_dir=screenshot_dir,
+                seed_demo_artifacts=not args.no_seed_demo_artifacts,
+            )
+        )
+    summary = summarize(results, app_count=len(apps), target_seconds=args.target_seconds)
+    print(json.dumps(asdict(summary), indent=2) if args.json else render_human(summary))
+    return 0 if summary.success else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
