@@ -11,7 +11,7 @@ dependencies = [
   "psutil",
   "pathspec",
   "py7zr",
-  "streamlit>=1.56.0",
+  "streamlit>=1.55.0",
   "pandas>=2.3.0",
   "networkx",
   "simpy>=4.1,<5",

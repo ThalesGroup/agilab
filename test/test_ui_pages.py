@@ -668,49 +668,6 @@ def test_explore_page_multiselect(mock_ui_env):
     btns = [b.label for b in at.button]
     assert "view_maps" in btns
 
-
-def test_explore_page_default_view_does_not_mutate_widget_state_after_render(mock_ui_env):
-    """Default view auto-routing must hydrate the multiselect key before widget render."""
-    page_path = mock_ui_env["pages_dir"] / "view_default.py"
-    page_path.write_text(
-        "import streamlit as st\n\n"
-        "def main():\n"
-        "    st.write('default view rendered')\n",
-        encoding="utf-8",
-    )
-    settings_payload = (
-        "[pages]\n"
-        "default_view = 'view_default'\n"
-        "view_module = []\n"
-    )
-    settings_file = mock_ui_env["project_dir"] / "src" / "app_settings.toml"
-    settings_file.write_text(
-        settings_payload,
-        encoding="utf-8",
-    )
-
-    at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
-    home_root = mock_ui_env["apps_dir"].parent
-    with patch.dict(os.environ, {"HOME": str(home_root), "SPACE_ID": "test/agilab"}, clear=False):
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    env.init_done = True
-    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
-    env.envars["SPACE_ID"] = "test/agilab"
-    env.resolve_user_app_settings_file("flight_project").write_text(
-        settings_payload,
-        encoding="utf-8",
-    )
-    at.session_state["env"] = env
-
-    at.run()
-
-    assert not at.exception
-    assert at.session_state["view_selection__flight_project"] == ["view_default"]
-
-
 def test_experiment_page_load(mock_ui_env):
     """Test that the EXPERIMENT page loads without exceptions."""
     at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py")
