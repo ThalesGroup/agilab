@@ -34,7 +34,9 @@ def test_full_public_widget_robot_sweep() -> None:
     """Opt-in pytest entrypoint for the browser widget robot.
 
     Run with:
-    AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
+    AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
 
     Set AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab to run the same robot against the public HF Space.
     """

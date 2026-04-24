@@ -171,19 +171,25 @@ Fast UI robot contract tests are normal developer tests::
     uv --preview-features extra-build-dependencies run pytest -q test/test_agilab_widget_robot.py test/test_agilab_web_robot.py
 
 The full browser UI robot sweep is intentionally opt-in because it launches
-Streamlit and Playwright::
+Streamlit and Playwright. Run it from a source checkout so the ``test/`` tree is
+present::
 
-    AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
+    AGILAB_RUN_FULL_UI_ROBOT=1 \
+    uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
 
 To run the same robot against the public Hugging Face Space instead of a local
 server::
 
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
     AGILAB_RUN_FULL_UI_ROBOT=1 \
     AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab \
     AGILAB_WIDGET_ROBOT_APPS=flight_project \
     AGILAB_WIDGET_ROBOT_PAGES=HOME \
     AGILAB_WIDGET_ROBOT_APPS_PAGES=configured \
-    uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
+    uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
 
 Private apps or framework contributor setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
