@@ -46,11 +46,11 @@ The core idea is simple: keep one app on one control path from setup to run to v
 
 | Need | Start here | Outcome |
 |---|---|---|
-| Browser preview | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | Public Streamlit UI running `uav_relay_queue_project`. No install. |
-| Local proof | [Quick start](https://thalesgroup.github.io/agilab/quick-start.html) | Source checkout, built-in `flight_project`, visible result in `ANALYSIS`. Target: pass the first proof in 10 minutes. |
+| Browser preview | <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge" alt="AGILAB Space" /></a> | Public Streamlit UI running `uav_relay_queue_project`. No install. |
+| Install locally | [Quick start](https://thalesgroup.github.io/agilab/quick-start.html) | Source checkout, built-in `flight_project`, visible result in `ANALYSIS`. Target: pass the first run in 10 minutes. |
 | API/notebook | [agi-core notebook](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb) | Minimal `AgiEnv` / `AGI.run(...)` path without the full UI. |
 
-## Local Proof
+## First Run
 
 Run the installable product path with the built-in `flight_project`:
 
@@ -90,7 +90,7 @@ Working scores, not production MLOps claims:
 
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
-| Ease of adoption | `3.5 / 5` | Hosted Space plus local `flight_project` proof: `5.86s` vs `600s`. | Needs fresh external-machine replication. |
+| Ease of adoption | `3.5 / 5` | Hosted Space plus local `flight_project` run: `5.86s` vs `600s`. | Needs fresh external-machine replication. |
 | Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages. | First-class reduce contract is still roadmap. |
 | Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates. | First-proof wizard and external replication remain open. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |

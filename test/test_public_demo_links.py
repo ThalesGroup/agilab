@@ -18,6 +18,7 @@ FEATURES_DOC = Path("docs/source/features.rst")
 COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
+PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.25"
@@ -32,10 +33,13 @@ def test_readme_advertises_public_huggingface_space_page() -> None:
     assert "uav_relay_queue_project" in readme
 
 
-def test_readme_uses_hf_space_page_for_primary_link_and_runtime_host_for_robot_command() -> None:
+def test_readme_uses_hf_space_badge_for_primary_link_and_runtime_host_for_robot_command() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert f"[AGILAB Space]({PUBLIC_HF_SPACE_URL})" in readme
+    assert (
+        f'<a href="{PUBLIC_HF_SPACE_URL}"><img src="{PUBLIC_HF_SPACE_BADGE}" '
+        'alt="AGILAB Space" /></a>'
+    ) in readme
     assert f"--url {HF_RUNTIME_URL}" in readme
 
 
@@ -49,9 +53,10 @@ def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:
 def test_readme_exposes_three_clear_adoption_routes() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    for phrase in ("Browser preview", "Local proof", "API/notebook"):
+    for phrase in ("Browser preview", "Install locally", "API/notebook"):
         assert phrase in readme
-    assert "Target: pass the first proof in 10 minutes" in readme
+    assert "Target: pass the first run in 10 minutes" in readme
+    assert "## First Run" in readme
     assert "tools/newcomer_first_proof.py --json" in readme
     assert "Ease of adoption" in readme
     assert "3.5 / 5" in readme
