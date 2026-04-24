@@ -301,16 +301,17 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
     ]
     required = {
         "README.md": [
-            "tools/kpi_evidence_bundle.py",
-            "tools/hf_space_smoke.py --json",
-            "tools/agilab_web_robot.py",
             "tools/newcomer_first_proof.py --json",
-            "tools/production_readiness_report.py",
+            "Overall public evaluation",
+            "compatibility matrix",
         ],
         "docs/source/compatibility-matrix.rst": [
             "AGILAB Hugging Face demo",
             "validated",
             "tools/hf_space_smoke.py --json",
+            "tools/agilab_web_robot.py",
+            "tools/production_readiness_report.py",
+            "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
         "docs/source/quick-start.rst": ["tools/newcomer_first_proof.py"],
