@@ -31,6 +31,7 @@ from pathlib import Path
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
+import streamlit.components.v1 as components
 import logging
 import subprocess
 
@@ -1251,37 +1252,15 @@ async def main():
     view_names = sorted(set(resolved_pages.keys()) | set(custom_view_lookup.keys()))
 
     selection_key = f"view_selection__{project or 'default'}"
-    default_view_name, default_view_path = _resolve_default_view(
-        cfg.get("pages", {}).get("default_view"),
-        view_names,
-        resolved_pages,
-        custom_view_lookup,
-    )
-
-    initial_selection = list(preselect)
-    if (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-        and default_view_name not in initial_selection
-    ):
-        initial_selection = [default_view_name, *initial_selection]
 
     if selection_key not in st.session_state:
-        st.session_state[selection_key] = initial_selection
+        st.session_state[selection_key] = list(preselect)
     else:
         # Sanitize any persisted selection to only include currently available views
         current = st.session_state.get(selection_key, [])
         if not isinstance(current, list):
             current = []
         cleaned = [v for v in current if v in view_names]
-        if (
-            not current_page
-            and default_view_name
-            and default_view_path is not None
-            and default_view_name not in cleaned
-        ):
-            cleaned = [default_view_name, *cleaned]
         if cleaned != current:
             st.session_state[selection_key] = cleaned
 
@@ -1295,14 +1274,10 @@ async def main():
         help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen."
     )
 
-    selected_views = [v for v in selected_views if v in view_names]
-    if (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-        and default_view_name not in selected_views
-    ):
-        selected_views = [default_view_name, *selected_views]
+    cleaned_selection = [v for v in selected_views if v in view_names]
+    if cleaned_selection != selected_views:
+        st.session_state[selection_key] = cleaned_selection
+        selected_views = cleaned_selection
 
     if cfg.get("pages", {}).get("view_module") != selected_views:
         normalized_config = []
@@ -1314,7 +1289,16 @@ async def main():
         cfg.setdefault("pages", {})["view_module"] = normalized_config
         _write_config(app_settings, cfg)
 
+    default_view_name, default_view_path = _resolve_default_view(
+        cfg.get("pages", {}).get("default_view"),
+        view_names,
+        resolved_pages,
+        custom_view_lookup,
+    )
     if not current_page and default_view_name and default_view_path is not None:
+        if default_view_name not in selected_views:
+            selected_views = [default_view_name, *selected_views]
+            st.session_state[selection_key] = selected_views
         view_str = str(default_view_path.resolve())
         st.session_state["current_page"] = view_str
         st.query_params["current_page"] = view_str
@@ -1417,7 +1401,7 @@ async def render_view_page(view_path: Path):
         return
     url = f"http://127.0.0.1:{port}/?{query}"
     env.logger.info("page url: %s", url)
-    st.iframe(url, height=900)
+    components.iframe(url, height=900)
 
     # --- end sidecar embed ---
 

@@ -3,7 +3,7 @@ name = "view-uav-queue-analysis"
 version = "2026.04.08"
 requires-python = ">=3.13"
 dependencies = [
-    "streamlit>=1.56.0",
+    "streamlit>=1.55.0",
     "watchdog>=6.0.0",
     "agi-env",
     "agi-node",

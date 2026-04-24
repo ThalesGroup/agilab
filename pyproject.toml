@@ -36,7 +36,7 @@ keywords = [
     "jupyter",
     "ci-cd"
 ]
-dependencies = ["astor", "asyncssh", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "plotly", "polars", "pulp", "py7zr", "scipy==1.16.1", "seaborn", "streamlit>=1.56.0", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "watchdog", "sgp4", "agi-core==2026.4.25", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
+dependencies = ["astor", "asyncssh", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "plotly", "polars", "pulp", "py7zr", "scipy==1.16.1", "seaborn", "streamlit>=1.55.0", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "watchdog", "sgp4", "agi-core==2026.4.25", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
