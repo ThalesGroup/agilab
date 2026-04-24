@@ -38,9 +38,9 @@ Use this path exactly once before trying anything broader.
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
 
-       ./install.sh --install-apps --install-local-models qwen,deepseek
+      ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
 
-   Supported values are ``mistral``, ``qwen``, and ``deepseek``.
+   Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
 
 2. **Optional preflight check**::
 

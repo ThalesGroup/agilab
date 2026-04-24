@@ -296,8 +296,9 @@ normalize_local_model_name() {
         mistral|mistral:instruct) echo "mistral" ;;
         qwen|qwen2.5|qwen2.5-coder|qwen2.5-coder:latest) echo "qwen" ;;
         deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
+        gpt-oss|gpt_oss|gptoss|gpt-oss:20b) echo "gpt-oss" ;;
         * )
-            warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek."
+            warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek, gpt-oss."
             return 1
             ;;
     esac
@@ -337,6 +338,7 @@ ollama_tag_for_family() {
         mistral) echo "mistral:instruct" ;;
         qwen) echo "qwen2.5-coder:latest" ;;
         deepseek) echo "deepseek-coder:latest" ;;
+        gpt-oss) echo "gpt-oss:20b" ;;
         *)
             warn "No Ollama tag mapping defined for local model family '${family}'."
             return 1
@@ -1081,7 +1083,7 @@ install_pycharm_script() {
 usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
-  echo "       [--install-local-models mistral,qwen,deepseek]"
+  echo "       [--install-local-models mistral,qwen,deepseek,gpt-oss]"
     exit 1
 }
 

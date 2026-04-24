@@ -55,14 +55,14 @@ else
 fi
 
 usage() {
-  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--skip-offline] [--install-local-models mistral,qwen,deepseek]"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--skip-offline] [--install-local-models mistral,qwen,deepseek,gpt-oss]"
   echo ""
   echo "Options:"
   echo "  --source         Installation source (local, pypi, testpypi)"
   echo "  --version        Specific version to install"
   echo "  --force-rebuild  Force rebuild even if venv exists"
   echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
-  echo "  --install-local-models  Install requested Ollama models (mistral, qwen, deepseek)"
+  echo "  --install-local-models  Install requested Ollama models (mistral, qwen, deepseek, gpt-oss)"
   exit 1
 }
 
@@ -75,8 +75,9 @@ normalize_local_model_name() {
     mistral|mistral:instruct) echo "mistral" ;;
     qwen|qwen2.5|qwen2.5-coder|qwen2.5-coder:latest) echo "qwen" ;;
     deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
+    gpt-oss|gpt_oss|gptoss|gpt-oss:20b) echo "gpt-oss" ;;
     *)
-      warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek."
+      warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek, gpt-oss."
       return 1
       ;;
   esac
@@ -104,6 +105,7 @@ ollama_tag_for_family() {
     mistral) echo "mistral:instruct" ;;
     qwen) echo "qwen2.5-coder:latest" ;;
     deepseek) echo "deepseek-coder:latest" ;;
+    gpt-oss) echo "gpt-oss:20b" ;;
     *)
       warn "No Ollama tag mapping defined for local model family '${family}'."
       return 1

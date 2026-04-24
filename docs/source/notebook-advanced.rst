@@ -71,9 +71,9 @@ From the AGILab repository root:
 If you also want local Ollama-backed models available in the same source
 checkout, rerun the installer with the families you want::
 
-   ./install.sh --install-apps --install-local-models qwen,deepseek
+   ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
 
-Supported values are ``mistral``, ``qwen``, and ``deepseek``.
+Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
 
 The notebook file lives in the repository at
 ``examples/notebook_quickstart/agi_core_first_run.ipynb``.

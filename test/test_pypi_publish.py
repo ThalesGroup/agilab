@@ -1074,6 +1074,7 @@ def test_git_commit_docs_repository_pushes_only_release_managed_docs_paths(monke
         "ensure_docs_repo_release_ready",
         lambda _repo: ["docs/source/quick-start.rst", "docs/source/demos.rst"],
     )
+    monkeypatch.setattr(module, "ensure_docs_repo_push_ready", lambda _repo: None)
     monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
     monkeypatch.setattr(
         module.subprocess,
@@ -1093,6 +1094,56 @@ def test_git_commit_docs_repository_pushes_only_release_managed_docs_paths(monke
         (["git", "commit", "-m", "docs(release): sync docs for 2026.04.21"], docs_repo),
         (["git", "push", "origin", "main"], docs_repo),
     ]
+
+
+def test_ensure_docs_repo_push_ready_allows_up_to_date_or_release_only_commits(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    monkeypatch.setattr(module, "_git_upstream", lambda _repo: "origin/main")
+    monkeypatch.setattr(module, "_git_ahead_behind", lambda _repo, _upstream: (1, 0))
+    monkeypatch.setattr(module, "_unpublished_non_release_commits", lambda _repo, _upstream: [])
+
+    module.ensure_docs_repo_push_ready(docs_repo)
+
+
+def test_ensure_docs_repo_push_ready_blocks_unpublished_non_release_commits(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    monkeypatch.setattr(module, "_git_upstream", lambda _repo: "origin/main")
+    monkeypatch.setattr(module, "_git_ahead_behind", lambda _repo, _upstream: (2, 0))
+    monkeypatch.setattr(
+        module,
+        "_unpublished_non_release_commits",
+        lambda _repo, _upstream: ["abc1234 app change"],
+    )
+
+    try:
+        module.ensure_docs_repo_push_ready(docs_repo)
+    except SystemExit as exc:
+        assert "unpublished non-docs commits" in str(exc)
+        assert "abc1234 app change" in str(exc)
+    else:
+        raise AssertionError("ensure_docs_repo_push_ready() should reject non-docs commits")
+
+
+def test_ensure_docs_repo_push_ready_blocks_behind_upstream(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    monkeypatch.setattr(module, "_git_upstream", lambda _repo: "origin/main")
+    monkeypatch.setattr(module, "_git_ahead_behind", lambda _repo, _upstream: (0, 3))
+
+    try:
+        module.ensure_docs_repo_push_ready(docs_repo)
+    except SystemExit as exc:
+        assert "is behind origin/main by 3 commit(s)" in str(exc)
+    else:
+        raise AssertionError("ensure_docs_repo_push_ready() should reject behind branches")
 
 
 def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_path) -> None:
