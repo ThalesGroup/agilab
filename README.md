@@ -78,7 +78,7 @@ CODEX 5.5 working scores, not production MLOps claims:
 | Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages. | First-class reduce contract is still roadmap. |
 | Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates. | First-proof wizard and external replication remain open. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
-| Overall public evaluation | `3.2 / 5` -> `3.5 / 5` | Cross-KPI evidence bundle. | Alpha-stage software; not a production MLOps platform. |
+| Overall public evaluation | `3.2 / 5` -> `3.5 / 5` | Cross-KPI evidence bundle documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
 
 ## Read Next
 

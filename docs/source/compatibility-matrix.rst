@@ -73,9 +73,21 @@ Use it to answer three concrete questions:
 3. Which paths still need broader certification or automation work?
 
 Use :doc:`newcomer-guide` and :doc:`quick-start` for the actual onboarding
-flow. This page is only the support-status map. Maintainers can collect the
-cross-KPI public evidence bundle with ``uv run python
-tools/kpi_evidence_bundle.py``.
+flow. This page is only the support-status map.
+
+Maintainer evidence commands
+----------------------------
+
+The public evaluation score is backed by reproducible checks rather than by the
+README table alone. Maintainers can collect the evidence bundle and supporting
+smokes with:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py --compact
+   uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+   uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
+   uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
 
 What remains roadmap work
 -------------------------
