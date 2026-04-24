@@ -132,7 +132,10 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
     assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
-    assert "3.2 / 5" in readme
+    assert "3.2 / 5` ->" not in readme
+    assert "3.6 / 5" in readme
+    assert "Mean of the four scored public KPIs" in readme
+    assert "(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625" in readme
     assert "3.5 / 5" in readme
     assert "cross-kpi evidence bundle" in readme.lower()
 
