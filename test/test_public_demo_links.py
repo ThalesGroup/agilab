@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 README = Path("README.md")
+PYPI_README = Path("README.pypi.md")
 AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
 CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
@@ -33,6 +34,19 @@ def test_readme_advertises_public_huggingface_space_page() -> None:
 
     assert PUBLIC_HF_SPACE_URL in readme
     assert "AGILAB Space" in readme
+
+
+def test_pypi_readme_uses_same_public_demo_entry_points() -> None:
+    readme = PYPI_README.read_text(encoding="utf-8")
+
+    assert PUBLIC_HF_SPACE_URL in readme
+    assert PUBLIC_HF_SPACE_BADGE in readme
+    assert AGI_CORE_NOTEBOOK_URL in readme
+    assert AGI_CORE_NOTEBOOK_BADGE in readme
+    assert "flight_project" in readme
+    assert "uav_relay_queue_project" in readme
+    assert "demo request" not in readme.lower()
+    assert "issues/new" not in readme
 
 
 def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
