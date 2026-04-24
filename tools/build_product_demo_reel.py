@@ -942,12 +942,13 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
 
     code_lines = [
         "import asyncio",
-        "from agi_cluster.agi_distributor import AGI",
+        "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
         "APP = \"flight_project\"",
         "app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)",
-        "res = await AGI.run(app_env, mode=15, data_in=\"flight/dataset\")",
+        "request = RunRequest(mode=15, data_in=\"flight/dataset\")",
+        "res = await AGI.run(app_env, request=request)",
         "print(res)",
     ]
     line_y = 92
@@ -1125,13 +1126,14 @@ def draw_uav_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x
 
     code_lines = [
         "import asyncio",
-        "from agi_cluster.agi_distributor import AGI",
+        "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
         "APP = \"uav_relay_queue_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
         "for policy in [\"shortest_path\", \"queue_aware\"]:",
-        "    await AGI.run(env, mode=15, data_in=\"uav_relay_queue/scenarios\")",
+        "    request = RunRequest(mode=15, data_in=\"uav_relay_queue/scenarios\")",
+        "    await AGI.run(env, request=request)",
     ]
     line_y = 92
     code_font = load_font(17)
@@ -1280,12 +1282,13 @@ def draw_meteo_orchestrate_forecast_overlay(canvas: Image.Image, scene: Scene, s
 
     code_lines = [
         "import asyncio",
-        "from agi_cluster.agi_distributor import AGI",
+        "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
         "APP = \"meteo_forecast_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
-        "await AGI.run(env, mode=15, data_in=\"meteo_forecast/dataset\")",
+        "request = RunRequest(mode=15, data_in=\"meteo_forecast/dataset\")",
+        "await AGI.run(env, request=request)",
         "# exports forecast_metrics.json + forecast_predictions.csv",
     ]
     line_y = 92
@@ -1465,12 +1468,13 @@ def draw_data_orchestrate_compute_overlay(canvas: Image.Image, scene: Scene, sli
 
     code_lines = [
         "import asyncio",
-        "from agi_cluster.agi_distributor import AGI",
+        "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
         "APP = \"execution_pandas_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
-        "await AGI.run(env, mode=15, data_out=\"execution_pandas/output\")",
+        "request = RunRequest(mode=15, data_out=\"execution_pandas/output\")",
+        "await AGI.run(env, request=request)",
         "# writes partitioned parquet + csv artifacts",
     ]
     line_y = 92
@@ -1646,12 +1650,13 @@ def draw_rl_orchestrate_train_overlay(canvas: Image.Image, scene: Scene, slide_x
 
     code_lines = [
         "import asyncio",
-        "from agi_cluster.agi_distributor import AGI",
+        "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
         "APP = \"sb3_trainer_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
-        "await AGI.run(env, mode=15, data_in=\"routing_training/share\")",
+        "request = RunRequest(mode=15, data_in=\"routing_training/share\")",
+        "await AGI.run(env, request=request)",
         "# writes checkpoints + routing outputs",
     ]
     line_y = 92

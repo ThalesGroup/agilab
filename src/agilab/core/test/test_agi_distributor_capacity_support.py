@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI, capacity_support
+from agi_cluster.agi_distributor import AGI, RunRequest, capacity_support
 from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker
 
@@ -33,6 +33,7 @@ def _reset_agi_capacity_state():
         "target_path",
         "_target",
         "_args",
+        "_worker_args",
         "_rapids_enabled",
         "_mode",
         "_capacity_data_file",
@@ -53,6 +54,7 @@ def _reset_agi_capacity_state():
         AGI.target_path = None
         AGI._target = None
         AGI._args = {}
+        AGI._worker_args = None
         AGI._rapids_enabled = False
         AGI._mode = 0
         AGI._capacity_data_file = "capacity_data.csv"
@@ -69,10 +71,12 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
     env.benchmark = tmp_path / "benchmark.json"
     env.benchmark.write_text("stale", encoding="utf-8")
 
-    async def _fake_run(_env, scheduler=None, workers=None, mode=None, **_args):
+    async def _fake_run(_env, request):
+        mode = request.mode
         return f"mode{mode} {float(mode) + 1.0}"
 
-    async def _fake_bench_dask(_env, _scheduler, _workers, _modes, _mask, runs, **_args):
+    async def _fake_bench_dask(_env, request, _modes, _mask, runs):
+        assert request.workers == {"127.0.0.1": 1}
         runs[4] = {"mode": "mode4", "timing": "4 seconds", "seconds": 4.0}
 
     monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
@@ -82,10 +86,7 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
     payload = await capacity_support.benchmark(
         AGI,
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
-        mode_range=[0, 1, 4],
-        rapids_enabled=False,
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=[0, 1, 4]),
     )
     data = json.loads(payload)
     assert set(data.keys()) == {"0", "1", "4"}
@@ -107,15 +108,15 @@ async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path
         called["install"] += 1
         return None
 
-    async def _fake_run(_env, scheduler=None, workers=None, mode=None, **_args):
-        return f"mode{mode} 1.0"
+    async def _fake_run(_env, request):
+        return f"mode{request.mode} 1.0"
 
     monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: False))
     monkeypatch.setattr(AGI, "install", staticmethod(_fake_install))
     monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
     monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
 
-    payload = await capacity_support.benchmark(AGI, env, mode_range=[0], rapids_enabled=False)
+    payload = await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
     assert json.loads(payload)["0"]["mode"].startswith("mode")
     assert called["install"] == 1
 
@@ -133,7 +134,7 @@ async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
     monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
 
     with pytest.raises(ValueError, match="Unexpected run format"):
-        await capacity_support.benchmark(AGI, env, mode_range=[0], rapids_enabled=False)
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
 
 
 @pytest.mark.asyncio
@@ -149,7 +150,7 @@ async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
     monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
 
     with pytest.raises(RuntimeError, match="No ordered runs available"):
-        await capacity_support.benchmark(AGI, env, mode_range=[0], rapids_enabled=False)
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
 
 
 @pytest.mark.asyncio
@@ -181,8 +182,7 @@ async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
     await capacity_support.benchmark_dask_modes(
         AGI,
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}),
         mode_range=[4, 5],
         rapids_mode_mask=AGI._RAPIDS_RESET,
         runs=runs,
@@ -217,8 +217,7 @@ async def test_benchmark_dask_modes_stops_even_when_run_format_is_invalid(monkey
         await capacity_support.benchmark_dask_modes(
             AGI,
             env,
-            scheduler="127.0.0.1",
-            workers={"127.0.0.1": 1},
+            request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}),
             mode_range=[4],
             rapids_mode_mask=AGI._RAPIDS_RESET,
             runs={},

@@ -398,7 +398,7 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         workers="{'127.0.0.1': 2}",
         workers_data_path='"/tmp/share"',
         rapids_enabled=True,
-        args_serialized='foo="bar", n=2',
+        run_args={"foo": "bar", "n": 2},
     )
     distrib_snippet = orchestrate_page_support.build_distribution_snippet(
         env=env,
@@ -411,10 +411,11 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     assert 'APP = "demo_project"' in install_snippet
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
+    assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
-    assert 'foo="bar", n=2' in run_snippet
+    assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
     assert "get_distrib" in distrib_snippet
     assert "workers=None" in distrib_snippet
     assert ",\n        \n" not in distrib_snippet
