@@ -34,6 +34,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "compatibility_matrix_public_paths",
         "newcomer_first_proof_contract",
         "hf_space_smoke_contract",
+        "web_ui_robot_contract",
         "production_readiness_report_contract",
         "docs_mirror_stamp",
         "public_docs_evidence_links",
