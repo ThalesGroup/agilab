@@ -17,6 +17,15 @@ from agi_node.agi_dispatcher import post_install as post_mod
 from agi_node.agi_dispatcher import pre_install as pre_mod
 
 
+@pytest.fixture(autouse=True)
+def _restore_cwd_after_build_script_tests():
+    original_cwd = Path.cwd()
+    try:
+        yield
+    finally:
+        os.chdir(original_cwd)
+
+
 def test_pre_install_get_decorator_name_variants():
     tree = pre_mod.parso.parse("@alpha\n@beta(1)\ndef func():\n    return 1\n")
     decorated = tree.children[0]
