@@ -144,6 +144,12 @@ higher because production model serving, feature stores, online monitoring,
 drift detection, enterprise governance, and broad remote-topology certification
 remain outside the shipped scope.
 
+Maintainers can collect that evidence as JSON with:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py
+```
+
 ## Read Next
 
 - [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
