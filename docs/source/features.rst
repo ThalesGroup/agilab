@@ -137,3 +137,26 @@ single notebook but less ceremony than a production MLOps platform:
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
 first-class reduce contract remain roadmap work.
+
+Production-readiness controls
+-----------------------------
+
+AGILab ships a bounded set of controls for controlled pilots and handoff to a
+production platform:
+
+- ``tools/pypi_publish.py`` enforces release preflight checks before real PyPI
+  publication
+- workflow-parity profiles mirror selected GitHub Actions locally before a
+  maintainer relies on CI
+- the compatibility matrix separates validated public paths from documented
+  routes that still need broader certification
+- ``tools/service_health_check.py`` evaluates service status against SLA
+  thresholds and can emit JSON or Prometheus-compatible output
+- the release-decision analysis page compares baseline and candidate bundles,
+  applies artifact/KPI gates, and exports ``promotion_decision.json``
+- ``SECURITY.md`` provides the public vulnerability-reporting and deployment
+  hardening baseline
+
+That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
+higher because AGILab remains a research and engineering workbench rather than
+a production serving, monitoring, governance, or certification platform.
