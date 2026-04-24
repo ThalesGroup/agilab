@@ -129,7 +129,11 @@ def test_ensure_notebook_export_creates_missing_notebook(tmp_path, monkeypatch):
 def test_ensure_notebook_export_logs_invalid_toml(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     warnings: list[str] = []
-    monkeypatch.setattr(module, "logger", SimpleNamespace(warning=lambda message: warnings.append(str(message))))
+    monkeypatch.setattr(
+        module,
+        "logger",
+        SimpleNamespace(warning=lambda message, *args: warnings.append(message % args if args else str(message))),
+    )
     monkeypatch.setattr(module, "toml_to_notebook", lambda *_args, **_kwargs: None)
 
     steps_file = tmp_path / "lab_steps.toml"
