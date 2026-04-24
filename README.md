@@ -171,5 +171,6 @@ uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bun
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
+- [Latest release](https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25)
 - [Changelog](CHANGELOG.md)
 - [Developer runbook](AGENTS.md)

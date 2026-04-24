@@ -19,6 +19,7 @@ COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
+LATEST_RELEASE_URL = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25"
 
 
 def test_readme_advertises_public_huggingface_space_page() -> None:
@@ -110,14 +111,28 @@ def test_readme_links_to_public_changelog() -> None:
     assert "[Changelog](CHANGELOG.md)" in readme
 
 
+def test_readme_links_to_latest_public_release() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "[Latest release]" in readme
+    assert LATEST_RELEASE_URL in readme
+
+
 def test_changelog_documents_current_public_release() -> None:
     changelog = CHANGELOG.read_text(encoding="utf-8")
 
     assert "## [2026.04.25] - 2026-04-24" in changelog
-    assert "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25" in changelog
+    assert LATEST_RELEASE_URL in changelog
     assert "tools/kpi_evidence_bundle.py" in changelog
     assert "Hugging Face Space smoke checks" in changelog
     assert "AGILAB is still alpha-stage public software" in changelog
+
+
+def test_docs_index_links_to_latest_public_release() -> None:
+    text = Path("docs/source/index.rst").read_text(encoding="utf-8")
+
+    assert "latest public GitHub release" in text
+    assert LATEST_RELEASE_URL in text
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
