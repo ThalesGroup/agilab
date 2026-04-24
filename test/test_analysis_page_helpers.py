@@ -181,6 +181,84 @@ def test_resolve_default_view_returns_none_when_missing():
     assert resolved is None
 
 
+def test_migrate_legacy_flight_analysis_page_config_replaces_network_default():
+    module = _load_analysis_module()
+    cfg = {
+        "pages": {
+            "default_view": "view_maps_network",
+            "view_module": ["view_maps_network", "custom_view", "custom_view"],
+        }
+    }
+
+    changed = module._migrate_legacy_analysis_page_config("flight_project", cfg)
+
+    assert changed is True
+    assert cfg["pages"]["default_view"] == "view_maps"
+    assert cfg["pages"]["view_module"] == ["view_maps", "custom_view"]
+    assert cfg["pages"]["excluded_views"] == ["view_maps_network"]
+
+
+def test_migrate_legacy_analysis_page_config_leaves_network_apps_unchanged():
+    module = _load_analysis_module()
+    cfg = {
+        "pages": {
+            "default_view": "view_maps_network",
+            "view_module": ["view_uav_queue_analysis", "view_maps_network"],
+        }
+    }
+
+    changed = module._migrate_legacy_analysis_page_config("uav_queue_project", cfg)
+
+    assert changed is False
+    assert cfg["pages"]["default_view"] == "view_maps_network"
+    assert cfg["pages"]["view_module"] == ["view_uav_queue_analysis", "view_maps_network"]
+
+
+def test_migrate_legacy_analysis_page_config_preserves_custom_flight_defaults():
+    module = _load_analysis_module()
+    cfg = {
+        "pages": {
+            "default_view": "view_default",
+            "view_module": [],
+        }
+    }
+
+    changed = module._migrate_legacy_analysis_page_config("flight_project", cfg)
+
+    assert changed is False
+    assert cfg["pages"] == {"default_view": "view_default", "view_module": []}
+
+
+def test_configured_view_options_restricts_to_declared_available_views(tmp_path: Path):
+    module = _load_analysis_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_maps_network = tmp_path / "view_maps_network.py"
+
+    options = module._configured_view_options(
+        ["view_maps", "view_maps_network", "missing"],
+        ["view_maps", "view_maps_network", "view_training_analysis"],
+        {"view_maps": view_maps, "view_maps_network": view_maps_network},
+    )
+
+    assert options == ["view_maps", "view_maps_network"]
+
+
+def test_excluded_view_options_normalizes_configured_names():
+    module = _load_analysis_module()
+    cfg = {"pages": {"excluded_views": [" view_maps_network ", "", 42]}}
+
+    assert module._excluded_view_options(cfg) == {"view_maps_network"}
+
+
+def test_builtin_flight_project_defaults_to_view_maps_and_excludes_network_page():
+    settings_path = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
+    cfg = _load_analysis_module()._read_config(settings_path)
+
+    assert cfg["pages"]["default_view"] == "view_maps"
+    assert cfg["pages"]["view_module"] == ["view_maps"]
+    assert cfg["pages"]["excluded_views"] == ["view_maps_network"]
+
+
 def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
     module = _load_analysis_module()
 

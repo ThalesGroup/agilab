@@ -816,6 +816,101 @@ def _resolve_default_view(
     return None, None
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
+    """Migrate stale per-user analysis settings after app defaults change."""
+    if project not in {"flight", "flight_project"}:
+        return False
+    pages = cfg.setdefault("pages", {})
+    if not isinstance(pages, dict):
+        cfg["pages"] = pages = {}
+
+    raw_modules = pages.get("view_module")
+    has_legacy_module = isinstance(raw_modules, list) and any(
+        value == "view_maps_network" for value in raw_modules if isinstance(value, str)
+    )
+    has_legacy_default = pages.get("default_view") == "view_maps_network"
+    if not has_legacy_default and not has_legacy_module:
+        return False
+
+    changed = False
+    if pages.get("default_view") != "view_maps":
+        pages["default_view"] = "view_maps"
+        changed = True
+
+    if not isinstance(raw_modules, list):
+        modules = ["view_maps"]
+    else:
+        modules = [
+            str(value)
+            for value in raw_modules
+            if isinstance(value, str) and value.strip() and value != "view_maps_network"
+        ]
+        if "view_maps" not in modules:
+            modules.insert(0, "view_maps")
+        modules = _dedupe_preserve_order(modules)
+
+    if raw_modules != modules:
+        pages["view_module"] = modules
+        changed = True
+
+    raw_excluded = pages.get("excluded_views")
+    excluded = (
+        [str(value) for value in raw_excluded if isinstance(value, str) and value.strip()]
+        if isinstance(raw_excluded, list)
+        else []
+    )
+    if "view_maps_network" not in excluded:
+        excluded.append("view_maps_network")
+    excluded = _dedupe_preserve_order(excluded)
+    if raw_excluded != excluded:
+        pages["excluded_views"] = excluded
+        changed = True
+    return changed
+
+
+def _excluded_view_options(cfg: dict) -> set[str]:
+    pages = cfg.get("pages")
+    if not isinstance(pages, dict):
+        return set()
+    raw_excluded = pages.get("excluded_views")
+    if not isinstance(raw_excluded, list):
+        return set()
+    return {
+        _normalize_view_name(value)
+        for value in raw_excluded
+        if isinstance(value, str) and _normalize_view_name(value)
+    }
+
+
+def _configured_view_options(
+    configured_views: list[str],
+    available_views: list[str],
+    resolved_pages: dict[str, Path],
+) -> list[str]:
+    """Resolve configured view names into available multiselect options."""
+    available = set(available_views)
+    options: list[str] = []
+    for value in configured_views:
+        if value in available:
+            options.append(value)
+            continue
+        normalized = _normalize_view_name(value)
+        if normalized in resolved_pages and normalized in available:
+            options.append(normalized)
+    return _dedupe_preserve_order(options)
+
+
 async def _render_selected_view_route(current_page: str | None) -> bool:
     """Render a selected analysis view route and surface one explicit user-facing failure."""
     if not current_page or current_page in ("", "main"):
@@ -1131,6 +1226,8 @@ async def main():
     cfg = _read_config(app_settings)
     if "pages" not in cfg:
         cfg["pages"] = {}
+    if _migrate_legacy_analysis_page_config(project, cfg):
+        _write_config(app_settings, cfg)
     configured_views: list[str] = [
         str(v)
         for v in cfg.get("pages", {}).get("view_module", [])
@@ -1248,7 +1345,21 @@ async def main():
                         st.rerun()
 
     # Merge resolved pages and custom entries for display.
-    view_names = sorted(set(resolved_pages.keys()) | set(custom_view_lookup.keys()))
+    excluded_view_names = _excluded_view_options(cfg)
+    all_view_names = [
+        view_name
+        for view_name in sorted(set(resolved_pages.keys()) | set(custom_view_lookup.keys()))
+        if _normalize_view_name(view_name) not in excluded_view_names
+    ]
+    if bool(cfg.get("pages", {}).get("restrict_to_view_module")):
+        configured_options = _configured_view_options(
+            configured_views,
+            all_view_names,
+            resolved_pages,
+        )
+        view_names = configured_options or all_view_names
+    else:
+        view_names = all_view_names
 
     selection_key = f"view_selection__{project or 'default'}"
     default_view_name, default_view_path = _resolve_default_view(

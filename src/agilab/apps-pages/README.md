@@ -12,7 +12,7 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_maps_3d/src/view_maps_3d/view_maps_3d.py -- --active-app src/agilab/apps/builtin/flight_project
 
 - view_maps_network
-  - uv run streamlit run src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --active-app src/agilab/apps/builtin/flight_project
+  - uv run streamlit run src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
   - Sidebar accepts an allocations file (JSON/Parquet) and an optional trajectory glob to animate per-timestep routes/capacities.
 
 - view_barycentric
