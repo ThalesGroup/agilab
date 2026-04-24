@@ -60,16 +60,17 @@ def test_build_install_and_run_snippets_embed_expected_values():
         workers="{'127.0.0.1': 2}",
         workers_data_path='"/tmp/share"',
         rapids_enabled=True,
-        args_serialized='foo="bar", n=2',
+        run_args={"foo": "bar", "n": 2},
     )
 
     assert 'APP = "demo_project"' in install_snippet
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
+    assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
-    assert 'foo="bar", n=2' in run_snippet
+    assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
 
 
 def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
@@ -85,7 +86,7 @@ def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
         run_mode=0,
         scheduler="None",
         workers="None",
-        args_serialized="",
+        run_args={},
     )
     distrib_snippet = orchestrate_page_support.build_distribution_snippet(
         env=env,
@@ -115,7 +116,7 @@ def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
         run_mode=0,
         scheduler="None",
         workers="None",
-        args_serialized="",
+        run_args={},
     )
     assert "import sys" not in non_source_snippet
     assert "def _inject_source_core_paths() -> None:" not in non_source_snippet

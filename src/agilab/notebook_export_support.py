@@ -1050,25 +1050,59 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     inherited_mode = run_args.pop("mode", None)
                     if inherited_mode not in (None, ""):
                         run_mode = inherited_mode
+            run_params = dict(run_args)
+            run_steps_payload = run_params.pop("args", []) or []
+            run_data_in = run_params.pop("data_in", None)
+            run_data_out = run_params.pop("data_out", None)
+            run_reset_target = run_params.pop("reset_target", None)
             run_args_literal = json.dumps(
                 run_args,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            run_params_literal = json.dumps(
+                run_params,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            run_steps_literal = json.dumps(
+                run_steps_payload,
                 ensure_ascii=False,
                 sort_keys=True,
             )
             prelude = (
                 "import asyncio\\n"
                 "import json\\n"
-                "from agi_cluster.agi_distributor import AGI\\n"
+                "from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest\\n"
                 "from agi_env import AgiEnv\\n\\n"
                 f"ACTIVE_APP = {{active_app!r}}\\n"
                 f"RUN_ARGS = json.loads({{run_args_literal!r}})\\n"
+                f"RUN_PARAMS = json.loads({{run_params_literal!r}})\\n"
+                f"RUN_STEPS_PAYLOAD = json.loads({{run_steps_literal!r}})\\n"
+                f"RUN_DATA_IN = json.loads({{json.dumps(run_data_in, ensure_ascii=False)!r}})\\n"
+                f"RUN_DATA_OUT = json.loads({{json.dumps(run_data_out, ensure_ascii=False)!r}})\\n"
+                f"RUN_RESET_TARGET = json.loads({{json.dumps(run_reset_target, ensure_ascii=False)!r}})\\n"
             )
             if method == "run":
                 mode_literal = json.dumps(run_mode, ensure_ascii=False)
                 prelude += f"RUN_MODE = json.loads({{mode_literal!r}})\\n"
             prelude += "\\n"
             if method == "run":
-                invoke = "    res = await AGI.run(app_env, mode=RUN_MODE, **RUN_ARGS)\\n"
+                invoke = (
+                    "    run_steps = [\\n"
+                    "        StepRequest(name=step['name'], args=step.get('args') or {{}})\\n"
+                    "        for step in RUN_STEPS_PAYLOAD\\n"
+                    "    ]\\n"
+                    "    request = RunRequest(\\n"
+                    "        params=RUN_PARAMS,\\n"
+                    "        steps=run_steps,\\n"
+                    "        data_in=RUN_DATA_IN,\\n"
+                    "        data_out=RUN_DATA_OUT,\\n"
+                    "        reset_target=RUN_RESET_TARGET,\\n"
+                    "        mode=RUN_MODE,\\n"
+                    "    )\\n"
+                    "    res = await AGI.run(app_env, request=request)\\n"
+                )
             else:
                 invoke = "    res = await AGI.install(app_env, **RUN_ARGS)\\n"
             return (

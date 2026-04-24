@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI
+from agi_cluster.agi_distributor import AGI, RunRequest
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
 
 
@@ -369,8 +369,9 @@ async def test_agi_async_wrapper_surface_delegates(monkeypatch, tmp_path):
     )
 
     env = SimpleNamespace()
-    await AGI._benchmark(env, scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode_range=[1, 2])
-    await AGI._benchmark_dask_modes(env, "127.0.0.1", {"127.0.0.1": 1}, [1, 2], AGI.RAPIDS_MODE, {})
+    request = RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=[1, 2])
+    await AGI._benchmark(env, request=request)
+    await AGI._benchmark_dask_modes(env, request, [1, 2], AGI.RAPIDS_MODE, {})
     await AGI.send_file(env, "127.0.0.1", Path("a"), Path("b"))
     await AGI.send_files(env, "127.0.0.1", [Path("a")], Path("remote"))
     await AGI._kill("127.0.0.1")

@@ -50,6 +50,7 @@ from agi_cluster.agi_distributor import (
     transport_support,
     uv_source_support,
 )
+from agi_cluster.agi_distributor.run_request_support import RunRequest
 
 from agi_env import normalize_path
 
@@ -161,6 +162,7 @@ class AGI:
     _RAPIDS_RESET = 0b110111
     _DASK_RESET = 0b111011
     _args: Optional[Dict[str, Any]] = None
+    _worker_args: Optional[Dict[str, Any]] = None
     _dask_client: Optional[Client] = None
     _dask_scheduler: Optional[Any] = None
     _dask_workers: Optional[List[str]] = None
@@ -241,28 +243,14 @@ class AGI:
     @staticmethod
     async def run(
             env: AgiEnv,  # some_default_value must be defined
-            scheduler: Optional[str] = None,
-            workers: Optional[Dict[str, int]] = None,
-            workers_data_path: Optional[str] = None,
-            verbose: int = 0,
-            mode: Optional[Union[int, List[int], str]] = None,
-            rapids_enabled: bool = False,
-            **args: Any,
+            request: RunRequest,
     ) -> Any:
         """
         Compiles the target module in Cython and runs it on the cluster.
 
         Args:
-            target (str): The target Python module to run.
-            scheduler (str, optional): IP and port address of the Dask scheduler. Defaults to '127.0.0.1:8786'.
-            workers (dict, optional): Dictionary of worker IPs and their counts. Defaults to `workers_default`.
-            verbose (int, optional): Verbosity level. Defaults to 0.
-            mode (int | list[int] | str | None, optional): Mode(s) for execution. Defaults to None.
-                When an int is provided, it is treated as a 4-bit mask controlling RAPIDS/Dask/Cython/Pool features.
-                When a string is provided, it must match r"^[dcrp]+$" (letters enable features).
-                When a list is provided, the modes are benchmarked sequentially.
-            rapids_enabled (bool, optional): Flag to enable RAPIDS. Defaults to False.
-            **args (Any): Additional keyword arguments.
+            env: AGILAB environment to execute.
+            request: Typed execution request. App params and workflow steps are kept separate.
 
         Returns:
             Any: Result of the execution.
@@ -274,18 +262,12 @@ class AGI:
         return await entrypoint_support.run(
             AGI,
             env=env,
-            scheduler=scheduler,
-            workers=workers,
-            workers_data_path=workers_data_path,
-            verbose=verbose,
-            mode=mode,
-            rapids_enabled=rapids_enabled,
+            request=request,
             workers_default=_workers_default,
             process_error_type=ProcessError,
             format_exception_chain_fn=_format_exception_chain,
             traceback_format_exc_fn=traceback.format_exc,
             log=logger,
-            **args,
         )
 
     @staticmethod
@@ -558,43 +540,29 @@ class AGI:
     @staticmethod
     async def _benchmark(
             env: AgiEnv,
-            scheduler: Optional[str] = None,
-            workers: Optional[Dict[str, int]] = None,
-            verbose: int = 0,
-            mode_range: Optional[Union[List[int], range]] = None,
-            rapids_enabled: Optional[bool] = None,
-            **args: Any,
+            request: RunRequest,
     ) -> str:
         return await capacity_support.benchmark(
             AGI,
             env,
-            scheduler=scheduler,
-            workers=workers,
-            verbose=verbose,
-            mode_range=list(mode_range) if mode_range is not None else None,
-            rapids_enabled=bool(rapids_enabled),
-            **args,
+            request=request,
         )
 
     @staticmethod
     async def _benchmark_dask_modes(
         env: AgiEnv,
-        scheduler: Optional[str],
-        workers: Optional[Dict[str, int]],
+        request: RunRequest,
         mode_range: List[int],
         rapids_mode_mask: int,
         runs: Dict[int, Dict[str, Any]],
-        **args: Any,
     ) -> None:
         await capacity_support.benchmark_dask_modes(
             AGI,
             env,
-            scheduler,
-            workers,
+            request,
             mode_range,
             rapids_mode_mask,
             runs,
-            **args,
         )
 
     @staticmethod

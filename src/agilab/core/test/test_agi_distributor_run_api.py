@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI
+from agi_cluster.agi_distributor import AGI, RunRequest
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
 from agi_env import AgiEnv
 
@@ -23,12 +23,16 @@ def _reset_agi_run_state():
         "agi_workers",
         "install_worker_group",
         "verbose",
+        "_args",
+        "_worker_args",
     ]
     snapshot = {field: getattr(AGI, field, None) for field in fields}
     try:
         AGI._run_type = None
         AGI._best_mode = {}
         AGI.verbose = 0
+        AGI._args = {}
+        AGI._worker_args = None
         yield
     finally:
         for field, value in snapshot.items():
@@ -40,26 +44,28 @@ async def test_agi_run_delegates_to_benchmark_with_sorted_mode_list(monkeypatch)
     env = _mycode_env()
     captured = {}
 
-    async def _fake_benchmark(env_, scheduler, workers, verbose, mode_range, rapids_enabled, **args):
+    async def _fake_benchmark(env_, request):
         captured["env"] = env_
-        captured["scheduler"] = scheduler
-        captured["workers"] = workers
-        captured["verbose"] = verbose
-        captured["mode_range"] = list(mode_range)
-        captured["rapids_enabled"] = rapids_enabled
-        captured["args"] = dict(args)
+        captured["scheduler"] = request.scheduler
+        captured["workers"] = request.workers
+        captured["verbose"] = request.verbose
+        captured["mode_range"] = list(request.mode)
+        captured["rapids_enabled"] = request.rapids_enabled
+        captured["args"] = request.to_target_kwargs()
         return {"status": "bench"}
 
     monkeypatch.setattr(AGI, "_benchmark", staticmethod(_fake_benchmark))
 
     result = await AGI.run(
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
-        verbose=2,
-        mode=[5, 1, 3],
-        rapids_enabled=True,
-        example_flag=True,
+        request=RunRequest(
+            params={"example_flag": True},
+            scheduler="127.0.0.1",
+            workers={"127.0.0.1": 1},
+            verbose=2,
+            mode=[5, 1, 3],
+            rapids_enabled=True,
+        ),
     )
 
     assert result == {"status": "bench"}
@@ -77,18 +83,16 @@ async def test_agi_run_uses_default_workers_in_benchmark(monkeypatch):
     env = _mycode_env(verbose=1)
     captured = {}
 
-    async def _fake_benchmark(_env, _scheduler, workers, _verbose, mode_range, _rapids_enabled, **_args):
-        captured["workers"] = workers
-        captured["modes"] = list(mode_range)
+    async def _fake_benchmark(_env, request):
+        captured["workers"] = request.workers
+        captured["modes"] = list(range(8)) if request.mode is None else list(request.mode)
         return {"status": "bench-default-workers"}
 
     monkeypatch.setattr(AGI, "_benchmark", staticmethod(_fake_benchmark))
 
     result = await AGI.run(
         env,
-        scheduler="127.0.0.1",
-        workers=None,
-        mode=None,
+        request=RunRequest(scheduler="127.0.0.1", workers=None, mode=None),
     )
     assert result == {"status": "bench-default-workers"}
     assert captured["workers"] == agi_distributor_module._workers_default
@@ -101,8 +105,7 @@ async def test_agi_run_rejects_invalid_workers_type():
     with pytest.raises(ValueError, match=r"workers must be a dict"):
         await AGI.run(
             env,
-            workers=["127.0.0.1"],  # type: ignore[arg-type]
-            mode=AGI.DASK_MODE,
+            request=RunRequest(workers=["127.0.0.1"], mode=AGI.DASK_MODE),  # type: ignore[arg-type]
         )
 
 
@@ -112,8 +115,7 @@ async def test_agi_run_rejects_invalid_mode_string():
     with pytest.raises(ValueError, match=r"parameter <mode> must only contain the letters"):
         await AGI.run(
             env,
-            workers={"127.0.0.1": 1},
-            mode="dcx",
+            request=RunRequest(workers={"127.0.0.1": 1}, mode="dcx"),
         )
 
 
@@ -123,8 +125,7 @@ async def test_agi_run_rejects_invalid_mode_type():
     with pytest.raises(ValueError, match=r"parameter <mode> must be an int"):
         await AGI.run(
             env,
-            workers={"127.0.0.1": 1},
-            mode={"bad": "type"},
+            request=RunRequest(workers={"127.0.0.1": 1}, mode={"bad": "type"}),  # type: ignore[arg-type]
         )
 
 
@@ -137,8 +138,7 @@ async def test_agi_run_rejects_unsupported_base_worker_class(monkeypatch):
     with pytest.raises(ValueError, match=r"Unsupported base worker class"):
         await AGI.run(
             env,
-            workers={"127.0.0.1": 1},
-            mode=AGI.DASK_MODE,
+            request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE),
         )
 
 
@@ -156,8 +156,7 @@ async def test_agi_run_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
 
     result = await AGI.run(
         env,
-        workers={"127.0.0.1": 1},
-        mode=AGI.DASK_MODE,
+        request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE),
     )
 
     assert result == {"status": "ok"}
@@ -184,9 +183,7 @@ async def test_agi_run_mode_string_valid_path_calls_mode2int_and_main(monkeypatc
 
     result = await AGI.run(
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
-        mode="dc",
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode="dc"),
     )
     assert result == {"status": "ok"}
     assert called["mode2int"] == "dc"
@@ -206,9 +203,7 @@ async def test_agi_run_mode_zero_sets_run_type(monkeypatch):
 
     result = await AGI.run(
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
-        mode=0,
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=0),
     )
     assert result == {"status": "ok"}
     assert AGI._run_type == "run --no-sync"
@@ -233,9 +228,7 @@ async def test_agi_run_trains_capacity_when_model_is_missing(monkeypatch):
 
     result = await AGI.run(
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
-        mode=AGI.DASK_MODE,
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE),
     )
     assert result == {"status": "ok"}
     assert called["train"] == 1
@@ -258,9 +251,7 @@ async def test_agi_run_returns_none_on_process_error(monkeypatch):
 
     result = await AGI.run(
         env,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
-        mode=AGI.DASK_MODE,
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE),
     )
     assert result is None
 
@@ -277,8 +268,7 @@ async def test_agi_run_returns_connection_error_payload(monkeypatch):
     monkeypatch.setattr(AGI, "_main", staticmethod(_boom))
     result = await AGI.run(
         env,
-        workers={"127.0.0.1": 1},
-        mode=AGI.DASK_MODE,
+        request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE),
     )
     assert result["status"] == "error"
     assert result["kind"] == "connection"
@@ -295,7 +285,7 @@ async def test_agi_run_returns_none_on_module_not_found(monkeypatch):
         raise ModuleNotFoundError("missing module")
 
     monkeypatch.setattr(AGI, "_main", staticmethod(_missing))
-    assert await AGI.run(env, workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE) is None
+    assert await AGI.run(env, request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)) is None
 
 
 @pytest.mark.asyncio
@@ -309,7 +299,7 @@ async def test_agi_run_reraises_unhandled_exception(monkeypatch):
 
     monkeypatch.setattr(AGI, "_main", staticmethod(_unexpected))
     with pytest.raises(RuntimeError, match="unexpected failure"):
-        await AGI.run(env, workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)
+        await AGI.run(env, request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE))
 
 
 @pytest.mark.asyncio
@@ -345,7 +335,7 @@ async def test_agi_run_logs_debug_traceback_when_debug_enabled(monkeypatch):
     monkeypatch.setattr(agi_distributor_module, "logger", fake_logger)
 
     with pytest.raises(RuntimeError, match="boom-debug"):
-        await AGI.run(env, workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)
+        await AGI.run(env, request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE))
     assert fake_logger.debug_calls >= 1
 
 
@@ -356,8 +346,10 @@ async def test_agi_run_requires_base_worker_cls():
     with pytest.raises(ValueError, match=r"Missing .* definition; expected"):
         await AGI.run(
             env,
-            scheduler="127.0.0.1",
-            workers={"127.0.0.1": 1},
-            verbose=0,
-            mode=AGI.DASK_MODE,
+            request=RunRequest(
+                scheduler="127.0.0.1",
+                workers={"127.0.0.1": 1},
+                verbose=0,
+                mode=AGI.DASK_MODE,
+            ),
         )

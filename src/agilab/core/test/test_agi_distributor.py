@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI
+from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv, normalize_path
 
 # Set AGI verbosity low to avoid extra prints during test.
@@ -42,10 +42,12 @@ async def test_install_sets_sync_run_type_and_install_mode(monkeypatch):
 
     assert AGI._run_type == "sync"
     assert captured["env"] is env
-    assert captured["mode"] == (AGI._INSTALL_MODE | AGI.PYTHON_MODE)
-    assert captured["workers_data_path"] == "/tmp/workers"
-    assert captured["rapids_enabled"] == (AGI._INSTALL_MODE & AGI.PYTHON_MODE)
-    assert captured["force_update"] is True
+    request = captured["request"]
+    assert isinstance(request, RunRequest)
+    assert request.mode == (AGI._INSTALL_MODE | AGI.PYTHON_MODE)
+    assert request.workers_data_path == "/tmp/workers"
+    assert request.rapids_enabled == bool(AGI._INSTALL_MODE & AGI.PYTHON_MODE)
+    assert request.to_target_kwargs()["force_update"] is True
 
 
 @pytest.mark.asyncio

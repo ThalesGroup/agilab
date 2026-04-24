@@ -66,6 +66,13 @@ def dask_env_prefix(agi_cls: Any) -> str:
     return "".join(f"{var} " for var in env_vars)
 
 
+def _worker_startup_args(agi_cls: Any) -> dict[str, Any]:
+    worker_args = getattr(agi_cls, "_worker_args", None)
+    if worker_args is None:
+        worker_args = getattr(agi_cls, "_args", None)
+    return dict(worker_args or {})
+
+
 async def run_local(
     agi_cls: Any,
     *,
@@ -91,7 +98,8 @@ async def run_local(
 
     log.info("debug=%s", env.debug)
     if env.debug:
-        base_worker_cls._new(env=env, mode=agi_cls._mode, verbose=env.verbose, args=agi_cls._args)
+        worker_args = _worker_startup_args(agi_cls)
+        base_worker_cls._new(env=env, mode=agi_cls._mode, verbose=env.verbose, args=worker_args)
         res = await base_worker_cls._run(
             env=env,
             mode=agi_cls._mode,
@@ -109,6 +117,7 @@ async def run_local(
             f"Path({repr(str(manager_apps_path))})" if manager_apps_path is not None else "None"
         )
         manager_app_expr = repr(manager_app)
+        worker_args = _worker_startup_args(agi_cls)
         cmd = (
             f"{uv_worker} run --preview-features python-upgrade --no-sync --project {env.wenv_abs}"
             f"{python_selector} python -c \""
@@ -118,7 +127,7 @@ async def run_local(
             f"import asyncio\n"
             f"async def main():\n"
             f"  env = AgiEnv(apps_path={manager_apps_expr}, app={manager_app_expr}, verbose={env.verbose})\n"
-            f"  BaseWorker._new(env=env, mode={agi_cls._mode}, verbose={env.verbose}, args={agi_cls._args})\n"
+            f"  BaseWorker._new(env=env, mode={agi_cls._mode}, verbose={env.verbose}, args={worker_args})\n"
             f"  res = await BaseWorker._run(env=env, mode={agi_cls._mode}, workers={agi_cls._workers}, args={agi_cls._args})\n"
             f"  print(res)\n"
             f"if __name__ == '__main__':\n"
@@ -313,7 +322,7 @@ async def distribute(
                 verbose=agi_cls.verbose,
                 worker_id=dask_workers.index(worker),
                 worker=worker,
-                args=agi_cls._args,
+                args=_worker_startup_args(agi_cls),
                 workers=[worker],
             )
             for worker in dask_workers

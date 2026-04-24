@@ -1,7 +1,8 @@
 
 import asyncio
-from pahtlib import Path
-from agi_cluster.agi_distributor import AGI
+from pathlib import Path
+
+from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv
 
 AGILAB_PATH = open(f"{Path.home()}/.local/share/agilab/.agilab-path").read().strip()
@@ -10,11 +11,25 @@ APP = "flight_project"
 
 async def main():
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
-    res = await AGI.run(app_env, 
-                        mode=15, 
-                        scheduler="127.0.0.1",
-                        workers={'127.0.0.1': 1},
-                        data_source="file", data_in="flight/dataset", data_out="flight/dataframe", files="*", nfile=1, nskip=0, nread=0, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="parquet")
+    request = RunRequest(
+        params={
+            "data_source": "file",
+            "files": "*",
+            "nfile": 1,
+            "nskip": 0,
+            "nread": 0,
+            "sampling_rate": 1.0,
+            "datemin": "2020-01-01",
+            "datemax": "2021-01-01",
+            "output_format": "parquet",
+        },
+        data_in="flight/dataset",
+        data_out="flight/dataframe",
+        mode=15,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+    )
+    res = await AGI.run(app_env, request=request)
     print(res)
     return res
 

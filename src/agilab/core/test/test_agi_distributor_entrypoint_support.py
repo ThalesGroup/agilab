@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI, entrypoint_support
+from agi_cluster.agi_distributor import AGI, RunRequest, entrypoint_support
 
 
 @pytest.fixture(autouse=True)
@@ -244,7 +244,21 @@ async def test_run_prepared_execution_calls_prepare_then_run_main(monkeypatch):
 async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(monkeypatch):
     calls = []
     env = object()
-    workers = {"127.0.0.1": 1}
+    benchmark_request = RunRequest(
+        params={"sample": "value"},
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        verbose=2,
+        mode=AGI.DASK_MODE,
+        rapids_enabled=True,
+    )
+    prepared_request = RunRequest(
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+        verbose=2,
+        mode=AGI.DASK_MODE,
+        rapids_enabled=True,
+    )
 
     async def _fake_prepared(
         agi_cls,
@@ -274,23 +288,18 @@ async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(mo
 
     async def _fake_benchmark(
         current_env,
-        scheduler,
-        current_workers,
-        verbose,
-        mode_range,
-        rapids_enabled,
-        **args,
+        request,
     ):
         calls.append(
             (
                 "benchmark",
                 current_env,
-                scheduler,
-                current_workers,
-                verbose,
-                mode_range,
-                rapids_enabled,
-                args,
+                request.scheduler,
+                request.workers,
+                request.verbose,
+                request.mode,
+                request.rapids_enabled,
+                request.to_target_kwargs(),
             )
         )
         return "benchmark-ok"
@@ -306,27 +315,18 @@ async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(mo
     benchmark_result = await entrypoint_support._dispatch_run_execution(
         AGI,
         env,
-        "127.0.0.1",
-        workers,
-        2,
-        AGI.DASK_MODE,
+        benchmark_request,
         range(3),
-        True,
         process_error_type=process_error_type,
         format_exception_chain_fn=format_exception_chain_fn,
         traceback_format_exc_fn=traceback_format_exc_fn,
         log=log,
-        sample="value",
     )
     prepared_result = await entrypoint_support._dispatch_run_execution(
         AGI,
         env,
-        "127.0.0.1",
-        workers,
-        2,
-        AGI.DASK_MODE,
+        prepared_request,
         None,
-        True,
         process_error_type=process_error_type,
         format_exception_chain_fn=format_exception_chain_fn,
         traceback_format_exc_fn=traceback_format_exc_fn,
@@ -336,7 +336,16 @@ async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(mo
     assert benchmark_result == "benchmark-ok"
     assert prepared_result == "prepared-ok"
     assert calls == [
-        ("benchmark", env, "127.0.0.1", workers, 2, range(3), True, {"sample": "value"}),
+        (
+            "benchmark",
+            env,
+            "127.0.0.1",
+            {"127.0.0.1": 1},
+            2,
+            [0, 1, 2],
+            True,
+            {"sample": "value"},
+        ),
         (
             "prepared",
             AGI,
@@ -748,7 +757,7 @@ async def test_update_get_distrib_and_distribute_delegate_to_run(monkeypatch):
 
     async def _fake_run(*args, **kwargs):
         calls.append((args, kwargs))
-        return {"ok": kwargs.get("mode")}
+        return {"ok": kwargs["request"].mode}
 
     monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
 
@@ -777,9 +786,11 @@ async def test_update_get_distrib_and_distribute_delegate_to_run(monkeypatch):
     )
 
     assert AGI._run_type == "simulate"
-    assert calls[0][1]["mode"] == ((AGI._UPDATE_MODE | AGI.DASK_MODE) & AGI._DASK_RESET)
-    assert calls[1][0] == (env, "127.0.0.1", {"127.0.0.1": 1})
-    assert calls[1][1]["mode"] == AGI._SIMULATE_MODE
+    assert calls[0][1]["request"].mode == ((AGI._UPDATE_MODE | AGI.DASK_MODE) & AGI._DASK_RESET)
+    assert calls[1][0] == (env,)
+    assert calls[1][1]["request"].scheduler == "127.0.0.1"
+    assert calls[1][1]["request"].workers == {"127.0.0.1": 1}
+    assert calls[1][1]["request"].mode == AGI._SIMULATE_MODE
     assert distrib == {"ok": AGI._SIMULATE_MODE}
     assert alias == {"ok": AGI._SIMULATE_MODE}
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeAlias, Union
 
 from agi_cluster.agi_distributor import runtime_misc_support
+from agi_cluster.agi_distributor.run_request_support import RunRequest
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ def _initialize_run_state(
     verbose: int,
     rapids_enabled: bool,
     args: Dict[str, Any],
+    worker_args: Dict[str, Any],
     log: Any = logger,
 ) -> None:
     runtime_misc_support.initialize_runtime_state(
@@ -69,6 +71,7 @@ def _initialize_run_state(
         verbose=verbose,
         rapids_enabled=rapids_enabled,
         args=args,
+        worker_args=worker_args,
         workers_data_path=workers_data_path,
         log=log,
     )
@@ -93,6 +96,30 @@ def _benchmark_mode_range(mode: RunMode) -> range | list[int] | None:
     if isinstance(mode, list):
         return sorted(mode)
     return None
+
+
+def _request_from_payload(
+    args: Dict[str, Any],
+    *,
+    scheduler: Optional[str] = None,
+    workers: Optional[Dict[str, int]] = None,
+    workers_data_path: Optional[str] = None,
+    verbose: int = 0,
+    mode: RunMode = None,
+    rapids_enabled: bool = False,
+) -> RunRequest:
+    payload = dict(args)
+    steps = payload.pop("args", []) or []
+    return RunRequest(
+        params=payload,
+        steps=steps,
+        scheduler=scheduler,
+        workers=workers,
+        workers_data_path=workers_data_path,
+        verbose=verbose,
+        mode=mode,
+        rapids_enabled=rapids_enabled,
+    )
 
 
 def _prepare_run_execution(agi_cls: Any, env: Any, mode: PreparedMode) -> None:
@@ -175,29 +202,23 @@ async def _run_prepared_execution(
 async def _dispatch_run_execution(
     agi_cls: Any,
     env: Any,
-    scheduler: Optional[str],
-    workers: Dict[str, int],
-    verbose: int,
-    mode: RunMode,
+    request: RunRequest,
     mode_range: range | list[int] | None,
-    rapids_enabled: bool,
     *,
     process_error_type: type[BaseException],
     format_exception_chain_fn: Callable[[BaseException], str],
     traceback_format_exc_fn: Callable[[], str],
     log: Any = logger,
-    **args: Any,
 ) -> Any:
     if mode_range is not None:
-        return await agi_cls._benchmark(
-            env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
-        )
+        return await agi_cls._benchmark(env, request=request.with_execution(mode=list(mode_range)))
+    mode = request.mode
     assert mode is not None and not isinstance(mode, list)
     return await _run_prepared_execution(
         agi_cls,
         env,
         mode,
-        scheduler,
+        request.scheduler,
         process_error_type=process_error_type,
         format_exception_chain_fn=format_exception_chain_fn,
         traceback_format_exc_fn=traceback_format_exc_fn,
@@ -208,47 +229,42 @@ async def _dispatch_run_execution(
 async def run(
     agi_cls: Any,
     env: Any,
-    scheduler: Optional[str] = None,
-    workers: Optional[Dict[str, int]] = None,
-    workers_data_path: Optional[str] = None,
-    verbose: int = 0,
-    mode: RunMode = None,
-    rapids_enabled: bool = False,
+    request: RunRequest,
     *,
     workers_default: Dict[str, int],
     process_error_type: type[BaseException],
     format_exception_chain_fn: Callable[[BaseException], str],
     traceback_format_exc_fn: Callable[[], str],
     log: Any = logger,
-    **args: Any,
 ) -> Any:
-    workers = _normalize_workers(workers, workers_default)
+    if not isinstance(request, RunRequest):
+        raise TypeError("AGI.run requires request=RunRequest(...)")
+    workers = _normalize_workers(request.workers, workers_default)
+    request = request.with_execution(workers=workers)
+    args = request.to_dispatch_kwargs()
+    worker_args = request.to_app_kwargs()
     _initialize_run_state(
         agi_cls,
         env,
         workers=workers,
-        workers_data_path=workers_data_path,
-        verbose=verbose,
-        rapids_enabled=rapids_enabled,
+        workers_data_path=request.workers_data_path,
+        verbose=request.verbose,
+        rapids_enabled=request.rapids_enabled,
         args=args,
+        worker_args=worker_args,
         log=log,
     )
 
-    mode_range = _benchmark_mode_range(mode)
+    mode_range = _benchmark_mode_range(request.mode)
     return await _dispatch_run_execution(
         agi_cls,
         env,
-        scheduler,
-        workers,
-        verbose,
-        mode,
+        request,
         mode_range,
-        rapids_enabled,
         process_error_type=process_error_type,
         format_exception_chain_fn=format_exception_chain_fn,
         traceback_format_exc_fn=traceback_format_exc_fn,
         log=log,
-        **args,
     )
 
 
@@ -265,15 +281,18 @@ async def install(
 ) -> None:
     agi_cls._run_type = "sync"
     mode = agi_cls._INSTALL_MODE | modes_enabled
-    await agi_cls.run(
-        env=env,
+    request = _request_from_payload(
+        args,
         scheduler=scheduler,
         workers=workers,
         workers_data_path=workers_data_path,
         mode=mode,
-        rapids_enabled=agi_cls._INSTALL_MODE & modes_enabled,
-        verbose=verbose,
-        **args,
+        rapids_enabled=bool(agi_cls._INSTALL_MODE & modes_enabled),
+        verbose=0 if verbose is None else verbose,
+    )
+    await agi_cls.run(
+        env=env,
+        request=request,
     )
 
 
@@ -287,13 +306,16 @@ async def update(
     args: Dict[str, Any],
 ) -> None:
     agi_cls._run_type = "upgrade"
-    await agi_cls.run(
-        env=env,
+    request = _request_from_payload(
+        args,
         scheduler=scheduler,
         workers=workers,
         mode=(agi_cls._UPDATE_MODE | modes_enabled) & agi_cls._DASK_RESET,
-        rapids_enabled=agi_cls._UPDATE_MODE & modes_enabled,
-        **args,
+        rapids_enabled=bool(agi_cls._UPDATE_MODE & modes_enabled),
+    )
+    await agi_cls.run(
+        env=env,
+        request=request,
     )
 
 
@@ -306,7 +328,13 @@ async def get_distrib(
     args: Dict[str, Any],
 ) -> Any:
     agi_cls._run_type = "simulate"
-    return await agi_cls.run(env, scheduler, workers, mode=agi_cls._SIMULATE_MODE, **args)
+    request = _request_from_payload(
+        args,
+        scheduler=scheduler,
+        workers=workers,
+        mode=agi_cls._SIMULATE_MODE,
+    )
+    return await agi_cls.run(env, request=request)
 
 
 async def distribute(

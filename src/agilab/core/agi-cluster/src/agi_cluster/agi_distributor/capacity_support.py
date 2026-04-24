@@ -5,7 +5,7 @@ import pickle
 from copy import deepcopy
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, cast
 
 import humanize
 import numpy as np
@@ -14,6 +14,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 from agi_env import AgiEnv
+from agi_cluster.agi_distributor.run_request_support import RunRequest
 from agi_node.agi_dispatcher.base_worker import BaseWorker
 
 
@@ -42,15 +43,19 @@ def _manager_path(env: AgiEnv) -> Path:
 async def benchmark(
     agi_cls: Any,
     env: AgiEnv,
-    scheduler: Optional[str] = None,
-    workers: Optional[Dict[str, int]] = None,
-    verbose: int = 0,
-    mode_range: Optional[List[int]] = None,
-    rapids_enabled: bool = False,
-    **args: Any,
+    request: RunRequest,
 ) -> str:
-    mode_range = mode_range or list(range(agi_cls.PYTHON_MODE, agi_cls.MODES))
-    rapids_mode_mask = agi_cls._RAPIDS_SET if rapids_enabled else agi_cls._RAPIDS_RESET
+    request_mode = request.mode
+    if request_mode is None:
+        benchmark_modes: list[int] = list(range(8))
+    elif isinstance(request_mode, list):
+        benchmark_modes = sorted(request_mode)
+    elif isinstance(request_mode, int):
+        benchmark_modes = [request_mode]
+    else:
+        raise TypeError("Benchmark mode must be None, an int, or a list of ints.")
+    benchmark_modes = benchmark_modes or list(range(8))
+    rapids_mode_mask = agi_cls._RAPIDS_SET if request.rapids_enabled else agi_cls._RAPIDS_RESET
     runs: Dict[int, Dict[str, Any]] = {}
 
     benchmark_path = _benchmark_path(env)
@@ -58,18 +63,18 @@ async def benchmark(
     if not _is_cython_installed(env):
         await agi_cls.install(
             env,
-            scheduler=scheduler,
-            workers=workers,
-            verbose=verbose,
+            scheduler=request.scheduler,
+            workers=request.workers,
+            verbose=request.verbose,
             modes_enabled=agi_cls.CYTHON_MODE,
-            **args,
+            **request.to_app_kwargs(),
         )
     agi_cls._mode_auto = True
 
     if os.path.exists(benchmark_path):
         os.remove(benchmark_path)
-    local_modes = [mode for mode in mode_range if not (mode & agi_cls.DASK_MODE)]
-    dask_modes = [mode for mode in mode_range if mode & agi_cls.DASK_MODE]
+    local_modes = [mode for mode in benchmark_modes if not (mode & agi_cls.DASK_MODE)]
+    dask_modes = [mode for mode in benchmark_modes if mode & agi_cls.DASK_MODE]
 
     async def _record(run_value: str, key: int) -> None:
         runtime = run_value.split()
@@ -86,10 +91,7 @@ async def benchmark(
         run_mode = mode & rapids_mode_mask
         run = await agi_cls.run(
             env,
-            scheduler=scheduler,
-            workers=workers,
-            mode=run_mode,
-            **args,
+            request=request.with_execution(mode=run_mode),
         )
         if isinstance(run, str):
             await _record(run, mode)
@@ -97,12 +99,10 @@ async def benchmark(
     if dask_modes:
         await agi_cls._benchmark_dask_modes(
             env,
-            scheduler,
-            workers,
+            request,
             dask_modes,
             rapids_mode_mask,
             runs,
-            **args,
         )
 
     ordered_runs = sorted(runs.items(), key=lambda item: item[1]["seconds"])
@@ -130,25 +130,24 @@ async def benchmark(
 async def benchmark_dask_modes(
     agi_cls: Any,
     env: AgiEnv,
-    scheduler: Optional[str],
-    workers: Optional[Dict[str, int]],
+    request: RunRequest,
     mode_range: List[int],
     rapids_mode_mask: int,
     runs: Dict[int, Dict[str, Any]],
-    **args: Any,
 ) -> None:
-    workers_dict = workers or agi_cls._worker_default
+    workers_dict = request.workers or agi_cls._worker_default
 
     agi_cls.env = env
     agi_cls.target_path = _manager_path(env)
     agi_cls._target = env.target
     agi_cls._workers = workers_dict
-    agi_cls._args = args
+    agi_cls._args = request.to_dispatch_kwargs()
+    agi_cls._worker_args = request.to_app_kwargs()
     agi_cls._rapids_enabled = bool(rapids_mode_mask == agi_cls._RAPIDS_SET)
 
     first_mode = mode_range[0] & rapids_mode_mask
     agi_cls._mode = first_mode
-    await agi_cls._start(scheduler)
+    await agi_cls._start(request.scheduler)
     try:
         for mode in mode_range:
             run_mode = mode & rapids_mode_mask

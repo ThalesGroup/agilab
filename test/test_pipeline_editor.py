@@ -1720,7 +1720,7 @@ def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path
     assert "from agi_cluster.agi_distributor import AGI" in captured["script"]
     assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
     assert "RUN_MODE = json.loads('0')" in captured["script"]
-    assert "await AGI.run(app_env, mode=RUN_MODE, **RUN_ARGS)" in captured["script"]
+    assert "await AGI.run(app_env, request=request)" in captured["script"]
     assert "AgiEnv(active_app=ACTIVE_APP, verbose=1)" in captured["script"]
     assert (
         "RUN_ARGS = json.loads('{\"data_in\": \"demo/in\", \"data_out\": \"demo/out\", "
