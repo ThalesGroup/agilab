@@ -328,6 +328,7 @@ def test_initialize_runtime_state_sets_common_runtime_fields():
         verbose=2,
         rapids_enabled=True,
         args={"secret": 1},
+        worker_args={"public": 1},
         workers_data_path="/tmp/data",
         args_transform_fn=lambda args: {"public": args["secret"]},
         log=log,
@@ -339,6 +340,7 @@ def test_initialize_runtime_state_sets_common_runtime_fields():
     assert agi_cls._target == "demo"
     assert agi_cls._rapids_enabled is True
     assert agi_cls._args == {"public": 1}
+    assert agi_cls._worker_args == {"public": 1}
     assert agi_cls.verbose == 2
     assert agi_cls._workers == {"127.0.0.1": 1}
     assert agi_cls._workers_data_path == "/tmp/data"

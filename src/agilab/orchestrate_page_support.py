@@ -135,6 +135,28 @@ def serialize_args_payload(args: Mapping[str, Any]) -> str:
     )
 
 
+def _json_safe(value: Any) -> Any:
+    return json.loads(json.dumps(value, default=str, ensure_ascii=False))
+
+
+def _json_load_expr(value: Any) -> str:
+    literal = json.dumps(_json_safe(value), ensure_ascii=False, sort_keys=True)
+    return f"json.loads({literal!r})"
+
+
+def _split_run_request_payload(run_args: Mapping[str, Any] | None) -> tuple[dict[str, Any], list[Any], Any, Any, bool | None]:
+    payload = dict(run_args or {})
+    steps = payload.pop("args", [])
+    if steps is None:
+        steps = []
+    if not isinstance(steps, list):
+        raise TypeError("RunRequest steps must be stored as an 'args' list in app settings")
+    data_in = payload.pop("data_in", None)
+    data_out = payload.pop("data_out", None)
+    reset_target = payload.pop("reset_target", None)
+    return payload, steps, data_in, data_out, reset_target
+
+
 def resolve_project_change_args_override(
     *,
     is_args_from_ui: bool,
@@ -257,28 +279,53 @@ def build_run_snippet(
     run_mode: int | list[int] | None,
     scheduler: str,
     workers: str,
-    args_serialized: str,
+    run_args: Mapping[str, Any] | None,
     workers_data_path: str = "None",
     rapids_enabled: bool = False,
 ) -> str:
-    arguments = [
-        "app_env",
-        f"mode={run_mode!r}",
-        f"scheduler={scheduler}",
-        f"workers={workers}",
+    params, steps, data_in, data_out, reset_target = _split_run_request_payload(run_args)
+    workers_data_path_expr = workers_data_path if workers_data_path not in ("", None) else "None"
+    snippet_lines = [
+        "import asyncio",
+        "import json",
+        "",
+        "from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest",
+        "from agi_env import AgiEnv",
+        "",
+        f"APPS_PATH = {_python_string(env.apps_path)}",
+        f"APP = {_python_string(env.app)}",
+        f"RUN_PARAMS = {_json_load_expr(params)}",
+        f"RUN_STEPS_PAYLOAD = {_json_load_expr(steps)}",
+        f"RUN_DATA_IN = {_json_load_expr(data_in)}",
+        f"RUN_DATA_OUT = {_json_load_expr(data_out)}",
+        f"RUN_RESET_TARGET = {_json_load_expr(reset_target)}",
+        "",
+        "async def main():",
+        f"    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(verbose)})",
+        "    run_steps = [",
+        "        StepRequest(name=step['name'], args=step.get('args') or {})",
+        "        for step in RUN_STEPS_PAYLOAD",
+        "    ]",
+        "    request = RunRequest(",
+        "        params=RUN_PARAMS,",
+        "        steps=run_steps,",
+        "        data_in=RUN_DATA_IN,",
+        "        data_out=RUN_DATA_OUT,",
+        "        reset_target=RUN_RESET_TARGET,",
+        f"        mode={run_mode!r},",
+        f"        scheduler={scheduler},",
+        f"        workers={workers},",
+        f"        workers_data_path={workers_data_path_expr},",
+        f"        rapids_enabled={bool(rapids_enabled)!r},",
+        "    )",
+        "    res = await AGI.run(app_env, request=request)",
+        "    print(res)",
+        "    return res",
+        "",
+        'if __name__ == "__main__":',
+        "    asyncio.run(main())",
     ]
-    if workers_data_path not in ("", "None", None):
-        arguments.append(f"workers_data_path={workers_data_path}")
-    if rapids_enabled:
-        arguments.append("rapids_enabled=True")
-    if args_serialized.strip():
-        arguments.append(args_serialized)
-    return _build_agi_snippet(
-        env=env,
-        verbose=verbose,
-        method="run",
-        arguments=tuple(arguments),
-    )
+    return "\n".join(snippet_lines).strip()
 
 
 def compute_run_mode(cluster_params: Mapping[str, Any], cluster_enabled: bool) -> int:

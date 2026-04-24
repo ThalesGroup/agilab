@@ -234,6 +234,7 @@ def initialize_runtime_state(
     verbose: int,
     rapids_enabled: bool,
     args: dict[str, Any],
+    worker_args: dict[str, Any] | None = None,
     workers_data_path: str | None = None,
     args_transform_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     log: Any = None,
@@ -247,6 +248,7 @@ def initialize_runtime_state(
         log.info(log_message, env.target, env.verbose)
 
     agi_cls._args = args_transform_fn(args) if args_transform_fn is not None else args
+    agi_cls._worker_args = worker_args if worker_args is not None else agi_cls._args
     agi_cls.verbose = verbose
     agi_cls._workers = workers
     agi_cls._workers_data_path = workers_data_path
