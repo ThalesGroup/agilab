@@ -1022,7 +1022,7 @@ def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
     ]
 
 
-def test_ensure_docs_repo_release_ready_rejects_unrelated_dirty_paths(tmp_path, monkeypatch) -> None:
+def test_ensure_docs_repo_release_ready_ignores_unrelated_dirty_paths(tmp_path, monkeypatch, capsys) -> None:
     module = _load_pypi_publish()
 
     docs_repo = tmp_path / "thales_agilab"
@@ -1030,12 +1030,8 @@ def test_ensure_docs_repo_release_ready_rejects_unrelated_dirty_paths(tmp_path, 
 
     monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst", "apps/templates"])
 
-    try:
-        module.ensure_docs_repo_release_ready(docs_repo)
-    except SystemExit as exc:
-        assert "apps/templates" in str(exc)
-    else:
-        raise AssertionError("ensure_docs_repo_release_ready() should reject unrelated dirty paths")
+    assert module.ensure_docs_repo_release_ready(docs_repo) == ["docs/source/quick-start.rst"]
+    assert "ignoring them for docs release: apps/templates" in capsys.readouterr().out
 
 
 def test_generate_docs_in_docs_repository_runs_in_docs_repo(monkeypatch, tmp_path) -> None:
@@ -1109,7 +1105,7 @@ def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_
 
     monkeypatch.setattr(module, "find_apps_repository", lambda: (None, None))
     monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
-    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: [])
+    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["apps/templates"])
     monkeypatch.setattr(module, "_tag_exists", lambda _tag, repo=None: False)
     monkeypatch.setattr(
         module,
@@ -1123,6 +1119,26 @@ def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_
         (module.REPO_ROOT, "v2026.04.21", "2026.04.21", "origin"),
         (docs_repo, "v2026.04.21", "2026.04.21", "origin"),
     ]
+
+
+def test_create_and_push_tag_blocks_uncommitted_docs_release_paths(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    monkeypatch.setattr(module, "find_apps_repository", lambda: (None, None))
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
+    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst", "apps/templates"])
+    monkeypatch.setattr(module, "_create_tag_in_repo", lambda *_args, **_kwargs: None)
+
+    try:
+        module.create_and_push_tag("2026.04.21", include_apps_repo=False, include_docs_repo=True)
+    except SystemExit as exc:
+        assert "docs/source/quick-start.rst" in str(exc)
+        assert "apps/templates" not in str(exc)
+    else:
+        raise AssertionError("create_and_push_tag() should reject uncommitted docs release paths")
 
 
 def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -> None:
