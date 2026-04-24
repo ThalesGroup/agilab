@@ -73,13 +73,15 @@ def test_readme_captures_engineering_prototyping_evidence() -> None:
 
 def test_readme_captures_production_readiness_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
+    normalized = " ".join(readme.split())
 
     assert "Production readiness" in readme
     assert "3.0 / 5" in readme
     assert "service health gates" in readme
     assert "release-decision page" in readme
-    assert "security hardening checklist" in readme
+    assert "security hardening checklist" in normalized
     assert "production model serving" in readme
+    assert "tools/production_readiness_report.py" in readme
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
