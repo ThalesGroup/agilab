@@ -14,6 +14,7 @@ from pathlib import Path
 from zipfile import ZipFile
 import argparse
 import subprocess
+from collections.abc import Mapping
 
 try:
     from .bootstrap_source_paths import bootstrap_core_source_paths
@@ -311,20 +312,46 @@ def _build_worker_extension(
     )
 
 
+_CYTHON_CACHE_DISABLED_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
+_CYTHON_CACHE_ENABLED_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
+
+
+def _resolve_cython_cache_option(
+    *,
+    environ: Mapping[str, str] | None = None,
+    path_cls=Path,
+) -> str | bool:
+    """Return the cythonize cache setting used to avoid repeated .pyx conversion."""
+    if environ is None:
+        environ = os.environ
+
+    raw_value = environ.get("AGILAB_CYTHON_CACHE", "").strip()
+    default_cache_dir = path_cls.home() / ".cache" / "agilab" / "cython"
+    if not raw_value or raw_value.lower() in _CYTHON_CACHE_ENABLED_VALUES:
+        return str(default_cache_dir)
+    if raw_value.lower() in _CYTHON_CACHE_DISABLED_VALUES:
+        return False
+    return str(path_cls(raw_value).expanduser())
+
+
 def _cythonize_worker_extension(
     *,
     extension: Extension,
     compiler_directives: dict[str, bool],
     quiet: bool,
     cythonize_fn=None,
+    resolve_cython_cache_option_fn=None,
 ) -> list[Extension]:
     if cythonize_fn is None:
         cythonize_fn = cythonize
+    if resolve_cython_cache_option_fn is None:
+        resolve_cython_cache_option_fn = _resolve_cython_cache_option
     return cythonize_fn(
         [extension],
         language_level=3,
         quiet=quiet,
         compiler_directives=compiler_directives,
+        cache=resolve_cython_cache_option_fn(),
     )
 
 

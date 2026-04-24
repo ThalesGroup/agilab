@@ -1589,7 +1589,32 @@ def test_build_worker_extension_uses_expected_fields(tmp_path):
     assert extension.extra_link_args == ["-L/tmp/libs", "-Wl,--as-needed"]
 
 
-def test_cythonize_worker_extension_passes_quiet_and_directives(tmp_path):
+def test_resolve_cython_cache_option_defaults_to_agilab_cache(tmp_path):
+    class PathFactory:
+        @classmethod
+        def home(cls):
+            return tmp_path / "home"
+
+        def __init__(self, raw_path):
+            self.path = Path(raw_path)
+
+        def expanduser(self):
+            return self.path.expanduser()
+
+    assert build_mod._resolve_cython_cache_option(environ={}, path_cls=PathFactory) == str(
+        tmp_path / "home" / ".cache" / "agilab" / "cython"
+    )
+    assert build_mod._resolve_cython_cache_option(
+        environ={"AGILAB_CYTHON_CACHE": "off"},
+        path_cls=PathFactory,
+    ) is False
+    assert build_mod._resolve_cython_cache_option(
+        environ={"AGILAB_CYTHON_CACHE": str(tmp_path / "custom-cache")},
+        path_cls=PathFactory,
+    ) == str(tmp_path / "custom-cache")
+
+
+def test_cythonize_worker_extension_passes_quiet_directives_and_cache(tmp_path):
     extension = build_mod._build_worker_extension(
         worker_module="demo_worker",
         src_rel=Path("src") / "demo_worker" / "demo_worker.pyx",
@@ -1605,14 +1630,15 @@ def test_cythonize_worker_extension_passes_quiet_and_directives(tmp_path):
         extension=extension,
         compiler_directives={"freethreading_compatible": True},
         quiet=True,
-        cythonize_fn=lambda modules, language_level=3, quiet=False, compiler_directives=None: (
-            cythonize_calls.append((modules, language_level, quiet, compiler_directives)) or ["ext_mod"]
+        cythonize_fn=lambda modules, language_level=3, quiet=False, compiler_directives=None, cache=False: (
+            cythonize_calls.append((modules, language_level, quiet, compiler_directives, cache)) or ["ext_mod"]
         ),
+        resolve_cython_cache_option_fn=lambda: str(tmp_path / "cython-cache"),
     )
 
     assert result == ["ext_mod"]
     assert cythonize_calls == [
-        ([extension], 3, True, {"freethreading_compatible": True})
+        ([extension], 3, True, {"freethreading_compatible": True}, str(tmp_path / "cython-cache"))
     ]
 
 
@@ -2883,7 +2909,7 @@ def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatc
     monkeypatch.setattr(
         build_mod,
         "cythonize",
-        lambda modules, language_level=3, quiet=False, compiler_directives=None: (
+        lambda modules, language_level=3, quiet=False, compiler_directives=None, cache=False: (
             cythonize_calls.append((modules, quiet, compiler_directives)) or ["ext_mod"]
         ),
     )
@@ -3139,7 +3165,7 @@ def test_build_main_build_ext_free_threaded_nonquiet_uses_worker_resolve_fallbac
     monkeypatch.setattr(build_mod.subprocess, "run", lambda cmd, check=True: run_calls.append((cmd, check)))
     cythonize_calls = []
 
-    def _fake_cythonize(modules, language_level=3, quiet=False, compiler_directives=None):
+    def _fake_cythonize(modules, language_level=3, quiet=False, compiler_directives=None, cache=False):
         cythonize_calls.append((modules, quiet, compiler_directives))
         return ["ext_mod"]
 
