@@ -83,6 +83,19 @@ To keep the first install bounded, AGILAB does not run the full test suite by
 default. Add `--test-root`, `--test-apps`, or `--test-core` only when you want
 installer-time validation rather than the fastest first proof.
 
+## Published Package
+
+The PyPI package is the thinnest public entry point:
+
+```bash
+pip install agilab
+agilab
+```
+
+Use it for a quick package-level check. For the most representative first proof,
+prefer the source-checkout `flight_project` path above because it exercises the
+same app installation, execution, and analysis flow documented in the web UI.
+
 ## Evaluation Snapshot
 
 CODEX 5.5 working scores, not production MLOps claims:
