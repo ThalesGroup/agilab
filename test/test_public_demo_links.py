@@ -67,6 +67,8 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert readme.count(QUICK_START_URL) == 1
     assert "## Start Here" not in readme
     assert "## Maintainer Checks" not in readme
+    assert "Notebook quickstart" not in readme
+    assert "notebook-quickstart.html" not in readme
     for maintainer_command in (
         "tools/hf_space_smoke.py --json",
         "tools/agilab_web_robot.py",
