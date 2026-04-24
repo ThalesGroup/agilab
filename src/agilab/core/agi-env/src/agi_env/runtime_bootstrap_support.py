@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,6 +13,23 @@ class ShareRuntimeConfig:
     local_share: str
     cluster_share: str
     agi_share_path: str
+
+
+def default_share_user(*, environ) -> str:
+    """Return the filesystem-safe user segment used by default share paths."""
+    raw_user = (
+        environ.get("AGILAB_SHARE_USER")
+        or environ.get("USER")
+        or environ.get("USERNAME")
+        or "user"
+    )
+    safe_user = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(raw_user)).strip("_")
+    return safe_user or "user"
+
+
+def default_cluster_share(*, environ) -> str:
+    """Return the per-user fallback cluster share root."""
+    return f"clustershare/{default_share_user(environ=environ)}"
 
 
 def parse_int_env_value(envars: dict, key: str, default: int) -> int:
@@ -93,7 +111,11 @@ def resolve_share_runtime_config(
 ) -> ShareRuntimeConfig:
     """Resolve local/cluster share settings and the effective runtime share path."""
     local_share = envars.get("AGI_LOCAL_SHARE") or environ.get("AGI_LOCAL_SHARE") or "localshare"
-    cluster_share = envars.get("AGI_CLUSTER_SHARE") or environ.get("AGI_CLUSTER_SHARE") or "clustershare"
+    cluster_share = (
+        envars.get("AGI_CLUSTER_SHARE")
+        or environ.get("AGI_CLUSTER_SHARE")
+        or default_cluster_share(environ=environ)
+    )
 
     share_dir_override = clean_envar_value_fn(envars, "AGI_SHARE_DIR", fallback_to_process=True)
     if share_dir_override is not None:

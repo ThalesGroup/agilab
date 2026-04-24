@@ -14,6 +14,9 @@ Prerequisites
 - Python 3.11+ with `uv <https://docs.astral.sh/uv/>`_ installed
   (``curl -LsSf https://astral.sh/uv/install.sh | sh``).
 - macOS or Linux shell (use WSL2 on Windows until native support lands).
+- PyCharm is optional. The first proof below uses only a shell and the web UI;
+  IDE run configurations are contributor conveniences, not an installation
+  requirement.
 - If you plan to explore remote workers later, keep SSH access for that later
   step; it is not needed for the first proof path.
 
@@ -27,6 +30,10 @@ Use this path exactly once before trying anything broader.
        git clone https://github.com/ThalesGroup/agilab.git
        cd agilab
        ./install.sh --install-apps
+
+   This is the narrow source-checkout path. It installs the public built-in
+   apps and keeps root/app/core test suites opt-in so a first proof does not
+   become a full CI run.
 
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
@@ -65,6 +72,21 @@ Use this path exactly once before trying anything broader.
 
    Do not switch to packaged install, notebook-first, or cluster setup before
    this local proof works once from end to end.
+
+Why this path avoids common adoption friction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- **No PyCharm dependency**: PyCharm run configurations are generated mirrors
+  for IDE debugging. Shell users can run the same flows from the commands on
+  this page or from ``tools/run_configs``.
+- **No cluster dependency**: SSH keys, shared cluster paths, and remote workers
+  are intentionally outside the first proof.
+- **No private app dependency**: the first proof uses only public built-in apps
+  under ``src/agilab/apps/builtin``.
+- **No mandatory test marathon**: installer-managed root, app/page, and core
+  tests are available, but only run when you pass explicit test flags.
+- **One failure lane**: if it fails, stay on ``flight_project`` and use
+  :doc:`newcomer-troubleshooting` before changing install route.
 
 If the first proof fails
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -153,6 +175,16 @@ Streamlit and Playwright::
 
     AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
 
+To run the same robot against the public Hugging Face Space instead of a local
+server::
+
+    AGILAB_RUN_FULL_UI_ROBOT=1 \
+    AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab \
+    AGILAB_WIDGET_ROBOT_APPS=flight_project \
+    AGILAB_WIDGET_ROBOT_PAGES=HOME \
+    AGILAB_WIDGET_ROBOT_APPS_PAGES=configured \
+    uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot test/test_agilab_widget_robot_full.py
+
 Private apps or framework contributor setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -168,8 +200,9 @@ Cluster installs
 
 If you want to install on a cluster, the installer must have SSH key access or
 credentials with permission to deploy workers. See :doc:`cluster` for the full
-workflow. ``pycharm/setup_pycharm.py`` mirrors web interface run configurations to
-``~/log/execute/<app>/AGI_*.py`` so that IDE and CLI stay in sync.
+workflow. ``pycharm/setup_pycharm.py`` mirrors web interface run configurations
+to ``~/log/execute/<app>/AGI_*.py`` for IDE users, while shell users can keep
+using generated snippets and ``tools/run_configs`` directly.
 
 Next steps
 ^^^^^^^^^^

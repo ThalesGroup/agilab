@@ -28,7 +28,12 @@ The path is derived from environment settings using the following precedence:
 
 1. ``AGI_SHARE_DIR`` from the current process environment, then ``.env``. This is the user-facing override.
 2. ``AGI_CLUSTER_SHARE`` from the current process environment (e.g. ssh session, service unit), then ``.env``.
-3. ``AGI_LOCAL_SHARE`` (default ``~/localshare``) when cluster mode is disabled.
+3. ``AGI_CLUSTER_SHARE`` fallback ``clustershare/<user>`` when no explicit
+   cluster share is configured.
+4. ``AGI_LOCAL_SHARE`` (default ``~/localshare``) when cluster mode is disabled.
+
+The ``<user>`` segment is derived from ``AGILAB_SHARE_USER``, then ``USER``,
+then ``USERNAME``, and is sanitised before being used as a path component.
 
 This ordering lets operators set one shared-data knob in the UI/installer while
 still allowing remote workers to honour host-specific cluster-share settings.
@@ -37,14 +42,15 @@ The behaviour differs depending on whether cluster mode is enabled:
 * **Cluster mode enabled** – ``AgiEnv`` uses ``AGI_CLUSTER_SHARE``. Relative
   inputs are expanded against ``AgiEnv.home_abs`` on manager/developer shells.
   The configured share must be mounted and writable, and it must be distinct
-  from ``AGI_LOCAL_SHARE``. In multi-user deployments, this should also be a
-  per-user share root rather than a common writable directory shared by
-  several operators. Missing or read-only shares now raise immediately instead
-  of silently degrading to a local path.
+  from ``AGI_LOCAL_SHARE``. The implicit fallback is ``clustershare/<user>``;
+  if you override it in a multi-user deployment, keep the override per-user
+  rather than pointing several operators at the same writable directory.
+  Missing or read-only shares now raise immediately instead of silently
+  degrading to a local path.
 * **Cluster mode disabled** – ``AgiEnv`` uses ``AGI_LOCAL_SHARE`` for local
   datasets and outputs.
 * **Remote workers** – the configured cluster-share value remains relative
-  (for example, ``clustershare/<app>``) and is not created automatically.
+  (for example, ``clustershare/<user>``) and is not created automatically.
   Workers never fall back to per-user local paths; the configured share path
   must already be mounted and writable on the remote host. When an absolute
   path under ``/Users/<user>`` or ``/home/<user>`` is provided, the leading

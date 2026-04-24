@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from agi_env.runtime_bootstrap_support import (
+    default_cluster_share,
+    default_share_user,
     parse_int_env_value,
     resolve_share_runtime_config,
     sync_repository_apps,
@@ -15,6 +17,32 @@ def test_parse_int_env_value_falls_back_for_blank_and_invalid():
     assert parse_int_env_value({"TABLE_MAX_ROWS": ""}, "TABLE_MAX_ROWS", 100) == 100
     assert parse_int_env_value({"TABLE_MAX_ROWS": "bad"}, "TABLE_MAX_ROWS", 100) == 100
     assert parse_int_env_value({"TABLE_MAX_ROWS": "42"}, "TABLE_MAX_ROWS", 100) == 42
+
+
+def test_default_cluster_share_is_user_scoped_and_filesystem_safe():
+    environ = {"USER": "alice@example.com"}
+
+    assert default_share_user(environ=environ) == "alice_example.com"
+    assert default_cluster_share(environ=environ) == "clustershare/alice_example.com"
+    assert default_cluster_share(environ={}) == "clustershare/user"
+
+
+def test_resolve_share_runtime_config_defaults_cluster_share_per_user(tmp_path):
+    result = resolve_share_runtime_config(
+        envars={},
+        environ={"USER": "demo-user"},
+        is_worker_env=False,
+        resolve_workspace_settings_fn=lambda: None,
+        find_source_settings_fn=lambda: None,
+        clean_envar_value_fn=lambda *_args, **_kwargs: None,
+        resolve_cluster_enabled_fn=lambda **_kwargs: True,
+        resolve_runtime_share_path_fn=lambda **kwargs: kwargs["cluster_share"],
+        env_path=tmp_path / ".env",
+        home_path=tmp_path,
+    )
+
+    assert result.cluster_share == "clustershare/demo-user"
+    assert result.agi_share_path == "clustershare/demo-user"
 
 
 def test_sync_repository_apps_links_missing_projects(tmp_path):

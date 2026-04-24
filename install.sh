@@ -42,9 +42,23 @@ export PATH="$HOME/.local/bin:$PATH"
 
 UV="uv --preview-features extra-build-dependencies"
 
+default_agi_share_user() {
+    local raw_user="${AGILAB_SHARE_USER:-${USER:-}}"
+    if [[ -z "$raw_user" ]]; then
+        raw_user="$(id -un 2>/dev/null || whoami 2>/dev/null || true)"
+    fi
+    local safe_user
+    safe_user="$(printf '%s' "$raw_user" | tr -cs 'A-Za-z0-9_.-' '_' | sed 's/^_//;s/_$//')"
+    printf '%s\n' "${safe_user:-user}"
+}
+
+default_agi_share_dir() {
+    printf 'clustershare/%s\n' "$(default_agi_share_user)"
+}
+
 AGI_INSTALL_PATH="$(realpath '.')"
 # Default share dir (can be overridden via --agi-share-dir or env)
-AGI_SHARE_DIR="${AGI_SHARE_DIR:-clustershare}"
+AGI_SHARE_DIR="${AGI_SHARE_DIR:-}"
 CURRENT_PATH="$(realpath '.')"
 CLUSTER_CREDENTIALS="${CLUSTER_CREDENTIALS:-}"
 OPENAI_API_KEY="${OPENAI_API_KEY:-}"
@@ -88,6 +102,10 @@ REPO_ENV_FILE="$AGI_INSTALL_PATH/.agilab/.env"
 ENV_SHARE_USER="$(read_env_var "$USER_ENV_FILE" AGI_SHARE_DIR)"
 ENV_SHARE_REPO="$(read_env_var "$REPO_ENV_FILE" AGI_SHARE_DIR)"
 DEFAULT_SHARE_DIR="${AGI_SHARE_DIR:-${ENV_SHARE_USER:-$ENV_SHARE_REPO}}"
+if [[ -z "$DEFAULT_SHARE_DIR" ]]; then
+    DEFAULT_SHARE_DIR="$(default_agi_share_dir)"
+fi
+AGI_SHARE_DIR="${AGI_SHARE_DIR:-$DEFAULT_SHARE_DIR}"
 AGI_LOCAL_DIR="${AGI_LOCAL_DIR:-${AGI_LOCAL_SHARE:-$HOME/localshare}}"
 DEFAULT_LOCAL_SHARE="$AGI_LOCAL_DIR"
 
@@ -147,7 +165,7 @@ ensure_share_dir() {
         local shadow_share="$requested_share"
 
         if [[ -z "$shadow_share" || "$shadow_share" == "$local_fallback" ]]; then
-            shadow_share="$HOME/clustershare"
+            shadow_share="$HOME/$(default_agi_share_dir)"
         fi
 
         if mkdir -p "$shadow_share" 2>/dev/null; then
@@ -155,7 +173,7 @@ ensure_share_dir() {
             return 0
         fi
 
-        shadow_share="$HOME/clustershare"
+        shadow_share="$HOME/$(default_agi_share_dir)"
         mkdir -p "$shadow_share" || {
             echo -e "${RED}Failed to create fallback cluster share ${shadow_share}.${NC}"
             exit 1
@@ -547,7 +565,7 @@ set_locale() {
 
 
 verify_share_dir() {
-    local share_dir="${AGI_SHARE_DIR:-$HOME/clustershare}"
+    local share_dir="${AGI_SHARE_DIR:-$HOME/$(default_agi_share_dir)}"
     local local_dir="${AGI_LOCAL_DIR:-}"
     local home_prefix="$HOME/"
     [[ "$share_dir" == "~"* ]] && share_dir="${share_dir/#\~/$HOME}"

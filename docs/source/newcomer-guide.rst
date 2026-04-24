@@ -36,6 +36,11 @@ web UI, and confirm a visible result under ``~/log/execute/flight/``.
 That is enough for day 1. Do not widen the problem to notebooks, package mode,
 private apps, or cluster setup until this path works once.
 
+This also means PyCharm is not part of the day-1 contract. AGILAB keeps
+PyCharm run configurations for developers who want IDE debugging, but the
+newcomer route is shell + browser first. The same install, execute, and
+analysis path can be driven from commands, the web UI, or checked-in wrappers.
+
 Adoption evidence
 -----------------
 
@@ -47,9 +52,9 @@ On April 24, 2026, the source-checkout first-proof smoke passed locally in
    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 
 That supports an ``Ease of adoption`` score of ``3.5 / 5``: the public demo
-works, the first routes are explicit, and the local proof is measurable. It is
-not scored higher yet because the same measurement still needs a fresh external
-machine.
+works, the first routes are explicit, PyCharm is optional, installer tests are
+opt-in, and the local proof is measurable. It is not scored higher yet because
+the same measurement still needs a fresh external machine.
 
 What to ignore on day 1
 -----------------------
@@ -61,6 +66,8 @@ Skip these until the local ``flight_project`` proof works once:
 - notebook-first route
 - private or optional app repositories
 - IDE convenience flows
+- full installer test suites unless you explicitly want validation instead of
+  the fastest first proof
 
 The four words you need
 -----------------------
@@ -83,6 +90,9 @@ Common newcomer traps
 - **Running ``uvx agilab`` from the source tree**:
   from a repository checkout, use the source commands documented in
   :doc:`quick-start` so you do not accidentally run the published wheel.
+- **Assuming PyCharm is required**:
+  PyCharm mirrors are useful for debugging, but the supported first proof is
+  independent of PyCharm.
 
 Where to go next
 ----------------
