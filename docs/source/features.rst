@@ -115,3 +115,25 @@ agilab
     live under ``src/agilab/apps-pages``. Every bundle carries its own
     ``pyproject.toml`` or embedded ``.venv`` so the Analysis launcher spins it up
     inside an isolated interpreter.
+
+Engineering prototyping evidence
+--------------------------------
+
+AGILab is strongest for engineering prototypes that need more structure than a
+single notebook but less ceremony than a production MLOps platform:
+
+- app templates and cloned projects provide a repeatable manager/worker shape
+- app and page bundles keep dependencies isolated through their own
+  ``pyproject.toml`` / ``uv`` environments
+- ``app_args_form.py`` and ``app_settings.toml`` give prototypes a typed,
+  configurable UI surface instead of hard-coded script parameters
+- ``lab_steps.toml`` and notebook import/export support let teams move between
+  notebook exploration and reproducible pipeline snippets
+- optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
+  a conceptual architecture view alongside generated execution snippets
+- the Analysis page can generate minimal page bundles so a prototype can gain a
+  shareable dashboard without becoming a full product
+
+That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
+scored higher yet because the first-proof wizard, generic evidence bundle, and
+first-class reduce contract remain roadmap work.
