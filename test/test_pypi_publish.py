@@ -325,6 +325,88 @@ def test_compute_date_tag_with_collisions(monkeypatch) -> None:
     assert module.compute_date_tag() == "2026.03.20-3"
 
 
+def test_github_release_notes_lists_published_packages() -> None:
+    module = _load_pypi_publish()
+
+    notes = module.github_release_notes("2026.4.27", ["agi-env", "agilab"])
+
+    assert "Published AGILAB 2026.4.27 to PyPI." in notes
+    assert "Packages: agi-env, agilab" in notes
+
+
+def test_create_or_update_github_release_creates_missing_release(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1),
+    )
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append(cmd))
+
+    module.create_or_update_github_release("2026.04.24", "2026.4.27", ["agilab"])
+
+    assert calls == [
+        [
+            "/usr/bin/gh",
+            "release",
+            "create",
+            "v2026.04.24",
+            "--title",
+            "AGILAB 2026.4.27",
+            "--notes",
+            "Published AGILAB 2026.4.27 to PyPI.\n\nPackages: agilab\n",
+            "--verify-tag",
+            "--latest",
+        ]
+    ]
+
+
+def test_create_or_update_github_release_updates_existing_release(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0),
+    )
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append(cmd))
+
+    module.create_or_update_github_release("v2026.04.24", "2026.4.27", ["agilab"])
+
+    assert calls == [
+        [
+            "/usr/bin/gh",
+            "release",
+            "edit",
+            "v2026.04.24",
+            "--title",
+            "AGILAB 2026.4.27",
+            "--notes",
+            "Published AGILAB 2026.4.27 to PyPI.\n\nPackages: agilab\n",
+            "--latest",
+        ]
+    ]
+
+
+def test_create_or_update_github_release_requires_gh(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module.shutil, "which", lambda _name: None)
+
+    try:
+        module.create_or_update_github_release("2026.04.24", "2026.4.27", ["agilab"])
+    except SystemExit as exc:
+        assert "requires the GitHub CLI" in str(exc)
+    else:
+        raise AssertionError("create_or_update_github_release() should require gh")
+
+
 def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -643,6 +725,7 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+    monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
 
     module.main()
 
@@ -993,10 +1076,11 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+    monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
 
     module.main()
 
-    assert order == ["preflight", "commit", "tag"]
+    assert order == ["preflight", "commit", "tag", "github-release"]
 
 
 def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
@@ -1256,10 +1340,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
     monkeypatch.setattr(module, "git_commit_docs_repository", lambda *_args, **_kwargs: order.append("commit-docs"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.04.23")
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+    monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
 
     module.main()
 
-    assert order == ["preflight", "gen-docs", "commit", "commit-docs", "tag"]
+    assert order == ["preflight", "gen-docs", "commit", "commit-docs", "tag", "github-release"]
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:

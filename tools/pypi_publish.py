@@ -11,7 +11,7 @@ Highlights
 - Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
 - Optional yank previous versions on PyPI.
-- Optional git tag (date-based) and commit of version bumps.
+- Optional git tag (date-based), GitHub Release, and commit of version bumps.
 
 Typical:
   uv run tools/pypi_publish.py --repo testpypi
@@ -1245,6 +1245,56 @@ def create_and_push_tag(tag: str, *, include_apps_repo: bool = True, include_doc
         print(f"[git] created and pushed {tag_ref} in docs repository ({docs_repo})")
 
 
+def github_release_notes(chosen_version: str, package_names: list[str]) -> str:
+    packages = ", ".join(package_names)
+    return (
+        f"Published AGILAB {chosen_version} to PyPI.\n\n"
+        f"Packages: {packages}\n"
+    )
+
+
+def create_or_update_github_release(tag: str, chosen_version: str, package_names: list[str]) -> None:
+    tag_ref = tag if tag.startswith("v") else f"v{tag}"
+    gh = shutil.which("gh")
+    if not gh:
+        raise SystemExit(
+            "ERROR: GitHub Release creation requires the GitHub CLI ('gh'). "
+            "Install gh or create the release manually before considering the PyPI release complete."
+        )
+
+    title = f"AGILAB {chosen_version}"
+    notes = github_release_notes(chosen_version, package_names)
+    view = subprocess.run(
+        [gh, "release", "view", tag_ref],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if view.returncode == 0:
+        run([gh, "release", "edit", tag_ref, "--title", title, "--notes", notes, "--latest"], cwd=REPO_ROOT)
+        print(f"[github] updated GitHub Release {tag_ref}")
+        return
+
+    run(
+        [
+            gh,
+            "release",
+            "create",
+            tag_ref,
+            "--title",
+            title,
+            "--notes",
+            notes,
+            "--verify-tag",
+            "--latest",
+        ],
+        cwd=REPO_ROOT,
+    )
+    print(f"[github] created GitHub Release {tag_ref}")
+
+
 def generate_docs_in_docs_repository():
     docs_repo, source = find_docs_repository()
     if not docs_repo:
@@ -1584,6 +1634,7 @@ def main():
                 if cfg.repo == "pypi" and cfg.git_tag:
                     tag = compute_date_tag()  # resolves collisions with existing tags
                     create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
+                    create_or_update_github_release(tag, chosen, version_targets)
             release_finalized = True
             if deferred_interrupt["value"]:
                 raise KeyboardInterrupt("Interrupted after release metadata finalization")
