@@ -985,7 +985,7 @@ async def _render_run_panels(
                     workers=workers,
                     workers_data_path=workers_data_path,
                     rapids_enabled=rapids_enabled,
-                    args_serialized=st.session_state.args_serialized,
+                    run_args=st.session_state.app_settings.get("args", {}),
                 )
                 st.code(cmd, language="python")
 

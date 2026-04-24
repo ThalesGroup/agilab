@@ -11,6 +11,7 @@ import numpy as np
 
 import agi_node.agi_dispatcher.agi_dispatcher as dispatcher_module
 from agi_node.agi_dispatcher import WorkDispatcher
+from agi_node.agi_dispatcher.agi_dispatcher import RUN_STEPS_KEY
 
 
 def test_convert_functions_to_names_handles_nested_callables():
@@ -34,6 +35,88 @@ def test_dispatcher_init_sets_class_args():
     payload = {"x": 1}
     WorkDispatcher(payload)
     assert WorkDispatcher.args == payload
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_keeps_run_steps_out_of_constructor_and_injects_model_args(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    cluster_src = tmp_path / "cluster" / "src"
+    cluster_src.mkdir(parents=True)
+    env = SimpleNamespace(
+        target="DemoWorkflow",
+        target_class="DemoWorkflow",
+        agi_cluster=cluster_src.parent,
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    constructor_args = []
+    step_payload = [{"name": "train", "args": {"epochs": 2}}]
+
+    class DemoWorkflow:
+        def __init__(self, env, **kwargs):
+            constructor_args.append(kwargs)
+            self.args = SimpleNamespace(data_in=kwargs["data_in"], args=[])
+            WorkDispatcher.args = {"data_in": kwargs["data_in"], "args": []}
+
+        def build_distribution(self, assigned_workers):
+            assert assigned_workers == {"127.0.0.1": 1}
+            assert self.args.args == step_payload
+            assert WorkDispatcher.args["args"] == step_payload
+            return [["chunk"]], [{"meta": 1}], "partition", 1, 1.0
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorkflow=DemoWorkflow)),
+    )
+
+    loaded_workers, work_plan, metadata = await WorkDispatcher._do_distrib(
+        env,
+        {"127.0.0.1": 1},
+        {"data_in": "network", RUN_STEPS_KEY: step_payload},
+    )
+
+    assert constructor_args == [{"data_in": "network"}]
+    assert loaded_workers == {"127.0.0.1": 1}
+    assert work_plan == [["chunk"]]
+    assert metadata == [{"meta": 1}]
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_rejects_run_steps_for_non_workflow_app(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    cluster_src = tmp_path / "cluster" / "src"
+    cluster_src.mkdir(parents=True)
+    env = SimpleNamespace(
+        target="SimpleApp",
+        target_class="SimpleApp",
+        agi_cluster=cluster_src.parent,
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    class SimpleApp:
+        def __init__(self, env, **kwargs):
+            self.args = SimpleNamespace(data_in=kwargs.get("data_in"))
+
+        def build_distribution(self, assigned_workers):  # pragma: no cover - should not run
+            return [["chunk"]], [{"meta": 1}], "partition", 1, 1.0
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(SimpleApp=SimpleApp)),
+    )
+
+    with pytest.raises(TypeError, match="does not accept RunRequest.steps"):
+        await WorkDispatcher._do_distrib(
+            env,
+            {"127.0.0.1": 1},
+            {"data_in": "network", RUN_STEPS_KEY: [{"name": "train", "args": {}}]},
+        )
 
 
 @pytest.mark.asyncio

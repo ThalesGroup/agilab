@@ -17,6 +17,7 @@ def _reset_agi_runtime_distribution_state():
         "_mode_auto",
         "_workers",
         "_args",
+        "_worker_args",
         "_dask_client",
         "_dask_workers",
         "_worker_init_error",
@@ -39,6 +40,7 @@ def _reset_agi_runtime_distribution_state():
         AGI._mode_auto = False
         AGI._workers = {}
         AGI._args = {}
+        AGI._worker_args = None
         AGI._dask_client = None
         AGI._dask_workers = None
         AGI._worker_init_error = False
@@ -353,6 +355,7 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
     AGI._mode = AGI.DASK_MODE
     AGI._workers = {"127.0.0.1": 1}
     AGI._args = {"sample": 1}
+    AGI._worker_args = {"startup": 1}
 
     calls = {"new": [], "kill": [], "run_async": []}
 
@@ -393,6 +396,8 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
 
     assert debug_result == ["worker-log"]
     assert calls["kill"]
+    assert calls["new"][0]["args"] == {"startup": 1}
+    assert calls["new"][1]["args"] == {"sample": 1}
 
     AGI.env = SimpleNamespace(
         wenv_abs=wenv_abs,
@@ -421,7 +426,9 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
     assert "from agi_env import AgiEnv" in calls["run_async"][0][0]
     assert "AgiEnv(apps_path=Path('/tmp/apps'), app='demo_project', verbose=2)" in calls["run_async"][0][0]
     assert "BaseWorker._new(env=env" in calls["run_async"][0][0]
+    assert "args={'startup': 1}" in calls["run_async"][0][0]
     assert "BaseWorker._run(env=env" in calls["run_async"][0][0]
+    assert "args={'sample': 1}" in calls["run_async"][0][0]
     assert "import asyncio" in calls["run_async"][0][0]
     assert "if __name__ == '__main__':" in calls["run_async"][0][0]
 

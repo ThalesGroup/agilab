@@ -50,6 +50,7 @@ from .base_worker import BaseWorker
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
+RUN_STEPS_KEY = "_agilab_run_steps"
 
 
 class WorkDispatcher:
@@ -61,6 +62,34 @@ class WorkDispatcher:
     def __init__(self, args=None):
         """Store ``args`` for later use when evaluating distribution plans."""
         WorkDispatcher.args = args
+
+    @staticmethod
+    def _split_dispatch_args(args):
+        target_args = dict(args or {})
+        run_steps = target_args.pop(RUN_STEPS_KEY, [])
+        if run_steps is None:
+            run_steps = []
+        if not isinstance(run_steps, list):
+            raise TypeError(f"{RUN_STEPS_KEY} must be a list of workflow step payloads")
+        return target_args, run_steps
+
+    @staticmethod
+    def _apply_run_steps(target_inst, run_steps):
+        if not run_steps:
+            return
+
+        args_obj = getattr(target_inst, "args", None)
+        if isinstance(args_obj, dict):
+            if "args" not in args_obj:
+                raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.steps")
+            args_obj["args"] = run_steps
+        elif hasattr(args_obj, "args"):
+            setattr(args_obj, "args", run_steps)
+        else:
+            raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.steps")
+
+        if isinstance(WorkDispatcher.args, dict):
+            WorkDispatcher.args["args"] = run_steps
 
     @staticmethod
     def _convert_functions_to_names(workers_plan):
@@ -82,6 +111,11 @@ class WorkDispatcher:
     @staticmethod
     async def _do_distrib(env, workers, args):
         """Build the distribution plan for ``env`` given worker layout and args."""
+        target_args, run_steps = WorkDispatcher._split_dispatch_args(args)
+        cache_args = dict(target_args)
+        if run_steps:
+            cache_args[RUN_STEPS_KEY] = run_steps
+
         base_worker_dir = str(env.agi_cluster / "src")
         if base_worker_dir not in sys.path:
             sys.path.insert(0, base_worker_dir)
@@ -95,7 +129,8 @@ class WorkDispatcher:
             raise RuntimeError(f"failed to load {env.target}")
 
         target_class = getattr(target_module, env.target_class)
-        target_inst = target_class(env, **args)
+        target_inst = target_class(env, **target_args)
+        WorkDispatcher._apply_run_steps(target_inst, run_steps)
 
         file = env.distribution_tree
         workers_plan = []
@@ -108,7 +143,7 @@ class WorkDispatcher:
             workers_plan_metadata = data.get("work_plan_metadata", [])
             if workers_plan is None or (
                 data["workers"] != workers
-                or data["target_args"] != args
+                or data["target_args"] != cache_args
             ):
                 rebuild_tree = True
 
@@ -122,7 +157,7 @@ class WorkDispatcher:
             ) = target_inst.build_distribution(workers)
 
             data = {
-                "target_args": args,
+                "target_args": cache_args,
                 "workers": workers,
                 "work_plan_metadata": workers_plan_metadata,
                 "work_plan": WorkDispatcher._convert_functions_to_names(workers_plan),
