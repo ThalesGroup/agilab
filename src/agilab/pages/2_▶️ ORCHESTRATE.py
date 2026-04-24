@@ -40,6 +40,9 @@ import_agilab_symbols(
         "build_distribution_snippet": "build_distribution_snippet",
         "build_install_snippet": "build_install_snippet",
         "build_run_snippet": "build_run_snippet",
+        "available_benchmark_modes": "available_benchmark_modes",
+        "benchmark_mode_label": "benchmark_mode_label",
+        "benchmark_workers_data_path_issue": "benchmark_workers_data_path_issue",
         "compute_run_mode": "compute_run_mode",
         "describe_run_mode": "describe_run_mode",
         "merge_app_settings_sources": "merge_app_settings_sources",
@@ -47,6 +50,7 @@ import_agilab_symbols(
         "optional_string_expr": "optional_string_expr",
         "resolve_requested_run_mode": "resolve_requested_run_mode",
         "resolve_project_change_args_override": "resolve_project_change_args_override",
+        "sanitize_benchmark_modes": "sanitize_benchmark_modes",
         "filter_noise_lines": "filter_noise_lines",
         "filter_warning_messages": "filter_warning_messages",
         "format_log_block": "format_log_block",
@@ -897,56 +901,93 @@ async def _render_run_panels(
 
     if show_run_panel:
         with st.expander("Optimize execution"):
-            st.session_state.setdefault("benchmark", False)
-            if st.session_state.pop("benchmark_reset_pending", False):
-                st.session_state["benchmark"] = False
-
             cluster_params = st.session_state.app_settings["cluster"]
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
 
-            benchmark_prereqs_met = all(
-                cluster_params.get(flag, False) for flag in ("pool", "cython")
+            available_modes = available_benchmark_modes(
+                cluster_params,
+                cluster_enabled=cluster_enabled,
             )
-            if not benchmark_prereqs_met and st.session_state.get("benchmark"):
-                st.session_state["benchmark"] = False
-
-            requested_benchmark = st.toggle(
-                "Benchmark all modes",
-                key="benchmark",
-                help="Run the snippet once per mode and report timings for each path",
-                disabled=not benchmark_prereqs_met,
+            benchmark_modes_key = f"benchmark_modes__{env.app}"
+            selected_benchmark_modes = sanitize_benchmark_modes(
+                st.session_state.get(benchmark_modes_key, []),
+                available_modes,
             )
+            if st.session_state.pop("benchmark_reset_pending", False):
+                selected_benchmark_modes = []
+            if st.session_state.get(benchmark_modes_key) != selected_benchmark_modes:
+                st.session_state[benchmark_modes_key] = selected_benchmark_modes
 
-            if benchmark_prereqs_met:
-                benchmark_enabled = requested_benchmark
-            else:
-                benchmark_enabled = False
-                st.warning("Benchmark requires Pool and Cython. Enable Cluster as well to include Dask modes.")
+            selected_benchmark_modes = st.multiselect(
+                "Benchmark modes",
+                options=available_modes,
+                key=benchmark_modes_key,
+                format_func=benchmark_mode_label,
+                help=(
+                    "Select the exact execution modes to benchmark. Leave empty to run "
+                    "the single mode defined by the optimization toggles."
+                ),
+            )
+            selected_benchmark_modes = sanitize_benchmark_modes(
+                selected_benchmark_modes,
+                available_modes,
+            )
+            benchmark_enabled = bool(selected_benchmark_modes)
+            st.session_state["benchmark"] = benchmark_enabled
 
             run_mode = resolve_requested_run_mode(
                 cluster_params,
                 cluster_enabled=cluster_enabled,
                 benchmark_enabled=benchmark_enabled,
+                benchmark_modes=selected_benchmark_modes,
             )
 
             info_label = describe_run_mode(run_mode, benchmark_enabled)
 
             st.session_state["mode"] = run_mode
             st.info(info_label)
+            if benchmark_enabled:
+                labels = ", ".join(benchmark_mode_label(mode) for mode in selected_benchmark_modes)
+                st.caption(f"Benchmark will iterate only on: {labels}")
+            else:
+                st.caption("Leave Benchmark modes empty to run the single selected mode.")
 
             verbose = cluster_params.get("verbose", 1)
             enabled = cluster_enabled
             scheduler = optional_string_expr(enabled, cluster_params.get("scheduler"))
             workers = optional_python_expr(enabled, cluster_params.get("workers"))
-            cmd = build_run_snippet(
-                env=env,
-                verbose=verbose,
-                run_mode=run_mode,
-                scheduler=scheduler,
-                workers=workers,
-                args_serialized=st.session_state.args_serialized,
+            raw_workers_data_path = cluster_params.get("workers_data_path", "")
+            workers_data_path = optional_string_expr(enabled, raw_workers_data_path)
+            try:
+                local_share_path = env.share_root_path()
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                local_share_path = None
+            benchmark_path_issue = benchmark_workers_data_path_issue(
+                modes=selected_benchmark_modes,
+                workers=cluster_params.get("workers"),
+                workers_data_path=raw_workers_data_path,
+                local_share_path=local_share_path,
             )
-            st.code(cmd, language="python")
+            if benchmark_path_issue:
+                st.error(benchmark_path_issue)
+                cmd = None
+            else:
+                rapids_enabled = (
+                    any(int(mode) & 8 for mode in selected_benchmark_modes)
+                    if benchmark_enabled
+                    else bool(cluster_params.get("rapids", False))
+                )
+                cmd = build_run_snippet(
+                    env=env,
+                    verbose=verbose,
+                    run_mode=run_mode,
+                    scheduler=scheduler,
+                    workers=workers,
+                    workers_data_path=workers_data_path,
+                    rapids_enabled=rapids_enabled,
+                    args_serialized=st.session_state.args_serialized,
+                )
+                st.code(cmd, language="python")
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
             with st.expander("Benchmark results", expanded=expand_benchmark):
@@ -975,7 +1016,7 @@ async def _render_run_panels(
                             st.info("Benchmark file is present but empty. Run the benchmark to collect data.")
                     else:
                         st.info(
-                            "No benchmark results yet. Enable 'Benchmark all modes' and run EXECUTE to gather data."
+                            "No benchmark results yet. Select one or more Benchmark modes and run EXECUTE to gather data."
                         )
                 except json.JSONDecodeError as e:
                     st.warning(f"Error decoding JSON: {e}")
@@ -1091,6 +1132,7 @@ async def page() -> None:
         st.session_state.pop("_service_logs_expanded", None)
         st.session_state.pop("_benchmark_expand", None)
         st.session_state.pop("benchmark", None)
+        st.session_state.pop(f"benchmark_modes__{previous_project}", None)
         st.session_state.pop("is_args_from_ui", None)
         _clear_cached_distribution()
         initialize_app_settings(args_override=args_override)

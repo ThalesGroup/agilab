@@ -58,6 +58,8 @@ def test_build_install_and_run_snippets_embed_expected_values():
         run_mode=15,
         scheduler='"127.0.0.1:8786"',
         workers="{'127.0.0.1': 2}",
+        workers_data_path='"/tmp/share"',
+        rapids_enabled=True,
         args_serialized='foo="bar", n=2',
     )
 
@@ -65,6 +67,8 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
     assert "mode=15" in run_snippet
+    assert 'workers_data_path="/tmp/share"' in run_snippet
+    assert "rapids_enabled=True" in run_snippet
     assert 'foo="bar", n=2' in run_snippet
 
 
@@ -177,12 +181,67 @@ def test_resolve_requested_run_mode_switches_between_single_and_benchmark_modes(
         cluster_params,
         cluster_enabled=False,
         benchmark_enabled=True,
-    ) == [8, 9, 10, 11]
+    ) == [0, 1, 2, 3, 8, 9, 10, 11]
     assert orchestrate_page_support.resolve_requested_run_mode(
         cluster_params,
         cluster_enabled=True,
         benchmark_enabled=True,
-    ) is None
+        benchmark_modes=[0, 7, 15, 99],
+    ) == [0, 7, 15]
+
+
+def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
+    cluster_params = {"pool": True, "cython": False, "rapids": True}
+
+    assert orchestrate_page_support.available_benchmark_modes(
+        cluster_params,
+        cluster_enabled=False,
+    ) == [0, 1, 8, 9]
+    assert orchestrate_page_support.available_benchmark_modes(
+        cluster_params,
+        cluster_enabled=True,
+    ) == [0, 1, 4, 5, 8, 9, 12, 13]
+    assert orchestrate_page_support.sanitize_benchmark_modes(
+        [13, "bad", 99, 1, "1"],
+        [0, 1, 13],
+    ) == [1, 13]
+    assert orchestrate_page_support.benchmark_mode_label(13) == "13: rapids and dask and pool"
+
+
+def test_benchmark_workers_data_path_requires_shared_path_for_remote_dask(tmp_path):
+    local_share = tmp_path / "localshare"
+    local_share.mkdir()
+
+    assert orchestrate_page_support.benchmark_workers_data_path_issue(
+        modes=[0, 1],
+        workers={"192.168.1.20": 1},
+        workers_data_path="",
+        local_share_path=local_share,
+    ) == ""
+    assert "require Workers Data Path" in orchestrate_page_support.benchmark_workers_data_path_issue(
+        modes=[4],
+        workers={"192.168.1.20": 1},
+        workers_data_path="",
+        local_share_path=local_share,
+    )
+    assert "local share" in orchestrate_page_support.benchmark_workers_data_path_issue(
+        modes=[4],
+        workers={"192.168.1.20": 1},
+        workers_data_path=str(local_share),
+        local_share_path=local_share,
+    )
+    assert orchestrate_page_support.benchmark_workers_data_path_issue(
+        modes=[4],
+        workers={"127.0.0.1": 1},
+        workers_data_path=str(local_share),
+        local_share_path=local_share,
+    ) == ""
+    assert orchestrate_page_support.benchmark_workers_data_path_issue(
+        modes=[4],
+        workers={"192.168.1.20": 1},
+        workers_data_path="/mnt/shared/agilab",
+        local_share_path=local_share,
+    ) == ""
 
 
 def test_serialize_args_payload_and_optional_exprs_cover_string_and_mapping_cases():
@@ -205,7 +264,10 @@ def test_run_mode_helpers_cover_label_generation():
 
     assert run_mode == 15
     assert orchestrate_page_support.describe_run_mode(run_mode, False) == "Run mode 15: rapids and dask and pool and cython"
-    assert orchestrate_page_support.describe_run_mode(None, True) == "Run mode benchmark (all modes)"
+    assert (
+        orchestrate_page_support.describe_run_mode([0, 7, 15], True)
+        == "Run mode benchmark (selected modes: 0, 7, 15)"
+    )
 
 
 def test_reassign_distribution_plan_uses_stable_selection_keys_and_preserves_defaults():

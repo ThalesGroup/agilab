@@ -168,10 +168,12 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     cols_other = st.columns(len(boolean_params))
     for idx, param in enumerate(boolean_params):
         current_value = cluster_params.get(param, False)
+        widget_key = widget_keys[param]
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = bool(current_value)
         updated_value = cols_other[idx].checkbox(
             param.replace("_", " ").capitalize(),
-            value=current_value,
-            key=widget_keys[param],
+            key=widget_key,
             help=f"Enable or disable {param}.",
         )
         cluster_params[param] = updated_value

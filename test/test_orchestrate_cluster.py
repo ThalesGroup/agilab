@@ -118,7 +118,7 @@ def test_compute_cluster_mode_uses_expected_bitmask():
     assert result == 15
 
 
-def test_compute_benchmark_run_mode_preserves_capability_bits():
+def test_compute_benchmark_run_mode_lists_enabled_capability_combinations():
     assert orchestrate_page_support.compute_benchmark_run_mode(
         {"pool": True, "cython": True, "rapids": False},
         cluster_enabled=False,
@@ -126,11 +126,11 @@ def test_compute_benchmark_run_mode_preserves_capability_bits():
     assert orchestrate_page_support.compute_benchmark_run_mode(
         {"pool": True, "cython": True, "rapids": True},
         cluster_enabled=False,
-    ) == [8, 9, 10, 11]
+    ) == [0, 1, 2, 3, 8, 9, 10, 11]
     assert orchestrate_page_support.compute_benchmark_run_mode(
         {"pool": True, "cython": True, "rapids": True},
         cluster_enabled=True,
-    ) is None
+    ) == list(range(16))
 
 
 def test_resolve_project_change_args_override_only_preserves_matching_ui_args():
