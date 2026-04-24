@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-16
+  updated: 2026-04-24
 ---
 
 # AGILab runbook (Agent Skill)
@@ -90,7 +90,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --openai-api-key "…" --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
-- Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --leave-most-recent --verbose`
+- Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
+- Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
+  - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
 
 ## CI and badge checks
 
@@ -105,11 +107,12 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - For AGILAB specifically, the GitHub README now uses a static, versioned PyPI badge committed under `badges/`:
   - `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
 - The live PyPI page can still lag until a new package is actually published; do not infer package publication from the GitHub badge alone.
-- After a release, verify all three surfaces separately before trusting version state:
+- After a release, verify all four surfaces separately before trusting version state:
   - PyPI JSON: `https://pypi.org/pypi/agilab/json`
   - PyPI simple index: `https://pypi.org/simple/agilab/`
+  - GitHub Release: `gh release list --limit 5` and `gh release view <tag>`
   - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
-- If the version changes, update the static badge in the same commit series as the version bump so `main`, the README, and the release metadata stay aligned.
+- If the version changes, update the static badge and GitHub Release in the same commit series as the version bump so `main`, PyPI, the README, and release metadata stay aligned.
 
 ## CI workflow lessons
 
