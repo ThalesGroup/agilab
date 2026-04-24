@@ -41,9 +41,10 @@ Current public matrix
        with fresh output under ``~/log/execute/flight/``
      - Not a remote cluster proof
    * - AGILAB Hugging Face demo
-     - documented
-     - :doc:`demos` plus the public Hugging Face Space
-     - Self-serve AGILAB web UI demo hosted on Hugging Face Spaces
+     - validated
+     - ``uv run python tools/hf_space_smoke.py --json``
+     - Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including
+       route smoke and a public app-tree guardrail
      - Hosted demo environment; availability depends on Hugging Face Spaces uptime; not a remote cluster proof
    * - Service-mode operator surface
      - validated
@@ -72,7 +73,9 @@ Use it to answer three concrete questions:
 3. Which paths still need broader certification or automation work?
 
 Use :doc:`newcomer-guide` and :doc:`quick-start` for the actual onboarding
-flow. This page is only the support-status map.
+flow. This page is only the support-status map. Maintainers can collect the
+cross-KPI public evidence bundle with ``uv run python
+tools/kpi_evidence_bundle.py``.
 
 What remains roadmap work
 -------------------------
@@ -81,7 +84,7 @@ This first matrix closes the small, manual version of the compatibility item.
 The larger roadmap work is still open:
 
 - automatic generation from workflow evidence
-- promotion from a documented matrix to a workflow-backed compatibility report
+- broader promotion from this matrix to a workflow-backed compatibility report
 - integration with the first-proof wizard so newcomers land on one validated
   path instead of choosing routes too early
 - per-release compatibility status
