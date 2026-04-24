@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-23
+  updated: 2026-04-24
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -108,9 +108,35 @@ Before touching the Space deployment, verify:
    - exposed port
    - secret names
    - target repo content
-5. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
+5. `src/agilab/apps` in the deploy source contains only public entries such as
+   `builtin`, `templates`, `install.py`, and package metadata. If the working
+   checkout has ignored private app symlinks, deploy from a temporary clean
+   worktree at `origin/main` rather than from the dirty checkout.
+6. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
 
 When feasible, inspect the deploy script rather than paraphrasing it from memory.
+
+Clean worktree pattern when private app symlinks are present:
+
+```bash
+tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
+git worktree add --detach "$tmpdir" origin/main
+/Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh \
+  --agilab-path "$tmpdir" \
+  --space jpmorard/agilab
+git worktree remove "$tmpdir"
+```
+
+After upload, verify the Space cutover separately from the file upload:
+
+```bash
+hf spaces info jpmorard/agilab --format json
+curl -I -L --max-time 20 https://jpmorard-agilab.hf.space/
+```
+
+If the fix is about a deployed file, download that exact file from the Space and
+inspect it. Do not assume the runtime is serving the new code until
+`runtime.stage` is `RUNNING` and the runtime SHA matches the uploaded Space SHA.
 
 ## When Editing the Space Contract
 

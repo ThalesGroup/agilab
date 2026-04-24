@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-21
+  updated: 2026-04-24
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -59,6 +59,17 @@ Use this skill when editing:
 
 - Prefer app-declared defaults in `app_settings.toml` over page-level hardcoded paths.
 - For apps-pages, use `pages.<page_name>` for app-specific defaults that should be portable across apps and machines.
+- Remember that versioned app seeds and workspace settings are different:
+  - `src/.../app_settings.toml` is only the seed.
+  - mutable user/HF settings can live under `~/.agilab/apps/<app>/app_settings.toml`.
+  - if a bug is caused by a stale default already persisted in the workspace, changing only the seed will not fix existing deployments.
+- When changing app analysis defaults, add a narrow migration for the stale workspace value when needed.
+  - Scope migrations to the affected app and legacy value.
+  - Preserve custom user defaults when the legacy value is absent.
+  - Write the migrated config before widgets/options are built.
+- For app/page visibility, prefer explicit exclusions over global restrictions when the app should still see generic pages.
+  - Example: for `flight_project`, exclude `view_maps_network` while keeping generic views such as `view_maps`, `view_maps_3d`, and `view_barycentric` available.
+  - Avoid setting a broad `restrict_to_view_module` unless hiding every undeclared generic view is the intended product behavior.
 - For `view_maps_network`, supported defaults now include:
   - `dataset_base_choice`
   - `dataset_custom_base`
