@@ -26,7 +26,7 @@ AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
-LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.25"
+LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.24"
 
 
 def test_readme_advertises_public_huggingface_space_page() -> None:
@@ -201,11 +201,10 @@ def test_readme_links_to_public_releases_page() -> None:
 def test_changelog_documents_current_public_release() -> None:
     changelog = CHANGELOG.read_text(encoding="utf-8")
 
-    assert "## [2026.04.25] - 2026-04-24" in changelog
+    assert "## [2026.4.27] - 2026-04-24" in changelog
     assert LATEST_RELEASE_URL in changelog
-    assert "tools/kpi_evidence_bundle.py" in changelog
-    assert "Hugging Face Space smoke checks" in changelog
-    assert "AGILAB is still alpha-stage public software" in changelog
+    assert "Published AGILAB `2026.4.27` to PyPI" in changelog
+    assert "create or update the" in changelog
 
 
 def test_docs_index_links_to_latest_public_release() -> None:

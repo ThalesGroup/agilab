@@ -211,6 +211,16 @@ DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("DOCS_REPOSITORY",)
 DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
 DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
+GITHUB_RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
+PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
+    "CHANGELOG.md",
+    "docs/.docs_source_mirror_stamp.json",
+    "docs/source/index.rst",
+    "test/test_public_demo_links.py",
+)
+GITHUB_RELEASE_URL_RE = re.compile(
+    r"https://github\.com/ThalesGroup/agilab/releases/tag/v[0-9A-Za-z._-]+"
+)
 
 PYPI_JSON = {
     "testpypi": "https://test.pypi.org/pypi/{name}/json",
@@ -1295,6 +1305,171 @@ def create_or_update_github_release(tag: str, chosen_version: str, package_names
     print(f"[github] created GitHub Release {tag_ref}")
 
 
+def github_release_url(tag: str) -> str:
+    tag_ref = tag if tag.startswith("v") else f"v{tag}"
+    return f"{GITHUB_RELEASES_URL}/tag/{tag_ref}"
+
+
+def _write_text_if_changed(path: pathlib.Path, text: str) -> bool:
+    old = path.read_text(encoding="utf-8") if path.exists() else ""
+    if old == text:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def _replace_latest_release_url(text: str, release_url: str) -> str:
+    updated, count = GITHUB_RELEASE_URL_RE.subn(release_url, text, count=1)
+    if count:
+        return updated
+    marker = "latest public GitHub release"
+    if marker in text:
+        raise SystemExit(
+            "ERROR: docs/source/index.rst mentions the latest public GitHub release "
+            "but no GitHub release URL was found to update."
+        )
+    return text
+
+
+def sync_docs_source_mirror(source: pathlib.Path) -> None:
+    script = REPO_ROOT / "tools" / "sync_docs_source.py"
+    if not script.exists():
+        raise SystemExit(f"ERROR: docs mirror sync script not found: {script}")
+    run(
+        [
+            sys.executable,
+            str(script),
+            "--source",
+            str(source),
+            "--target",
+            str(REPO_ROOT / "docs/source"),
+            "--apply",
+            "--delete",
+        ],
+        cwd=REPO_ROOT,
+    )
+
+
+def update_docs_index_release_link(tag: str) -> None:
+    release_url = github_release_url(tag)
+    docs_repo, source = find_docs_repository()
+    public_index = REPO_ROOT / "docs/source/index.rst"
+
+    if docs_repo:
+        canonical_source = docs_repo / "docs/source"
+        canonical_index = canonical_source / "index.rst"
+        if not canonical_index.exists():
+            raise SystemExit(f"ERROR: canonical docs index not found: {canonical_index}")
+        text = canonical_index.read_text(encoding="utf-8")
+        if _write_text_if_changed(canonical_index, _replace_latest_release_url(text, release_url)):
+            print(f"[docs] updated canonical latest release link: {canonical_index}")
+        sync_docs_source_mirror(canonical_source)
+        return
+
+    if public_index.exists():
+        raise SystemExit(
+            "ERROR: canonical docs repository was not found; refusing to update only the "
+            "public docs/source mirror because the mirror stamp would drift. Set DOCS_REPOSITORY "
+            "or keep ../thales_agilab available before publishing to PyPI."
+        )
+
+
+def _format_package_list(package_names: list[str]) -> str:
+    quoted = [f"`{name}`" for name in package_names]
+    if not quoted:
+        return "the selected packages"
+    if len(quoted) == 1:
+        return quoted[0]
+    return ", ".join(quoted[:-1]) + f", and {quoted[-1]}"
+
+
+def _release_date_from_tag(tag: str) -> str:
+    tag_body = tag[1:] if tag.startswith("v") else tag
+    date_part = tag_body.split("-", 1)[0]
+    match = re.fullmatch(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", date_part)
+    if not match:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    year, month, day = (int(part) for part in match.groups())
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _changelog_section(chosen_version: str, tag: str, package_names: list[str]) -> str:
+    release_url = github_release_url(tag)
+    release_date = _release_date_from_tag(tag)
+    packages = _format_package_list(package_names)
+    return (
+        f"## [{chosen_version}] - {release_date}\n\n"
+        f"GitHub Release: {release_url}\n\n"
+        "### Changed\n\n"
+        f"- Published AGILAB `{chosen_version}` to PyPI for {packages}.\n"
+        "- Updated release metadata so public docs, changelog, PyPI, and GitHub "
+        "Releases point to the same source tag.\n"
+        "- Kept release automation active so future PyPI publishes create or "
+        "update the matching GitHub Release after pushing the tag.\n"
+    )
+
+
+def update_changelog_release_entry(chosen_version: str, tag: str, package_names: list[str]) -> None:
+    path = REPO_ROOT / "CHANGELOG.md"
+    if not path.exists():
+        print("[release] CHANGELOG.md not found; skipping changelog release entry")
+        return
+
+    text = path.read_text(encoding="utf-8")
+    section = _changelog_section(chosen_version, tag, package_names)
+    heading_re = re.compile(
+        rf"^## \[{re.escape(chosen_version)}\] - .+?(?=^## \[|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    if heading_re.search(text):
+        updated = heading_re.sub(section.rstrip() + "\n\n", text, count=1)
+    else:
+        first_heading = re.search(r"^## \[", text, flags=re.MULTILINE)
+        if first_heading:
+            updated = text[: first_heading.start()] + section + "\n" + text[first_heading.start():]
+        else:
+            updated = text.rstrip() + "\n\n" + section
+
+    link_ref = f"[{chosen_version}]: {github_release_url(tag)}"
+    link_re = re.compile(rf"^\[{re.escape(chosen_version)}\]: .*$", re.MULTILINE)
+    if link_re.search(updated):
+        updated = link_re.sub(link_ref, updated, count=1)
+    elif updated.endswith("\n"):
+        updated += link_ref + "\n"
+    else:
+        updated += "\n" + link_ref + "\n"
+
+    if _write_text_if_changed(path, updated):
+        print(f"[release] updated changelog entry for {chosen_version}")
+
+
+def update_public_demo_release_test(tag: str) -> None:
+    path = REPO_ROOT / "test/test_public_demo_links.py"
+    if not path.exists():
+        print("[release] public demo link test not found; skipping latest release constant")
+        return
+    tag_ref = tag if tag.startswith("v") else f"v{tag}"
+    text = path.read_text(encoding="utf-8")
+    updated, count = re.subn(
+        r'^LATEST_RELEASE_URL = f"\{RELEASES_URL\}/tag/v[^"]+"$',
+        f'LATEST_RELEASE_URL = f"{{RELEASES_URL}}/tag/{tag_ref}"',
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count == 0:
+        raise SystemExit(f"ERROR: could not update LATEST_RELEASE_URL in {path}")
+    if _write_text_if_changed(path, updated):
+        print(f"[release] updated latest release test constant to {tag_ref}")
+
+
+def update_public_release_references(tag: str, chosen_version: str, package_names: list[str]) -> None:
+    update_docs_index_release_link(tag)
+    update_changelog_release_entry(chosen_version, tag, package_names)
+    update_public_demo_release_test(tag)
+
+
 def generate_docs_in_docs_repository():
     docs_repo, source = find_docs_repository()
     if not docs_repo:
@@ -1363,6 +1538,10 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
         badge_path = static_badge_path(package_name)
         if badge_path.exists():
             paths.append(str(badge_path.relative_to(REPO_ROOT)))
+    for rel_path in PUBLIC_RELEASE_METADATA_PATHS:
+        release_path = REPO_ROOT / rel_path
+        if release_path.exists():
+            paths.append(rel_path)
     # Generated HTML stays out of git even when --gen-docs is requested.
     # Docs publication consumes the generated site separately from release metadata.
     # Preserve order but drop duplicates
@@ -1420,9 +1599,9 @@ def git_reset_pyprojects():
         return
     try:
         run(["git", "checkout", "--", *files], cwd=REPO_ROOT)
-        print("[git] reset pyproject.toml edits")
+        print("[git] reset release metadata edits")
     except Exception as e:
-        print(f"[git] warning: could not reset pyproject.toml files: {e}")
+        print(f"[git] warning: could not reset release metadata files: {e}")
 
 
 # ---------- Main ----------
@@ -1627,12 +1806,14 @@ def main():
         # Git tag/commit (optional)
         if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
             with defer_sigint("release metadata finalization") as deferred_interrupt:
+                tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
+                if tag is not None:
+                    update_public_release_references(tag, chosen, version_targets)
                 if cfg.git_commit_version:
                     git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
                     if cfg.gen_docs and docs_repo_ready:
                         git_commit_docs_repository(chosen, push=True)
-                if cfg.repo == "pypi" and cfg.git_tag:
-                    tag = compute_date_tag()  # resolves collisions with existing tags
+                if tag is not None:
                     create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
                     create_or_update_github_release(tag, chosen, version_targets)
             release_finalized = True
