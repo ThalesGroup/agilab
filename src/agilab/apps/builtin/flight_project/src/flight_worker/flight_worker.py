@@ -110,6 +110,10 @@ class FlightWorker(PolarsWorker):
         if self.verbose > 0:
             logging.info(f"start worker_id {self._worker_id}\n")
         args = self.args
+        if not getattr(args, "data_source", None):
+            args.data_source = "file"
+        if not getattr(args, "output_format", None):
+            args.output_format = "parquet"
 
         if args.data_source == "file":
             # Implement your file logic
@@ -148,7 +152,9 @@ class FlightWorker(PolarsWorker):
         """
         global global_vars
 
-        data_source = getattr(global_vars["args"], "data_source")
+        data_source = getattr(global_vars["args"], "data_source", None)
+        if not data_source:
+            data_source = "file"
 
         prefix = "~/"
         if data_source == "file":
@@ -241,4 +247,3 @@ class FlightWorker(PolarsWorker):
 
         # call the base class stop()
         super().stop()
-

@@ -278,6 +278,17 @@ def _is_valid_app_root(app_root: str | Path | None) -> bool:
         return False
 
 
+def _app_root_matches_project(app_root: str | Path | None, project_name: str) -> bool:
+    if not project_name:
+        return True
+    if not app_root:
+        return False
+    try:
+        return Path(app_root).expanduser().name == project_name
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def _iter_valid_app_roots(
     project_name: str,
     *,
@@ -285,20 +296,26 @@ def _iter_valid_app_roots(
     apps_dirs: Sequence[str | Path | None],
 ) -> Iterable[str]:
     seen: set[str] = set()
+    project_name = str(project_name or "").strip()
 
-    def _emit(candidate: str | Path | None) -> Iterable[str]:
+    def _emit(
+        candidate: str | Path | None,
+        *,
+        require_project_match: bool = False,
+    ) -> Iterable[str]:
         if not candidate:
             return ()
         path_text = _normalize_path(candidate)
         if not path_text or path_text in seen or not _is_valid_app_root(path_text):
             return ()
+        if require_project_match and not _app_root_matches_project(path_text, project_name):
+            return ()
         seen.add(path_text)
         return (path_text,)
 
     for candidate in direct_roots:
-        yield from _emit(candidate)
+        yield from _emit(candidate, require_project_match=bool(project_name))
 
-    project_name = str(project_name or "").strip()
     if not project_name:
         return
 
@@ -643,6 +660,17 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 return False
 
 
+        def _active_app_matches_project(path_value, project_name):
+            if not project_name:
+                return True
+            if not path_value:
+                return False
+            try:
+                return Path(path_value).expanduser().name == project_name
+            except Exception:
+                return False
+
+
         def _looks_like_source_checkout(path_value):
             try:
                 root = Path(path_value).expanduser()
@@ -722,11 +750,11 @@ def _helper_cell(payload: dict[str, Any]) -> str:
 
         def resolve_active_app_root(app_name=None):
             active_app = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("active_app"))
-            if _is_valid_active_app_root(active_app):
+            project_name = str(app_name or AGILAB_NOTEBOOK_EXPORT.get("project_name") or "").strip()
+            if _is_valid_active_app_root(active_app) and _active_app_matches_project(active_app, project_name):
                 AGILAB_NOTEBOOK_EXPORT["active_app"] = active_app
                 return active_app
 
-            project_name = str(app_name or AGILAB_NOTEBOOK_EXPORT.get("project_name") or "").strip()
             if project_name:
                 for apps_dir in _candidate_apps_directories():
                     for candidate in (apps_dir / project_name, apps_dir / "builtin" / project_name):
