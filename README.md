@@ -66,17 +66,6 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. Success means fresh output
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 ```
 
-## Maintainer Checks
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
-uv --preview-features extra-build-dependencies run --with playwright python -m playwright install chromium
-uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --active-app /app/src/agilab/apps/builtin/uav_relay_queue_project --json
-uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --json
-uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py
-uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py
-```
-
 ## Evaluation Snapshot
 
 Working scores, not production MLOps claims:
@@ -91,7 +80,6 @@ Working scores, not production MLOps claims:
 
 ## Read Next
 
-- [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
 - [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
