@@ -19,6 +19,8 @@ COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge"
+AGI_CORE_NOTEBOOK_URL = "https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"
+AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.25"
@@ -41,6 +43,15 @@ def test_readme_uses_hf_space_badge_for_primary_link_and_runtime_host_for_robot_
         'alt="AGILAB Space" /></a>'
     ) in readme
     assert f"--url {HF_RUNTIME_URL}" in readme
+
+
+def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert (
+        f'<a href="{AGI_CORE_NOTEBOOK_URL}"><img src="{AGI_CORE_NOTEBOOK_BADGE}" '
+        'alt="agi-core notebook" /></a>'
+    ) in readme
 
 
 def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:
