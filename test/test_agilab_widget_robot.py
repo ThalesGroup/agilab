@@ -95,6 +95,23 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
 
 
+def test_normalize_remote_url_maps_huggingface_space_page_to_runtime() -> None:
+    module = _load_module()
+
+    assert (
+        module.normalize_remote_url("https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_project")
+        == "https://jpmorard-agilab.hf.space/?active_app=flight_project"
+    )
+    assert module.normalize_remote_url("jpmorard-agilab.hf.space") == "https://jpmorard-agilab.hf.space/"
+
+
+def test_remote_apps_page_path_uses_remote_checkout_root() -> None:
+    module = _load_module()
+    route = next(route for route in module.public_apps_pages() if route.name == "view_maps")
+
+    assert module.remote_apps_page_path(route, remote_app_root="/app").startswith("/app/src/agilab/apps-pages/view_maps/")
+
+
 def test_seed_public_demo_artifacts_creates_queue_analysis_bundle(tmp_path) -> None:
     module = _load_module()
     export_root = tmp_path / "export"
@@ -185,7 +202,7 @@ def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
 
 def test_summarize_counts_interactions_and_failures() -> None:
     module = _load_module()
-    failure = module.WidgetProbe("flight_project", "PROJECT", "button", "Run", "failed", "blocked", "http://demo")
+    failure = module.WidgetProbe("flight_project", "PROJECT", "button", "Run", "failed", "blocked", "http://demo", "sidebar")
     pages = [
         module.PageSweep(
             app="flight_project",
@@ -193,6 +210,8 @@ def test_summarize_counts_interactions_and_failures() -> None:
             success=False,
             duration_seconds=1.0,
             widget_count=3,
+            main_widget_count=2,
+            sidebar_widget_count=1,
             interacted_count=1,
             probed_count=1,
             skipped_count=0,
@@ -207,10 +226,58 @@ def test_summarize_counts_interactions_and_failures() -> None:
 
     assert summary.success is False
     assert summary.widget_count == 3
+    assert summary.main_widget_count == 2
+    assert summary.sidebar_widget_count == 1
     assert summary.interacted_count == 1
     assert summary.probed_count == 1
     assert summary.failed_count == 1
     assert summary.within_target is False
+
+
+def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
+    module = _load_module()
+    main_widget = {
+        "id": "main",
+        "kind": "button",
+        "label": "Run",
+        "testid": "stButton",
+        "path": "button:nth-of-type(1)",
+        "scope": "main",
+    }
+    sidebar_widget = {**main_widget, "id": "sidebar", "scope": "sidebar"}
+
+    assert module.widget_scope(main_widget) == "main"
+    assert module.widget_scope(sidebar_widget) == "sidebar"
+    assert module._widget_fingerprint(main_widget) != module._widget_fingerprint(sidebar_widget)
+    assert module._same_widget(main_widget, sidebar_widget) is False
+    assert "[data-testid='stSidebar']" in module.WIDGET_COLLECTOR_JS
+    assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
+
+
+def test_render_human_reports_sidebar_widget_counts() -> None:
+    module = _load_module()
+    page = module.PageSweep(
+        app="flight_project",
+        page="PROJECT",
+        success=True,
+        duration_seconds=1.0,
+        widget_count=3,
+        main_widget_count=2,
+        sidebar_widget_count=1,
+        interacted_count=3,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=0,
+        url="http://demo",
+        failures=[],
+        skips=[],
+    )
+    summary = module.summarize([page], app_count=1, target_seconds=10.0)
+
+    report = module.render_human(summary)
+
+    assert "widgets=3 main=2 sidebar=1" in report
+    assert "flight_project/PROJECT: OK widgets=3 main=2 sidebar=1" in report
 
 
 def test_action_buttons_are_probed_by_default(tmp_path) -> None:
