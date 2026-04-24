@@ -61,13 +61,7 @@ cd agilab
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
 
-Then in the UI:
-
-1. `PROJECT` -> select `src/agilab/apps/builtin/flight_project`
-2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`
-3. `ANALYSIS` -> open the default view
-
-Success means fresh output under `~/log/execute/flight/` and a visible analysis result. To collect the same check as JSON:
+Follow the in-app pages from `PROJECT` to `ANALYSIS`. Success means fresh output under `~/log/execute/flight/` and a visible analysis result. To collect the same check as JSON:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
