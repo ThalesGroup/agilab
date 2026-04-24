@@ -66,6 +66,14 @@ Maintainers can validate the public demo KPI with:
 uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
 ```
 
+For browser-level validation, use the Playwright robot. It drives the real web
+UI instead of Streamlit's in-process test harness:
+
+```bash
+uv --preview-features extra-build-dependencies run --with playwright python -m playwright install chromium
+uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --active-app flight_project --analysis-view view_maps --json
+```
+
 ## First Real Run
 
 If you want the real product path, do this once before trying anything else:
@@ -111,6 +119,12 @@ target is 10 minutes end to end:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+```
+
+To validate the same source UI through a real browser robot, run:
+
+```bash
+uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --json
 ```
 
 Current adoption evidence: on April 24, 2026, the local source-checkout

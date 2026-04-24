@@ -183,6 +183,46 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_web_robot_contract(repo_root: Path) -> dict[str, Any]:
+    try:
+        web_robot = _load_tool_module(repo_root, "agilab_web_robot")
+        remote_view = web_robot.resolve_analysis_view_path("view_maps", remote=True)
+        analysis_url = web_robot.build_page_url(
+            "https://jpmorard-agilab.hf.space",
+            "ANALYSIS",
+            active_app="flight_project",
+            current_page=remote_view,
+        )
+        ok = (
+            web_robot.DEFAULT_TARGET_SECONDS == 120.0
+            and "view_maps" in web_robot.ANALYSIS_VIEW_PATHS
+            and remote_view == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
+            and "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps" in analysis_url
+            and "could not determine the active app" in web_robot.DEFAULT_REJECT_PATTERNS
+        )
+        details = {
+            "target_seconds": web_robot.DEFAULT_TARGET_SECONDS,
+            "remote_view": remote_view,
+            "analysis_url": analysis_url,
+            "route": ["landing", "ORCHESTRATE", "ANALYSIS", "view_maps"],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "web_ui_robot_contract",
+        "Browser-level web UI robot contract",
+        ok,
+        (
+            "Playwright robot covers the real AGILAB web routes and analysis deep link"
+            if ok
+            else "browser-level web UI robot contract is incomplete"
+        ),
+        evidence=["tools/agilab_web_robot.py", "README.md"],
+        details=details,
+    )
+
+
 def _run_hf_space_smoke(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -263,6 +303,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         "README.md": [
             "tools/kpi_evidence_bundle.py",
             "tools/hf_space_smoke.py --json",
+            "tools/agilab_web_robot.py",
             "tools/newcomer_first_proof.py --json",
             "tools/production_readiness_report.py",
         ],
@@ -311,6 +352,7 @@ def build_bundle(
         _check_compatibility_matrix(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
         _check_hf_space_smoke_contract(repo_root),
+        _check_web_robot_contract(repo_root),
         _check_production_readiness_report(repo_root),
         _check_docs_mirror_stamp(repo_root),
         _check_public_docs_links(repo_root),
