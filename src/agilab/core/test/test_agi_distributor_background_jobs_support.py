@@ -103,7 +103,9 @@ def test_background_job_manager_uses_subprocess_and_real_directories_only(monkey
     monkeypatch.setattr(background_jobs_support.subprocess, "Popen", _fake_popen)
     jobs = background_jobs_support.bg.BackgroundJobManager()
 
-    first = jobs.new("echo test", cwd="flight_trajectory_project")
+    missing_cwd = tmp_path / "missing-cwd"
+
+    first = jobs.new("echo test", cwd=missing_cwd)
     second = jobs.new("echo test 2", cwd=tmp_path)
 
     assert first.num == 0
