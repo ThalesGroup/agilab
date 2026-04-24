@@ -56,6 +56,7 @@ import_agilab_symbols(
         "format_log_block": "format_log_block",
         "reassign_distribution_plan": "reassign_distribution_plan",
         "is_dask_shutdown_noise": "is_dask_shutdown_noise",
+        "mark_install_status_fresh": "mark_install_status_fresh",
         "serialize_args_payload": "serialize_args_payload",
         "strip_ansi": "strip_ansi",
         "update_distribution_payload": "update_distribution_payload",
@@ -548,7 +549,18 @@ async def _render_deployment_panel(
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
     with st.expander("Do deployment", expanded=True):
-        if install_status["manager_ready"] and not install_status["worker_ready"]:
+        stale_sections = []
+        if install_status.get("manager_stale"):
+            stale_sections.append(f"manager venv `{install_status['manager_venv']}`")
+        if install_status.get("worker_stale"):
+            stale_sections.append(f"worker venv `{install_status['worker_venv']}`")
+        if stale_sections:
+            st.warning(
+                "Installed environment is older than the project dependency manifest. "
+                f"Run INSTALL again for `{env.app}` before using RUN. "
+                "Stale: " + ", ".join(stale_sections)
+            )
+        elif install_status["manager_ready"] and not install_status["worker_ready"]:
             st.warning(
                 "Manager environment detected, but the worker environment is missing. "
                 f"Run INSTALL to rebuild the worker venv at `{install_status['worker_venv']}` "
@@ -665,6 +677,7 @@ async def _render_deployment_panel(
                 if error_flag:
                     st.error("Cluster installation failed.")
                 else:
+                    mark_install_status_fresh(env)
                     st.success("Cluster installation completed.")
                     st.session_state["SET ARGS"] = True
                     st.session_state["show_run"] = True
@@ -1252,6 +1265,7 @@ async def page() -> None:
         log_display_max_lines=LOG_DISPLAY_MAX_LINES,
         live_log_min_height=LIVE_LOG_MIN_HEIGHT,
         install_log_height=INSTALL_LOG_HEIGHT,
+        app_install_status=_app_install_status,
     )
     await render_execute_section(
         env=env,

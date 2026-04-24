@@ -776,9 +776,9 @@ def uv_build_project(project_dir: pathlib.Path, dist_kind: str):
 
     # build with uv
     if dist_kind in ("wheel", "both"):
-        run(["uv", "build", "--project", str(project_dir), "--wheel"], cwd=project_dir)
+        run(["uv", "build", "--project", str(project_dir), "--no-sources", "--wheel"], cwd=project_dir)
     if dist_kind in ("sdist", "both"):
-        run(["uv", "build", "--project", str(project_dir), "--sdist"], cwd=project_dir)
+        run(["uv", "build", "--project", str(project_dir), "--no-sources", "--sdist"], cwd=project_dir)
 
 
 def uv_build_repo_root(dist_kind: str):
@@ -787,9 +787,9 @@ def uv_build_repo_root(dist_kind: str):
         if d.exists():
             shutil.rmtree(d)
     if dist_kind in ("wheel", "both"):
-        run(["uv", "build", "--wheel"], cwd=REPO_ROOT)
+        run(["uv", "build", "--no-sources", "--wheel"], cwd=REPO_ROOT)
     if dist_kind in ("sdist", "both"):
-        run(["uv", "build", "--sdist"], cwd=REPO_ROOT)
+        run(["uv", "build", "--no-sources", "--sdist"], cwd=REPO_ROOT)
 
 
 def dist_files(project_dir: pathlib.Path) -> List[str]:

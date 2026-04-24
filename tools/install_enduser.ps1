@@ -374,7 +374,7 @@ try {
 
             Push-Location -LiteralPath $AgiInstallRoot
             try {
-                Invoke-Uv -Args @("build", "--wheel", "--no-build-logs", "--quiet")
+                Invoke-Uv -Args @("build", "--no-sources", "--wheel", "--no-build-logs", "--quiet")
             } finally {
                 Pop-Location
             }
@@ -482,4 +482,3 @@ if ($venvPython) {
     Write-Warning "Python interpreter not found in $Venv; skipping package list."
 }
 Write-Host "===================================="
-

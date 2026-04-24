@@ -36,6 +36,9 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 ## AGILAB-specific cautions
 
 - Streamlit pages should keep session-state keys stable and project-scoped.
+- For Streamlit 1.56+ UI work, prefer native `st.iframe`, use `filter_mode="contains"`
+  only on long searchable selectors, and use `st.menu_button` for compact action menus
+  without replacing useful visible shortcuts.
 - Worker/runtime behavior is often different from manager/runtime behavior.
 - Installer bugs must be checked on both manager and worker manifests.
 - Do not silently add fallbacks that hide missing capabilities or broken setup.

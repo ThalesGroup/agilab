@@ -250,17 +250,23 @@ def test_resolve_lab_export_dir_handles_blank_and_missing_candidates(tmp_path):
     )
 
 
-def test_open_notebook_in_browser_injects_expected_url(monkeypatch):
-    captured: list[tuple[str, int, int]] = []
-    fake_components = SimpleNamespace(v1=SimpleNamespace(html=lambda html, height, width: captured.append((html, height, width))))
-    fake_st = SimpleNamespace(components=fake_components)
+def test_open_notebook_in_browser_renders_explicit_link(monkeypatch):
+    captured: list[dict[str, object]] = []
+    fake_st = SimpleNamespace(
+        link_button=lambda label, url, **kwargs: captured.append(
+            {"label": label, "url": url, **kwargs}
+        )
+    )
 
     monkeypatch.setattr(pipeline_sidebar, "st", fake_st)
 
     pipeline_sidebar.open_notebook_in_browser()
 
-    assert len(captured) == 1
-    html, height, width = captured[0]
-    assert pipeline_sidebar.JUPYTER_URL in html
-    assert height == 0
-    assert width == 0
+    assert captured == [
+        {
+            "label": "Open Jupyter Notebook",
+            "url": pipeline_sidebar.JUPYTER_URL,
+            "icon": ":material/open_in_new:",
+            "width": "stretch",
+        }
+    ]

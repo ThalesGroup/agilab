@@ -133,10 +133,10 @@ def resolve_lab_export_dir(export_root: Path, lab_choice: str) -> Path:
 
 
 def open_notebook_in_browser() -> None:
-    """Inject JS to open the Jupyter Notebook URL in a new tab."""
-    js_code = f"""
-    <script>
-    window.open("{JUPYTER_URL}", "_blank");
-    </script>
-    """
-    st.components.v1.html(js_code, height=0, width=0)
+    """Render an explicit link to the local Jupyter Notebook server."""
+    st.link_button(
+        "Open Jupyter Notebook",
+        JUPYTER_URL,
+        icon=":material/open_in_new:",
+        width="stretch",
+    )

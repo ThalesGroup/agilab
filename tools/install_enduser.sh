@@ -411,7 +411,7 @@ case "${SOURCE}" in
 
     if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
       echo -e "${BLUE}[info] Building wheel from local source...${NC}"
-      uv build --wheel --no-build-logs --quiet
+      uv build --no-sources --wheel --no-build-logs --quiet
     else
       echo -e "${BLUE}[info] Using existing wheel (use --force-rebuild to recreate)${NC}"
     fi

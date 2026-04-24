@@ -40,7 +40,17 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_module = _import_guard_module.import_agilab_module
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
+
+_streamlit_version_guard_module = import_agilab_module(
+    "agilab.streamlit_version_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "streamlit_version_guard.py",
+    fallback_name="agilab_streamlit_version_guard_fallback",
+)
+require_streamlit_min_version = _streamlit_version_guard_module.require_streamlit_min_version
+require_streamlit_min_version(st, runtime_label="AGILAB ANALYSIS page")
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -63,7 +73,7 @@ name = "view-{module_slug}"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
-    "streamlit",
+    "streamlit>=1.56.0",
     "agi-env",
     "agi-node",
 ]
@@ -1199,6 +1209,7 @@ async def main():
                 options=clone_source_paths,
                 format_func=lambda value: clone_source_labels.get(value, value),
                 key=f"analysis_template_clone_source__{project or 'default'}",
+                filter_mode="contains",
             )
             create_template_view = st.button(
                 "Create",
@@ -1292,7 +1303,8 @@ async def main():
         view_names,
         key=selection_key,
         format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
-        help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen."
+        help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen.",
+        filter_mode="contains",
     )
 
     selected_views = [v for v in selected_views if v in view_names]
@@ -1325,6 +1337,24 @@ async def main():
     cols = st.columns(min(len(selected_views), 4) or 1)
 
     if selected_views:
+        quick_view = st.menu_button(
+            "Open analysis page",
+            selected_views,
+            key=f"analysis_open_view_menu__{project or 'default'}",
+            format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
+            icon=":material/open_in_new:",
+            type="primary",
+        )
+        if quick_view:
+            view_path = resolved_pages.get(quick_view) or custom_view_lookup.get(quick_view)
+            if view_path:
+                view_str = str(view_path.resolve())
+                st.session_state["current_page"] = view_str
+                st.query_params["current_page"] = view_str
+                st.rerun()
+            else:
+                st.error(f"Page '{quick_view}' not found.")
+
         for i, view_name in enumerate(selected_views):
             view_path = resolved_pages.get(view_name)
             if not view_path:
