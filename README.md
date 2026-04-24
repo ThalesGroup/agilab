@@ -123,17 +123,16 @@ Current research experimentation evidence: AGILAB now documents a complete
 experiment loop across project templates, isolated `uv` environments,
 `lab_steps.toml` history, supervisor notebook export, MLflow-tracked runs, and
 analysis pages. That supports a `Research experimentation` score of `4.0 / 5`.
-It is not scored higher yet because the generic evidence bundle, a first-class
-reduce contract, and broader fresh-install reproducibility checks remain
-roadmap work.
+It is not scored higher yet because the first-class reduce contract and broader
+fresh-install reproducibility checks remain roadmap work.
 
 Current engineering prototyping evidence: AGILAB now documents how app
 templates, isolated app/page environments, typed `app_args_form.py` settings,
 `pipeline_view` files, reusable `lab_steps.toml` history, and analysis-page
 templates turn an experiment into an app-shaped prototype. That supports an
 `Engineering prototyping` score of `4.0 / 5`. It is not scored higher yet
-because the first-proof wizard, generic evidence bundle, and first-class reduce
-contract remain roadmap work.
+because the first-proof wizard, external replication evidence, and first-class
+reduce contract remain roadmap work.
 
 Current production-readiness evidence: AGILAB is not positioned as a production
 MLOps backbone, but it now documents a controlled pilot path across release
@@ -148,6 +147,19 @@ Maintainers can collect that evidence as JSON with:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py
+```
+
+Current overall public-evaluation evidence: the public review baseline was
+`3.2 / 5`. AGILAB now exposes a cross-KPI evidence bundle that combines the
+validated source-checkout first proof, public Hugging Face smoke contract,
+compatibility matrix, public docs links, and bounded production-readiness report.
+That supports moving the overall public score toward `3.5 / 5` without changing
+the alpha status or claiming production MLOps coverage.
+
+Maintainers can collect the cross-KPI bundle as JSON with:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py
 ```
 
 ## Read Next

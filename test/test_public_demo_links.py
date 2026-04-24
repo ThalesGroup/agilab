@@ -14,6 +14,8 @@ ADOPTION_DOC_PAGES = (
 )
 POSITIONING_DOC = Path("docs/source/agilab-mlops-positioning.rst")
 FEATURES_DOC = Path("docs/source/features.rst")
+COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
+COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 
@@ -82,6 +84,16 @@ def test_readme_captures_production_readiness_evidence() -> None:
     assert "security hardening checklist" in normalized
     assert "production model serving" in readme
     assert "tools/production_readiness_report.py" in readme
+
+
+def test_readme_captures_overall_public_evaluation_evidence() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "overall public-evaluation evidence" in readme
+    assert "3.2 / 5" in readme
+    assert "3.5 / 5" in readme
+    assert "cross-KPI evidence bundle" in readme
+    assert "tools/kpi_evidence_bundle.py" in readme
 
 
 def test_readme_links_to_mlops_positioning_page() -> None:
@@ -179,3 +191,15 @@ def test_features_docs_capture_production_readiness_controls() -> None:
     assert "tools/service_health_check.py" in text
     assert "promotion_decision.json" in text
     assert "SECURITY.md" in text
+
+
+def test_compatibility_matrix_marks_public_hf_demo_validated() -> None:
+    matrix = COMPATIBILITY_MATRIX.read_text(encoding="utf-8")
+    doc = COMPATIBILITY_DOC.read_text(encoding="utf-8")
+
+    assert 'id = "agilab-hf-demo"' in matrix
+    assert 'status = "validated"' in matrix
+    assert "tools/hf_space_smoke.py --json" in matrix
+    assert "AGILAB Hugging Face demo" in doc
+    assert "tools/hf_space_smoke.py --json" in doc
+    assert "tools/kpi_evidence_bundle.py" in doc
