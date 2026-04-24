@@ -44,42 +44,15 @@ The core idea is simple: keep one app on one control path from setup to run to v
 
 ## Start Here
 
-| Goal | Route | Use when |
+| Need | Start here | Outcome |
 |---|---|---|
-| See the UI now | [AGILAB demo](https://huggingface.co/spaces/jpmorard/agilab) | You want a browser-only look at the web UI before installing anything. |
-| Prove it locally | [Quick start](https://thalesgroup.github.io/agilab/quick-start.html) | You want the real source-checkout path with the built-in `flight_project`. Target: pass the first proof in 10 minutes. |
-| Use the API/notebook | [agi-core demo](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb) | You want the smaller `AgiEnv` / `AGI.run(...)` surface before the full UI. |
+| Browser preview | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | Public Streamlit UI running `uav_relay_queue_project`. No install. |
+| Local proof | [Quick start](https://thalesgroup.github.io/agilab/quick-start.html) | Source checkout, built-in `flight_project`, visible result in `ANALYSIS`. Target: pass the first proof in 10 minutes. |
+| API/notebook | [agi-core notebook](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb) | Minimal `AgiEnv` / `AGI.run(...)` path without the full UI. |
 
-## Public Demos
+## Local Proof
 
-<p>
-  <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge" alt="agi-core demo" /></a>
-  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge" alt="AGILAB demo" /></a>
-</p>
-
-- `AGILAB demo`: self-serve public Hugging Face Spaces demo
-- `agi-core demo`: notebook-first runtime demo on Kaggle
-
-Maintainers can validate the public demo KPI with:
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
-```
-
-For browser-level validation, use the Playwright robot. It drives the real web
-UI instead of Streamlit's in-process test harness:
-
-```bash
-uv --preview-features extra-build-dependencies run --with playwright python -m playwright install chromium
-uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --active-app flight_project --analysis-view view_maps --json
-```
-
-## First Real Run
-
-If you want the real product path, do this once before trying anything else:
-use a source checkout, launch the web UI, select the built-in
-`flight_project`, run it locally, and confirm a visible result in
-`ANALYSIS`.
+Run the installable product path with the built-in `flight_project`:
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
@@ -88,103 +61,49 @@ cd agilab
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
 
-If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
-installer with the model families you want:
-
-```bash
-./install.sh --install-apps --install-local-models qwen,deepseek
-```
-
-Supported values are `mistral`, `qwen`, and `deepseek`.
-
 Then in the UI:
 
 1. `PROJECT` -> select `src/agilab/apps/builtin/flight_project`
 2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`
 3. `ANALYSIS` -> open the default view
 
-You are past the newcomer hurdle when:
-
-- fresh output exists under `~/log/execute/flight/`
-- the run ends on a visible result in `ANALYSIS`
-
-If that first proof fails, run:
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
-```
-
-To track the adoption KPI directly, collect the same proof as JSON. The default
-target is 10 minutes end to end:
+Success means fresh output under `~/log/execute/flight/` and a visible analysis result. To collect the same check as JSON:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 ```
 
-To validate the same source UI through a real browser robot, run:
+## Maintainer Checks
 
 ```bash
+uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+uv --preview-features extra-build-dependencies run --with playwright python -m playwright install chromium
+uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --active-app /app/src/agilab/apps/builtin/uav_relay_queue_project --json
 uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py --json
-```
-
-Current adoption evidence: on April 24, 2026, the local source-checkout
-first-proof smoke passed in `5.86s` against the `600s` target. That supports an
-`Ease of adoption` score of `3.5 / 5`: the public demo works, the first routes
-are explicit, and the local proof is measurable. It is not scored higher yet
-because the same measurement still needs a fresh external machine.
-
-Current research experimentation evidence: AGILAB now documents a complete
-experiment loop across project templates, isolated `uv` environments,
-`lab_steps.toml` history, supervisor notebook export, MLflow-tracked runs, and
-analysis pages. That supports a `Research experimentation` score of `4.0 / 5`.
-It is not scored higher yet because the first-class reduce contract and broader
-fresh-install reproducibility checks remain roadmap work.
-
-Current engineering prototyping evidence: AGILAB now documents how app
-templates, isolated app/page environments, typed `app_args_form.py` settings,
-`pipeline_view` files, reusable `lab_steps.toml` history, and analysis-page
-templates turn an experiment into an app-shaped prototype. That supports an
-`Engineering prototyping` score of `4.0 / 5`. It is not scored higher yet
-because the first-proof wizard, external replication evidence, and first-class
-reduce contract remain roadmap work.
-
-Current production-readiness evidence: AGILAB is not positioned as a production
-MLOps backbone, but it now documents a controlled pilot path across release
-preflight tooling, CI/coverage workflows, service health gates, the
-compatibility matrix, the release-decision page, and the security hardening checklist.
-That supports a `Production readiness` score of `3.0 / 5`. It is not scored
-higher because production model serving, feature stores, online monitoring,
-drift detection, enterprise governance, and broad remote-topology certification
-remain outside the shipped scope.
-
-Maintainers can collect that evidence as JSON with:
-
-```bash
 uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py
-```
-
-Current overall public-evaluation evidence: the public review baseline was
-`3.2 / 5`. AGILAB now exposes a cross-KPI evidence bundle that combines the
-validated source-checkout first proof, public Hugging Face smoke contract,
-compatibility matrix, public docs links, and bounded production-readiness report.
-That supports moving the overall public score toward `3.5 / 5` without changing
-the alpha status or claiming production MLOps coverage.
-
-Maintainers can collect the cross-KPI bundle as JSON with:
-
-```bash
 uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py
 ```
+
+## Evaluation Snapshot
+
+Working scores, not production MLOps claims:
+
+| KPI | Score | Evidence | Limit |
+|---|---|---:|---|
+| Ease of adoption | `3.5 / 5` | Hosted Space plus local `flight_project` proof: `5.86s` vs `600s`. | Needs fresh external-machine replication. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages. | First-class reduce contract is still roadmap. |
+| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates. | First-proof wizard and external replication remain open. |
+| Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
+| Overall public evaluation | `3.2 / 5` -> `3.5 / 5` | Cross-KPI evidence bundle. | Alpha-stage software; not a production MLOps platform. |
 
 ## Read Next
 
 - [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
-- [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
 - [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
-- [Latest release](https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25)
+- [Releases](https://github.com/ThalesGroup/agilab/releases)
 - [Changelog](CHANGELOG.md)
 - [Developer runbook](AGENTS.md)
