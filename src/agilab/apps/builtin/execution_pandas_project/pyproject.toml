@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
   "pydantic",
   "pandas",
-  "streamlit>=1.55.0",
+  "streamlit>=1.56.0",
   "humanize",
   "python-dotenv",
   "setuptools",
