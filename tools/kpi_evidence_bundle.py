@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+from decimal import Decimal, ROUND_HALF_UP
 import importlib.util
 import json
 from pathlib import Path
@@ -14,8 +15,15 @@ import tomllib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SUPPORTED_OVERALL_SCORE = "3.5 / 5"
 BASELINE_REVIEW_SCORE = "3.2 / 5"
+KPI_COMPONENT_SCORES = {
+    "Ease of adoption": Decimal("3.5"),
+    "Research experimentation": Decimal("4.0"),
+    "Engineering prototyping": Decimal("4.0"),
+    "Production readiness": Decimal("3.0"),
+}
+OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
+SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
 REQUIRED_MATRIX_STATUSES = {
     "source-checkout-first-proof": "validated",
     "web-ui-local-first-proof": "validated",
@@ -343,6 +351,11 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _score_formula() -> str:
+    terms = " + ".join(f"{score:.1f}" for score in KPI_COMPONENT_SCORES.values())
+    return f"({terms}) / {len(KPI_COMPONENT_SCORES)} = {OVERALL_SCORE_RAW}"
+
+
 def build_bundle(
     *,
     repo_root: Path = REPO_ROOT,
@@ -373,12 +386,19 @@ def build_bundle(
             "failed": failed,
             "total": len(checks),
             "hf_smoke_executed": run_hf_smoke,
+            "score_components": {
+                name: f"{score:.1f} / 5"
+                for name, score in KPI_COMPONENT_SCORES.items()
+            },
+            "score_formula": _score_formula(),
+            "score_rounding": "one decimal, half up",
         },
         "rationale": (
-            "Supports moving the public review from 3.2 / 5 toward 3.5 / 5 by "
-            "combining validated adoption, hosted-demo, research/prototype, and "
-            "bounded production-readiness evidence. It does not change the alpha "
-            "status or claim production MLOps coverage."
+            "Supports an overall public evaluation of 3.6 / 5 as the one-decimal "
+            "mean of the four scored public KPIs: adoption, research "
+            "experimentation, engineering prototyping, and bounded "
+            "production-readiness evidence. It does not change the alpha status "
+            "or claim production MLOps coverage."
         ),
         "checks": checks,
     }

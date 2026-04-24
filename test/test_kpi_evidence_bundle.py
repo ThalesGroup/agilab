@@ -25,10 +25,17 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     bundle = module.build_bundle(run_hf_smoke=False)
 
     assert bundle["kpi"] == "Overall public evaluation"
-    assert bundle["supported_score"] == "3.5 / 5"
+    assert bundle["supported_score"] == "3.6 / 5"
     assert bundle["baseline_review_score"] == "3.2 / 5"
     assert bundle["status"] == "pass"
     assert bundle["summary"]["hf_smoke_executed"] is False
+    assert bundle["summary"]["score_components"] == {
+        "Ease of adoption": "3.5 / 5",
+        "Research experimentation": "4.0 / 5",
+        "Engineering prototyping": "4.0 / 5",
+        "Production readiness": "3.0 / 5",
+    }
+    assert bundle["summary"]["score_formula"] == "(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625"
     check_ids = {check["id"] for check in bundle["checks"]}
     assert check_ids == {
         "compatibility_matrix_public_paths",
