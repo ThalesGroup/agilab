@@ -41,6 +41,7 @@ class OrchestrateExecuteDeps:
     log_display_max_lines: int
     live_log_min_height: int
     install_log_height: int
+    app_install_status: Callable[[Any], dict[str, Any]] | None = None
 
 
 def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> list[Path]:
@@ -107,6 +108,57 @@ def queue_pending_execute_action(session_state, action: str) -> None:
 
 def consume_pending_execute_action(session_state) -> Optional[str]:
     return session_state.pop(PENDING_EXECUTE_ACTION_KEY, None)
+
+
+def _basic_install_status(project_path: Path, env: Any) -> dict[str, Any]:
+    manager_venv = project_path / ".venv"
+    worker_venv = Path(env.wenv_abs) / ".venv"
+    return {
+        "manager_ready": manager_venv.exists(),
+        "worker_ready": worker_venv.exists(),
+        "manager_exists": manager_venv.exists(),
+        "worker_exists": worker_venv.exists(),
+        "manager_stale": False,
+        "worker_stale": False,
+        "manager_venv": manager_venv,
+        "worker_venv": worker_venv,
+    }
+
+
+def _install_status_for_execute(
+    *,
+    deps: OrchestrateExecuteDeps,
+    env: Any,
+    project_path: Path,
+) -> dict[str, Any]:
+    if deps.app_install_status is not None:
+        return deps.app_install_status(env)
+    return _basic_install_status(project_path, env)
+
+
+def _install_unavailable_message(status: dict[str, Any], *, action: str) -> str | None:
+    stale = []
+    if status.get("manager_stale"):
+        stale.append(f"manager venv `{status.get('manager_venv')}`")
+    if status.get("worker_stale"):
+        stale.append(f"worker venv `{status.get('worker_venv')}`")
+    if stale:
+        return (
+            f"{action} is unavailable because the installation is stale after a dependency "
+            "manifest change. Run INSTALL again to refresh: " + ", ".join(stale)
+        )
+
+    missing = []
+    if not status.get("manager_ready"):
+        missing.append(f"manager venv `{status.get('manager_venv')}`")
+    if not status.get("worker_ready"):
+        missing.append(f"worker venv `{status.get('worker_venv')}`")
+    if missing:
+        return (
+            f"{action} is unavailable because the installation is incomplete. "
+            "Run INSTALL first to create: " + ", ".join(missing)
+        )
+    return None
 
 
 def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
@@ -500,18 +552,14 @@ async def render_execute_section(
         st.session_state[delete_undo_key] = undo_payload
 
     if show_run_panel and run_clicked and cmd:
-        manager_venv = project_path / ".venv"
-        worker_venv = env.wenv_abs / ".venv"
-        if not manager_venv.exists() or not worker_venv.exists():
-            missing = []
-            if not manager_venv.exists():
-                missing.append(f"manager venv `{manager_venv}`")
-            if not worker_venv.exists():
-                missing.append(f"worker venv `{worker_venv}`")
-            st.error(
-                "EXECUTE is unavailable because the installation is incomplete. "
-                "Run INSTALL first to create: " + ", ".join(missing)
-            )
+        install_status = _install_status_for_execute(
+            deps=deps,
+            env=env,
+            project_path=project_path,
+        )
+        unavailable_message = _install_unavailable_message(install_status, action="EXECUTE")
+        if unavailable_message:
+            st.error(unavailable_message)
         else:
             run_log_expander = await _execute_with_logging(run_log_expander)
             if st.session_state.get("benchmark"):
@@ -519,22 +567,21 @@ async def render_execute_section(
                 st.rerun()
 
     if show_run_panel and combo_clicked:
-        manager_venv = project_path / ".venv"
-        worker_venv = env.wenv_abs / ".venv"
-        if cmd and manager_venv.exists() and worker_venv.exists():
+        install_status = _install_status_for_execute(
+            deps=deps,
+            env=env,
+            project_path=project_path,
+        )
+        unavailable_message = _install_unavailable_message(
+            install_status,
+            action="EXECUTE -> LOAD -> EXPORT",
+        )
+        if cmd and unavailable_message is None:
             run_log_expander = await _execute_with_logging(run_log_expander)
         elif not cmd:
             st.error("No EXECUTE command configured; please configure it first.")
         else:
-            missing = []
-            if not manager_venv.exists():
-                missing.append(f"manager venv `{manager_venv}`")
-            if not worker_venv.exists():
-                missing.append(f"worker venv `{worker_venv}`")
-            st.error(
-                "EXECUTE → LOAD → EXPORT is unavailable because the installation is incomplete. "
-                "Run INSTALL first to create: " + ", ".join(missing)
-            )
+            st.error(unavailable_message)
 
         st.session_state["_combo_load_trigger"] = True
         st.session_state["_combo_export_trigger"] = True

@@ -186,25 +186,24 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
 def _check_web_robot_contract(repo_root: Path) -> dict[str, Any]:
     try:
         web_robot = _load_tool_module(repo_root, "agilab_web_robot")
-        remote_view = web_robot.resolve_analysis_view_path("view_maps", remote=True)
+        hosted_rl_app = "/app/src/agilab/apps/builtin/uav_relay_queue_project"
         analysis_url = web_robot.build_page_url(
             "https://jpmorard-agilab.hf.space",
             "ANALYSIS",
-            active_app="flight_project",
-            current_page=remote_view,
+            active_app=hosted_rl_app,
         )
         ok = (
             web_robot.DEFAULT_TARGET_SECONDS == 120.0
-            and "view_maps" in web_robot.ANALYSIS_VIEW_PATHS
-            and remote_view == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
-            and "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps" in analysis_url
+            and web_robot.active_app_slug(hosted_rl_app) == "uav_relay_queue_project"
+            and "active_app=%2Fapp%2Fsrc%2Fagilab%2Fapps%2Fbuiltin%2Fuav_relay_queue_project" in analysis_url
             and "could not determine the active app" in web_robot.DEFAULT_REJECT_PATTERNS
+            and hasattr(web_robot, "assert_active_app_routed")
         )
         details = {
             "target_seconds": web_robot.DEFAULT_TARGET_SECONDS,
-            "remote_view": remote_view,
+            "hosted_active_app": hosted_rl_app,
             "analysis_url": analysis_url,
-            "route": ["landing", "ORCHESTRATE", "ANALYSIS", "view_maps"],
+            "route": ["landing", "ORCHESTRATE", "ANALYSIS"],
         }
     except Exception as exc:
         ok = False
@@ -214,7 +213,7 @@ def _check_web_robot_contract(repo_root: Path) -> dict[str, Any]:
         "Browser-level web UI robot contract",
         ok,
         (
-            "Playwright robot covers the real AGILAB web routes and analysis deep link"
+            "Playwright robot covers the hosted RL demo routes and active-app fallback guard"
             if ok
             else "browser-level web UI robot contract is incomplete"
         ),

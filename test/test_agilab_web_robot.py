@@ -66,6 +66,33 @@ def test_build_page_url_targets_streamlit_page_route() -> None:
     assert url == "http://127.0.0.1:8501/ANALYSIS?active_app=flight_project"
 
 
+def test_active_app_slug_accepts_name_or_absolute_path() -> None:
+    module = _load_module()
+
+    assert module.active_app_slug("flight_project") == "flight_project"
+    assert module.active_app_slug("/app/src/agilab/apps/builtin/flight_project") == "flight_project"
+    assert (
+        module.active_app_slug("%2Fapp%2Fsrc%2Fagilab%2Fapps%2Fbuiltin%2Fflight_project")
+        == "flight_project"
+    )
+
+
+def test_assert_active_app_routed_flags_silent_fallback() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "https://demo/ORCHESTRATE?active_app=flight_project"
+
+    result = module.assert_active_app_routed(
+        _Page(),
+        label="orchestrate active app",
+        expected_active_app="/app/src/agilab/apps/builtin/uav_queue_project",
+    )
+
+    assert result.success is False
+    assert "expected 'uav_queue_project'" in result.detail
+
+
 def test_resolve_local_active_app_accepts_builtin_project_name() -> None:
     module = _load_module()
 

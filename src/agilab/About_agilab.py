@@ -29,6 +29,15 @@ import_agilab_module = _import_guard_module.import_agilab_module
 
 assert_agilab_checkout_alignment(__file__)
 
+_streamlit_version_guard_module = import_agilab_module(
+    "agilab.streamlit_version_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "streamlit_version_guard.py",
+    fallback_name="agilab_streamlit_version_guard_fallback",
+)
+require_streamlit_min_version = _streamlit_version_guard_module.require_streamlit_min_version
+require_streamlit_min_version(st, runtime_label="AGILAB web UI")
+
 _env_file_utils_module = import_agilab_module(
     "agilab.env_file_utils",
     current_file=__file__,
@@ -270,7 +279,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
                 "Use `flight_project`",
                 key="first_proof:activate",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
             ):
                 if _activate_newcomer_first_proof_project(env, state["project_path"]):
                     st.session_state["first_proof_feedback"] = "`flight_project` selected."

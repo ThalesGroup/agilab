@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -532,6 +533,63 @@ async def test_render_execute_section_run_requires_installed_venvs(monkeypatch, 
     )
 
     assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_run_requires_fresh_install_status(monkeypatch, tmp_path):
+    project_path = tmp_path / "project"
+    worker_root = tmp_path / "wenv"
+    manager_venv = project_path / ".venv"
+    worker_venv = worker_root / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"run_btn": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=worker_root,
+    )
+    stale_status = {
+        "manager_ready": False,
+        "worker_ready": True,
+        "manager_exists": True,
+        "worker_exists": True,
+        "manager_stale": True,
+        "worker_stale": False,
+        "manager_venv": manager_venv,
+        "worker_venv": worker_venv,
+    }
+    deps = replace(
+        _make_execute_deps(fake_st.messages, fake_st.session_state),
+        app_install_status=lambda _env: stale_status,
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=project_path,
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=deps,
+    )
+
+    assert any(
+        kind == "error" and "installation is stale" in msg and "Run INSTALL again" in msg
+        for kind, msg in fake_st.messages
+    )
+    assert not any(kind == "display_log" for kind, _ in fake_st.messages)
 
 
 @pytest.mark.asyncio

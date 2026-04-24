@@ -42,6 +42,7 @@ _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
     for tokens in _INSTALL_LOG_FATAL_PATTERNS
     if tokens
 )
+INSTALL_FRESHNESS_STAMP = ".agilab-install-stamp"
 
 
 def _python_string(value: Any) -> str:
@@ -713,18 +714,103 @@ def benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
 
 def is_app_installed(env: Any) -> bool:
     """Return whether both manager and worker virtual environments are present."""
-    manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
-    return manager_venv.exists() and worker_venv.exists()
+    status = app_install_status(env)
+    return bool(status["manager_ready"] and status["worker_ready"])
+
+
+def _safe_mtime(path: Path) -> float | None:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return None
+
+
+def _venv_reference_mtime(venv: Path) -> float | None:
+    if not venv.exists():
+        return None
+    stamp_mtime = _safe_mtime(venv / INSTALL_FRESHNESS_STAMP)
+    if stamp_mtime is not None:
+        return stamp_mtime
+    marker = venv / "pyvenv.cfg"
+    marker_mtime = _safe_mtime(marker)
+    if marker_mtime is not None:
+        return marker_mtime
+    return _safe_mtime(venv)
+
+
+def _existing_project_manifests(project_root: Path) -> list[Path]:
+    return [
+        path
+        for path in (project_root / "pyproject.toml", project_root / "uv.lock")
+        if path.exists()
+    ]
+
+
+def _worker_source_manifests(active_app: Path) -> list[Path]:
+    worker_pyprojects = sorted((active_app / "src").glob("*_worker/pyproject.toml"))
+    manifests: list[Path] = []
+    for pyproject in worker_pyprojects:
+        manifests.extend(_existing_project_manifests(pyproject.parent))
+    return manifests
+
+
+def _stale_manifests_for_venv(venv: Path, manifests: Sequence[Path]) -> list[Path]:
+    venv_mtime = _venv_reference_mtime(venv)
+    if venv_mtime is None:
+        return []
+    stale: list[Path] = []
+    for manifest in manifests:
+        manifest_mtime = _safe_mtime(manifest)
+        if manifest_mtime is not None and manifest_mtime > venv_mtime:
+            stale.append(manifest)
+    return stale
+
+
+def mark_install_status_fresh(env: Any) -> list[Path]:
+    """Touch freshness stamps for existing manager/worker venvs after INSTALL succeeds."""
+    active_app = Path(env.active_app)
+    worker_root = Path(env.wenv_abs)
+    touched: list[Path] = []
+    for venv in (active_app / ".venv", worker_root / ".venv"):
+        if not venv.exists():
+            continue
+        stamp = venv / INSTALL_FRESHNESS_STAMP
+        try:
+            stamp.touch()
+        except OSError:
+            continue
+        touched.append(stamp)
+    return touched
 
 
 def app_install_status(env: Any) -> dict[str, Any]:
     """Return a cached status map for manager/worker installation readiness."""
-    manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
+    active_app = Path(env.active_app)
+    worker_root = Path(env.wenv_abs)
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    manager_exists = manager_venv.exists()
+    worker_exists = worker_venv.exists()
+    manager_stale_manifests = (
+        _stale_manifests_for_venv(manager_venv, _existing_project_manifests(active_app))
+        if manager_exists
+        else []
+    )
+    worker_manifests = _worker_source_manifests(active_app) + _existing_project_manifests(worker_root)
+    worker_stale_manifests = (
+        _stale_manifests_for_venv(worker_venv, worker_manifests)
+        if worker_exists
+        else []
+    )
     return {
-        "manager_ready": manager_venv.exists(),
-        "worker_ready": worker_venv.exists(),
+        "manager_ready": manager_exists and not manager_stale_manifests,
+        "worker_ready": worker_exists and not worker_stale_manifests,
+        "manager_exists": manager_exists,
+        "worker_exists": worker_exists,
+        "manager_stale": bool(manager_stale_manifests),
+        "worker_stale": bool(worker_stale_manifests),
+        "manager_stale_manifests": manager_stale_manifests,
+        "worker_stale_manifests": worker_stale_manifests,
         "manager_venv": manager_venv,
         "worker_venv": worker_venv,
     }

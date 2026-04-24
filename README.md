@@ -42,13 +42,12 @@ AGILAB is an open-source platform for reproducible AI and ML workflows.
 
 The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
 
-## Start Here
+## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
-| Need | Start here | Outcome |
-|---|---|---|
-| Browser preview | <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge" alt="AGILAB Space" /></a> | Public Streamlit UI running `uav_relay_queue_project`. No install. |
-| Install locally | [Quick start](https://thalesgroup.github.io/agilab/quick-start.html) | Source checkout, built-in `flight_project`, visible result in `ANALYSIS`. Target: pass the first run in 10 minutes. |
-| API/notebook | <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a> | Minimal `AgiEnv` / `AGI.run(...)` path without the full UI. |
+<p>
+  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge" alt="AGILAB Space" /></a>
+  <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
+</p>
 
 ## First Run
 

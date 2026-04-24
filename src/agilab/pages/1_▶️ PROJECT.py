@@ -34,6 +34,15 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
+_streamlit_version_guard_module = import_agilab_module(
+    "agilab.streamlit_version_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "streamlit_version_guard.py",
+    fallback_name="agilab_streamlit_version_guard_fallback",
+)
+require_streamlit_min_version = _streamlit_version_guard_module.require_streamlit_min_version
+require_streamlit_min_version(st, runtime_label="AGILAB PROJECT page")
+
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
     background_services_enabled,
@@ -1208,6 +1217,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
             else 0
         ),
         on_change=update_selected_class,
+        filter_mode="contains",
     )
 
     # Get functions and attributes based on the selected class
@@ -1240,6 +1250,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
             else 0
         ),
         on_change=update_selected_item,
+        filter_mode="contains",
     )
 
     if selected_item:

@@ -39,6 +39,9 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "docs_mirror_stamp",
         "public_docs_evidence_links",
     }
+    web_robot_check = next(check for check in bundle["checks"] if check["id"] == "web_ui_robot_contract")
+    assert web_robot_check["details"]["hosted_active_app"].endswith("/uav_relay_queue_project")
+    assert web_robot_check["details"]["route"] == ["landing", "ORCHESTRATE", "ANALYSIS"]
 
 
 def test_compatibility_matrix_requires_hf_demo_validated() -> None:

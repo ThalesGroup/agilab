@@ -81,6 +81,37 @@ def test_render_static_badge_svg_expands_for_post_release() -> None:
     assert ">v2026.04.07.post1</text>" in badge
 
 
+def test_uv_build_project_ignores_local_uv_sources(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    project_dir = tmp_path / "pkg"
+    project_dir.mkdir()
+    calls: list[tuple[list[str], Path]] = []
+
+    monkeypatch.setattr(module, "run", lambda args, cwd: calls.append((args, cwd)))
+
+    module.uv_build_project(project_dir, "both")
+
+    assert calls == [
+        (["uv", "build", "--project", str(project_dir), "--no-sources", "--wheel"], project_dir),
+        (["uv", "build", "--project", str(project_dir), "--no-sources", "--sdist"], project_dir),
+    ]
+
+
+def test_uv_build_repo_root_ignores_local_uv_sources(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    calls: list[tuple[list[str], Path]] = []
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "run", lambda args, cwd: calls.append((args, cwd)))
+
+    module.uv_build_repo_root("both")
+
+    assert calls == [
+        (["uv", "build", "--no-sources", "--wheel"], tmp_path),
+        (["uv", "build", "--no-sources", "--sdist"], tmp_path),
+    ]
+
+
 def test_update_static_badge_rewrites_svg(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)

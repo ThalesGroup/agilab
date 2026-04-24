@@ -190,6 +190,8 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
     assert entrypoint.exists()
     template_text = entrypoint.read_text(encoding="utf-8")
     assert "except (ImportError, ModuleNotFoundError, OSError) as exc" in template_text
+    pyproject_text = (tmp_path / "demo_view" / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"streamlit>=1.56.0"' in pyproject_text
 
 
 def test_clone_source_label_falls_back_to_absolute_path(tmp_path: Path):

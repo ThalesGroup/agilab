@@ -285,6 +285,19 @@ def build_page_url(
     )
 
 
+def active_app_slug(active_app: str) -> str:
+    decoded = urllib.parse.unquote(str(active_app)).rstrip("/")
+    return Path(decoded).name if "/" in decoded else decoded
+
+
+def routed_active_app_slug(url: str) -> str | None:
+    query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query, keep_blank_values=True))
+    active_app = query.get("active_app")
+    if not active_app:
+        return None
+    return active_app_slug(active_app)
+
+
 def wait_for_streamlit_health(
     base_url: str,
     *,
@@ -395,6 +408,26 @@ def assert_page_healthy(
         return RobotStep(label, False, time.perf_counter() - start, detail, getattr(page, "url", None))
 
 
+def assert_active_app_routed(
+    page: Any,
+    *,
+    label: str,
+    expected_active_app: str,
+    screenshot_dir: Path | None = None,
+) -> RobotStep:
+    start = time.perf_counter()
+    expected_slug = active_app_slug(expected_active_app)
+    actual_slug = routed_active_app_slug(getattr(page, "url", ""))
+    if actual_slug == expected_slug:
+        return RobotStep(label, True, time.perf_counter() - start, f"active_app={actual_slug}", page.url)
+
+    screenshot = _screenshot(page, screenshot_dir, label)
+    detail = f"active_app routed to {actual_slug!r}, expected {expected_slug!r}"
+    if screenshot:
+        detail += f"; screenshot={screenshot}"
+    return RobotStep(label, False, time.perf_counter() - start, detail, getattr(page, "url", None))
+
+
 def _append_step(steps: list[RobotStep], step: RobotStep) -> bool:
     steps.append(step)
     return step.success
@@ -442,6 +475,16 @@ def run_browser_robot(
                     ),
                 ):
                     return steps
+                if not _append_step(
+                    steps,
+                    assert_active_app_routed(
+                        page,
+                        label="landing active app",
+                        expected_active_app=active_app_query,
+                        screenshot_dir=screenshot_dir,
+                    ),
+                ):
+                    return steps
 
                 start = time.perf_counter()
                 page.goto(
@@ -461,6 +504,16 @@ def run_browser_robot(
                         label="orchestrate page",
                         expect_any=("ORCHESTRATE", "INSTALL", "EXECUTE"),
                         timeout_ms=timeout_ms,
+                        screenshot_dir=screenshot_dir,
+                    ),
+                ):
+                    return steps
+                if not _append_step(
+                    steps,
+                    assert_active_app_routed(
+                        page,
+                        label="orchestrate active app",
+                        expected_active_app=active_app_query,
                         screenshot_dir=screenshot_dir,
                     ),
                 ):
@@ -488,6 +541,16 @@ def run_browser_robot(
                     ),
                 ):
                     return steps
+                if not _append_step(
+                    steps,
+                    assert_active_app_routed(
+                        page,
+                        label="analysis active app",
+                        expected_active_app=active_app_query,
+                        screenshot_dir=screenshot_dir,
+                    ),
+                ):
+                    return steps
 
                 if analysis_view and analysis_view_path:
                     start = time.perf_counter()
@@ -507,13 +570,23 @@ def run_browser_robot(
                         ),
                     ):
                         return steps
-                    _append_step(
+                    if not _append_step(
                         steps,
                         assert_page_healthy(
                             page,
                             label=f"{analysis_view} analysis view",
                             expect_any=("View:",),
                             timeout_ms=timeout_ms,
+                            screenshot_dir=screenshot_dir,
+                        ),
+                    ):
+                        return steps
+                    _append_step(
+                        steps,
+                        assert_active_app_routed(
+                            page,
+                            label=f"{analysis_view} active app",
+                            expected_active_app=active_app_query,
                             screenshot_dir=screenshot_dir,
                         ),
                     )

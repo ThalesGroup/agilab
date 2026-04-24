@@ -820,6 +820,76 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
         assert module._is_app_installed(env) is True
 
 
+def test_is_app_installed_rejects_stale_manager_venv(tmp_path):
+    module = _load_orchestrate_module()
+    active_app = tmp_path / "flight_trajectory_project"
+    worker_root = tmp_path / "wenv" / "flight_trajectory_worker"
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+    manager_marker = manager_venv / "pyvenv.cfg"
+    worker_marker = worker_venv / "pyvenv.cfg"
+    manager_marker.write_text("home = /python\n", encoding="utf-8")
+    worker_marker.write_text("home = /python\n", encoding="utf-8")
+    manifest = active_app / "pyproject.toml"
+    manifest.write_text("[project]\nname = 'flight-trajectory'\n", encoding="utf-8")
+    os.utime(manager_marker, (1, 1))
+    os.utime(worker_marker, (20, 20))
+    os.utime(manifest, (10, 10))
+
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = module._app_install_status(env)
+
+    assert status["manager_exists"] is True
+    assert status["manager_ready"] is False
+    assert status["manager_stale"] is True
+    assert status["manager_stale_manifests"] == [manifest]
+    assert status["worker_ready"] is True
+    assert module._is_app_installed(env) is False
+
+    touched = orchestrate_page_support.mark_install_status_fresh(env)
+    assert active_app / ".venv" / orchestrate_page_support.INSTALL_FRESHNESS_STAMP in touched
+
+    refreshed_status = module._app_install_status(env)
+    assert refreshed_status["manager_ready"] is True
+    assert refreshed_status["worker_ready"] is True
+    assert module._is_app_installed(env) is True
+
+
+def test_is_app_installed_rejects_stale_worker_venv(tmp_path):
+    module = _load_orchestrate_module()
+    active_app = tmp_path / "uav_queue_project"
+    worker_root = tmp_path / "wenv" / "uav_queue_worker"
+    source_worker = active_app / "src" / "uav_queue_worker"
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+    source_worker.mkdir(parents=True)
+    manager_marker = manager_venv / "pyvenv.cfg"
+    worker_marker = worker_venv / "pyvenv.cfg"
+    manager_marker.write_text("home = /python\n", encoding="utf-8")
+    worker_marker.write_text("home = /python\n", encoding="utf-8")
+    manifest = source_worker / "pyproject.toml"
+    manifest.write_text("[project]\nname = 'uav-queue-worker'\n", encoding="utf-8")
+    os.utime(manager_marker, (20, 20))
+    os.utime(worker_marker, (1, 1))
+    os.utime(manifest, (10, 10))
+
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = module._app_install_status(env)
+
+    assert status["manager_ready"] is True
+    assert status["worker_exists"] is True
+    assert status["worker_ready"] is False
+    assert status["worker_stale"] is True
+    assert status["worker_stale_manifests"] == [manifest]
+    assert module._is_app_installed(env) is False
+
+
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     module = _load_orchestrate_module()
 

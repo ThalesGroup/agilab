@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-21
+  updated: 2026-04-24
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -73,6 +73,17 @@ Use this skill when editing:
 ## Rerun API
 
 - Do not use `st.experimental_rerun()`; use `st.rerun()`.
+
+## Streamlit 1.56+ UI APIs
+
+- Prefer `st.iframe(...)` over `streamlit.components.v1.iframe(...)` for simple embedded pages.
+  - Keep localhost sidecar iframes for local developer mode only.
+  - In hosted runtimes such as Hugging Face Spaces, render analysis pages inline instead of exposing `127.0.0.1` iframe URLs to the browser.
+- Use `filter_mode="contains"` intentionally on long `selectbox` and `multiselect` controls where users search by known substrings such as app names, page names, classes, methods, metrics, or files.
+  - Do not add it mechanically to short enum controls with only a few obvious choices.
+- Use `st.menu_button(...)` for compact one-click action menus when it replaces a row/grid of equivalent navigation actions.
+  - Keep existing explicit buttons when they are useful as visible quick-access shortcuts.
+  - When a menu changes route/query params, update `st.session_state` before calling `st.rerun()`.
 
 ## Key Hygiene
 

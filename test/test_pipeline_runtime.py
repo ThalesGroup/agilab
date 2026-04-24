@@ -4,16 +4,19 @@ import builtins
 from contextlib import contextmanager
 import importlib
 import importlib.util
+import json
 import math
 import os
 from pathlib import Path
 import sqlite3
 import sys
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 import types
+import pandas as pd
 
 
 def _import_agilab_module(module_name: str):
@@ -81,6 +84,7 @@ def _load_module_with_import_failures(module_name: str, relative_path: str, monk
 
 
 pipeline_runtime = _import_agilab_module("agilab.pipeline_runtime")
+pipeline_run_controls = _import_agilab_module("agilab.pipeline_run_controls")
 
 
 def test_to_bool_flag_parses_common_truthy_values():
@@ -1810,3 +1814,492 @@ def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch)
     assert any("Output (step 1):\nscript output" in line for line in logs)
     assert "ARTIFACTS" in logs
     assert releases == ["lock"]
+
+
+def test_pipeline_run_controls_builds_mlflow_parent_and_step_payloads(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_runtime,
+        "mlflow_tracking_uri",
+        lambda _env: "sqlite:///mlflow.db",
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_steps,
+        "step_summary",
+        lambda _entry, width=80: f"summary:{width}",
+    )
+
+    env = SimpleNamespace(app="flight")
+    lab_dir = tmp_path / "lab"
+    steps_file = lab_dir / "lab_steps.toml"
+    run_name, tags, params, artifacts = pipeline_run_controls._mlflow_parent_payload(
+        env,
+        lab_dir,
+        steps_file,
+        [0, 2],
+    )
+
+    assert run_name == "flight:lab:pipeline"
+    assert tags["agilab.tracking_uri"] == "sqlite:///mlflow.db"
+    assert params == {"sequence": "1,3", "step_count": 2}
+    assert json.loads(artifacts["pipeline_metadata/sequence.json"])["sequence"] == [1, 3]
+
+    step_name, step_tags, step_params, step_artifacts = pipeline_run_controls._mlflow_step_payload(
+        env,
+        lab_dir,
+        steps_file,
+        step_index=1,
+        entry={"D": "desc", "Q": "question", "M": "model", "C": "print('ok')"},
+        engine="agi.run",
+        runtime_root="/runtime",
+    )
+
+    assert step_name == "flight:lab:step_2"
+    assert step_tags["agilab.summary"] == "summary:80"
+    assert step_params["engine"] == "agi.run"
+    assert json.loads(step_artifacts["step_2/step_entry.json"])["step_index"] == 2
+
+
+def test_pipeline_run_controls_logs_trim_write_and_prepare_files(monkeypatch, tmp_path):
+    state: dict[str, object] = {}
+    monkeypatch.setattr(pipeline_run_controls, "st", SimpleNamespace(session_state=state))
+
+    for idx in range(205):
+        pipeline_run_controls._append_run_log("page", f"log-{idx}")
+
+    assert state["page__run_logs"][0] == "log-5"
+    assert len(state["page__run_logs"]) == 200
+
+    rendered: list[str] = []
+    placeholder = SimpleNamespace(
+        code=lambda text: rendered.append(text),
+        caption=lambda text: rendered.append(f"caption:{text}"),
+    )
+    log_file = tmp_path / "logs" / "pipeline.log"
+    state["page__run_log_file"] = str(log_file)
+
+    pipeline_run_controls._push_run_log("page", "pipeline line\n", placeholder)
+
+    assert log_file.read_text(encoding="utf-8") == "pipeline line\n"
+    assert rendered[-1].endswith("pipeline line\n")
+
+    env = SimpleNamespace(app="demo", runenv=tmp_path / "run logs")
+    prepared, error = pipeline_run_controls._prepare_run_log_file("page", env, "  odd prefix!* ")
+
+    assert error is None
+    assert prepared is not None
+    assert prepared.exists()
+    assert prepared.name.startswith("odd_prefix_")
+    assert state["page__run_log_file"] == str(prepared)
+    assert state["page__last_run_log_file"] == str(prepared)
+
+    state["page__run_log_file"] = "stale"
+    failed, failure = pipeline_run_controls._prepare_run_log_file(
+        "page",
+        SimpleNamespace(app="demo", runenv=object()),
+        "run",
+    )
+
+    assert failed is None
+    assert failure
+    assert "page__run_log_file" not in state
+
+
+def test_pipeline_run_controls_lock_ttl_path_payload_and_owner(monkeypatch, tmp_path):
+    monkeypatch.delenv("AGILAB_PIPELINE_LOCK_TTL_SEC", raising=False)
+    assert pipeline_run_controls._pipeline_lock_ttl_seconds() == pipeline_run_controls.PIPELINE_LOCK_DEFAULT_TTL_SEC
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "12.5")
+    assert pipeline_run_controls._pipeline_lock_ttl_seconds() == 12.5
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "bad")
+    assert pipeline_run_controls._pipeline_lock_ttl_seconds() == pipeline_run_controls.PIPELINE_LOCK_DEFAULT_TTL_SEC
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "0")
+    assert pipeline_run_controls._pipeline_lock_ttl_seconds() == pipeline_run_controls.PIPELINE_LOCK_DEFAULT_TTL_SEC
+
+    def _raise_resolve(_relative):
+        raise RuntimeError("share unavailable")
+
+    env = SimpleNamespace(app="demo", target="", home_abs=tmp_path, resolve_share_path=_raise_resolve)
+    fallback_lock = pipeline_run_controls._pipeline_lock_path(env)
+    assert fallback_lock == tmp_path / ".agilab_pipeline" / "demo" / pipeline_run_controls.PIPELINE_LOCK_FILENAME
+    assert fallback_lock.parent.exists()
+
+    assert pipeline_run_controls._read_pipeline_lock_payload(tmp_path / "missing.lock") == {}
+    invalid_lock = tmp_path / "invalid.lock"
+    invalid_lock.write_text("{", encoding="utf-8")
+    assert pipeline_run_controls._read_pipeline_lock_payload(invalid_lock) == {}
+    valid_lock = tmp_path / "valid.lock"
+    valid_lock.write_text(json.dumps({"token": "abc"}), encoding="utf-8")
+    assert pipeline_run_controls._read_pipeline_lock_payload(valid_lock) == {"token": "abc"}
+
+    assert (
+        pipeline_run_controls._pipeline_lock_owner_text({"host": "h", "pid": 7, "app": "a"}, 2.3)
+        == "host=h, pid=7, app=a, age=2s"
+    )
+    assert "age=unknown" in pipeline_run_controls._pipeline_lock_owner_text({}, None)
+
+    monkeypatch.setattr(pipeline_run_controls.socket, "gethostname", lambda: "local")
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "remote", "pid": 1}) is None
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "local", "pid": "bad"}) is None
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "local", "pid": 0}) is None
+
+    monkeypatch.setattr(pipeline_run_controls.os, "kill", lambda _pid, _sig: None)
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "local", "pid": 1}) is True
+
+    def _missing_process(_pid, _sig):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(pipeline_run_controls.os, "kill", _missing_process)
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "local", "pid": 1}) is False
+
+    def _permission_denied(_pid, _sig):
+        raise PermissionError
+
+    monkeypatch.setattr(pipeline_run_controls.os, "kill", _permission_denied)
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "local", "pid": 1}) is True
+
+    def _unknown_os_error(_pid, _sig):
+        raise OSError
+
+    monkeypatch.setattr(pipeline_run_controls.os, "kill", _unknown_os_error)
+    assert pipeline_run_controls._pipeline_lock_owner_alive({"host": "local", "pid": 1}) is None
+
+
+def test_pipeline_run_controls_lock_lifecycle_and_stale_cleanup(monkeypatch, tmp_path):
+    state: dict[str, object] = {}
+    warnings: list[str] = []
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state=state,
+        warning=lambda message: warnings.append(message),
+        error=lambda message: errors.append(message),
+    )
+    monkeypatch.setattr(pipeline_run_controls, "st", fake_st)
+
+    share_root = tmp_path / "share"
+
+    def _resolve_share_path(relative):
+        return share_root / relative
+
+    env = SimpleNamespace(app="demo", target="demo", home_abs=tmp_path, resolve_share_path=_resolve_share_path)
+    handle = pipeline_run_controls._acquire_pipeline_run_lock(env, "page")
+
+    assert handle is not None
+    lock_path = Path(handle["path"])
+    payload = json.loads(lock_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == pipeline_run_controls.PIPELINE_LOCK_SCHEMA
+    assert payload["token"] == handle["token"]
+    assert any("Pipeline lock acquired" in line for line in state["page__run_logs"])
+
+    old_heartbeat = payload["heartbeat_at"]
+    monkeypatch.setattr(pipeline_run_controls.time, "time", lambda: old_heartbeat + 10.0)
+    pipeline_run_controls._refresh_pipeline_run_lock(handle)
+    refreshed = json.loads(lock_path.read_text(encoding="utf-8"))
+    assert refreshed["heartbeat_at"] == old_heartbeat + 10.0
+
+    pipeline_run_controls._release_pipeline_run_lock(handle, "page")
+    assert not lock_path.exists()
+    assert any("Pipeline lock released" in line for line in state["page__run_logs"])
+
+    busy_path = pipeline_run_controls._pipeline_lock_path(env)
+    busy_path.write_text(
+        json.dumps({"host": "remote", "pid": 123, "app": "demo", "token": "busy"}),
+        encoding="utf-8",
+    )
+
+    busy = pipeline_run_controls._acquire_pipeline_run_lock(env, "page")
+
+    assert busy is None
+    assert warnings and "Another pipeline execution is already running" in warnings[-1]
+
+    busy_path.unlink()
+    stale_path = pipeline_run_controls._pipeline_lock_path(env)
+    stale_path.write_text(
+        json.dumps({"host": "remote", "pid": 123, "app": "demo", "token": "stale"}),
+        encoding="utf-8",
+    )
+    stale_time = time.time() - 20.0
+    os.utime(stale_path, (stale_time, stale_time))
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "1")
+    monkeypatch.setattr(pipeline_run_controls.time, "time", lambda: stale_time + 20.0)
+
+    recovered = pipeline_run_controls._acquire_pipeline_run_lock(env, "page")
+
+    assert recovered is not None
+    assert any("Removed pipeline lock (heartbeat expired" in line for line in state["page__run_logs"])
+    assert Path(recovered["path"]).exists()
+    assert not errors
+
+
+def test_pipeline_run_controls_run_all_steps_early_exit_paths(monkeypatch, tmp_path):
+    state = {"page": [0, "", "", "", "", ""]}
+    messages: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state=state,
+        info=lambda message: messages.append(f"INFO:{message}"),
+        error=lambda message: messages.append(f"ERROR:{message}"),
+    )
+    monkeypatch.setattr(pipeline_run_controls, "st", fake_st)
+    env = SimpleNamespace(app="demo", target="demo", home_abs=tmp_path)
+
+    pipeline_run_controls.run_all_steps(
+        tmp_path / "lab",
+        "page",
+        tmp_path / "lab_steps.toml",
+        tmp_path / "module.py",
+        env,
+        load_all_steps_fn=lambda *_args: [],
+        stream_run_command_fn=lambda *_args, **_kwargs: "",
+    )
+
+    assert any(message.startswith("INFO:No steps available") for message in messages)
+    assert any("Run pipeline aborted: no steps available." in line for line in state["page__run_logs"])
+
+    messages.clear()
+    state["page__run_logs"] = []
+    pipeline_run_controls.run_all_steps(
+        tmp_path / "lab",
+        "page",
+        tmp_path / "lab_steps.toml",
+        tmp_path / "module.py",
+        env,
+        load_all_steps_fn=lambda *_args: [{"D": "step", "Q": "q", "C": "print('ok')"}],
+        stream_run_command_fn=lambda *_args, **_kwargs: "",
+    )
+
+    assert "ERROR:Snippet file is not configured. Reload the page and try again." in messages
+    assert any("Run pipeline aborted: snippet file not configured." in line for line in state["page__run_logs"])
+
+
+def test_pipeline_run_controls_lock_and_rerun_error_branches(monkeypatch, tmp_path):
+    state: dict[str, object] = {}
+    reruns: list[object] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    def _rerun(**kwargs):
+        reruns.append(kwargs.get("scope", "app"))
+
+    fake_st = SimpleNamespace(
+        session_state=state,
+        rerun=_rerun,
+        warning=lambda message: warnings.append(message),
+        error=lambda message: errors.append(message),
+    )
+    monkeypatch.setattr(pipeline_run_controls, "st", fake_st)
+
+    pipeline_run_controls._rerun_fragment_or_app()
+    assert reruns == ["fragment"]
+
+    reruns.clear()
+
+    def _fragment_fails(**kwargs):
+        reruns.append(kwargs.get("scope", "app"))
+        if kwargs.get("scope") == "fragment":
+            raise pipeline_run_controls.StreamlitAPIException("fragment unavailable")
+
+    fake_st.rerun = _fragment_fails
+    pipeline_run_controls._rerun_fragment_or_app()
+    assert reruns == ["fragment", "app"]
+
+    env = SimpleNamespace(app="demo", home_abs=tmp_path, resolve_share_path=lambda relative: tmp_path / relative)
+    assert pipeline_run_controls._inspect_pipeline_run_lock(env) is None
+
+    lock_path = pipeline_run_controls._pipeline_lock_path(env)
+    lock_path.write_text(json.dumps({"host": "local", "pid": 1, "app": "demo"}), encoding="utf-8")
+    monkeypatch.setattr(pipeline_run_controls, "_pipeline_lock_owner_alive", lambda _payload: False)
+    lock_state = pipeline_run_controls._inspect_pipeline_run_lock(env)
+    assert lock_state is not None
+    assert lock_state["is_stale"] is True
+    assert lock_state["stale_reason"] == "owner process is no longer running on this host"
+
+    monkeypatch.setattr(pipeline_run_controls, "_inspect_pipeline_run_lock", lambda _env: None)
+    assert pipeline_run_controls._clear_pipeline_run_lock(env, "page", reason="none") is True
+
+    monkeypatch.setattr(
+        pipeline_run_controls,
+        "_inspect_pipeline_run_lock",
+        lambda _env: {"path": tmp_path / "missing.lock"},
+    )
+    assert pipeline_run_controls._clear_pipeline_run_lock(env, "page", reason="missing") is True
+
+    monkeypatch.setattr(
+        pipeline_run_controls,
+        "_inspect_pipeline_run_lock",
+        lambda _env: {"path": tmp_path},
+    )
+    assert pipeline_run_controls._clear_pipeline_run_lock(env, "page", reason="directory") is False
+    assert errors and "Unable to remove pipeline lock" in errors[-1]
+
+    monkeypatch.setattr(pipeline_run_controls, "_clear_pipeline_run_lock", lambda *_args, **_kwargs: False)
+    assert pipeline_run_controls._acquire_pipeline_run_lock(env, "page", force=True) is None
+
+    assert pipeline_run_controls._refresh_pipeline_run_lock(None) is None
+    assert pipeline_run_controls._refresh_pipeline_run_lock({}) is None
+    assert pipeline_run_controls._refresh_pipeline_run_lock({"path": tmp_path / "absent.lock", "token": "t"}) is None
+
+    refresh_path = tmp_path / "refresh.lock"
+    refresh_path.write_text(json.dumps({"token": "other"}), encoding="utf-8")
+    assert pipeline_run_controls._refresh_pipeline_run_lock({"path": refresh_path, "token": "t"}) is None
+
+    refresh_path.write_text(json.dumps({"token": "t"}), encoding="utf-8")
+
+    def _replace_fails(_src, _dst):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(pipeline_run_controls.os, "replace", _replace_fails)
+    assert pipeline_run_controls._refresh_pipeline_run_lock({"path": refresh_path, "token": "t"}) is None
+
+    assert pipeline_run_controls._release_pipeline_run_lock(None, "page") is None
+    assert pipeline_run_controls._release_pipeline_run_lock({}, "page") is None
+    assert pipeline_run_controls._release_pipeline_run_lock({"path": tmp_path / "absent.lock", "token": "t"}, "page") is None
+
+    release_path = tmp_path / "release.lock"
+    release_path.write_text(json.dumps({"token": "other"}), encoding="utf-8")
+    assert pipeline_run_controls._release_pipeline_run_lock({"path": release_path, "token": "t"}, "page") is None
+    assert release_path.exists()
+
+    assert pipeline_run_controls._release_pipeline_run_lock({"path": tmp_path, "token": "t"}, "page") is None
+
+
+def test_pipeline_run_controls_run_all_steps_executes_runpy_step(monkeypatch, tmp_path):
+    snippet_file = tmp_path / "snippet.py"
+    copilot_file = tmp_path / "codex.py"
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    export_target = tmp_path / "out.csv"
+    state = {
+        "page": [3, "old desc", "old q", "old model", "old code", "old details"],
+        "page__run_sequence": [0, 1, -1, 99],
+        "page__details": {0: "detail"},
+        "snippet_file": str(snippet_file),
+        "lab_selected_venv": "",
+        "lab_selected_engine": "original-engine",
+        "df_file_out": str(export_target),
+        "data": pd.DataFrame({"value": [1]}),
+    }
+    messages: list[str] = []
+    logs: list[str] = []
+    refreshes: list[object] = []
+    releases: list[object] = []
+    mlflow_calls: list[dict[str, object]] = []
+    artifact_calls: list[dict[str, object]] = []
+    saved_csv: list[tuple[object, str]] = []
+
+    class _Spinner:
+        def __enter__(self):
+            messages.append("SPINNER")
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    fake_st = SimpleNamespace(
+        session_state=state,
+        spinner=lambda _message: _Spinner(),
+        success=lambda message: messages.append(f"SUCCESS:{message}"),
+        info=lambda message: messages.append(f"INFO:{message}"),
+        error=lambda message: messages.append(f"ERROR:{message}"),
+    )
+    monkeypatch.setattr(pipeline_run_controls, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_steps,
+        "normalize_runtime_path",
+        lambda value: str(value or "").strip(),
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_steps,
+        "is_runnable_step",
+        lambda entry: bool(entry.get("C")),
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_steps,
+        "step_summary",
+        lambda _entry, width=80: f"summary:{width}",
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_runtime,
+        "mlflow_tracking_uri",
+        lambda _env: "sqlite:///tracking.db",
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_runtime,
+        "is_valid_runtime_root",
+        lambda value: bool(value and Path(str(value)).name == "runtime"),
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_runtime,
+        "label_for_step_runtime",
+        lambda *_args, **_kwargs: "runpy env",
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_runtime,
+        "build_mlflow_process_env",
+        lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-1"},
+    )
+
+    @contextmanager
+    def _start_mlflow_run(_env, **kwargs):
+        mlflow_calls.append(kwargs)
+        yield {"run": SimpleNamespace(info=SimpleNamespace(run_id=f"run-{len(mlflow_calls)}"))}
+
+    monkeypatch.setattr(pipeline_run_controls._pipeline_runtime, "start_mlflow_run", _start_mlflow_run)
+    monkeypatch.setattr(
+        pipeline_run_controls._pipeline_runtime,
+        "log_mlflow_artifacts",
+        lambda *_args, **kwargs: artifact_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls,
+        "run_lab",
+        lambda payload, snippet, copilot, env_overrides=None: (
+            logs.append(f"RUN_LAB:{payload[0]}:{snippet}:{copilot}:{env_overrides['MLFLOW_RUN_ID']}") or "stdout"
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls,
+        "save_csv",
+        lambda data, target: saved_csv.append((data, target)) or True,
+    )
+    monkeypatch.setattr(pipeline_run_controls, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"token": "lock"})
+    monkeypatch.setattr(pipeline_run_controls, "_refresh_pipeline_run_lock", lambda handle: refreshes.append(handle))
+    monkeypatch.setattr(
+        pipeline_run_controls,
+        "_release_pipeline_run_lock",
+        lambda handle, *_args, **_kwargs: releases.append(handle),
+    )
+    monkeypatch.setattr(
+        pipeline_run_controls,
+        "_push_run_log",
+        lambda _page, message, _placeholder=None: logs.append(message),
+    )
+
+    env = SimpleNamespace(app="demo", target="demo", active_app="", copilot_file=copilot_file)
+    steps = [
+        {"D": "desc", "Q": "question", "M": "model", "C": "print('ok')", "R": ""},
+        {"D": "skip", "Q": "skip", "M": "", "C": ""},
+    ]
+
+    pipeline_run_controls.run_all_steps(
+        tmp_path / "lab",
+        "page",
+        steps_file,
+        tmp_path / "module.py",
+        env,
+        load_all_steps_fn=lambda *_args: steps,
+        stream_run_command_fn=lambda *_args, **_kwargs: "unused",
+    )
+
+    assert any("RUN_LAB:desc" in line for line in logs)
+    assert any("Output (step 1):\nstdout" in line for line in logs)
+    assert any('Step 1: engine=runpy, env=runpy env, summary="summary:80"' in line for line in logs)
+    assert "SUCCESS:Executed 1 step." in messages
+    assert state["df_file_in"] == str(export_target)
+    assert state["step_checked"] is True
+    assert saved_csv and saved_csv[0][1] == str(export_target)
+    assert state["page"][0] == 3
+    assert state["lab_selected_venv"] == ""
+    assert state["lab_selected_engine"] == "original-engine"
+    assert state["page__force_blank_q"] is True
+    assert state["page__q_rev"] == 1
+    assert refreshes and releases == [{"token": "lock"}]
+    assert len(mlflow_calls) == 2
+    assert artifact_calls
