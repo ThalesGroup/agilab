@@ -107,6 +107,50 @@ def test_render_selected_view_route_ignores_main_route():
     assert handled is False
 
 
+def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    view_path = tmp_path / "view_demo.py"
+    view_path.write_text("", encoding="utf-8")
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class _Column:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
+    fake_env = SimpleNamespace(
+        apps_path=None,
+        target=None,
+        app=None,
+        active_app="",
+        AGILAB_LOG_ABS=tmp_path,
+        logger=fake_logger,
+    )
+    fake_st = SimpleNamespace(
+        session_state={"env": fake_env},
+        query_params={"current_page": str(view_path), "datadir_rel": "sample"},
+        columns=lambda _spec: [_Column(), _Column(), _Column()],
+        button=lambda *_args, **_kwargs: False,
+        subheader=lambda *_args, **_kwargs: None,
+        iframe=lambda src, **kwargs: calls.append((src, kwargs)),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: None)
+    monkeypatch.setattr(module, "_is_hosted_analysis_runtime", lambda _env: False)
+    monkeypatch.setattr(module, "_ensure_sidecar", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(module, "_port_for", lambda _key: 8765)
+
+    asyncio.run(module.render_view_page(view_path))
+
+    assert calls == [
+        ("http://127.0.0.1:8765/?datadir_rel=sample&embed=true", {"height": 900})
+    ]
+
+
 def test_resolve_default_view_accepts_named_view(tmp_path: Path):
     module = _load_analysis_module()
     view_path = tmp_path / "view_maps_network.py"
@@ -189,6 +233,62 @@ def test_is_hosted_analysis_runtime_uses_agi_env_envars():
     assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={})) is False
     assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={"SPACE_HOST": "demo.hf.space"})) is True
     assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={"SPACE_ID": "user/demo"})) is True
+
+
+def test_is_hosted_analysis_runtime_uses_process_environment(monkeypatch):
+    module = _load_analysis_module()
+
+    monkeypatch.setenv("SPACE_ID", "user/demo")
+
+    assert module._is_hosted_analysis_runtime(SimpleNamespace(envars={})) is True
+
+
+def test_render_view_page_uses_inline_rendering_in_hf_space(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    view_path = tmp_path / "view_demo.py"
+    view_path.write_text("", encoding="utf-8")
+    inline_calls: list[tuple[Path, str]] = []
+
+    class _Column:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
+    fake_env = SimpleNamespace(
+        apps_path=None,
+        target=None,
+        app=None,
+        active_app="",
+        AGILAB_LOG_ABS=tmp_path,
+        envars={},
+        logger=fake_logger,
+    )
+    fake_st = SimpleNamespace(
+        session_state={"env": fake_env},
+        columns=lambda _spec: [_Column(), _Column(), _Column()],
+        button=lambda *_args, **_kwargs: False,
+        subheader=lambda *_args, **_kwargs: None,
+        markdown=lambda *_args, **_kwargs: None,
+    )
+
+    async def _capture_inline(path: Path, active_app: str) -> None:
+        inline_calls.append((path, active_app))
+
+    monkeypatch.setenv("SPACE_ID", "user/demo")
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_render_view_page_inline", _capture_inline)
+    monkeypatch.setattr(
+        module,
+        "_ensure_sidecar",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("HF Space must not launch localhost sidecar")),
+    )
+
+    asyncio.run(module.render_view_page(view_path))
+
+    assert inline_calls == [(view_path, "")]
 
 
 def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Path, monkeypatch):
