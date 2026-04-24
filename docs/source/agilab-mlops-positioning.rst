@@ -46,6 +46,28 @@ That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
 first-class reduce contract remain roadmap work.
 
+Production readiness evidence
+-----------------------------
+
+AGILab's production-readiness story is strongest when it is judged as a
+controlled pilot and handoff workbench, not as a production MLOps platform:
+
+- release preflight tooling and workflow-parity profiles give maintainers local
+  checks before packaging or publishing
+- CI and component coverage workflows keep the public repository observable
+- the compatibility matrix marks which public paths are validated versus only
+  documented
+- service health gates expose JSON and Prometheus-compatible operator checks
+- the release-decision page applies artifact and KPI gates and exports
+  ``promotion_decision.json``
+- ``SECURITY.md`` documents supported versions, disclosure expectations, and a
+  deployment hardening checklist
+
+That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
+higher because AGILab still does not provide production model serving, feature
+stores, online monitoring, drift detection, enterprise governance, or broad
+remote-topology certification.
+
 Strategic potential evidence
 ----------------------------
 
@@ -77,6 +99,10 @@ Where AGILab helps
 - **Lower operational overhead during experimentation**: useful work can happen
   before a team invests in production-serving, governance, or platform-heavy
   tooling.
+- **Controlled pilot handoff**: release preflight checks, compatibility
+  evidence, service health gates, and promotion-decision exports make it easier
+  to decide when an experiment is ready to leave AGILab for a hardened
+  production stack.
 
 What AGILab does *not* aim to cover
 -----------------------------------

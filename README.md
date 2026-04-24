@@ -135,6 +135,15 @@ templates turn an experiment into an app-shaped prototype. That supports an
 because the first-proof wizard, generic evidence bundle, and first-class reduce
 contract remain roadmap work.
 
+Current production-readiness evidence: AGILAB is not positioned as a production
+MLOps backbone, but it now documents a controlled pilot path across release
+preflight tooling, CI/coverage workflows, service health gates, the
+compatibility matrix, the release-decision page, and the security hardening checklist.
+That supports a `Production readiness` score of `3.0 / 5`. It is not scored
+higher because production model serving, feature stores, online monitoring,
+drift detection, enterprise governance, and broad remote-topology certification
+remain outside the shipped scope.
+
 ## Read Next
 
 - [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
