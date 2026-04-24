@@ -258,6 +258,8 @@ def build_run_snippet(
     scheduler: str,
     workers: str,
     args_serialized: str,
+    workers_data_path: str = "None",
+    rapids_enabled: bool = False,
 ) -> str:
     arguments = [
         "app_env",
@@ -265,6 +267,10 @@ def build_run_snippet(
         f"scheduler={scheduler}",
         f"workers={workers}",
     ]
+    if workers_data_path not in ("", "None", None):
+        arguments.append(f"workers_data_path={workers_data_path}")
+    if rapids_enabled:
+        arguments.append("rapids_enabled=True")
     if args_serialized.strip():
         arguments.append(args_serialized)
     return _build_agi_snippet(
@@ -284,17 +290,123 @@ def compute_run_mode(cluster_params: Mapping[str, Any], cluster_enabled: bool) -
     )
 
 
+_POOL_MODE_BIT = 1
+_CYTHON_MODE_BIT = 2
+_DASK_MODE_BIT = 4
+_RAPIDS_MODE_BIT = 8
+
+
+def available_benchmark_modes(
+    cluster_params: Mapping[str, Any],
+    *,
+    cluster_enabled: bool,
+) -> list[int]:
+    """Return modes whose required capabilities are currently enabled in the UI."""
+    available: list[int] = []
+    for mode in range(len(RUN_MODE_LABELS)):
+        if mode & _POOL_MODE_BIT and not cluster_params.get("pool", False):
+            continue
+        if mode & _CYTHON_MODE_BIT and not cluster_params.get("cython", False):
+            continue
+        if mode & _DASK_MODE_BIT and not cluster_enabled:
+            continue
+        if mode & _RAPIDS_MODE_BIT and not cluster_params.get("rapids", False):
+            continue
+        available.append(mode)
+    return available
+
+
+def benchmark_mode_label(mode: int) -> str:
+    if mode < 0 or mode >= len(RUN_MODE_LABELS):
+        return f"{mode}: unknown"
+    return RUN_MODE_LABELS[mode]
+
+
+def sanitize_benchmark_modes(
+    selected_modes: Any,
+    available_modes: Sequence[int],
+) -> list[int]:
+    available = {int(mode) for mode in available_modes}
+    sanitized: list[int] = []
+    if not isinstance(selected_modes, Sequence) or isinstance(selected_modes, (str, bytes)):
+        return sanitized
+    for raw_mode in selected_modes:
+        try:
+            mode = int(raw_mode)
+        except (TypeError, ValueError):
+            continue
+        if mode in available and mode not in sanitized:
+            sanitized.append(mode)
+    return sorted(sanitized)
+
+
 def compute_benchmark_run_mode(
     cluster_params: Mapping[str, Any],
     cluster_enabled: bool,
-) -> list[int] | None:
-    if cluster_enabled:
+) -> list[int]:
+    return available_benchmark_modes(cluster_params, cluster_enabled=cluster_enabled)
+
+
+def benchmark_modes_include_cluster(modes: Sequence[int]) -> bool:
+    return any(int(mode) & _DASK_MODE_BIT for mode in modes)
+
+
+_LOCAL_WORKER_HOSTS = {"", "127.0.0.1", "localhost", "::1", "0.0.0.0"}
+
+
+def _worker_host(worker_key: Any) -> str:
+    host = str(worker_key or "").strip()
+    if "://" in host:
+        host = host.rsplit("://", 1)[-1]
+    if "@" in host:
+        host = host.rsplit("@", 1)[-1]
+    if host.startswith("[") and "]" in host:
+        return host[1:host.index("]")].strip().lower()
+    if host.count(":") == 1:
+        host = host.split(":", 1)[0]
+    return host.strip().lower()
+
+
+def has_nonlocal_workers(workers: Any) -> bool:
+    if not isinstance(workers, Mapping):
+        return False
+    return any(_worker_host(worker) not in _LOCAL_WORKER_HOSTS for worker in workers)
+
+
+def _resolved_path(value: Any) -> Path | None:
+    if value in (None, ""):
+        return None
+    try:
+        return Path(str(value)).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
         return None
 
-    # Benchmark local variants by sweeping the pool/cython bits while preserving
-    # any higher-order capability flags such as RAPIDS.
-    preserved_mode_bits = compute_run_mode(cluster_params, False) & ~0b11
-    return [preserved_mode_bits | variant for variant in range(4)]
+
+def benchmark_workers_data_path_issue(
+    *,
+    modes: Sequence[int],
+    workers: Any,
+    workers_data_path: Any,
+    local_share_path: Any = None,
+) -> str:
+    if not benchmark_modes_include_cluster(modes) or not has_nonlocal_workers(workers):
+        return ""
+
+    data_path_text = str(workers_data_path or "").strip()
+    if not data_path_text or data_path_text.lower() == "none":
+        return (
+            "Benchmark modes using Dask with non-local workers require Workers Data Path. "
+            "Use a shared path visible from the remote workers."
+        )
+
+    data_path = _resolved_path(data_path_text)
+    local_share = _resolved_path(local_share_path)
+    if data_path is not None and local_share is not None and data_path == local_share:
+        return (
+            "Workers Data Path points to the local share. For Dask benchmark modes with "
+            "non-local workers, use a shared workers path instead of the manager-local path."
+        )
+    return ""
 
 
 def resolve_requested_run_mode(
@@ -302,8 +414,14 @@ def resolve_requested_run_mode(
     *,
     cluster_enabled: bool,
     benchmark_enabled: bool,
-) -> int | list[int] | None:
+    benchmark_modes: Sequence[int] | None = None,
+) -> int | list[int]:
     if benchmark_enabled:
+        if benchmark_modes is not None:
+            return sanitize_benchmark_modes(
+                benchmark_modes,
+                available_benchmark_modes(cluster_params, cluster_enabled=cluster_enabled),
+            )
         return compute_benchmark_run_mode(cluster_params, cluster_enabled)
     return compute_run_mode(cluster_params, cluster_enabled)
 
@@ -311,8 +429,9 @@ def resolve_requested_run_mode(
 def describe_run_mode(run_mode: int | list[int] | None, benchmark_enabled: bool) -> str:
     if benchmark_enabled:
         if isinstance(run_mode, list) and run_mode:
-            return f"Run mode benchmark (local modes {run_mode[0]}-{run_mode[-1]})"
-        return "Run mode benchmark (all modes)"
+            mode_list = ", ".join(str(mode) for mode in run_mode)
+            return f"Run mode benchmark (selected modes: {mode_list})"
+        return "Run mode benchmark (no mode selected)"
     if run_mode is None or run_mode < 0 or run_mode >= len(RUN_MODE_LABELS):
         return "Run mode unknown"
     return f"Run mode {RUN_MODE_LABELS[run_mode]}"

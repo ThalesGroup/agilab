@@ -396,6 +396,8 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         run_mode=15,
         scheduler='"127.0.0.1:8786"',
         workers="{'127.0.0.1': 2}",
+        workers_data_path='"/tmp/share"',
+        rapids_enabled=True,
         args_serialized='foo="bar", n=2',
     )
     distrib_snippet = orchestrate_page_support.build_distribution_snippet(
@@ -410,6 +412,8 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
     assert "mode=15" in run_snippet
+    assert 'workers_data_path="/tmp/share"' in run_snippet
+    assert "rapids_enabled=True" in run_snippet
     assert 'foo="bar", n=2' in run_snippet
     assert "get_distrib" in distrib_snippet
     assert "workers=None" in distrib_snippet
@@ -430,7 +434,10 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     )
     assert run_mode == 15
     assert orchestrate_page_support.describe_run_mode(run_mode, False) == "Run mode 15: rapids and dask and pool and cython"
-    assert orchestrate_page_support.describe_run_mode(None, True) == "Run mode benchmark (all modes)"
+    assert (
+        orchestrate_page_support.describe_run_mode([0, 7, 15], True)
+        == "Run mode benchmark (selected modes: 0, 7, 15)"
+    )
 
 
 def test_orchestrate_page_support_distribution_plan_helpers():
