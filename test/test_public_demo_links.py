@@ -71,6 +71,17 @@ def test_readme_captures_engineering_prototyping_evidence() -> None:
     assert "templates" in readme
 
 
+def test_readme_captures_production_readiness_evidence() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "Production readiness" in readme
+    assert "3.0 / 5" in readme
+    assert "service health gates" in readme
+    assert "release-decision page" in readme
+    assert "security hardening checklist" in readme
+    assert "production model serving" in readme
+
+
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
     for path in ADOPTION_DOC_PAGES:
         text = path.read_text(encoding="utf-8")
@@ -114,6 +125,19 @@ def test_positioning_docs_capture_engineering_prototyping_evidence() -> None:
     assert "first-proof wizard" in text
 
 
+def test_positioning_docs_capture_production_readiness_evidence() -> None:
+    text = POSITIONING_DOC.read_text(encoding="utf-8")
+
+    assert "Production readiness evidence" in text
+    assert "Production readiness" in text
+    assert "3.0 / 5" in text
+    assert "workflow-parity profiles" in text
+    assert "compatibility matrix" in text
+    assert "service health gates" in text
+    assert "promotion_decision.json" in text
+    assert "online monitoring" in text
+
+
 def test_positioning_docs_capture_strategic_potential_evidence() -> None:
     text = POSITIONING_DOC.read_text(encoding="utf-8")
 
@@ -134,3 +158,15 @@ def test_features_docs_capture_engineering_prototyping_evidence() -> None:
     assert "app_args_form.py" in text
     assert "app_settings.toml" in text
     assert "pipeline_view.dot" in text
+
+
+def test_features_docs_capture_production_readiness_controls() -> None:
+    text = FEATURES_DOC.read_text(encoding="utf-8")
+
+    assert "Production-readiness controls" in text
+    assert "Production readiness" in text
+    assert "3.0 / 5" in text
+    assert "tools/pypi_publish.py" in text
+    assert "tools/service_health_check.py" in text
+    assert "promotion_decision.json" in text
+    assert "SECURITY.md" in text
