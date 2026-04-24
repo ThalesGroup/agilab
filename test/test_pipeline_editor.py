@@ -1431,7 +1431,7 @@ def test_build_notebook_export_context_ignores_valid_active_app_for_other_projec
     assert tuple(page.module for page in context.related_pages) == ("view_demo",)
 
 
-def test_build_notebook_export_context_normalizes_repo_root_hint_and_prefers_sibling_workspace_apps_dir(
+def test_build_notebook_export_context_normalizes_repo_root_hint_without_sibling_workspace_scan(
     tmp_path,
 ):
     workspace_root = tmp_path / "workspace"
@@ -1472,6 +1472,96 @@ def test_build_notebook_export_context_normalizes_repo_root_hint_and_prefers_sib
     )
 
     assert context.repo_root == str(public_repo)
+    assert context.active_app == ""
+    assert tuple(page.module for page in context.related_pages) == ("view_demo",)
+
+
+def test_build_notebook_export_context_can_scan_sibling_workspace_when_enabled(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS", "1")
+    workspace_root = tmp_path / "workspace"
+    public_repo = workspace_root / "agilab"
+    (public_repo / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (public_repo / ".idea").mkdir(parents=True, exist_ok=True)
+
+    pages_root = public_repo / "src" / "agilab" / "apps-pages"
+    page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+
+    private_repo = workspace_root / "thales_agilab"
+    source_app = private_repo / "apps" / "demo_project"
+    (source_app / "src").mkdir(parents=True, exist_ok=True)
+    (source_app / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    (source_app / "src" / "app_settings.toml").write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    workspace_settings = tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app="",
+        app_settings_file=workspace_settings,
+        apps_repository_root="",
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: None,
+        read_agilab_path=lambda: public_repo / "src" / "agilab",
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("demo_project"),
+        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        project_name="demo_project",
+    )
+
+    assert context.repo_root == str(public_repo)
+    assert context.active_app == str(source_app)
+    assert context.allow_workspace_sibling_apps is True
+    assert tuple(page.module for page in context.related_pages) == ("view_demo",)
+
+
+def test_build_notebook_export_context_accepts_project_suffix_alias(tmp_path):
+    pages_root = tmp_path / "apps-pages"
+    page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+
+    source_app = tmp_path / "apps" / "uav_graph_routing_project"
+    (source_app / "src").mkdir(parents=True, exist_ok=True)
+    (source_app / "pyproject.toml").write_text(
+        "[project]\nname='uav_graph_routing_project'\n",
+        encoding="utf-8",
+    )
+    (source_app / "src" / "app_settings.toml").write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    workspace_settings = tmp_path / ".agilab" / "apps" / "uav_graph_routing" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app=source_app,
+        app_settings_file=workspace_settings,
+        apps_path=tmp_path / "apps",
+        builtin_apps_path=tmp_path / "apps" / "builtin",
+        apps_repository_root="",
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: source_app / "src" / "app_settings.toml",
+        read_agilab_path=lambda: tmp_path / "repo",
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("uav_graph_routing"),
+        tmp_path / "export" / "uav_graph_routing" / "lab_steps.toml",
+        project_name="uav_graph_routing",
+    )
+
+    assert context.project_name == "uav_graph_routing"
     assert context.active_app == str(source_app)
     assert tuple(page.module for page in context.related_pages) == ("view_demo",)
 
@@ -1638,9 +1728,11 @@ def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path
     ) in captured["script"]
 
 
+@pytest.mark.parametrize("env_key", ["APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY"])
 def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_active_app_is_stale(
     tmp_path,
     monkeypatch,
+    env_key,
 ):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -1701,7 +1793,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
         return _Result()
 
     original_run = namespace["subprocess"].run
-    monkeypatch.setenv("APPS_REPOSITORY", str(repo_apps))
+    monkeypatch.setenv(env_key, str(repo_apps))
     try:
         namespace["subprocess"].run = _fake_run
         namespace["run_agilab_step"](0, capture_output=False)
@@ -1797,9 +1889,18 @@ def test_notebook_helper_replays_app_shorthand_steps_when_active_app_is_other_pr
     assert "flight_project" not in captured["script"]
 
 
+@pytest.mark.parametrize(
+    ("allow_siblings", "expect_private_resolution"),
+    [(False, False), (True, True)],
+)
 def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when_active_app_is_missing(
     tmp_path,
+    monkeypatch,
+    allow_siblings,
+    expect_private_resolution,
 ):
+    if allow_siblings:
+        monkeypatch.setenv("AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS", "1")
     workspace_root = tmp_path / "workspace"
     public_repo = workspace_root / "agilab"
     (public_repo / "src" / "agilab").mkdir(parents=True, exist_ok=True)
@@ -1866,6 +1967,11 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
     original_run = namespace["subprocess"].run
     try:
         namespace["subprocess"].run = _fake_run
+        if not expect_private_resolution:
+            with pytest.raises(ValueError, match="Unable to resolve a valid AGILAB app root"):
+                namespace["run_agilab_step"](0, capture_output=False)
+            assert captured == {}
+            return
         namespace["run_agilab_step"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
