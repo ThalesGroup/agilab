@@ -54,12 +54,23 @@ class Flight(BaseWorker):
         # Allow caller-provided verbosity flag even though the Pydantic model forbids extras.
         self.verbose = bool(kwargs.pop("verbose", env.verbose))
 
-        if args is None:
+        if isinstance(args, FlightArgs):
+            parsed_args = args
+        else:
+            if args is None or isinstance(args, list):
+                payload = dict(kwargs)
+            elif isinstance(args, dict):
+                payload = {**args, **kwargs}
+            else:
+                try:
+                    payload = {**vars(args), **kwargs}
+                except TypeError as exc:
+                    raise ValueError(f"Invalid Flight arguments: {args!r}") from exc
             try:
-                args = FlightArgs(**kwargs)
+                parsed_args = FlightArgs(**payload)
             except ValidationError as exc:
                 raise ValueError(f"Invalid Flight arguments: {exc}") from exc
-        self.args = args
+        self.args = parsed_args
         self.args.data_in = env.resolve_share_path(self.args.data_in)
         self.args.data_out = env.resolve_share_path(self.args.data_out)
         self.data_out = self.args.data_out
@@ -263,4 +274,3 @@ class FlightApp(Flight):
 
 
 __all__ = ["Flight", "FlightApp"]
-

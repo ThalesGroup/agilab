@@ -1378,6 +1378,59 @@ def test_build_notebook_export_context_prefers_valid_apps_repository_root_when_a
     assert tuple(page.module for page in context.related_pages) == ("view_demo",)
 
 
+def test_build_notebook_export_context_ignores_valid_active_app_for_other_project(tmp_path):
+    pages_root = tmp_path / "apps-pages"
+    page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+
+    wrong_app = tmp_path / "apps" / "flight_project"
+    (wrong_app / "src").mkdir(parents=True, exist_ok=True)
+    (wrong_app / "pyproject.toml").write_text("[project]\nname='flight_project'\n", encoding="utf-8")
+
+    repo_apps = tmp_path / "repo-apps"
+    source_app = repo_apps / "uav_graph_routing_project"
+    (source_app / "src").mkdir(parents=True, exist_ok=True)
+    (source_app / "pyproject.toml").write_text(
+        "[project]\nname='uav_graph_routing_project'\n",
+        encoding="utf-8",
+    )
+    (source_app / "src" / "app_settings.toml").write_text(
+        "[pages]\nview_module=['view_demo']\n",
+        encoding="utf-8",
+    )
+
+    workspace_settings = (
+        tmp_path
+        / ".agilab"
+        / "apps"
+        / "uav_graph_routing_project"
+        / "app_settings.toml"
+    )
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app=wrong_app,
+        app_settings_file=workspace_settings,
+        apps_repository_root=repo_apps,
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: None,
+        read_agilab_path=lambda: tmp_path / "repo",
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("uav_graph_routing"),
+        tmp_path / "export" / "uav_graph_routing" / "lab_steps.toml",
+        project_name="uav_graph_routing_project",
+    )
+
+    assert context.active_app == str(source_app)
+    assert tuple(page.module for page in context.related_pages) == ("view_demo",)
+
+
 def test_build_notebook_export_context_normalizes_repo_root_hint_and_prefers_sibling_workspace_apps_dir(
     tmp_path,
 ):
@@ -1629,6 +1682,9 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
     helper_source = "".join(notebook["cells"][1]["source"])
     namespace: dict[str, object] = {}
     exec(helper_source, namespace)
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["repo_root"] = ""
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["pycharm_mirror_path"] = ""
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["pages_root"] = ""
 
     captured: dict[str, str] = {}
 
@@ -1653,6 +1709,92 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
         namespace["subprocess"].run = original_run
 
     assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
+
+
+def test_notebook_helper_replays_app_shorthand_steps_when_active_app_is_other_project(
+    tmp_path,
+    monkeypatch,
+):
+    export_dir = tmp_path / "export" / "uav_graph_routing"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_steps.toml"
+
+    wrong_app = tmp_path / "apps" / "flight_project"
+    (wrong_app / "src").mkdir(parents=True, exist_ok=True)
+    (wrong_app / "pyproject.toml").write_text(
+        "[project]\nname='flight_project'\n",
+        encoding="utf-8",
+    )
+
+    repo_apps = tmp_path / "repo-apps"
+    app_root = repo_apps / "uav_graph_routing_project"
+    (app_root / "src").mkdir(parents=True, exist_ok=True)
+    (app_root / "pyproject.toml").write_text(
+        "[project]\nname='uav_graph_routing_project'\n",
+        encoding="utf-8",
+    )
+    context = notebook_export_support.NotebookExportContext(
+        project_name="uav_graph_routing_project",
+        module_path="uav_graph_routing",
+        artifact_dir=str(export_dir),
+        active_app=str(wrong_app),
+        app_settings_file="",
+        pages_root="",
+        repo_root=str(tmp_path / "repo"),
+        related_pages=(),
+    )
+
+    pipeline_editor.toml_to_notebook(
+        {
+            "uav_graph_routing": [
+                {
+                    "D": "Train routing policy",
+                    "Q": "Run routing training.",
+                    "M": "",
+                    "C": (
+                        "APP = 'uav_graph_routing_project'\n"
+                        "trainer = 'uav_graph_routing_ppo'\n"
+                    ),
+                    "R": "runpy",
+                }
+            ]
+        },
+        toml_path,
+        export_context=context,
+    )
+
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    helper_source = "".join(notebook["cells"][1]["source"])
+    namespace: dict[str, object] = {}
+    exec(helper_source, namespace)
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["repo_root"] = ""
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["pycharm_mirror_path"] = ""
+    namespace["AGILAB_NOTEBOOK_EXPORT"]["pages_root"] = ""
+
+    captured: dict[str, str] = {}
+
+    class _Result:
+        stdout = ""
+        stderr = ""
+
+        @staticmethod
+        def check_returncode() -> None:
+            return None
+
+    def _fake_run(cmd, **kwargs):
+        captured["script"] = Path(cmd[1]).read_text(encoding="utf-8")
+        return _Result()
+
+    original_run = namespace["subprocess"].run
+    monkeypatch.setenv("APPS_REPOSITORY", str(repo_apps))
+    try:
+        namespace["subprocess"].run = _fake_run
+        namespace["run_agilab_step"](0, capture_output=False)
+    finally:
+        namespace["subprocess"].run = original_run
+
+    assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
+    assert "flight_project" not in captured["script"]
 
 
 def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when_active_app_is_missing(
