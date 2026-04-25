@@ -124,8 +124,9 @@ graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
 runnable units with artifact dependencies and provenance, project runnable and
 blocked runner state with retry/partial-rerun metadata and operator messages,
 persist a queue-to-relay dispatch-state transition proof, execute
-``queue_baseline`` through the real ``uav_queue_project`` app entry while
-keeping ``relay_followup`` readiness-only, and verify that every non-template
+``queue_baseline`` and ``relay_followup`` through the real
+``uav_queue_project`` and ``uav_relay_queue_project`` app entries, persist
+``queue_metrics`` and ``relay_metrics``, and verify that every non-template
 built-in app exposes a reducer contract while recording ``mycode_project`` as
 the explicit template-only exemption.
 

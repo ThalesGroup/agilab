@@ -658,16 +658,19 @@ def _check_global_pipeline_app_dispatch_smoke_report(repo_root: Path) -> dict[st
         summary = report.get("summary", {})
         ok = (
             report.get("status") == "pass"
-            and summary.get("run_status") == "in_progress"
+            and summary.get("run_status") == "completed"
             and summary.get("persistence_format") == "json"
             and summary.get("round_trip_ok") is True
             and summary.get("unit_count") == 2
-            and summary.get("completed_unit_ids") == ["queue_baseline"]
-            and summary.get("runnable_unit_ids") == ["relay_followup"]
-            and summary.get("real_executed_unit_ids") == ["queue_baseline"]
-            and summary.get("readiness_only_unit_ids") == ["relay_followup"]
-            and summary.get("real_execution_scope") == "first_unit_only"
+            and summary.get("completed_unit_ids") == ["queue_baseline", "relay_followup"]
+            and summary.get("runnable_unit_ids") == []
+            and summary.get("real_executed_unit_ids") == ["queue_baseline", "relay_followup"]
+            and summary.get("readiness_only_unit_ids") == []
+            and summary.get("real_execution_scope") == "full_dag_smoke"
             and "queue_metrics" in summary.get("available_artifact_ids", [])
+            and "relay_metrics" in summary.get("available_artifact_ids", [])
+            and int(summary.get("queue_packets_generated", 0) or 0) > 0
+            and int(summary.get("relay_packets_generated", 0) or 0) > 0
             and int(summary.get("packets_generated", 0) or 0) > 0
         )
         details = {
@@ -684,7 +687,7 @@ def _check_global_pipeline_app_dispatch_smoke_report(repo_root: Path) -> dict[st
         "Global pipeline app dispatch smoke report contract",
         ok,
         (
-            "global pipeline app dispatch smoke executes queue_baseline through the real app entry"
+            "global pipeline app dispatch smoke executes queue_baseline and relay_followup through real app entries"
             if ok
             else "global pipeline app dispatch smoke report is failing or disconnected"
         ),
@@ -693,6 +696,8 @@ def _check_global_pipeline_app_dispatch_smoke_report(repo_root: Path) -> dict[st
             "src/agilab/global_pipeline_app_dispatch_smoke.py",
             "src/agilab/apps/builtin/uav_queue_project/src/uav_queue/uav_queue.py",
             "src/agilab/apps/builtin/uav_queue_project/src/uav_queue_worker/uav_queue_worker.py",
+            "src/agilab/apps/builtin/uav_relay_queue_project/src/uav_relay_queue/uav_relay_queue.py",
+            "src/agilab/apps/builtin/uav_relay_queue_project/src/uav_relay_queue_worker/uav_relay_queue_worker.py",
         ],
         details=details,
         executed=True,

@@ -1,7 +1,7 @@
 # BSD 3-Clause License
 #
 # Copyright (c) 2026, Jean-Pierre Morard, THALES SIX GTS France SAS
-"""Real first-unit dispatch smoke for AGILAB global pipeline DAGs."""
+"""Real app-dispatch smoke for AGILAB global pipeline DAGs."""
 
 from __future__ import annotations
 
@@ -24,13 +24,17 @@ from agilab.global_pipeline_runner_state import build_runner_state
 
 SCHEMA = "agilab.global_pipeline_app_dispatch_smoke.v1"
 DEFAULT_RUN_ID = "global-dag-real-dispatch-smoke"
-REAL_UNIT_ID = "queue_baseline"
-READY_ONLY_UNIT_ID = "relay_followup"
+QUEUE_UNIT_ID = "queue_baseline"
+RELAY_UNIT_ID = "relay_followup"
+REAL_UNIT_ID = QUEUE_UNIT_ID
+READY_ONLY_UNIT_ID = RELAY_UNIT_ID
 CREATED_AT = "2026-04-25T00:00:00Z"
 QUEUE_STARTED_AT = "2026-04-25T00:00:01Z"
 QUEUE_COMPLETED_AT = "2026-04-25T00:00:02Z"
 RELAY_RUNNABLE_AT = "2026-04-25T00:00:03Z"
-PERSISTED_AT = "2026-04-25T00:00:04Z"
+RELAY_STARTED_AT = "2026-04-25T00:00:03Z"
+RELAY_COMPLETED_AT = "2026-04-25T00:00:04Z"
+PERSISTED_AT = "2026-04-25T00:00:05Z"
 
 
 @dataclass(frozen=True)
@@ -151,7 +155,7 @@ def _unit_ids_for_status(state: Mapping[str, Any], status: str) -> tuple[str, ..
 
 def _queue_metrics(state: Mapping[str, Any]) -> dict[str, Any]:
     for unit in _unit_rows(state):
-        if unit.get("id") == REAL_UNIT_ID:
+        if unit.get("id") == QUEUE_UNIT_ID:
             metrics = unit.get("real_execution", {}).get("summary_metrics", {})
             return metrics if isinstance(metrics, dict) else {}
     return {}
@@ -164,15 +168,15 @@ def _relative(path: Path, root: Path) -> str:
         return str(path)
 
 
-def _ensure_queue_project_on_path(repo_root: Path) -> Path:
-    src_root = repo_root / "src" / "agilab" / "apps" / "builtin" / "uav_queue_project" / "src"
+def _ensure_app_project_on_path(repo_root: Path, project_name: str) -> Path:
+    src_root = repo_root / "src" / "agilab" / "apps" / "builtin" / project_name / "src"
     src_text = str(src_root)
     if src_text not in sys.path:
         sys.path.insert(0, src_text)
     return src_root
 
 
-def _make_env(run_root: Path) -> SimpleNamespace:
+def _make_env(run_root: Path, *, target: str) -> SimpleNamespace:
     share_root = run_root / "share"
     export_root = run_root / "export"
     share_root.mkdir(parents=True, exist_ok=True)
@@ -189,21 +193,32 @@ def _make_env(run_root: Path) -> SimpleNamespace:
         _is_managed_pc=False,
         AGI_LOCAL_SHARE=str(share_root),
         AGILAB_EXPORT_ABS=export_root,
-        target="global_dag_dispatch_smoke",
+        target=target,
     )
 
 
-def run_queue_baseline_app(
+def _run_queue_family_app(
     *,
     repo_root: Path,
     run_root: Path,
+    project_name: str,
+    manager_package: str,
+    worker_package: str,
+    manager_class_name: str,
+    args_class_name: str,
+    worker_class_name: str,
+    target: str,
+    app_entry: str,
 ) -> dict[str, Any]:
-    _ensure_queue_project_on_path(repo_root)
-    uav_queue = importlib.import_module("uav_queue")
-    uav_queue_worker = importlib.import_module("uav_queue_worker")
+    _ensure_app_project_on_path(repo_root, project_name)
+    manager_module = importlib.import_module(manager_package)
+    worker_module = importlib.import_module(worker_package)
+    args_class = getattr(manager_module, args_class_name)
+    manager_class = getattr(manager_module, manager_class_name)
+    worker_class = getattr(worker_module, worker_class_name)
 
-    env = _make_env(run_root)
-    args = uav_queue.UavQueueArgs(
+    env = _make_env(run_root, target=target)
+    args = args_class(
         routing_policy="queue_aware",
         sim_time_s=2.0,
         sampling_interval_s=0.5,
@@ -211,10 +226,10 @@ def run_queue_baseline_app(
         random_seed=2026,
         reset_target=True,
     )
-    manager = uav_queue.UavQueue(env, args=args)
+    manager = manager_class(env, args=args)
     source = sorted(manager.args.data_in.glob("*.json"))[0]
 
-    worker = uav_queue_worker.UavQueueWorker()
+    worker = worker_class()
     worker.env = env
     worker.args = manager.args.model_dump(mode="json")
     worker._worker_id = 0
@@ -232,12 +247,12 @@ def run_queue_baseline_app(
     summary_path = export_root / f"{stem}_summary_metrics.json"
     reduce_path = export_root / "reduce_summary_worker_0.json"
     if not summary_path.is_file():
-        raise FileNotFoundError(f"UAV queue summary metrics were not written: {summary_path}")
+        raise FileNotFoundError(f"{project_name} summary metrics were not written: {summary_path}")
     if not reduce_path.is_file():
-        raise FileNotFoundError(f"UAV queue reduce artifact was not written: {reduce_path}")
+        raise FileNotFoundError(f"{project_name} reduce artifact was not written: {reduce_path}")
 
     return {
-        "app_entry": "uav_queue.UavQueue + uav_queue_worker.UavQueueWorker",
+        "app_entry": app_entry,
         "source_scenario": _relative(source, run_root),
         "workspace": str(run_root),
         "export_root": _relative(export_root, run_root),
@@ -246,6 +261,53 @@ def run_queue_baseline_app(
         "reduce_artifact_path": _relative(reduce_path, run_root),
         "summary_metrics": metrics,
     }
+
+
+def run_queue_baseline_app(
+    *,
+    repo_root: Path,
+    run_root: Path,
+) -> dict[str, Any]:
+    return _run_queue_family_app(
+        repo_root=repo_root,
+        run_root=run_root,
+        project_name="uav_queue_project",
+        manager_package="uav_queue",
+        worker_package="uav_queue_worker",
+        manager_class_name="UavQueue",
+        args_class_name="UavQueueArgs",
+        worker_class_name="UavQueueWorker",
+        target="global_dag_dispatch_smoke_queue",
+        app_entry="uav_queue.UavQueue + uav_queue_worker.UavQueueWorker",
+    )
+
+
+def run_relay_followup_app(
+    *,
+    repo_root: Path,
+    run_root: Path,
+    queue_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    result = _run_queue_family_app(
+        repo_root=repo_root,
+        run_root=run_root,
+        project_name="uav_relay_queue_project",
+        manager_package="uav_relay_queue",
+        worker_package="uav_relay_queue_worker",
+        manager_class_name="UavRelayQueue",
+        args_class_name="UavRelayQueueArgs",
+        worker_class_name="UavRelayQueueWorker",
+        target="global_dag_dispatch_smoke_relay",
+        app_entry="uav_relay_queue.UavRelayQueue + uav_relay_queue_worker.UavRelayQueueWorker",
+    )
+    result["consumed_artifacts"] = [
+        {
+            "artifact": "queue_metrics",
+            "path": str(queue_result.get("summary_metrics_path", "")),
+            "producer": QUEUE_UNIT_ID,
+        }
+    ]
+    return result
 
 
 def _produces_by_id(plan_units: tuple[dict[str, Any], ...]) -> dict[str, list[dict[str, str]]]:
@@ -319,7 +381,12 @@ def build_app_dispatch_smoke_state(
     run_root = run_root.resolve()
     plan = build_execution_plan(repo_root=repo_root, dag_path=dag_path)
     runner_state = build_runner_state(repo_root=repo_root, dag_path=dag_path)
-    real_result = run_queue_baseline_app(repo_root=repo_root, run_root=run_root)
+    queue_result = run_queue_baseline_app(repo_root=repo_root, run_root=run_root)
+    relay_result = run_relay_followup_app(
+        repo_root=repo_root,
+        run_root=run_root,
+        queue_result=queue_result,
+    )
     produces_by_id = _produces_by_id(plan.runnable_units)
 
     units = [
@@ -327,8 +394,8 @@ def build_app_dispatch_smoke_state(
         for unit in runner_state.state_units
     ]
     by_id = {unit["id"]: unit for unit in units}
-    queue = by_id[REAL_UNIT_ID]
-    relay = by_id[READY_ONLY_UNIT_ID]
+    queue = by_id[QUEUE_UNIT_ID]
+    relay = by_id[RELAY_UNIT_ID]
 
     previous_queue_status = str(queue.get("dispatch_status", ""))
     queue["dispatch_status"] = "completed"
@@ -347,47 +414,82 @@ def build_app_dispatch_smoke_state(
         {
             **artifact,
             "kind": "summary_metrics",
-            "path": real_result["summary_metrics_path"],
+            "path": queue_result["summary_metrics_path"],
         }
         if artifact.get("artifact") == "queue_metrics"
         else artifact
         for artifact in queue["produces"]
     ]
-    queue["real_execution"] = real_result
+    queue["real_execution"] = queue_result
 
     previous_relay_status = str(relay.get("dispatch_status", ""))
-    relay["dispatch_status"] = "runnable"
-    relay["execution_mode"] = "readiness_only"
+    relay["dispatch_status"] = "completed"
+    relay["execution_mode"] = "real_app_entry"
+    relay["retry"]["attempt"] = 1
     relay["unblocked_by"] = ["queue_metrics"]
     relay["timestamps"]["unblocked_at"] = RELAY_RUNNABLE_AT
-    relay["timestamps"]["updated_at"] = RELAY_RUNNABLE_AT
+    relay["timestamps"]["started_at"] = RELAY_STARTED_AT
+    relay["timestamps"]["completed_at"] = RELAY_COMPLETED_AT
+    relay["timestamps"]["updated_at"] = RELAY_COMPLETED_AT
     relay["operator_ui"] = {
-        "state": "ready_to_dispatch",
-        "severity": "info",
-        "message": "relay_followup is runnable after the real queue_metrics artifact was produced.",
+        "state": "completed",
+        "severity": "success",
+        "message": "relay_followup executed via the real UAV relay queue app entry.",
         "blocked_by_artifacts": [],
     }
+    relay["produces"] = [
+        {
+            **artifact,
+            "kind": "summary_metrics",
+            "path": relay_result["summary_metrics_path"],
+        }
+        if artifact.get("artifact") == "relay_metrics"
+        else artifact
+        for artifact in relay["produces"]
+    ]
+    relay["real_execution"] = relay_result
 
-    metrics = real_result["summary_metrics"]
+    queue_metrics = queue_result["summary_metrics"]
+    relay_metrics = relay_result["summary_metrics"]
     artifacts = [
         {
             "artifact": "queue_metrics",
             "kind": "summary_metrics",
-            "path": real_result["summary_metrics_path"],
-            "producer": REAL_UNIT_ID,
+            "path": queue_result["summary_metrics_path"],
+            "producer": QUEUE_UNIT_ID,
             "status": "available",
             "available_at": QUEUE_COMPLETED_AT,
             "execution_mode": "real_app_entry",
-            "packets_generated": int(metrics.get("packets_generated", 0) or 0),
-            "packets_delivered": int(metrics.get("packets_delivered", 0) or 0),
+            "packets_generated": int(queue_metrics.get("packets_generated", 0) or 0),
+            "packets_delivered": int(queue_metrics.get("packets_delivered", 0) or 0),
         },
         {
             "artifact": "queue_reduce_summary",
             "kind": "reduce_artifact",
-            "path": real_result["reduce_artifact_path"],
-            "producer": REAL_UNIT_ID,
+            "path": queue_result["reduce_artifact_path"],
+            "producer": QUEUE_UNIT_ID,
             "status": "available",
             "available_at": QUEUE_COMPLETED_AT,
+            "execution_mode": "real_app_entry",
+        },
+        {
+            "artifact": "relay_metrics",
+            "kind": "summary_metrics",
+            "path": relay_result["summary_metrics_path"],
+            "producer": RELAY_UNIT_ID,
+            "status": "available",
+            "available_at": RELAY_COMPLETED_AT,
+            "execution_mode": "real_app_entry",
+            "packets_generated": int(relay_metrics.get("packets_generated", 0) or 0),
+            "packets_delivered": int(relay_metrics.get("packets_delivered", 0) or 0),
+        },
+        {
+            "artifact": "relay_reduce_summary",
+            "kind": "reduce_artifact",
+            "path": relay_result["reduce_artifact_path"],
+            "producer": RELAY_UNIT_ID,
+            "status": "available",
+            "available_at": RELAY_COMPLETED_AT,
             "execution_mode": "real_app_entry",
         },
     ]
@@ -398,12 +500,12 @@ def build_app_dispatch_smoke_state(
             unit_id="",
             from_status="",
             to_status="created",
-            detail="real first-unit global DAG dispatch smoke created",
+            detail="real global DAG app dispatch smoke created",
         ),
         _event(
             timestamp=QUEUE_STARTED_AT,
             kind="unit_started",
-            unit_id=REAL_UNIT_ID,
+            unit_id=QUEUE_UNIT_ID,
             from_status=previous_queue_status,
             to_status="running",
             detail="started real UAV queue app entry",
@@ -411,7 +513,7 @@ def build_app_dispatch_smoke_state(
         _event(
             timestamp=QUEUE_COMPLETED_AT,
             kind="unit_completed",
-            unit_id=REAL_UNIT_ID,
+            unit_id=QUEUE_UNIT_ID,
             from_status="running",
             to_status="completed",
             detail="real UAV queue app entry completed",
@@ -419,7 +521,7 @@ def build_app_dispatch_smoke_state(
         _event(
             timestamp=QUEUE_COMPLETED_AT,
             kind="artifact_available",
-            unit_id=REAL_UNIT_ID,
+            unit_id=QUEUE_UNIT_ID,
             from_status="missing",
             to_status="available",
             detail="real queue_metrics artifact became available",
@@ -427,10 +529,34 @@ def build_app_dispatch_smoke_state(
         _event(
             timestamp=RELAY_RUNNABLE_AT,
             kind="unit_unblocked",
-            unit_id=READY_ONLY_UNIT_ID,
+            unit_id=RELAY_UNIT_ID,
             from_status=previous_relay_status,
             to_status="runnable",
             detail="relay_followup readiness satisfied by the real queue_metrics artifact",
+        ),
+        _event(
+            timestamp=RELAY_STARTED_AT,
+            kind="unit_started",
+            unit_id=RELAY_UNIT_ID,
+            from_status="runnable",
+            to_status="running",
+            detail="started real UAV relay queue app entry",
+        ),
+        _event(
+            timestamp=RELAY_COMPLETED_AT,
+            kind="unit_completed",
+            unit_id=RELAY_UNIT_ID,
+            from_status="running",
+            to_status="completed",
+            detail="real UAV relay queue app entry completed",
+        ),
+        _event(
+            timestamp=RELAY_COMPLETED_AT,
+            kind="artifact_available",
+            unit_id=RELAY_UNIT_ID,
+            from_status="missing",
+            to_status="available",
+            detail="real relay_metrics artifact became available",
         ),
         _event(
             timestamp=PERSISTED_AT,
@@ -438,7 +564,7 @@ def build_app_dispatch_smoke_state(
             unit_id="",
             from_status="memory",
             to_status="disk",
-            detail="real first-unit dispatch smoke state JSON written and read back",
+            detail="real full-DAG dispatch smoke state JSON written and read back",
         ),
     ]
 
@@ -446,7 +572,7 @@ def build_app_dispatch_smoke_state(
         "schema": DISPATCH_STATE_SCHEMA,
         "run_id": run_id,
         "persistence_format": PERSISTENCE_FORMAT,
-        "run_status": "in_progress",
+        "run_status": "completed",
         "created_at": CREATED_AT,
         "updated_at": PERSISTED_AT,
         "source": {
@@ -459,16 +585,22 @@ def build_app_dispatch_smoke_state(
         },
         "summary": {
             "unit_count": len(units),
-            "completed_unit_ids": [REAL_UNIT_ID],
-            "runnable_unit_ids": [READY_ONLY_UNIT_ID],
+            "completed_unit_ids": [QUEUE_UNIT_ID, RELAY_UNIT_ID],
+            "runnable_unit_ids": [],
             "blocked_unit_ids": [],
             "available_artifact_ids": [artifact["artifact"] for artifact in artifacts],
-            "real_executed_unit_ids": [REAL_UNIT_ID],
-            "readiness_only_unit_ids": [READY_ONLY_UNIT_ID],
-            "real_execution_scope": "first_unit_only",
+            "real_executed_unit_ids": [QUEUE_UNIT_ID, RELAY_UNIT_ID],
+            "readiness_only_unit_ids": [],
+            "real_execution_scope": "full_dag_smoke",
             "event_count": len(events),
-            "packets_generated": int(metrics.get("packets_generated", 0) or 0),
-            "packets_delivered": int(metrics.get("packets_delivered", 0) or 0),
+            "queue_packets_generated": int(queue_metrics.get("packets_generated", 0) or 0),
+            "queue_packets_delivered": int(queue_metrics.get("packets_delivered", 0) or 0),
+            "relay_packets_generated": int(relay_metrics.get("packets_generated", 0) or 0),
+            "relay_packets_delivered": int(relay_metrics.get("packets_delivered", 0) or 0),
+            "packets_generated": int(queue_metrics.get("packets_generated", 0) or 0)
+            + int(relay_metrics.get("packets_generated", 0) or 0),
+            "packets_delivered": int(queue_metrics.get("packets_delivered", 0) or 0)
+            + int(relay_metrics.get("packets_delivered", 0) or 0),
         },
         "units": units,
         "artifacts": artifacts,
@@ -477,11 +609,11 @@ def build_app_dispatch_smoke_state(
             "source_dag": runner_state.dag_path,
             "source_plan_schema": runner_state.plan_schema,
             "source_runner_state_schema": runner_state.schema,
-            "dispatch_mode": "real_first_unit_dispatch_smoke",
+            "dispatch_mode": "real_full_dag_dispatch_smoke",
             "real_app_execution": True,
-            "real_execution_scope": "first_unit_only",
-            "real_executed_unit_ids": [REAL_UNIT_ID],
-            "readiness_only_unit_ids": [READY_ONLY_UNIT_ID],
+            "real_execution_scope": "full_dag_smoke",
+            "real_executed_unit_ids": [QUEUE_UNIT_ID, RELAY_UNIT_ID],
+            "readiness_only_unit_ids": [],
         },
     }
 
@@ -518,12 +650,15 @@ def persist_app_dispatch_smoke(
 
 __all__ = [
     "DEFAULT_RUN_ID",
+    "QUEUE_UNIT_ID",
     "READY_ONLY_UNIT_ID",
     "REAL_UNIT_ID",
+    "RELAY_UNIT_ID",
     "SCHEMA",
     "AppDispatchSmokeIssue",
     "AppDispatchSmokeProof",
     "build_app_dispatch_smoke_state",
     "persist_app_dispatch_smoke",
     "run_queue_baseline_app",
+    "run_relay_followup_app",
 ]

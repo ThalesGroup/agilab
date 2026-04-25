@@ -27,7 +27,7 @@ def _load_core_module():
     return module
 
 
-def test_app_dispatch_smoke_report_executes_queue_and_persists(tmp_path: Path) -> None:
+def test_app_dispatch_smoke_report_executes_queue_and_relay(tmp_path: Path) -> None:
     module = _load_report_module()
     output_path = tmp_path / "app_dispatch_smoke.json"
 
@@ -43,22 +43,30 @@ def test_app_dispatch_smoke_report_executes_queue_and_persists(tmp_path: Path) -
     assert report["summary"]["schema"] == "agilab.global_pipeline_dispatch_state.v1"
     assert report["summary"]["smoke_schema"] == "agilab.global_pipeline_app_dispatch_smoke.v1"
     assert report["summary"]["run_id"] == "global-dag-real-dispatch-smoke"
-    assert report["summary"]["run_status"] == "in_progress"
+    assert report["summary"]["run_status"] == "completed"
     assert report["summary"]["persistence_format"] == "json"
     assert report["summary"]["round_trip_ok"] is True
     assert report["summary"]["unit_count"] == 2
-    assert report["summary"]["completed_unit_ids"] == ["queue_baseline"]
-    assert report["summary"]["runnable_unit_ids"] == ["relay_followup"]
-    assert report["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
-    assert report["summary"]["readiness_only_unit_ids"] == ["relay_followup"]
-    assert report["summary"]["real_execution_scope"] == "first_unit_only"
+    assert report["summary"]["completed_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert report["summary"]["runnable_unit_ids"] == []
+    assert report["summary"]["real_executed_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert report["summary"]["readiness_only_unit_ids"] == []
+    assert report["summary"]["real_execution_scope"] == "full_dag_smoke"
+    assert report["summary"]["queue_packets_generated"] > 0
+    assert report["summary"]["relay_packets_generated"] > 0
     assert report["summary"]["packets_generated"] > 0
-    assert report["summary"]["available_artifact_ids"] == ["queue_metrics", "queue_reduce_summary"]
+    assert report["summary"]["available_artifact_ids"] == [
+        "queue_metrics",
+        "queue_reduce_summary",
+        "relay_metrics",
+        "relay_reduce_summary",
+    ]
     assert {check["id"] for check in report["checks"]} == {
         "global_pipeline_app_dispatch_smoke_schema",
         "global_pipeline_app_dispatch_smoke_real_queue",
+        "global_pipeline_app_dispatch_smoke_real_relay",
         "global_pipeline_app_dispatch_smoke_artifacts",
-        "global_pipeline_app_dispatch_smoke_relay_readiness",
+        "global_pipeline_app_dispatch_smoke_full_dag",
         "global_pipeline_app_dispatch_smoke_persistence",
         "global_pipeline_app_dispatch_smoke_provenance",
         "global_pipeline_app_dispatch_smoke_docs_reference",
@@ -78,19 +86,33 @@ def test_app_dispatch_smoke_state_contains_real_artifacts(tmp_path: Path) -> Non
     assert proof.round_trip_ok is True
     state = proof.dispatch_state
     queue, relay = state["units"]
-    metrics = queue["real_execution"]["summary_metrics"]
+    queue_metrics = queue["real_execution"]["summary_metrics"]
+    relay_metrics = relay["real_execution"]["summary_metrics"]
     workspace = Path(queue["real_execution"]["workspace"])
     assert state["provenance"]["real_app_execution"] is True
-    assert state["provenance"]["real_execution_scope"] == "first_unit_only"
+    assert state["provenance"]["real_execution_scope"] == "full_dag_smoke"
+    assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert state["summary"]["readiness_only_unit_ids"] == []
     assert queue["dispatch_status"] == "completed"
     assert queue["execution_mode"] == "real_app_entry"
-    assert metrics["routing_policy"] == "queue_aware"
-    assert metrics["packets_generated"] > 0
-    assert relay["dispatch_status"] == "runnable"
-    assert relay["execution_mode"] == "readiness_only"
+    assert queue_metrics["routing_policy"] == "queue_aware"
+    assert queue_metrics["packets_generated"] > 0
+    assert relay["dispatch_status"] == "completed"
+    assert relay["execution_mode"] == "real_app_entry"
     assert relay["unblocked_by"] == ["queue_metrics"]
+    assert relay["real_execution"]["consumed_artifacts"] == [
+        {
+            "artifact": "queue_metrics",
+            "path": queue["real_execution"]["summary_metrics_path"],
+            "producer": "queue_baseline",
+        }
+    ]
+    assert relay_metrics["routing_policy"] == "queue_aware"
+    assert relay_metrics["packets_generated"] > 0
     assert (workspace / queue["real_execution"]["summary_metrics_path"]).is_file()
     assert (workspace / queue["real_execution"]["reduce_artifact_path"]).is_file()
+    assert (workspace / relay["real_execution"]["summary_metrics_path"]).is_file()
+    assert (workspace / relay["real_execution"]["reduce_artifact_path"]).is_file()
 
 
 def test_app_dispatch_smoke_report_handles_load_failure(tmp_path: Path) -> None:
