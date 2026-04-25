@@ -647,6 +647,299 @@ def _manifest_index_comparison_summary(
     }
 
 
+def _status_counts(rows: list[dict[str, Any]], key: str = "status") -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get(key, "unknown"))
+        counts[status] = counts.get(status, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _manifest_evidence_from_summary(summary: dict[str, Any], path: Path | str) -> dict[str, Any]:
+    loaded = bool(summary.get("loaded"))
+    status = str(summary.get("status") or "")
+    error = summary.get("error")
+    evidence_status = "validated" if loaded and status == "pass" else "failed"
+    if error in {"missing", "not_found"}:
+        evidence_status = "missing"
+    elif not loaded:
+        evidence_status = "invalid"
+    return {
+        "source": str(path),
+        "path_id": summary.get("path_id", ""),
+        "run_id": summary.get("run_id", ""),
+        "manifest_status": status,
+        "evidence_status": evidence_status,
+        "duration_seconds": summary.get("duration_seconds"),
+        "target_seconds": summary.get("target_seconds"),
+        "loaded": loaded,
+        "detail": error or "selected run manifest summary",
+    }
+
+
+def _selected_release_manifest_evidence(release: dict[str, Any]) -> dict[str, Any] | None:
+    manifests = [
+        manifest
+        for manifest in release.get("manifests", [])
+        if isinstance(manifest, dict)
+    ]
+    first_proof = [
+        manifest
+        for manifest in manifests
+        if manifest.get("path_id") == FIRST_PROOF_PATH_ID
+    ]
+    best = _best_manifest_record(
+        [
+            {
+                "release_id": str(release.get("release_id", "")),
+                "candidate_bundle": str(release.get("candidate_bundle_root", "")),
+                "manifest": manifest,
+            }
+            for manifest in (first_proof or manifests)
+        ]
+    )
+    if best:
+        return best["manifest"]
+    summary = release.get("selected_run_manifest_summary")
+    path = release.get("selected_run_manifest_path")
+    if isinstance(summary, dict) and path:
+        return _manifest_evidence_from_summary(summary, str(path))
+    return None
+
+
+def _reduce_rows_for_bundle(
+    reduce_artifact_rows: list[dict[str, Any]],
+    bundle_root: Path,
+) -> list[dict[str, Any]]:
+    bundle_root = bundle_root.expanduser()
+    rows: list[dict[str, Any]] = []
+    for row in reduce_artifact_rows:
+        path_value = row.get("path")
+        if not path_value:
+            continue
+        try:
+            if Path(str(path_value)).expanduser().is_relative_to(bundle_root):
+                rows.append(row)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+    return rows
+
+
+def _reduce_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    valid_rows = [row for row in rows if row.get("status") == "pass"]
+    invalid_rows = [row for row in rows if row.get("status") == "invalid"]
+    reducers = sorted({str(row.get("reducer", "")) for row in valid_rows if row.get("reducer")})
+    names = sorted({str(row.get("name", "")) for row in valid_rows if row.get("name")})
+    return {
+        "total_count": len(rows),
+        "valid_count": len(valid_rows),
+        "invalid_count": len(invalid_rows),
+        "reducers": reducers,
+        "names": names,
+    }
+
+
+def _compare_reduce_summaries(current: dict[str, Any], target: dict[str, Any]) -> tuple[str, str]:
+    if current["invalid_count"]:
+        return "invalid_current", "Current bundle has invalid reduce artifacts."
+    if target["valid_count"] and not current["valid_count"]:
+        return "missing_current", "Target has valid reduce artifacts but the current bundle has none."
+    if current["valid_count"] > target["valid_count"]:
+        return "expanded", "Current bundle has more valid reduce artifacts than the target."
+    if current["valid_count"] < target["valid_count"]:
+        return "reduced", "Current bundle has fewer valid reduce artifacts than the target."
+    if current["reducers"] != target["reducers"]:
+        return "changed", "Current reduce artifact reducers differ from the target."
+    if current["valid_count"]:
+        return "stable", "Current reduce artifact coverage matches the target."
+    return "not_available", "Neither bundle has reduce artifacts."
+
+
+def _evidence_target_rows(
+    *,
+    target_kind: str,
+    target_release_id: str,
+    target_bundle: Path,
+    target_metrics_path: Path | None,
+    target_metrics_payload: dict[str, Any] | None,
+    target_manifest: dict[str, Any] | None,
+    candidate_bundle: Path,
+    candidate_metrics_payload: dict[str, Any],
+    current_manifest: dict[str, Any],
+    required_patterns: list[str],
+    reduce_artifact_rows: list[dict[str, Any]],
+    tolerance_pct: float,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    manifest_status, manifest_detail = _classify_manifest_comparison(current_manifest, target_manifest)
+    rows.append(
+        {
+            "target_kind": target_kind,
+            "target_release": target_release_id,
+            "target_bundle": str(target_bundle),
+            "evidence": "manifest",
+            "key": _manifest_comparison_key(current_manifest),
+            "status": manifest_status,
+            "current_value": current_manifest.get("evidence_status", "missing"),
+            "target_value": (target_manifest or {}).get("evidence_status", "missing"),
+            "detail": manifest_detail,
+        }
+    )
+
+    if target_metrics_payload is None:
+        rows.append(
+            {
+                "target_kind": target_kind,
+                "target_release": target_release_id,
+                "target_bundle": str(target_bundle),
+                "evidence": "kpi",
+                "key": "metrics_file",
+                "status": "missing_target",
+                "current_value": "loaded",
+                "target_value": str(target_metrics_path or ""),
+                "detail": "Target metrics payload could not be loaded.",
+            }
+        )
+    else:
+        metric_rows = _build_metric_rows(
+            _flatten_numeric_metrics(target_metrics_payload),
+            _flatten_numeric_metrics(candidate_metrics_payload),
+            tolerance_pct=tolerance_pct,
+        )
+        for row in metric_rows:
+            rows.append(
+                {
+                    "target_kind": target_kind,
+                    "target_release": target_release_id,
+                    "target_bundle": str(target_bundle),
+                    "evidence": "kpi",
+                    "key": row["metric"],
+                    "status": row["status"],
+                    "current_value": row["candidate"],
+                    "target_value": row["baseline"],
+                    "detail": row["detail"],
+                }
+            )
+
+    for row in _build_artifact_rows(target_bundle, candidate_bundle, required_patterns):
+        rows.append(
+            {
+                "target_kind": target_kind,
+                "target_release": target_release_id,
+                "target_bundle": str(target_bundle),
+                "evidence": "artifact",
+                "key": row["pattern"],
+                "status": row["status"],
+                "current_value": row["candidate_count"],
+                "target_value": row["baseline_count"],
+                "detail": row["detail"],
+            }
+        )
+
+    current_reduce = _reduce_summary(_reduce_rows_for_bundle(reduce_artifact_rows, candidate_bundle))
+    target_reduce = _reduce_summary(_reduce_rows_for_bundle(reduce_artifact_rows, target_bundle))
+    reduce_status, reduce_detail = _compare_reduce_summaries(current_reduce, target_reduce)
+    rows.append(
+        {
+            "target_kind": target_kind,
+            "target_release": target_release_id,
+            "target_bundle": str(target_bundle),
+            "evidence": "reduce_artifact",
+            "key": "reduce_summary_worker_*.json",
+            "status": reduce_status,
+            "current_value": current_reduce["valid_count"],
+            "target_value": target_reduce["valid_count"],
+            "detail": reduce_detail,
+        }
+    )
+    return rows
+
+
+def _build_evidence_bundle_comparison_rows(
+    *,
+    existing_index: dict[str, Any],
+    baseline_path: Path,
+    candidate_path: Path,
+    candidate_payload: dict[str, Any],
+    run_manifest_path: Path,
+    run_manifest_summary: dict[str, Any],
+    current_release: dict[str, Any],
+    required_patterns: list[str],
+    reduce_artifact_rows: list[dict[str, Any]],
+    tolerance_pct: float,
+) -> list[dict[str, Any]]:
+    current_manifest = _selected_release_manifest_evidence(current_release) or _manifest_evidence_from_summary(
+        run_manifest_summary,
+        run_manifest_path,
+    )
+    rows = _evidence_target_rows(
+        target_kind="baseline",
+        target_release_id=baseline_path.parent.name,
+        target_bundle=baseline_path.parent,
+        target_metrics_path=baseline_path,
+        target_metrics_payload=_load_metrics(baseline_path),
+        target_manifest=None,
+        candidate_bundle=candidate_path.parent,
+        candidate_metrics_payload=candidate_payload,
+        current_manifest=current_manifest,
+        required_patterns=required_patterns,
+        reduce_artifact_rows=reduce_artifact_rows,
+        tolerance_pct=tolerance_pct,
+    )
+
+    current_candidate = str(candidate_path.parent)
+    for release_key, release in sorted(existing_index.get("releases", {}).items()):
+        if (
+            not isinstance(release, dict)
+            or str(release.get("candidate_bundle_root", release_key)) == current_candidate
+        ):
+            continue
+        target_bundle = Path(str(release.get("candidate_bundle_root", release_key))).expanduser()
+        target_metrics_path = Path(str(release.get("candidate_metrics_file", ""))).expanduser()
+        try:
+            target_metrics_payload = _load_metrics(target_metrics_path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            target_metrics_payload = None
+        rows.extend(
+            _evidence_target_rows(
+                target_kind="prior_indexed",
+                target_release_id=_release_display_id(str(release_key), release),
+                target_bundle=target_bundle,
+                target_metrics_path=target_metrics_path,
+                target_metrics_payload=target_metrics_payload,
+                target_manifest=_selected_release_manifest_evidence(release),
+                candidate_bundle=candidate_path.parent,
+                candidate_metrics_payload=candidate_payload,
+                current_manifest=current_manifest,
+                required_patterns=required_patterns,
+                reduce_artifact_rows=reduce_artifact_rows,
+                tolerance_pct=tolerance_pct,
+            )
+        )
+    return rows
+
+
+def _evidence_bundle_comparison_summary(rows: list[dict[str, Any]], candidate_path: Path) -> dict[str, Any]:
+    blocking_statuses = {
+        "fail",
+        "failed",
+        "invalid_current",
+        "missing_current",
+        "missing_current_evidence",
+        "regressed",
+    }
+    return {
+        "current_candidate_bundle_root": str(candidate_path.parent),
+        "target_count": len({(row.get("target_kind"), row.get("target_bundle")) for row in rows}),
+        "row_count": len(rows),
+        "status_counts": _status_counts(rows),
+        "evidence_counts": _status_counts(rows, key="evidence"),
+        "blocking_count": sum(
+            1 for row in rows if str(row.get("status", "")) in blocking_statuses
+        ),
+    }
+
+
 def _write_manifest_index(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -1030,6 +1323,8 @@ def _decision_payload(
     manifest_index_summary: dict[str, Any],
     manifest_index_comparison_rows: list[dict[str, Any]],
     manifest_index_comparison_summary: dict[str, Any],
+    evidence_bundle_comparison_rows: list[dict[str, Any]],
+    evidence_bundle_comparison_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -1058,6 +1353,8 @@ def _decision_payload(
         "manifest_index_summary": manifest_index_summary,
         "manifest_index_comparison": manifest_index_comparison_rows,
         "manifest_index_comparison_summary": manifest_index_comparison_summary,
+        "evidence_bundle_comparison": evidence_bundle_comparison_rows,
+        "evidence_bundle_comparison_summary": evidence_bundle_comparison_summary,
         "artifact_gates": artifact_rows,
         "metric_gates": metric_rows,
         "reduce_artifacts": reduce_artifact_rows,
@@ -1228,6 +1525,22 @@ manifest_index_comparison_summary = _manifest_index_comparison_summary(
     existing_manifest_index,
     current_manifest_index_release,
 )
+evidence_bundle_comparison_rows = _build_evidence_bundle_comparison_rows(
+    existing_index=existing_manifest_index,
+    baseline_path=baseline_path,
+    candidate_path=candidate_path,
+    candidate_payload=candidate_payload,
+    run_manifest_path=run_manifest_path,
+    run_manifest_summary=run_manifest_summary,
+    current_release=current_manifest_index_release,
+    required_patterns=required_patterns,
+    reduce_artifact_rows=reduce_artifact_rows,
+    tolerance_pct=tolerance_pct,
+)
+evidence_bundle_comparison_summary = _evidence_bundle_comparison_summary(
+    evidence_bundle_comparison_rows,
+    candidate_path,
+)
 decision_status, decision_summary = _decision_status(
     baseline_path=baseline_path,
     candidate_path=candidate_path,
@@ -1254,6 +1567,8 @@ payload = _decision_payload(
     manifest_index_summary=manifest_index_summary,
     manifest_index_comparison_rows=manifest_index_comparison_rows,
     manifest_index_comparison_summary=manifest_index_comparison_summary,
+    evidence_bundle_comparison_rows=evidence_bundle_comparison_rows,
+    evidence_bundle_comparison_summary=evidence_bundle_comparison_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
@@ -1309,6 +1624,21 @@ if manifest_index_comparison_rows:
     st.dataframe(pd.DataFrame(manifest_index_comparison_rows), width="stretch", hide_index=True)
 else:
     st.info("No current or prior indexed run manifests are available for comparison.")
+
+st.subheader("Cross-run evidence bundle comparison")
+st.caption(
+    "Compares manifest, KPI, required artifact, and reduce-artifact evidence "
+    "against the baseline and prior indexed releases."
+)
+if evidence_bundle_comparison_rows:
+    evidence_bundle_comparison_df = pd.DataFrame(evidence_bundle_comparison_rows)
+    for column in ("current_value", "target_value"):
+        evidence_bundle_comparison_df[column] = evidence_bundle_comparison_df[column].map(
+            lambda value: "" if value is None else str(value)
+        )
+    st.dataframe(evidence_bundle_comparison_df, width="stretch", hide_index=True)
+else:
+    st.info("No evidence bundle comparison rows are available.")
 
 metric_df = pd.DataFrame(metric_rows)
 if metric_df.empty:

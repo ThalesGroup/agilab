@@ -184,7 +184,8 @@ production platform:
   evidence with ``--manifest`` / ``--manifest-dir`` style inputs, evaluates
   artifact and KPI gates, and exports ``promotion_decision.json`` with manifest
   summary, import summary, per-release ``manifest_index.json`` evidence
-  history, cross-release manifest comparison, and gate details
+  history, cross-release manifest comparison, cross-run evidence bundle
+  comparison, and gate details
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

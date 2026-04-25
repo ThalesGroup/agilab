@@ -11,6 +11,7 @@ Primary use:
 - export `promotion_decision.json`
 - maintain a per-artifact-root `manifest_index.json`
 - compare current evidence against prior indexed releases
+- compare full evidence bundles across runs
 
 Default search root:
 
@@ -47,5 +48,8 @@ durable evidence history instead of relying only on pasted import arguments.
 The page also shows a cross-release manifest comparison that flags better,
 stale, missing-current, failed, and newly validated evidence relative to prior
 indexed candidate bundles.
+The exported decision also includes a cross-run evidence bundle comparison that
+summarizes selected manifest, KPI, required artifact, and reduce-artifact
+evidence against the selected baseline and prior indexed releases.
 
 This is the first app-layer MVP for AGILAB's promotion / release decision workflow.
