@@ -127,6 +127,7 @@ tools/run_diff_evidence_report.py --compact
 tools/ci_artifact_harvest_report.py --compact
 tools/github_actions_artifact_index.py --archive <artifact.zip> --output artifact_index.json
 tools/ci_provider_artifact_index.py --provider gitlab_ci --archive <artifact.zip> --output artifact_index.json
+tools/ci_provider_artifact_index.py --live-gitlab --project <group/project> --pipeline-id <id> --output artifact_index.json
 tools/multi_app_dag_report.py --compact
 tools/global_pipeline_dag_report.py --compact
 tools/global_pipeline_execution_plan_report.py --compact

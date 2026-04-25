@@ -106,6 +106,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/ci_provider_artifact_index.py --provider gitlab_ci --archive artifact.zip --compact
+   uv --preview-features extra-build-dependencies run python tools/ci_provider_artifact_index.py --live-gitlab --project group/project --pipeline-id 123 --compact
    uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
@@ -249,7 +250,9 @@ external-machine attachments, and Release Decision can import the resulting
 provider harvesting is introduced.
 ``tools/ci_provider_artifact_index.py --provider gitlab_ci --archive`` converts
 downloaded GitLab CI or generic provider artifact ZIPs into the same harvest
-input without provider API queries. ``tools/github_actions_artifact_index.py
+input without provider API queries, and opt-in ``--live-gitlab`` can query and
+download a GitLab CI pipeline when operator credentials are available.
+``tools/github_actions_artifact_index.py
 --archive`` keeps the GitHub Actions-specific ZIP path, and its opt-in
 ``--live-github`` mode can query and download workflow-run artifacts when
 operator credentials are available.
@@ -276,6 +279,6 @@ GitLab CI/generic archive coverage, and the first live provider download
 adapter.
 The larger roadmap work is still open:
 
-- live provider API coverage beyond GitHub Actions
+- credentialed execution of non-GitHub live provider API harvests
 - deeper app/core supply-chain attestation beyond static revision fingerprints
 - formal certification beyond the bounded public-evidence profile

@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import tempfile
 from typing import Any
+from urllib import parse
 from urllib import request
 from zipfile import ZipFile
 
@@ -253,12 +254,28 @@ def _github_headers(token: str | None) -> dict[str, str]:
     return headers
 
 
+def _gitlab_headers(token: str | None) -> dict[str, str]:
+    headers = {"User-Agent": DEFAULT_USER_AGENT}
+    if token:
+        headers["PRIVATE-TOKEN"] = token
+    return headers
+
+
 def _read_json_url(url: str, *, token: str | None, urlopen: UrlOpen) -> dict[str, Any]:
     req = request.Request(url, headers=_github_headers(token))
     with urlopen(req) as response:
         payload = json.loads(response.read().decode("utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"GitHub API response is not a JSON object: {url}")
+    return payload
+
+
+def _read_gitlab_json_url(url: str, *, token: str | None, urlopen: UrlOpen) -> list[Any]:
+    req = request.Request(url, headers=_gitlab_headers(token))
+    with urlopen(req) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError(f"GitLab API response is not a JSON list: {url}")
     return payload
 
 
@@ -292,6 +309,40 @@ def list_github_actions_artifacts(
     return artifacts, query_count
 
 
+def list_gitlab_ci_artifacts(
+    *,
+    project: str,
+    pipeline_id: str,
+    gitlab_url: str = "https://gitlab.com",
+    token: str | None = None,
+    urlopen: UrlOpen = request.urlopen,
+) -> tuple[list[dict[str, Any]], int]:
+    """List GitLab CI jobs with downloadable artifact archives for a pipeline."""
+
+    artifacts: list[dict[str, Any]] = []
+    query_count = 0
+    page = 1
+    encoded_project = parse.quote(project, safe="")
+    base_url = gitlab_url.rstrip("/")
+    while True:
+        url = (
+            f"{base_url}/api/v4/projects/{encoded_project}/pipelines/"
+            f"{pipeline_id}/jobs?scope[]=success&per_page=100&page={page}"
+        )
+        payload = _read_gitlab_json_url(url, token=token, urlopen=urlopen)
+        query_count += 1
+        page_artifacts = [
+            row
+            for row in payload
+            if isinstance(row, dict) and isinstance(row.get("artifacts_file"), dict)
+        ]
+        artifacts.extend(page_artifacts)
+        if len(payload) < 100:
+            break
+        page += 1
+    return artifacts, query_count
+
+
 def download_github_actions_artifacts(
     artifacts: Sequence[Mapping[str, Any]],
     *,
@@ -313,6 +364,42 @@ def download_github_actions_artifacts(
         artifact_id = str(artifact.get("id", "") or len(paths) + 1)
         target = destination / f"{name}-{artifact_id}.zip"
         req = request.Request(archive_url, headers=_github_headers(token))
+        with urlopen(req) as response:
+            target.write_bytes(response.read())
+        paths.append(target)
+        download_count += 1
+    return paths, download_count
+
+
+def download_gitlab_ci_artifacts(
+    artifacts: Sequence[Mapping[str, Any]],
+    *,
+    destination: Path,
+    project: str,
+    gitlab_url: str = "https://gitlab.com",
+    token: str | None = None,
+    urlopen: UrlOpen = request.urlopen,
+) -> tuple[list[Path], int]:
+    """Download GitLab CI job artifact archives into ``destination``."""
+
+    destination = destination.expanduser()
+    destination.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    download_count = 0
+    encoded_project = parse.quote(project, safe="")
+    base_url = gitlab_url.rstrip("/")
+    for artifact in artifacts:
+        job_id = str(artifact.get("id", "") or "")
+        if not job_id:
+            continue
+        artifact_file = artifact.get("artifacts_file", {})
+        filename = "artifacts.zip"
+        if isinstance(artifact_file, Mapping):
+            filename = str(artifact_file.get("filename", "") or filename)
+        name = _safe_id(str(artifact.get("name", "") or "job"))
+        target = destination / f"{name}-{job_id}-{_safe_id(filename)}.zip"
+        url = f"{base_url}/api/v4/projects/{encoded_project}/jobs/{job_id}/artifacts"
+        req = request.Request(url, headers=_gitlab_headers(token))
         with urlopen(req) as response:
             target.write_bytes(response.read())
         paths.append(target)
@@ -376,6 +463,74 @@ def build_github_actions_artifact_index(
         source_machine=source_machine,
         release_id=release_id,
         provider=PROVIDER,
+        provider_query_count=provider_query_count,
+        download_count=download_count,
+        provider_artifacts=provider_artifacts,
+    )
+
+
+def build_gitlab_ci_artifact_index(
+    *,
+    project: str,
+    pipeline_id: str,
+    gitlab_url: str = "https://gitlab.com",
+    download_dir: Path | None = None,
+    token: str | None = None,
+    workflow: str = "",
+    run_attempt: str = "",
+    source_machine: str = "gitlab-ci",
+    release_id: str = DEFAULT_RELEASE_ID,
+    urlopen: UrlOpen = request.urlopen,
+) -> dict[str, Any]:
+    """Query GitLab CI, download job artifacts, and build a harvest index."""
+
+    provider_artifacts, provider_query_count = list_gitlab_ci_artifacts(
+        project=project,
+        pipeline_id=pipeline_id,
+        gitlab_url=gitlab_url,
+        token=token,
+        urlopen=urlopen,
+    )
+    if download_dir is None:
+        with tempfile.TemporaryDirectory(prefix="agilab-gitlab-ci-artifacts-") as tmp:
+            archives, download_count = download_gitlab_ci_artifacts(
+                provider_artifacts,
+                destination=Path(tmp),
+                project=project,
+                gitlab_url=gitlab_url,
+                token=token,
+                urlopen=urlopen,
+            )
+            return build_artifact_index_from_archives(
+                archives,
+                repository=project,
+                run_id=pipeline_id,
+                workflow=workflow,
+                run_attempt=run_attempt,
+                source_machine=source_machine,
+                release_id=release_id,
+                provider=GITLAB_CI_PROVIDER,
+                provider_query_count=provider_query_count,
+                download_count=download_count,
+                provider_artifacts=provider_artifacts,
+            )
+    archives, download_count = download_gitlab_ci_artifacts(
+        provider_artifacts,
+        destination=download_dir,
+        project=project,
+        gitlab_url=gitlab_url,
+        token=token,
+        urlopen=urlopen,
+    )
+    return build_artifact_index_from_archives(
+        archives,
+        repository=project,
+        run_id=pipeline_id,
+        workflow=workflow,
+        run_attempt=run_attempt,
+        source_machine=source_machine,
+        release_id=release_id,
+        provider=GITLAB_CI_PROVIDER,
         provider_query_count=provider_query_count,
         download_count=download_count,
         provider_artifacts=provider_artifacts,

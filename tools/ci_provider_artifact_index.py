@@ -36,6 +36,8 @@ from agilab.ci_provider_artifacts import (  # noqa: E402
     GITLAB_CI_PROVIDER,
     SCHEMA,
     build_artifact_index_from_archives,
+    build_gitlab_ci_artifact_index,
+    token_from_env,
     write_artifact_index,
     write_sample_ci_provider_archive,
     write_sample_ci_provider_directory,
@@ -76,6 +78,25 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--release-id", default=DEFAULT_RELEASE_ID)
     parser.add_argument(
+        "--live-gitlab",
+        action="store_true",
+        help="Query the GitLab CI API and download pipeline job artifacts.",
+    )
+    parser.add_argument("--project", default="", help="GitLab project path or id.")
+    parser.add_argument("--pipeline-id", default="", help="GitLab CI pipeline id.")
+    parser.add_argument("--gitlab-url", default="https://gitlab.com")
+    parser.add_argument(
+        "--download-dir",
+        type=Path,
+        default=None,
+        help="Directory for live GitLab artifact ZIP downloads.",
+    )
+    parser.add_argument(
+        "--token-env",
+        default="GITLAB_TOKEN",
+        help="Environment variable that contains the GitLab API token.",
+    )
+    parser.add_argument(
         "--write-sample-archive",
         type=Path,
         default=None,
@@ -109,8 +130,24 @@ def _build_index(args: argparse.Namespace) -> dict[str, object]:
             "status": "sample_directory_written",
             "path": str(directory_path),
         }
+    if args.live_gitlab:
+        if not args.project or not args.pipeline_id:
+            raise SystemExit("--live-gitlab requires --project and --pipeline-id")
+        return build_gitlab_ci_artifact_index(
+            project=args.project,
+            pipeline_id=args.pipeline_id,
+            gitlab_url=args.gitlab_url,
+            download_dir=args.download_dir,
+            token=token_from_env(args.token_env),
+            workflow=args.workflow,
+            run_attempt=args.run_attempt,
+            source_machine=(
+                "gitlab-ci" if args.source_machine == "ci-provider" else args.source_machine
+            ),
+            release_id=args.release_id,
+        )
     if not args.archive:
-        raise SystemExit("pass at least one --archive")
+        raise SystemExit("pass at least one --archive or use --live-gitlab")
     return build_artifact_index_from_archives(
         args.archive,
         repository=args.repo,
