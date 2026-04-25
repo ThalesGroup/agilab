@@ -54,6 +54,7 @@ from agilab.data_connector_resolution import (
     load_app_settings,
 )
 from agilab.data_connector_ui_preview import build_data_connector_ui_preview
+from agilab.ci_artifact_harvest import SCHEMA as CI_ARTIFACT_HARVEST_SCHEMA
 from agi_node.reduction import ReduceArtifact
 
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")
@@ -61,6 +62,7 @@ HIGHER_IS_BETTER_KEYWORDS = ("accuracy", "f1", "precision", "recall", "throughpu
 REDUCE_ARTIFACT_GLOB = "**/reduce_summary_worker_*.json"
 MANIFEST_INDEX_FILENAME = "manifest_index.json"
 MANIFEST_INDEX_SCHEMA = "agilab.manifest_index.v1"
+CI_ARTIFACT_HARVEST_FILENAME = "ci_artifact_harvest.json"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 REQUIRED_FIRST_PROOF_VALIDATIONS = ("proof_steps", "target_seconds", "recommended_project")
 MANIFEST_SIGNATURE_SUFFIXES = (".sig", ".minisig", ".asc")
@@ -403,6 +405,282 @@ def _build_manifest_import_rows(raw_value: str) -> tuple[list[dict[str, Any]], d
         ),
         "unverifiable_attachment_count": sum(1 for row in rows if row.get("attachment_status") == "unverifiable"),
     }
+    return rows, summary
+
+
+def _parse_ci_artifact_harvest_import_args(raw_value: str) -> tuple[list[Path], list[dict[str, str]]]:
+    if not raw_value.strip():
+        return [], []
+    try:
+        tokens = shlex.split(raw_value)
+    except ValueError as exc:
+        return [], [{"source": "import args", "detail": f"Unable to parse CI artifact harvest args: {exc}"}]
+
+    paths: list[Path] = []
+    errors: list[dict[str, str]] = []
+    path_flags = {
+        "--ci-artifact-harvest",
+        "--ci-artifact-harvest-path",
+        "--harvest",
+    }
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in path_flags:
+            if index + 1 >= len(tokens) or tokens[index + 1].startswith("--"):
+                errors.append({"source": token, "detail": f"{token} requires a path value"})
+                index += 1
+                continue
+            paths.append(Path(tokens[index + 1]).expanduser())
+            index += 2
+            continue
+        matched_flag = next(
+            (
+                flag
+                for flag in path_flags
+                if token.startswith(f"{flag}=")
+            ),
+            "",
+        )
+        if matched_flag:
+            paths.append(Path(token.split("=", 1)[1]).expanduser())
+        elif not token.startswith("--") and Path(token).name == CI_ARTIFACT_HARVEST_FILENAME:
+            paths.append(Path(token).expanduser())
+        index += 1
+
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        key = str(path.resolve()) if path.exists() else str(path.absolute())
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(path)
+    return deduped, errors
+
+
+def _ci_artifact_harvest_attachment_metadata(path: Path, provenance: str) -> dict[str, Any]:
+    path = path.expanduser()
+    try:
+        metadata = _file_metadata(path)
+    except OSError as exc:
+        return {
+            "path": str(path),
+            "provenance_tag": provenance,
+            "verification_status": "unverifiable",
+            "error": str(exc),
+        }
+    metadata.update(
+        {
+            "provenance_tag": provenance,
+            "verification_status": "provenance_tagged",
+        }
+    )
+    return metadata
+
+
+def _ci_artifact_harvest_status(payload: dict[str, Any]) -> str:
+    release = payload.get("release", {})
+    summary = payload.get("summary", {})
+    if (
+        payload.get("schema") == CI_ARTIFACT_HARVEST_SCHEMA
+        and payload.get("run_status") == "harvest_ready"
+        and isinstance(release, dict)
+        and release.get("public_status") == "validated"
+        and isinstance(summary, dict)
+        and int(summary.get("checksum_mismatch_count", 1) or 0) == 0
+    ):
+        return "validated"
+    return "failed"
+
+
+def _ci_artifact_harvest_summary_counts(
+    rows: list[dict[str, Any]],
+    *,
+    requested_count: int,
+    parse_error_count: int,
+) -> dict[str, Any]:
+    loaded_sources = {
+        row.get("source")
+        for row in rows
+        if row.get("loaded") and row.get("source")
+    }
+    validated_sources = {
+        row.get("source")
+        for row in rows
+        if row.get("loaded")
+        and row.get("source")
+        and row.get("harvest_status") == "validated"
+    }
+    artifact_rows = [row for row in rows if row.get("artifact_kind")]
+    release_status_counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("release_status", "") or "")
+        if not status:
+            continue
+        release_status_counts[status] = release_status_counts.get(status, 0) + 1
+
+    invalid_harvest_count = parse_error_count + sum(
+        1 for row in rows if not row.get("loaded")
+    )
+    failed_harvest_count = len(loaded_sources - validated_sources)
+    checksum_mismatch_count = sum(
+        1
+        for row in artifact_rows
+        if row.get("sha256_verified") is not True
+    )
+    gate_status = "not_configured"
+    if requested_count or parse_error_count:
+        gate_status = (
+            "pass"
+            if len(validated_sources) > 0
+            and failed_harvest_count == 0
+            and invalid_harvest_count == 0
+            and checksum_mismatch_count == 0
+            else "fail"
+        )
+
+    return {
+        "args": "",
+        "requested_harvest_count": requested_count,
+        "loaded_harvest_count": len(loaded_sources),
+        "validated_harvest_count": len(validated_sources),
+        "failed_harvest_count": failed_harvest_count,
+        "invalid_harvest_count": invalid_harvest_count,
+        "artifact_count": len(artifact_rows),
+        "checksum_verified_count": sum(
+            1 for row in artifact_rows if row.get("sha256_verified") is True
+        ),
+        "checksum_mismatch_count": checksum_mismatch_count,
+        "provenance_tagged_count": sum(
+            1 for row in artifact_rows if row.get("artifact_attachment_status") == "provenance_tagged"
+        ),
+        "external_machine_evidence_count": sum(
+            1 for row in artifact_rows if row.get("source_machine")
+        ),
+        "release_status_counts": release_status_counts,
+        "gate_status": gate_status,
+    }
+
+
+def _build_ci_artifact_harvest_rows(raw_value: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    harvest_paths, parse_errors = _parse_ci_artifact_harvest_import_args(raw_value)
+    rows: list[dict[str, Any]] = [
+        {
+            "source": error["source"],
+            "provenance": "import-args",
+            "loaded": False,
+            "harvest_schema": "",
+            "harvest_run_status": "invalid",
+            "harvest_status": "invalid",
+            "release_id": "",
+            "release_status": "invalid",
+            "artifact_id": "",
+            "artifact_kind": "",
+            "artifact_status": "invalid",
+            "artifact_path": "",
+            "sha256_verified": False,
+            "content_sha256": "",
+            "source_machine": "",
+            "workflow": "",
+            "ci_run_id": "",
+            "run_attempt": "",
+            "artifact_attachment_status": "missing",
+            "detail": error["detail"],
+        }
+        for error in parse_errors
+    ]
+
+    for path in harvest_paths:
+        provenance = "--ci-artifact-harvest"
+        attachment = _ci_artifact_harvest_attachment_metadata(path, provenance)
+        base_row = {
+            "source": str(path),
+            "provenance": provenance,
+            "loaded": False,
+            "harvest_schema": "",
+            "harvest_run_status": "invalid",
+            "harvest_status": "invalid",
+            "release_id": "",
+            "release_status": "invalid",
+            "artifact_id": "",
+            "artifact_kind": "",
+            "artifact_status": "invalid",
+            "artifact_path": "",
+            "sha256_verified": False,
+            "content_sha256": "",
+            "source_machine": "",
+            "workflow": "",
+            "ci_run_id": "",
+            "run_attempt": "",
+            "artifact_attachment_status": "missing",
+            "detail": "",
+            "attachment": attachment,
+            "attachment_status": attachment.get("verification_status", ""),
+            "attachment_sha256": attachment.get("sha256", ""),
+            "attachment_size_bytes": attachment.get("size_bytes"),
+            "attachment_modified_at": attachment.get("modified_at", ""),
+            "attachment_provenance_tag": attachment.get("provenance_tag", ""),
+        }
+        try:
+            payload = json.loads(path.expanduser().read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("CI artifact harvest must be a JSON object")
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            rows.append({**base_row, "detail": f"Unable to load CI artifact harvest: {exc}"})
+            continue
+
+        release = payload.get("release", {})
+        summary = payload.get("summary", {})
+        artifacts = payload.get("artifacts", [])
+        if not isinstance(release, dict):
+            release = {}
+        if not isinstance(summary, dict):
+            summary = {}
+        if not isinstance(artifacts, list):
+            artifacts = []
+        harvest_status = _ci_artifact_harvest_status(payload)
+        release_id = str(release.get("release_id", summary.get("release_id", "")) or "")
+        release_status = str(release.get("public_status", summary.get("release_status", "")) or "")
+        common = {
+            **base_row,
+            "loaded": True,
+            "harvest_schema": str(payload.get("schema", "") or ""),
+            "harvest_run_status": str(payload.get("run_status", "") or ""),
+            "harvest_status": harvest_status,
+            "release_id": release_id,
+            "release_status": release_status,
+            "detail": "loaded",
+        }
+        if not artifacts:
+            rows.append({**common, "detail": "loaded without artifact rows"})
+            continue
+        for artifact in artifacts:
+            if not isinstance(artifact, dict):
+                continue
+            rows.append(
+                {
+                    **common,
+                    "artifact_id": str(artifact.get("id", "") or ""),
+                    "artifact_kind": str(artifact.get("kind", "") or ""),
+                    "artifact_status": str(artifact.get("payload_status", "") or ""),
+                    "artifact_path": str(artifact.get("path", "") or ""),
+                    "sha256_verified": artifact.get("sha256_verified") is True,
+                    "content_sha256": str(artifact.get("content_sha256", "") or ""),
+                    "source_machine": str(artifact.get("source_machine", "") or ""),
+                    "workflow": str(artifact.get("workflow", "") or ""),
+                    "ci_run_id": str(artifact.get("run_id", "") or ""),
+                    "run_attempt": str(artifact.get("run_attempt", "") or ""),
+                    "artifact_attachment_status": str(artifact.get("attachment_status", "") or ""),
+                }
+            )
+
+    summary = _ci_artifact_harvest_summary_counts(
+        rows,
+        requested_count=len(harvest_paths),
+        parse_error_count=len(parse_errors),
+    )
+    summary["args"] = raw_value
     return rows, summary
 
 
@@ -1458,11 +1736,14 @@ def _decision_status(
     artifact_rows: list[dict[str, Any]],
     metric_rows: list[dict[str, Any]],
     manifest_rows: list[dict[str, Any]] | None = None,
+    ci_artifact_harvest_summary: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     if baseline_path == candidate_path:
         return "needs_review", "Baseline and candidate point to the same metrics file."
     if any(row["status"] == "fail" for row in manifest_rows or []):
         return "blocked", "First-proof run manifest gate is failing or missing."
+    if (ci_artifact_harvest_summary or {}).get("gate_status") == "fail":
+        return "blocked", "CI artifact harvest gate is failing or incomplete."
     if any(row["status"] == "fail" for row in artifact_rows):
         return "blocked", "Required evidence artifacts are missing from the candidate bundle."
     if any(row["status"] == "fail" for row in metric_rows):
@@ -1487,6 +1768,8 @@ def _decision_payload(
     run_manifest_summary: dict[str, Any],
     imported_manifest_rows: list[dict[str, Any]],
     imported_manifest_summary: dict[str, Any],
+    ci_artifact_harvest_rows: list[dict[str, Any]],
+    ci_artifact_harvest_summary: dict[str, Any],
     manifest_index_path: Path,
     manifest_index_summary: dict[str, Any],
     manifest_index_comparison_rows: list[dict[str, Any]],
@@ -1521,6 +1804,8 @@ def _decision_payload(
         "run_manifest_gates": run_manifest_rows,
         "run_manifest_import_summary": imported_manifest_summary,
         "imported_run_manifest_evidence": imported_manifest_rows,
+        "ci_artifact_harvest_summary": ci_artifact_harvest_summary,
+        "ci_artifact_harvest_evidence": ci_artifact_harvest_rows,
         "manifest_index_path": str(manifest_index_path),
         "manifest_index_summary": manifest_index_summary,
         "manifest_index_comparison": manifest_index_comparison_rows,
@@ -1663,8 +1948,21 @@ manifest_import_args_value = st.sidebar.text_area(
         "`--manifest /path/run_manifest.json --manifest-dir /path/to/evidence`."
     ),
 )
+ci_artifact_harvest_args_value = st.sidebar.text_area(
+    "CI artifact harvest evidence",
+    value=st.session_state.setdefault("release_decision_ci_artifact_harvest_args", ""),
+    key="release_decision_ci_artifact_harvest_args",
+    height=80,
+    help=(
+        "Paste `--ci-artifact-harvest /path/ci_artifact_harvest.json` "
+        "or a direct `ci_artifact_harvest.json` path."
+    ),
+)
 imported_manifest_rows, imported_manifest_summary = _build_manifest_import_rows(
     manifest_import_args_value
+)
+ci_artifact_harvest_rows, ci_artifact_harvest_summary = _build_ci_artifact_harvest_rows(
+    ci_artifact_harvest_args_value
 )
 run_manifest_path = _select_run_manifest_gate_path(
     default_run_manifest_path,
@@ -1779,6 +2077,7 @@ decision_status, decision_summary = _decision_status(
     artifact_rows=artifact_rows,
     metric_rows=metric_rows,
     manifest_rows=run_manifest_rows,
+    ci_artifact_harvest_summary=ci_artifact_harvest_summary,
 )
 payload = _decision_payload(
     env=env,
@@ -1795,6 +2094,8 @@ payload = _decision_payload(
     run_manifest_summary=run_manifest_summary,
     imported_manifest_rows=imported_manifest_rows,
     imported_manifest_summary=imported_manifest_summary,
+    ci_artifact_harvest_rows=ci_artifact_harvest_rows,
+    ci_artifact_harvest_summary=ci_artifact_harvest_summary,
     manifest_index_path=manifest_index_path,
     manifest_index_summary=manifest_index_summary,
     manifest_index_comparison_rows=manifest_index_comparison_rows,
@@ -1845,6 +2146,17 @@ if imported_manifest_rows:
         "External evidence imported with compatibility-report style `--manifest` and `--manifest-dir` inputs."
     )
     st.dataframe(imported_manifest_df, width="stretch", hide_index=True)
+
+if ci_artifact_harvest_rows or ci_artifact_harvest_summary.get("gate_status") == "fail":
+    st.subheader("CI artifact harvest evidence")
+    st.caption(
+        "External-machine CI evidence imported from `ci_artifact_harvest.json` with checksum and provenance status."
+    )
+    st.json(ci_artifact_harvest_summary)
+    if ci_artifact_harvest_rows:
+        st.dataframe(pd.DataFrame(ci_artifact_harvest_rows), width="stretch", hide_index=True)
+    else:
+        st.info("No CI artifact harvest rows are available.")
 
 manifest_index_rows = _manifest_index_rows(manifest_index_payload)
 st.subheader("Per-release manifest index")

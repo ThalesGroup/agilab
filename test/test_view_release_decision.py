@@ -110,6 +110,108 @@ def _write_first_proof_manifest(
     return manifest_path
 
 
+def _write_ci_artifact_harvest(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    source_machine = "github-actions:macos-14-arm64"
+    artifacts = [
+        {
+            "id": "first_proof_run_manifest",
+            "kind": "run_manifest",
+            "path": "ci/source-checkout-first-proof/run_manifest.json",
+            "payload_status": "validated",
+            "content_sha256": "sha-run-manifest",
+            "calculated_sha256": "sha-run-manifest",
+            "sha256_verified": True,
+            "source_machine": source_machine,
+            "workflow": "public-evidence.yml",
+            "run_id": "ci-sample-20260425",
+            "run_attempt": "1",
+            "attachment_status": "provenance_tagged",
+        },
+        {
+            "id": "public_kpi_evidence_bundle",
+            "kind": "kpi_evidence_bundle",
+            "path": "ci/evidence/kpi_evidence_bundle.json",
+            "payload_status": "validated",
+            "content_sha256": "sha-kpi",
+            "calculated_sha256": "sha-kpi",
+            "sha256_verified": True,
+            "source_machine": source_machine,
+            "workflow": "public-evidence.yml",
+            "run_id": "ci-sample-20260425",
+            "run_attempt": "1",
+            "attachment_status": "provenance_tagged",
+        },
+        {
+            "id": "compatibility_matrix_report",
+            "kind": "compatibility_report",
+            "path": "ci/evidence/compatibility_report.json",
+            "payload_status": "validated",
+            "content_sha256": "sha-compat",
+            "calculated_sha256": "sha-compat",
+            "sha256_verified": True,
+            "source_machine": source_machine,
+            "workflow": "public-evidence.yml",
+            "run_id": "ci-sample-20260425",
+            "run_attempt": "1",
+            "attachment_status": "provenance_tagged",
+        },
+        {
+            "id": "promotion_decision_export",
+            "kind": "promotion_decision",
+            "path": "ci/release/promotion_decision.json",
+            "payload_status": "validated",
+            "content_sha256": "sha-decision",
+            "calculated_sha256": "sha-decision",
+            "sha256_verified": True,
+            "source_machine": source_machine,
+            "workflow": "public-evidence.yml",
+            "run_id": "ci-sample-20260425",
+            "run_attempt": "1",
+            "attachment_status": "provenance_tagged",
+        },
+    ]
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.ci_artifact_harvest.v1",
+                "run_id": "ci-artifact-harvest-proof",
+                "run_status": "harvest_ready",
+                "execution_mode": "ci_artifact_contract_only",
+                "release": {
+                    "release_id": "run_2026_04_17",
+                    "public_status": "validated",
+                    "artifact_statuses": {
+                        "run_manifest": "validated",
+                        "kpi_evidence_bundle": "validated",
+                        "compatibility_report": "validated",
+                        "promotion_decision": "validated",
+                    },
+                    "source_machines": [source_machine],
+                },
+                "summary": {
+                    "release_status": "validated",
+                    "artifact_count": 4,
+                    "checksum_mismatch_count": 0,
+                    "provenance_tagged_count": 4,
+                    "external_machine_evidence_count": 4,
+                    "live_ci_query_count": 0,
+                    "network_probe_count": 0,
+                    "command_execution_count": 0,
+                },
+                "artifacts": artifacts,
+                "provenance": {
+                    "queries_ci_provider": False,
+                    "executes_network_probe": False,
+                    "executes_commands": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def _write_reduce_artifact(path: Path, *, engine: str = "pandas") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -242,6 +344,7 @@ def _run_release_page(
     project_dir: Path,
     *,
     manifest_import_args: str = "",
+    ci_artifact_harvest_args: str = "",
 ) -> AppTest:
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
     with patch.object(sys, "argv", argv):
@@ -254,6 +357,8 @@ def _run_release_page(
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
         if manifest_import_args:
             at.session_state["release_decision_manifest_import_args"] = manifest_import_args
+        if ci_artifact_harvest_args:
+            at.session_state["release_decision_ci_artifact_harvest_args"] = ci_artifact_harvest_args
         at.run()
     return at
 
@@ -394,6 +499,59 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert release["manifests"][0]["evidence_status"] == "validated"
     assert release["manifests"][0]["attachment"]["verification_status"] == "signed"
     assert release["manifests"][0]["attachment"]["sha256"] == imported_manifest_sha256
+
+
+def test_view_release_decision_imports_ci_artifact_harvest_for_export(tmp_path, monkeypatch) -> None:
+    project_dir = _create_forecast_project(tmp_path)
+    export_root = tmp_path / "export" / "meteo_forecast"
+    baseline_root = export_root / "run_2026_04_16"
+    candidate_root = export_root / "run_2026_04_17"
+    _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
+    _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42)
+    _write_first_proof_manifest(tmp_path)
+    harvest_path = _write_ci_artifact_harvest(
+        tmp_path / "external_ci" / "ci_artifact_harvest.json"
+    )
+
+    at = _run_release_page(
+        tmp_path,
+        monkeypatch,
+        project_dir,
+        ci_artifact_harvest_args=f"--ci-artifact-harvest {harvest_path}",
+    )
+
+    assert not at.exception
+    assert any("Promotable" in message.value for message in at.success)
+    assert any(header.value == "CI artifact harvest evidence" for header in at.subheader)
+
+    export_button = next(button for button in at.button if button.label == "Export promotion decision")
+    export_button.click().run()
+
+    decision_path = candidate_root / "promotion_decision.json"
+    payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    summary = payload["ci_artifact_harvest_summary"]
+    rows = payload["ci_artifact_harvest_evidence"]
+    assert summary["gate_status"] == "pass"
+    assert summary["requested_harvest_count"] == 1
+    assert summary["loaded_harvest_count"] == 1
+    assert summary["validated_harvest_count"] == 1
+    assert summary["artifact_count"] == 4
+    assert summary["checksum_mismatch_count"] == 0
+    assert summary["provenance_tagged_count"] == 4
+    assert summary["external_machine_evidence_count"] == 4
+    assert rows[0]["source"] == str(harvest_path)
+    assert {row["artifact_kind"] for row in rows} == {
+        "compatibility_report",
+        "kpi_evidence_bundle",
+        "promotion_decision",
+        "run_manifest",
+    }
+    assert {row["harvest_status"] for row in rows} == {"validated"}
+    assert {row["release_status"] for row in rows} == {"validated"}
+    assert all(row["sha256_verified"] is True for row in rows)
+    assert {row["source_machine"] for row in rows} == {
+        "github-actions:macos-14-arm64"
+    }
 
 
 def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeypatch) -> None:

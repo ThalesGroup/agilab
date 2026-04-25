@@ -197,11 +197,13 @@ Current shipped baseline:
 - `tools/ci_artifact_harvest_report.py --compact` now defines the
   no-network external-machine attachment contract for run manifests, KPI
   bundles, compatibility reports, and promotion decisions
+- Release Decision can import `ci_artifact_harvest.json`, display harvested
+  artifact status/checksum/provenance rows, block invalid harvests, and export
+  `ci_artifact_harvest_summary` plus `ci_artifact_harvest_evidence` inside
+  `promotion_decision.json`
 
 Remaining scope:
 
-- connect the report to the live Release Decision surface instead of keeping it
-  as a standalone evidence command
 - add richer domain-specific explanations for allocation, topology, and
   decision deltas
 - compare real external-machine evidence archives from live CI provider APIs
