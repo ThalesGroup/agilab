@@ -19,8 +19,6 @@ declare -a INVALID_REPOSITORY_APPS=()
 
 declare -a DEFAULT_APPS_ORDER=(
   flight_project
-  flight_clone_project
-  flight_legacy_project
   flight_trajectory_project
   flowsynth_project
   ilp_project
@@ -339,6 +337,40 @@ append_unique() {
   # Trim trailing space
   # shellcheck disable=SC2086
   eval "${__name}=(\${${__name}%% })"
+}
+
+backup_existing_path() {
+  local path="$1"
+  local stamp backup suffix
+  stamp="$(date +%Y%m%d%H%M%S)"
+  backup="${path}.previous.${stamp}"
+  suffix=0
+  while [[ -e "$backup" || -L "$backup" ]]; do
+    suffix=$((suffix + 1))
+    backup="${path}.previous.${stamp}.${suffix}"
+  done
+  mv -- "$path" "$backup"
+  printf '%s\n' "$backup"
+}
+
+refresh_repository_link() {
+  local kind="$1"
+  local dest="$2"
+  local target="$3"
+  local backup
+
+  if [[ -L "$dest" ]]; then
+    echo -e "${BLUE}${kind} '$dest' is a symlink. Recreating -> '$target'...${NC}"
+    rm -f -- "$dest"
+    ln -s -- "$target" "$dest"
+  elif [[ ! -e "$dest" ]]; then
+    echo -e "${BLUE}${kind} '$dest' does not exist. Creating symlink -> '$target'...${NC}"
+    ln -s -- "$target" "$dest"
+  else
+    backup="$(backup_existing_path "$dest")"
+    echo -e "${YELLOW}${kind} '$dest' exists and is not a symlink. Moved to '$backup' and linking -> '$target'.${NC}"
+    ln -s -- "$target" "$dest"
+  fi
 }
 
 # Destination base for creating local app symlinks (defaults to current dir)
@@ -796,15 +828,7 @@ for page in ${REPOSITORY_PAGES+"${REPOSITORY_PAGES[@]}"}; do
     continue
   fi
 
-  if [[ -L "$page_dest" ]]; then
-    echo -e "${BLUE}Page '$page_dest' is a symlink. Recreating -> '$page_target'...${NC}"
-    rm -f -- "$page_dest"; ln -s -- "$page_target" "$page_dest"
-  elif [[ ! -e "$page_dest" ]]; then
-    echo -e "${BLUE}Page '$page_dest' does not exist. Creating symlink -> '$page_target'...${NC}"
-    ln -s -- "$page_target" "$page_dest"
-  else
-    echo -e "${GREEN}Page '$page_dest' exists and is not a symlink. Leaving untouched.${NC}"
-  fi
+  refresh_repository_link "Page" "$page_dest" "$page_target"
 done
 fi
 
@@ -819,15 +843,7 @@ for app in ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"}; do
     continue
   fi
 
-  if [[ -L "$app_dest" ]]; then
-    echo -e "${BLUE}App '$app_dest' is a symlink. Recreating -> '$app_target'...${NC}"
-    rm -f -- "$app_dest"; ln -s -- "$app_target" "$app_dest"
-  elif [[ ! -e "$app_dest" ]]; then
-    echo -e "${BLUE}App '$app_dest' does not exist. Creating symlink -> '$app_target'...${NC}"
-    ln -s -- "$app_target" "$app_dest"
-  else
-    echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
-  fi
+  refresh_repository_link "App" "$app_dest" "$app_target"
 done
 fi
 

@@ -129,9 +129,11 @@ Use this runbook whenever you:
   - `Temporary clone`: may share the source `.venv` by symlink for lightweight local experiments.
   - `Working clone`: should not keep a shared `.venv`; create it without `.venv` and rerun `INSTALL` before `EXECUTE`.
   When renaming a project, preserve the existing `.venv` rather than leaving a symlink pointing to the old project path.
-- **Manager class aliases**: Every app module must expose both the legacy name and its ``*App`` variant
-  (for example `FooApp` and `Foo`) so older installers keep working. Add or preserve these
-  subclasses whenever you touch an app manager.
+- **App repository updates over legacy aliases**: Existing maintained apps live in the apps repository.
+  Prefer updating the app repository source and rerunning the installer over adding compatibility
+  aliases to paper over stale local copies. When a repository app/page already exists locally as a
+  real directory, the installer moves it aside and links the repository copy so future app updates
+  are picked up.
 - **Flight dependencies**: Follow the project’s own metadata for Streamlit/matplotlib/OpenAI—no extra
   trimming beyond the flight worker manifest.
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
