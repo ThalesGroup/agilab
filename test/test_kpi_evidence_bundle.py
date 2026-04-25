@@ -41,6 +41,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "workflow_compatibility_report",
         "newcomer_first_proof_contract",
         "run_manifest_contract",
+        "multi_app_dag_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -98,6 +99,21 @@ def test_run_manifest_contract_reports_stable_schema() -> None:
         "target_seconds",
         "recommended_project",
     ]
+
+
+def test_multi_app_dag_report_contract_reports_cross_app_handoff() -> None:
+    module = _load_module()
+
+    check = module._check_multi_app_dag_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["dag_path"] == "docs/source/data/multi_app_dag_sample.json"
+    assert check["details"]["summary"]["execution_order"] == [
+        "queue_baseline",
+        "relay_followup",
+    ]
+    assert check["details"]["summary"]["cross_app_edge_count"] == 1
+    assert "multi_app_dag_artifact_handoffs" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

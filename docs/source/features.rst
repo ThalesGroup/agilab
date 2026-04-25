@@ -159,6 +159,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release
   decision view can consume as promotion evidence
+- the multi-app DAG contract now validates app-to-app dependencies and
+  artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
+  ``docs/source/data/multi_app_dag_sample.json``; the first sample links
+  ``uav_queue_project`` to ``uav_relay_queue_project`` through an explicit
+  ``queue_metrics`` handoff
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future

@@ -1,0 +1,51 @@
+{
+  "schema": "agilab.multi_app_dag.v1",
+  "dag_id": "uav-queue-to-relay-mvp",
+  "label": "UAV queue to relay handoff MVP",
+  "description": "Minimal cross-app DAG contract that links two checked-in built-in apps with an explicit artifact handoff.",
+  "execution": {
+    "mode": "sequential_dependency_order",
+    "runner_status": "contract_only"
+  },
+  "nodes": [
+    {
+      "id": "queue_baseline",
+      "app": "uav_queue_project",
+      "purpose": "Run the base UAV queue scenario and produce queue summary metrics.",
+      "produces": [
+        {
+          "id": "queue_metrics",
+          "kind": "summary_metrics",
+          "path": "queue_analysis/uav_queue_summary_metrics.json"
+        }
+      ]
+    },
+    {
+      "id": "relay_followup",
+      "app": "uav_relay_queue_project",
+      "purpose": "Run the relay queue scenario using the base queue metrics as external context.",
+      "consumes": [
+        {
+          "id": "queue_metrics",
+          "kind": "summary_metrics",
+          "path": "queue_analysis/uav_queue_summary_metrics.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "relay_metrics",
+          "kind": "summary_metrics",
+          "path": "queue_analysis/uav_relay_queue_summary_metrics.json"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "queue_baseline",
+      "to": "relay_followup",
+      "artifact": "queue_metrics",
+      "handoff": "Use base queue summary metrics as the relay scenario context."
+    }
+  ]
+}
