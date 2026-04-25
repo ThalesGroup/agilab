@@ -53,9 +53,13 @@ use this order:
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
      items in `0.003s` against a `5.0s` target
    - `execution_pandas_project` and `execution_polars_project` now emit named
-     `reduce_summary_worker_<id>.json` reduce artefacts through that contract
-   - Release Decision now surfaces those benchmark reduce artefacts as evidence
-   - the remaining work is broader non-benchmark public-app adoption
+     benchmark reduce artefacts through that contract
+   - `uav_queue_project` now emits the same `reduce_summary_worker_<id>.json`
+     artifact shape for queue metrics
+   - Release Decision now surfaces benchmark and UAV queue reduce artefacts as
+     evidence
+   - the remaining work is broader public-app adoption beyond those migrated
+     slices
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -473,21 +477,23 @@ Current state:
   merge semantics, validation hooks, and a standard reduce artefact schema
 - `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
   synthetic items in `0.003s` against a `5.0s` target
-- `execution_pandas_project` and `execution_polars_project` write
-  worker-scoped `reduce_summary_worker_<id>.json` artefacts through the shared
-  contract
+- `execution_pandas_project`, `execution_polars_project`, and
+  `uav_queue_project` write worker-scoped
+  `reduce_summary_worker_<id>.json` artefacts through the shared contract
 - Release Decision surfaces those reduce artefacts with schema validation,
-  reducer name, partial count, row/source totals, engines, execution models, and
-  artifact path
-- aggregation outside the migrated benchmark apps is still mostly app-specific
+  reducer name, partial count, artifact path, benchmark row/source/execution
+  fields, and UAV queue packet/PDR fields when present
+- aggregation outside the migrated benchmark and UAV queue apps is still mostly
+  app-specific
 
 Current gap:
 
 - docs can overstate the capability as a full generic map/reduce mechanism
-- most apps beyond `execution_pandas_project` and `execution_polars_project`
-  have not migrated their merge logic to the shared reducer contract
-- non-benchmark app reduce artefacts are not yet standard enough to surface as
-  first-class run evidence
+- most apps beyond `execution_pandas_project`, `execution_polars_project`, and
+  `uav_queue_project` have not migrated their merge logic to the shared reducer
+  contract
+- non-benchmark app reduce artefacts are only standardized for
+  `uav_queue_project` so far
 
 ### 1. Reduce contract adoption
 
@@ -510,19 +516,22 @@ Why it matters:
 - gives AGILab a clearer story than “Dask-backed execution exists somewhere in
   the stack”
 
-Completed benchmark-app slices:
+Completed slices:
 
 - `execution_pandas_project` and `execution_polars_project` now emit named
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
+- `uav_queue_project` now emits worker-scoped
+  `reduce_summary_worker_<id>.json` `ReduceArtifact` files for queue summary
+  metrics
 - Release Decision now discovers `reduce_summary_worker_*.json`, parses it with
   `ReduceArtifact.from_dict`, displays reducer evidence, and flags invalid JSON
 
 Next concrete change request:
 
-- migrate the next public app beyond the benchmark pair to the shared reducer
-  contract
-- extend the surfaced reducer evidence once non-benchmark apps adopt the same
-  artifact contract
+- migrate the next public app beyond the benchmark pair and `uav_queue_project`
+  to the shared reducer contract
+- extend the surfaced reducer evidence as more non-benchmark apps adopt the
+  same artifact contract
 
 Compatibility rule:
 

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import networkx as nx
 import pandas as pd
+from agi_node.reduction import ReduceArtifact
 from agi_node.pandas_worker import PandasWorker
 
 
@@ -16,6 +17,13 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from uav_queue import UavQueue, UavQueueArgs, UavRelayQueue, UavRelayQueueArgs
+from uav_queue.reduction import (
+    REDUCE_ARTIFACT_NAME,
+    REDUCER_NAME,
+    build_reduce_artifact,
+    partial_from_summary_metrics,
+    reduce_artifact_path,
+)
 from uav_queue_worker import UavQueueWorker
 
 
@@ -103,6 +111,17 @@ def test_uav_queue_worker_exports_queue_artifacts(tmp_path: Path) -> None:
         assert (pipeline_dir / "demands.json").is_file()
         assert (pipeline_dir / "allocations_steps.csv").is_file()
         assert (pipeline_dir / "_trajectory_summary.json").is_file()
+        reduce_path = reduce_artifact_path(run_root, 0)
+        assert reduce_path.is_file()
+        artifact = ReduceArtifact.from_dict(json.loads(reduce_path.read_text(encoding="utf-8")))
+        assert artifact.name == REDUCE_ARTIFACT_NAME
+        assert artifact.reducer == REDUCER_NAME
+        assert artifact.partial_count == 1
+        assert artifact.payload["scenario_count"] == 1
+        assert artifact.payload["packets_generated"] == metrics["packets_generated"]
+        assert artifact.payload["packets_delivered"] == metrics["packets_delivered"]
+        assert artifact.payload["packets_dropped"] == metrics["packets_dropped"]
+        assert artifact.payload["scenarios"] == [metrics["scenario"]]
 
     metrics = json.loads(next(export_root.glob("**/*_summary_metrics.json")).read_text(encoding="utf-8"))
     stem = metrics["artifact_stem"]
@@ -133,6 +152,57 @@ def test_uav_queue_worker_exports_queue_artifacts(tmp_path: Path) -> None:
         assert {"time_s", "node_id", "latitude", "longitude", "alt_m"} <= set(trajectory_df.columns)
     assert demand_payload and demand_payload[0]["source"] == "uav_source"
     assert demand_payload[0]["destination"] == "ground_sink"
+
+
+def test_uav_queue_reduce_contract_merges_summary_partials() -> None:
+    base_metrics = {
+        "scenario": "uav_queue_hotspot",
+        "routing_policy": "shortest_path",
+        "random_seed": 2026,
+        "packets_generated": 10,
+        "packets_delivered": 8,
+        "packets_dropped": 2,
+        "mean_e2e_delay_ms": 12.5,
+        "mean_queue_wait_ms": 1.25,
+        "max_queue_depth_pkts": 3,
+        "bottleneck_relay": "relay_a",
+    }
+    variant_metrics = {
+        **base_metrics,
+        "scenario": "uav_queue_hotspot_b",
+        "routing_policy": "queue_aware",
+        "random_seed": 2027,
+        "packets_generated": 20,
+        "packets_delivered": 10,
+        "packets_dropped": 10,
+        "mean_e2e_delay_ms": 20.0,
+        "mean_queue_wait_ms": 2.0,
+        "max_queue_depth_pkts": 6,
+        "bottleneck_relay": "relay_b",
+    }
+
+    artifact = build_reduce_artifact(
+        (
+            partial_from_summary_metrics(base_metrics, partial_id="base"),
+            partial_from_summary_metrics(variant_metrics, partial_id="variant"),
+        )
+    )
+
+    assert artifact.name == REDUCE_ARTIFACT_NAME
+    assert artifact.reducer == REDUCER_NAME
+    assert artifact.partial_count == 2
+    assert artifact.payload["scenario_count"] == 2
+    assert artifact.payload["scenarios"] == ["uav_queue_hotspot", "uav_queue_hotspot_b"]
+    assert artifact.payload["routing_policies"] == ["queue_aware", "shortest_path"]
+    assert artifact.payload["random_seeds"] == ["2026", "2027"]
+    assert artifact.payload["bottleneck_relays"] == ["relay_a", "relay_b"]
+    assert artifact.payload["packets_generated"] == 30
+    assert artifact.payload["packets_delivered"] == 18
+    assert artifact.payload["packets_dropped"] == 12
+    assert artifact.payload["pdr"] == 0.6
+    assert artifact.payload["mean_e2e_delay_ms"] == 16.667
+    assert artifact.payload["mean_queue_wait_ms"] == 1.667
+    assert artifact.payload["max_queue_depth_pkts"] == 6
 
 
 def test_uav_queue_worker_is_installable_supported_worker() -> None:
