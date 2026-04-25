@@ -19,12 +19,14 @@ The machine-readable source for this page is:
 - :download:`compatibility_matrix.toml <data/compatibility_matrix.toml>`
 
 Maintainers can validate the matrix schema, required public statuses,
-run-manifest evidence ingestion, and proof commands with:
+run-manifest evidence ingestion, artifact-index evidence ingestion, and proof
+commands with:
 
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight/run_manifest.json --compact
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --artifact-index artifact_index.json --compact
 
 Current public matrix
 ---------------------
@@ -231,6 +233,9 @@ provider harvesting is introduced. ``tools/github_actions_artifact_index.py
 --archive`` converts already-downloaded GitHub Actions artifact ZIPs into the
 same harvest input, and its opt-in ``--live-github`` mode can query and download
 workflow-run artifacts when operator credentials are available.
+``tools/compatibility_report.py --artifact-index artifact_index.json`` can then
+derive per-release compatibility status from those downloaded attachments or
+from ``ci_artifact_harvest.json`` summaries.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and

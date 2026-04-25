@@ -95,6 +95,7 @@ def test_build_report_passes_public_compatibility_contracts() -> None:
     assert check_ids == {
         "compatibility_matrix_schema",
         "run_manifest_evidence_ingestion",
+        "artifact_index_evidence_ingestion",
         "required_public_statuses",
         "workflow_evidence_commands",
         "documented_route_boundaries",
@@ -156,6 +157,99 @@ def test_run_manifest_evidence_derives_compatibility_status(tmp_path: Path) -> N
         if check["id"] == "required_public_statuses"
     )
     assert status_check["details"]["actual_statuses"]["source-checkout-first-proof"] == "validated"
+    assert status_check["details"]["manifest_evidence_statuses"] == {
+        "source-checkout-first-proof": "validated",
+    }
+
+
+def test_artifact_index_evidence_derives_compatibility_status(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest_path = _write_manifest(tmp_path / "external" / "run_manifest.json")
+    artifact_index_path = tmp_path / "artifact_index.json"
+    artifact_index_path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.ci_provider_artifact_index.v1",
+                "release_id": "release-20260425",
+                "provider": "github_actions",
+                "artifacts": [
+                    {
+                        "kind": "run_manifest",
+                        "path": "github-actions://ThalesGroup/agilab/runs/123/artifacts/public/run_manifest.json",
+                        "payload": json.loads(manifest_path.read_text(encoding="utf-8")),
+                        "provider": "github_actions",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(
+        artifact_index_paths=[artifact_index_path],
+        include_default_manifests=False,
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["manifest_evidence"]["loaded"] == 1
+    assert report["summary"]["artifact_index_evidence"] == {
+        "loaded_indexes": 1,
+        "loaded_manifests": 1,
+        "release_ids": ["release-20260425"],
+        "load_failures": 0,
+    }
+    artifact_check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "artifact_index_evidence_ingestion"
+    )
+    assert artifact_check["status"] == "pass"
+    assert artifact_check["details"]["path_statuses"] == {
+        "source-checkout-first-proof": "validated",
+    }
+    assert artifact_check["details"]["artifact_index_release_ids"] == [
+        "release-20260425",
+    ]
+
+
+def test_harvest_artifact_summary_derives_compatibility_status(tmp_path: Path) -> None:
+    module = _load_module()
+    harvest_path = tmp_path / "ci_artifact_harvest.json"
+    harvest_path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.ci_artifact_harvest.v1",
+                "release": {"release_id": "release-20260425"},
+                "artifacts": [
+                    {
+                        "kind": "run_manifest",
+                        "path": "github-actions://ThalesGroup/agilab/runs/123/artifacts/public/run_manifest.json",
+                        "payload_status": "validated",
+                        "payload_summary": {
+                            "path_id": "source-checkout-first-proof",
+                            "status": "pass",
+                            "artifact_count": 1,
+                        },
+                        "run_id": "ci-run-123",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(
+        artifact_index_paths=[harvest_path],
+        include_default_manifests=False,
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["artifact_index_evidence"]["loaded_manifests"] == 1
+    status_check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "required_public_statuses"
+    )
     assert status_check["details"]["manifest_evidence_statuses"] == {
         "source-checkout-first-proof": "validated",
     }

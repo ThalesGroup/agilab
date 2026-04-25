@@ -102,10 +102,19 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
             ),
             {},
         )
+        artifact_index_check = next(
+            (
+                check
+                for check in report.get("checks", [])
+                if check.get("id") == "artifact_index_evidence_ingestion"
+            ),
+            {},
+        )
         ok = (
             report.get("status") == "pass"
             and "workflow_evidence_commands" in check_ids
             and "run_manifest_evidence_ingestion" in check_ids
+            and "artifact_index_evidence_ingestion" in check_ids
         )
         details = {
             "status": report.get("status"),
@@ -113,6 +122,10 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
             "check_ids": check_ids,
             "required_public_statuses": status_check.get("details", {}),
             "run_manifest_evidence_ingestion": manifest_check.get("details", {}),
+            "artifact_index_evidence_ingestion": artifact_index_check.get(
+                "details",
+                {},
+            ),
         }
     except Exception as exc:
         ok = False
@@ -122,7 +135,8 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
         "Workflow-backed compatibility report",
         ok,
         (
-            "compatibility report validates public path statuses, proof commands, and run manifests"
+            "compatibility report validates public path statuses, proof commands, "
+            "run manifests, and artifact indexes"
             if ok
             else "compatibility report is failing or disconnected from the KPI bundle"
         ),
