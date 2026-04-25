@@ -22,3 +22,15 @@ cluster_enabled = false
 allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
+
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+benchmark_sql = "execution_pandas_sql"
+operator_events = "execution_pandas_ops_opensearch"
+artifact_store = "execution_pandas_artifact_store"
+
+[legacy_paths]
+data_in = "execution_playground/dataset"
+data_out = "execution_pandas/results"

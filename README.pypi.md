@@ -164,9 +164,8 @@ uv --preview-features extra-build-dependencies run python tools/data_connector_a
 ```
 
 The data connector app catalogs report runs in `app_catalog_validation_only`
-mode, validates the `flight_project` and `meteo_forecast_project` app-local
-connector catalogs, preserves legacy path fallbacks, and keeps network probes
-at zero.
+mode, validates app-local connector catalogs for every non-template built-in
+app, preserves legacy path fallbacks, and keeps network probes at zero.
 
 ## Reduce Contract
 

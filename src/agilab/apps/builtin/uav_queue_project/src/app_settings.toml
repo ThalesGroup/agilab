@@ -23,6 +23,25 @@ allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
 
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+scenario_sql = "uav_queue_scenarios_sql"
+operator_events = "uav_queue_ops_opensearch"
+artifact_store = "uav_queue_artifact_store"
+
+[page_connector_refs.view_uav_queue_analysis]
+queue_metrics = "uav_queue_artifact_store"
+operator_events = "uav_queue_ops_opensearch"
+
+[page_connector_refs.view_maps_network]
+network_evidence = "uav_queue_ops_opensearch"
+
+[legacy_paths]
+data_in = "uav_queue/scenarios"
+data_out = "uav_queue/results"
+
 [pages]
 view_module = [
     "view_uav_queue_analysis",

@@ -512,15 +512,19 @@ def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() ->
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_app_catalogs.v1"
     assert check["details"]["summary"]["run_status"] == "validated"
     assert check["details"]["summary"]["execution_mode"] == "app_catalog_validation_only"
-    assert check["details"]["summary"]["app_catalog_count"] == 2
-    assert check["details"]["summary"]["connector_count"] == 6
-    assert check["details"]["summary"]["page_connector_ref_count"] == 5
-    assert check["details"]["summary"]["legacy_path_count"] == 4
+    assert check["details"]["summary"]["app_catalog_count"] == 6
+    assert check["details"]["summary"]["connector_count"] == 18
+    assert check["details"]["summary"]["page_connector_ref_count"] == 11
+    assert check["details"]["summary"]["legacy_path_count"] == 12
     assert check["details"]["summary"]["missing_ref_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["apps"] == [
+        "execution_pandas_project",
+        "execution_polars_project",
         "flight_project",
         "meteo_forecast_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
     ]
     assert "data_connector_app_catalogs_discovery" in check["details"]["check_ids"]
     assert "data_connector_app_catalogs_no_network" in check["details"]["check_ids"]
