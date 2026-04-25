@@ -52,7 +52,10 @@ use this order:
      reducer contract
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
      items in `0.003s` against a `5.0s` target
-   - the remaining work is public-app adoption and named reduce artefacts
+   - `execution_pandas_project` now emits named
+     `reduce_summary_worker_<id>.json` reduce artefacts through that contract
+   - the remaining work is broader public-app adoption and analysis-view
+     surfacing
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -470,12 +473,17 @@ Current state:
   merge semantics, validation hooks, and a standard reduce artefact schema
 - `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
   synthetic items in `0.003s` against a `5.0s` target
-- aggregation is still mostly app-specific
+- `execution_pandas_project` writes worker-scoped
+  `reduce_summary_worker_<id>.json` artefacts through the shared contract
+- aggregation outside the first migrated app is still mostly app-specific
 
 Current gap:
 
 - docs can overstate the capability as a full generic map/reduce mechanism
-- most apps have not migrated their merge logic to the shared reducer contract
+- most apps beyond `execution_pandas_project` have not migrated their merge
+  logic to the shared reducer contract
+- analysis views do not yet surface the reduce artefacts as first-class run
+  evidence
 
 ### 1. Reduce contract adoption
 
@@ -498,11 +506,17 @@ Why it matters:
 - gives AGILab a clearer story than “Dask-backed execution exists somewhere in
   the stack”
 
-Concrete change request:
+Completed first slice:
 
-- migrate one public app to the shared reducer contract
-- expose the reducer result as a named run artefact instead of leaving it
-  implicit in app-specific outputs
+- `execution_pandas_project` now emits named
+  `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
+
+Next concrete change request:
+
+- migrate the next public app, likely `execution_polars_project`, to the shared
+  reducer contract
+- expose reducer artefacts in analysis views instead of leaving them only as
+  files beside app-specific outputs
 
 Compatibility rule:
 

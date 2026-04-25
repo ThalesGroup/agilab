@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -7,6 +8,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from agi_node.reduction import ReduceArtifact
 from agi_node.agi_dispatcher import BaseWorker
 
 
@@ -17,6 +19,13 @@ if str(SRC_ROOT) not in sys.path:
 
 from execution_pandas.execution_pandas import ExecutionPandas
 from execution_pandas.app_args import ExecutionPandasArgs
+from execution_pandas.reduction import (
+    REDUCE_ARTIFACT_NAME,
+    REDUCER_NAME,
+    build_reduce_artifact,
+    partial_from_result_frame,
+    reduce_artifact_path,
+)
 from execution_pandas_worker.execution_pandas_worker import ExecutionPandasWorker
 
 
@@ -82,6 +91,37 @@ def test_execution_pandas_worker_processes_a_file(tmp_path: Path) -> None:
     assert set(result["execution_model"]) == {"process"}
 
 
+def test_execution_pandas_reduce_contract_merges_result_partials(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    args = ExecutionPandasArgs(n_partitions=2, nfile=2, rows_per_file=16, n_groups=4)
+    manager = ExecutionPandas(env, args=args)
+    sources = sorted(manager.args.data_in.glob("*.csv"))
+    worker = ExecutionPandasWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.verbose = 0
+    worker.start()
+
+    first = worker.work_pool(str(sources[0]))
+    second = worker.work_pool(str(sources[1]))
+    artifact = build_reduce_artifact(
+        (
+            partial_from_result_frame(first, partial_id="first"),
+            partial_from_result_frame(second, partial_id="second"),
+        )
+    )
+
+    assert artifact.name == REDUCE_ARTIFACT_NAME
+    assert artifact.reducer == REDUCER_NAME
+    assert artifact.partial_count == 2
+    assert artifact.partial_ids == ("first", "second")
+    assert artifact.payload["row_count"] == 32
+    assert artifact.payload["source_file_count"] == 2
+    assert artifact.payload["engines"] == ["pandas"]
+    assert artifact.payload["execution_models"] == ["process"]
+
+
 def test_execution_pandas_worker_runs_monoprocess_plan(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
     args = ExecutionPandasArgs(n_partitions=2, nfile=2, rows_per_file=24, n_groups=6, reset_target=True)
@@ -103,6 +143,16 @@ def test_execution_pandas_worker_runs_monoprocess_plan(tmp_path: Path) -> None:
 
     assert seconds >= 0.0
     assert any(Path(worker.data_out).glob("*.csv"))
+    artifact_path = reduce_artifact_path(worker.data_out, 0)
+    assert artifact_path.exists()
+    artifact = ReduceArtifact.from_dict(json.loads(artifact_path.read_text(encoding="utf-8")))
+    assert artifact.name == REDUCE_ARTIFACT_NAME
+    assert artifact.reducer == REDUCER_NAME
+    assert artifact.partial_count == 1
+    assert artifact.partial_ids == ("execution_pandas_worker_0",)
+    assert artifact.payload["row_count"] == 48
+    assert artifact.payload["source_file_count"] == 2
+    assert artifact.payload["engines"] == ["pandas"]
 
 
 def test_execution_pandas_worker_uses_parallel_path_for_pool_mode(tmp_path: Path) -> None:
