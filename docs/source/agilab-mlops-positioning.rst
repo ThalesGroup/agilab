@@ -120,6 +120,9 @@ history:
 - the global DAG execution plan report turns that product graph into ordered
   ``pending/not_executed`` runnable units with artifact dependencies and
   provenance, while still avoiding any app dispatch
+- the global DAG runner state report projects that plan into read-only
+  ``runnable/blocked`` dispatch state, retry and partial-rerun metadata, and
+  operator-facing readiness messages without starting the apps
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future

@@ -44,6 +44,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "multi_app_dag_report_contract",
         "global_pipeline_dag_report_contract",
         "global_pipeline_execution_plan_report_contract",
+        "global_pipeline_runner_state_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -146,6 +147,26 @@ def test_global_pipeline_execution_plan_report_contract_reports_pending_units() 
     assert check["details"]["summary"]["ready_unit_ids"] == ["queue_baseline"]
     assert check["details"]["summary"]["blocked_unit_ids"] == ["relay_followup"]
     assert "global_pipeline_execution_plan_state" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_runner_state_report_contract_reports_dispatch_state() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_runner_state_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["dag_path"] == "docs/source/data/multi_app_dag_sample.json"
+    assert check["details"]["summary"]["runner_mode"] == "read_only_preview"
+    assert check["details"]["summary"]["run_status"] == "not_started"
+    assert check["details"]["summary"]["unit_count"] == 2
+    assert check["details"]["summary"]["runnable_count"] == 1
+    assert check["details"]["summary"]["blocked_count"] == 1
+    assert check["details"]["summary"]["runnable_unit_ids"] == ["queue_baseline"]
+    assert check["details"]["summary"]["blocked_unit_ids"] == ["relay_followup"]
+    assert check["details"]["summary"]["retry_policy_count"] == 2
+    assert check["details"]["summary"]["partial_rerun_record_count"] == 2
+    assert check["details"]["summary"]["operator_state_count"] == 2
+    assert "global_pipeline_runner_state_operator_ui" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

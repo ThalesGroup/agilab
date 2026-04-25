@@ -208,8 +208,8 @@ Why it matters:
 
 Purpose:
 
-- turn the checked-in global DAG and execution plan into a dispatched,
-  operator-visible run state rather than a read-only contract
+- turn the checked-in global DAG, execution plan, and read-only runner state
+  into live dispatched runs with persisted operator-visible status
 
 Current shipped baseline:
 
@@ -223,23 +223,30 @@ Current shipped baseline:
   into ordered runnable units in `pending/not_executed` state, marks
   `queue_baseline` ready, marks `relay_followup` blocked on `queue_metrics`,
   and records provenance for the DAG and each app-local pipeline view
+- `tools/global_pipeline_runner_state_report.py --compact` projects the plan
+  into read-only runner state, marks `queue_baseline` as `runnable`, marks
+  `relay_followup` as `blocked`, and records transition, retry,
+  partial-rerun, operator-message, and provenance metadata without executing
+  apps
 - the compact KPI bundle includes this as
-  `global_pipeline_dag_report_contract` and
-  `global_pipeline_execution_plan_report_contract`
+  `global_pipeline_dag_report_contract`,
+  `global_pipeline_execution_plan_report_contract`, and
+  `global_pipeline_runner_state_report_contract`
 
 Remaining scope:
 
 - explicit upstream/downstream dependency visualization across apps
-- orchestration-state visibility for the full DAG
-- runner dispatch for executing the global graph and recording retries,
-  partial reruns, provenance, and operator-visible state
+- live orchestration-state updates for the full DAG
+- runner dispatch for executing the global graph and persisting retries,
+  partial reruns, provenance, and operator-visible state changes
+- UI components that render the persisted state and support operator actions
 
 Why it matters:
 
 - the report gives AGILab a clearer product story than isolated per-app
   pipelines without overclaiming execution
-- runner dispatch and UI state are still needed before the orchestration layer
-  is fully visible to operators and reviewers
+- runner dispatch and live UI state are still needed before the orchestration
+  layer is fully visible to operators and reviewers
 
 ### 8. Bidirectional notebook interop
 

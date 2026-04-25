@@ -559,6 +559,52 @@ def _check_global_pipeline_execution_plan_report(repo_root: Path) -> dict[str, A
     )
 
 
+def _check_global_pipeline_runner_state_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        runner_state_report = _load_tool_module(repo_root, "global_pipeline_runner_state_report")
+        report = runner_state_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("runner_mode") == "read_only_preview"
+            and summary.get("run_status") == "not_started"
+            and summary.get("unit_count") == 2
+            and summary.get("runnable_count") == 1
+            and summary.get("blocked_count") == 1
+            and summary.get("runnable_unit_ids") == ["queue_baseline"]
+            and summary.get("blocked_unit_ids") == ["relay_followup"]
+            and summary.get("retry_policy_count") == 2
+            and summary.get("partial_rerun_record_count") == 2
+            and summary.get("operator_state_count") == 2
+        )
+        details = {
+            "status": report.get("status"),
+            "dag_path": report.get("dag_path"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "global_pipeline_runner_state_report_contract",
+        "Global pipeline runner state report contract",
+        ok,
+        (
+            "global pipeline runner state report exposes read-only dispatch and UI state"
+            if ok
+            else "global pipeline runner state report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/global_pipeline_runner_state_report.py",
+            "src/agilab/global_pipeline_runner_state.py",
+            "tools/global_pipeline_execution_plan_report.py",
+            "docs/source/data/multi_app_dag_sample.json",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -723,6 +769,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/multi_app_dag_report.py --compact",
             "tools/global_pipeline_dag_report.py --compact",
             "tools/global_pipeline_execution_plan_report.py --compact",
+            "tools/global_pipeline_runner_state_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -737,6 +784,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/multi_app_dag_report.py",
             "tools/global_pipeline_dag_report.py",
             "tools/global_pipeline_execution_plan_report.py",
+            "tools/global_pipeline_runner_state_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -787,6 +835,7 @@ def build_bundle(
         _check_multi_app_dag_report(repo_root),
         _check_global_pipeline_dag_report(repo_root),
         _check_global_pipeline_execution_plan_report(repo_root),
+        _check_global_pipeline_runner_state_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

@@ -175,12 +175,17 @@ single notebook but less ceremony than a production MLOps platform:
   in ``pending/not_executed`` state, records the ``queue_metrics`` dependency,
   and preserves DAG plus ``pipeline_view.dot`` provenance without dispatching
   any app
+- the global DAG runner state report projects that plan into
+  ``runnable/blocked`` dispatch readiness with
+  ``tools/global_pipeline_runner_state_report.py --compact``; it records
+  retry and partial-rerun metadata plus operator-facing readiness messages
+  without claiming live app execution
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and real global DAG runner/UI orchestration is still
-roadmap work.
+merge outputs appear, and real global DAG dispatch plus live operator UI are
+still roadmap work.
 
 Production-readiness controls
 -----------------------------
