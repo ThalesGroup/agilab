@@ -43,6 +43,18 @@ Worker (`mycode_worker.mycode_worker`)
 - Includes placeholder logic for dataset loading and result persistence—replace
   with your domain-specific processing steps.
 
+Reducer contract status
+-----------------------
+``mycode_project`` is template-only. It intentionally does not ship a reducer
+contract because the manager and worker contain placeholders and no concrete
+merge output.
+
+When a cloned project starts producing durable worker summaries, add a
+``reduction.py`` module, emit ``reduce_summary_worker_<id>.json`` artifacts, and
+export a ``*_REDUCE_CONTRACT`` symbol from the manager package. That keeps custom
+apps aligned with the shared ``agi_node`` reducer contract without treating the
+starter template as an unfinished built-in app.
+
 Assets & Tests
 --------------
 - ``app_test.py`` ensures the installer and worker skeleton keep working as the

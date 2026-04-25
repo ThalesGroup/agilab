@@ -70,8 +70,11 @@ agi-core
     when present.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
-  - Other existing apps still own their final merge semantics, so broader app
-    migration beyond the migrated public apps remains roadmap work.
+  - A repository guardrail requires every non-template built-in app to expose a
+    reducer contract. ``mycode_project`` is the explicit template-only
+    exemption because it has placeholder worker hooks and no concrete merge
+    output; future apps/templates must opt in when they produce durable worker
+    summaries.
 
 - **Optimized Run-Mode Selection:**
 
@@ -150,7 +153,7 @@ single notebook but less ceremony than a production MLOps platform:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-broader reduce-contract app migration beyond the migrated public apps remain
+future app/template reducer adoption when concrete merge outputs appear remain
 roadmap work.
 
 Production-readiness controls
