@@ -110,6 +110,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_live_state_updates_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_actions_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_ui_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/notebook_pipeline_import_report.py --compact
 
 The compact compatibility report checks the required public statuses, the proof
 commands behind validated entries, and optional ``run_manifest.json`` evidence.
@@ -127,7 +128,8 @@ consumes that report and includes the ``multi_app_dag_report_contract``,
 ``global_pipeline_dependency_view_report_contract``,
 ``global_pipeline_live_state_updates_report_contract``,
 ``global_pipeline_operator_actions_report_contract``,
-``global_pipeline_operator_ui_report_contract``, and
+``global_pipeline_operator_ui_report_contract``,
+``notebook_pipeline_import_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 checked-in cross-app DAG handoff sample, assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
@@ -142,8 +144,9 @@ project upstream/downstream dependency visualization for
 ``queue_baseline -> relay_followup`` from that operator state, project ordered
 live orchestration-state update payloads from the dependency view, execute
 retry and partial-rerun operator requests through real app-entry action replay,
-render persisted global-DAG state into operator UI components, and verify that
-every non-template built-in app exposes a reducer contract while recording
+render persisted global-DAG state into operator UI components, validate
+notebook-to-pipeline import from a checked-in ``.ipynb`` without executing cells,
+and verify that every non-template built-in app exposes a reducer contract while recording
 ``mycode_project`` as the explicit template-only exemption.
 
 For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``

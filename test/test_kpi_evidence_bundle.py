@@ -52,6 +52,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_live_state_updates_report_contract",
         "global_pipeline_operator_actions_report_contract",
         "global_pipeline_operator_ui_report_contract",
+        "notebook_pipeline_import_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -329,6 +330,26 @@ def test_global_pipeline_operator_ui_report_contract_renders_components() -> Non
     ]
     assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
     assert "global_pipeline_operator_ui_html_render" in check["details"]["check_ids"]
+
+
+def test_notebook_pipeline_import_report_contract_preserves_notebook_metadata() -> None:
+    module = _load_module()
+
+    check = module._check_notebook_pipeline_import_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.notebook_pipeline_import.v1"
+    assert check["details"]["summary"]["run_status"] == "imported"
+    assert check["details"]["summary"]["execution_mode"] == "not_executed_import"
+    assert check["details"]["summary"]["persistence_format"] == "json"
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert check["details"]["summary"]["code_cell_count"] == 2
+    assert check["details"]["summary"]["markdown_cell_count"] == 2
+    assert check["details"]["summary"]["pipeline_step_count"] == 2
+    assert check["details"]["summary"]["context_block_count"] == 2
+    assert check["details"]["summary"]["env_hint_count"] == 3
+    assert check["details"]["summary"]["artifact_reference_count"] == 3
+    assert "notebook_pipeline_import_context_links" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

@@ -956,6 +956,55 @@ def _check_global_pipeline_operator_ui_report(repo_root: Path) -> dict[str, Any]
     )
 
 
+def _check_notebook_pipeline_import_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        notebook_import_report = _load_tool_module(
+            repo_root, "notebook_pipeline_import_report"
+        )
+        report = notebook_import_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.notebook_pipeline_import.v1"
+            and summary.get("run_status") == "imported"
+            and summary.get("execution_mode") == "not_executed_import"
+            and summary.get("persistence_format") == "json"
+            and summary.get("round_trip_ok") is True
+            and summary.get("code_cell_count") == 2
+            and summary.get("markdown_cell_count") == 2
+            and summary.get("pipeline_step_count") == 2
+            and summary.get("context_block_count") == 2
+            and int(summary.get("env_hint_count", 0) or 0) >= 3
+            and int(summary.get("artifact_reference_count", 0) or 0) >= 3
+        )
+        details = {
+            "status": report.get("status"),
+            "notebook_path": report.get("notebook_path"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "notebook_pipeline_import_report_contract",
+        "Notebook pipeline import report contract",
+        ok,
+        (
+            "notebook-to-pipeline import report preserves code, context, "
+            "environment hints, and artifact references without execution"
+            if ok
+            else "notebook-to-pipeline import report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/notebook_pipeline_import_report.py",
+            "src/agilab/notebook_pipeline_import.py",
+            "docs/source/data/notebook_pipeline_import_sample.ipynb",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1128,6 +1177,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_live_state_updates_report.py --compact",
             "tools/global_pipeline_operator_actions_report.py --compact",
             "tools/global_pipeline_operator_ui_report.py --compact",
+            "tools/notebook_pipeline_import_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1150,6 +1200,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_live_state_updates_report.py",
             "tools/global_pipeline_operator_actions_report.py",
             "tools/global_pipeline_operator_ui_report.py",
+            "tools/notebook_pipeline_import_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1208,6 +1259,7 @@ def build_bundle(
         _check_global_pipeline_live_state_updates_report(repo_root),
         _check_global_pipeline_operator_actions_report(repo_root),
         _check_global_pipeline_operator_ui_report(repo_root),
+        _check_notebook_pipeline_import_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),
