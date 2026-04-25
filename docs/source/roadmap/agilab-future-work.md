@@ -299,12 +299,17 @@ Current shipped baseline:
   provenance, runtime metadata, and per-step execution context
 - exported notebooks can include related analysis-page launcher helpers when an
   app declares them
+- `tools/notebook_pipeline_import_report.py --compact` now validates the first
+  notebook-to-pipeline import contract from a checked-in `.ipynb`; it preserves
+  markdown context, code cells, import hints, execution-count metadata, and
+  artifact references as `not_executed_import` pipeline-step evidence
 - this is intentionally not the same thing as flattening a multi-venv pipeline
   into one notebook kernel
 
 Suggested scope:
 
-- import notebook logic into pipeline steps
+- harden notebook-to-pipeline import beyond the initial report, including
+  richer `lab_steps.toml` preview output and UI import integration
 - keep the supervisor-notebook export as the default for mixed-runtime or
   multi-venv pipelines
 - generate an optional union notebook environment only when the pipeline step
