@@ -151,6 +151,38 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_reduce_contract_benchmark(repo_root: Path) -> dict[str, Any]:
+    try:
+        reduce_contract_benchmark = _load_tool_module(repo_root, "reduce_contract_benchmark")
+        summary = reduce_contract_benchmark.run_benchmark()
+        ok = (
+            bool(summary.success)
+            and bool(summary.within_target)
+            and summary.partial_count == reduce_contract_benchmark.DEFAULT_PARTIALS
+            and summary.total_items
+            == reduce_contract_benchmark.DEFAULT_PARTIALS
+            * reduce_contract_benchmark.DEFAULT_ITEMS_PER_PARTIAL
+            and summary.artifact["name"] == "public_reduce_benchmark_summary"
+        )
+        details = asdict(summary)
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "reduce_contract_benchmark",
+        "Reduce contract benchmark",
+        ok,
+        (
+            "public reduce-contract benchmark passes within target"
+            if ok
+            else "public reduce-contract benchmark is failing or incomplete"
+        ),
+        evidence=["tools/reduce_contract_benchmark.py", "README.md"],
+        details=details,
+        executed=True,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -310,6 +342,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
     required = {
         "README.md": [
             "tools/newcomer_first_proof.py --json",
+            "tools/reduce_contract_benchmark.py --json",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -365,6 +398,7 @@ def build_bundle(
     checks = [
         _check_compatibility_matrix(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
+        _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),
         _check_web_robot_contract(repo_root),
         _check_production_readiness_report(repo_root),
