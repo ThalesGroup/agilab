@@ -189,6 +189,8 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"
+    assert state["remediation_status"] == "missing"
+    assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
@@ -214,7 +216,8 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     assert state["helper_scripts_present"] is True
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
-    assert state["next_step"] == "First proof done. Now you can try another demo."
+    assert state["remediation_status"] == "missing_manifest_with_outputs"
+    assert state["next_step"] == "Generate `run_manifest.json` with the first-proof JSON command."
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):

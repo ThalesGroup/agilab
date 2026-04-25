@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import re
 import sys
+from types import SimpleNamespace
 from typing import Any, Sequence
 
 
@@ -145,6 +146,14 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         commands = newcomer_first_proof.build_proof_commands(active_app, with_install=False)
         labels = [command.label for command in commands]
         wizard_content = first_proof_wizard.newcomer_first_proof_content(repo_root)
+        wizard_state = first_proof_wizard.newcomer_first_proof_state(
+            SimpleNamespace(
+                apps_path=repo_root / "src" / "agilab" / "apps" / "builtin",
+                app="flight_project",
+                AGILAB_LOG_ABS=repo_root / ".missing-first-proof-log",
+            ),
+            repo_root=repo_root,
+        )
         ok = (
             labels == ["preinit smoke", "source ui smoke"]
             and float(newcomer_first_proof.DEFAULT_MAX_SECONDS) == 600.0
@@ -164,6 +173,8 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
                 "ORCHESTRATE",
                 "ANALYSIS",
             ]
+            and wizard_state["remediation_status"] == "missing"
+            and "tools/compatibility_report.py --manifest" in wizard_state["evidence_commands"][1]
         )
         details = {
             "active_app": str(active_app),
@@ -179,6 +190,8 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
                 "compatibility_report_status": wizard_content.get("compatibility_report_status"),
                 "run_manifest_filename": wizard_content.get("run_manifest_filename"),
                 "steps": [label for label, _ in wizard_content.get("steps", [])],
+                "remediation_status": wizard_state.get("remediation_status"),
+                "evidence_commands": wizard_state.get("evidence_commands"),
             },
         }
     except Exception as exc:
@@ -189,7 +202,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         "Newcomer first-proof contract",
         ok,
         (
-            "source-checkout newcomer proof is executable and targets the public flight_project"
+            "source-checkout newcomer proof is executable and exposes manifest remediation"
             if ok
             else "source-checkout newcomer proof contract is incomplete"
         ),

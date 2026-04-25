@@ -12,38 +12,33 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **First-proof wizard follow-ups**
-   - the shipped wizard now guides one validated `flight_project` path,
-     consumes compatibility-report status, and detects `run_manifest.json`
-   - future work is external run evidence ingestion and richer remediation, not
-     the baseline in-product route
-2. **Run manifest external ingestion follow-ups**
-   - build on the shipped compatibility-report `--manifest` and
-     `--manifest-dir` inputs
+1. **Run manifest external ingestion follow-ups**
+   - build on the shipped first-proof wizard remediation plus the
+     compatibility-report `--manifest` and `--manifest-dir` inputs
    - add UI import, signed/provenance-tagged attachments, and per-release
      manifest indexes for compatibility and release decisions
-3. **Connector registry hardening**
+2. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
-4. **Multi-app DAG orchestration**
+3. **Multi-app DAG orchestration**
    - extend orchestration from one app flow to DAGs that span multiple apps
    - this is the contract needed before the pipeline can become a true
      cross-app orchestrated graph
-5. **Global orchestrated pipeline DAG**
+4. **Global orchestrated pipeline DAG**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - this depends on clearer multi-app orchestration contracts
-6. **Bidirectional notebook interop**
+5. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
    - add notebook-to-pipeline import maturity and optional single-kernel
      union-environment notebooks when step environments are compatible
-7. **Data connector facility**
+6. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
    - this turns connector work into a practical data-access layer, not just path
      cleanup
-8. **Reduce contract adoption**
+7. **Reduce contract adoption**
    - AGILab already has distributed work-plan execution and an initial shared
      reducer contract
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
@@ -65,15 +60,14 @@ use this order:
      has no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
-9. **Intent-first operator mode**
+8. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
 
 Why this order:
 
-- turn manifest evidence ingestion into guided remediation and release indexes
-  before broader onboarding automation
-- start with validated proof before broader onboarding automation
+- turn the shipped manifest remediation baseline into external evidence import
+  and release indexes before broader onboarding automation
 - stabilize cross-app orchestration before claiming a global orchestrated DAG
 - keep notebook interop after the orchestration contract is clearer
 - stabilize contracts before standardizing distributed reduction
@@ -85,28 +79,7 @@ The most promising Streamlit-style view patterns for AGILab are not generic
 gallery clones. They are focused application views that reinforce AGILab's core
 value: orchestration, evidence, and domain-specific interaction.
 
-### 0. First-proof wizard follow-ups
-
-Purpose:
-
-- extend the shipped first-proof wizard with richer remediation and external
-  run evidence
-- keep newcomers on one successful proof path before branching into cluster,
-  package, or notebook routes
-
-Suggested layout:
-
-- environment readiness checks beyond the current compatibility status
-- failure-specific remediation cards
-- optional external fresh-machine evidence import
-- explicit success or failure evidence history
-
-Why it matters:
-
-- keeps the shipped wizard tied to compatibility and proof contracts
-- avoids growing a separate tutorial-only proof path
-
-### 0b. Run manifest external ingestion follow-ups
+### 0. Run manifest external ingestion follow-ups
 
 Purpose:
 
@@ -124,7 +97,8 @@ Suggested contents:
 
 Why it matters:
 
-- the baseline manifest exists for the first proof
+- the first-proof wizard already handles missing, invalid, incomplete, and
+  failing local manifests with exact recovery commands
 - external ingestion is the next step for compatibility automation and release
   decisions
 
@@ -705,7 +679,6 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- First-proof wizard follow-ups
 - Run manifest external ingestion follow-ups
 - Connector registry hardening
 - Multi-app DAG orchestration

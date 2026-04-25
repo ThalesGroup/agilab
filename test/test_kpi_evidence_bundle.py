@@ -78,6 +78,8 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert wizard["compatibility_status"] == "validated"
     assert wizard["compatibility_report_status"] == "pass"
     assert wizard["run_manifest_filename"] == "run_manifest.json"
+    assert wizard["remediation_status"] == "missing"
+    assert "tools/compatibility_report.py --manifest" in wizard["evidence_commands"][1]
     assert wizard["steps"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
 
 

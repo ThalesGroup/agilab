@@ -189,6 +189,32 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
             )
         else:
             st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
+
+        if state["remediation_status"] == "passed":
+            st.caption(state["remediation_title"])
+        elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
+            st.info(state["remediation_title"])
+        else:
+            st.warning(state["remediation_title"])
+
+        st.markdown("**Recovery checklist**")
+        st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
+        st.markdown("**Evidence commands**")
+        st.code("\n".join(state["evidence_commands"]), language="bash")
+        if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
+            validation_preview = "; ".join(
+                f"{row['label']}={row['status']}"
+                for row in state["run_manifest_validation_rows"]
+            )
+            st.caption(f"Manifest validations: {validation_preview}")
+        st.caption(
+            "Evidence links: "
+            + " | ".join(
+                f"[{label}]({url})"
+                for label, url in state["remediation_links"]
+            )
+        )
+
         st.markdown("**Do this now**")
         step_lines = [
             f"{index}. {detail}"
