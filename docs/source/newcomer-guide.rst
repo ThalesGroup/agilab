@@ -45,7 +45,8 @@ Adoption evidence
 -----------------
 
 On April 24, 2026, the source-checkout first-proof smoke passed locally in
-``5.86s`` against the ``600s`` target:
+``5.86s`` against the ``600s`` target. On April 25, 2026, the same
+source-checkout proof passed on a fresh external machine in ``26.87s``:
 
 .. code-block:: bash
 
@@ -53,8 +54,9 @@ On April 24, 2026, the source-checkout first-proof smoke passed locally in
 
 That supports an ``Ease of adoption`` score of ``3.5 / 5``: the public demo
 works, the first routes are explicit, PyCharm is optional, installer tests are
-opt-in, and the local proof is measurable. It is not scored higher yet because
-the same measurement still needs a fresh external machine.
+opt-in, and the source-checkout proof now has one fresh external-machine
+replication. It is not scored higher yet because broader OS and network
+replication remains open.
 
 What to ignore on day 1
 -----------------------
