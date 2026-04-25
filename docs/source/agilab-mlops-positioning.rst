@@ -73,6 +73,9 @@ interactive exploration into a replayable, inspectable workflow:
 - the notebook round-trip report validates ``lab_steps.toml -> supervisor
   notebook -> import -> lab_steps preview`` so saved step fields survive the
   non-executing bridge in both directions
+- the notebook union-environment report allows a ``single-kernel union
+  notebook`` only for compatible steps and keeps mixed-runtime pipelines on the
+  supervisor notebook path
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -119,6 +122,8 @@ history:
 - the notebook round-trip report checks that supervisor export metadata can be
   re-imported into ``lab_steps.toml`` preview fields without losing D/Q/M/C/R
   step values
+- the notebook union-environment report makes the single-kernel shortcut
+  explicit and prevents mixed environments from being flattened accidentally
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -230,6 +235,8 @@ between research experiments and engineering validation:
   boundary
 - a notebook round-trip report that validates the first bidirectional
   ``lab_steps.toml`` and supervisor-notebook preservation path
+- a notebook union-environment report that makes compatible single-kernel
+  notebooks possible without weakening the supervisor fallback boundary
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

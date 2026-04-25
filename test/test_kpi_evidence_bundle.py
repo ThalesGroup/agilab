@@ -54,6 +54,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_operator_ui_report_contract",
         "notebook_pipeline_import_report_contract",
         "notebook_roundtrip_report_contract",
+        "notebook_union_environment_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -369,6 +370,20 @@ def test_notebook_roundtrip_report_contract_preserves_lab_steps_fields() -> None
     assert check["details"]["summary"]["env_hint_count"] == 3
     assert check["details"]["summary"]["artifact_reference_count"] == 3
     assert "notebook_roundtrip_lab_steps_fields" in check["details"]["check_ids"]
+
+
+def test_notebook_union_environment_report_contract_guards_mixed_runtimes() -> None:
+    module = _load_module()
+
+    check = module._check_notebook_union_environment_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["compatible_union_mode"] == "single_kernel_union_candidate"
+    assert check["details"]["summary"]["incompatible_union_mode"] == "supervisor_notebook_required"
+    assert check["details"]["summary"]["compatible_step_count"] == 2
+    assert check["details"]["summary"]["code_cell_count"] == 2
+    assert check["details"]["summary"]["incompatible_issue_count"] >= 2
+    assert "notebook_union_environment_mixed_runtime_guard" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
