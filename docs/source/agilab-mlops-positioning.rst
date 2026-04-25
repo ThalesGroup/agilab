@@ -172,6 +172,9 @@ history:
 - the CI artifact harvest report maps external-machine evidence attachments to
   a release status with SHA-256 and provenance checks without querying live CI
   providers
+- Release Decision can import that ``ci_artifact_harvest.json`` output, display
+  checksum/provenance rows, block invalid harvests, and export the harvest
+  summary with ``promotion_decision.json``
 - the multi-app DAG contract validates a first cross-app handoff from
   ``uav_queue_project`` to ``uav_relay_queue_project`` through
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
@@ -243,7 +246,8 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
   no-execution JSON contract suitable for public evidence review
 - the CI artifact harvest report gives external-machine replication a
   contract-only attachment model for manifest, KPI, compatibility, and
-  promotion-decision evidence
+  promotion-decision evidence, and Release Decision can consume that model as
+  promotion evidence
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
@@ -310,6 +314,7 @@ between research experiments and engineering validation:
   check, manifest, and artifact deltas into reviewable prompts
 - a CI artifact harvest report that turns external-machine evidence attachments
   into validated release-status inputs
+- Release Decision import/export support for those harvested attachment rows
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

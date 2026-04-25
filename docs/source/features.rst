@@ -318,12 +318,15 @@ production platform:
   registry paths, manifest summary, import summary, provenance-tagged attachment
   metadata, per-release ``manifest_index.json`` evidence history,
   cross-release manifest comparison, cross-run evidence bundle comparison, and
-  gate details
+  gate details; it also imports ``ci_artifact_harvest.json`` evidence, displays
+  artifact kind/status/checksum/provenance rows, blocks invalid harvests, and
+  exports ``ci_artifact_harvest_summary`` plus ``ci_artifact_harvest_evidence``
 - ``tools/run_diff_evidence_report.py --compact`` gives that comparison work a
   machine-checkable, no-execution run-diff/counterfactual evidence contract
 - ``tools/ci_artifact_harvest_report.py --compact`` adds the matching
-  external-machine attachment contract for CI-produced evidence bundles without
-  live CI or network access
+  external-machine attachment contract for CI-produced evidence bundles, and
+  the Release Decision page can now consume that JSON without live CI or network
+  access
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

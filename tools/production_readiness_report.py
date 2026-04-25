@@ -265,6 +265,9 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
                 "manifest_index_comparison_summary",
                 "evidence_bundle_comparison",
                 "evidence_bundle_comparison_summary",
+                "ci_artifact_harvest_summary",
+                "ci_artifact_harvest_evidence",
+                "CI artifact harvest evidence",
                 "manifest_index.json",
                 "attachment_sha256",
                 "signature_status",
@@ -277,6 +280,7 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
                 "apply explicit artifact and KPI gates",
                 "gate promotion on first-proof `run_manifest.json`",
                 "import external run-manifest evidence",
+                "import CI artifact harvest evidence",
                 "provenance-tagged with SHA-256",
                 "connector path registry",
                 "manifest_index.json",
@@ -287,9 +291,11 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
             str(test_path.relative_to(repo_root)): [
                 "test_view_release_decision_renders_promotable_candidate_and_exports_json",
                 "test_view_release_decision_imports_external_manifest_for_gate",
+                "test_view_release_decision_imports_ci_artifact_harvest_for_export",
                 "run_manifest_gates",
                 "run_manifest_summary",
                 "run_manifest_import_summary",
+                "ci_artifact_harvest_summary",
                 "manifest_index_summary",
                 "manifest_index_comparison_summary",
                 "evidence_bundle_comparison_summary",
@@ -316,7 +322,7 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
         details = {"error": str(exc)}
     summary = (
         "release-decision page exports promotion_decision.json and manifest_index.json "
-        "with connector-registry and provenance-tagged cross-run gates"
+        "with connector-registry, CI artifact harvest, and provenance-tagged cross-run gates"
         if ok
         else "release-decision page export contract is incomplete"
     )

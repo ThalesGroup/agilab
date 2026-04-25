@@ -8,6 +8,7 @@ Primary use:
 - resolve artifact, log, export, and first-proof paths through the shared connector path registry
 - gate promotion on first-proof `run_manifest.json`
 - import external run-manifest evidence with `--manifest` / `--manifest-dir`
+- import CI artifact harvest evidence from `ci_artifact_harvest.json`
 - attach SHA-256, size, mtime, provenance tag, and optional sidecar signature metadata to imported manifests
 - apply explicit artifact and KPI gates
 - export `promotion_decision.json`
@@ -55,6 +56,21 @@ If a sidecar signature exists next to the manifest as `.sig`, `.minisig`, or
 signed. A passing imported `source-checkout-first-proof` manifest can satisfy
 the first-proof gate, and the same import summary is written to
 `promotion_decision.json`.
+
+Paste CI artifact harvest evidence into **CI artifact harvest evidence** when
+external-machine evidence has already been collected as a
+`ci_artifact_harvest.json` report, for example:
+
+```bash
+--ci-artifact-harvest /path/to/ci_artifact_harvest.json
+```
+
+The page shows the harvested attachment kind, payload status, SHA-256
+verification status, source machine, workflow, CI run id, and release status.
+A provided harvest blocks promotion if it is invalid, incomplete, or contains
+checksum mismatches. The harvest summary and rows are exported in
+`promotion_decision.json` as `ci_artifact_harvest_summary` and
+`ci_artifact_harvest_evidence`.
 
 Export also updates `<artifact_root>/manifest_index.json`. The index groups
 imported run manifests by candidate bundle, so later release decisions can keep
